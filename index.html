@@ -1,1 +1,1205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Wellet - Memory System for Caregivers</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
+    :root {
+      --deep-moss: #608F7C;
+      --sage-green: #98B190;
+      --forest-green: #4F4D5C;
+      --light-mint: #DCE9E2;
+      --soft-white: #F7F9F7;
+      --charcoal-black: #2B2F2E;
+      --slate-gray: #6E7572;
+      --spacing-xs: 4px;
+      --spacing-sm: 8px;
+      --spacing-md: 12px;
+      --spacing-lg: 16px;
+      --spacing-xl: 20px;
+      --spacing-xxl: 24px;
+      --spacing-xxxl: 32px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+      background: var(--soft-white);
+      color: var(--charcoal-black);
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    .app {
+      max-width: 393px;
+      margin: 0 auto;
+      min-height: 100vh;
+      background: var(--soft-white);
+      position: relative;
+    }
+
+    .screen {
+      min-height: 100vh;
+      padding: var(--spacing-lg);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--spacing-lg);
+      position: sticky;
+      top: 0;
+      background: var(--soft-white);
+      z-index: 10;
+      border-bottom: 1px solid rgba(79, 77, 92, 0.1);
+    }
+
+    .header-back {
+      background: none;
+      border: none;
+      color: var(--deep-moss);
+      font-size: 17px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+      padding: var(--spacing-sm);
+    }
+
+    .header-title {
+      font-size: 19px;
+      font-weight: 600;
+      color: var(--charcoal-black);
+    }
+
+    .logo {
+      font-size: 48px;
+      font-weight: 300;
+      color: var(--deep-moss);
+      text-align: center;
+      font-style: italic;
+      letter-spacing: -1px;
+    }
+
+    .h1 {
+      font-size: 34px;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: var(--spacing-lg);
+      text-align: center;
+    }
+
+    .h2 {
+      font-size: 28px;
+      font-weight: 600;
+      line-height: 1.2;
+      margin-bottom: var(--spacing-md);
+    }
+
+    .body-default {
+      font-size: 17px;
+      line-height: 1.5;
+    }
+
+    .body-small {
+      font-size: 15px;
+      line-height: 1.5;
+      color: var(--slate-gray);
+    }
+
+    .caption {
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--slate-gray);
+    }
+
+    .btn-primary {
+      background: var(--deep-moss);
+      color: var(--soft-white);
+      border: none;
+      border-radius: 8px;
+      padding: var(--spacing-md) var(--spacing-xl);
+      font-size: 17px;
+      font-weight: 600;
+      min-height: 44px;
+      cursor: pointer;
+      width: 100%;
+      transition: background 0.2s;
+    }
+
+    .btn-primary:active {
+      background: var(--sage-green);
+    }
+
+    .btn-text {
+      background: none;
+      border: none;
+      color: var(--deep-moss);
+      font-size: 17px;
+      padding: var(--spacing-sm);
+      cursor: pointer;
+      text-align: center;
+      width: 100%;
+    }
+
+    .progress-dots {
+      display: flex;
+      gap: var(--spacing-sm);
+      justify-content: center;
+      margin-bottom: var(--spacing-xxxl);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #D4D4D4;
+    }
+
+    .dot.active {
+      background: var(--deep-moss);
+    }
+
+    .benefits {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-xxl);
+      margin: var(--spacing-xxxl) 0;
+    }
+
+    .benefit-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--spacing-sm);
+      text-align: center;
+    }
+
+    .benefit-icon {
+      font-size: 32px;
+    }
+
+    .selection-cards {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-md);
+      margin: var(--spacing-xxl) 0;
+    }
+
+    .selection-card {
+      background: white;
+      border: 1.5px solid #D4D4D4;
+      border-radius: 8px;
+      padding: var(--spacing-lg);
+      min-height: 56px;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .selection-card:active {
+      transform: scale(0.98);
+    }
+
+    .selection-card.selected {
+      border: 2px solid var(--deep-moss);
+      background: var(--light-mint);
+    }
+
+    .selection-card.selected::after {
+      content: '✓';
+      position: absolute;
+      right: var(--spacing-lg);
+      color: var(--deep-moss);
+      font-weight: 600;
+    }
+
+    .input {
+      width: 100%;
+      background: white;
+      border: 1px solid #D4D4D4;
+      border-radius: 8px;
+      padding: var(--spacing-md);
+      font-size: 17px;
+      min-height: 44px;
+      margin: var(--spacing-xxl) 0;
+    }
+
+    .input:focus {
+      outline: none;
+      border: 2px solid var(--deep-moss);
+    }
+
+    .timeline {
+      flex: 1;
+      overflow-y: auto;
+      padding-bottom: 80px;
+    }
+
+    .timeline-section {
+      margin-bottom: var(--spacing-xxl);
+    }
+
+    .timeline-header {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--slate-gray);
+      margin-bottom: var(--spacing-md);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .event-card {
+      background: white;
+      border: 1px solid rgba(79, 77, 92, 0.1);
+      border-radius: 12px;
+      padding: var(--spacing-lg);
+      margin-bottom: var(--spacing-md);
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .event-card:active {
+      transform: scale(0.98);
+    }
+
+    .event-header {
+      display: flex;
+      gap: var(--spacing-md);
+      align-items: flex-start;
+    }
+
+    .event-icon {
+      flex-shrink: 0;
+      color: var(--deep-moss);
+    }
+
+    .event-content {
+      flex: 1;
+    }
+
+    .event-title {
+      font-size: 19px;
+      font-weight: 600;
+      margin-bottom: var(--spacing-xs);
+    }
+
+    .event-timestamp {
+      font-size: 15px;
+      color: var(--slate-gray);
+    }
+
+    .quick-capture {
+      background: var(--light-mint);
+      border-radius: 16px;
+      padding: var(--spacing-lg);
+      margin-bottom: var(--spacing-xxl);
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-md);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .quick-capture:active {
+      transform: scale(0.98);
+    }
+
+    .chat-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-lg);
+      overflow-y: auto;
+      padding-bottom: var(--spacing-xxl);
+    }
+
+    .chat-bubble {
+      max-width: 85%;
+      padding: var(--spacing-md);
+      border-radius: 16px;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .chat-bubble.wellet {
+      background: var(--light-mint);
+      border-bottom-left-radius: 4px;
+      align-self: flex-start;
+    }
+
+    .chat-bubble.user {
+      background: var(--deep-moss);
+      color: var(--soft-white);
+      border-bottom-right-radius: 4px;
+      align-self: flex-end;
+    }
+
+    .chat-input-container {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      border-top: 1px solid rgba(79, 77, 92, 0.1);
+      padding: var(--spacing-lg);
+      max-width: 393px;
+      margin: 0 auto;
+    }
+
+    .chat-input {
+      display: flex;
+      gap: var(--spacing-md);
+      align-items: center;
+    }
+
+    .chat-input input {
+      flex: 1;
+      background: var(--soft-white);
+      border: 1px solid #D4D4D4;
+      border-radius: 20px;
+      padding: var(--spacing-md) var(--spacing-lg);
+      font-size: 17px;
+    }
+
+    .chat-input input:focus {
+      outline: none;
+      border: 2px solid var(--deep-moss);
+    }
+
+    .icon-button {
+      background: var(--deep-moss);
+      border: none;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .icon-button:active {
+      background: var(--sage-green);
+    }
+
+    .date-buttons {
+      display: flex;
+      gap: var(--spacing-md);
+      margin: var(--spacing-lg) 0;
+    }
+
+    .date-button {
+      flex: 1;
+      background: white;
+      border: 1.5px solid var(--deep-moss);
+      border-radius: 8px;
+      padding: var(--spacing-md);
+      cursor: pointer;
+      color: var(--deep-moss);
+      font-size: 15px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .date-button:active {
+      background: var(--light-mint);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: var(--spacing-xxxl);
+      color: var(--slate-gray);
+    }
+
+    .footer {
+      margin-top: auto;
+      padding-top: var(--spacing-xxl);
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-md);
+    }
+
+    .spacer {
+      flex: 1;
+    }
+
+    .success-icon {
+      width: 80px;
+      height: 80px;
+      background: var(--deep-moss);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: var(--spacing-xxxl) auto;
+      font-size: 48px;
+    }
+
+    .event-detail {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .event-detail-header {
+      margin-bottom: var(--spacing-xxl);
+    }
+
+    .event-detail-date {
+      font-size: 15px;
+      color: var(--slate-gray);
+      margin-bottom: var(--spacing-sm);
+    }
+
+    .event-detail-content {
+      background: var(--light-mint);
+      border-radius: 12px;
+      padding: var(--spacing-lg);
+      margin: var(--spacing-lg) 0;
+    }
+
+    .content-label {
+      font-size: 13px;
+      color: var(--slate-gray);
+      margin-bottom: var(--spacing-sm);
+    }
+  </style>
+</head>
+<body>
+  <div id="app" class="app"></div>
+
+  <script>
+    const state = {
+      currentScreen: 'welcome',
+      onboarding: {
+        relationship: null,
+        name: null,
+        pronouns: null,
+        context: null
+      },
+      currentPerson: null,
+      events: [],
+      chatMessages: [],
+      currentEvent: null
+    };
+
+    const db = {
+      async init() {
+        return new Promise((resolve, reject) => {
+          const request = indexedDB.open('WelletDB', 1);
+          
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+          
+          request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            
+            if (!db.objectStoreNames.contains('people')) {
+              db.createObjectStore('people', { keyPath: 'id' });
+            }
+            
+            if (!db.objectStoreNames.contains('events')) {
+              const eventStore = db.createObjectStore('events', { keyPath: 'id' });
+              eventStore.createIndex('personId', 'personId', { unique: false });
+              eventStore.createIndex('eventDate', 'eventDate', { unique: false });
+            }
+          };
+        });
+      },
+
+      async savePerson(person) {
+        const database = await this.init();
+        const transaction = database.transaction(['people'], 'readwrite');
+        const store = transaction.objectStore('people');
+        await store.put(person);
+        return person;
+      },
+
+      async saveEvent(event) {
+        const database = await this.init();
+        const transaction = database.transaction(['events'], 'readwrite');
+        const store = transaction.objectStore('events');
+        await store.put(event);
+        return event;
+      },
+
+      async getEvents(personId) {
+        const database = await this.init();
+        const transaction = database.transaction(['events'], 'readonly');
+        const store = transaction.objectStore('events');
+        const index = store.index('personId');
+        
+        return new Promise((resolve) => {
+          const request = index.getAll(personId);
+          request.onsuccess = () => resolve(request.result);
+        });
+      },
+
+      async getCurrentPerson() {
+        const database = await this.init();
+        const transaction = database.transaction(['people'], 'readonly');
+        const store = transaction.objectStore('people');
+        
+        return new Promise((resolve) => {
+          const request = store.getAll();
+          request.onsuccess = () => {
+            const people = request.result;
+            resolve(people[0] || null);
+          };
+        });
+      }
+    };
+
+    function generateId() {
+      return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    }
+
+    function formatDate(timestamp) {
+      const date = new Date(timestamp);
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      if (date.toDateString() === today.toDateString()) {
+        return 'Today';
+      } else if (date.toDateString() === yesterday.toDateString()) {
+        return 'Yesterday';
+      } else {
+        return date.toLocaleDateString('en-US', { 
+          weekday: 'long', 
+          month: 'short', 
+          day: 'numeric' 
+        });
+      }
+    }
+
+    function formatDateTime(timestamp) {
+      const date = new Date(timestamp);
+      return date.toLocaleString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+      });
+    }
+
+    function groupEventsByPeriod(events) {
+      const sorted = [...events].sort((a, b) => b.eventDate - a.eventDate);
+      const groups = {};
+      const now = Date.now();
+      const oneWeek = 7 * 24 * 60 * 60 * 1000;
+      const twoWeeks = 14 * 24 * 60 * 60 * 1000;
+      const oneMonth = 30 * 24 * 60 * 60 * 1000;
+
+      sorted.forEach(event => {
+        const age = now - event.eventDate;
+        let period;
+
+        if (age < oneWeek) {
+          period = 'This Week';
+        } else if (age < twoWeeks) {
+          period = 'Last Week';
+        } else if (age < oneMonth) {
+          period = 'Earlier This Month';
+        } else {
+          const date = new Date(event.eventDate);
+          period = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        }
+
+        if (!groups[period]) {
+          groups[period] = [];
+        }
+        groups[period].push(event);
+      });
+
+      return groups;
+    }
+
+    function navigateTo(screen, data = {}) {
+      state.currentScreen = screen;
+      if (data.event) state.currentEvent = data.event;
+      render();
+    }
+
+    function WelcomeScreen() {
+      return `
+        <div class="screen">
+          <div class="spacer"></div>
+          <div class="logo">wellet</div>
+          <h1 class="h1">Welcome to Wellet</h1>
+          <p class="body-default" style="text-align: center; max-width: 343px; margin: 0 auto;">
+            Wellet helps you remember what happened, across fragmented systems and delayed understanding.
+          </p>
+          
+          <div class="benefits">
+            <div class="benefit-item">
+              <div class="benefit-icon">🤍</div>
+              <div class="body-default">Quiet by default</div>
+            </div>
+            <div class="benefit-item">
+              <div class="benefit-icon">📅</div>
+              <div class="body-default">Remembers for you</div>
+            </div>
+            <div class="benefit-item">
+              <div class="benefit-icon">🔒</div>
+              <div class="body-default">Private and secure</div>
+            </div>
+          </div>
+
+          <div class="spacer"></div>
+
+          <div class="footer">
+            <button class="btn-primary" onclick="navigateTo('relationship')">
+              Let's Get Started
+            </button>
+            <p class="caption" style="text-align: center;">HIPAA compliant & secure</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function RelationshipScreen() {
+      const relationships = [
+        'Myself',
+        'A parent',
+        'My partner or spouse',
+        'My child',
+        'Someone else I care about'
+      ];
+
+      return `
+        <div class="screen">
+          <div class="progress-dots">
+            <div class="dot active"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+          </div>
+
+          <h2 class="h2" style="text-align: center; max-width: 343px; margin: 0 auto;">
+            Who are you here for?
+          </h2>
+          <p class="body-small" style="text-align: center; margin-top: var(--spacing-md);">
+            You can add more people later
+          </p>
+
+          <div class="selection-cards">
+            ${relationships.map((rel) => `
+              <div class="selection-card ${state.onboarding.relationship === rel ? 'selected' : ''}" 
+                   onclick="selectRelationship('${rel}')">
+                ${rel}
+              </div>
+            `).join('')}
+          </div>
+
+          <div class="spacer"></div>
+
+          <button class="btn-primary" 
+                  ${!state.onboarding.relationship ? 'disabled' : ''}
+                  onclick="navigateTo('name')">
+            Continue
+          </button>
+        </div>
+      `;
+    }
+
+    function NameScreen() {
+      return `
+        <div class="screen">
+          <div class="progress-dots">
+            <div class="dot active"></div>
+            <div class="dot active"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+          </div>
+
+          <h2 class="h2" style="text-align: center; max-width: 343px; margin: 0 auto;">
+            What would you like to call them?
+          </h2>
+          <p class="body-small" style="text-align: center; margin-top: var(--spacing-md);">
+            This helps personalize your experience
+          </p>
+
+          <input type="text" 
+                 class="input" 
+                 placeholder="e.g., Mom, John, Sarah"
+                 value="${state.onboarding.name || ''}"
+                 oninput="state.onboarding.name = this.value; render();">
+
+          <p class="body-small" style="text-align: center; color: var(--slate-gray);">
+            You can change this anytime
+          </p>
+
+          <div class="spacer"></div>
+
+          <div style="display: flex; flex-direction: column; gap: var(--spacing-md);">
+            <button class="btn-primary" onclick="navigateTo('pronouns')">
+              Continue
+            </button>
+            <button class="btn-text" onclick="state.onboarding.name = null; navigateTo('pronouns')">
+              Skip for now
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function PronounsScreen() {
+      const pronouns = ['She / Her', 'He / Him', 'They / Them', 'Prefer not to say'];
+
+      return `
+        <div class="screen">
+          <div class="progress-dots">
+            <div class="dot active"></div>
+            <div class="dot active"></div>
+            <div class="dot active"></div>
+            <div class="dot"></div>
+          </div>
+
+          <h2 class="h2" style="text-align: center; max-width: 343px; margin: 0 auto;">
+            Which pronouns should I use?
+          </h2>
+          <p class="body-small" style="text-align: center; margin-top: var(--spacing-md);">
+            Optional - helps me use the right language
+          </p>
+
+          <div class="selection-cards">
+            ${pronouns.map(pronoun => `
+              <div class="selection-card ${state.onboarding.pronouns === pronoun ? 'selected' : ''}" 
+                   onclick="selectPronouns('${pronoun}')">
+                ${pronoun}
+              </div>
+            `).join('')}
+          </div>
+
+          <div class="spacer"></div>
+
+          <div style="display: flex; flex-direction: column; gap: var(--spacing-md);">
+            <button class="btn-primary" onclick="navigateTo('context')">
+              Continue
+            </button>
+            <button class="btn-text" onclick="state.onboarding.pronouns = null; navigateTo('context')">
+              Skip this step
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function ContextScreen() {
+      const contexts = [
+        'Ongoing care and coordination',
+        'Recent health changes',
+        'Post-surgery recovery',
+        'Pregnancy',
+        'Menopause',
+        'End-of-life care',
+        'Just want to remember what\'s happening',
+        'Prefer not to say'
+      ];
+
+      return `
+        <div class="screen">
+          <div class="progress-dots">
+            <div class="dot active"></div>
+            <div class="dot active"></div>
+            <div class="dot active"></div>
+            <div class="dot active"></div>
+          </div>
+
+          <h2 class="h2" style="text-align: center; max-width: 343px; margin: 0 auto;">
+            What brings you here?
+          </h2>
+          <p class="body-small" style="text-align: center; margin-top: var(--spacing-md);">
+            This helps me use the right tone
+          </p>
+
+          <div class="selection-cards">
+            ${contexts.map(context => `
+              <div class="selection-card ${state.onboarding.context === context ? 'selected' : ''}" 
+                   onclick="selectContext('${context.replace(/'/g, "\\'")}')">
+                ${context}
+              </div>
+            `).join('')}
+          </div>
+
+          <div class="spacer"></div>
+
+          <button class="btn-primary" onclick="completeOnboarding()">
+            Start Using Wellet
+          </button>
+        </div>
+      `;
+    }
+
+    function SuccessScreen() {
+      return `
+        <div class="screen">
+          <div class="spacer"></div>
+          
+          <div class="success-icon">✓</div>
+          
+          <h1 class="h1">You're all set!</h1>
+          <p class="body-default" style="text-align: center; max-width: 343px; margin: 0 auto var(--spacing-xxxl);">
+            Wellet is ready to help you remember what matters
+          </p>
+
+          <div style="background: white; border: 1px solid rgba(79, 77, 92, 0.1); border-radius: 12px; padding: var(--spacing-lg); margin-bottom: var(--spacing-xxl);">
+            <div style="display: flex; align-items: center; gap: var(--spacing-md); margin-bottom: var(--spacing-md);">
+              <span style="font-size: 16px;">🤍</span>
+              <div style="background: var(--light-mint); border-radius: 12px; padding: var(--spacing-md); flex: 1;">
+                <p class="body-default">Tell me what happened</p>
+              </div>
+            </div>
+            <div style="display: flex; gap: var(--spacing-md); align-items: center; padding-left: var(--spacing-xxxl);">
+              <span style="font-size: 20px;">📅</span>
+              <p class="body-small">Your first event will appear here</p>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: var(--spacing-lg); text-align: left; margin-bottom: var(--spacing-xxxl);">
+            <div class="body-small">📱 Capture events by voice or text</div>
+            <div class="body-small">🤍 Get gentle observations over time</div>
+            <div class="body-small">📄 Create summaries when you need them</div>
+          </div>
+
+          <div class="spacer"></div>
+
+          <button class="btn-primary" onclick="navigateTo('timeline')">
+            Go to Timeline
+          </button>
+        </div>
+      `;
+    }
+
+    function TimelineScreen() {
+      const groupedEvents = groupEventsByPeriod(state.events);
+      const hasEvents = state.events.length > 0;
+
+      return `
+        <div class="screen" style="padding: 0;">
+          <div class="header">
+            <div class="header-title">wellet</div>
+          </div>
+
+          <div style="padding: var(--spacing-lg);">
+            <div class="quick-capture" onclick="navigateTo('capture')">
+              <span style="font-size: 16px;">🤍</span>
+              <div class="body-default" style="color: var(--charcoal-black);">
+                Tell me what happened
+              </div>
+            </div>
+
+            ${!hasEvents ? `
+              <div class="empty-state">
+                <p class="body-default">Your timeline will appear here</p>
+                <p class="body-small" style="margin-top: var(--spacing-md);">
+                  Tap "Tell me what happened" above to start
+                </p>
+              </div>
+            ` : `
+              <div class="timeline">
+                ${Object.entries(groupedEvents).map(([period, events]) => `
+                  <div class="timeline-section">
+                    <div class="timeline-header">${period}</div>
+                    ${events.map(event => `
+                      <div class="event-card" onclick='viewEvent(${JSON.stringify(event).replace(/'/g, "\\'"")})'>
+                        <div class="event-header">
+                          <span class="event-icon">📅</span>
+                          <div class="event-content">
+                            <div class="event-title">${event.title}</div>
+                            <div class="event-timestamp">${formatDate(event.eventDate)}</div>
+                          </div>
+                        </div>
+                      </div>
+                    `).join('')}
+                  </div>
+                `).join('')}
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
+    function EventCaptureScreen() {
+      return `
+        <div class="screen" style="padding: 0;">
+          <div class="header">
+            <button class="header-back" onclick="navigateTo('timeline')">
+              ← Back
+            </button>
+          </div>
+
+          <div style="padding: var(--spacing-lg); flex: 1; display: flex; flex-direction: column;">
+            <div class="chat-container">
+              ${state.chatMessages.map(msg => `
+                <div class="chat-bubble ${msg.type}">
+                  ${msg.content}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="chat-input-container">
+            <div class="chat-input">
+              <input type="text" 
+                     id="chatInput"
+                     placeholder="Type here..."
+                     onkeypress="if(event.key === 'Enter') sendMessage()">
+              <button class="icon-button" onclick="sendMessage()">
+                <span style="font-size: 20px;">→</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function EventDetailScreen() {
+      const event = state.currentEvent;
+      if (!event) return '';
+
+      return `
+        <div class="screen" style="padding: 0;">
+          <div class="header">
+            <button class="header-back" onclick="navigateTo('timeline')">
+              ← Timeline
+            </button>
+          </div>
+
+          <div style="padding: var(--spacing-lg); flex: 1; overflow-y: auto;">
+            <div class="event-detail">
+              <div class="event-detail-header">
+                <div class="event-detail-date">${formatDateTime(event.createdAt)}</div>
+                <h2 class="h2">${event.title}</h2>
+              </div>
+
+              <div class="content-label">You wrote:</div>
+              <div class="event-detail-content">
+                <p class="body-default">${event.content}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    window.selectRelationship = (relationship) => {
+      state.onboarding.relationship = relationship;
+      render();
+    };
+
+    window.selectPronouns = (pronouns) => {
+      state.onboarding.pronouns = pronouns;
+      render();
+    };
+
+    window.selectContext = (context) => {
+      state.onboarding.context = context;
+      render();
+    };
+
+    window.completeOnboarding = async () => {
+      const person = {
+        id: generateId(),
+        ...state.onboarding,
+        createdAt: Date.now()
+      };
+      
+      await db.savePerson(person);
+      state.currentPerson = person;
+      
+      navigateTo('success');
+    };
+
+    window.navigateTo = navigateTo;
+
+    window.viewEvent = (event) => {
+      navigateTo('detail', { event });
+    };
+
+    let chatStep = 0;
+    let pendingEvent = {};
+
+    window.sendMessage = async () => {
+      const input = document.getElementById('chatInput');
+      const message = input.value.trim();
+      if (!message) return;
+
+      state.chatMessages.push({
+        type: 'user',
+        content: message
+      });
+
+      input.value = '';
+      render();
+
+      setTimeout(async () => {
+        if (chatStep === 0) {
+          pendingEvent.content = message;
+          pendingEvent.title = message.slice(0, 50) + (message.length > 50 ? '...' : '');
+          
+          state.chatMessages.push({
+            type: 'wellet',
+            content: 'When did this happen?'
+          });
+          
+          state.chatMessages.push({
+            type: 'wellet',
+            content: `
+              <div class="date-buttons">
+                <button class="date-button" onclick="selectDate('today')">Today</button>
+                <button class="date-button" onclick="selectDate('yesterday')">Yesterday</button>
+                <button class="date-button" onclick="selectDate('custom')">Pick date</button>
+              </div>
+            `
+          });
+          
+          chatStep = 1;
+          render();
+        }
+      }, 500);
+    };
+
+    window.selectDate = async (dateType) => {
+      let eventDate;
+      
+      if (dateType === 'today') {
+        eventDate = Date.now();
+      } else if (dateType === 'yesterday') {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        eventDate = yesterday.getTime();
+      } else {
+        eventDate = Date.now();
+      }
+
+      pendingEvent.eventDate = eventDate;
+      
+      const event = {
+        id: generateId(),
+        personId: state.currentPerson.id,
+        ...pendingEvent,
+        createdAt: Date.now(),
+        attachments: []
+      };
+
+      await db.saveEvent(event);
+      state.events.push(event);
+
+      state.chatMessages.push({
+        type: 'wellet',
+        content: "Got it. I've saved this. You can always add more details later."
+      });
+
+      render();
+
+      setTimeout(() => {
+        state.chatMessages = [];
+        chatStep = 0;
+        pendingEvent = {};
+        navigateTo('timeline');
+      }, 2000);
+    };
+
+    function initializeChat() {
+      if (state.currentScreen === 'capture' && state.chatMessages.length === 0) {
+        state.chatMessages = [{
+          type: 'wellet',
+          content: 'What happened?'
+        }];
+      }
+    }
+
+    function render() {
+      const app = document.getElementById('app');
+      
+      let content = '';
+      
+      switch (state.currentScreen) {
+        case 'welcome':
+          content = WelcomeScreen();
+          break;
+        case 'relationship':
+          content = RelationshipScreen();
+          break;
+        case 'name':
+          content = NameScreen();
+          break;
+        case 'pronouns':
+          content = PronounsScreen();
+          break;
+        case 'context':
+          content = ContextScreen();
+          break;
+        case 'success':
+          content = SuccessScreen();
+          break;
+        case 'timeline':
+          content = TimelineScreen();
+          break;
+        case 'capture':
+          initializeChat();
+          content = EventCaptureScreen();
+          break;
+        case 'detail':
+          content = EventDetailScreen();
+          break;
+        default:
+          content = WelcomeScreen();
+      }
+      
+      app.innerHTML = content;
+
+      if (state.currentScreen === 'capture') {
+        setTimeout(() => {
+          const input = document.getElementById('chatInput');
+          if (input) input.focus();
+        }, 100);
+      }
+    }
+
+    async function init() {
+      const person = await db.getCurrentPerson();
+      
+      if (person) {
+        state.currentPerson = person;
+        state.events = await db.getEvents(person.id);
+        navigateTo('timeline');
+      } else {
+        render();
+      }
+    }
+
+    window.render = render;
+    init();
+  </script>
+</body>
+</html>
