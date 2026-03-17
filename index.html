@@ -929,7 +929,7 @@
                   <div class="timeline-section">
                     <div class="timeline-header">${period}</div>
                     ${events.map(event => `
-                      <div class="event-card" onclick='viewEvent(${JSON.stringify(event).replace(/'/g, "\\'"")})'>
+                     <div class="event-card" onclick='viewEvent(${JSON.stringify(event).replace(/'/g, "\\'")})'>
                         <div class="event-header">
                           <span class="event-icon">📅</span>
                           <div class="event-content">
