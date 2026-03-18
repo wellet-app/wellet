@@ -1,1205 +1,1755 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Wellet - Memory System for Caregivers</title>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    :root {
-      --deep-moss: #608F7C;
-      --sage-green: #98B190;
-      --forest-green: #4F4D5C;
-      --light-mint: #DCE9E2;
-      --soft-white: #F7F9F7;
-      --charcoal-black: #2B2F2E;
-      --slate-gray: #6E7572;
-      --spacing-xs: 4px;
-      --spacing-sm: 8px;
-      --spacing-md: 12px;
-      --spacing-lg: 16px;
-      --spacing-xl: 20px;
-      --spacing-xxl: 24px;
-      --spacing-xxxl: 32px;
-    }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
-      background: var(--soft-white);
-      color: var(--charcoal-black);
-      line-height: 1.5;
-      overflow-x: hidden;
-    }
-
-    .app {
-      max-width: 393px;
-      margin: 0 auto;
-      min-height: 100vh;
-      background: var(--soft-white);
-      position: relative;
-    }
-
-    .screen {
-      min-height: 100vh;
-      padding: var(--spacing-lg);
-      display: flex;
-      flex-direction: column;
-    }
-
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: var(--spacing-lg);
-      position: sticky;
-      top: 0;
-      background: var(--soft-white);
-      z-index: 10;
-      border-bottom: 1px solid rgba(79, 77, 92, 0.1);
-    }
-
-    .header-back {
-      background: none;
-      border: none;
-      color: var(--deep-moss);
-      font-size: 17px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: var(--spacing-xs);
-      padding: var(--spacing-sm);
-    }
-
-    .header-title {
-      font-size: 19px;
-      font-weight: 600;
-      color: var(--charcoal-black);
-    }
-
-    .logo {
-      font-size: 48px;
-      font-weight: 300;
-      color: var(--deep-moss);
-      text-align: center;
-      font-style: italic;
-      letter-spacing: -1px;
-    }
-
-    .h1 {
-      font-size: 34px;
-      font-weight: 700;
-      line-height: 1.2;
-      margin-bottom: var(--spacing-lg);
-      text-align: center;
-    }
-
-    .h2 {
-      font-size: 28px;
-      font-weight: 600;
-      line-height: 1.2;
-      margin-bottom: var(--spacing-md);
-    }
-
-    .body-default {
-      font-size: 17px;
-      line-height: 1.5;
-    }
-
-    .body-small {
-      font-size: 15px;
-      line-height: 1.5;
-      color: var(--slate-gray);
-    }
-
-    .caption {
-      font-size: 13px;
-      line-height: 1.5;
-      color: var(--slate-gray);
-    }
-
-    .btn-primary {
-      background: var(--deep-moss);
-      color: var(--soft-white);
-      border: none;
-      border-radius: 8px;
-      padding: var(--spacing-md) var(--spacing-xl);
-      font-size: 17px;
-      font-weight: 600;
-      min-height: 44px;
-      cursor: pointer;
-      width: 100%;
-      transition: background 0.2s;
-    }
-
-    .btn-primary:active {
-      background: var(--sage-green);
-    }
-
-    .btn-text {
-      background: none;
-      border: none;
-      color: var(--deep-moss);
-      font-size: 17px;
-      padding: var(--spacing-sm);
-      cursor: pointer;
-      text-align: center;
-      width: 100%;
-    }
-
-    .progress-dots {
-      display: flex;
-      gap: var(--spacing-sm);
-      justify-content: center;
-      margin-bottom: var(--spacing-xxxl);
-    }
-
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #D4D4D4;
-    }
-
-    .dot.active {
-      background: var(--deep-moss);
-    }
-
-    .benefits {
-      display: flex;
-      flex-direction: column;
-      gap: var(--spacing-xxl);
-      margin: var(--spacing-xxxl) 0;
-    }
-
-    .benefit-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: var(--spacing-sm);
-      text-align: center;
-    }
-
-    .benefit-icon {
-      font-size: 32px;
-    }
-
-    .selection-cards {
-      display: flex;
-      flex-direction: column;
-      gap: var(--spacing-md);
-      margin: var(--spacing-xxl) 0;
-    }
-
-    .selection-card {
-      background: white;
-      border: 1.5px solid #D4D4D4;
-      border-radius: 8px;
-      padding: var(--spacing-lg);
-      min-height: 56px;
-      display: flex;
-      align-items: center;
-      cursor: pointer;
-      transition: all 0.2s;
-      position: relative;
-    }
-
-    .selection-card:active {
-      transform: scale(0.98);
-    }
-
-    .selection-card.selected {
-      border: 2px solid var(--deep-moss);
-      background: var(--light-mint);
-    }
-
-    .selection-card.selected::after {
-      content: '✓';
-      position: absolute;
-      right: var(--spacing-lg);
-      color: var(--deep-moss);
-      font-weight: 600;
-    }
-
-    .input {
-      width: 100%;
-      background: white;
-      border: 1px solid #D4D4D4;
-      border-radius: 8px;
-      padding: var(--spacing-md);
-      font-size: 17px;
-      min-height: 44px;
-      margin: var(--spacing-xxl) 0;
-    }
-
-    .input:focus {
-      outline: none;
-      border: 2px solid var(--deep-moss);
-    }
-
-    .timeline {
-      flex: 1;
-      overflow-y: auto;
-      padding-bottom: 80px;
-    }
-
-    .timeline-section {
-      margin-bottom: var(--spacing-xxl);
-    }
-
-    .timeline-header {
-      font-size: 15px;
-      font-weight: 600;
-      color: var(--slate-gray);
-      margin-bottom: var(--spacing-md);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .event-card {
-      background: white;
-      border: 1px solid rgba(79, 77, 92, 0.1);
-      border-radius: 12px;
-      padding: var(--spacing-lg);
-      margin-bottom: var(--spacing-md);
-      cursor: pointer;
-      transition: all 0.2s;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    }
-
-    .event-card:active {
-      transform: scale(0.98);
-    }
-
-    .event-header {
-      display: flex;
-      gap: var(--spacing-md);
-      align-items: flex-start;
-    }
-
-    .event-icon {
-      flex-shrink: 0;
-      color: var(--deep-moss);
-    }
-
-    .event-content {
-      flex: 1;
-    }
-
-    .event-title {
-      font-size: 19px;
-      font-weight: 600;
-      margin-bottom: var(--spacing-xs);
-    }
-
-    .event-timestamp {
-      font-size: 15px;
-      color: var(--slate-gray);
-    }
-
-    .quick-capture {
-      background: var(--light-mint);
-      border-radius: 16px;
-      padding: var(--spacing-lg);
-      margin-bottom: var(--spacing-xxl);
-      display: flex;
-      align-items: center;
-      gap: var(--spacing-md);
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .quick-capture:active {
-      transform: scale(0.98);
-    }
-
-    .chat-container {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: var(--spacing-lg);
-      overflow-y: auto;
-      padding-bottom: var(--spacing-xxl);
-    }
-
-    .chat-bubble {
-      max-width: 85%;
-      padding: var(--spacing-md);
-      border-radius: 16px;
-      animation: slideIn 0.3s ease;
-    }
-
-    @keyframes slideIn {
-      from {
-        opacity: 0;
-        transform: translateY(10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .chat-bubble.wellet {
-      background: var(--light-mint);
-      border-bottom-left-radius: 4px;
-      align-self: flex-start;
-    }
-
-    .chat-bubble.user {
-      background: var(--deep-moss);
-      color: var(--soft-white);
-      border-bottom-right-radius: 4px;
-      align-self: flex-end;
-    }
-
-    .chat-input-container {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: white;
-      border-top: 1px solid rgba(79, 77, 92, 0.1);
-      padding: var(--spacing-lg);
-      max-width: 393px;
-      margin: 0 auto;
-    }
-
-    .chat-input {
-      display: flex;
-      gap: var(--spacing-md);
-      align-items: center;
-    }
-
-    .chat-input input {
-      flex: 1;
-      background: var(--soft-white);
-      border: 1px solid #D4D4D4;
-      border-radius: 20px;
-      padding: var(--spacing-md) var(--spacing-lg);
-      font-size: 17px;
-    }
-
-    .chat-input input:focus {
-      outline: none;
-      border: 2px solid var(--deep-moss);
-    }
-
-    .icon-button {
-      background: var(--deep-moss);
-      border: none;
-      border-radius: 50%;
-      width: 40px;
-      height: 40px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      cursor: pointer;
-      flex-shrink: 0;
-    }
-
-    .icon-button:active {
-      background: var(--sage-green);
-    }
-
-    .date-buttons {
-      display: flex;
-      gap: var(--spacing-md);
-      margin: var(--spacing-lg) 0;
-    }
-
-    .date-button {
-      flex: 1;
-      background: white;
-      border: 1.5px solid var(--deep-moss);
-      border-radius: 8px;
-      padding: var(--spacing-md);
-      cursor: pointer;
-      color: var(--deep-moss);
-      font-size: 15px;
-      font-weight: 500;
-      transition: all 0.2s;
-    }
-
-    .date-button:active {
-      background: var(--light-mint);
-    }
-
-    .empty-state {
-      text-align: center;
-      padding: var(--spacing-xxxl);
-      color: var(--slate-gray);
-    }
-
-    .footer {
-      margin-top: auto;
-      padding-top: var(--spacing-xxl);
-      display: flex;
-      flex-direction: column;
-      gap: var(--spacing-md);
-    }
-
-    .spacer {
-      flex: 1;
-    }
-
-    .success-icon {
-      width: 80px;
-      height: 80px;
-      background: var(--deep-moss);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: var(--spacing-xxxl) auto;
-      font-size: 48px;
-    }
-
-    .event-detail {
-      flex: 1;
-      overflow-y: auto;
-    }
-
-    .event-detail-header {
-      margin-bottom: var(--spacing-xxl);
-    }
-
-    .event-detail-date {
-      font-size: 15px;
-      color: var(--slate-gray);
-      margin-bottom: var(--spacing-sm);
-    }
-
-    .event-detail-content {
-      background: var(--light-mint);
-      border-radius: 12px;
-      padding: var(--spacing-lg);
-      margin: var(--spacing-lg) 0;
-    }
-
-    .content-label {
-      font-size: 13px;
-      color: var(--slate-gray);
-      margin-bottom: var(--spacing-sm);
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wellet — See What's Possible</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+  :root {
+    --moss: #608F7C;
+    --moss-dark: #4F7A68;
+    --mint: #DCE9E2;
+    --mint-deep: #C5D9CE;
+    --cream: #F7F5F0;
+    --warm-white: #FDFCFA;
+    --text-primary: #2C2A26;
+    --text-secondary: #6B6560;
+    --text-muted: #9E9A94;
+    --border: rgba(79,77,92,0.12);
+    --border-medium: rgba(79,77,92,0.2);
+    --amber: #C97B2C;
+    --amber-bg: #FDF5E8;
+    --red: #C0392B;
+    --blue: #3B6EA5;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--text-primary); min-height: 100vh; }
+  .page-wrap { max-width: 420px; margin: 0 auto; background: var(--warm-white); min-height: 100vh; }
+
+  /* ── LANDING ── */
+  #landing { display: flex; flex-direction: column; min-height: 100vh; }
+
+  .hero-band { background: var(--moss); padding: 52px 28px 32px; color: white; }
+  .hero-wordmark { width: 110px; margin-bottom: 18px; display: block; }
+  .hero-band h1 { font-family: 'DM Serif Display', serif; font-size: 28px; line-height: 1.22; font-weight: 400; margin-bottom: 10px; }
+  .hero-band h1 em { font-style: italic; }
+  .hero-band p { font-size: 15px; line-height: 1.6; opacity: 0.85; font-weight: 300; }
+
+  .demo-preview { padding: 24px 20px; background: var(--mint); }
+  .demo-preview .label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--moss-dark); margin-bottom: 10px; font-weight: 500; }
+  .preview-card { background: white; border-radius: 14px; padding: 16px; border: 1px solid var(--border); }
+  .person-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--moss); display: flex; align-items: center; justify-content: center; font-weight: 500; font-size: 13px; color: white; flex-shrink: 0; }
+  .person-name { font-weight: 500; font-size: 15px; line-height: 1.1; }
+  .person-meta { font-size: 12px; color: var(--text-muted); }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #47B08A; margin-left: auto; flex-shrink: 0; }
+  .preview-summary { font-size: 13px; line-height: 1.65; color: var(--text-secondary); }
+  .preview-summary strong { color: var(--text-primary); font-weight: 500; }
+
+  .value-props { padding: 24px 20px 8px; }
+  .vp-item { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 16px; }
+  .vp-icon { width: 34px; height: 34px; border-radius: 9px; background: var(--mint); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--moss); }
+  .vp-text strong { display: block; font-size: 14px; font-weight: 500; margin-bottom: 2px; }
+  .vp-text span { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+
+  .hero-cta { padding: 4px 20px 28px; }
+  .btn-primary { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: var(--moss); color: white; border: none; border-radius: 12px; padding: 15px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500; cursor: pointer; transition: background 0.15s; }
+  .btn-primary:hover { background: var(--moss-dark); }
+  .btn-secondary { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: transparent; color: var(--moss); border: 1.5px solid var(--moss); border-radius: 12px; padding: 13px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500; cursor: pointer; margin-top: 10px; transition: background 0.15s; }
+  .btn-secondary:hover { background: var(--mint); }
+
+  .privacy-footer { padding: 16px 20px; text-align: center; }
+  .privacy-note { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+  .privacy-note strong { color: var(--moss); font-weight: 500; }
+
+  /* ── APP ── */
+  #app { display: none; flex-direction: column; min-height: 100vh; }
+  .app-header { background: white; border-bottom: 1px solid var(--border); padding: 52px 20px 0; position: sticky; top: 0; z-index: 10; }
+  .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .app-logo-row { display: flex; align-items: center; gap: 10px; }
+  .app-icon { width: 30px; height: 30px; border-radius: 7px; overflow: hidden; flex-shrink: 0; }
+  .app-wordmark { height: 20px; display: block; }
+  .header-meta { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+  .header-actions { display: flex; gap: 8px; }
+  .icon-btn { width: 34px; height: 34px; border-radius: 50%; background: var(--mint); display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; color: var(--moss); transition: background 0.15s; }
+  .icon-btn:hover { background: var(--mint-deep); }
+
+  /* ── SETTINGS SHEET ── */
+  .settings-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-end; justify-content: center; }
+  .settings-overlay.show { display: flex; }
+  .settings-sheet { background: white; border-radius: 20px 20px 0 0; padding: 0 0 36px; width: 100%; max-width: 420px; max-height: 80vh; overflow-y: auto; }
+  .settings-handle-row { padding: 16px 20px 4px; display: flex; align-items: center; justify-content: space-between; }
+  .settings-handle { width: 36px; height: 4px; background: var(--border-medium); border-radius: 2px; margin: 0 auto; }
+  .settings-title { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; padding: 4px 20px 16px; }
+  .settings-section { padding: 0 20px; margin-bottom: 8px; }
+  .settings-section-label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); font-weight: 500; margin-bottom: 8px; }
+  .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 13px 0; border-bottom: 1px solid var(--border); }
+  .settings-row:last-child { border-bottom: none; }
+  .settings-row-left { display: flex; align-items: center; gap: 10px; }
+  .settings-row-icon { width: 30px; height: 30px; border-radius: 8px; background: var(--mint); display: flex; align-items: center; justify-content: center; color: var(--moss); flex-shrink: 0; }
+  .settings-row-label { font-size: 14px; font-weight: 500; }
+  .settings-row-meta { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+  .toggle { width: 42px; height: 24px; background: var(--border-medium); border-radius: 12px; position: relative; cursor: pointer; transition: background 0.2s; border: none; flex-shrink: 0; }
+  .toggle.on { background: var(--moss); }
+  .toggle::after { content: ''; position: absolute; width: 18px; height: 18px; border-radius: 50%; background: white; top: 3px; left: 3px; transition: transform 0.2s; }
+  .toggle.on::after { transform: translateX(18px); }
+  .settings-chevron { color: var(--text-muted); display: flex; }
+  .close-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); display: flex; padding: 4px; border-radius: 6px; }
+  .close-btn:hover { color: var(--text-primary); }
+
+  .person-switcher { display: flex; gap: 8px; margin-bottom: 14px; }
+  .person-pill { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; border: 1.5px solid var(--border-medium); background: transparent; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--text-secondary); transition: all 0.15s; font-family: 'DM Sans', sans-serif; }
+  .person-pill.active { background: var(--moss); border-color: var(--moss); color: white; }
+  .pip { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.7; }
+
+  .tab-bar { display: flex; border-top: 1px solid var(--border); margin: 0 -20px; }
+  .tab { flex: 1; padding: 10px 4px; text-align: center; font-size: 13px; font-weight: 400; color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; background: none; border-left: none; border-right: none; border-top: none; font-family: 'DM Sans', sans-serif; }
+  .tab.active { color: var(--moss); border-bottom-color: var(--moss); font-weight: 500; }
+
+  .app-body { flex: 1; padding-bottom: 80px; }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
+
+  /* ── NAV VIEWS ── */
+  .app-view { display: none; }
+  .app-view.active { display: block; }
+  .view-header { padding: 20px 20px 4px; }
+  .view-title { font-family: 'DM Serif Display', serif; font-size: 22px; font-weight: 400; margin-bottom: 4px; }
+  .view-subtitle { font-size: 13px; color: var(--text-muted); }
+
+  /* people view */
+  .people-section { padding: 16px 20px 0; }
+  .person-card { background: white; border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 10px; }
+  .person-card-top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .person-card-avatar { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 500; font-size: 14px; color: white; flex-shrink: 0; }
+  .person-card-avatar.moss { background: var(--moss); }
+  .person-card-avatar.sage { background: #7AA898; }
+  .person-card-name { font-weight: 500; font-size: 16px; }
+  .person-card-rel { font-size: 12px; color: var(--text-muted); }
+  .person-card-status { margin-left: auto; display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; }
+  .person-card-status.watching { color: var(--amber); }
+  .person-card-status.stable { color: #47B08A; }
+  .person-card-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .person-stat { background: var(--cream); border-radius: 8px; padding: 8px 10px; }
+  .person-stat-val { font-size: 15px; font-weight: 500; color: var(--text-primary); }
+  .person-stat-label { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+  .person-card-action { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+  .card-action-btn { flex: 1; background: var(--mint); border: none; border-radius: 8px; padding: 8px; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; color: var(--moss-dark); cursor: pointer; transition: background 0.15s; }
+  .card-action-btn:hover { background: var(--mint-deep); }
+  .add-person-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin: 4px 0 20px; background: transparent; border: 1.5px dashed var(--border-medium); border-radius: 14px; padding: 14px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; color: var(--text-muted); cursor: pointer; transition: all 0.15s; }
+  .add-person-btn:hover { border-color: var(--moss); color: var(--moss); background: var(--mint); }
+
+  /* upload sheet */
+  .upload-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-end; justify-content: center; }
+  .upload-overlay.show { display: flex; }
+  .upload-sheet { background: white; border-radius: 20px 20px 0 0; padding: 0 0 40px; width: 100%; max-width: 420px; }
+  .upload-handle-row { padding: 16px 20px 0; display: flex; align-items: center; justify-content: space-between; }
+  .upload-handle { width: 36px; height: 4px; background: var(--border-medium); border-radius: 2px; }
+  .upload-title { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; padding: 12px 20px 4px; }
+  .upload-person { font-size: 13px; color: var(--text-muted); padding: 0 20px 16px; }
+  .upload-person strong { color: var(--moss); font-weight: 500; }
+  .upload-drop { margin: 0 20px; border: 2px dashed var(--border-medium); border-radius: 14px; padding: 28px 20px; text-align: center; cursor: pointer; transition: all 0.15s; background: var(--cream); }
+  .upload-drop:hover { border-color: var(--moss); background: var(--mint); }
+  .upload-drop-icon { color: var(--text-muted); display: flex; justify-content: center; margin-bottom: 10px; }
+  .upload-drop:hover .upload-drop-icon { color: var(--moss); }
+  .upload-drop-label { font-size: 14px; font-weight: 500; color: var(--text-secondary); margin-bottom: 4px; }
+  .upload-drop-sub { font-size: 12px; color: var(--text-muted); }
+  .upload-divider { display: flex; align-items: center; gap: 10px; margin: 14px 20px; }
+  .upload-divider::before, .upload-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .upload-divider span { font-size: 12px; color: var(--text-muted); }
+  .upload-options { padding: 0 20px; display: flex; flex-direction: column; gap: 8px; }
+  .upload-option { display: flex; align-items: center; gap: 12px; padding: 13px 14px; background: white; border: 1px solid var(--border); border-radius: 12px; cursor: pointer; transition: all 0.15s; }
+  .upload-option:hover { border-color: var(--moss); background: var(--mint); }
+  .upload-option-icon { width: 34px; height: 34px; border-radius: 9px; background: var(--mint); display: flex; align-items: center; justify-content: center; color: var(--moss); flex-shrink: 0; }
+  .upload-option:hover .upload-option-icon { background: var(--mint-deep); }
+  .upload-option-label { font-size: 14px; font-weight: 500; }
+  .upload-option-sub { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+
+  /* uploaded doc confirmation */
+  .upload-success { display: none; padding: 20px; }
+  .upload-success.show { display: block; }
+  .upload-file-card { background: var(--mint); border-radius: 12px; padding: 14px; display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .upload-file-icon { color: var(--moss); display: flex; flex-shrink: 0; }
+  .upload-file-name { font-size: 14px; font-weight: 500; }
+  .upload-file-meta { font-size: 12px; color: var(--moss-dark); margin-top: 2px; }
+  .upload-tag-row { margin-bottom: 14px; }
+  .upload-tag-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 8px; }
+  .upload-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .upload-tag { padding: 5px 12px; border-radius: 16px; border: 1.5px solid var(--border-medium); font-size: 12px; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; background: white; font-family: 'DM Sans', sans-serif; }
+  .upload-tag.selected { background: var(--moss); border-color: var(--moss); color: white; }
+
+  /* ── QUICK ACTION SHEETS (shared base) ── */
+  .qa-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-end; justify-content: center; }
+  .qa-overlay.show { display: flex; }
+  .qa-sheet { background: white; border-radius: 20px 20px 0 0; width: 100%; max-width: 420px; max-height: 88vh; overflow-y: auto; padding-bottom: 36px; }
+  .qa-handle-row { padding: 16px 20px 0; display: flex; align-items: flex-start; justify-content: space-between; }
+  .qa-handle { width: 36px; height: 4px; background: var(--border-medium); border-radius: 2px; margin-top: 4px; }
+  .qa-sheet-title { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; padding: 12px 20px 4px; }
+  .qa-sheet-sub { font-size: 13px; color: var(--text-muted); padding: 0 20px 16px; }
+
+  /* emergency summary */
+  .emrg-band { margin: 0 20px 14px; background: var(--red); border-radius: 12px; padding: 14px 16px; color: white; display: flex; align-items: center; gap: 10px; }
+  .emrg-band-text { font-size: 13px; font-weight: 500; line-height: 1.4; }
+  .emrg-section { margin: 0 20px 14px; }
+  .emrg-section-title { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); font-weight: 500; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .emrg-row { display: flex; justify-content: space-between; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .emrg-row:last-child { border-bottom: none; }
+  .emrg-label { color: var(--text-muted); }
+  .emrg-val { font-weight: 500; text-align: right; max-width: 60%; }
+  .emrg-actions { padding: 4px 20px 0; display: flex; gap: 8px; }
+
+  /* share sheet */
+  .share-preview { margin: 0 20px 16px; background: var(--mint); border-radius: 12px; padding: 14px 16px; }
+  .share-preview-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--moss-dark); font-weight: 500; margin-bottom: 6px; }
+  .share-preview-text { font-size: 13px; line-height: 1.65; color: var(--text-primary); }
+  .share-options { padding: 0 20px; display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .share-option { display: flex; align-items: center; gap: 12px; padding: 13px 14px; border: 1px solid var(--border); border-radius: 12px; cursor: pointer; transition: all 0.15s; background: white; }
+  .share-option:hover { border-color: var(--moss); background: var(--mint); }
+  .share-option-icon { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .share-option-label { font-size: 14px; font-weight: 500; }
+  .share-option-sub { font-size: 12px; color: var(--text-muted); }
+  .share-toggle-row { padding: 0 20px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .share-toggle-label { font-size: 13px; color: var(--text-secondary); }
+
+  /* export sheet */
+  .export-section { padding: 0 20px; margin-bottom: 16px; }
+  .export-section-label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); font-weight: 500; margin-bottom: 8px; }
+  .export-check-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .export-check-row:last-child { border-bottom: none; }
+  .export-check-left { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+  .export-check-icon { color: var(--moss); display: flex; }
+  .export-checkbox { width: 20px; height: 20px; border-radius: 5px; border: 1.5px solid var(--border-medium); background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
+  .export-checkbox.checked { background: var(--moss); border-color: var(--moss); }
+  .format-toggle { display: flex; gap: 6px; margin: 0 20px 16px; }
+  .format-btn { flex: 1; padding: 9px; border-radius: 9px; border: 1.5px solid var(--border-medium); background: white; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; }
+  .format-btn.active { background: var(--moss); border-color: var(--moss); color: white; }
+
+  /* family contact cards in settings */
+  .contact-card { background: var(--cream); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; }
+  .contact-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--moss); display: flex; align-items: center; justify-content: center; font-weight: 500; font-size: 12px; color: white; flex-shrink: 0; }
+  .contact-avatar.sage { background: #7AA898; }
+  .contact-avatar.forest { background: var(--forest); }
+  .contact-name { font-size: 14px; font-weight: 500; }
+  .contact-meta { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+  .contact-role { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 8px; margin-left: auto; flex-shrink: 0; }
+  .contact-role.primary { background: var(--mint); color: var(--moss-dark); }
+  .contact-role.secondary { background: var(--cream); color: var(--text-muted); border: 1px solid var(--border-medium); }
+  .contact-role.emergency { background: #FEF0EE; color: var(--red); }
+  .contact-edit-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); display: flex; padding: 4px; border-radius: 6px; transition: color 0.15s; margin-left: 4px; flex-shrink: 0; }
+  .contact-edit-btn:hover { color: var(--moss); }
+  .add-contact-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: transparent; border: 1.5px dashed var(--border-medium); border-radius: 12px; padding: 11px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; color: var(--text-muted); cursor: pointer; transition: all 0.15s; margin-top: 4px; }
+  .add-contact-btn:hover { border-color: var(--moss); color: var(--moss); background: var(--mint); }
+  .notif-pill { font-size: 11px; font-weight: 500; padding: 2px 7px; border-radius: 8px; background: var(--mint); color: var(--moss-dark); white-space: nowrap; }
+
+  /* records view */
+  .records-section { padding: 16px 20px 0; }
+  .record-group { margin-bottom: 20px; }
+  .record-group-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .record-group-title { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: var(--text-secondary); }
+  .record-group-count { font-size: 11px; color: var(--text-muted); background: var(--cream); border-radius: 10px; padding: 2px 7px; }
+  .record-row { display: flex; align-items: center; gap: 12px; padding: 11px 14px; background: white; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 6px; cursor: pointer; transition: border-color 0.15s; }
+  .record-row:hover { border-color: var(--moss); }
+  .record-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .record-icon.moss { background: var(--mint); color: var(--moss); }
+  .record-icon.amber { background: var(--amber-bg); color: var(--amber); }
+  .record-icon.blue { background: var(--blue-bg, #EEF3FC); color: var(--blue); }
+  .record-icon.muted { background: var(--cream); color: var(--text-muted); }
+  .record-label { font-size: 14px; font-weight: 500; flex: 1; }
+  .record-meta { font-size: 12px; color: var(--text-muted); }
+  .record-badge { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 8px; }
+  .record-badge.amber { background: var(--amber-bg); color: var(--amber); }
+  .record-badge.moss { background: var(--mint); color: var(--moss-dark); }
+
+  /* remove confirm modal */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(44,42,38,0.45); z-index: 100;
+    align-items: flex-end; justify-content: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal-sheet {
+    background: white; border-radius: 20px 20px 0 0;
+    padding: 24px 20px 36px; width: 100%; max-width: 420px;
+  }
+  .modal-handle { width: 36px; height: 4px; background: var(--border-medium); border-radius: 2px; margin: 0 auto 20px; }
+  .modal-title { font-size: 17px; font-weight: 500; margin-bottom: 6px; }
+  .modal-body { font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 20px; }
+  .modal-name { font-weight: 500; color: var(--text-primary); }
+  .btn-danger { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: #FEF0EE; color: var(--red); border: 1px solid rgba(192,57,43,0.2); border-radius: 12px; padding: 14px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500; cursor: pointer; transition: background 0.15s; margin-bottom: 10px; }
+  .btn-danger:hover { background: #FDDBD8; }
+  .btn-cancel { display: flex; align-items: center; justify-content: center; width: 100%; background: transparent; color: var(--text-secondary); border: 1px solid var(--border-medium); border-radius: 12px; padding: 14px; font-family: 'DM Sans', sans-serif; font-size: 15px; cursor: pointer; transition: background 0.15s; }
+  .btn-cancel:hover { background: var(--cream); }
+  .remove-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); display: flex; padding: 4px; border-radius: 6px; transition: color 0.15s, background 0.15s; margin-left: auto; }
+  .remove-btn:hover { color: var(--red); background: #FEF0EE; }
+
+  /* ── ASK WELLET ── */
+  .ask-view { display: flex; flex-direction: column; height: calc(100vh - 130px); }
+  .ask-person-bar { padding: 12px 20px 0; display: flex; gap: 8px; }
+  .ask-person-pill { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; border: 1.5px solid var(--border-medium); background: transparent; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--text-secondary); transition: all 0.15s; font-family: 'DM Sans', sans-serif; }
+  .ask-person-pill.active { background: var(--moss); border-color: var(--moss); color: white; }
+  .chat-area { flex: 1; overflow-y: auto; padding: 16px 20px 8px; display: flex; flex-direction: column; gap: 12px; }
+  .chat-bubble { max-width: 85%; padding: 10px 14px; border-radius: 16px; font-size: 14px; line-height: 1.55; }
+  .chat-bubble.wellet { background: var(--mint); color: var(--text-primary); border-bottom-left-radius: 4px; align-self: flex-start; }
+  .chat-bubble.user { background: var(--moss); color: white; border-bottom-right-radius: 4px; align-self: flex-end; }
+  .chat-bubble.wellet strong { font-weight: 500; }
+  .chat-sender { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
+  .chat-group { display: flex; flex-direction: column; }
+  .chat-group.from-wellet { align-items: flex-start; }
+  .chat-group.from-user { align-items: flex-end; }
+  .suggestion-chips { padding: 0 20px 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { background: white; border: 1px solid var(--border-medium); border-radius: 20px; padding: 7px 12px; font-size: 12px; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; font-family: 'DM Sans', sans-serif; white-space: nowrap; }
+  .chip:hover { border-color: var(--moss); color: var(--moss); background: var(--mint); }
+  .ask-input-bar { padding: 10px 16px 12px; border-top: 1px solid var(--border); display: flex; gap: 10px; align-items: flex-end; background: white; }
+  .ask-input { flex: 1; border: 1.5px solid var(--border-medium); border-radius: 20px; padding: 10px 16px; font-size: 14px; font-family: 'DM Sans', sans-serif; color: var(--text-primary); background: white; resize: none; line-height: 1.4; max-height: 100px; overflow-y: auto; }
+  .ask-input:focus { outline: none; border-color: var(--moss); }
+  .ask-send { width: 36px; height: 36px; border-radius: 50%; background: var(--moss); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0; transition: background 0.15s; }
+  .ask-send:hover { background: var(--moss-dark); }
+  .ask-send:disabled { background: var(--border-medium); cursor: default; }
+  .typing-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--moss); display: inline-block; animation: blink 1.2s infinite; }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%,80%,100%{opacity:.2} 40%{opacity:1} }
+  .wellet-nav-icon { width: 22px; height: 22px; fill: var(--text-muted); display: block; }
+  .nav-item.active .wellet-nav-icon { fill: var(--moss); }
+
+  /* update me */
+  .update-me-section { padding: 16px 20px 0; }
+  .update-card { background: var(--mint); border-radius: 14px; padding: 16px; position: relative; overflow: hidden; }
+  .update-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--moss); }
+  .update-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--moss-dark); font-weight: 500; margin-bottom: 8px; }
+  .update-text { font-size: 14px; line-height: 1.7; color: var(--text-primary); }
+  .update-text strong { font-weight: 500; }
+  .update-meta { font-size: 11px; color: var(--text-muted); margin-top: 10px; display: flex; align-items: center; gap: 6px; }
+  .update-meta a { color: var(--moss); font-weight: 500; text-decoration: none; cursor: pointer; }
+
+  .alert-banner { margin: 12px 20px 0; background: var(--amber-bg); border: 1px solid rgba(201,123,44,0.25); border-radius: 10px; padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start; }
+  .alert-icon { color: var(--amber); flex-shrink: 0; margin-top: 1px; display: flex; }
+  .alert-title { font-size: 13px; font-weight: 500; color: var(--amber); margin-bottom: 2px; }
+  .alert-body { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+
+  .quick-actions { display: flex; gap: 8px; margin: 12px 20px 0; }
+  .qa-btn { flex: 1; background: white; border: 1px solid var(--border); border-radius: 10px; padding: 10px 8px; font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500; color: var(--text-secondary); cursor: pointer; text-align: center; transition: all 0.15s; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .qa-btn:hover { border-color: var(--moss); color: var(--moss); background: var(--mint); }
+  .qa-icon { color: var(--text-muted); display: flex; transition: color 0.15s; }
+  .qa-btn:hover .qa-icon { color: var(--moss); }
+
+  /* timeline */
+  .timeline-section { padding: 16px 20px 0; }
+  .section-label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); font-weight: 500; margin-bottom: 12px; }
+  .tl-month { font-size: 12px; font-weight: 500; color: var(--text-muted); margin: 20px 0 10px; display: flex; align-items: center; gap: 10px; }
+  .tl-month::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .tl-item { display: flex; gap: 12px; margin-bottom: 10px; align-items: flex-start; }
+  .tl-line-col { display: flex; flex-direction: column; align-items: center; width: 28px; flex-shrink: 0; padding-top: 4px; }
+  .tl-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid; background: white; flex-shrink: 0; }
+  .tl-dot.appt { border-color: var(--moss); }
+  .tl-dot.med { border-color: var(--amber); }
+  .tl-dot.lab { border-color: var(--blue); }
+  .tl-dot.note { border-color: var(--text-muted); }
+  .tl-dot.alert { border-color: var(--red); background: var(--red); }
+  .tl-connector { width: 1px; flex: 1; min-height: 24px; background: var(--border); margin-top: 4px; }
+  .tl-card { flex: 1; background: white; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .tl-card.amber-border { border-left: 3px solid var(--amber); }
+  .tl-card.blue-border { border-left: 3px solid var(--blue); }
+  .tl-card.moss-border { border-left: 3px solid var(--moss); }
+  .tl-card.red-border { border-left: 3px solid var(--red); }
+  .tl-card-type-row { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
+  .tl-card-type { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 500; }
+  .tl-card-type.appt { color: var(--moss); }
+  .tl-card-type.med { color: var(--amber); }
+  .tl-card-type.lab { color: var(--blue); }
+  .tl-card-type.note { color: var(--text-muted); }
+  .tl-card-type.alert { color: var(--red); }
+  .tl-card-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+  .tl-card-body { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+  .tl-card-date { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+
+  /* patterns */
+  .patterns-section { padding: 16px 20px 0; }
+  .insight-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 10px; }
+  .insight-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .insight-count { font-family: 'DM Serif Display', serif; font-size: 28px; color: var(--moss); line-height: 1; }
+  .insight-label { font-size: 13px; font-weight: 500; }
+  .insight-sub { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+  .bar-wrap { margin-top: 10px; }
+  .bar-label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; display: flex; justify-content: space-between; }
+  .bar { height: 5px; border-radius: 3px; background: var(--border); overflow: hidden; margin-bottom: 6px; }
+  .bar-fill { height: 100%; border-radius: 3px; }
+  .bar-fill.moss { background: var(--moss); }
+  .bar-fill.amber { background: var(--amber); }
+
+  /* bottom nav */
+  .bottom-nav { position: fixed; bottom: 0; width: 420px; max-width: 100%; background: white; border-top: 1px solid var(--border); display: flex; padding: 10px 0 20px; z-index: 20; }
+  .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; font-size: 10px; color: var(--text-muted); padding: 4px 0; background: none; border: none; font-family: 'DM Sans', sans-serif; transition: color 0.15s; }
+  .nav-item.active { color: var(--moss); }
+  .nav-icon { display: flex; align-items: center; }
+
+  /* onboarding */
+  #onboarding { display: none; flex-direction: column; min-height: 100vh; }
+  .onboard-header { background: white; padding: 52px 20px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+  .back-btn { background: none; border: none; cursor: pointer; padding: 0; color: var(--text-secondary); display: flex; align-items: center; }
+  .onboard-header h2 { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; }
+  .onboard-body { padding: 24px 20px; flex: 1; }
+  .onboard-step { margin-bottom: 20px; }
+  .step-num { width: 28px; height: 28px; border-radius: 50%; background: var(--moss); color: white; font-size: 13px; font-weight: 500; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+  .step-num.done { background: #47B08A; }
+  .step-title { font-size: 16px; font-weight: 500; margin-bottom: 4px; }
+  .step-body { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
+  .input-field { margin-top: 12px; border: 1.5px solid var(--border-medium); border-radius: 10px; padding: 12px 14px; font-size: 15px; width: 100%; font-family: 'DM Sans', sans-serif; color: var(--text-primary); background: white; }
+  .input-field:focus { outline: none; border-color: var(--moss); }
+  .name-filled { display: none; }
+  .name-filled.show { display: block; }
+  .filled-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--mint); border-radius: 8px; padding: 8px 12px; font-size: 14px; font-weight: 500; color: var(--moss-dark); margin-top: 12px; }
+</style>
 </head>
 <body>
-  <div id="app" class="app"></div>
+<div class="page-wrap">
 
-  <script>
-    const state = {
-      currentScreen: 'welcome',
-      onboarding: {
-        relationship: null,
-        name: null,
-        pronouns: null,
-        context: null
-      },
-      currentPerson: null,
-      events: [],
-      chatMessages: [],
-      currentEvent: null
-    };
+<!-- LANDING -->
+<div id="landing">
+  <div class="hero-band">
+    <!-- Wellet wordmark: extracted from wellet.svg paths, colored white -->
+    <svg class="hero-wordmark" viewBox="0 138 150 42" xmlns="http://www.w3.org/2000/svg" aria-label="Wellet">
+      <path fill="white" d="M45.5,142c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83l.25-2.56h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z"/>
+      <path fill="white" d="M57.31,168.14c-1.13,1.44-2.57,2.56-4.32,3.37-1.75.8-3.61,1.21-5.58,1.21s-3.92-.49-5.65-1.48c-1.73-.98-3.1-2.32-4.1-4.01-1.01-1.69-1.51-3.55-1.51-5.56s.5-3.87,1.51-5.56c1.01-1.69,2.38-3.03,4.1-4.01,1.73-.98,3.61-1.48,5.65-1.48,1.92,0,3.62.28,5.09.83s2.62,1.31,3.42,2.29c.8.97,1.21,2.06,1.21,3.26,0,2.62-1.68,4.46-5.04,5.54-1.49.46-3.06.68-4.72.68-1.08,0-2.24-.11-3.49-.32.02,1.13.35,2.16.99,3.1.64.94,1.46,1.67,2.47,2.21s2.05.81,3.13.81c.96,0,1.94-.2,2.93-.61,1-.41,1.82-.98,2.47-1.73l1.44,1.48ZM45.7,155.59c-.8,1.26-1.34,2.86-1.6,4.81.84.17,1.64.25,2.41.25,1.61,0,2.87-.34,3.78-1.01.91-.67,1.51-1.5,1.8-2.48.1-.29.14-.59.14-.9,0-.86-.32-1.56-.95-2.09-.64-.53-1.36-.76-2.18-.68-1.46.14-2.6.85-3.4,2.11Z"/>
+      <path fill="white" d="M58.21,170.23c.7-.12,1.26-.52,1.69-1.21.43-.68.65-1.9.65-3.65v-14.26c0-1.18-.13-2.08-.38-2.72s-.5-1.06-.76-1.26-.71-.51-1.39-.92c.65-.84,1.61-1.47,2.9-1.89,1.28-.42,2.59-.63,3.91-.63,1.15,0,2.04.14,2.66.43v21.24c0,1.75.22,2.97.65,3.65.43.68,1,1.09,1.69,1.21l.11,1.62h-11.84l.11-1.62Z"/>
+      <path fill="white" d="M70.85,170.23c.7-.12,1.26-.52,1.69-1.21.43-.68.65-1.9.65-3.65v-14.26c0-1.18-.13-2.08-.38-2.72s-.5-1.06-.76-1.26-.71-.51-1.39-.92c.65-.84,1.61-1.47,2.9-1.89,1.28-.42,2.59-.63,3.91-.63,1.15,0,2.04.14,2.66.43v21.24c0,1.75.22,2.97.65,3.65.43.68,1,1.09,1.69,1.21l.11,1.62h-11.84l.11-1.62Z"/>
+      <path fill="white" d="M104.11,168.14c-1.13,1.44-2.57,2.56-4.32,3.37-1.75.8-3.61,1.21-5.58,1.21s-3.92-.49-5.65-1.48c-1.73-.98-3.1-2.32-4.1-4.01-1.01-1.69-1.51-3.55-1.51-5.56s.5-3.87,1.51-5.56c1.01-1.69,2.38-3.03,4.1-4.01,1.73-.98,3.61-1.48,5.65-1.48,1.92,0,3.62.28,5.09.83,1.48.55,2.62,1.31,3.42,2.29.8.97,1.21,2.06,1.21,3.26,0,2.62-1.68,4.46-5.04,5.54-1.49.46-3.06.68-4.72.68-1.08,0-2.24-.11-3.49-.32.02,1.13.35,2.16.99,3.1.64.94,1.46,1.67,2.47,2.21,1.01.54,2.05.81,3.13.81.96,0,1.94-.2,2.93-.61s1.82-.98,2.47-1.73l1.44,1.48ZM92.5,155.59c-.8,1.26-1.34,2.86-1.6,4.81.84.17,1.64.25,2.41.25,1.61,0,2.87-.34,3.78-1.01s1.51-1.5,1.8-2.48c.09-.29.14-.59.14-.9,0-.86-.32-1.56-.95-2.09-.64-.53-1.36-.76-2.18-.68-1.46.14-2.6.85-3.4,2.11Z"/>
+      <path fill="white" d="M139.93,141.71c.46.5.76,1.14.86,1.81.17,1.09-.14,2.07-.91,2.95s-1.69,1.36-2.84,1.51c-.83.11-1.71.14-2.64.09-1.17-.04-2.31,0-3.43.15-1.24.16-2.36.49-3.36,1-1,.5-1.5.85-2.29,1.37-1.25.83-.64.51-2.68,1.64-1.7.75-1.02.47-2.27.96-2.92,1.15-5.84,1.04-6.2,1.21v12.12c0,.86.13,1.51.38,1.93s.58.63.99.63c.26,0,.55-.09.86-.27.31-.18.6-.43.86-.74l1.44,1.48c-.98,1.1-1.96,1.87-2.92,2.3-.96.43-2.08.65-3.35.65-1.58,0-2.89-.4-3.92-1.21-1.03-.8-1.55-1.95-1.55-3.44v-13c-.74-.07-1.58-.24-2.52-.5v-1.8c.53.12.97.18,1.33.18.96,0,1.82-.27,2.59-.81.77-.54,1.42-1.18,1.96-1.91.54-.73,1.15-1.66,1.82-2.79.48-.89.88-1.52,1.19-1.91h.83v6.8c3.33.07,5-.58,7.3-1.62,1.91-1.06,2.49-1.68,3.33-2.56.36-.38.58-.67,1.77-1.97.66-.72,2.14-1.98,2.76-2.44,1.43-1.1,2.12-1.49,3.27-2.09,1.14-.61,2.11-.76,3.26-.88,2.04-.21,3.13.16,4.06,1.16Z"/>
+    </svg>
+    <h1>What does care look like <em>six months in?</em></h1>
+    <p>See what Wellet becomes after a few months of use — then start building yours.</p>
+  </div>
 
-    const db = {
-      async init() {
-        return new Promise((resolve, reject) => {
-          const request = indexedDB.open('WelletDB', 1);
-          
-          request.onerror = () => reject(request.error);
-          request.onsuccess = () => resolve(request.result);
-          
-          request.onupgradeneeded = (event) => {
-            const db = event.target.result;
-            
-            if (!db.objectStoreNames.contains('people')) {
-              db.createObjectStore('people', { keyPath: 'id' });
-            }
-            
-            if (!db.objectStoreNames.contains('events')) {
-              const eventStore = db.createObjectStore('events', { keyPath: 'id' });
-              eventStore.createIndex('personId', 'personId', { unique: false });
-              eventStore.createIndex('eventDate', 'eventDate', { unique: false });
-            }
-          };
-        });
-      },
+  <div class="demo-preview">
+    <p class="label">Live demo — Dad's care</p>
+    <div class="preview-card">
+      <div class="person-row">
+        <div class="avatar">JB</div>
+        <div>
+          <div class="person-name">John Bell — Dad</div>
+          <div class="person-meta">3 months of care history</div>
+        </div>
+        <div class="status-dot"></div>
+      </div>
+      <p class="preview-summary"><strong>Three months in,</strong> you'd know his BP has been climbing since the Hydrochlorothiazide dose change. You'd know oncology saw improvement last month. You'd know his PT is twice a week and his next visit is July 16th. And you wouldn't have had to remember any of it.</p>
+    </div>
+  </div>
 
-      async savePerson(person) {
-        const database = await this.init();
-        const transaction = database.transaction(['people'], 'readwrite');
-        const store = transaction.objectStore('people');
-        await store.put(person);
-        return person;
-      },
+  <div class="value-props">
+    <div class="vp-item">
+      <div class="vp-icon"><i data-lucide="eye" style="width:18px;height:18px;"></i></div>
+      <div class="vp-text"><strong>Witness, don't monitor</strong><span>Wellet notices things so you don't miss them. No alerts unless something actually changes.</span></div>
+    </div>
+    <div class="vp-item">
+      <div class="vp-icon"><i data-lucide="sparkles" style="width:18px;height:18px;"></i></div>
+      <div class="vp-text"><strong>One tap to understand</strong><span>The "Update Me" summary gives you a plain-English snapshot of everything that matters right now.</span></div>
+    </div>
+    <div class="vp-item">
+      <div class="vp-icon"><i data-lucide="shield" style="width:18px;height:18px;"></i></div>
+      <div class="vp-text"><strong>Stays on your device</strong><span>All data is stored locally. Wellet never sells, shares, or tracks. You decide what gets shared, when.</span></div>
+    </div>
+  </div>
 
-      async saveEvent(event) {
-        const database = await this.init();
-        const transaction = database.transaction(['events'], 'readwrite');
-        const store = transaction.objectStore('events');
-        await store.put(event);
-        return event;
-      },
+  <div class="hero-cta">
+    <button class="btn-primary" onclick="showApp()">See what it becomes <i data-lucide="arrow-right" style="width:16px;height:16px;"></i></button>
+    <button class="btn-secondary" onclick="showOnboarding()"><i data-lucide="plus" style="width:16px;height:16px;"></i> Start my own story</button>  </div>
+  <div class="privacy-footer">
+    <p class="privacy-note">No login required for the demo. <strong>Your data stays yours</strong> — always local, always private.</p>
+  </div>
+</div>
 
-      async getEvents(personId) {
-        const database = await this.init();
-        const transaction = database.transaction(['events'], 'readonly');
-        const store = transaction.objectStore('events');
-        const index = store.index('personId');
-        
-        return new Promise((resolve) => {
-          const request = index.getAll(personId);
-          request.onsuccess = () => resolve(request.result);
-        });
-      },
 
-      async getCurrentPerson() {
-        const database = await this.init();
-        const transaction = database.transaction(['people'], 'readonly');
-        const store = transaction.objectStore('people');
-        
-        return new Promise((resolve) => {
-          const request = store.getAll();
-          request.onsuccess = () => {
-            const people = request.result;
-            resolve(people[0] || null);
-          };
-        });
-      }
-    };
+<!-- APP -->
+<div id="app">
+  <div class="app-header">
+    <div class="header-top">
+      <div class="app-logo-row">
+        <div>
+          <svg class="app-wordmark" viewBox="0 138 150 42" xmlns="http://www.w3.org/2000/svg" aria-label="Wellet">
+            <path fill="#608F7C" d="M45.5,142c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83l.25-2.56h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z"/>
+            <path fill="#608F7C" d="M57.31,168.14c-1.13,1.44-2.57,2.56-4.32,3.37-1.75.8-3.61,1.21-5.58,1.21s-3.92-.49-5.65-1.48c-1.73-.98-3.1-2.32-4.1-4.01-1.01-1.69-1.51-3.55-1.51-5.56s.5-3.87,1.51-5.56c1.01-1.69,2.38-3.03,4.1-4.01,1.73-.98,3.61-1.48,5.65-1.48,1.92,0,3.62.28,5.09.83s2.62,1.31,3.42,2.29c.8.97,1.21,2.06,1.21,3.26,0,2.62-1.68,4.46-5.04,5.54-1.49.46-3.06.68-4.72.68-1.08,0-2.24-.11-3.49-.32.02,1.13.35,2.16.99,3.1.64.94,1.46,1.67,2.47,2.21s2.05.81,3.13.81c.96,0,1.94-.2,2.93-.61,1-.41,1.82-.98,2.47-1.73l1.44,1.48ZM45.7,155.59c-.8,1.26-1.34,2.86-1.6,4.81.84.17,1.64.25,2.41.25,1.61,0,2.87-.34,3.78-1.01.91-.67,1.51-1.5,1.8-2.48.1-.29.14-.59.14-.9,0-.86-.32-1.56-.95-2.09-.64-.53-1.36-.76-2.18-.68-1.46.14-2.6.85-3.4,2.11Z"/>
+            <path fill="#608F7C" d="M58.21,170.23c.7-.12,1.26-.52,1.69-1.21.43-.68.65-1.9.65-3.65v-14.26c0-1.18-.13-2.08-.38-2.72s-.5-1.06-.76-1.26-.71-.51-1.39-.92c.65-.84,1.61-1.47,2.9-1.89,1.28-.42,2.59-.63,3.91-.63,1.15,0,2.04.14,2.66.43v21.24c0,1.75.22,2.97.65,3.65.43.68,1,1.09,1.69,1.21l.11,1.62h-11.84l.11-1.62Z"/>
+            <path fill="#608F7C" d="M70.85,170.23c.7-.12,1.26-.52,1.69-1.21.43-.68.65-1.9.65-3.65v-14.26c0-1.18-.13-2.08-.38-2.72s-.5-1.06-.76-1.26-.71-.51-1.39-.92c.65-.84,1.61-1.47,2.9-1.89,1.28-.42,2.59-.63,3.91-.63,1.15,0,2.04.14,2.66.43v21.24c0,1.75.22,2.97.65,3.65.43.68,1,1.09,1.69,1.21l.11,1.62h-11.84l.11-1.62Z"/>
+            <path fill="#608F7C" d="M104.11,168.14c-1.13,1.44-2.57,2.56-4.32,3.37-1.75.8-3.61,1.21-5.58,1.21s-3.92-.49-5.65-1.48c-1.73-.98-3.1-2.32-4.1-4.01-1.01-1.69-1.51-3.55-1.51-5.56s.5-3.87,1.51-5.56c1.01-1.69,2.38-3.03,4.1-4.01,1.73-.98,3.61-1.48,5.65-1.48,1.92,0,3.62.28,5.09.83,1.48.55,2.62,1.31,3.42,2.29.8.97,1.21,2.06,1.21,3.26,0,2.62-1.68,4.46-5.04,5.54-1.49.46-3.06.68-4.72.68-1.08,0-2.24-.11-3.49-.32.02,1.13.35,2.16.99,3.1.64.94,1.46,1.67,2.47,2.21,1.01.54,2.05.81,3.13.81.96,0,1.94-.2,2.93-.61s1.82-.98,2.47-1.73l1.44,1.48ZM92.5,155.59c-.8,1.26-1.34,2.86-1.6,4.81.84.17,1.64.25,2.41.25,1.61,0,2.87-.34,3.78-1.01s1.51-1.5,1.8-2.48c.09-.29.14-.59.14-.9,0-.86-.32-1.56-.95-2.09-.64-.53-1.36-.76-2.18-.68-1.46.14-2.6.85-3.4,2.11Z"/>
+            <path fill="#608F7C" d="M139.93,141.71c.46.5.76,1.14.86,1.81.17,1.09-.14,2.07-.91,2.95s-1.69,1.36-2.84,1.51c-.83.11-1.71.14-2.64.09-1.17-.04-2.31,0-3.43.15-1.24.16-2.36.49-3.36,1-1,.5-1.5.85-2.29,1.37-1.25.83-.64.51-2.68,1.64-1.7.75-1.02.47-2.27.96-2.92,1.15-5.84,1.04-6.2,1.21v12.12c0,.86.13,1.51.38,1.93s.58.63.99.63c.26,0,.55-.09.86-.27.31-.18.6-.43.86-.74l1.44,1.48c-.98,1.1-1.96,1.87-2.92,2.3-.96.43-2.08.65-3.35.65-1.58,0-2.89-.4-3.92-1.21-1.03-.8-1.55-1.95-1.55-3.44v-13c-.74-.07-1.58-.24-2.52-.5v-1.8c.53.12.97.18,1.33.18.96,0,1.82-.27,2.59-.81.77-.54,1.42-1.18,1.96-1.91.54-.73,1.15-1.66,1.82-2.79.48-.89.88-1.52,1.19-1.91h.83v6.8c3.33.07,5-.58,7.3-1.62,1.91-1.06,2.49-1.68,3.33-2.56.36-.38.58-.67,1.77-1.97.66-.72,2.14-1.98,2.76-2.44,1.43-1.1,2.12-1.49,3.27-2.09,1.14-.61,2.11-.76,3.26-.88,2.04-.21,3.13.16,4.06,1.16Z"/>
+          </svg>
+          <div class="header-meta">Updated 2 hours ago</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="header-actions">
+          <button class="icon-btn" onclick="openSettings()" title="Settings"><i data-lucide="settings" style="width:16px;height:16px;"></i></button>
+        </div>
+      </div>
+    </div>
+    <div class="person-switcher" id="header-person-switcher">
+      <button class="person-pill active" onclick="switchPerson(this)"><span class="pip"></span>Dad</button>
+      <button class="person-pill" onclick="switchPerson(this)"><span class="pip"></span>Mom</button>
+    </div>
+    <div class="tab-bar" id="header-tab-bar">
+      <button class="tab active" onclick="switchTab(this,'update')">Update Me</button>
+      <button class="tab" onclick="switchTab(this,'timeline')">Timeline</button>
+      <button class="tab" onclick="switchTab(this,'patterns')">Patterns</button>
+    </div>
+  </div>
 
-    function generateId() {
-      return Date.now().toString(36) + Math.random().toString(36).substr(2);
-    }
+  <div class="app-body">
+    <div id="view-home" class="app-view active">
 
-    function formatDate(timestamp) {
-      const date = new Date(timestamp);
-      const today = new Date();
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-
-      if (date.toDateString() === today.toDateString()) {
-        return 'Today';
-      } else if (date.toDateString() === yesterday.toDateString()) {
-        return 'Yesterday';
-      } else {
-        return date.toLocaleDateString('en-US', { 
-          weekday: 'long', 
-          month: 'short', 
-          day: 'numeric' 
-        });
-      }
-    }
-
-    function formatDateTime(timestamp) {
-      const date = new Date(timestamp);
-      return date.toLocaleString('en-US', {
-        weekday: 'long',
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit'
-      });
-    }
-
-    function groupEventsByPeriod(events) {
-      const sorted = [...events].sort((a, b) => b.eventDate - a.eventDate);
-      const groups = {};
-      const now = Date.now();
-      const oneWeek = 7 * 24 * 60 * 60 * 1000;
-      const twoWeeks = 14 * 24 * 60 * 60 * 1000;
-      const oneMonth = 30 * 24 * 60 * 60 * 1000;
-
-      sorted.forEach(event => {
-        const age = now - event.eventDate;
-        let period;
-
-        if (age < oneWeek) {
-          period = 'This Week';
-        } else if (age < twoWeeks) {
-          period = 'Last Week';
-        } else if (age < oneMonth) {
-          period = 'Earlier This Month';
-        } else {
-          const date = new Date(event.eventDate);
-          period = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-        }
-
-        if (!groups[period]) {
-          groups[period] = [];
-        }
-        groups[period].push(event);
-      });
-
-      return groups;
-    }
-
-    function navigateTo(screen, data = {}) {
-      state.currentScreen = screen;
-      if (data.event) state.currentEvent = data.event;
-      render();
-    }
-
-    function WelcomeScreen() {
-      return `
-        <div class="screen">
-          <div class="spacer"></div>
-          <div class="logo">wellet</div>
-          <h1 class="h1">Welcome to Wellet</h1>
-          <p class="body-default" style="text-align: center; max-width: 343px; margin: 0 auto;">
-            Wellet helps you remember what happened, across fragmented systems and delayed understanding.
-          </p>
-          
-          <div class="benefits">
-            <div class="benefit-item">
-              <div class="benefit-icon">🤍</div>
-              <div class="body-default">Quiet by default</div>
-            </div>
-            <div class="benefit-item">
-              <div class="benefit-icon">📅</div>
-              <div class="body-default">Remembers for you</div>
-            </div>
-            <div class="benefit-item">
-              <div class="benefit-icon">🔒</div>
-              <div class="body-default">Private and secure</div>
-            </div>
-          </div>
-
-          <div class="spacer"></div>
-
-          <div class="footer">
-            <button class="btn-primary" onclick="navigateTo('relationship')">
-              Let's Get Started
-            </button>
-            <p class="caption" style="text-align: center;">HIPAA compliant & secure</p>
+    <!-- UPDATE ME -->
+    <div id="tab-update" class="tab-pane active">
+      <div class="update-me-section">
+        <div class="update-card">
+          <div class="update-label">What's going on with Dad right now</div>
+          <p class="update-text">Dad is <strong>3 months post-op</strong> from his second peroneal knee release and attending PT twice weekly for leg rehab. His oncology CML test came back <strong>&lt;0.001</strong> — continued improvement. Blood pressure has been <strong>running higher this week</strong> (avg 142/89) since his Hydrochlorothiazide dose adjusted in June, something Dr. Johnson is watching closely. Next visit is <strong>July 16th</strong> with Primary Care.</p>
+          <div class="update-meta">Generated from 47 health events · <a>Ask a follow-up</a></div>
+        </div>
+      </div>
+      <div class="alert-banner">
+        <div class="alert-icon"><i data-lucide="triangle-alert" style="width:16px;height:16px;"></i></div>
+        <div>
+          <div class="alert-title">Blood pressure pattern noticed</div>
+          <div class="alert-body">Readings have been consistently higher since June 18. May be related to the Hydrochlorothiazide adjustment. Dr. Johnson is aware.</div>
+        </div>
+      </div>
+      <div class="quick-actions">
+        <button class="qa-btn" onclick="openEmergencySummary()"><span class="qa-icon"><i data-lucide="file-heart" style="width:18px;height:18px;"></i></span>Emergency summary</button>
+        <button class="qa-btn" onclick="openShareFamily()"><span class="qa-icon"><i data-lucide="share-2" style="width:18px;height:18px;"></i></span>Share with family</button>
+        <button class="qa-btn" onclick="openExportVisit()"><span class="qa-icon"><i data-lucide="chart-line" style="width:18px;height:18px;"></i></span>Export for visit</button>
+      </div>
+      <div class="timeline-section" style="margin-top:16px;">
+        <p class="section-label">Recent activity</p>
+        <div class="tl-item">
+          <div class="tl-line-col"><div class="tl-dot appt"></div><div class="tl-connector"></div></div>
+          <div class="tl-card moss-border">
+            <div class="tl-card-type-row"><i data-lucide="calendar-check" style="width:11px;height:11px;color:var(--moss);"></i><span class="tl-card-type appt">Appointment</span></div>
+            <div class="tl-card-title">Annual physical — Dr. Waite</div>
+            <div class="tl-card-body">All chronic conditions reviewed. Stable. Follow-up in 6 months.</div>
+            <div class="tl-card-date">May 12, 2025</div>
           </div>
         </div>
-      `;
-    }
-
-    function RelationshipScreen() {
-      const relationships = [
-        'Myself',
-        'A parent',
-        'My partner or spouse',
-        'My child',
-        'Someone else I care about'
-      ];
-
-      return `
-        <div class="screen">
-          <div class="progress-dots">
-            <div class="dot active"></div>
-            <div class="dot"></div>
-            <div class="dot"></div>
-            <div class="dot"></div>
+        <div class="tl-item">
+          <div class="tl-line-col"><div class="tl-dot med"></div><div class="tl-connector"></div></div>
+          <div class="tl-card amber-border">
+            <div class="tl-card-type-row"><i data-lucide="pill" style="width:11px;height:11px;color:var(--amber);"></i><span class="tl-card-type med">Medication change</span></div>
+            <div class="tl-card-title">Hydrochlorothiazide adjusted</div>
+            <div class="tl-card-body">Dose increased June 18 for blood pressure management.</div>
+            <div class="tl-card-date">June 18, 2025</div>
           </div>
-
-          <h2 class="h2" style="text-align: center; max-width: 343px; margin: 0 auto;">
-            Who are you here for?
-          </h2>
-          <p class="body-small" style="text-align: center; margin-top: var(--spacing-md);">
-            You can add more people later
-          </p>
-
-          <div class="selection-cards">
-            ${relationships.map((rel) => `
-              <div class="selection-card ${state.onboarding.relationship === rel ? 'selected' : ''}" 
-                   onclick="selectRelationship('${rel}')">
-                ${rel}
-              </div>
-            `).join('')}
+        </div>
+        <div class="tl-item">
+          <div class="tl-line-col"><div class="tl-dot alert"></div></div>
+          <div class="tl-card red-border">
+            <div class="tl-card-type-row"><i data-lucide="activity" style="width:11px;height:11px;color:var(--red);"></i><span class="tl-card-type alert">Pattern noticed</span></div>
+            <div class="tl-card-title">BP elevated since dose change</div>
+            <div class="tl-card-body">Readings averaging 142/89 this week, up from 128/82 baseline.</div>
+            <div class="tl-card-date">This week</div>
           </div>
+        </div>
+      </div>
+    </div>
 
-          <div class="spacer"></div>
+    <!-- TIMELINE -->
+    <div id="tab-timeline" class="tab-pane">
+      <div class="timeline-section">
+        <div class="tl-month">July 2025</div>
+        <div class="tl-item">
+          <div class="tl-line-col"><div class="tl-dot alert"></div><div class="tl-connector"></div></div>
+          <div class="tl-card red-border">
+            <div class="tl-card-type-row"><i data-lucide="activity" style="width:11px;height:11px;color:var(--red);"></i><span class="tl-card-type alert">Wellet noticed</span></div>
+            <div class="tl-card-title">Blood pressure rising</div>
+            <div class="tl-card-body">Avg 142/89 this week. 4 readings above baseline since June 18 dose change. Dr. Johnson contacted.</div>
+            <div class="tl-card-date">July 2 — ongoing</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-line-col"><div class="tl-dot appt"></div><div class="tl-connector"></div></div>
+          <div class="tl-card moss-border">
+            <div class="tl-card-type-row"><i data-lucide="calendar" style="width:11px;height:11px;color:var(--moss);"></i><span class="tl-card-type appt">Upcoming</span></div>
+            <div class="tl-card-title">Primary care — Dr. Johnson</div>
+            <div class="tl-card-body">BP check, medication review. Address elevated readings.</div>
+            <div class="tl-card-date">July 16 @ 9:00 AM</div>
+          </div>
+        </div>
+        <div class="tl-month">June 2025</div>
+        <div class="tl-item">
+          <div class="tl-line-col"><div class="tl-dot med"></div><div class="tl-connector"></div></div>
+          <div class="tl-card amber-border">
+            <div class="tl-card-type-row"><i data-lucide="pill" style="width:11px;height:11px;color:var(--amber);"></i><span class="tl-card-type med">Medication</span></div>
+            <div class="tl-card-title">Hydrochlorothiazide dose adjusted</div>
+            <div class="tl-card-body">12.5mg → 25mg daily. Started June 18. Monitoring BP response.</div>
+            <div class="tl-card-date">June 18, 2025</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-line-col"><div class="tl-dot lab"></div><div class="tl-connector"></div></div>
+          <div class="tl-card blue-border">
+            <div class="tl-card-type-row"><i data-lucide="flask-conical" style="width:11px;height:11px;color:var(--blue);"></i><span class="tl-card-type lab">Lab result</span></div>
+            <div class="tl-card-title">CML BCR-ABL &lt;0.001</div>
+            <div class="tl-card-body">Undetectable. Continued improvement from &lt;0.003 six months ago. Dr. Edwards pleased.</div>
+            <div class="tl-card-date">June 28, 2025</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-line-col"><div class="tl-dot note"></div><div class="tl-connector"></div></div>
+          <div class="tl-card">
+            <div class="tl-card-type-row"><i data-lucide="pencil-line" style="width:11px;height:11px;color:var(--text-muted);"></i><span class="tl-card-type note">Your note</span></div>
+            <div class="tl-card-title">PT going well, some fatigue</div>
+            <div class="tl-card-body">"Dad tired after PT sessions but says legs feel stronger. Ask Dr. E about fatigue + ferritin."</div>
+            <div class="tl-card-date">June 22, 2025 — you</div>
+          </div>
+        </div>
+        <div class="tl-month">May 2025</div>
+        <div class="tl-item">
+          <div class="tl-line-col"><div class="tl-dot appt"></div><div class="tl-connector"></div></div>
+          <div class="tl-card moss-border">
+            <div class="tl-card-type-row"><i data-lucide="calendar-check" style="width:11px;height:11px;color:var(--moss);"></i><span class="tl-card-type appt">Appointment</span></div>
+            <div class="tl-card-title">Annual physical — Dr. Waite</div>
+            <div class="tl-card-body">All conditions stable. LDL slightly elevated (144). Mammogram ordered.</div>
+            <div class="tl-card-date">May 12, 2025</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-line-col"><div class="tl-dot appt"></div><div class="tl-connector"></div></div>
+          <div class="tl-card moss-border">
+            <div class="tl-card-type-row"><i data-lucide="calendar-check" style="width:11px;height:11px;color:var(--moss);"></i><span class="tl-card-type appt">Appointment</span></div>
+            <div class="tl-card-title">Oncology follow-up — Dr. Edwards</div>
+            <div class="tl-card-body">Gleevec dosage confirmed. CML stable. Next labs in 6 weeks.</div>
+            <div class="tl-card-date">May 3, 2025</div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-line-col"><div class="tl-dot lab"></div></div>
+          <div class="tl-card blue-border">
+            <div class="tl-card-type-row"><i data-lucide="flask-conical" style="width:11px;height:11px;color:var(--blue);"></i><span class="tl-card-type lab">Labs</span></div>
+            <div class="tl-card-title">Basic metabolic panel — all normal</div>
+            <div class="tl-card-body">Creatinine 1.1, eGFR 59 (stable Stage 3a). Electrolytes all within range.</div>
+            <div class="tl-card-date">May 12, 2025</div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-          <button class="btn-primary" 
-                  ${!state.onboarding.relationship ? 'disabled' : ''}
-                  onclick="navigateTo('name')">
-            Continue
+    <!-- PATTERNS -->
+    <div id="tab-patterns" class="tab-pane">
+      <div class="patterns-section">
+        <p class="section-label">What Wellet has noticed</p>
+        <div class="insight-card">
+          <div class="insight-row"><div class="insight-count">7</div><div><div class="insight-label">Blood pressure readings this month</div></div></div>
+          <div class="insight-sub">Readings have been consistently higher since June 18 — the same day Hydrochlorothiazide was adjusted. This may be expected during medication titration.</div>
+          <div class="bar-wrap">
+            <div class="bar-label"><span>Morning average</span><span style="color:var(--text-primary);font-weight:500;">138/84</span></div>
+            <div class="bar"><div class="bar-fill moss" style="width:72%"></div></div>
+            <div class="bar-label"><span>Evening average</span><span style="color:var(--amber);font-weight:500;">146/91</span></div>
+            <div class="bar"><div class="bar-fill amber" style="width:88%"></div></div>
+          </div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-row"><div class="insight-count">4</div><div><div class="insight-label">Appointments in the past 90 days</div></div></div>
+          <div class="insight-sub">Annual physical, oncology follow-up, PT evaluation, and eye specialist visit. All logged. Next up: Primary care July 16.</div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-row"><div class="insight-count">2</div><div><div class="insight-label">Medication changes since May</div></div></div>
+          <div class="insight-sub">Hydrochlorothiazide dose increase (June 18) and Gleevec dosage confirmation (May 3). Both logged with dates and context.</div>
+        </div>
+        <div class="insight-card" style="border-color:var(--mint-deep);background:var(--mint);">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+            <i data-lucide="eye" style="width:13px;height:13px;color:var(--moss);"></i>
+            <span style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--moss-dark);font-weight:500;">Wellet is witnessing</span>
+          </div>
+          <p style="font-size:13px;line-height:1.65;color:var(--text-secondary);">CML continues to improve. Fatigue noted by you on June 22 — not yet addressed by care team. PT compliance is excellent. Glaucoma stable at last eye visit.</p>
+        </div>
+      </div>
+    </div><!-- end tab-patterns -->
+    </div><!-- end view-home -->
+
+    <!-- PEOPLE VIEW -->
+    <div id="view-people" class="app-view">
+      <div class="view-header">
+        <div class="view-title">People</div>
+        <div class="view-subtitle">Everyone you're caring for</div>
+      </div>
+      <div class="people-section">
+        <div class="person-card">
+          <div class="person-card-top">
+            <div class="person-card-avatar moss">JB</div>
+            <div>
+              <div class="person-card-name">John Bell</div>
+              <div class="person-card-rel">Dad · Age 71</div>
+            </div>
+            <div class="person-card-status watching">
+              <i data-lucide="triangle-alert" style="width:13px;height:13px;"></i> Watching
+            </div>
+            <button class="remove-btn" onclick="confirmRemove('John Bell', this)" title="Remove person">
+              <i data-lucide="x" style="width:16px;height:16px;"></i>
+            </button>
+          </div>
+          <div class="person-card-stats">
+            <div class="person-stat"><div class="person-stat-val">6</div><div class="person-stat-label">Medications</div></div>
+            <div class="person-stat"><div class="person-stat-val">4</div><div class="person-stat-label">Diagnoses</div></div>
+            <div class="person-stat"><div class="person-stat-val">Jul 16</div><div class="person-stat-label">Next appt</div></div>
+          </div>
+          <div class="person-card-action">
+            <button class="card-action-btn" onclick="switchNavTo('home')">Update Me</button>
+            <button class="card-action-btn">Emergency summary</button>
+            <button class="card-action-btn" onclick="openUpload('John Bell')">Add document</button>
+          </div>
+        </div>
+        <div class="person-card">
+          <div class="person-card-top">
+            <div class="person-card-avatar sage">MB</div>
+            <div>
+              <div class="person-card-name">Mary Bell</div>
+              <div class="person-card-rel">Mom · Age 68</div>
+            </div>
+            <div class="person-card-status stable">
+              <i data-lucide="check-circle" style="width:13px;height:13px;"></i> Stable
+            </div>
+            <button class="remove-btn" onclick="confirmRemove('Mary Bell', this)" title="Remove person">
+              <i data-lucide="x" style="width:16px;height:16px;"></i>
+            </button>
+          </div>
+          <div class="person-card-stats">
+            <div class="person-stat"><div class="person-stat-val">3</div><div class="person-stat-label">Medications</div></div>
+            <div class="person-stat"><div class="person-stat-val">2</div><div class="person-stat-label">Diagnoses</div></div>
+            <div class="person-stat"><div class="person-stat-val">Aug 4</div><div class="person-stat-label">Next appt</div></div>
+          </div>
+          <div class="person-card-action">
+            <button class="card-action-btn">Update Me</button>
+            <button class="card-action-btn">Emergency summary</button>
+            <button class="card-action-btn" onclick="openUpload('Mary Bell')">Add document</button>
+          </div>
+        </div>
+        <button class="add-person-btn" onclick="showOnboarding()">
+          <i data-lucide="plus" style="width:16px;height:16px;"></i>
+          Add another person
+        </button>
+      </div>
+    </div><!-- end view-people -->
+
+    <!-- RECORDS VIEW -->
+    <div id="view-records" class="app-view">
+      <div class="view-header">
+        <div class="view-title">Records</div>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button class="person-pill active" id="records-pill-dad" onclick="switchRecordsPerson(this,'dad')"><span class="pip"></span>Dad</button>
+          <button class="person-pill" id="records-pill-mom" onclick="switchRecordsPerson(this,'mom')"><span class="pip"></span>Mom</button>
+        </div>
+      </div>
+      <div id="records-dad" class="records-section">
+        <div class="record-group">
+          <div class="record-group-header">
+            <div class="record-group-title"><i data-lucide="pill" style="width:14px;height:14px;color:var(--amber);"></i>Medications</div>
+            <span class="record-group-count">6 active</span>
+          </div>
+          <div class="record-row">
+            <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">Lisinopril 20mg</div><div class="record-meta">Once daily · Hypertension</div></div>
+            <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
+          </div>
+          <div class="record-row">
+            <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">Hydrochlorothiazide 25mg</div><div class="record-meta">Once daily · Hypertension</div></div>
+            <span class="record-badge amber">Changed Jun 18</span>
+          </div>
+          <div class="record-row">
+            <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">Gleevec (Imatinib) 400mg</div><div class="record-meta">Once daily · CML</div></div>
+            <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
+          </div>
+        </div>
+
+        <div class="record-group">
+          <div class="record-group-header">
+            <div class="record-group-title"><i data-lucide="stethoscope" style="width:14px;height:14px;color:var(--moss);"></i>Diagnoses</div>
+            <span class="record-group-count">4 active</span>
+          </div>
+          <div class="record-row">
+            <div class="record-icon moss"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">Hypertension</div><div class="record-meta">Since Apr 2022 · Dr. Johnson</div></div>
+            <span class="record-badge amber">Watching</span>
+          </div>
+          <div class="record-row">
+            <div class="record-icon moss"><i data-lucide="microscope" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">CML (Chronic Myeloid Leukemia)</div><div class="record-meta">Since 2019 · Dr. Edwards</div></div>
+            <span class="record-badge moss">Improving</span>
+          </div>
+          <div class="record-row">
+            <div class="record-icon moss"><i data-lucide="eye" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">Glaucoma</div><div class="record-meta">Stable · Dr. Patel</div></div>
+            <span class="record-badge moss">Stable</span>
+          </div>
+        </div>
+
+        <div class="record-group">
+          <div class="record-group-header">
+            <div class="record-group-title"><i data-lucide="flask-conical" style="width:14px;height:14px;color:var(--blue);"></i>Recent labs</div>
+            <span class="record-group-count">3 this month</span>
+          </div>
+          <div class="record-row">
+            <div class="record-icon blue"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">CML BCR-ABL &lt;0.001</div><div class="record-meta">Jun 28 · Undetectable</div></div>
+            <span class="record-badge moss">Normal</span>
+          </div>
+          <div class="record-row">
+            <div class="record-icon blue"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">Basic metabolic panel</div><div class="record-meta">May 12 · All normal</div></div>
+            <span class="record-badge moss">Normal</span>
+          </div>
+        </div>
+
+        <div class="record-group">
+          <div class="record-group-header">
+            <div class="record-group-title"><i data-lucide="pencil-line" style="width:14px;height:14px;color:var(--text-muted);"></i>Caregiver notes</div>
+            <span class="record-group-count">5 notes</span>
+          </div>
+          <div class="record-row">
+            <div class="record-icon muted"><i data-lucide="pencil-line" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">PT going well, some fatigue</div><div class="record-meta">Jun 22 · you</div></div>
+            <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
+          </div>
+          <div class="record-row">
+            <div class="record-icon muted"><i data-lucide="pencil-line" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">Ask Dr. E about ferritin levels</div><div class="record-meta">Jun 22 · you</div></div>
+            <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
+          </div>
+        </div>
+      </div>
+      </div><!-- end records-dad -->
+
+      <!-- MOM'S RECORDS -->
+      <div id="records-mom" class="records-section" style="display:none;">
+
+        <div class="record-group">
+          <div class="record-group-header">
+            <div class="record-group-title"><i data-lucide="pill" style="width:14px;height:14px;color:var(--amber);"></i>Medications</div>
+            <span class="record-group-count">3 active</span>
+          </div>
+          <div class="record-row">
+            <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">Atorvastatin 20mg</div><div class="record-meta">Once daily · Cholesterol</div></div>
+            <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
+          </div>
+          <div class="record-row">
+            <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">Levothyroxine 50mcg</div><div class="record-meta">Once daily · Hypothyroidism</div></div>
+            <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
+          </div>
+          <div class="record-row">
+            <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">Vitamin D3 2000IU</div><div class="record-meta">Once daily · Supplement</div></div>
+            <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
+          </div>
+        </div>
+
+        <div class="record-group">
+          <div class="record-group-header">
+            <div class="record-group-title"><i data-lucide="stethoscope" style="width:14px;height:14px;color:var(--moss);"></i>Diagnoses</div>
+            <span class="record-group-count">2 active</span>
+          </div>
+          <div class="record-row">
+            <div class="record-icon moss"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">Hypercholesterolemia</div><div class="record-meta">Since 2018 · Dr. Chen</div></div>
+            <span class="record-badge moss">Stable</span>
+          </div>
+          <div class="record-row">
+            <div class="record-icon moss"><i data-lucide="thermometer" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">Hypothyroidism</div><div class="record-meta">Since 2015 · Dr. Waite</div></div>
+            <span class="record-badge moss">Stable</span>
+          </div>
+        </div>
+
+        <div class="record-group">
+          <div class="record-group-header">
+            <div class="record-group-title"><i data-lucide="flask-conical" style="width:14px;height:14px;color:var(--blue);"></i>Recent labs</div>
+            <span class="record-group-count">2 this month</span>
+          </div>
+          <div class="record-row">
+            <div class="record-icon blue"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">Lipid panel</div><div class="record-meta">Jun 15 · LDL 98, HDL 62</div></div>
+            <span class="record-badge moss">Normal</span>
+          </div>
+          <div class="record-row">
+            <div class="record-icon blue"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">TSH (thyroid)</div><div class="record-meta">Jun 15 · 2.4 mIU/L</div></div>
+            <span class="record-badge moss">Normal</span>
+          </div>
+        </div>
+
+        <div class="record-group">
+          <div class="record-group-header">
+            <div class="record-group-title"><i data-lucide="pencil-line" style="width:14px;height:14px;color:var(--text-muted);"></i>Caregiver notes</div>
+            <span class="record-group-count">2 notes</span>
+          </div>
+          <div class="record-row">
+            <div class="record-icon muted"><i data-lucide="pencil-line" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">Feeling good after last checkup</div><div class="record-meta">Jun 16 · you</div></div>
+            <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
+          </div>
+        </div>
+
+      </div><!-- end records-mom -->
+
+    <!-- ASK WELLET VIEW -->
+    <div id="view-ask" class="app-view">
+      <div class="ask-view">
+        <div class="ask-person-bar">
+          <button class="ask-person-pill active" onclick="selectAskPerson(this,'dad')"><span style="width:6px;height:6px;border-radius:50%;background:currentColor;opacity:0.7;display:inline-block;"></span>Dad</button>
+          <button class="ask-person-pill" onclick="selectAskPerson(this,'mom')"><span style="width:6px;height:6px;border-radius:50%;background:currentColor;opacity:0.7;display:inline-block;"></span>Mom</button>
+        </div>
+
+        <div class="chat-area" id="chat-area">
+          <div class="chat-group from-wellet">
+            <div class="chat-sender">
+              <svg viewBox="0 138 50 42" xmlns="http://www.w3.org/2000/svg" style="width:12px;height:12px;fill:var(--moss);flex-shrink:0;"><path d="M45.5,142c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83l.25-2.56h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z"/></svg>
+              Wellet
+            </div>
+            <div class="chat-bubble wellet">Ask me anything about Dad's health. I'll answer from what's in his records.</div>
+          </div>
+        </div>
+
+        <div class="suggestion-chips" id="suggestion-chips">
+          <button class="chip" onclick="askQuestion(this.textContent)">What's his current BP trend?</button>
+          <button class="chip" onclick="askQuestion(this.textContent)">When is his next appointment?</button>
+          <button class="chip" onclick="askQuestion(this.textContent)">What changed this month?</button>
+          <button class="chip" onclick="askQuestion(this.textContent)">What meds is he taking?</button>
+          <button class="chip" onclick="askQuestion(this.textContent)">How is his CML doing?</button>
+        </div>
+
+        <div class="ask-input-bar">
+          <textarea class="ask-input" id="ask-input" placeholder="Ask about Dad's health…" rows="1" onkeydown="handleAskKey(event)" oninput="autoResize(this)"></textarea>
+          <button class="ask-send" id="ask-send" onclick="sendAskMessage()">
+            <i data-lucide="arrow-up" style="width:16px;height:16px;"></i>
           </button>
         </div>
-      `;
-    }
+      </div>
+    </div><!-- end view-ask -->
 
-    function NameScreen() {
-      return `
-        <div class="screen">
-          <div class="progress-dots">
-            <div class="dot active"></div>
-            <div class="dot active"></div>
-            <div class="dot"></div>
-            <div class="dot"></div>
-          </div>
+  </div><!-- end app-body -->
 
-          <h2 class="h2" style="text-align: center; max-width: 343px; margin: 0 auto;">
-            What would you like to call them?
-          </h2>
-          <p class="body-small" style="text-align: center; margin-top: var(--spacing-md);">
-            This helps personalize your experience
-          </p>
+  <div class="bottom-nav">
+    <button class="nav-item active" onclick="switchNavTo('home')"><span class="nav-icon"><i data-lucide="house" style="width:20px;height:20px;"></i></span>Home</button>
+    <button class="nav-item" onclick="switchNavTo('people')"><span class="nav-icon"><i data-lucide="users" style="width:20px;height:20px;"></i></span>People</button>
+    <button class="nav-item" onclick="switchNavTo('records')"><span class="nav-icon"><i data-lucide="folder-heart" style="width:20px;height:20px;"></i></span>Records</button>
+    <button class="nav-item" id="nav-ask" onclick="switchNavTo('ask')"><span class="nav-icon"><svg class="wellet-nav-icon" viewBox="0 138 50 42" xmlns="http://www.w3.org/2000/svg"><path d="M45.5,142c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83l.25-2.56h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z"/></svg></span>Ask Wellet</button>
+  </div>
+</div>
 
-          <input type="text" 
-                 class="input" 
-                 placeholder="e.g., Mom, John, Sarah"
-                 value="${state.onboarding.name || ''}"
-                 oninput="state.onboarding.name = this.value; render();">
 
-          <p class="body-small" style="text-align: center; color: var(--slate-gray);">
-            You can change this anytime
-          </p>
+<!-- ONBOARDING -->
+<div id="onboarding">
+  <div class="onboard-header">
+    <button class="back-btn" onclick="showApp()"><i data-lucide="arrow-left" style="width:20px;height:20px;"></i></button>
+    <h2>Start your story</h2>
+  </div>
+  <div class="onboard-body">
+    <p style="font-size:14px;color:var(--text-secondary);line-height:1.7;margin-bottom:24px;">The demo shows John's timeline after 3 months of use. Yours starts with a single person and a single moment.</p>
+    <div class="onboard-step">
+      <div class="step-num done"><i data-lucide="check" style="width:14px;height:14px;"></i></div>
+      <div class="step-title">You understand what it becomes.</div>
+      <div class="step-body">You just saw it.</div>
+    </div>
+    <div class="onboard-step">
+      <div class="step-num" id="step2-num">2</div>
+      <div class="step-title">Who are you caring for?</div>
+      <div class="step-body">Just a first name is enough to start.</div>
+      <input id="person-name" class="input-field" type="text" placeholder="e.g. Dad, Mom, Grandma…" oninput="handleName(this.value)">
+      <div class="name-filled" id="name-confirm">
+        <div class="filled-badge"><i data-lucide="check" style="width:14px;height:14px;"></i><span id="name-out"></span> added</div>
+      </div>
+    </div>
+    <div class="onboard-step">
+      <div class="step-num">3</div>
+      <div class="step-title">Connect health records</div>
+      <div class="step-body">Link their patient portal (MyChart, Epic) or Apple Health — or skip and add things manually. You can always do this later.</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
+        <button class="btn-primary" style="font-size:14px;padding:12px;"><i data-lucide="link" style="width:15px;height:15px;"></i> Connect a portal or Apple Health</button>
+        <button class="btn-secondary" style="font-size:14px;padding:10px;border-width:1px;"><i data-lucide="pencil" style="width:15px;height:15px;"></i> I'll add things manually for now</button>
+      </div>
+    </div>
+    <div class="privacy-footer" style="margin-top:8px;">
+      <p class="privacy-note">Everything stays on your device. Wellet is <strong>local-first, private by design</strong>. No account needed to start.</p>
+    </div>
+  </div>
+</div>
 
-          <div class="spacer"></div>
+<!-- EMERGENCY SUMMARY SHEET -->
+<div class="qa-overlay" id="emergency-overlay">
+  <div class="qa-sheet">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" onclick="closeSheet('emergency-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title">Emergency Summary</div>
+    <div class="qa-sheet-sub">Dad · John Bell · Last updated today</div>
 
-          <div style="display: flex; flex-direction: column; gap: var(--spacing-md);">
-            <button class="btn-primary" onclick="navigateTo('pronouns')">
-              Continue
-            </button>
-            <button class="btn-text" onclick="state.onboarding.name = null; navigateTo('pronouns')">
-              Skip for now
-            </button>
-          </div>
-        </div>
-      `;
-    }
+    <div class="emrg-band">
+      <i data-lucide="shield-alert" style="width:20px;height:20px;flex-shrink:0;"></i>
+      <div class="emrg-band-text">Share this with ER staff or any new provider who needs a quick snapshot of Dad's health.</div>
+    </div>
 
-    function PronounsScreen() {
-      const pronouns = ['She / Her', 'He / Him', 'They / Them', 'Prefer not to say'];
+    <div class="emrg-section">
+      <div class="emrg-section-title"><i data-lucide="user" style="width:12px;height:12px;"></i> Patient</div>
+      <div class="emrg-row"><span class="emrg-label">Name</span><span class="emrg-val">John Bell</span></div>
+      <div class="emrg-row"><span class="emrg-label">Date of birth</span><span class="emrg-val">March 4, 1954 (Age 71)</span></div>
+      <div class="emrg-row"><span class="emrg-label">Emergency contact</span><span class="emrg-val">Sarah Bell · (919) 555-0142</span></div>
+      <div class="emrg-row"><span class="emrg-label">Allergies</span><span class="emrg-val">Penicillin (rash)</span></div>
+    </div>
 
-      return `
-        <div class="screen">
-          <div class="progress-dots">
-            <div class="dot active"></div>
-            <div class="dot active"></div>
-            <div class="dot active"></div>
-            <div class="dot"></div>
-          </div>
+    <div class="emrg-section">
+      <div class="emrg-section-title"><i data-lucide="stethoscope" style="width:12px;height:12px;"></i> Active diagnoses</div>
+      <div class="emrg-row"><span class="emrg-label">Hypertension</span><span class="emrg-val">Since Apr 2022</span></div>
+      <div class="emrg-row"><span class="emrg-label">CML</span><span class="emrg-val">Since 2019 · Responding</span></div>
+      <div class="emrg-row"><span class="emrg-label">Stage 3a CKD</span><span class="emrg-val">Stable</span></div>
+      <div class="emrg-row"><span class="emrg-label">Glaucoma</span><span class="emrg-val">Stable</span></div>
+    </div>
 
-          <h2 class="h2" style="text-align: center; max-width: 343px; margin: 0 auto;">
-            Which pronouns should I use?
-          </h2>
-          <p class="body-small" style="text-align: center; margin-top: var(--spacing-md);">
-            Optional - helps me use the right language
-          </p>
+    <div class="emrg-section">
+      <div class="emrg-section-title"><i data-lucide="pill" style="width:12px;height:12px;"></i> Current medications</div>
+      <div class="emrg-row"><span class="emrg-label">Lisinopril</span><span class="emrg-val">20mg · daily</span></div>
+      <div class="emrg-row"><span class="emrg-label">Hydrochlorothiazide</span><span class="emrg-val">25mg · daily</span></div>
+      <div class="emrg-row"><span class="emrg-label">Gleevec (Imatinib)</span><span class="emrg-val">400mg · daily</span></div>
+      <div class="emrg-row"><span class="emrg-label">Metoprolol</span><span class="emrg-val">50mg · daily</span></div>
+      <div class="emrg-row"><span class="emrg-label">Citalopram</span><span class="emrg-val">10mg · daily</span></div>
+      <div class="emrg-row"><span class="emrg-label">Zepbound</span><span class="emrg-val">12.5mg · weekly</span></div>
+    </div>
 
-          <div class="selection-cards">
-            ${pronouns.map(pronoun => `
-              <div class="selection-card ${state.onboarding.pronouns === pronoun ? 'selected' : ''}" 
-                   onclick="selectPronouns('${pronoun}')">
-                ${pronoun}
-              </div>
-            `).join('')}
-          </div>
+    <div class="emrg-section">
+      <div class="emrg-section-title"><i data-lucide="users" style="width:12px;height:12px;"></i> Care team</div>
+      <div class="emrg-row"><span class="emrg-label">Primary care</span><span class="emrg-val">Dr. Johnson</span></div>
+      <div class="emrg-row"><span class="emrg-label">Oncology</span><span class="emrg-val">Dr. Edwards · Duke</span></div>
+      <div class="emrg-row"><span class="emrg-label">Ophthalmology</span><span class="emrg-val">Dr. Patel</span></div>
+    </div>
 
-          <div class="spacer"></div>
+    <div class="emrg-actions">
+      <button class="btn-primary" style="font-size:13px;padding:12px;" onclick="showToast('Emergency summary downloaded')">
+        <i data-lucide="download" style="width:15px;height:15px;"></i> Download PDF
+      </button>
+      <button class="btn-primary" style="font-size:13px;padding:12px;background:var(--forest);" onclick="showToast('Link copied to clipboard')">
+        <i data-lucide="share-2" style="width:15px;height:15px;"></i> Share
+      </button>
+    </div>
+  </div>
+</div>
 
-          <div style="display: flex; flex-direction: column; gap: var(--spacing-md);">
-            <button class="btn-primary" onclick="navigateTo('context')">
-              Continue
-            </button>
-            <button class="btn-text" onclick="state.onboarding.pronouns = null; navigateTo('context')">
-              Skip this step
-            </button>
-          </div>
-        </div>
-      `;
-    }
+<!-- SHARE WITH FAMILY SHEET -->
+<div class="qa-overlay" id="share-overlay">
+  <div class="qa-sheet">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" onclick="closeSheet('share-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title">Share with family</div>
+    <div class="qa-sheet-sub">Send a summary of what's going on with Dad</div>
 
-    function ContextScreen() {
-      const contexts = [
-        'Ongoing care and coordination',
-        'Recent health changes',
-        'Post-surgery recovery',
-        'Pregnancy',
-        'Menopause',
-        'End-of-life care',
-        'Just want to remember what\'s happening',
-        'Prefer not to say'
-      ];
+    <div class="share-preview">
+      <div class="share-preview-label">What you're sharing</div>
+      <div class="share-preview-text">Dad is 3 months post-op from his second peroneal knee release and attending PT twice weekly. His CML test came back &lt;0.001 — continued improvement. BP has been running higher since the June 18 medication adjustment. Next visit July 16 with Dr. Johnson.</div>
+    </div>
 
-      return `
-        <div class="screen">
-          <div class="progress-dots">
-            <div class="dot active"></div>
-            <div class="dot active"></div>
-            <div class="dot active"></div>
-            <div class="dot active"></div>
-          </div>
+    <div class="share-toggle-row">
+      <span class="share-toggle-label">Include caregiver notes</span>
+      <button class="toggle" onclick="this.classList.toggle('on')"></button>
+    </div>
+    <div class="share-toggle-row" style="margin-bottom:16px;">
+      <span class="share-toggle-label">Include medications list</span>
+      <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+    </div>
 
-          <h2 class="h2" style="text-align: center; max-width: 343px; margin: 0 auto;">
-            What brings you here?
-          </h2>
-          <p class="body-small" style="text-align: center; margin-top: var(--spacing-md);">
-            This helps me use the right tone
-          </p>
+    <div class="share-options">
+      <div class="share-option" onclick="showToast('Opened in Messages')">
+        <div class="share-option-icon" style="background:#DCE9FF;color:#3B6EA5;"><i data-lucide="message-circle" style="width:17px;height:17px;"></i></div>
+        <div><div class="share-option-label">Send via text</div><div class="share-option-sub">Opens in Messages</div></div>
+      </div>
+      <div class="share-option" onclick="showToast('Opened in Mail')">
+        <div class="share-option-icon" style="background:#FDF5E8;color:var(--amber);"><i data-lucide="mail" style="width:17px;height:17px;"></i></div>
+        <div><div class="share-option-label">Send via email</div><div class="share-option-sub">Opens in Mail</div></div>
+      </div>
+      <div class="share-option" onclick="showToast('Link copied to clipboard')">
+        <div class="share-option-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="link" style="width:17px;height:17px;"></i></div>
+        <div><div class="share-option-label">Copy link</div><div class="share-option-sub">Anyone with the link can view</div></div>
+      </div>
+      <div class="share-option" onclick="showToast('Summary downloaded as PDF')">
+        <div class="share-option-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="file-text" style="width:17px;height:17px;"></i></div>
+        <div><div class="share-option-label">Download as PDF</div><div class="share-option-sub">Save or print a copy</div></div>
+      </div>
+    </div>
+  </div>
+</div>
 
-          <div class="selection-cards">
-            ${contexts.map(context => `
-              <div class="selection-card ${state.onboarding.context === context ? 'selected' : ''}" 
-                   onclick="selectContext('${context.replace(/'/g, "\\'")}')">
-                ${context}
-              </div>
-            `).join('')}
-          </div>
+<!-- EXPORT FOR VISIT SHEET -->
+<div class="qa-overlay" id="export-overlay">
+  <div class="qa-sheet">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" onclick="closeSheet('export-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title">Export for visit</div>
+    <div class="qa-sheet-sub">Prepare a summary for Dad's July 16 appointment</div>
 
-          <div class="spacer"></div>
+    <div class="export-section">
+      <div class="export-section-label">Format</div>
+      <div class="format-toggle">
+        <button class="format-btn active" onclick="setFormat(this)">PDF</button>
+        <button class="format-btn" onclick="setFormat(this)">CSV</button>
+        <button class="format-btn" onclick="setFormat(this)">Print</button>
+      </div>
+    </div>
 
-          <button class="btn-primary" onclick="completeOnboarding()">
-            Start Using Wellet
-          </button>
-        </div>
-      `;
-    }
+    <div class="export-section">
+      <div class="export-section-label">Include in export</div>
+      <div class="export-check-row">
+        <div class="export-check-left"><div class="export-check-icon"><i data-lucide="stethoscope" style="width:15px;height:15px;"></i></div>Active diagnoses</div>
+        <div class="export-checkbox checked" onclick="this.classList.toggle('checked')"><i data-lucide="check" style="width:12px;height:12px;color:white;"></i></div>
+      </div>
+      <div class="export-check-row">
+        <div class="export-check-left"><div class="export-check-icon"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>Current medications</div>
+        <div class="export-checkbox checked" onclick="this.classList.toggle('checked')"><i data-lucide="check" style="width:12px;height:12px;color:white;"></i></div>
+      </div>
+      <div class="export-check-row">
+        <div class="export-check-left"><div class="export-check-icon"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>Recent labs (past 90 days)</div>
+        <div class="export-checkbox checked" onclick="this.classList.toggle('checked')"><i data-lucide="check" style="width:12px;height:12px;color:white;"></i></div>
+      </div>
+      <div class="export-check-row">
+        <div class="export-check-left"><div class="export-check-icon"><i data-lucide="calendar-check" style="width:15px;height:15px;"></i></div>Appointment history</div>
+        <div class="export-checkbox checked" onclick="this.classList.toggle('checked')"><i data-lucide="check" style="width:12px;height:12px;color:white;"></i></div>
+      </div>
+      <div class="export-check-row">
+        <div class="export-check-left"><div class="export-check-icon"><i data-lucide="pencil-line" style="width:15px;height:15px;"></i></div>Caregiver notes</div>
+        <div class="export-checkbox" onclick="this.classList.toggle('checked')"></div>
+      </div>
+      <div class="export-check-row">
+        <div class="export-check-left"><div class="export-check-icon"><i data-lucide="activity" style="width:15px;height:15px;"></i></div>Update Me summary</div>
+        <div class="export-checkbox checked" onclick="this.classList.toggle('checked')"><i data-lucide="check" style="width:12px;height:12px;color:white;"></i></div>
+      </div>
+    </div>
 
-    function SuccessScreen() {
-      return `
-        <div class="screen">
-          <div class="spacer"></div>
-          
-          <div class="success-icon">✓</div>
-          
-          <h1 class="h1">You're all set!</h1>
-          <p class="body-default" style="text-align: center; max-width: 343px; margin: 0 auto var(--spacing-xxxl);">
-            Wellet is ready to help you remember what matters
-          </p>
+    <div style="padding:0 20px;">
+      <button class="btn-primary" style="font-size:14px;padding:13px;" onclick="showToast('Export ready — opening preview'); closeSheet('export-overlay')">
+        <i data-lucide="download" style="width:15px;height:15px;"></i>
+        Generate export
+      </button>
+    </div>
+  </div>
+</div>
 
-          <div style="background: white; border: 1px solid rgba(79, 77, 92, 0.1); border-radius: 12px; padding: var(--spacing-lg); margin-bottom: var(--spacing-xxl);">
-            <div style="display: flex; align-items: center; gap: var(--spacing-md); margin-bottom: var(--spacing-md);">
-              <span style="font-size: 16px;">🤍</span>
-              <div style="background: var(--light-mint); border-radius: 12px; padding: var(--spacing-md); flex: 1;">
-                <p class="body-default">Tell me what happened</p>
-              </div>
-            </div>
-            <div style="display: flex; gap: var(--spacing-md); align-items: center; padding-left: var(--spacing-xxxl);">
-              <span style="font-size: 20px;">📅</span>
-              <p class="body-small">Your first event will appear here</p>
-            </div>
-          </div>
+<!-- UPLOAD SHEET -->
+<div class="upload-overlay" id="upload-overlay">
+  <div class="upload-sheet">
+    <div class="upload-handle-row">
+      <div class="upload-handle"></div>
+      <button class="close-btn" onclick="closeUpload()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="upload-title">Add a document</div>
+    <div class="upload-person">Adding to <strong id="upload-person-name"></strong></div>
 
-          <div style="display: flex; flex-direction: column; gap: var(--spacing-lg); text-align: left; margin-bottom: var(--spacing-xxxl);">
-            <div class="body-small">📱 Capture events by voice or text</div>
-            <div class="body-small">🤍 Get gentle observations over time</div>
-            <div class="body-small">📄 Create summaries when you need them</div>
-          </div>
+    <!-- Step 1: pick source -->
+    <div id="upload-step1">
+      <div class="upload-drop" onclick="simulateUpload()">
+        <div class="upload-drop-icon"><i data-lucide="upload-cloud" style="width:32px;height:32px;"></i></div>
+        <div class="upload-drop-label">Tap to upload a file</div>
+        <div class="upload-drop-sub">PDF, JPG, or PNG · up to 25MB</div>
+      </div>
 
-          <div class="spacer"></div>
+      <div class="upload-divider"><span>or choose a type</span></div>
 
-          <button class="btn-primary" onclick="navigateTo('timeline')">
-            Go to Timeline
-          </button>
-        </div>
-      `;
-    }
-
-    function TimelineScreen() {
-      const groupedEvents = groupEventsByPeriod(state.events);
-      const hasEvents = state.events.length > 0;
-
-      return `
-        <div class="screen" style="padding: 0;">
-          <div class="header">
-            <div class="header-title">wellet</div>
-          </div>
-
-          <div style="padding: var(--spacing-lg);">
-            <div class="quick-capture" onclick="navigateTo('capture')">
-              <span style="font-size: 16px;">🤍</span>
-              <div class="body-default" style="color: var(--charcoal-black);">
-                Tell me what happened
-              </div>
-            </div>
-
-            ${!hasEvents ? `
-              <div class="empty-state">
-                <p class="body-default">Your timeline will appear here</p>
-                <p class="body-small" style="margin-top: var(--spacing-md);">
-                  Tap "Tell me what happened" above to start
-                </p>
-              </div>
-            ` : `
-              <div class="timeline">
-                ${Object.entries(groupedEvents).map(([period, events]) => `
-                  <div class="timeline-section">
-                    <div class="timeline-header">${period}</div>
-                    ${events.map(event => `
-                     <div class="event-card" onclick='viewEvent(${JSON.stringify(event).replace(/'/g, "\\'")})'>
-                        <div class="event-header">
-                          <span class="event-icon">📅</span>
-                          <div class="event-content">
-                            <div class="event-title">${event.title}</div>
-                            <div class="event-timestamp">${formatDate(event.eventDate)}</div>
-                          </div>
-                        </div>
-                      </div>
-                    `).join('')}
-                  </div>
-                `).join('')}
-              </div>
-            `}
-          </div>
-        </div>
-      `;
-    }
-
-    function EventCaptureScreen() {
-      return `
-        <div class="screen" style="padding: 0;">
-          <div class="header">
-            <button class="header-back" onclick="navigateTo('timeline')">
-              ← Back
-            </button>
-          </div>
-
-          <div style="padding: var(--spacing-lg); flex: 1; display: flex; flex-direction: column;">
-            <div class="chat-container">
-              ${state.chatMessages.map(msg => `
-                <div class="chat-bubble ${msg.type}">
-                  ${msg.content}
-                </div>
-              `).join('')}
-            </div>
-          </div>
-
-          <div class="chat-input-container">
-            <div class="chat-input">
-              <input type="text" 
-                     id="chatInput"
-                     placeholder="Type here..."
-                     onkeypress="if(event.key === 'Enter') sendMessage()">
-              <button class="icon-button" onclick="sendMessage()">
-                <span style="font-size: 20px;">→</span>
-              </button>
-            </div>
+      <div class="upload-options">
+        <div class="upload-option" onclick="simulateUpload('Visit summary')">
+          <div class="upload-option-icon"><i data-lucide="clipboard-list" style="width:17px;height:17px;"></i></div>
+          <div>
+            <div class="upload-option-label">Visit summary</div>
+            <div class="upload-option-sub">After-visit notes from a provider</div>
           </div>
         </div>
-      `;
-    }
-
-    function EventDetailScreen() {
-      const event = state.currentEvent;
-      if (!event) return '';
-
-      return `
-        <div class="screen" style="padding: 0;">
-          <div class="header">
-            <button class="header-back" onclick="navigateTo('timeline')">
-              ← Timeline
-            </button>
-          </div>
-
-          <div style="padding: var(--spacing-lg); flex: 1; overflow-y: auto;">
-            <div class="event-detail">
-              <div class="event-detail-header">
-                <div class="event-detail-date">${formatDateTime(event.createdAt)}</div>
-                <h2 class="h2">${event.title}</h2>
-              </div>
-
-              <div class="content-label">You wrote:</div>
-              <div class="event-detail-content">
-                <p class="body-default">${event.content}</p>
-              </div>
-            </div>
+        <div class="upload-option" onclick="simulateUpload('Lab results')">
+          <div class="upload-option-icon"><i data-lucide="flask-conical" style="width:17px;height:17px;"></i></div>
+          <div>
+            <div class="upload-option-label">Lab results</div>
+            <div class="upload-option-sub">Blood work, imaging reports, panels</div>
           </div>
         </div>
-      `;
-    }
+        <div class="upload-option" onclick="simulateUpload('Prescription')">
+          <div class="upload-option-icon"><i data-lucide="pill" style="width:17px;height:17px;"></i></div>
+          <div>
+            <div class="upload-option-label">Prescription</div>
+            <div class="upload-option-sub">New or updated medication order</div>
+          </div>
+        </div>
+        <div class="upload-option" onclick="simulateUpload('Imaging')">
+          <div class="upload-option-icon"><i data-lucide="scan" style="width:17px;height:17px;"></i></div>
+          <div>
+            <div class="upload-option-label">Imaging / scan</div>
+            <div class="upload-option-sub">X-ray, MRI, CT, ultrasound</div>
+          </div>
+        </div>
+        <div class="upload-option" onclick="simulateUpload('Other document')">
+          <div class="upload-option-icon"><i data-lucide="file-plus" style="width:17px;height:17px;"></i></div>
+          <div>
+            <div class="upload-option-label">Other document</div>
+            <div class="upload-option-sub">Insurance, referrals, anything else</div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-    window.selectRelationship = (relationship) => {
-      state.onboarding.relationship = relationship;
-      render();
-    };
+    <!-- Step 2: tag & confirm -->
+    <div id="upload-step2" style="display:none;">
+      <div class="upload-success show">
+        <div class="upload-file-card">
+          <div class="upload-file-icon"><i data-lucide="file-check" style="width:22px;height:22px;"></i></div>
+          <div>
+            <div class="upload-file-name" id="upload-file-name">Document uploaded</div>
+            <div class="upload-file-meta">Ready to save · Wellet will read and summarize this</div>
+          </div>
+        </div>
+        <div class="upload-tag-row">
+          <div class="upload-tag-label">Tag this document (optional)</div>
+          <div class="upload-tags">
+            <button class="upload-tag" onclick="toggleTag(this)">Hypertension</button>
+            <button class="upload-tag" onclick="toggleTag(this)">CML</button>
+            <button class="upload-tag" onclick="toggleTag(this)">Glaucoma</button>
+            <button class="upload-tag" onclick="toggleTag(this)">Medications</button>
+            <button class="upload-tag" onclick="toggleTag(this)">Labs</button>
+            <button class="upload-tag" onclick="toggleTag(this)">Imaging</button>
+          </div>
+        </div>
+        <button class="btn-primary" style="font-size:14px;padding:13px;" onclick="confirmUpload()">
+          <i data-lucide="check" style="width:15px;height:15px;"></i>
+          Save to records
+        </button>
+        <button class="btn-cancel" style="margin-top:8px;width:100%;padding:11px;border-radius:12px;border:1px solid var(--border-medium);background:transparent;font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;color:var(--text-secondary);" onclick="backToUploadStep1()">Choose a different file</button>
+      </div>
+    </div>
 
-    window.selectPronouns = (pronouns) => {
-      state.onboarding.pronouns = pronouns;
-      render();
-    };
+  </div>
+</div>
 
-    window.selectContext = (context) => {
-      state.onboarding.context = context;
-      render();
-    };
+<!-- SETTINGS SHEET -->
+<div class="settings-overlay" id="settings-overlay">
+  <div class="settings-sheet">
+    <div class="settings-handle-row">
+      <div class="settings-handle"></div>
+      <button class="close-btn" onclick="closeSettings()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="settings-title">Settings</div>
 
-    window.completeOnboarding = async () => {
-      const person = {
-        id: generateId(),
-        ...state.onboarding,
-        createdAt: Date.now()
-      };
-      
-      await db.savePerson(person);
-      state.currentPerson = person;
-      
-      navigateTo('success');
-    };
+    <div class="settings-section">
+      <div class="settings-section-label">Notifications</div>
+      <div class="settings-row">
+        <div class="settings-row-left">
+          <div class="settings-row-icon"><i data-lucide="bell" style="width:15px;height:15px;"></i></div>
+          <div><div class="settings-row-label">Weekly digest</div><div class="settings-row-meta">Every Sunday at 5 PM</div></div>
+        </div>
+        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-left">
+          <div class="settings-row-icon"><i data-lucide="mail" style="width:15px;height:15px;"></i></div>
+          <div><div class="settings-row-label">New messages</div><div class="settings-row-meta">From care team portals</div></div>
+        </div>
+        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-left">
+          <div class="settings-row-icon"><i data-lucide="activity" style="width:15px;height:15px;"></i></div>
+          <div><div class="settings-row-label">Pattern changes</div><div class="settings-row-meta">When Wellet notices something</div></div>
+        </div>
+        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+      </div>
+    </div>
 
-    window.navigateTo = navigateTo;
+    <div class="settings-section" style="margin-top:12px;">
+      <div class="settings-section-label">Privacy &amp; Security</div>
+      <div class="settings-row">
+        <div class="settings-row-left">
+          <div class="settings-row-icon"><i data-lucide="lock" style="width:15px;height:15px;"></i></div>
+          <div><div class="settings-row-label">App lock</div><div class="settings-row-meta">Face ID / passcode on open</div></div>
+        </div>
+        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-left">
+          <div class="settings-row-icon"><i data-lucide="shield" style="width:15px;height:15px;"></i></div>
+          <div><div class="settings-row-label">Export control</div><div class="settings-row-meta">Confirm before sharing data</div></div>
+        </div>
+        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+      </div>
+    </div>
 
-    window.viewEvent = (event) => {
-      navigateTo('detail', { event });
-    };
+    <div class="settings-section" style="margin-top:12px;">
+      <div class="settings-section-label">Family &amp; care circle</div>
 
-    let chatStep = 0;
-    let pendingEvent = {};
+      <div class="contact-card">
+        <div class="contact-avatar">SB</div>
+        <div style="flex:1;">
+          <div class="contact-name">Sarah Bell</div>
+          <div class="contact-meta">sarah@email.com · (919) 555-0142</div>
+        </div>
+        <span class="contact-role primary">Primary</span>
+        <button class="contact-edit-btn" onclick="openContactEdit('Sarah Bell','Primary','sarah@email.com','(919) 555-0142','All alerts + weekly digest')"><i data-lucide="pencil" style="width:14px;height:14px;"></i></button>
+      </div>
 
-    window.sendMessage = async () => {
-      const input = document.getElementById('chatInput');
-      const message = input.value.trim();
-      if (!message) return;
+      <div class="contact-card">
+        <div class="contact-avatar sage">MB</div>
+        <div style="flex:1;">
+          <div class="contact-name">Michael Bell</div>
+          <div class="contact-meta">michael@email.com · (919) 555-0198</div>
+        </div>
+        <span class="contact-role secondary">Secondary</span>
+        <button class="contact-edit-btn" onclick="openContactEdit('Michael Bell','Secondary','michael@email.com','(919) 555-0198','Weekly digest only')"><i data-lucide="pencil" style="width:14px;height:14px;"></i></button>
+      </div>
 
-      state.chatMessages.push({
-        type: 'user',
-        content: message
-      });
+      <div class="contact-card">
+        <div class="contact-avatar forest">LB</div>
+        <div style="flex:1;">
+          <div class="contact-name">Lisa Bell</div>
+          <div class="contact-meta">lisa@email.com · (919) 555-0167</div>
+        </div>
+        <span class="contact-role emergency">Emergency</span>
+        <button class="contact-edit-btn" onclick="openContactEdit('Lisa Bell','Emergency','lisa@email.com','(919) 555-0167','Critical alerts only')"><i data-lucide="pencil" style="width:14px;height:14px;"></i></button>
+      </div>
 
-      input.value = '';
-      render();
+      <button class="add-contact-btn" onclick="openContactEdit(null)">
+        <i data-lucide="user-plus" style="width:15px;height:15px;"></i>
+        Add family member
+      </button>
+    </div>
 
-      setTimeout(async () => {
-        if (chatStep === 0) {
-          pendingEvent.content = message;
-          pendingEvent.title = message.slice(0, 50) + (message.length > 50 ? '...' : '');
-          
-          state.chatMessages.push({
-            type: 'wellet',
-            content: 'When did this happen?'
-          });
-          
-          state.chatMessages.push({
-            type: 'wellet',
-            content: `
-              <div class="date-buttons">
-                <button class="date-button" onclick="selectDate('today')">Today</button>
-                <button class="date-button" onclick="selectDate('yesterday')">Yesterday</button>
-                <button class="date-button" onclick="selectDate('custom')">Pick date</button>
-              </div>
-            `
-          });
-          
-          chatStep = 1;
-          render();
-        }
-      }, 500);
-    };
+    <div class="settings-section" style="margin-top:12px;">
+      <div class="settings-section-label">Connected services</div>
+      <div class="settings-row">
+        <div class="settings-row-left">
+          <div class="settings-row-icon"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>
+          <div><div class="settings-row-label">Apple Health</div><div class="settings-row-meta">Synced · Last updated 2 hrs ago</div></div>
+        </div>
+        <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-left">
+          <div class="settings-row-icon"><i data-lucide="building-2" style="width:15px;height:15px;"></i></div>
+          <div><div class="settings-row-label">Duke MyChart</div><div class="settings-row-meta">Connected · John Bell</div></div>
+        </div>
+        <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+      </div>
+    </div>
 
-    window.selectDate = async (dateType) => {
-      let eventDate;
-      
-      if (dateType === 'today') {
-        eventDate = Date.now();
-      } else if (dateType === 'yesterday') {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        eventDate = yesterday.getTime();
-      } else {
-        eventDate = Date.now();
-      }
+    <div class="settings-section" style="margin-top:12px;">
+      <div class="settings-section-label">Data</div>
+      <div class="settings-row">
+        <div class="settings-row-left">
+          <div class="settings-row-icon"><i data-lucide="download" style="width:15px;height:15px;"></i></div>
+          <div><div class="settings-row-label">Export all data</div><div class="settings-row-meta">Download as PDF or ZIP</div></div>
+        </div>
+        <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-left">
+          <div class="settings-row-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="trash-2" style="width:15px;height:15px;"></i></div>
+          <div><div class="settings-row-label" style="color:var(--red);">Clear all local data</div><div class="settings-row-meta">Removes everything from this device</div></div>
+        </div>
+        <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+      </div>
+    </div>
 
-      pendingEvent.eventDate = eventDate;
-      
-      const event = {
-        id: generateId(),
-        personId: state.currentPerson.id,
-        ...pendingEvent,
-        createdAt: Date.now(),
-        attachments: []
-      };
+    <div style="padding:20px 20px 0;text-align:center;">
+      <p style="font-size:12px;color:var(--text-muted);line-height:1.6;">Wellet v1.0 · Local-first, private by design.<br>Your data never leaves your device.</p>
+    </div>
+  </div>
+</div>
 
-      await db.saveEvent(event);
-      state.events.push(event);
+<!-- CONTACT EDIT SHEET -->
+<div class="qa-overlay" id="contact-overlay">
+  <div class="qa-sheet">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" onclick="closeSheet('contact-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title" id="contact-sheet-title">Edit contact</div>
 
-      state.chatMessages.push({
-        type: 'wellet',
-        content: "Got it. I've saved this. You can always add more details later."
-      });
+    <div style="padding:0 20px 16px;display:flex;flex-direction:column;gap:10px;">
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Name</div>
+        <input class="input-field" id="contact-name-input" style="margin-top:0;" type="text" placeholder="Full name">
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Email</div>
+        <input class="input-field" id="contact-email-input" style="margin-top:0;" type="email" placeholder="email@example.com">
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Phone (optional)</div>
+        <input class="input-field" id="contact-phone-input" style="margin-top:0;" type="tel" placeholder="(000) 000-0000">
+      </div>
 
-      render();
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:8px;">Role</div>
+        <div style="display:flex;gap:8px;">
+          <button class="upload-tag" id="role-primary" onclick="selectRole('Primary')">Primary</button>
+          <button class="upload-tag" id="role-secondary" onclick="selectRole('Secondary')">Secondary</button>
+          <button class="upload-tag" id="role-emergency" onclick="selectRole('Emergency')">Emergency</button>
+        </div>
+      </div>
 
-      setTimeout(() => {
-        state.chatMessages = [];
-        chatStep = 0;
-        pendingEvent = {};
-        navigateTo('timeline');
-      }, 2000);
-    };
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:8px;">Notifications</div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <label style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--cream);border-radius:9px;font-size:13px;cursor:pointer;">
+            <span>All alerts + weekly digest</span>
+            <input type="radio" name="notif" id="notif-all" style="accent-color:var(--moss);" checked>
+          </label>
+          <label style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--cream);border-radius:9px;font-size:13px;cursor:pointer;">
+            <span>Weekly digest only</span>
+            <input type="radio" name="notif" id="notif-digest" style="accent-color:var(--moss);">
+          </label>
+          <label style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--cream);border-radius:9px;font-size:13px;cursor:pointer;">
+            <span>Critical alerts only</span>
+            <input type="radio" name="notif" id="notif-critical" style="accent-color:var(--moss);">
+          </label>
+          <label style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--cream);border-radius:9px;font-size:13px;cursor:pointer;">
+            <span>No notifications</span>
+            <input type="radio" name="notif" id="notif-none" style="accent-color:var(--moss);">
+          </label>
+        </div>
+      </div>
+    </div>
 
-    function initializeChat() {
-      if (state.currentScreen === 'capture' && state.chatMessages.length === 0) {
-        state.chatMessages = [{
-          type: 'wellet',
-          content: 'What happened?'
-        }];
-      }
-    }
+    <div style="padding:0 20px;display:flex;flex-direction:column;gap:8px;">
+      <button class="btn-primary" style="font-size:14px;padding:13px;" onclick="saveContact()">
+        <i data-lucide="check" style="width:15px;height:15px;"></i>
+        Save contact
+      </button>
+      <button id="contact-remove-btn" class="btn-danger" style="display:none;" onclick="showToast('Contact removed'); closeSheet('contact-overlay')">
+        <i data-lucide="trash-2" style="width:15px;height:15px;"></i>
+        Remove from care circle
+      </button>
+    </div>
+  </div>
+</div>
 
-    function render() {
-      const app = document.getElementById('app');
-      
-      let content = '';
-      
-      switch (state.currentScreen) {
-        case 'welcome':
-          content = WelcomeScreen();
-          break;
-        case 'relationship':
-          content = RelationshipScreen();
-          break;
-        case 'name':
-          content = NameScreen();
-          break;
-        case 'pronouns':
-          content = PronounsScreen();
-          break;
-        case 'context':
-          content = ContextScreen();
-          break;
-        case 'success':
-          content = SuccessScreen();
-          break;
-        case 'timeline':
-          content = TimelineScreen();
-          break;
-        case 'capture':
-          initializeChat();
-          content = EventCaptureScreen();
-          break;
-        case 'detail':
-          content = EventDetailScreen();
-          break;
-        default:
-          content = WelcomeScreen();
-      }
-      
-      app.innerHTML = content;
+<!-- REMOVE CONFIRM MODAL -->
+<div class="modal-overlay" id="remove-modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Remove this person?</div>
+    <div class="modal-body">This will remove <span class="modal-name" id="modal-person-name"></span> and all their locally stored data from Wellet. This can't be undone.</div>
+    <button class="btn-danger" onclick="removePerson()">
+      <i data-lucide="trash-2" style="width:16px;height:16px;"></i>
+      Remove person
+    </button>
+    <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+  </div>
+</div>
 
-      if (state.currentScreen === 'capture') {
-        setTimeout(() => {
-          const input = document.getElementById('chatInput');
-          if (input) input.focus();
-        }, 100);
-      }
-    }
+</div><!-- end page-wrap -->
+<script>
+function initIcons() { if (window.lucide) lucide.createIcons(); }
+window.addEventListener('load', initIcons);
 
-    async function init() {
-      const person = await db.getCurrentPerson();
-      
-      if (person) {
-        state.currentPerson = person;
-        state.events = await db.getEvents(person.id);
-        navigateTo('timeline');
-      } else {
-        render();
-      }
-    }
+var _currentAskPerson = 'dad';
 
-    window.render = render;
-    init();
-  </script>
+var _responses = {
+  dad: {
+    'What\'s his current BP trend?': 'Dad\'s blood pressure has been <strong>running higher than usual this week</strong> — averaging 142/89. This started around June 18, the same day his Hydrochlorothiazide dose was increased. BP medications can take 2–4 weeks to show full effect, so this may still be adjusting. Dr. Johnson is aware and reviewing at the July 16 visit.',
+    'When is his next appointment?': 'His next appointment is <strong>July 16 at 9:00 AM</strong> with Dr. Johnson (Primary Care). The focus will be blood pressure check and medication review. He also has a dermatology consult with Dr. Simkin on August 7.',
+    'What changed this month?': 'Two things changed in June: his <strong>Hydrochlorothiazide dose was increased</strong> on June 18 (12.5mg → 25mg), and his latest <strong>CML lab came back &lt;0.001</strong> — undetectable and continuing to improve. Blood pressure has been elevated since the dose change.',
+    'What meds is he taking?': 'Dad is currently on <strong>6 active medications</strong>: Lisinopril 20mg (daily, hypertension), Hydrochlorothiazide 25mg (daily, hypertension), Gleevec 400mg (daily, CML), Citalopram 10mg (daily), Zepbound 12.5mg (weekly injection), and Metoprolol 50mg (daily). The Hydrochlorothiazide dose was recently adjusted.',
+    'How is his CML doing?': 'His CML is <strong>continuing to respond well</strong>. The most recent BCR-ABL test on June 28 came back &lt;0.001 — undetectable. That\'s down from &lt;0.003 six months ago. Dr. Edwards is pleased with his response to Gleevec. Next oncology labs are due in about 6 weeks.',
+    default: 'Based on Dad\'s records, I can see he\'s managing several conditions — hypertension, CML, and others. His CML is improving and his next appointment is July 16. Is there something specific you\'d like to know?'
+  },
+  mom: {
+    'What\'s her current BP trend?': 'Mom\'s blood pressure has been <strong>stable</strong> — her last reading was 118/76, which is well within normal range. No changes to her BP medications recently.',
+    'When is her next appointment?': 'Mom\'s next appointment is <strong>August 4</strong>. I don\'t have the provider details yet — you can add them manually in her Records.',
+    'What changed this month?': 'No significant changes noted for Mom this month. Her 2 active diagnoses remain stable and her medications are unchanged.',
+    'What meds is she taking?': 'Mom is on <strong>3 active medications</strong>. You can view the full list in her Records tab. No changes have been logged recently.',
+    'How is his CML doing?': 'That question looks like it\'s about Dad — switch to Dad above to ask about his CML. Mom\'s records don\'t include a CML diagnosis.',
+    default: 'Mom\'s records show she\'s stable overall with 2 active diagnoses and 3 medications. Her next appointment is August 4. What would you like to know?'
+  }
+};
+
+function selectAskPerson(el, person) {
+  _currentAskPerson = person;
+  document.querySelectorAll('.ask-person-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  var name = person === 'dad' ? 'Dad' : 'Mom';
+  document.getElementById('ask-input').placeholder = 'Ask about ' + name + '\'s health…';
+  // Update suggestion chips for mom
+  var chips = document.getElementById('suggestion-chips');
+  if (person === 'mom') {
+    chips.innerHTML = '<button class="chip" onclick="askQuestion(this.textContent)">Is she stable?</button><button class="chip" onclick="askQuestion(this.textContent)">When is her next appointment?</button><button class="chip" onclick="askQuestion(this.textContent)">What meds is she taking?</button><button class="chip" onclick="askQuestion(this.textContent)">What changed this month?</button>';
+  } else {
+    chips.innerHTML = '<button class="chip" onclick="askQuestion(this.textContent)">What\'s his current BP trend?</button><button class="chip" onclick="askQuestion(this.textContent)">When is his next appointment?</button><button class="chip" onclick="askQuestion(this.textContent)">What changed this month?</button><button class="chip" onclick="askQuestion(this.textContent)">What meds is he taking?</button><button class="chip" onclick="askQuestion(this.textContent)">How is his CML doing?</button>';
+  }
+  // Add a wellet message acknowledging the switch
+  addWelletMessage('Switched to ' + name + '. Ask me anything from ' + (person === 'dad' ? 'his' : 'her') + ' records.');
+}
+
+function askQuestion(text) {
+  document.getElementById('ask-input').value = text;
+  sendAskMessage();
+}
+
+function handleAskKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAskMessage(); }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+
+function sendAskMessage() {
+  var input = document.getElementById('ask-input');
+  var text = input.value.trim();
+  if (!text) return;
+  input.value = ''; input.style.height = 'auto';
+  addUserMessage(text);
+  // hide chips after first real question
+  document.getElementById('suggestion-chips').style.display = 'none';
+  // show typing then respond
+  var typingId = showTyping();
+  setTimeout(function() {
+    removeTyping(typingId);
+    var responses = _responses[_currentAskPerson];
+    var reply = responses[text] || responses['default'];
+    addWelletMessage(reply);
+  }, 900 + Math.random() * 600);
+}
+
+function addUserMessage(text) {
+  var area = document.getElementById('chat-area');
+  var g = document.createElement('div');
+  g.className = 'chat-group from-user';
+  g.innerHTML = '<div class="chat-bubble user">' + escHtml(text) + '</div>';
+  area.appendChild(g);
+  area.scrollTop = area.scrollHeight;
+}
+
+function addWelletMessage(html) {
+  var area = document.getElementById('chat-area');
+  var g = document.createElement('div');
+  g.className = 'chat-group from-wellet';
+  g.innerHTML = '<div class="chat-bubble wellet">' + html + '</div>';
+  area.appendChild(g);
+  area.scrollTop = area.scrollHeight;
+  initIcons();
+}
+
+function showTyping() {
+  var area = document.getElementById('chat-area');
+  var id = 'typing-' + Date.now();
+  var g = document.createElement('div');
+  g.className = 'chat-group from-wellet'; g.id = id;
+  g.innerHTML = '<div class="chat-bubble wellet" style="padding:12px 16px;"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>';
+  area.appendChild(g);
+  area.scrollTop = area.scrollHeight;
+  return id;
+}
+
+function removeTyping(id) {
+  var el = document.getElementById(id);
+  if (el) el.remove();
+}
+
+function escHtml(t) {
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function confirmRemove(name, btn) {
+  _cardToRemove = btn.closest('.person-card');
+  document.getElementById('modal-person-name').textContent = name;
+  document.getElementById('remove-modal').classList.add('show');
+  initIcons();
+}
+function removePerson() {
+  if (_cardToRemove) {
+    _cardToRemove.style.transition = 'opacity 0.2s, transform 0.2s';
+    _cardToRemove.style.opacity = '0';
+    _cardToRemove.style.transform = 'scale(0.97)';
+    setTimeout(function() { if (_cardToRemove) { _cardToRemove.remove(); _cardToRemove = null; } }, 200);
+  }
+  closeModal();
+}
+function closeModal() {
+  document.getElementById('remove-modal').classList.remove('show');
+}
+
+function openEmergencySummary() {
+  document.getElementById('emergency-overlay').classList.add('show');
+  initIcons();
+}
+function openShareFamily() {
+  document.getElementById('share-overlay').classList.add('show');
+  initIcons();
+}
+function openExportVisit() {
+  document.getElementById('export-overlay').classList.add('show');
+  initIcons();
+}
+function closeSheet(id) {
+  document.getElementById(id).classList.remove('show');
+}
+function setFormat(btn) {
+  btn.closest('.format-toggle').querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+function showToast(msg) {
+  var toast = document.createElement('div');
+  toast.textContent = msg;
+  toast.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#2C2A26;color:white;padding:10px 18px;border-radius:20px;font-size:13px;font-family:DM Sans,sans-serif;z-index:300;opacity:1;transition:opacity 0.4s;white-space:nowrap;';
+  document.body.appendChild(toast);
+  setTimeout(function() { toast.style.opacity='0'; setTimeout(function() { toast.remove(); }, 400); }, 2000);
+}
+
+function openUpload(personName) {
+  document.getElementById('upload-person-name').textContent = personName;
+  document.getElementById('upload-step1').style.display = 'block';
+  document.getElementById('upload-step2').style.display = 'none';
+  document.getElementById('upload-overlay').classList.add('show');
+  initIcons();
+}
+function closeUpload() {
+  document.getElementById('upload-overlay').classList.remove('show');
+}
+function simulateUpload(type) {
+  var names = {
+    'Visit summary': 'visit_summary_jul2025.pdf',
+    'Lab results': 'lab_results_jun28.pdf',
+    'Prescription': 'rx_hydrochlorothiazide.pdf',
+    'Imaging': 'mri_report_jun27.pdf',
+    'Other document': 'document.pdf'
+  };
+  var name = names[type] || 'uploaded_document.pdf';
+  document.getElementById('upload-file-name').textContent = name;
+  document.getElementById('upload-step1').style.display = 'none';
+  document.getElementById('upload-step2').style.display = 'block';
+  // reset tags
+  document.querySelectorAll('.upload-tag').forEach(t => t.classList.remove('selected'));
+  // auto-select a relevant tag
+  var tagMap = {
+    'Visit summary': 'Labs', 'Lab results': 'Labs',
+    'Prescription': 'Medications', 'Imaging': 'Imaging'
+  };
+  if (tagMap[type]) {
+    document.querySelectorAll('.upload-tag').forEach(t => {
+      if (t.textContent === tagMap[type]) t.classList.add('selected');
+    });
+  }
+  initIcons();
+}
+function backToUploadStep1() {
+  document.getElementById('upload-step1').style.display = 'block';
+  document.getElementById('upload-step2').style.display = 'none';
+}
+function toggleTag(el) {
+  el.classList.toggle('selected');
+}
+function confirmUpload() {
+  closeUpload();
+  showToast('Document saved to records');
+}
+
+function switchRecordsPerson(el, person) {
+  document.querySelectorAll('#view-records .person-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('records-dad').style.display = person === 'dad' ? 'block' : 'none';
+  document.getElementById('records-mom').style.display = person === 'mom' ? 'block' : 'none';
+  initIcons();
+}
+
+function openContactEdit(name, role, email, phone, notif) {
+  var isNew = !name;
+  document.getElementById('contact-sheet-title').textContent = isNew ? 'Add family member' : 'Edit contact';
+  document.getElementById('contact-name-input').value = name || '';
+  document.getElementById('contact-email-input').value = email || '';
+  document.getElementById('contact-phone-input').value = phone || '';
+  document.getElementById('contact-remove-btn').style.display = isNew ? 'none' : 'flex';
+  // set role
+  ['Primary','Secondary','Emergency'].forEach(function(r) {
+    var el = document.getElementById('role-' + r.toLowerCase());
+    if (el) el.classList.toggle('selected', r === role);
+  });
+  // set notif radio
+  var notifMap = {
+    'All alerts + weekly digest': 'notif-all',
+    'Weekly digest only': 'notif-digest',
+    'Critical alerts only': 'notif-critical',
+    'No notifications': 'notif-none'
+  };
+  var radioId = notifMap[notif] || 'notif-all';
+  var radio = document.getElementById(radioId);
+  if (radio) radio.checked = true;
+  closeSettings();
+  document.getElementById('contact-overlay').classList.add('show');
+  initIcons();
+}
+function selectRole(role) {
+  ['Primary','Secondary','Emergency'].forEach(function(r) {
+    var el = document.getElementById('role-' + r.toLowerCase());
+    if (el) el.classList.toggle('selected', r === role);
+  });
+}
+function saveContact() {
+  closeSheet('contact-overlay');
+  showToast('Contact saved');
+}
+
+function openSettings() {
+  document.getElementById('settings-overlay').classList.add('show');
+  initIcons();
+}
+function closeSettings() {
+  document.getElementById('settings-overlay').classList.remove('show');
+}
+
+function showApp() {
+  document.getElementById('landing').style.display='none';
+  document.getElementById('onboarding').style.display='none';
+  document.getElementById('app').style.display='flex';
+  window.scrollTo(0,0); initIcons();
+}
+function showOnboarding() {
+  document.getElementById('landing').style.display='none';
+  document.getElementById('app').style.display='none';
+  document.getElementById('onboarding').style.display='flex';
+  window.scrollTo(0,0); initIcons();
+}
+function switchTab(el,id) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-'+id).classList.add('active');
+}
+function switchNavTo(view) {
+  document.querySelectorAll('.app-view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + view).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const navMap = { home: 0, people: 1, records: 2, ask: 3 };
+  document.querySelectorAll('.nav-item')[navMap[view]].classList.add('active');
+  const isHome = view === 'home';
+  document.getElementById('header-person-switcher').style.display = isHome ? 'flex' : 'none';
+  document.getElementById('header-tab-bar').style.display = isHome ? 'flex' : 'none';
+  window.scrollTo(0, 0);
+  initIcons();
+}
+function switchPerson(el) {
+  document.querySelectorAll('.person-pill').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+}
+function handleName(val) {
+  const v=val.trim();
+  const conf=document.getElementById('name-confirm');
+  const num=document.getElementById('step2-num');
+  if(v.length>0){
+    conf.classList.add('show');
+    document.getElementById('name-out').textContent=v;
+    num.innerHTML='<i data-lucide="check" style="width:14px;height:14px;"></i>';
+    num.classList.add('done'); initIcons();
+  } else {
+    conf.classList.remove('show');
+    num.textContent='2'; num.classList.remove('done');
+  }
+}
+</script>
 </body>
 </html>
