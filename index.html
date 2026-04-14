@@ -512,6 +512,39 @@
 
   /* ── DEMO BADGE ── */
   .demo-badge { background: var(--amber-bg); border: 1px solid rgba(201,123,44,0.3); color: var(--amber); font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 10px; }
+
+  /* ── DOCUMENT LIST ── */
+  .doc-row { display: flex; align-items: center; gap: 12px; padding: 11px 14px; background: white; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 6px; cursor: pointer; transition: border-color 0.15s; }
+  .doc-row:hover { border-color: var(--moss); }
+  .doc-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--mint); color: var(--moss); }
+  .doc-info { flex: 1; min-width: 0; }
+  .doc-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .doc-meta { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+  .doc-status { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 8px; white-space: nowrap; flex-shrink: 0; }
+  .doc-status.analyzing { background: var(--amber-bg); color: var(--amber); animation: statusPulse 2s ease-in-out infinite; }
+  .doc-status.extracted { background: var(--mint); color: var(--moss-dark); }
+  .doc-status.failed { background: #FEF0EE; color: var(--red); }
+  @keyframes statusPulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+  /* ── EXTRACTION OVERLAY ── */
+  .ext-summary { margin: 0 20px 14px; background: var(--mint); border-radius: 12px; padding: 14px 16px; font-size: 13px; line-height: 1.65; color: var(--text-primary); }
+  .ext-items { padding: 0 20px; }
+  .ext-item { display: flex; align-items: flex-start; gap: 12px; padding: 14px; background: white; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px; }
+  .ext-item-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .ext-item-body { flex: 1; min-width: 0; }
+  .ext-item-title { font-size: 14px; font-weight: 500; margin-bottom: 2px; }
+  .ext-item-detail { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+  .ext-add-btn { background: var(--mint); border: none; border-radius: 8px; padding: 6px 12px; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; color: var(--moss-dark); cursor: pointer; transition: background 0.15s; display: flex; align-items: center; gap: 4px; flex-shrink: 0; margin-top: 2px; }
+  .ext-add-btn:hover { background: var(--mint-deep); }
+  .ext-add-btn.added { background: var(--mint); color: var(--moss); pointer-events: none; }
+  .ext-actions { padding: 16px 20px 0; display: flex; flex-direction: column; gap: 8px; }
+  .ext-dismiss { background: none; border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text-muted); padding: 8px; text-align: center; }
+  .ext-dismiss:hover { color: var(--text-primary); }
+
+  /* upload step4 extraction states */
+  .upload-ext-status { margin-top: 14px; }
+  .upload-ext-found { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14px; font-weight: 500; color: var(--moss-dark); margin-bottom: 10px; }
+  .upload-ext-pulse { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: var(--text-muted); animation: statusPulse 2s ease-in-out infinite; }
 </style>
 </head>
 <body>
@@ -1425,12 +1458,13 @@
 
     <div id="upload-step4" style="display:none;">
       <div style="padding:24px 20px;text-align:center;">
-        <div style="width:52px;height:52px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+        <div id="upload-done-icon" style="width:52px;height:52px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
           <i data-lucide="check-circle" style="width:24px;height:24px;color:var(--moss);"></i>
         </div>
-        <div style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:6px;">Document saved</div>
+        <div id="upload-done-title" style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:6px;">Document saved</div>
         <div id="upload-done-sub" style="font-size:13px;color:var(--text-secondary);line-height:1.6;">Wellet is reading your document and will extract health information automatically.</div>
-        <button class="btn-primary" style="font-size:14px;padding:13px;margin-top:16px;" onclick="closeUpload()">Done</button>
+        <div class="upload-ext-status" id="upload-ext-status"></div>
+        <button class="btn-primary" style="font-size:14px;padding:13px;margin-top:16px;" id="upload-done-btn" onclick="closeUpload()">Done</button>
       </div>
     </div>
 
@@ -1596,6 +1630,27 @@
   </div>
 </div>
 
+<!-- EXTRACTION RESULTS OVERLAY -->
+<div class="qa-overlay" id="extraction-overlay">
+  <div class="qa-sheet">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" onclick="closeSheet('extraction-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title" id="ext-sheet-title">Extraction Results</div>
+    <div class="qa-sheet-sub" id="ext-sheet-sub">Extracted from document</div>
+    <div class="ext-summary" id="ext-summary"></div>
+    <div class="ext-items" id="ext-items-list"></div>
+    <div class="ext-actions" id="ext-actions">
+      <button class="btn-primary" style="font-size:14px;padding:13px;" id="ext-add-all-btn" onclick="addAllExtractedFromOverlay()">
+        <i data-lucide="plus" style="width:15px;height:15px;"></i>
+        Add all to records
+      </button>
+      <button class="ext-dismiss" onclick="closeSheet('extraction-overlay')">Dismiss</button>
+    </div>
+  </div>
+</div>
+
 <!-- REMOVE CONFIRM MODAL -->
 <div class="modal-overlay" id="remove-modal">
   <div class="modal-sheet">
@@ -1707,6 +1762,7 @@ var currentPeople = [];   // [{id, name, relationship, avatar_initials}]
 var currentPersonId = null; // selected person uuid
 var liveEvents = [];      // health_events fetched from DB
 var liveMeds = [];        // medications fetched from DB
+var liveDocs = [];        // documents fetched from DB
 var _cardToRemove = null;
 var _cardToRemoveId = null; // Supabase id if real person
 var _currentAskPerson = 'dad';
@@ -1772,6 +1828,7 @@ async function handleLogout() {
   currentPersonId = null;
   liveEvents = [];
   liveMeds = [];
+  liveDocs = [];
   closeSettings();
   showAuthScreen();
   showToast('Signed out');
@@ -1814,6 +1871,14 @@ async function loadPersonData(personId) {
     .eq('person_id', personId)
     .order('created_at', { ascending: true });
   liveMeds = meds || [];
+
+  // Load documents
+  const { data: docs } = await db
+    .from('documents')
+    .select('*')
+    .eq('person_id', personId)
+    .order('created_at', { ascending: false });
+  liveDocs = docs || [];
 }
 
 // ── SHOW AUTHENTICATED APP ────────────────────────────────────────────────────
@@ -2129,6 +2194,35 @@ function renderRecordsView() {
     html += '</div>';
   }
 
+  // Documents section
+  html += '<div class="record-group">'
+    + '<div class="record-group-header">'
+    + '<div class="record-group-title"><i data-lucide="file-text" style="width:14px;height:14px;color:var(--moss);"></i>Documents</div>'
+    + '<span class="record-group-count">' + liveDocs.length + ' uploaded</span>'
+    + '</div>';
+
+  if (liveDocs.length === 0) {
+    html += '<div style="text-align:center;padding:24px 16px;color:var(--text-muted);font-size:13px;font-style:italic;">No documents uploaded yet.</div>';
+  } else {
+    liveDocs.forEach(function(doc) {
+      var iconName = getDocTypeIcon(doc.document_type);
+      var statusClass = getDocStatusClass(doc.extraction_status);
+      var statusLabel = getDocStatusLabel(doc.extraction_status);
+      var dateStr = relativeTime(doc.created_at);
+      var clickable = doc.extraction_status === 'completed' ? ' onclick="showExtractionResults(\'' + doc.id + '\')"' : '';
+      html += '<div class="doc-row"' + clickable + '>'
+        + '<div class="doc-icon"><i data-lucide="' + iconName + '" style="width:15px;height:15px;"></i></div>'
+        + '<div class="doc-info"><div class="doc-name">' + escHtml(doc.file_name) + '</div>'
+        + '<div class="doc-meta">' + escHtml(doc.document_type || 'Document') + ' · ' + dateStr + '</div></div>'
+        + '<span class="doc-status ' + statusClass + '">' + statusLabel + '</span>'
+        + '</div>';
+    });
+  }
+
+  html += '<button class="add-person-btn" style="border-style:dashed;margin:12px 0 4px;" onclick="openUploadById(\'' + currentPersonId + '\')">'
+    + '<i data-lucide="upload-cloud" style="width:15px;height:15px;"></i> Upload document</button>'
+    + '</div>';
+
   html += '</div>';
   view.innerHTML = html;
   initIcons();
@@ -2139,6 +2233,310 @@ async function switchRecordsToRealPerson(personId, el) {
   el.classList.add('active');
   await loadPersonData(personId);
   renderRecordsView();
+}
+
+// ── DOCUMENT LIST & EXTRACTION ───────────────────────────────────────────────
+function getDocTypeIcon(type) {
+  var map = {
+    'Visit summary': 'clipboard-list',
+    'Lab results': 'flask-conical',
+    'Prescription': 'pill',
+    'Imaging': 'scan',
+    'Other document': 'file-text'
+  };
+  return map[type] || 'file-text';
+}
+
+function getDocStatusClass(status) {
+  if (status === 'completed') return 'extracted';
+  if (status === 'failed') return 'failed';
+  return 'analyzing';
+}
+
+function getDocStatusLabel(status) {
+  if (status === 'completed') return 'Extracted';
+  if (status === 'failed') return 'Failed';
+  return 'Analyzing\u2026';
+}
+
+function relativeTime(dateStr) {
+  if (!dateStr) return '';
+  var now = Date.now();
+  var then = new Date(dateStr).getTime();
+  var diff = now - then;
+  var mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return mins + ' min ago';
+  var hours = Math.floor(mins / 60);
+  if (hours < 24) return hours + ' hour' + (hours !== 1 ? 's' : '') + ' ago';
+  var days = Math.floor(hours / 24);
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return days + ' days ago';
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+var _currentExtDoc = null; // document being viewed in extraction overlay
+var _currentExtItems = []; // extracted items array
+var _addedExtItems = {};   // track which items have been added { index: true }
+
+function showExtractionResults(docId) {
+  var doc = liveDocs.find(function(d) { return d.id === docId; });
+  if (!doc) return;
+  _currentExtDoc = doc;
+  _addedExtItems = {};
+
+  var extracted = doc.extracted_events;
+  if (typeof extracted === 'string') {
+    try { extracted = JSON.parse(extracted); } catch (e) { extracted = null; }
+  }
+  if (!extracted) {
+    showToast('No extraction data available');
+    return;
+  }
+
+  _currentExtItems = extracted.items || [];
+
+  // Set header
+  document.getElementById('ext-sheet-title').textContent = doc.document_type || 'Document';
+  document.getElementById('ext-sheet-sub').textContent = 'Extracted from ' + escHtml(doc.file_name);
+
+  // Set summary
+  var summaryEl = document.getElementById('ext-summary');
+  if (extracted.summary) {
+    summaryEl.textContent = extracted.summary;
+    summaryEl.style.display = 'block';
+  } else {
+    summaryEl.style.display = 'none';
+  }
+
+  // Render items
+  renderExtractedItems();
+
+  // Show/hide add all button
+  var addAllBtn = document.getElementById('ext-add-all-btn');
+  addAllBtn.style.display = _currentExtItems.length > 0 ? 'flex' : 'none';
+
+  document.getElementById('extraction-overlay').classList.add('show');
+  initIcons();
+}
+
+function renderExtractedItems() {
+  var container = document.getElementById('ext-items-list');
+  var html = '';
+
+  _currentExtItems.forEach(function(item, idx) {
+    var typeInfo = getEventTypeInfo(item.type);
+    var isAdded = _addedExtItems[idx];
+
+    html += '<div class="ext-item">'
+      + '<div class="ext-item-icon" style="background:' + getExtItemBg(item.type) + ';color:' + typeInfo.color + ';">'
+      + '<i data-lucide="' + typeInfo.icon + '" style="width:15px;height:15px;"></i></div>'
+      + '<div class="ext-item-body">'
+      + '<div class="ext-item-title">' + escHtml(item.title) + '</div>'
+      + '<div class="ext-item-detail">' + escHtml(item.detail || '') + '</div>'
+      + '</div>';
+
+    if (isAdded) {
+      html += '<div class="ext-add-btn added"><i data-lucide="check" style="width:12px;height:12px;"></i> Added</div>';
+    } else {
+      html += '<button class="ext-add-btn" onclick="addExtractedItem(' + idx + ')">'
+        + '<i data-lucide="plus" style="width:12px;height:12px;"></i> Add</button>';
+    }
+
+    html += '</div>';
+  });
+
+  if (_currentExtItems.length === 0) {
+    html = '<div style="text-align:center;padding:24px 16px;color:var(--text-muted);font-size:13px;font-style:italic;">No items were extracted from this document.</div>';
+  }
+
+  container.innerHTML = html;
+  initIcons();
+}
+
+function getExtItemBg(type) {
+  var map = {
+    appointment: 'var(--mint)',
+    medication: 'var(--amber-bg)',
+    lab_result: '#EEF3FC',
+    note: 'var(--cream)',
+    pattern: '#FEF0EE'
+  };
+  return map[type] || 'var(--cream)';
+}
+
+async function addExtractedItem(idx) {
+  if (_addedExtItems[idx]) return;
+  var item = _currentExtItems[idx];
+  if (!item || !currentPersonId) return;
+
+  var today = new Date().toISOString().split('T')[0];
+
+  if (item.type === 'medication') {
+    var parts = (item.detail || '').match(/(\d+\s*mg|\d+\s*mcg)/i);
+    var dose = parts ? parts[1] : null;
+    var { error } = await db.from('medications').insert({
+      person_id: currentPersonId,
+      name: item.title,
+      dose: dose,
+      frequency: null,
+      prescriber: null,
+      active: true,
+      source: 'extraction'
+    });
+    if (error) { showToast('Error adding: ' + error.message); return; }
+  } else {
+    var { error } = await db.from('health_events').insert({
+      person_id: currentPersonId,
+      event_type: item.type || 'note',
+      event_date: (item.date || today) + 'T00:00:00Z',
+      title: item.title,
+      notes: item.detail || null,
+      source: 'extraction'
+    });
+    if (error) { showToast('Error adding: ' + error.message); return; }
+  }
+
+  _addedExtItems[idx] = true;
+  renderExtractedItems();
+  showToast('Added to records');
+
+  // Check if all items are added
+  var allAdded = _currentExtItems.every(function(_, i) { return _addedExtItems[i]; });
+  if (allAdded) {
+    var addAllBtn = document.getElementById('ext-add-all-btn');
+    addAllBtn.innerHTML = '<i data-lucide="check" style="width:15px;height:15px;"></i> All items added';
+    addAllBtn.disabled = true;
+    addAllBtn.style.background = 'var(--mint)';
+    addAllBtn.style.color = 'var(--moss)';
+    initIcons();
+  }
+}
+
+async function addAllExtractedFromOverlay() {
+  if (!_currentExtItems.length || !currentPersonId) return;
+
+  var btn = document.getElementById('ext-add-all-btn');
+  btn.disabled = true;
+  btn.textContent = 'Adding\u2026';
+
+  var today = new Date().toISOString().split('T')[0];
+  var eventsToInsert = [];
+  var medsToInsert = [];
+
+  _currentExtItems.forEach(function(item, idx) {
+    if (_addedExtItems[idx]) return;
+    if (item.type === 'medication') {
+      var parts = (item.detail || '').match(/(\d+\s*mg|\d+\s*mcg)/i);
+      var dose = parts ? parts[1] : null;
+      medsToInsert.push({
+        person_id: currentPersonId,
+        name: item.title,
+        dose: dose,
+        frequency: null,
+        prescriber: null,
+        active: true,
+        source: 'extraction'
+      });
+    } else {
+      eventsToInsert.push({
+        person_id: currentPersonId,
+        event_type: item.type || 'note',
+        event_date: (item.date || today) + 'T00:00:00Z',
+        title: item.title,
+        notes: item.detail || null,
+        source: 'extraction'
+      });
+    }
+    _addedExtItems[idx] = true;
+  });
+
+  if (eventsToInsert.length > 0) {
+    var { error: evErr } = await db.from('health_events').insert(eventsToInsert);
+    if (evErr) { console.error('Bulk event insert error:', evErr); }
+  }
+  if (medsToInsert.length > 0) {
+    var { error: medErr } = await db.from('medications').insert(medsToInsert);
+    if (medErr) { console.error('Bulk med insert error:', medErr); }
+  }
+
+  renderExtractedItems();
+  btn.innerHTML = '<i data-lucide="check" style="width:15px;height:15px;"></i> All items added';
+  btn.style.background = 'var(--mint)';
+  btn.style.color = 'var(--moss)';
+  initIcons();
+
+  showToast('All items added to records');
+
+  // Reload data in background
+  await loadPersonData(currentPersonId);
+  renderUpdateMe();
+  renderTimeline();
+  renderRecordsView();
+}
+
+var _pollTimer = null;
+var _pollAttempts = 0;
+
+function pollExtractionStatus(docId) {
+  _pollAttempts = 0;
+  if (_pollTimer) clearInterval(_pollTimer);
+
+  var statusEl = document.getElementById('upload-ext-status');
+  statusEl.innerHTML = '<div class="upload-ext-pulse"><i data-lucide="loader" style="width:14px;height:14px;animation:spin 1.2s linear infinite;"></i> Analyzing your document\u2026</div>';
+  initIcons();
+
+  _pollTimer = setInterval(async function() {
+    _pollAttempts++;
+    if (_pollAttempts > 10) {
+      clearInterval(_pollTimer);
+      _pollTimer = null;
+      statusEl.innerHTML = '<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Analysis is taking longer than expected. Check back in Records.</div>';
+      return;
+    }
+
+    var { data: doc } = await db.from('documents').select('*').eq('id', docId).single();
+    if (!doc) return;
+
+    if (doc.extraction_status === 'completed') {
+      clearInterval(_pollTimer);
+      _pollTimer = null;
+
+      var extracted = doc.extracted_events;
+      if (typeof extracted === 'string') {
+        try { extracted = JSON.parse(extracted); } catch (e) { extracted = null; }
+      }
+      var itemCount = extracted && extracted.items ? extracted.items.length : 0;
+
+      // Update the step4 UI
+      var iconEl = document.getElementById('upload-done-icon');
+      iconEl.innerHTML = '<i data-lucide="sparkles" style="width:24px;height:24px;color:var(--moss);"></i>';
+      document.getElementById('upload-done-title').textContent = 'Document analyzed';
+      document.getElementById('upload-done-sub').textContent = 'Wellet extracted health information from your document.';
+
+      if (itemCount > 0) {
+        statusEl.innerHTML = '<div class="upload-ext-found"><i data-lucide="check-circle" style="width:16px;height:16px;color:var(--moss);"></i> Found ' + itemCount + ' item' + (itemCount !== 1 ? 's' : '') + '</div>';
+        var doneBtn = document.getElementById('upload-done-btn');
+        doneBtn.textContent = '';
+        doneBtn.innerHTML = '<i data-lucide="eye" style="width:15px;height:15px;"></i> Review findings';
+        doneBtn.onclick = function() {
+          closeUpload();
+          // Update liveDocs with the fresh doc
+          var existingIdx = liveDocs.findIndex(function(d) { return d.id === doc.id; });
+          if (existingIdx >= 0) { liveDocs[existingIdx] = doc; } else { liveDocs.unshift(doc); }
+          showExtractionResults(doc.id);
+        };
+      } else {
+        statusEl.innerHTML = '<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">No items were found to extract.</div>';
+      }
+      initIcons();
+
+    } else if (doc.extraction_status === 'failed') {
+      clearInterval(_pollTimer);
+      _pollTimer = null;
+      statusEl.innerHTML = '<div style="font-size:12px;color:var(--red);margin-top:4px;">Extraction failed. The document was saved to your records.</div>';
+    }
+  }, 3000);
 }
 
 // ── ADD HEALTH EVENT ──────────────────────────────────────────────────────────
@@ -2592,6 +2990,9 @@ function closeUpload() {
   // Reset file input so same file can be re-selected
   document.getElementById('upload-file-input').value = '';
   _uploadFile = null;
+  // Clear extraction polling if active
+  if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+  document.getElementById('upload-ext-status').innerHTML = '';
 }
 
 function triggerFileUpload(type) {
@@ -2770,14 +3171,27 @@ async function confirmUpload() {
 
     document.getElementById('upload-progress-bar').style.width = '100%';
     
-    // 4. Show success state
+    // 4. Show success state + start extraction polling
     setTimeout(function() {
       document.getElementById('upload-step3').style.display = 'none';
       document.getElementById('upload-step4').style.display = 'block';
+      // Reset step4 to default state
+      document.getElementById('upload-done-icon').innerHTML = '<i data-lucide="check-circle" style="width:24px;height:24px;color:var(--moss);"></i>';
+      document.getElementById('upload-done-title').textContent = 'Document saved';
+      document.getElementById('upload-done-sub').textContent = 'Wellet is reading your document and will extract health information automatically.';
+      var doneBtn = document.getElementById('upload-done-btn');
+      doneBtn.textContent = 'Done';
+      doneBtn.onclick = function() { closeUpload(); };
       initIcons();
+      // Start polling for extraction status
+      pollExtractionStatus(docRecord.id);
     }, 500);
-    
+
     showToast('Document saved to records');
+
+    // Reload documents for current person
+    await loadPersonData(personId);
+    renderRecordsView();
     
   } catch (err) {
     console.error('Upload error:', err);
