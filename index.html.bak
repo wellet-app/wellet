@@ -545,32 +545,6 @@
   .upload-ext-status { margin-top: 14px; }
   .upload-ext-found { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14px; font-weight: 500; color: var(--moss-dark); margin-bottom: 10px; }
   .upload-ext-pulse { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: var(--text-muted); animation: statusPulse 2s ease-in-out infinite; }
-
-  /* ── UPDATE ME SUMMARY CARD ── */
-  .update-summary-card { background: var(--mint); border-radius: 14px; padding: 16px; position: relative; overflow: hidden; margin-bottom: 10px; }
-  .update-summary-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--moss); }
-  .update-summary-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-  .update-summary-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--moss-dark); font-weight: 500; }
-  .update-summary-refresh { background: none; border: none; cursor: pointer; color: var(--moss-dark); display: flex; padding: 2px; border-radius: 4px; opacity: 0.7; transition: opacity 0.15s; }
-  .update-summary-refresh:hover { opacity: 1; }
-  .update-summary-text { font-size: 14px; line-height: 1.7; color: var(--text-primary); }
-  .update-summary-text strong { font-weight: 500; }
-  .update-summary-loading { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); animation: statusPulse 2s ease-in-out infinite; padding: 4px 0; }
-  @keyframes summaryPulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
-
-  /* ── PROFILE OVERLAY ── */
-  .profile-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-end; justify-content: center; }
-  .profile-overlay.show { display: flex; }
-  .profile-sheet { background: white; border-radius: 20px 20px 0 0; width: 100%; max-width: 420px; max-height: 92vh; overflow-y: auto; padding-bottom: 36px; }
-  .profile-handle-row { padding: 16px 20px 0; display: flex; align-items: center; justify-content: space-between; }
-  .profile-handle { width: 36px; height: 4px; background: var(--border-medium); border-radius: 2px; }
-  .profile-title { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; padding: 12px 20px 4px; }
-  .profile-sub { font-size: 13px; color: var(--text-muted); padding: 0 20px 16px; }
-  .profile-section-label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); font-weight: 500; padding: 0 20px 8px; margin-top: 4px; }
-  .profile-form-row { padding: 0 20px; margin-bottom: 12px; }
-  .profile-form-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 5px; display: block; }
-  .profile-edit-btn { display: flex; align-items: center; gap: 5px; background: var(--cream); border: 1px solid var(--border); border-radius: 7px; padding: 5px 9px; font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; }
-  .profile-edit-btn:hover { border-color: var(--moss); color: var(--moss); background: var(--mint); }
 </style>
 </head>
 <body>
@@ -1229,47 +1203,44 @@
       <button class="close-btn" onclick="closeSheet('emergency-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
     <div class="qa-sheet-title">Emergency Summary</div>
-    <div class="qa-sheet-sub" id="emrg-sheet-sub">Dad · John Bell · Last updated today</div>
+    <div class="qa-sheet-sub">Dad · John Bell · Last updated today</div>
 
     <div class="emrg-band">
       <i data-lucide="shield-alert" style="width:20px;height:20px;flex-shrink:0;"></i>
-      <div class="emrg-band-text" id="emrg-band-text">Share this with ER staff or any new provider who needs a quick snapshot of Dad's health.</div>
+      <div class="emrg-band-text">Share this with ER staff or any new provider who needs a quick snapshot of Dad's health.</div>
     </div>
 
-    <div id="emrg-dynamic-content">
-      <!-- populated by renderEmergencySummary() for authenticated users -->
-      <div class="emrg-section">
-        <div class="emrg-section-title"><i data-lucide="user" style="width:12px;height:12px;"></i> Patient</div>
-        <div class="emrg-row"><span class="emrg-label">Name</span><span class="emrg-val">John Bell</span></div>
-        <div class="emrg-row"><span class="emrg-label">Date of birth</span><span class="emrg-val">March 4, 1954 (Age 71)</span></div>
-        <div class="emrg-row"><span class="emrg-label">Emergency contact</span><span class="emrg-val">Sarah Bell · (919) 555-0142</span></div>
-        <div class="emrg-row"><span class="emrg-label">Allergies</span><span class="emrg-val">Penicillin (rash)</span></div>
-      </div>
+    <div class="emrg-section">
+      <div class="emrg-section-title"><i data-lucide="user" style="width:12px;height:12px;"></i> Patient</div>
+      <div class="emrg-row"><span class="emrg-label">Name</span><span class="emrg-val">John Bell</span></div>
+      <div class="emrg-row"><span class="emrg-label">Date of birth</span><span class="emrg-val">March 4, 1954 (Age 71)</span></div>
+      <div class="emrg-row"><span class="emrg-label">Emergency contact</span><span class="emrg-val">Sarah Bell · (919) 555-0142</span></div>
+      <div class="emrg-row"><span class="emrg-label">Allergies</span><span class="emrg-val">Penicillin (rash)</span></div>
+    </div>
 
-      <div class="emrg-section">
-        <div class="emrg-section-title"><i data-lucide="stethoscope" style="width:12px;height:12px;"></i> Active diagnoses</div>
-        <div class="emrg-row"><span class="emrg-label">Hypertension</span><span class="emrg-val">Since Apr 2022</span></div>
-        <div class="emrg-row"><span class="emrg-label">CML</span><span class="emrg-val">Since 2019 · Responding</span></div>
-        <div class="emrg-row"><span class="emrg-label">Stage 3a CKD</span><span class="emrg-val">Stable</span></div>
-        <div class="emrg-row"><span class="emrg-label">Glaucoma</span><span class="emrg-val">Stable</span></div>
-      </div>
+    <div class="emrg-section">
+      <div class="emrg-section-title"><i data-lucide="stethoscope" style="width:12px;height:12px;"></i> Active diagnoses</div>
+      <div class="emrg-row"><span class="emrg-label">Hypertension</span><span class="emrg-val">Since Apr 2022</span></div>
+      <div class="emrg-row"><span class="emrg-label">CML</span><span class="emrg-val">Since 2019 · Responding</span></div>
+      <div class="emrg-row"><span class="emrg-label">Stage 3a CKD</span><span class="emrg-val">Stable</span></div>
+      <div class="emrg-row"><span class="emrg-label">Glaucoma</span><span class="emrg-val">Stable</span></div>
+    </div>
 
-      <div class="emrg-section">
-        <div class="emrg-section-title"><i data-lucide="pill" style="width:12px;height:12px;"></i> Current medications</div>
-        <div class="emrg-row"><span class="emrg-label">Lisinopril</span><span class="emrg-val">20mg · daily</span></div>
-        <div class="emrg-row"><span class="emrg-label">Hydrochlorothiazide</span><span class="emrg-val">25mg · daily</span></div>
-        <div class="emrg-row"><span class="emrg-label">Gleevec (Imatinib)</span><span class="emrg-val">400mg · daily</span></div>
-        <div class="emrg-row"><span class="emrg-label">Metoprolol</span><span class="emrg-val">50mg · daily</span></div>
-        <div class="emrg-row"><span class="emrg-label">Citalopram</span><span class="emrg-val">10mg · daily</span></div>
-        <div class="emrg-row"><span class="emrg-label">Zepbound</span><span class="emrg-val">12.5mg · weekly</span></div>
-      </div>
+    <div class="emrg-section">
+      <div class="emrg-section-title"><i data-lucide="pill" style="width:12px;height:12px;"></i> Current medications</div>
+      <div class="emrg-row"><span class="emrg-label">Lisinopril</span><span class="emrg-val">20mg · daily</span></div>
+      <div class="emrg-row"><span class="emrg-label">Hydrochlorothiazide</span><span class="emrg-val">25mg · daily</span></div>
+      <div class="emrg-row"><span class="emrg-label">Gleevec (Imatinib)</span><span class="emrg-val">400mg · daily</span></div>
+      <div class="emrg-row"><span class="emrg-label">Metoprolol</span><span class="emrg-val">50mg · daily</span></div>
+      <div class="emrg-row"><span class="emrg-label">Citalopram</span><span class="emrg-val">10mg · daily</span></div>
+      <div class="emrg-row"><span class="emrg-label">Zepbound</span><span class="emrg-val">12.5mg · weekly</span></div>
+    </div>
 
-      <div class="emrg-section">
-        <div class="emrg-section-title"><i data-lucide="users" style="width:12px;height:12px;"></i> Care team</div>
-        <div class="emrg-row"><span class="emrg-label">Primary care</span><span class="emrg-val">Dr. Johnson</span></div>
-        <div class="emrg-row"><span class="emrg-label">Oncology</span><span class="emrg-val">Dr. Edwards · Duke</span></div>
-        <div class="emrg-row"><span class="emrg-label">Ophthalmology</span><span class="emrg-val">Dr. Patel</span></div>
-      </div>
+    <div class="emrg-section">
+      <div class="emrg-section-title"><i data-lucide="users" style="width:12px;height:12px;"></i> Care team</div>
+      <div class="emrg-row"><span class="emrg-label">Primary care</span><span class="emrg-val">Dr. Johnson</span></div>
+      <div class="emrg-row"><span class="emrg-label">Oncology</span><span class="emrg-val">Dr. Edwards · Duke</span></div>
+      <div class="emrg-row"><span class="emrg-label">Ophthalmology</span><span class="emrg-val">Dr. Patel</span></div>
     </div>
 
     <div class="emrg-actions">
@@ -1572,17 +1543,14 @@
 
     <div class="settings-section" style="margin-top:12px;">
       <div class="settings-section-label">Family &amp; care circle</div>
-      <div id="care-circle-list">
-        <!-- populated by renderCareCircle() -->
-        <div class="contact-card">
-          <div class="contact-avatar">SB</div>
-          <div style="flex:1;">
-            <div class="contact-name">Sarah Bell</div>
-            <div class="contact-meta">sarah@email.com · (919) 555-0142</div>
-          </div>
-          <span class="contact-role primary">Primary</span>
-          <button class="contact-edit-btn" onclick="openContactEdit('Sarah Bell','Primary','sarah@email.com','(919) 555-0142')"><i data-lucide="pencil" style="width:14px;height:14px;"></i></button>
+      <div class="contact-card">
+        <div class="contact-avatar">SB</div>
+        <div style="flex:1;">
+          <div class="contact-name">Sarah Bell</div>
+          <div class="contact-meta">sarah@email.com · (919) 555-0142</div>
         </div>
+        <span class="contact-role primary">Primary</span>
+        <button class="contact-edit-btn" onclick="openContactEdit('Sarah Bell','Primary','sarah@email.com','(919) 555-0142','All alerts + weekly digest')"><i data-lucide="pencil" style="width:14px;height:14px;"></i></button>
       </div>
       <button class="add-contact-btn" onclick="openContactEdit(null)">
         <i data-lucide="user-plus" style="width:15px;height:15px;"></i>
@@ -1654,7 +1622,7 @@
         <i data-lucide="check" style="width:15px;height:15px;"></i>
         Save contact
       </button>
-      <button id="contact-remove-btn" class="btn-danger" style="display:none;" onclick="removeContact()">
+      <button id="contact-remove-btn" class="btn-danger" style="display:none;" onclick="showToast('Contact removed'); closeSheet('contact-overlay')">
         <i data-lucide="trash-2" style="width:15px;height:15px;"></i>
         Remove from care circle
       </button>
@@ -1679,85 +1647,6 @@
         Add all to records
       </button>
       <button class="ext-dismiss" onclick="closeSheet('extraction-overlay')">Dismiss</button>
-    </div>
-  </div>
-</div>
-
-<!-- PROFILE EDIT OVERLAY -->
-<div class="profile-overlay" id="profile-overlay">
-  <div class="profile-sheet">
-    <div class="profile-handle-row">
-      <div class="profile-handle"></div>
-      <button class="close-btn" onclick="closeSheet('profile-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
-    </div>
-    <div class="profile-title">Edit profile</div>
-    <div class="profile-sub" id="profile-sheet-sub">Update care recipient information</div>
-
-    <div class="profile-section-label">Basic information</div>
-    <div class="profile-form-row">
-      <label class="profile-form-label">Name</label>
-      <input class="input-field" id="profile-name-input" style="margin-top:0;" type="text" placeholder="Full name">
-    </div>
-    <div class="profile-form-row">
-      <label class="profile-form-label">Relationship</label>
-      <input class="input-field" id="profile-relationship-input" style="margin-top:0;" type="text" placeholder="e.g. Dad, Mom, Partner">
-    </div>
-    <div class="profile-form-row">
-      <label class="profile-form-label">Date of birth</label>
-      <input class="input-field" id="profile-dob-input" style="margin-top:0;" type="date">
-    </div>
-    <div class="profile-form-row">
-      <label class="profile-form-label">Phone</label>
-      <input class="input-field" id="profile-phone-input" style="margin-top:0;" type="tel" placeholder="(000) 000-0000">
-    </div>
-
-    <div class="profile-section-label">Medical information</div>
-    <div class="profile-form-row">
-      <label class="profile-form-label">Conditions (comma-separated)</label>
-      <textarea class="input-field" id="profile-conditions-input" style="margin-top:0;resize:none;" rows="2" placeholder="e.g. Hypertension, CML, Glaucoma"></textarea>
-    </div>
-    <div class="profile-form-row">
-      <label class="profile-form-label">Allergies</label>
-      <textarea class="input-field" id="profile-allergies-input" style="margin-top:0;resize:none;" rows="2" placeholder="e.g. Penicillin (rash)"></textarea>
-    </div>
-    <div class="profile-form-row">
-      <label class="profile-form-label">Blood type</label>
-      <select class="input-field" id="profile-blood-type-input" style="margin-top:0;">
-        <option value="">Unknown / not set</option>
-        <option value="A+">A+</option>
-        <option value="A-">A-</option>
-        <option value="B+">B+</option>
-        <option value="B-">B-</option>
-        <option value="AB+">AB+</option>
-        <option value="AB-">AB-</option>
-        <option value="O+">O+</option>
-        <option value="O-">O-</option>
-      </select>
-    </div>
-    <div class="profile-form-row">
-      <label class="profile-form-label">Primary doctor</label>
-      <input class="input-field" id="profile-doctor-input" style="margin-top:0;" type="text" placeholder="e.g. Dr. Johnson">
-    </div>
-
-    <div class="profile-section-label">Emergency contact</div>
-    <div class="profile-form-row">
-      <label class="profile-form-label">Emergency contact name</label>
-      <input class="input-field" id="profile-ec-name-input" style="margin-top:0;" type="text" placeholder="Full name">
-    </div>
-    <div class="profile-form-row">
-      <label class="profile-form-label">Emergency contact phone</label>
-      <input class="input-field" id="profile-ec-phone-input" style="margin-top:0;" type="tel" placeholder="(000) 000-0000">
-    </div>
-    <div class="profile-form-row">
-      <label class="profile-form-label">Insurance info</label>
-      <input class="input-field" id="profile-insurance-input" style="margin-top:0;" type="text" placeholder="e.g. Blue Cross PPO #123456">
-    </div>
-
-    <div style="padding:8px 20px 0;display:flex;flex-direction:column;gap:8px;">
-      <button class="btn-primary" style="font-size:14px;padding:13px;" onclick="saveProfile()">
-        <i data-lucide="check" style="width:15px;height:15px;"></i>
-        Save profile
-      </button>
     </div>
   </div>
 </div>
@@ -1874,12 +1763,9 @@ var currentPersonId = null; // selected person uuid
 var liveEvents = [];      // health_events fetched from DB
 var liveMeds = [];        // medications fetched from DB
 var liveDocs = [];        // documents fetched from DB
-var liveCareCircle = [];  // care_circle_members fetched from DB
-var summaryCache = {};    // { personId: summaryText } to avoid re-fetching
 var _cardToRemove = null;
 var _cardToRemoveId = null; // Supabase id if real person
 var _currentAskPerson = 'dad';
-var _editingContactId = null; // care_circle_members id being edited
 
 // ── ICON INIT ────────────────────────────────────────────────────────────────
 function initIcons() { if (window.lucide) lucide.createIcons(); }
@@ -1943,8 +1829,6 @@ async function handleLogout() {
   liveEvents = [];
   liveMeds = [];
   liveDocs = [];
-  liveCareCircle = [];
-  summaryCache = {};
   closeSettings();
   showAuthScreen();
   showToast('Signed out');
@@ -1995,14 +1879,6 @@ async function loadPersonData(personId) {
     .eq('person_id', personId)
     .order('created_at', { ascending: false });
   liveDocs = docs || [];
-
-  // Load care circle members
-  const { data: circle } = await db
-    .from('care_circle_members')
-    .select('*')
-    .eq('person_id', personId)
-    .order('created_at', { ascending: true });
-  liveCareCircle = circle || [];
 }
 
 // ── SHOW AUTHENTICATED APP ────────────────────────────────────────────────────
@@ -2020,7 +1896,6 @@ function showAuthenticatedApp() {
   renderTimeline();
   renderPeopleView();
   renderRecordsView();
-  renderAskView();
   updateSettingsAccount();
   initIcons();
 }
@@ -2075,37 +1950,7 @@ function renderUpdateMe() {
     });
   }
 
-  // Determine summary section: show cache or loading or empty
-  var summarySection = '';
-  if (summaryCache[currentPersonId] === 'empty') {
-    summarySection = '<div class="update-summary-card">'
-      + '<div class="update-summary-header">'
-      + '<span class="update-summary-label">Wellet summary</span>'
-      + '<button class="update-summary-refresh" onclick="fetchUpdateMeSummary(true)" title="Refresh summary"><i data-lucide="refresh-cw" style="width:13px;height:13px;"></i></button>'
-      + '</div>'
-      + '<p class="update-summary-text" style="color:var(--text-muted);font-style:italic;">Start adding health events and documents \u2014 Wellet will generate your personalized summary here.</p>'
-      + '</div>';
-  } else if (summaryCache[currentPersonId]) {
-    summarySection = '<div class="update-summary-card">'
-      + '<div class="update-summary-header">'
-      + '<span class="update-summary-label">Wellet summary</span>'
-      + '<button class="update-summary-refresh" onclick="fetchUpdateMeSummary(true)" title="Refresh summary"><i data-lucide="refresh-cw" style="width:13px;height:13px;"></i></button>'
-      + '</div>'
-      + '<p class="update-summary-text" id="update-summary-text">' + summaryCache[currentPersonId] + '</p>'
-      + '</div>';
-  } else {
-    // Not yet fetched — show loading placeholder and trigger fetch
-    summarySection = '<div class="update-summary-card" id="update-summary-loading-card">'
-      + '<div class="update-summary-header">'
-      + '<span class="update-summary-label">Wellet summary</span>'
-      + '</div>'
-      + '<div class="update-summary-loading"><i data-lucide="loader" style="width:13px;height:13px;animation:spin 1.2s linear infinite;"></i> Wellet is thinking\u2026</div>'
-      + '</div>';
-    fetchUpdateMeSummary(false);
-  }
-
   pane.innerHTML = '<div class="update-me-section">'
-    + summarySection
     + '<div class="update-card">'
     + '<div class="update-label">What\u2019s going on with ' + escHtml(name) + ' right now</div>'
     + (liveEvents.length === 0
@@ -2203,7 +2048,7 @@ function renderPeopleView() {
       + '<div class="person-card-action">'
       + '<button class="card-action-btn" onclick="switchToRealPersonNav(\'' + p.id + '\')">Update Me</button>'
       + '<button class="card-action-btn" onclick="openAddEvent(\'' + p.id + '\')">Add event</button>'
-      + '<button class="card-action-btn" onclick="openProfileEdit(\'' + p.id + '\')"><i data-lucide="pencil" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:3px;"></i>Edit profile</button>'
+      + '<button class="card-action-btn" onclick="openUploadById(\'' + p.id + '\')">Add document</button>'
       + '</div></div>';
   });
 
@@ -2998,64 +2843,12 @@ var _responses = {
   }
 };
 
-function renderAskView() {
-  // Render ask view for authenticated mode with real people
-  if (isDemoMode) return;
-  var personBar = document.querySelector('#view-ask .ask-person-bar');
-  if (!personBar || !currentPeople.length) return;
-
-  var pillsHtml = '';
-  currentPeople.forEach(function(p) {
-    var active = p.id === currentPersonId ? ' active' : '';
-    pillsHtml += '<button class="ask-person-pill' + active + '" onclick="selectAskRealPerson(this,\'' + p.id + '\')">'
-      + '<span style="width:6px;height:6px;border-radius:50%;background:currentColor;opacity:0.7;display:inline-block;"></span>'
-      + escHtml(p.name.split(' ')[0]) + '</button>';
-  });
-  personBar.innerHTML = pillsHtml;
-
-  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
-  var firstName = person ? person.name.split(' ')[0] : 'them';
-  var inputEl = document.getElementById('ask-input');
-  if (inputEl) inputEl.placeholder = 'Ask about ' + firstName + '\u2019s health\u2026';
-
-  var chips = document.getElementById('suggestion-chips');
-  if (chips) {
-    chips.innerHTML =
-      '<button class="chip" onclick="askQuestion(this.textContent)">What medications is ' + escHtml(firstName) + ' taking?</button>'
-      + '<button class="chip" onclick="askQuestion(this.textContent)">Summarize recent health events</button>'
-      + '<button class="chip" onclick="askQuestion(this.textContent)">Are there any patterns to watch?</button>'
-      + '<button class="chip" onclick="askQuestion(this.textContent)">What should I ask the doctor next visit?</button>';
-    chips.style.display = 'flex';
-  }
-}
-
-function selectAskRealPerson(el, personId) {
-  currentPersonId = personId;
-  document.querySelectorAll('#view-ask .ask-person-pill').forEach(function(p){ p.classList.remove('active'); });
-  el.classList.add('active');
-  var person = currentPeople.find(function(p){ return p.id === personId; });
-  var firstName = person ? person.name.split(' ')[0] : 'them';
-  var inputEl = document.getElementById('ask-input');
-  if (inputEl) inputEl.placeholder = 'Ask about ' + firstName + '\u2019s health\u2026';
-  var chips = document.getElementById('suggestion-chips');
-  if (chips) {
-    chips.innerHTML =
-      '<button class="chip" onclick="askQuestion(this.textContent)">What medications is ' + escHtml(firstName) + ' taking?</button>'
-      + '<button class="chip" onclick="askQuestion(this.textContent)">Summarize recent health events</button>'
-      + '<button class="chip" onclick="askQuestion(this.textContent)">Are there any patterns to watch?</button>'
-      + '<button class="chip" onclick="askQuestion(this.textContent)">What should I ask the doctor next visit?</button>';
-    chips.style.display = 'flex';
-  }
-  addWelletMessage('Switched to ' + escHtml(firstName) + '. Ask me anything about their health records.');
-}
-
 function selectAskPerson(el, person) {
-  // Demo mode only
   _currentAskPerson = person;
   document.querySelectorAll('.ask-person-pill').forEach(function(p){ p.classList.remove('active'); });
   el.classList.add('active');
   var name = person === 'dad' ? 'Dad' : 'Mom';
-  document.getElementById('ask-input').placeholder = 'Ask about ' + name + '\'s health\u2026';
+  document.getElementById('ask-input').placeholder = 'Ask about ' + name + '\'s health…';
   var chips = document.getElementById('suggestion-chips');
   if (person === 'mom') {
     chips.innerHTML = '<button class="chip" onclick="askQuestion(this.textContent)">Is she stable?</button><button class="chip" onclick="askQuestion(this.textContent)">When is her next appointment?</button><button class="chip" onclick="askQuestion(this.textContent)">What meds is she taking?</button><button class="chip" onclick="askQuestion(this.textContent)">What changed this month?</button>';
@@ -3087,46 +2880,12 @@ function sendAskMessage() {
   addUserMessage(text);
   document.getElementById('suggestion-chips').style.display = 'none';
   var typingId = showTyping();
-
-  if (!isDemoMode && currentPersonId) {
-    // Real AI call
-    (async function() {
-      try {
-        var session = await db.auth.getSession();
-        var token = session.data.session.access_token;
-        var res = await fetch(
-          'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/ask-wellet',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer ' + token,
-              'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU'
-            },
-            body: JSON.stringify({ question: text, person_id: currentPersonId })
-          }
-        );
-        removeTyping(typingId);
-        if (res.ok) {
-          var data = await res.json();
-          addWelletMessage(escHtml(data.answer || data.response || 'I couldn\u2019t find an answer to that.'));
-        } else {
-          addWelletMessage('Sorry, I had trouble getting a response. Please try again.');
-        }
-      } catch (e) {
-        removeTyping(typingId);
-        addWelletMessage('Sorry, something went wrong. Please try again.');
-      }
-    })();
-  } else {
-    // Demo mode — use hardcoded responses
-    setTimeout(function() {
-      removeTyping(typingId);
-      var responses = _responses[_currentAskPerson] || _responses['dad'];
-      var reply = responses[text] || responses['default'];
-      addWelletMessage(reply);
-    }, 900 + Math.random() * 600);
-  }
+  setTimeout(function() {
+    removeTyping(typingId);
+    var responses = _responses[_currentAskPerson] || _responses['dad'];
+    var reply = responses[text] || responses['default'];
+    addWelletMessage(reply);
+  }, 900 + Math.random() * 600);
 }
 
 function addUserMessage(text) {
@@ -3177,7 +2936,6 @@ function closeModal() {
 }
 
 function openEmergencySummary() {
-  if (!isDemoMode) { renderEmergencySummary(); }
   document.getElementById('emergency-overlay').classList.add('show');
   initIcons();
 }
@@ -3459,7 +3217,6 @@ function switchRecordsPerson(el, person) {
 
 function openContactEdit(name, role, email, phone, notif) {
   var isNew = !name;
-  if (isNew) { _editingContactId = null; }
   document.getElementById('contact-sheet-title').textContent = isNew ? 'Add family member' : 'Edit contact';
   document.getElementById('contact-name-input').value = name || '';
   document.getElementById('contact-email-input').value = email || '';
@@ -3488,331 +3245,13 @@ function selectRole(role) {
   });
 }
 
-// ── GENERATE SUMMARY (Feature 2) ─────────────────────────────────────────────
-async function fetchUpdateMeSummary(forceRefresh) {
-  if (isDemoMode || !currentPersonId || !currentUser) return;
-  var pid = currentPersonId;
-  // Clear cache on force refresh
-  if (forceRefresh) { delete summaryCache[pid]; }
-  // Already cached?
-  if (summaryCache[pid] !== undefined) { renderUpdateMe(); return; }
-
-  try {
-    var session = await db.auth.getSession();
-    var token = session.data.session.access_token;
-    var res = await fetch(
-      'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/generate-summary',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + token,
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU'
-        },
-        body: JSON.stringify({ person_id: pid })
-      }
-    );
-    if (res.ok) {
-      var data = await res.json();
-      if (data.empty || !data.summary) {
-        summaryCache[pid] = 'empty';
-      } else {
-        // Store as escaped HTML (summary may contain markdown-style bold)
-        summaryCache[pid] = escHtml(data.summary);
-      }
-    } else {
-      summaryCache[pid] = 'empty';
-    }
-  } catch (e) {
-    console.warn('Summary fetch error:', e);
-    summaryCache[pid] = 'empty';
-  }
-  // Only re-render if still on same person
-  if (currentPersonId === pid) { renderUpdateMe(); }
-}
-
-// ── PROFILE EDITING (Feature 3) ─────────────────────────────────────────────
-var _profileEditPersonId = null;
-
-function openProfileEdit(personId) {
-  var pid = personId || currentPersonId;
-  _profileEditPersonId = pid;
-  var person = currentPeople.find(function(p){ return p.id === pid; });
-  if (!person) return;
-
-  document.getElementById('profile-sheet-sub').textContent = 'Editing profile for ' + person.name;
-  document.getElementById('profile-name-input').value = person.name || '';
-  document.getElementById('profile-relationship-input').value = person.relationship || '';
-  document.getElementById('profile-dob-input').value = person.date_of_birth || '';
-  document.getElementById('profile-phone-input').value = person.phone || '';
-  document.getElementById('profile-conditions-input').value = person.conditions || '';
-  document.getElementById('profile-allergies-input').value = person.allergies || '';
-  document.getElementById('profile-blood-type-input').value = person.blood_type || '';
-  document.getElementById('profile-doctor-input').value = person.primary_doctor || '';
-  document.getElementById('profile-ec-name-input').value = person.emergency_contact_name || '';
-  document.getElementById('profile-ec-phone-input').value = person.emergency_contact_phone || '';
-  document.getElementById('profile-insurance-input').value = person.insurance_info || '';
-
-  document.getElementById('profile-overlay').classList.add('show');
-  initIcons();
-}
-
-async function saveProfile() {
-  var pid = _profileEditPersonId;
-  if (!pid) return;
-
-  var btn = document.querySelector('#profile-overlay .btn-primary');
-  btn.disabled = true;
-  btn.textContent = 'Saving\u2026';
-
-  var updates = {
-    name: document.getElementById('profile-name-input').value.trim() || undefined,
-    relationship: document.getElementById('profile-relationship-input').value.trim() || null,
-    date_of_birth: document.getElementById('profile-dob-input').value || null,
-    phone: document.getElementById('profile-phone-input').value.trim() || null,
-    conditions: document.getElementById('profile-conditions-input').value.trim() || null,
-    allergies: document.getElementById('profile-allergies-input').value.trim() || null,
-    blood_type: document.getElementById('profile-blood-type-input').value || null,
-    primary_doctor: document.getElementById('profile-doctor-input').value.trim() || null,
-    emergency_contact_name: document.getElementById('profile-ec-name-input').value.trim() || null,
-    emergency_contact_phone: document.getElementById('profile-ec-phone-input').value.trim() || null,
-    insurance_info: document.getElementById('profile-insurance-input').value.trim() || null
-  };
-  // Remove undefined keys
-  Object.keys(updates).forEach(function(k){ if (updates[k] === undefined) delete updates[k]; });
-
-  var { error } = await db.from('people').update(updates).eq('id', pid);
-
-  btn.disabled = false;
-  btn.innerHTML = '<i data-lucide="check" style="width:15px;height:15px;"></i> Save profile';
-  initIcons();
-
-  if (error) {
-    showToast('Error saving: ' + error.message);
-    return;
-  }
-
-  // Update local cache
-  var idx = currentPeople.findIndex(function(p){ return p.id === pid; });
-  if (idx >= 0) { Object.assign(currentPeople[idx], updates); }
-
-  closeSheet('profile-overlay');
-  showToast('Profile saved');
-  // Re-render to reflect any name changes
-  renderPersonSwitcher();
-  renderPeopleView();
-  renderUpdateMe();
-}
-
-// ── EMERGENCY SUMMARY (Feature 3 - dynamic) ────────────────────────────
-function renderEmergencySummary() {
-  // Only override demo content for authenticated users
-  if (isDemoMode) return;
-  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
-  if (!person) return;
-
-  var name = person.name;
-  var firstName = name.split(' ')[0];
-
-  var subEl = document.getElementById('emrg-sheet-sub');
-  if (subEl) subEl.textContent = firstName + ' \u00b7 ' + name + ' \u00b7 Last updated today';
-
-  var bandEl = document.getElementById('emrg-band-text');
-  if (bandEl) bandEl.textContent = 'Share this with ER staff or any new provider who needs a quick snapshot of ' + firstName + '\'s health.';
-
-  var container = document.getElementById('emrg-dynamic-content');
-  if (!container) return;
-
-  // Build patient section
-  var html = '<div class="emrg-section">'
-    + '<div class="emrg-section-title"><i data-lucide="user" style="width:12px;height:12px;"></i> Patient</div>'
-    + '<div class="emrg-row"><span class="emrg-label">Name</span><span class="emrg-val">' + escHtml(name) + '</span></div>';
-
-  if (person.date_of_birth) {
-    var dob = new Date(person.date_of_birth);
-    var age = Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-    var dobStr = dob.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-    html += '<div class="emrg-row"><span class="emrg-label">Date of birth</span><span class="emrg-val">' + escHtml(dobStr) + ' (Age ' + age + ')</span></div>';
-  }
-
-  if (person.emergency_contact_name) {
-    var ecVal = escHtml(person.emergency_contact_name);
-    if (person.emergency_contact_phone) ecVal += ' \u00b7 ' + escHtml(person.emergency_contact_phone);
-    html += '<div class="emrg-row"><span class="emrg-label">Emergency contact</span><span class="emrg-val">' + ecVal + '</span></div>';
-  } else if (liveCareCircle.length > 0) {
-    var primary = liveCareCircle.find(function(c){ return c.role === 'Primary'; }) || liveCareCircle[0];
-    var ecVal2 = escHtml(primary.member_name);
-    if (primary.phone) ecVal2 += ' \u00b7 ' + escHtml(primary.phone);
-    html += '<div class="emrg-row"><span class="emrg-label">Emergency contact</span><span class="emrg-val">' + ecVal2 + '</span></div>';
-  }
-
-  if (person.allergies) {
-    html += '<div class="emrg-row"><span class="emrg-label">Allergies</span><span class="emrg-val">' + escHtml(person.allergies) + '</span></div>';
-  }
-  if (person.blood_type) {
-    html += '<div class="emrg-row"><span class="emrg-label">Blood type</span><span class="emrg-val">' + escHtml(person.blood_type) + '</span></div>';
-  }
-  if (person.insurance_info) {
-    html += '<div class="emrg-row"><span class="emrg-label">Insurance</span><span class="emrg-val">' + escHtml(person.insurance_info) + '</span></div>';
-  }
-  html += '</div>';
-
-  // Conditions section
-  if (person.conditions) {
-    var condList = person.conditions.split(',').map(function(c){ return c.trim(); }).filter(Boolean);
-    if (condList.length > 0) {
-      html += '<div class="emrg-section"><div class="emrg-section-title"><i data-lucide="stethoscope" style="width:12px;height:12px;"></i> Active conditions</div>';
-      condList.forEach(function(cond) {
-        html += '<div class="emrg-row"><span class="emrg-label">' + escHtml(cond) + '</span><span class="emrg-val">Active</span></div>';
-      });
-      html += '</div>';
-    }
-  }
-
-  // Medications section
-  var activeMeds = liveMeds.filter(function(m){ return m.active; });
-  if (activeMeds.length > 0) {
-    html += '<div class="emrg-section"><div class="emrg-section-title"><i data-lucide="pill" style="width:12px;height:12px;"></i> Current medications</div>';
-    activeMeds.forEach(function(med) {
-      var valStr = '';
-      if (med.dose) valStr += escHtml(med.dose);
-      if (med.frequency) valStr += (valStr ? ' \u00b7 ' : '') + escHtml(med.frequency);
-      html += '<div class="emrg-row"><span class="emrg-label">' + escHtml(med.name) + '</span><span class="emrg-val">' + (valStr || 'Active') + '</span></div>';
-    });
-    html += '</div>';
-  }
-
-  // Doctor section
-  if (person.primary_doctor) {
-    html += '<div class="emrg-section"><div class="emrg-section-title"><i data-lucide="users" style="width:12px;height:12px;"></i> Care team</div>'
-      + '<div class="emrg-row"><span class="emrg-label">Primary doctor</span><span class="emrg-val">' + escHtml(person.primary_doctor) + '</span></div>'
-      + '</div>';
-  }
-
-  if (!person.date_of_birth && !person.allergies && activeMeds.length === 0) {
-    html += '<div style="padding:16px 20px;font-size:13px;color:var(--text-muted);font-style:italic;">Add profile information to make this summary more complete.</div>';
-  }
-
-  container.innerHTML = html;
-  initIcons();
-}
-
-// ── CARE CIRCLE (Feature 4) ─────────────────────────────────────────────────
-function renderCareCircle() {
-  if (isDemoMode) return;
-  var container = document.getElementById('care-circle-list');
-  if (!container) return;
-
-  if (liveCareCircle.length === 0) {
-    container.innerHTML = '<div style="text-align:center;padding:16px 0 8px;font-size:13px;color:var(--text-muted);font-style:italic;">No care circle members yet.</div>';
-    return;
-  }
-
-  var html = '';
-  liveCareCircle.forEach(function(member) {
-    var initials = (member.member_name || '?').split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2);
-    var roleClass = (member.role || '').toLowerCase();
-    if (roleClass !== 'primary' && roleClass !== 'secondary' && roleClass !== 'emergency') roleClass = 'secondary';
-    var roleLabel = member.role || 'Member';
-    html += '<div class="contact-card">'
-      + '<div class="contact-avatar">' + escHtml(initials) + '</div>'
-      + '<div style="flex:1;">'
-      + '<div class="contact-name">' + escHtml(member.member_name) + '</div>'
-      + '<div class="contact-meta">' + (member.email ? escHtml(member.email) : '') + (member.email && member.phone ? ' \u00b7 ' : '') + (member.phone ? escHtml(member.phone) : '') + '</div>'
-      + '</div>'
-      + '<span class="contact-role ' + roleClass + '">' + escHtml(roleLabel) + '</span>'
-      + '<button class="contact-edit-btn" onclick="openContactEditById(\'' + member.id + '\')" title="Edit"><i data-lucide="pencil" style="width:14px;height:14px;"></i></button>'
-      + '</div>';
-  });
-  container.innerHTML = html;
-  initIcons();
-}
-
-function openContactEditById(memberId) {
-  var member = liveCareCircle.find(function(c){ return c.id === memberId; });
-  if (!member) return;
-  openContactEdit(member.member_name, member.role, member.email, member.phone);
-  _editingContactId = memberId;
-}
-
-async function saveContact() {
-  var name = document.getElementById('contact-name-input').value.trim();
-  var email = document.getElementById('contact-email-input').value.trim();
-  var phone = document.getElementById('contact-phone-input').value.trim();
-  var role = 'Secondary';
-  ['Primary','Secondary','Emergency'].forEach(function(r) {
-    var el = document.getElementById('role-' + r.toLowerCase());
-    if (el && el.classList.contains('selected')) role = r;
-  });
-
-  if (!name) { showToast('Please enter a name'); return; }
-
-  var btn = document.querySelector('#contact-overlay .btn-primary');
-  btn.disabled = true;
-  btn.textContent = 'Saving\u2026';
-
-  var error;
-  if (isDemoMode) {
-    // Demo mode: just close
-    closeSheet('contact-overlay');
-    showToast('Contact saved');
-    return;
-  }
-
-  if (_editingContactId) {
-    var res = await db.from('care_circle_members').update({
-      member_name: name, email: email || null, phone: phone || null, role: role
-    }).eq('id', _editingContactId);
-    error = res.error;
-  } else {
-    var res = await db.from('care_circle_members').insert({
-      person_id: currentPersonId,
-      member_name: name,
-      email: email || null,
-      phone: phone || null,
-      role: role
-    });
-    error = res.error;
-  }
-
-  btn.disabled = false;
-  btn.innerHTML = '<i data-lucide="check" style="width:15px;height:15px;"></i> Save contact';
-  initIcons();
-
-  if (error) { showToast('Error saving: ' + error.message); return; }
-
+function saveContact() {
   closeSheet('contact-overlay');
   showToast('Contact saved');
-  _editingContactId = null;
-
-  // Reload and re-render
-  var { data: circle } = await db.from('care_circle_members').select('*').eq('person_id', currentPersonId).order('created_at', { ascending: true });
-  liveCareCircle = circle || [];
-  renderCareCircle();
-}
-
-async function removeContact() {
-  if (isDemoMode || !_editingContactId) {
-    closeSheet('contact-overlay');
-    showToast('Contact removed');
-    return;
-  }
-
-  var { error } = await db.from('care_circle_members').delete().eq('id', _editingContactId);
-  if (error) { showToast('Error removing: ' + error.message); return; }
-
-  closeSheet('contact-overlay');
-  showToast('Contact removed from care circle');
-  _editingContactId = null;
-
-  var { data: circle } = await db.from('care_circle_members').select('*').eq('person_id', currentPersonId).order('created_at', { ascending: true });
-  liveCareCircle = circle || [];
-  renderCareCircle();
 }
 
 function openSettings() {
   updateSettingsAccount();
-  if (!isDemoMode) { renderCareCircle(); }
   document.getElementById('settings-overlay').classList.add('show');
   initIcons();
 }
@@ -3836,7 +3275,6 @@ function switchNavTo(view) {
   var isHome = view === 'home';
   document.getElementById('header-person-switcher').style.display = isHome ? 'flex' : 'none';
   document.getElementById('header-tab-bar').style.display = isHome ? 'flex' : 'none';
-  if (view === 'ask' && !isDemoMode) { renderAskView(); }
   window.scrollTo(0, 0);
   initIcons();
 }
