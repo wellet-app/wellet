@@ -623,8 +623,28 @@
   /* ── RESPONSIVE: TABLET & DESKTOP ── */
   .auth-body { max-width: 420px; }
   @media (min-width: 480px) {
-    .auth-headline, .auth-description, .auth-signals, .auth-body { padding-left: 40px; padding-right: 40px; }
+    #auth-screen { justify-content: center; max-width: 600px; margin: 0 auto; }
+    .auth-header { padding: 16px 40px 0; }
+    .auth-building-badge { padding: 14px 40px 0; }
+    .auth-headline { padding: 10px 40px 0; }
+    .auth-headline h1 { font-size: 32px; }
+    .auth-description { padding: 10px 40px 0; font-size: 14px; line-height: 1.55; }
+    .auth-signals { padding: 14px 40px 0; gap: 10px; }
+    .auth-signal-card { padding: 10px 14px; }
+    .auth-signal-label { margin-bottom: 4px; }
+    .auth-signal-text { font-size: 12px; line-height: 1.45; }
+    .auth-body { padding: 16px 40px 0; }
+    .auth-subtitle { margin-bottom: 16px; }
+    .auth-privacy { padding: 0 40px 16px; }
     .view-content, .tab-pane, .update-card { padding-left: 28px; padding-right: 28px; }
+  }
+  @media (min-width: 480px) and (min-height: 800px) {
+    .auth-headline h1 { font-size: 36px; }
+    .auth-building-badge { padding-top: 20px; }
+    .auth-headline { padding-top: 14px; }
+    .auth-description { padding-top: 14px; font-size: 15px; }
+    .auth-signals { padding-top: 20px; }
+    .auth-body { padding-top: 20px; }
   }
 </style>
 </head>
