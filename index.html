@@ -1323,6 +1323,7 @@
 </div>
 
 <!-- UPLOAD SHEET -->
+<input type="file" id="upload-file-input" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.txt" style="display:none;" onchange="handleFileSelected(this)">
 <div class="upload-overlay" id="upload-overlay">
   <div class="upload-sheet">
     <div class="upload-handle-row">
@@ -1333,7 +1334,7 @@
     <div class="upload-person">Adding to <strong id="upload-person-name"></strong></div>
 
     <div id="upload-step1">
-      <div class="upload-drop" onclick="simulateUpload()">
+      <div class="upload-drop" onclick="triggerFileUpload()">
         <div class="upload-drop-icon"><i data-lucide="upload-cloud" style="width:32px;height:32px;"></i></div>
         <div class="upload-drop-label">Tap to upload a file</div>
         <div class="upload-drop-sub">PDF, JPG, or PNG · up to 25MB</div>
@@ -1342,35 +1343,35 @@
       <div class="upload-divider"><span>or choose a type</span></div>
 
       <div class="upload-options">
-        <div class="upload-option" onclick="simulateUpload('Visit summary')">
+        <div class="upload-option" onclick="triggerFileUpload('Visit summary')">
           <div class="upload-option-icon"><i data-lucide="clipboard-list" style="width:17px;height:17px;"></i></div>
           <div>
             <div class="upload-option-label">Visit summary</div>
             <div class="upload-option-sub">After-visit notes from a provider</div>
           </div>
         </div>
-        <div class="upload-option" onclick="simulateUpload('Lab results')">
+        <div class="upload-option" onclick="triggerFileUpload('Lab results')">
           <div class="upload-option-icon"><i data-lucide="flask-conical" style="width:17px;height:17px;"></i></div>
           <div>
             <div class="upload-option-label">Lab results</div>
             <div class="upload-option-sub">Blood work, imaging reports, panels</div>
           </div>
         </div>
-        <div class="upload-option" onclick="simulateUpload('Prescription')">
+        <div class="upload-option" onclick="triggerFileUpload('Prescription')">
           <div class="upload-option-icon"><i data-lucide="pill" style="width:17px;height:17px;"></i></div>
           <div>
             <div class="upload-option-label">Prescription</div>
             <div class="upload-option-sub">New or updated medication order</div>
           </div>
         </div>
-        <div class="upload-option" onclick="simulateUpload('Imaging')">
+        <div class="upload-option" onclick="triggerFileUpload('Imaging')">
           <div class="upload-option-icon"><i data-lucide="scan" style="width:17px;height:17px;"></i></div>
           <div>
             <div class="upload-option-label">Imaging / scan</div>
             <div class="upload-option-sub">X-ray, MRI, CT, ultrasound</div>
           </div>
         </div>
-        <div class="upload-option" onclick="simulateUpload('Other document')">
+        <div class="upload-option" onclick="triggerFileUpload('Other document')">
           <div class="upload-option-icon"><i data-lucide="file-plus" style="width:17px;height:17px;"></i></div>
           <div>
             <div class="upload-option-label">Other document</div>
@@ -1386,7 +1387,8 @@
           <div class="upload-file-icon"><i data-lucide="file-check" style="width:22px;height:22px;"></i></div>
           <div>
             <div class="upload-file-name" id="upload-file-name">Document uploaded</div>
-            <div class="upload-file-meta">Ready to save · Wellet will read and summarize this</div>
+            <div class="upload-file-meta" id="upload-file-meta">Ready to save · Wellet will read and summarize this</div>
+            <div class="upload-file-size" id="upload-file-size" style="font-size:11px;color:var(--text-muted);margin-top:2px;"></div>
           </div>
         </div>
         <div class="upload-tag-row">
@@ -1404,7 +1406,31 @@
           <i data-lucide="check" style="width:15px;height:15px;"></i>
           Save to records
         </button>
-        <button class="btn-cancel" style="margin-top:8px;width:100%;padding:11px;border-radius:12px;border:1px solid var(--border-medium);background:transparent;font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;color:var(--text-secondary);" onclick="backToUploadStep1()">Choose a different file</button>
+        <button class="btn-cancel" id="upload-change-btn" style="margin-top:8px;width:100%;padding:11px;border-radius:12px;border:1px solid var(--border-medium);background:transparent;font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;color:var(--text-secondary);" onclick="backToUploadStep1()">Choose a different file</button>
+      </div>
+    </div>
+
+    <div id="upload-step3" style="display:none;">
+      <div style="padding:24px 20px;text-align:center;">
+        <div style="width:52px;height:52px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+          <i data-lucide="loader" id="upload-progress-icon" style="width:24px;height:24px;color:var(--moss);animation:spin 1.2s linear infinite;"></i>
+        </div>
+        <div id="upload-progress-title" style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:6px;">Uploading document...</div>
+        <div id="upload-progress-sub" style="font-size:13px;color:var(--text-secondary);line-height:1.6;">This will just take a moment</div>
+        <div style="margin-top:16px;background:var(--border);border-radius:6px;height:4px;overflow:hidden;">
+          <div id="upload-progress-bar" style="height:100%;background:var(--moss);border-radius:6px;width:0%;transition:width 0.3s ease;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="upload-step4" style="display:none;">
+      <div style="padding:24px 20px;text-align:center;">
+        <div style="width:52px;height:52px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+          <i data-lucide="check-circle" style="width:24px;height:24px;color:var(--moss);"></i>
+        </div>
+        <div style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:6px;">Document saved</div>
+        <div id="upload-done-sub" style="font-size:13px;color:var(--text-secondary);line-height:1.6;">Wellet is reading your document and will extract health information automatically.</div>
+        <button class="btn-primary" style="font-size:14px;padding:13px;margin-top:16px;" onclick="closeUpload()">Done</button>
       </div>
     </div>
 
@@ -1957,7 +1983,7 @@ function renderPeopleView() {
       + '<div class="person-card-action">'
       + '<button class="card-action-btn" onclick="switchToRealPersonNav(\'' + p.id + '\')">Update Me</button>'
       + '<button class="card-action-btn" onclick="openAddEvent(\'' + p.id + '\')">Add event</button>'
-      + '<button class="card-action-btn" onclick="openUpload(\'' + p.name + '\')">Add document</button>'
+      + '<button class="card-action-btn" onclick="openUploadById(\'' + p.id + '\')">Add document</button>'
       + '</div></div>';
   });
 
@@ -2538,17 +2564,75 @@ function showToast(msg) {
   setTimeout(function() { toast.style.opacity='0'; setTimeout(function() { toast.remove(); }, 400); }, 2000);
 }
 
+// ── DOCUMENT UPLOAD (real Supabase Storage + AI extraction) ─────────────
+var _uploadPersonName = '';
+var _uploadDocType = null;
+var _uploadFile = null;
+
+function openUploadById(personId) {
+  var person = currentPeople.find(function(p){ return p.id === personId; });
+  var name = person ? person.name : 'Person';
+  currentPersonId = personId;
+  openUpload(name);
+}
 function openUpload(personName) {
+  _uploadPersonName = personName;
+  _uploadFile = null;
+  _uploadDocType = null;
   document.getElementById('upload-person-name').textContent = personName;
   document.getElementById('upload-step1').style.display = 'block';
   document.getElementById('upload-step2').style.display = 'none';
+  document.getElementById('upload-step3').style.display = 'none';
+  document.getElementById('upload-step4').style.display = 'none';
   document.getElementById('upload-overlay').classList.add('show');
   initIcons();
 }
 function closeUpload() {
   document.getElementById('upload-overlay').classList.remove('show');
+  // Reset file input so same file can be re-selected
+  document.getElementById('upload-file-input').value = '';
+  _uploadFile = null;
 }
-function simulateUpload(type) {
+
+function triggerFileUpload(type) {
+  _uploadDocType = type || 'Other document';
+  if (isDemoMode) {
+    // In demo mode, simulate the upload
+    simulateDemoUpload(type);
+    return;
+  }
+  // Trigger real file picker
+  document.getElementById('upload-file-input').click();
+}
+
+function handleFileSelected(input) {
+  if (!input.files || !input.files[0]) return;
+  _uploadFile = input.files[0];
+  
+  // Show step 2 with real file info
+  document.getElementById('upload-file-name').textContent = _uploadFile.name;
+  var sizeMB = (_uploadFile.size / (1024 * 1024)).toFixed(1);
+  document.getElementById('upload-file-size').textContent = sizeMB + ' MB';
+  document.getElementById('upload-file-meta').textContent = 'Ready to save \u00b7 Wellet will read and summarize this';
+  
+  document.getElementById('upload-step1').style.display = 'none';
+  document.getElementById('upload-step2').style.display = 'block';
+  
+  // Auto-select tag based on document type
+  document.querySelectorAll('#upload-step2 .upload-tag').forEach(function(t){ t.classList.remove('selected'); });
+  var tagMap = {
+    'Visit summary': 'Labs', 'Lab results': 'Labs',
+    'Prescription': 'Medications', 'Imaging': 'Imaging'
+  };
+  if (tagMap[_uploadDocType]) {
+    document.querySelectorAll('#upload-step2 .upload-tag').forEach(function(t){
+      if (t.textContent === tagMap[_uploadDocType]) t.classList.add('selected');
+    });
+  }
+  initIcons();
+}
+
+function simulateDemoUpload(type) {
   var names = {
     'Visit summary': 'visit_summary_jul2025.pdf',
     'Lab results': 'lab_results_jun28.pdf',
@@ -2558,28 +2642,155 @@ function simulateUpload(type) {
   };
   var name = names[type] || 'uploaded_document.pdf';
   document.getElementById('upload-file-name').textContent = name;
+  document.getElementById('upload-file-size').textContent = '';
+  document.getElementById('upload-file-meta').textContent = 'Ready to save \u00b7 Wellet will read and summarize this';
   document.getElementById('upload-step1').style.display = 'none';
   document.getElementById('upload-step2').style.display = 'block';
-  document.querySelectorAll('.upload-tag').forEach(function(t){ t.classList.remove('selected'); });
+  document.querySelectorAll('#upload-step2 .upload-tag').forEach(function(t){ t.classList.remove('selected'); });
   var tagMap = {
     'Visit summary': 'Labs', 'Lab results': 'Labs',
     'Prescription': 'Medications', 'Imaging': 'Imaging'
   };
   if (tagMap[type]) {
-    document.querySelectorAll('.upload-tag').forEach(function(t){
+    document.querySelectorAll('#upload-step2 .upload-tag').forEach(function(t){
       if (t.textContent === tagMap[type]) t.classList.add('selected');
     });
   }
   initIcons();
 }
+
 function backToUploadStep1() {
+  _uploadFile = null;
+  document.getElementById('upload-file-input').value = '';
   document.getElementById('upload-step1').style.display = 'block';
   document.getElementById('upload-step2').style.display = 'none';
 }
 function toggleTag(el) { el.classList.toggle('selected'); }
-function confirmUpload() {
-  closeUpload();
-  showToast('Document saved to records');
+
+async function confirmUpload() {
+  if (isDemoMode || !currentUser || !_uploadFile) {
+    // Demo mode or no file — just show toast
+    closeUpload();
+    showToast('Document saved to records');
+    return;
+  }
+
+  // Real upload flow
+  var file = _uploadFile;
+  var personId = currentPersonId;
+  var docType = _uploadDocType || 'Other document';
+  
+  // Get selected tags
+  var tags = [];
+  document.querySelectorAll('#upload-step2 .upload-tag.selected').forEach(function(t){
+    tags.push(t.textContent);
+  });
+
+  // Show uploading state
+  document.getElementById('upload-step2').style.display = 'none';
+  document.getElementById('upload-step3').style.display = 'block';
+  document.getElementById('upload-progress-bar').style.width = '10%';
+  document.getElementById('upload-progress-title').textContent = 'Uploading document...';
+  document.getElementById('upload-progress-sub').textContent = 'Storing ' + file.name;
+  initIcons();
+
+  try {
+    // 1. Upload file to Supabase Storage
+    var userId = currentUser.id;
+    var timestamp = Date.now();
+    var safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    var storagePath = userId + '/' + timestamp + '_' + safeName;
+    
+    document.getElementById('upload-progress-bar').style.width = '25%';
+    
+    var uploadResult = await db.storage.from('documents').upload(storagePath, file, {
+      cacheControl: '3600',
+      upsert: false
+    });
+    
+    if (uploadResult.error) {
+      throw new Error('Storage upload failed: ' + uploadResult.error.message);
+    }
+    
+    document.getElementById('upload-progress-bar').style.width = '50%';
+    document.getElementById('upload-progress-title').textContent = 'Saving record...';
+    document.getElementById('upload-progress-sub').textContent = 'Creating document entry';
+
+    // 2. Insert document record
+    var insertResult = await db.from('documents').insert({
+      person_id: personId,
+      file_name: file.name,
+      storage_path: storagePath,
+      document_type: docType,
+      extraction_status: 'pending'
+    }).select().single();
+    
+    if (insertResult.error) {
+      throw new Error('Document record failed: ' + insertResult.error.message);
+    }
+    
+    var docRecord = insertResult.data;
+    document.getElementById('upload-progress-bar').style.width = '75%';
+    document.getElementById('upload-progress-title').textContent = 'Analyzing document...';
+    document.getElementById('upload-progress-sub').textContent = 'Wellet is reading your document';
+
+    // 3. Call Edge Function for AI extraction
+    try {
+      var session = await db.auth.getSession();
+      var token = session.data.session.access_token;
+      
+      var fnResponse = await fetch(
+        'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/parse-document',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token,
+            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU'
+          },
+          body: JSON.stringify({
+            document_id: docRecord.id,
+            file_name: file.name,
+            document_type: docType,
+            storage_path: storagePath
+          })
+        }
+      );
+      
+      if (fnResponse.ok) {
+        var fnResult = await fnResponse.json();
+        console.log('AI extraction result:', fnResult);
+      } else {
+        console.warn('Edge function returned:', fnResponse.status);
+      }
+    } catch (fnErr) {
+      // Edge function failure is non-blocking — doc is still saved
+      console.warn('AI extraction call failed (non-blocking):', fnErr);
+    }
+
+    document.getElementById('upload-progress-bar').style.width = '100%';
+    
+    // 4. Show success state
+    setTimeout(function() {
+      document.getElementById('upload-step3').style.display = 'none';
+      document.getElementById('upload-step4').style.display = 'block';
+      initIcons();
+    }, 500);
+    
+    showToast('Document saved to records');
+    
+  } catch (err) {
+    console.error('Upload error:', err);
+    document.getElementById('upload-progress-title').textContent = 'Upload failed';
+    document.getElementById('upload-progress-sub').textContent = err.message || 'Something went wrong. Please try again.';
+    document.getElementById('upload-progress-bar').style.width = '0%';
+    // Allow closing after error
+    setTimeout(function() {
+      document.getElementById('upload-step3').style.display = 'none';
+      document.getElementById('upload-step1').style.display = 'block';
+      showToast('Upload failed — please try again');
+    }, 2000);
+  }
 }
 
 function switchRecordsPerson(el, person) {
