@@ -547,7 +547,7 @@
   </div>
   <div class="auth-body">
     <div id="auth-form-state">
-      <div class="auth-title">Your Wellet</div>
+      <div class="auth-title">To get started</div>
       <p class="auth-subtitle">Enter your email and we'll send you a magic link — no password needed.</p>
       <div class="auth-input-wrap">
         <label class="auth-input-label" for="auth-email">Email address</label>
@@ -1725,7 +1725,7 @@ async function sendMagicLink() {
   btn.textContent = 'Sending…';
   const { error } = await db.auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: window.location.href }
+    options: { emailRedirectTo: 'https://mywellet.com' }
   });
   if (error) {
     showToast('Error: ' + error.message);
