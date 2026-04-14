@@ -370,6 +370,11 @@
   .ask-send { width: 36px; height: 36px; border-radius: 50%; background: var(--moss); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0; transition: background 0.15s; }
   .ask-send:hover { background: var(--moss-dark); }
   .ask-send:disabled { background: var(--border-medium); cursor: default; }
+  .ask-mic { width: 36px; height: 36px; border-radius: 50%; background: transparent; border: 1.5px solid var(--border-medium); cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text-muted); flex-shrink: 0; transition: all 0.2s; position: relative; }
+  .ask-mic:hover { border-color: var(--moss); color: var(--moss); }
+  .ask-mic.listening { background: var(--moss); border-color: var(--moss); color: white; animation: mic-pulse 1.5s ease-in-out infinite; }
+  .ask-mic.unsupported { display: none; }
+  @keyframes mic-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(96,143,124,0.4); } 50% { box-shadow: 0 0 0 10px rgba(96,143,124,0); } }
   .typing-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--moss); display: inline-block; animation: blink 1.2s infinite; }
   .typing-dot:nth-child(2) { animation-delay: 0.2s; }
   .typing-dot:nth-child(3) { animation-delay: 0.4s; }
@@ -1330,6 +1335,9 @@
         </div>
 
         <div class="ask-input-bar">
+          <button class="ask-mic" id="ask-mic" onclick="toggleVoiceInput()" title="Voice input">
+            <i data-lucide="mic" style="width:16px;height:16px;"></i>
+          </button>
           <textarea class="ask-input" id="ask-input" placeholder="Ask about Dad's health…" rows="1" onkeydown="handleAskKey(event)" oninput="autoResize(this)"></textarea>
           <button class="ask-send" id="ask-send" onclick="sendAskMessage()">
             <i data-lucide="arrow-up" style="width:16px;height:16px;"></i>
@@ -2158,7 +2166,7 @@ var _editingMedId = null;     // medications id being edited
 
 // ── ICON INIT ────────────────────────────────────────────────────────────────
 function initIcons() { if (window.lucide) lucide.createIcons(); }
-window.addEventListener('load', initIcons);
+window.addEventListener('load', function() { initIcons(); initVoiceInput(); });
 
 // ── AUTH FLOW ────────────────────────────────────────────────────────────────
 async function initApp() {
@@ -3914,6 +3922,123 @@ function autoResize(el) {
   el.style.height = Math.min(el.scrollHeight, 100) + 'px';
 }
 
+// ── VOICE INPUT (Web Speech API) ──────────────────────────────────────────────
+var _speechRecognition = null;
+var _isListening = false;
+
+function initVoiceInput() {
+  var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var micBtn = document.getElementById('ask-mic');
+  if (!SpeechRecognition || !micBtn) {
+    if (micBtn) micBtn.classList.add('unsupported');
+    return;
+  }
+  _speechRecognition = new SpeechRecognition();
+  _speechRecognition.continuous = false;
+  _speechRecognition.interimResults = true;
+  _speechRecognition.lang = 'en-US';
+  _speechRecognition.maxAlternatives = 1;
+
+  _speechRecognition.onstart = function() {
+    _isListening = true;
+    micBtn.classList.add('listening');
+    micBtn.innerHTML = '<i data-lucide="mic-off" style="width:16px;height:16px;"></i>';
+    initIcons();
+    document.getElementById('ask-input').placeholder = 'Listening\u2026';
+  };
+
+  _speechRecognition.onresult = function(event) {
+    var transcript = '';
+    for (var i = event.resultIndex; i < event.results.length; i++) {
+      transcript += event.results[i][0].transcript;
+    }
+    var input = document.getElementById('ask-input');
+    input.value = transcript;
+    autoResize(input);
+    // If final result, auto-send after a brief pause
+    if (event.results[event.results.length - 1].isFinal) {
+      stopVoiceInput();
+      setTimeout(function() { sendAskMessage(); }, 300);
+    }
+  };
+
+  _speechRecognition.onerror = function(event) {
+    stopVoiceInput();
+    if (event.error === 'not-allowed') {
+      showToast('Microphone access denied. Check browser permissions.');
+    } else if (event.error !== 'aborted' && event.error !== 'no-speech') {
+      showToast('Voice input error: ' + event.error);
+    }
+  };
+
+  _speechRecognition.onend = function() {
+    stopVoiceInput();
+  };
+}
+
+function toggleVoiceInput() {
+  if (!_speechRecognition) {
+    initVoiceInput();
+    if (!_speechRecognition) {
+      showToast('Voice input is not supported in this browser');
+      return;
+    }
+  }
+  if (_isListening) {
+    _speechRecognition.stop();
+  } else {
+    document.getElementById('ask-input').value = '';
+    try { _speechRecognition.start(); } catch(e) { /* already started */ }
+  }
+}
+
+function stopVoiceInput() {
+  _isListening = false;
+  var micBtn = document.getElementById('ask-mic');
+  if (micBtn) {
+    micBtn.classList.remove('listening');
+    micBtn.innerHTML = '<i data-lucide="mic" style="width:16px;height:16px;"></i>';
+    initIcons();
+  }
+  // Restore placeholder
+  var input = document.getElementById('ask-input');
+  if (input && !input.value.trim()) {
+    var firstName = isDemoMode ? (_currentAskPerson === 'mom' ? 'Mom' : 'Dad') :
+      (currentPeople.length ? currentPeople.find(function(p){return p.id===currentPersonId;})?.name.split(' ')[0] || 'them' : 'them');
+    input.placeholder = 'Ask about ' + firstName + '\u2019s health\u2026';
+  }
+}
+
+// ── FUZZY DEMO MATCHING ───────────────────────────────────────────────────────
+var _demoKeywords = {
+  dad: [
+    { keys: ['bp', 'blood pressure', 'pressure', 'hypertension', 'systolic', 'diastolic'], response: 'What\'s his current BP trend?' },
+    { keys: ['appointment', 'next visit', 'doctor visit', 'scheduled', 'upcoming', 'when is'], response: 'When is his next appointment?' },
+    { keys: ['changed', 'change', 'different', 'new', 'update', 'recent', 'this month', 'this week', 'what happened', 'latest'], response: 'What changed this month?' },
+    { keys: ['med', 'medication', 'drug', 'prescription', 'pill', 'taking', 'dose', 'dosage', 'rx'], response: 'What meds is he taking?' },
+    { keys: ['cml', 'leukemia', 'cancer', 'oncology', 'bcr-abl', 'gleevec', 'imatinib'], response: 'How is his CML doing?' }
+  ],
+  mom: [
+    { keys: ['stable', 'doing', 'how is', 'ok', 'okay', 'status', 'overall', 'health'], response: 'Is she stable?' },
+    { keys: ['appointment', 'next visit', 'doctor visit', 'scheduled', 'upcoming', 'when is'], response: 'When is her next appointment?' },
+    { keys: ['changed', 'change', 'different', 'new', 'update', 'recent', 'this month', 'this week', 'what happened', 'latest'], response: 'What changed this month?' },
+    { keys: ['med', 'medication', 'drug', 'prescription', 'pill', 'taking', 'dose', 'dosage', 'rx'], response: 'What meds is she taking?' }
+  ]
+};
+
+function fuzzyMatchDemoResponse(text, person) {
+  var lower = text.toLowerCase();
+  var keywords = _demoKeywords[person] || _demoKeywords['dad'];
+  for (var i = 0; i < keywords.length; i++) {
+    for (var j = 0; j < keywords[i].keys.length; j++) {
+      if (lower.indexOf(keywords[i].keys[j]) !== -1) {
+        return keywords[i].response;
+      }
+    }
+  }
+  return null;
+}
+
 function sendAskMessage() {
   var input = document.getElementById('ask-input');
   var text = input.value.trim();
@@ -3954,12 +4079,18 @@ function sendAskMessage() {
       }
     })();
   } else {
-    // Demo mode — use hardcoded responses
+    // Demo mode — use fuzzy keyword matching, then exact, then default
     setTimeout(function() {
       removeTyping(typingId);
       var responses = _responses[_currentAskPerson] || _responses['dad'];
-      var reply = responses[text] || responses['default'];
-      addWelletMessage(reply);
+      var exactMatch = responses[text];
+      if (exactMatch) {
+        addWelletMessage(exactMatch);
+      } else {
+        var fuzzyKey = fuzzyMatchDemoResponse(text, _currentAskPerson);
+        var reply = fuzzyKey ? responses[fuzzyKey] : responses['default'];
+        addWelletMessage(reply);
+      }
     }, 900 + Math.random() * 600);
   }
 }
