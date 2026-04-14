@@ -74,7 +74,13 @@
   .auth-sent-body { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
   .auth-demo-link { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 16px; font-size: 13px; color: var(--text-muted); cursor: pointer; background: none; border: none; font-family: 'DM Sans', sans-serif; padding: 8px; }
   .auth-demo-link:hover { color: var(--moss); }
+  .auth-links-row { display: flex; align-items: center; justify-content: center; gap: 4px; }
   .auth-privacy { padding: 0 28px 24px; text-align: center; }
+  .auth-privacy-toggle { background: none; border: none; font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--moss); cursor: pointer; padding: 0; display: inline-flex; align-items: center; gap: 3px; }
+  .auth-privacy-toggle:hover { text-decoration: underline; }
+  .auth-privacy-detail { max-height: 0; overflow: hidden; transition: max-height 0.35s ease, opacity 0.35s ease; opacity: 0; }
+  .auth-privacy-detail.open { max-height: 200px; opacity: 1; }
+  .auth-privacy-detail p { font-size: 12px; color: var(--text-secondary); line-height: 1.65; margin-top: 10px; text-align: left; }
   .auth-privacy p { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
   .auth-privacy strong { color: var(--moss); font-weight: 500; }
   @media (max-width: 340px) { .auth-signals { grid-template-columns: 1fr; } }
@@ -646,6 +652,46 @@
     .auth-signals { padding-top: 20px; }
     .auth-body { padding-top: 20px; }
   }
+
+  /* ── EXPLAINER FILM ── */
+  #explainer-overlay { display:none; position:fixed; inset:0; z-index:200; background:#F5F2EC; transition:background 0.4s ease; flex-direction:column; align-items:center; justify-content:center; }
+  #explainer-overlay.show { display:flex; }
+  #explainer-overlay.explainer-bg-teal { background:#2C5F52; }
+  .explainer-close { position:absolute; top:16px; right:16px; background:none; border:none; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#6B6860; z-index:201; transition:color 0.3s; }
+  .explainer-close:hover { color:#1C1C1A; }
+  #explainer-overlay.explainer-bg-teal .explainer-close { color:#9FE1CB; }
+  #explainer-overlay.explainer-bg-teal .explainer-close:hover { color:#E1F5EE; }
+  #explainer-stage { width:100%; max-width:375px; min-height:400px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:24px; position:relative; }
+  .expl-fade-in { animation: explFadeIn 0.3s ease-in-out forwards; }
+  .expl-fade-out { animation: explFadeOut 0.3s ease-in-out forwards; }
+  @keyframes explFadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes explFadeOut { from{opacity:1;transform:translateY(0)} to{opacity:0;transform:translateY(-4px)} }
+  @keyframes explScaleIn { from{transform:scale(0);opacity:0} to{transform:scale(1);opacity:1} }
+  @keyframes explBarGrow { from{width:0} to{width:var(--bar-w,100%)} }
+  .expl-chaos-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; width:200px; }
+  .expl-chaos-box { height:48px; border-radius:10px; opacity:0; animation: explFadeIn 0.4s ease forwards; }
+  .expl-chaos-box:nth-child(1){animation-delay:0s;background:#D8D4CB}
+  .expl-chaos-box:nth-child(2){animation-delay:0.4s;background:#C8C4BB}
+  .expl-chaos-box:nth-child(3){animation-delay:0.8s;background:#E0DBD0}
+  .expl-chaos-box:nth-child(4){animation-delay:1.2s;background:#BEBAB1;grid-column:1/3;height:40px}
+  .expl-chaos-box:nth-child(5){animation-delay:1.6s;background:#D0CCC3;height:40px}
+  .expl-problem-l1 { font-family:'DM Serif Display',serif; font-size:24px; color:#1C1C1A; opacity:0; margin-bottom:12px; }
+  .expl-problem-l2 { font-family:'DM Serif Display',serif; font-size:20px; color:#6B6860; font-style:italic; opacity:0; }
+  .expl-turn-circle { width:0; height:0; border-radius:50%; background:#4A7C6E; animation: explScaleIn 0.6s ease forwards; }
+  .expl-turn-circle.grown { width:48px; height:48px; }
+  .expl-turn-word { font-family:'DM Serif Display',serif; font-size:22px; color:#1C1C1A; opacity:0; margin-top:14px; }
+  .expl-turn-line { font-size:17px; color:#6B6860; opacity:0; margin-top:16px; line-height:1.5; }
+  .expl-bar-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; width:100%; }
+  .expl-bar { height:4px; border-radius:2px; width:0; }
+  .expl-bar.animate { animation: explBarGrow 0.5s ease forwards; }
+  .expl-bar-label { font-family:'DM Sans',sans-serif; font-size:12px; white-space:nowrap; opacity:0; }
+  .expl-solution-quote { font-size:15px; color:#6B6860; font-style:italic; opacity:0; margin-top:20px; line-height:1.6; }
+  .expl-peak-l1 { font-family:'DM Serif Display',serif; font-size:22px; color:#E1F5EE; font-style:italic; opacity:0; line-height:1.4; }
+  .expl-peak-l2 { font-size:16px; color:#9FE1CB; opacity:0; margin-top:16px; }
+  .expl-close-word { font-family:'DM Serif Display',serif; font-size:22px; color:#1C1C1A; opacity:0; }
+  .expl-close-tag { font-size:14px; color:#6B6860; opacity:0; margin-top:12px; }
+  .expl-replay { display:inline-flex; align-items:center; gap:6px; background:none; border:1.5px solid #4A7C6E; border-radius:8px; padding:8px 16px; font-family:'DM Sans',sans-serif; font-size:13px; color:#4A7C6E; cursor:pointer; opacity:0; margin-top:24px; transition:background 0.15s,color 0.15s; }
+  .expl-replay:hover { background:#4A7C6E; color:white; }
 </style>
 </head>
 <body>
@@ -700,7 +746,7 @@
   <div class="auth-body">
     <div id="auth-form-state">
       <div class="auth-title">Get early access</div>
-      <p class="auth-subtitle">Enter your email and we'll send you a magic link — no password needed.</p>
+      <p class="auth-subtitle">Join the waitlist — we'll send a magic link when your spot opens.</p>
       <div class="auth-input-wrap">
         <label class="auth-input-label" for="auth-email">Email address</label>
         <input type="email" id="auth-email" class="auth-input" placeholder="you@email.com" autocomplete="email">
@@ -708,10 +754,16 @@
       <button class="btn-primary" onclick="sendMagicLink()" id="auth-send-btn">
         Send magic link <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>
       </button>
-      <button class="auth-demo-link" onclick="enterDemoMode()">
-        <i data-lucide="play" style="width:14px;height:14px;"></i>
-        See what it becomes → (demo)
-      </button>
+      <div class="auth-links-row">
+        <button class="auth-demo-link" onclick="enterDemoMode()">
+          <i data-lucide="play-circle" style="width:14px;height:14px;"></i>
+          Try the demo
+        </button>
+        <button class="auth-demo-link" onclick="showExplainer()">
+          <i data-lucide="film" style="width:14px;height:14px;"></i>
+          Watch the story
+        </button>
+      </div>
     </div>
     <div id="auth-sent-state" class="auth-sent">
       <div class="auth-sent-icon"><i data-lucide="mail-check" style="width:24px;height:24px;"></i></div>
@@ -724,8 +776,17 @@
     </div>
   </div>
   <div class="auth-privacy">
-    <p>No password required. <strong>Your data stays private</strong> — protected by row-level security.</p>
+    <p>No password required. <button class="auth-privacy-toggle" onclick="togglePrivacyDetail()"><strong>Your data stays private</strong> <i data-lucide="chevron-down" style="width:12px;height:12px;vertical-align:middle;" id="privacy-chevron"></i></button></p>
+    <div id="auth-privacy-detail" class="auth-privacy-detail">
+      <p>Wellet is built on a <strong>privacy-first architecture</strong>. Your health information is encrypted and isolated with row-level security — no other user or even Wellet staff can access it. AI features process your data in real time and return insights without storing or training on anything. Your data lives on your device and in your own encrypted vault. Period.</p>
+    </div>
   </div>
+</div>
+
+<!-- EXPLAINER FILM -->
+<div id="explainer-overlay">
+  <button class="explainer-close" onclick="hideExplainer()" aria-label="Close"><i data-lucide="x" style="width:20px;height:20px;"></i></button>
+  <div id="explainer-stage"></div>
 </div>
 
 <!-- LANDING (demo mode) -->
@@ -2123,6 +2184,194 @@ async function initApp() {
       showAuthScreen();
     }
   });
+}
+
+function togglePrivacyDetail() {
+  var detail = document.getElementById('auth-privacy-detail');
+  var chevron = document.getElementById('privacy-chevron');
+  detail.classList.toggle('open');
+  if (detail.classList.contains('open')) {
+    chevron.style.transform = 'rotate(180deg)';
+  } else {
+    chevron.style.transform = 'rotate(0deg)';
+  }
+}
+
+/* ── EXPLAINER FILM ── */
+var explainerTimers = [];
+var explainerRunning = false;
+
+function showExplainer() {
+  var overlay = document.getElementById('explainer-overlay');
+  overlay.classList.add('show');
+  overlay.classList.remove('explainer-bg-teal');
+  explainerRunning = true;
+  initIcons();
+  playExplainerScene(1);
+}
+
+function hideExplainer() {
+  var overlay = document.getElementById('explainer-overlay');
+  overlay.classList.remove('show', 'explainer-bg-teal');
+  explainerRunning = false;
+  explainerTimers.forEach(function(t) { clearTimeout(t); });
+  explainerTimers = [];
+  document.getElementById('explainer-stage').innerHTML = '';
+}
+
+function explDelay(fn, ms) {
+  var t = setTimeout(fn, ms);
+  explainerTimers.push(t);
+  return t;
+}
+
+function fadeToScene(nextNum) {
+  if (!explainerRunning) return;
+  var stage = document.getElementById('explainer-stage');
+  stage.classList.add('expl-fade-out');
+  explDelay(function() {
+    if (!explainerRunning) return;
+    stage.classList.remove('expl-fade-out');
+    playExplainerScene(nextNum);
+  }, 320);
+}
+
+function playExplainerScene(num) {
+  if (!explainerRunning) return;
+  var stage = document.getElementById('explainer-stage');
+  var overlay = document.getElementById('explainer-overlay');
+
+  if (num === 1) {
+    /* Scene 1: 0-5s — The chaos */
+    overlay.classList.remove('explainer-bg-teal');
+    stage.innerHTML =
+      '<div class="expl-chaos-grid">' +
+        '<div class="expl-chaos-box"></div>' +
+        '<div class="expl-chaos-box"></div>' +
+        '<div class="expl-chaos-box"></div>' +
+        '<div class="expl-chaos-box"></div>' +
+        '<div class="expl-chaos-box"></div>' +
+      '</div>';
+    explDelay(function() { fadeToScene(2); }, 5000);
+
+  } else if (num === 2) {
+    /* Scene 2: 5-12s — The problem */
+    stage.innerHTML =
+      '<div class="expl-problem-l1" id="expl-p1">You have five apps open.</div>' +
+      '<div class="expl-problem-l2" id="expl-p2">And you still don\u2019t know if Mom is okay.</div>';
+    explDelay(function() {
+      var el1 = document.getElementById('expl-p1');
+      if (el1) { el1.classList.add('expl-fade-in'); el1.style.opacity = '1'; }
+    }, 500);
+    explDelay(function() {
+      var el2 = document.getElementById('expl-p2');
+      if (el2) { el2.classList.add('expl-fade-in'); el2.style.opacity = '1'; }
+    }, 2500);
+    explDelay(function() { fadeToScene(3); }, 7000);
+
+  } else if (num === 3) {
+    /* Scene 3: 12-16s — The turn */
+    stage.innerHTML =
+      '<div class="expl-turn-circle" id="expl-circle"></div>' +
+      '<div class="expl-turn-word" id="expl-tw">Wellet</div>' +
+      '<div class="expl-turn-line" id="expl-tl">There\u2019s a better way to hold all of this.</div>';
+    explDelay(function() {
+      var c = document.getElementById('expl-circle');
+      if (c) { c.classList.add('grown'); }
+    }, 50);
+    explDelay(function() {
+      var tl = document.getElementById('expl-tl');
+      if (tl) { tl.classList.add('expl-fade-in'); tl.style.opacity = '1'; }
+    }, 1000);
+    explDelay(function() {
+      var tw = document.getElementById('expl-tw');
+      if (tw) { tw.classList.add('expl-fade-in'); tw.style.opacity = '1'; }
+    }, 1500);
+    explDelay(function() { fadeToScene(4); }, 4000);
+
+  } else if (num === 4) {
+    /* Scene 4: 16-22s — The solution */
+    stage.innerHTML =
+      '<div style="width:100%">' +
+        '<div class="expl-bar-row" id="expl-b1">' +
+          '<div class="expl-bar" style="background:#2C5F52;--bar-w:100%"></div>' +
+          '<span class="expl-bar-label" style="color:#2C5F52">Health records</span>' +
+        '</div>' +
+        '<div class="expl-bar-row" id="expl-b2">' +
+          '<div class="expl-bar" style="background:#4A7C6E;--bar-w:80%"></div>' +
+          '<span class="expl-bar-label" style="color:#4A7C6E">Patterns</span>' +
+        '</div>' +
+        '<div class="expl-bar-row" id="expl-b3">' +
+          '<div class="expl-bar" style="background:#9FE1CB;--bar-w:60%"></div>' +
+          '<span class="expl-bar-label" style="color:#6B6860">What it means</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="expl-solution-quote" id="expl-sq">Health records. Patterns. What it all means &mdash; in plain English, in one place.</div>';
+    explDelay(function() {
+      var r1 = document.querySelector('#expl-b1 .expl-bar');
+      var l1 = document.querySelector('#expl-b1 .expl-bar-label');
+      if (r1) { r1.classList.add('animate'); }
+      if (l1) { l1.classList.add('expl-fade-in'); l1.style.opacity = '1'; }
+    }, 500);
+    explDelay(function() {
+      var r2 = document.querySelector('#expl-b2 .expl-bar');
+      var l2 = document.querySelector('#expl-b2 .expl-bar-label');
+      if (r2) { r2.classList.add('animate'); }
+      if (l2) { l2.classList.add('expl-fade-in'); l2.style.opacity = '1'; }
+    }, 1000);
+    explDelay(function() {
+      var r3 = document.querySelector('#expl-b3 .expl-bar');
+      var l3 = document.querySelector('#expl-b3 .expl-bar-label');
+      if (r3) { r3.classList.add('animate'); }
+      if (l3) { l3.classList.add('expl-fade-in'); l3.style.opacity = '1'; }
+    }, 1500);
+    explDelay(function() {
+      var sq = document.getElementById('expl-sq');
+      if (sq) { sq.classList.add('expl-fade-in'); sq.style.opacity = '1'; }
+    }, 2500);
+    explDelay(function() { fadeToScene(5); }, 6000);
+
+  } else if (num === 5) {
+    /* Scene 5: 22-27s — The Stability Signal (emotional peak) */
+    overlay.classList.add('explainer-bg-teal');
+    stage.innerHTML =
+      '<div class="expl-peak-l1" id="expl-pk1">All 7 signals within normal range<br>for 14 days.</div>' +
+      '<div class="expl-peak-l2" id="expl-pk2">You can relax.</div>';
+    explDelay(function() {
+      var pk1 = document.getElementById('expl-pk1');
+      if (pk1) { pk1.classList.add('expl-fade-in'); pk1.style.opacity = '1'; }
+    }, 400);
+    explDelay(function() {
+      var pk2 = document.getElementById('expl-pk2');
+      if (pk2) { pk2.classList.add('expl-fade-in'); pk2.style.opacity = '1'; }
+    }, 3500);
+    explDelay(function() { fadeToScene(6); }, 5000);
+
+  } else if (num === 6) {
+    /* Scene 6: 27-30s — The close */
+    overlay.classList.remove('explainer-bg-teal');
+    stage.innerHTML =
+      '<div class="expl-close-word" id="expl-cw">Wellet</div>' +
+      '<div class="expl-close-tag" id="expl-ct">Wellet is witnessing.</div>' +
+      '<button class="expl-replay" id="expl-rp" onclick="playExplainerScene(1)"><i data-lucide="rotate-ccw" style="width:14px;height:14px;"></i> Replay</button>';
+    initIcons();
+    explDelay(function() {
+      var cw = document.getElementById('expl-cw');
+      if (cw) { cw.classList.add('expl-fade-in'); cw.style.opacity = '1'; }
+    }, 400);
+    explDelay(function() {
+      var ct = document.getElementById('expl-ct');
+      if (ct) { ct.classList.add('expl-fade-in'); ct.style.opacity = '1'; }
+    }, 1500);
+    explDelay(function() {
+      var rp = document.getElementById('expl-rp');
+      if (rp) { rp.classList.add('expl-fade-in'); rp.style.opacity = '1'; }
+    }, 2200);
+    /* Auto-loop after 5s pause */
+    explDelay(function() {
+      if (explainerRunning) { fadeToScene(1); }
+    }, 5000);
+  }
 }
 
 async function sendMagicLink() {
