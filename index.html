@@ -1689,6 +1689,23 @@
       </div>
     </div>
 
+    <div class="settings-section" id="settings-feedback-section">
+      <div class="settings-section-label">Alpha</div>
+      <div class="settings-row" style="cursor:pointer;" onclick="openFeedbackSheet()">
+        <div class="settings-row-left">
+          <div class="settings-row-icon" style="background:#E8F5E9;color:#4CAF50;"><i data-lucide="message-square-heart" style="width:15px;height:15px;"></i></div>
+          <div><div class="settings-row-label">Send feedback</div><div class="settings-row-meta">Help shape Wellet — tell me what works and what doesn't</div></div>
+        </div>
+        <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-left">
+          <div class="settings-row-icon" style="background:#FFF8E1;color:#F9A825;"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>
+          <div><div class="settings-row-label">Alpha tester</div><div class="settings-row-meta">You're one of Wellet's first users</div></div>
+        </div>
+      </div>
+    </div>
+
     <div class="settings-section">
       <div class="settings-section-label">Notifications</div>
       <div class="settings-row">
@@ -1777,6 +1794,50 @@
 
     <div style="padding:20px 20px 0;text-align:center;">
       <p style="font-size:12px;color:var(--text-muted);line-height:1.6;">Wellet v1.0 · Private by design.<br>Your data is protected with row-level security.</p>
+    </div>
+  </div>
+</div>
+
+<!-- FEEDBACK SHEET -->
+<div class="qa-overlay" id="feedback-overlay">
+  <div class="qa-sheet">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" onclick="closeSheet('feedback-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title">Send feedback</div>
+    <div class="qa-sheet-sub">Your feedback goes directly to Betsy. Nothing is too small.</div>
+    <div style="padding:0 20px 20px;">
+      <textarea id="feedback-text" rows="5" placeholder="What's working? What's confusing? What do you wish Wellet could do?" style="width:100%;border:1.5px solid var(--border-medium);border-radius:12px;padding:12px 14px;font-size:15px;font-family:'DM Sans',sans-serif;color:var(--text-primary);background:white;resize:vertical;line-height:1.5;outline:none;"></textarea>
+      <button class="btn-primary" style="width:100%;margin-top:12px;font-size:14px;padding:14px;" onclick="submitFeedback()">
+        <i data-lucide="send" style="width:15px;height:15px;"></i> Send to Betsy
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ALPHA WELCOME OVERLAY -->
+<div class="qa-overlay" id="welcome-overlay">
+  <div class="qa-sheet" style="text-align:center;">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+    </div>
+    <div style="padding:8px 24px 28px;">
+      <div style="width:56px;height:56px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;"><i data-lucide="heart-handshake" style="width:28px;height:28px;color:var(--moss);"></i></div>
+      <div style="font-family:'DM Serif Display',serif;font-size:22px;margin-bottom:8px;">Welcome to Wellet</div>
+      <p style="font-size:14px;line-height:1.65;color:var(--text-secondary);margin-bottom:20px;">You're one of the very first people to use this. Wellet was built by a caregiver who needed it — and your feedback will shape what it becomes. Thank you for being here.</p>
+      <div style="background:var(--cream);border-radius:12px;padding:16px;text-align:left;margin-bottom:20px;">
+        <div style="font-size:13px;font-weight:500;color:var(--text-primary);margin-bottom:10px;">Here's how to get started:</div>
+        <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+          <strong style="color:var(--moss);">1.</strong> Add a family member you're caring for<br>
+          <strong style="color:var(--moss);">2.</strong> Upload a document — discharge summary, lab report, anything<br>
+          <strong style="color:var(--moss);">3.</strong> Try <strong>Ask Wellet</strong> — ask it anything about the record you uploaded<br>
+          <strong style="color:var(--moss);">4.</strong> Tap <strong>Update Me</strong> for a summary of what's changed
+        </div>
+      </div>
+      <button class="btn-primary" style="width:100%;font-size:14px;padding:14px;" onclick="dismissWelcome()">
+        Let's go
+      </button>
     </div>
   </div>
 </div>
@@ -2495,6 +2556,10 @@ function showAuthenticatedApp() {
   renderAskView();
   updateSettingsAccount();
   initIcons();
+
+  // Alpha: show welcome on first login, track activation
+  showAlphaWelcome();
+  trackActivation();
 }
 
 // ── PERSON SWITCHER ───────────────────────────────────────────────────────────
@@ -4784,6 +4849,63 @@ function openSettings() {
 }
 function closeSettings() {
   document.getElementById('settings-overlay').classList.remove('show');
+}
+
+// ── FEEDBACK SHEET ─────────────────────────────────────────────────────────────
+function openFeedbackSheet() {
+  closeSettings();
+  document.getElementById('feedback-text').value = '';
+  document.getElementById('feedback-overlay').classList.add('show');
+  initIcons();
+}
+
+async function submitFeedback() {
+  var text = document.getElementById('feedback-text').value.trim();
+  if (!text) { showToast('Please enter your feedback'); return; }
+  if (currentUser) {
+    // Save to Supabase feedback table
+    const { error } = await db.from('feedback').insert({
+      user_id: currentUser.id,
+      email: currentUser.email,
+      message: text,
+      page: document.querySelector('.app-view.active')?.id || 'unknown'
+    });
+    if (error) console.error('Feedback save error:', error);
+  }
+  // Also open email as backup
+  var mailto = 'mailto:betsy.eble@gmail.com?subject=' + encodeURIComponent('Wellet Alpha Feedback') + '&body=' + encodeURIComponent(text);
+  window.open(mailto, '_blank');
+  closeSheet('feedback-overlay');
+  showToast('Thank you — your feedback means everything');
+}
+
+// ── ALPHA WELCOME ─────────────────────────────────────────────────────────────
+function showAlphaWelcome() {
+  var key = 'wellet_welcome_shown_' + (currentUser ? currentUser.id : 'anon');
+  if (localStorage.getItem(key)) return;
+  localStorage.setItem(key, 'true');
+  setTimeout(function() {
+    document.getElementById('welcome-overlay').classList.add('show');
+    initIcons();
+  }, 600);
+}
+
+function dismissWelcome() {
+  closeSheet('welcome-overlay');
+}
+
+// ── ACTIVATION TRACKING ───────────────────────────────────────────────────────
+async function trackActivation() {
+  // When a user signs in, check if their email is on the waitlist and mark as activated
+  if (!currentUser || !currentUser.email) return;
+  try {
+    await db.from('waitlist')
+      .update({ status: 'activated', activated_at: new Date().toISOString() })
+      .eq('email', currentUser.email)
+      .in('status', ['signed_up', 'invited']);
+  } catch (e) {
+    console.error('Activation tracking error:', e);
+  }
 }
 
 function switchTab(el, id) {
