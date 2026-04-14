@@ -1816,7 +1816,7 @@ function renderPersonSwitcher() {
   var html = '';
   currentPeople.forEach(function(p, i) {
     var active = p.id === currentPersonId ? ' active' : '';
-    html += '<button class="person-pill' + active + '" onclick="switchToRealPerson('' + p.id + '',this)">'
+    html += '<button class="person-pill' + active + '" onclick="switchToRealPerson(\'' + p.id + '\',this)">'
       + '<span class="pip"></span>' + escHtml(p.name.split(' ')[0]) + '</button>';
   });
   switcher.innerHTML = html;
@@ -1861,9 +1861,9 @@ function renderUpdateMe() {
 
   pane.innerHTML = '<div class="update-me-section">'
     + '<div class="update-card">'
-    + '<div class="update-label">What's going on with ' + escHtml(name) + ' right now</div>'
+    + '<div class="update-label">What\u2019s going on with ' + escHtml(name) + ' right now</div>'
     + (liveEvents.length === 0
-      ? '<p class="update-text" style="color:var(--text-muted);font-style:italic;">Nothing here yet — and that's exactly right. As you add appointments, medications, notes, and documents, this summary will build itself.</p>'
+      ? '<p class="update-text" style="color:var(--text-muted);font-style:italic;">Nothing here yet \u2014 and that\u2019s exactly right. As you add appointments, medications, notes, and documents, this summary will build itself.</p>'
       : '<p class="update-text">' + escHtml(name) + ' has <strong>' + liveEvents.length + ' health event' + (liveEvents.length !== 1 ? 's' : '') + '</strong> logged. '
         + (liveMeds.filter(function(m){ return m.active; }).length > 0 ? 'Currently on <strong>' + liveMeds.filter(function(m){ return m.active; }).length + ' active medication' + (liveMeds.filter(function(m){ return m.active; }).length !== 1 ? 's' : '') + '</strong>.' : '') + '</p>')
     + '<div class="update-meta">' + liveEvents.length + ' health event' + (liveEvents.length !== 1 ? 's' : '') + ' logged</div>'
@@ -1894,7 +1894,7 @@ function renderTimeline() {
     pane.innerHTML = addBtn + '<div class="timeline-section">'
       + '<div style="text-align:center;padding:48px 24px;">'
       + '<div style="font-size:32px;margin-bottom:12px;opacity:0.3;"><i data-lucide="calendar" style="width:32px;height:32px;"></i></div>'
-      + '<div style="font-size:14px;color:var(--text-muted);line-height:1.6;">Appointments, medications, lab results, and your own notes — they'll all show up here in order as you add them.</div>'
+      + '<div style="font-size:14px;color:var(--text-muted);line-height:1.6;">Appointments, medications, lab results, and your own notes \u2014 they\u2019ll all show up here in order as you add them.</div>'
       + '</div></div>';
     initIcons();
     return;
@@ -1939,7 +1939,7 @@ function renderPeopleView() {
   if (!view) return;
 
   var html = '<div class="view-header"><div class="view-title">People</div>'
-    + '<div class="view-subtitle">Everyone you're caring for</div></div>'
+    + '<div class="view-subtitle">Everyone you\u2019re caring for</div></div>'
     + '<div class="people-section">';
 
   currentPeople.forEach(function(p) {
@@ -1951,13 +1951,13 @@ function renderPeopleView() {
       + '<div><div class="person-card-name">' + escHtml(p.name) + '</div>'
       + '<div class="person-card-rel">' + escHtml(p.relationship || '') + '</div></div>'
       + '<div class="person-card-status stable"><i data-lucide="check-circle" style="width:13px;height:13px;"></i> Active</div>'
-      + '<button class="remove-btn" onclick="confirmRemovePerson('' + p.id + '','' + p.name.replace(/'/g,"\'") + '')" title="Remove person">'
+      + '<button class="remove-btn" onclick="confirmRemovePerson(\'' + p.id + '\',\'' + p.name.replace(/'/g,"\\\'") + '\')" title="Remove person">'
       + '<i data-lucide="x" style="width:16px;height:16px;"></i></button>'
       + '</div>'
       + '<div class="person-card-action">'
-      + '<button class="card-action-btn" onclick="switchToRealPersonNav('' + p.id + '')">Update Me</button>'
-      + '<button class="card-action-btn" onclick="openAddEvent('' + p.id + '')">Add event</button>'
-      + '<button class="card-action-btn" onclick="openUpload('' + p.name + '')">Add document</button>'
+      + '<button class="card-action-btn" onclick="switchToRealPersonNav(\'' + p.id + '\')">Update Me</button>'
+      + '<button class="card-action-btn" onclick="openAddEvent(\'' + p.id + '\')">Add event</button>'
+      + '<button class="card-action-btn" onclick="openUpload(\'' + p.name + '\')">Add document</button>'
       + '</div></div>';
   });
 
@@ -2029,7 +2029,7 @@ function renderRecordsView() {
     + '<div style="display:flex;gap:8px;margin-top:10px;">';
   currentPeople.forEach(function(p, i) {
     var active = p.id === currentPersonId ? ' active' : '';
-    html += '<button class="person-pill' + active + '" onclick="switchRecordsToRealPerson('' + p.id + '',this)">'
+    html += '<button class="person-pill' + active + '" onclick="switchRecordsToRealPerson(\'' + p.id + '\',this)">'
       + '<span class="pip"></span>' + escHtml(p.name.split(' ')[0]) + '</button>';
   });
   html += '</div></div>';
@@ -2119,7 +2119,7 @@ async function switchRecordsToRealPerson(personId, el) {
 function openAddEvent(personId) {
   var pid = personId || currentPersonId;
   var person = currentPeople.find(function(p){ return p.id === pid; });
-  document.getElementById('add-event-person-label').textContent = 'Adding to ' + (person ? person.name + ''s' : 'your') + ' timeline';
+  document.getElementById('add-event-person-label').textContent = 'Adding to ' + (person ? person.name + '\'s' : 'your') + ' timeline';
   // Set today's date as default
   var today = new Date().toISOString().split('T')[0];
   document.getElementById('event-date-input').value = today;
@@ -2178,7 +2178,7 @@ async function submitHealthEvent() {
 // ── ADD MEDICATION ────────────────────────────────────────────────────────────
 function openAddMed() {
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
-  document.getElementById('add-med-person-label').textContent = 'Adding to ' + (person ? person.name + ''s' : 'your') + ' records';
+  document.getElementById('add-med-person-label').textContent = 'Adding to ' + (person ? person.name + '\'s' : 'your') + ' records';
   document.getElementById('med-name-input').value = '';
   document.getElementById('med-dose-input').value = '';
   document.getElementById('med-freq-input').value = '';
@@ -2950,8 +2950,8 @@ function showOwnWellet() {
   if (updatePane) {
     updatePane.innerHTML = '<div class="update-me-section">'
       + '<div class="update-card">'
-      + '<div class="update-label">What's going on with ' + displayName + ' right now</div>'
-      + '<p class="update-text" style="color:var(--text-muted);font-style:italic;">Nothing here yet — and that's exactly right. As you add appointments, medications, notes, and documents, this summary will build itself. No setup required.</p>'
+      + '<div class="update-label">What\u2019s going on with ' + displayName + ' right now</div>'
+      + '<p class="update-text" style="color:var(--text-muted);font-style:italic;">Nothing here yet \u2014 and that\u2019s exactly right. As you add appointments, medications, notes, and documents, this summary will build itself. No setup required.</p>'
       + '<div class="update-meta" style="color:var(--text-muted);">0 health events so far</div>'
       + '</div></div>'
       + '<div class="quick-actions">'
@@ -2970,7 +2970,7 @@ function showOwnWellet() {
     timelinePane.innerHTML = '<div class="timeline-section">'
       + '<div style="text-align:center;padding:48px 24px;">'
       + '<div style="font-size:32px;margin-bottom:12px;opacity:0.3;"><i data-lucide="calendar" style="width:32px;height:32px;"></i></div>'
-      + '<div style="font-size:14px;color:var(--text-muted);line-height:1.6;">Appointments, medications, lab results, and your own notes — they'll all show up here in order as you add them.</div>'
+      + '<div style="font-size:14px;color:var(--text-muted);line-height:1.6;">Appointments, medications, lab results, and your own notes \u2014 they\u2019ll all show up here in order as you add them.</div>'
       + '</div></div>';
   }
 
@@ -2991,8 +2991,8 @@ function showOwnWellet() {
 
 // ── GUIDED TOUR ─────────────────────────────────────────────────────────────
 var tourSteps = [
-  { target: '#header-tab-bar .tab:first-child', title: 'Update Me', text: 'This is your home base — a plain-English summary of what's happening right now.', arrow: 'top', offsetY: 8 },
-  { target: '#header-tab-bar .tab:nth-child(2)', title: 'Timeline', text: 'Everything that's happened, in order. You'll never have to reconstruct it from memory.', arrow: 'top', offsetY: 8, before: function(){ document.querySelectorAll('.tab')[1].click(); } },
+  { target: '#header-tab-bar .tab:first-child', title: 'Update Me', text: 'This is your home base \u2014 a plain-English summary of what\u2019s happening right now.', arrow: 'top', offsetY: 8 },
+  { target: '#header-tab-bar .tab:nth-child(2)', title: 'Timeline', text: 'Everything that\u2019s happened, in order. You\u2019ll never have to reconstruct it from memory.', arrow: 'top', offsetY: 8, before: function(){ document.querySelectorAll('.tab')[1].click(); } },
   { target: '#header-tab-bar .tab:nth-child(3)', title: 'Patterns', text: 'Wellet quietly watches for patterns — like how sleep connects to pain, or whether a medication change made a difference.', arrow: 'top', offsetY: 8, before: function(){ document.querySelectorAll('.tab')[2].click(); } },
   { target: '.nav-item:nth-child(2)', title: 'People', text: 'Everyone involved in care, in one place.', arrow: 'bottom', offsetY: -8, before: function(){ switchNavTo('people'); } },
   { target: '.nav-item:nth-child(3)', title: 'Records', text: 'Upload photos of documents, prescriptions, or insurance cards. Wellet reads them and files them automatically.', arrow: 'bottom', offsetY: -8, before: function(){ switchNavTo('records'); } },
