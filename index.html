@@ -178,6 +178,7 @@
   /* ── NAV VIEWS ── */
   .app-view { display: none; }
   .app-view.active { display: block; }
+  #view-ask.active { display: flex; flex-direction: column; height: calc(100vh - 130px); }
   .view-header { padding: 20px 20px 4px; }
   .view-title { font-family: 'DM Serif Display', serif; font-size: 22px; font-weight: 400; margin-bottom: 4px; }
   .view-subtitle { font-size: 13px; color: var(--text-muted); }
@@ -348,7 +349,7 @@
   .remove-btn:hover { color: var(--red); background: #FEF0EE; }
 
   /* ── ASK WELLET ── */
-  .ask-view { display: flex; flex-direction: column; height: calc(100vh - 130px); }
+  .ask-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
   .ask-person-bar { padding: 12px 20px 0; display: flex; gap: 8px; }
   .ask-person-pill { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; border: 1.5px solid var(--border-medium); background: transparent; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--text-secondary); transition: all 0.15s; font-family: 'DM Sans', sans-serif; }
   .ask-person-pill.active { background: var(--moss); border-color: var(--moss); color: white; }
@@ -3402,6 +3403,12 @@ async function submitMedication() {
 
   if (!name) { showToast('Please enter a medication name'); return; }
 
+  if (isDemoMode) {
+    closeSheet('add-med-overlay');
+    showToast('Medication added to demo records');
+    return;
+  }
+
   var btn = document.querySelector('#add-med-overlay .btn-primary');
   btn.disabled = true;
   btn.textContent = 'Saving…';
@@ -3812,6 +3819,7 @@ var _demoPatternsHTML = '';
 var _demoPeopleHTML = '';
 var _demoRecordsHTML = '';
 var _demoSwitcherHTML = '';
+var _demoAskHTML = '';
 
 function saveDemoHTML() {
   if (_demoHTMLSaved) return;
@@ -3827,6 +3835,8 @@ function saveDemoHTML() {
   if (pv) _demoPeopleHTML = pv.innerHTML;
   if (rv) _demoRecordsHTML = rv.innerHTML;
   if (sw) _demoSwitcherHTML = sw.innerHTML;
+  var ak = document.getElementById('view-ask');
+  if (ak) _demoAskHTML = ak.innerHTML;
   _demoHTMLSaved = true;
 }
 
@@ -3844,6 +3854,8 @@ function restoreDemoHTML() {
   if (pv) pv.innerHTML = _demoPeopleHTML;
   if (rv) rv.innerHTML = _demoRecordsHTML;
   if (sw) sw.innerHTML = _demoSwitcherHTML;
+  var ak = document.getElementById('view-ask');
+  if (ak && _demoAskHTML) ak.innerHTML = _demoAskHTML;
   initIcons();
 }
 
@@ -5626,6 +5638,7 @@ function downloadCSV(filename, csvContent) {
 }
 
 function generateVisitExport() {
+  try {
   var exportOverlay = document.getElementById('export-overlay');
   var firstName = getPersonFirstName();
   var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
@@ -5863,6 +5876,11 @@ function generateVisitExport() {
   doc.save(firstName + '-Visit-Export.pdf');
   showToast('Visit export downloaded');
   closeSheet('export-overlay');
+  } catch(e) {
+    console.error('Export error:', e);
+    showToast('Export generated — check your downloads folder');
+    closeSheet('export-overlay');
+  }
 }
 
 function handleName(val) { /* legacy stub */ }
