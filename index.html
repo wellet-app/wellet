@@ -2,11 +2,23 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Wellet — See What's Possible</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Wellet — A place to remember what matters</title>
+<meta name="description" content="A witness system for family caregivers. Capture, organize, and surface the health history of the people you love.">
+<meta property="og:title" content="Wellet — A place to remember what matters">
+<meta property="og:description" content="A witness system for family caregivers. Capture, organize, and surface the health history of the people you love.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://mywellet.com">
+<meta property="og:image" content="https://mywellet.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Wellet — A place to remember what matters">
+<meta name="twitter:description" content="A witness system for family caregivers.">
+<meta name="theme-color" content="#608F7C">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/lucide.min.js"></script>
 <style>
   :root {
     --moss: #608F7C;
@@ -29,6 +41,30 @@
   body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--text-primary); min-height: 100vh; }
   .page-wrap { max-width: 420px; margin: 0 auto; background: var(--warm-white); min-height: 100vh; }
 
+  /* ── AUTH SCREEN ── */
+  #auth-screen { display: none; flex-direction: column; min-height: 100vh; }
+  .auth-hero { background: var(--moss); padding: 52px 28px 32px; color: white; }
+  .auth-hero-wordmark { width: 110px; margin-bottom: 18px; display: block; }
+  .auth-hero h1 { font-family: 'DM Serif Display', serif; font-size: 28px; line-height: 1.22; font-weight: 400; margin-bottom: 10px; }
+  .auth-hero h1 em { font-style: italic; }
+  .auth-hero p { font-size: 15px; line-height: 1.6; opacity: 0.85; font-weight: 300; }
+  .auth-body { padding: 28px 24px; flex: 1; }
+  .auth-title { font-family: 'DM Serif Display', serif; font-size: 22px; font-weight: 400; margin-bottom: 6px; }
+  .auth-subtitle { font-size: 14px; color: var(--text-muted); margin-bottom: 24px; line-height: 1.5; }
+  .auth-input-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 5px; display: block; }
+  .auth-input { width: 100%; border: 1.5px solid var(--border-medium); border-radius: 12px; padding: 13px 16px; font-size: 16px; font-family: 'DM Sans', sans-serif; color: var(--text-primary); background: white; outline: none; transition: border-color 0.15s; }
+  .auth-input:focus { border-color: var(--moss); }
+  .auth-input-wrap { margin-bottom: 16px; }
+  .auth-sent { display: none; text-align: center; padding: 24px 0; }
+  .auth-sent-icon { width: 52px; height: 52px; border-radius: 50%; background: var(--mint); display: flex; align-items: center; justify-content: center; color: var(--moss); margin: 0 auto 16px; }
+  .auth-sent-title { font-family: 'DM Serif Display', serif; font-size: 20px; margin-bottom: 8px; }
+  .auth-sent-body { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
+  .auth-demo-link { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 16px; font-size: 13px; color: var(--text-muted); cursor: pointer; background: none; border: none; font-family: 'DM Sans', sans-serif; padding: 8px; }
+  .auth-demo-link:hover { color: var(--moss); }
+  .auth-privacy { padding: 0 24px 24px; text-align: center; }
+  .auth-privacy p { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+  .auth-privacy strong { color: var(--moss); font-weight: 500; }
+
   /* ── LANDING ── */
   #landing { display: flex; flex-direction: column; min-height: 100vh; }
 
@@ -48,6 +84,12 @@
   .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #47B08A; margin-left: auto; flex-shrink: 0; }
   .preview-summary { font-size: 13px; line-height: 1.65; color: var(--text-secondary); }
   .preview-summary strong { color: var(--text-primary); font-weight: 500; }
+  .demo-toggle { display: flex; gap: 0; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .demo-tab { background: none; border: none; padding: 8px 16px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.15s, border-color 0.15s; }
+  .demo-tab.active { color: var(--moss-dark); border-bottom-color: var(--moss); }
+  .demo-tab:hover:not(.active) { color: var(--text-secondary); }
+  .preview-lines { display: flex; flex-direction: column; gap: 6px; }
+  .preview-line { font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
 
   .value-props { padding: 24px 20px 8px; }
   .vp-item { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 16px; }
@@ -100,8 +142,8 @@
   .close-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); display: flex; padding: 4px; border-radius: 6px; }
   .close-btn:hover { color: var(--text-primary); }
 
-  .person-switcher { display: flex; gap: 8px; margin-bottom: 14px; }
-  .person-pill { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; border: 1.5px solid var(--border-medium); background: transparent; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--text-secondary); transition: all 0.15s; font-family: 'DM Sans', sans-serif; }
+  .person-switcher { display: flex; gap: 8px; margin-bottom: 14px; overflow-x: auto; padding-bottom: 2px; }
+  .person-pill { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; border: 1.5px solid var(--border-medium); background: transparent; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--text-secondary); transition: all 0.15s; font-family: 'DM Sans', sans-serif; white-space: nowrap; flex-shrink: 0; }
   .person-pill.active { background: var(--moss); border-color: var(--moss); color: white; }
   .pip { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.7; }
 
@@ -303,7 +345,7 @@
   .chip { background: white; border: 1px solid var(--border-medium); border-radius: 20px; padding: 7px 12px; font-size: 12px; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; font-family: 'DM Sans', sans-serif; white-space: nowrap; }
   .chip:hover { border-color: var(--moss); color: var(--moss); background: var(--mint); }
   .ask-input-bar { padding: 10px 16px 12px; border-top: 1px solid var(--border); display: flex; gap: 10px; align-items: flex-end; background: white; }
-  .ask-input { flex: 1; border: 1.5px solid var(--border-medium); border-radius: 20px; padding: 10px 16px; font-size: 14px; font-family: 'DM Sans', sans-serif; color: var(--text-primary); background: white; resize: none; line-height: 1.4; max-height: 100px; overflow-y: auto; }
+  .ask-input { flex: 1; border: 1.5px solid var(--border-medium); border-radius: 20px; padding: 10px 16px; font-size: 16px; font-family: 'DM Sans', sans-serif; color: var(--text-primary); background: white; resize: none; line-height: 1.4; max-height: 100px; overflow-y: auto; }
   .ask-input:focus { outline: none; border-color: var(--moss); }
   .ask-send { width: 36px; height: 36px; border-radius: 50%; background: var(--moss); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0; transition: background 0.15s; }
   .ask-send:hover { background: var(--moss-dark); }
@@ -386,31 +428,157 @@
   .nav-item.active { color: var(--moss); }
   .nav-icon { display: flex; align-items: center; }
 
-  /* onboarding */
-  #onboarding { display: none; flex-direction: column; min-height: 100vh; }
-  .onboard-header { background: white; padding: 52px 20px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+  /* ── ONBOARDING CHAT ── */
+  #onboarding { display: none; flex-direction: column; height: 100dvh; height: 100vh; overflow: hidden; }
+  @supports (height: 100dvh) { #onboarding { height: 100dvh; } }
+  .ob-header { background: white; padding: 52px 20px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .ob-back { background: none; border: none; cursor: pointer; padding: 0; color: var(--text-secondary); display: flex; align-items: center; }
+  .ob-title { font-size: 15px; font-weight: 500; }
+  .ob-subtitle { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+  .ob-chat { flex: 1; overflow-y: auto; padding: 20px 20px 8px; display: flex; flex-direction: column; gap: 14px; }
+  .ob-msg-group { display: flex; flex-direction: column; }
+  .ob-msg-group.from-wellet { align-items: flex-start; }
+  .ob-msg-group.from-user  { align-items: flex-end; }
+  .ob-sender { font-size: 11px; color: var(--text-muted); margin-bottom: 3px; padding: 0 2px; }
+  .ob-bubble { max-width: 86%; padding: 10px 14px; border-radius: 16px; font-size: 14px; line-height: 1.6; }
+  .ob-bubble.wellet { background: var(--mint); color: var(--text-primary); border-bottom-left-radius: 4px; }
+  .ob-bubble.user   { background: var(--moss); color: white; border-bottom-right-radius: 4px; }
+  .ob-chips { display: flex; flex-wrap: wrap; gap: 7px; padding: 2px 0 4px; max-width: 340px; }
+  .ob-chip { background: white; border: 1.5px solid var(--border-medium); border-radius: 20px; padding: 8px 14px; font-size: 13px; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; font-family: 'DM Sans', sans-serif; line-height: 1.3; }
+  .ob-chip:hover { border-color: var(--moss); color: var(--moss); background: var(--mint); }
+  .ob-chip:disabled, .ob-chip.used { pointer-events: none; opacity: 0.4; }
+  .ob-typing { display: flex; gap: 4px; align-items: center; padding: 10px 14px; background: var(--mint); border-radius: 16px; border-bottom-left-radius: 4px; width: fit-content; }
+  .ob-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--moss); animation: obpulse 1.2s infinite; }
+  .ob-dot:nth-child(2) { animation-delay: 0.2s; }
+  .ob-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes obpulse { 0%,80%,100%{opacity:.2} 40%{opacity:1} }
+  .ob-input-row { padding: 10px 16px 18px; border-top: 1px solid var(--border); display: flex; gap: 10px; align-items: flex-end; background: white; flex-shrink: 0; }
+  .ob-input { flex: 1; border: 1.5px solid var(--border-medium); border-radius: 20px; padding: 10px 16px; font-size: 16px; font-family: 'DM Sans', sans-serif; color: var(--text-primary); background: white; resize: none; line-height: 1.4; max-height: 100px; overflow-y: auto; }
+  .ob-input:focus { outline: none; border-color: var(--moss); }
+  .ob-input:disabled { background: var(--cream); color: var(--text-muted); }
+  .ob-send { width: 36px; height: 36px; border-radius: 50%; background: var(--moss); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0; transition: background 0.15s; }
+  .ob-send:hover { background: var(--moss-dark); }
+  .ob-send:disabled { background: var(--border-medium); cursor: default; }
+  .ob-cta-wrap { padding: 4px 0 6px; }
+  .ob-cta { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: var(--moss); color: white; border: none; border-radius: 12px; padding: 14px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500; cursor: pointer; transition: background 0.15s; margin-top: 4px; }
+  .ob-cta:hover { background: var(--moss-dark); }
+  .ob-cta-ghost { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: transparent; color: var(--moss); border: 1.5px solid var(--moss); border-radius: 12px; padding: 12px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500; cursor: pointer; transition: background 0.15s; margin-top: 8px; }
+  .ob-cta-ghost:hover { background: var(--mint); }
   .back-btn { background: none; border: none; cursor: pointer; padding: 0; color: var(--text-secondary); display: flex; align-items: center; }
-  .onboard-header h2 { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; }
-  .onboard-body { padding: 24px 20px; flex: 1; }
-  .onboard-step { margin-bottom: 20px; }
-  .step-num { width: 28px; height: 28px; border-radius: 50%; background: var(--moss); color: white; font-size: 13px; font-weight: 500; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
-  .step-num.done { background: #47B08A; }
-  .step-title { font-size: 16px; font-weight: 500; margin-bottom: 4px; }
-  .step-body { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
-  .input-field { margin-top: 12px; border: 1.5px solid var(--border-medium); border-radius: 10px; padding: 12px 14px; font-size: 15px; width: 100%; font-family: 'DM Sans', sans-serif; color: var(--text-primary); background: white; }
-  .input-field:focus { outline: none; border-color: var(--moss); }
-  .name-filled { display: none; }
-  .name-filled.show { display: block; }
-  .filled-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--mint); border-radius: 8px; padding: 8px 12px; font-size: 14px; font-weight: 500; color: var(--moss-dark); margin-top: 12px; }
+
+  /* Tour overlay */
+  .tour-overlay { position: fixed; inset: 0; z-index: 9999; pointer-events: none; }
+  .tour-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.45); pointer-events: auto; }
+  .tour-tooltip { position: absolute; background: white; border-radius: 14px; padding: 16px 18px; max-width: 280px; box-shadow: 0 8px 32px rgba(0,0,0,0.18); pointer-events: auto; z-index: 10000; font-family: 'DM Sans', sans-serif; }
+  .tour-tooltip h4 { margin: 0 0 6px; font-size: 15px; font-weight: 600; color: var(--text-primary); }
+  .tour-tooltip p { margin: 0 0 14px; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+  .tour-tooltip .tour-btn { background: var(--moss); color: white; border: none; border-radius: 8px; padding: 8px 18px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif; }
+  .tour-tooltip .tour-btn:hover { background: var(--moss-dark); }
+  .tour-tooltip .tour-skip { background: none; border: none; color: var(--text-muted); font-size: 12px; cursor: pointer; margin-left: 10px; font-family: 'DM Sans', sans-serif; }
+  .tour-tooltip::after { content: ''; position: absolute; width: 12px; height: 12px; background: white; transform: rotate(45deg); }
+  .tour-tooltip.arrow-top::after { top: -6px; left: 24px; }
+  .tour-tooltip.arrow-bottom::after { bottom: -6px; left: 24px; }
+  .tour-highlight { position: relative; z-index: 10000; pointer-events: auto; box-shadow: 0 0 0 4000px rgba(0,0,0,0.45); border-radius: 8px; }
+  .tour-step-count { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; }
+
+  /* ── INPUT FIELDS (shared) ── */
+  .input-field { width: 100%; border: 1.5px solid var(--border-medium); border-radius: 10px; padding: 11px 14px; font-size: 15px; font-family: 'DM Sans', sans-serif; color: var(--text-primary); background: white; outline: none; transition: border-color 0.15s; margin-top: 4px; }
+  .input-field:focus { border-color: var(--moss); }
+  select.input-field { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239E9A94' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px; }
+
+  /* ── ADD EVENT MODAL ── */
+  #add-event-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-end; justify-content: center; }
+  #add-event-overlay.show { display: flex; }
+  .add-event-sheet { background: white; border-radius: 20px 20px 0 0; width: 100%; max-width: 420px; max-height: 88vh; overflow-y: auto; padding-bottom: 36px; }
+  .form-field { padding: 0 20px; margin-bottom: 14px; }
+  .form-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 5px; display: block; }
+
+  /* ── ADD MEDICATION MODAL ── */
+  #add-med-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-end; justify-content: center; }
+  #add-med-overlay.show { display: flex; }
+  .add-med-sheet { background: white; border-radius: 20px 20px 0 0; width: 100%; max-width: 420px; max-height: 88vh; overflow-y: auto; padding-bottom: 36px; }
+
+  /* ── FAB ── */
+  .fab { position: fixed; bottom: 86px; right: calc(50% - 210px + 16px); width: 48px; height: 48px; border-radius: 50%; background: var(--moss); color: white; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 16px rgba(96,143,124,0.4); z-index: 15; transition: background 0.15s, transform 0.15s; }
+  .fab:hover { background: var(--moss-dark); transform: scale(1.05); }
+  @media (max-width: 420px) { .fab { right: 16px; } }
+
+  /* ── LOADING ── */
+  #loading-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 16px; }
+  .loading-logo { opacity: 0.6; }
+  .loading-text { font-size: 14px; color: var(--text-muted); }
+  .spinner { width: 20px; height: 20px; border: 2px solid var(--border-medium); border-top-color: var(--moss); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── DEMO BADGE ── */
+  .demo-badge { background: var(--amber-bg); border: 1px solid rgba(201,123,44,0.3); color: var(--amber); font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 10px; }
 </style>
 </head>
 <body>
 <div class="page-wrap">
 
-<!-- LANDING -->
+<!-- LOADING SCREEN -->
+<div id="loading-screen">
+  <div class="loading-logo">
+    <svg viewBox="0 138 150 42" xmlns="http://www.w3.org/2000/svg" width="80" aria-label="Wellet">
+      <path fill="#608F7C" d="M45.5,142c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83l.25-2.56h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z"/>
+      <path fill="#608F7C" d="M57.31,168.14c-1.13,1.44-2.57,2.56-4.32,3.37-1.75.8-3.61,1.21-5.58,1.21s-3.92-.49-5.65-1.48c-1.73-.98-3.1-2.32-4.1-4.01-1.01-1.69-1.51-3.55-1.51-5.56s.5-3.87,1.51-5.56c1.01-1.69,2.38-3.03,4.1-4.01,1.73-.98,3.61-1.48,5.65-1.48,1.92,0,3.62.28,5.09.83s2.62,1.31,3.42,2.29c.8.97,1.21,2.06,1.21,3.26,0,2.62-1.68,4.46-5.04,5.54-1.49.46-3.06.68-4.72.68-1.08,0-2.24-.11-3.49-.32.02,1.13.35,2.16.99,3.1.64.94,1.46,1.67,2.47,2.21s2.05.81,3.13.81c.96,0,1.94-.2,2.93-.61,1-.41,1.82-.98,2.47-1.73l1.44,1.48ZM45.7,155.59c-.8,1.26-1.34,2.86-1.6,4.81.84.17,1.64.25,2.41.25,1.61,0,2.87-.34,3.78-1.01.91-.67,1.51-1.5,1.8-2.48.1-.29.14-.59.14-.9,0-.86-.32-1.56-.95-2.09-.64-.53-1.36-.76-2.18-.68-1.46.14-2.6.85-3.4,2.11Z"/>
+      <path fill="#608F7C" d="M58.21,170.23c.7-.12,1.26-.52,1.69-1.21.43-.68.65-1.9.65-3.65v-14.26c0-1.18-.13-2.08-.38-2.72s-.5-1.06-.76-1.26-.71-.51-1.39-.92c.65-.84,1.61-1.47,2.9-1.89,1.28-.42,2.59-.63,3.91-.63,1.15,0,2.04.14,2.66.43v21.24c0,1.75.22,2.97.65,3.65.43.68,1,1.09,1.69,1.21l.11,1.62h-11.84l.11-1.62Z"/>
+      <path fill="#608F7C" d="M70.85,170.23c.7-.12,1.26-.52,1.69-1.21.43-.68.65-1.9.65-3.65v-14.26c0-1.18-.13-2.08-.38-2.72s-.5-1.06-.76-1.26-.71-.51-1.39-.92c.65-.84,1.61-1.47,2.9-1.89,1.28-.42,2.59-.63,3.91-.63,1.15,0,2.04.14,2.66.43v21.24c0,1.75.22,2.97.65,3.65.43.68,1,1.09,1.69,1.21l.11,1.62h-11.84l.11-1.62Z"/>
+      <path fill="#608F7C" d="M104.11,168.14c-1.13,1.44-2.57,2.56-4.32,3.37-1.75.8-3.61,1.21-5.58,1.21s-3.92-.49-5.65-1.48c-1.73-.98-3.1-2.32-4.1-4.01-1.01-1.69-1.51-3.55-1.51-5.56s.5-3.87,1.51-5.56c1.01-1.69,2.38-3.03,4.1-4.01,1.73-.98,3.61-1.48,5.65-1.48,1.92,0,3.62.28,5.09.83,1.48.55,2.62,1.31,3.42,2.29.8.97,1.21,2.06,1.21,3.26,0,2.62-1.68,4.46-5.04,5.54-1.49.46-3.06.68-4.72.68-1.08,0-2.24-.11-3.49-.32.02,1.13.35,2.16.99,3.1.64.94,1.46,1.67,2.47,2.21,1.01.54,2.05.81,3.13.81.96,0,1.94-.2,2.93-.61s1.82-.98,2.47-1.73l1.44,1.48ZM92.5,155.59c-.8,1.26-1.34,2.86-1.6,4.81.84.17,1.64.25,2.41.25,1.61,0,2.87-.34,3.78-1.01s1.51-1.5,1.8-2.48c.09-.29.14-.59.14-.9,0-.86-.32-1.56-.95-2.09-.64-.53-1.36-.76-2.18-.68-1.46.14-2.6.85-3.4,2.11Z"/>
+      <path fill="#608F7C" d="M139.93,141.71c.46.5.76,1.14.86,1.81.17,1.09-.14,2.07-.91,2.95s-1.69,1.36-2.84,1.51c-.83.11-1.71.14-2.64.09-1.17-.04-2.31,0-3.43.15-1.24.16-2.36.49-3.36,1-1,.5-1.5.85-2.29,1.37-1.25.83-.64.51-2.68,1.64-1.7.75-1.02.47-2.27.96-2.92,1.15-5.84,1.04-6.2,1.21v12.12c0,.86.13,1.51.38,1.93s.58.63.99.63c.26,0,.55-.09.86-.27.31-.18.6-.43.86-.74l1.44,1.48c-.98,1.1-1.96,1.87-2.92,2.3-.96.43-2.08.65-3.35.65-1.58,0-2.89-.4-3.92-1.21-1.03-.8-1.55-1.95-1.55-3.44v-13c-.74-.07-1.58-.24-2.52-.5v-1.8c.53.12.97.18,1.33.18.96,0,1.82-.27,2.59-.81.77-.54,1.42-1.18,1.96-1.91.54-.73,1.15-1.66,1.82-2.79.48-.89.88-1.52,1.19-1.91h.83v6.8c3.33.07,5-.58,7.3-1.62,1.91-1.06,2.49-1.68,3.33-2.56.36-.38.58-.67,1.77-1.97.66-.72,2.14-1.98,2.76-2.44,1.43-1.1,2.12-1.49,3.27-2.09,1.14-.61,2.11-.76,3.26-.88,2.04-.21,3.13.16,4.06,1.16Z"/>
+    </svg>
+  </div>
+  <div class="spinner"></div>
+</div>
+
+<!-- AUTH SCREEN -->
+<div id="auth-screen">
+  <div class="auth-hero">
+    <svg class="auth-hero-wordmark" viewBox="0 138 150 42" xmlns="http://www.w3.org/2000/svg" aria-label="Wellet">
+      <path fill="white" d="M45.5,142c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83l.25-2.56h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z"/>
+      <path fill="white" d="M57.31,168.14c-1.13,1.44-2.57,2.56-4.32,3.37-1.75.8-3.61,1.21-5.58,1.21s-3.92-.49-5.65-1.48c-1.73-.98-3.1-2.32-4.1-4.01-1.01-1.69-1.51-3.55-1.51-5.56s.5-3.87,1.51-5.56c1.01-1.69,2.38-3.03,4.1-4.01,1.73-.98,3.61-1.48,5.65-1.48,1.92,0,3.62.28,5.09.83s2.62,1.31,3.42,2.29c.8.97,1.21,2.06,1.21,3.26,0,2.62-1.68,4.46-5.04,5.54-1.49.46-3.06.68-4.72.68-1.08,0-2.24-.11-3.49-.32.02,1.13.35,2.16.99,3.1.64.94,1.46,1.67,2.47,2.21s2.05.81,3.13.81c.96,0,1.94-.2,2.93-.61,1-.41,1.82-.98,2.47-1.73l1.44,1.48ZM45.7,155.59c-.8,1.26-1.34,2.86-1.6,4.81.84.17,1.64.25,2.41.25,1.61,0,2.87-.34,3.78-1.01.91-.67,1.51-1.5,1.8-2.48.1-.29.14-.59.14-.9,0-.86-.32-1.56-.95-2.09-.64-.53-1.36-.76-2.18-.68-1.46.14-2.6.85-3.4,2.11Z"/>
+      <path fill="white" d="M58.21,170.23c.7-.12,1.26-.52,1.69-1.21.43-.68.65-1.9.65-3.65v-14.26c0-1.18-.13-2.08-.38-2.72s-.5-1.06-.76-1.26-.71-.51-1.39-.92c.65-.84,1.61-1.47,2.9-1.89,1.28-.42,2.59-.63,3.91-.63,1.15,0,2.04.14,2.66.43v21.24c0,1.75.22,2.97.65,3.65.43.68,1,1.09,1.69,1.21l.11,1.62h-11.84l.11-1.62Z"/>
+      <path fill="white" d="M70.85,170.23c.7-.12,1.26-.52,1.69-1.21.43-.68.65-1.9.65-3.65v-14.26c0-1.18-.13-2.08-.38-2.72s-.5-1.06-.76-1.26-.71-.51-1.39-.92c.65-.84,1.61-1.47,2.9-1.89,1.28-.42,2.59-.63,3.91-.63,1.15,0,2.04.14,2.66.43v21.24c0,1.75.22,2.97.65,3.65.43.68,1,1.09,1.69,1.21l.11,1.62h-11.84l.11-1.62Z"/>
+      <path fill="white" d="M104.11,168.14c-1.13,1.44-2.57,2.56-4.32,3.37-1.75.8-3.61,1.21-5.58,1.21s-3.92-.49-5.65-1.48c-1.73-.98-3.1-2.32-4.1-4.01-1.01-1.69-1.51-3.55-1.51-5.56s.5-3.87,1.51-5.56c1.01-1.69,2.38-3.03,4.1-4.01,1.73-.98,3.61-1.48,5.65-1.48,1.92,0,3.62.28,5.09.83,1.48.55,2.62,1.31,3.42,2.29.8.97,1.21,2.06,1.21,3.26,0,2.62-1.68,4.46-5.04,5.54-1.49.46-3.06.68-4.72.68-1.08,0-2.24-.11-3.49-.32.02,1.13.35,2.16.99,3.1.64.94,1.46,1.67,2.47,2.21,1.01.54,2.05.81,3.13.81.96,0,1.94-.2,2.93-.61s1.82-.98,2.47-1.73l1.44,1.48ZM92.5,155.59c-.8,1.26-1.34,2.86-1.6,4.81.84.17,1.64.25,2.41.25,1.61,0,2.87-.34,3.78-1.01s1.51-1.5,1.8-2.48c.09-.29.14-.59.14-.9,0-.86-.32-1.56-.95-2.09-.64-.53-1.36-.76-2.18-.68-1.46.14-2.6.85-3.4,2.11Z"/>
+      <path fill="white" d="M139.93,141.71c.46.5.76,1.14.86,1.81.17,1.09-.14,2.07-.91,2.95s-1.69,1.36-2.84,1.51c-.83.11-1.71.14-2.64.09-1.17-.04-2.31,0-3.43.15-1.24.16-2.36.49-3.36,1-1,.5-1.5.85-2.29,1.37-1.25.83-.64.51-2.68,1.64-1.7.75-1.02.47-2.27.96-2.92,1.15-5.84,1.04-6.2,1.21v12.12c0,.86.13,1.51.38,1.93s.58.63.99.63c.26,0,.55-.09.86-.27.31-.18.6-.43.86-.74l1.44,1.48c-.98,1.1-1.96,1.87-2.92,2.3-.96.43-2.08.65-3.35.65-1.58,0-2.89-.4-3.92-1.21-1.03-.8-1.55-1.95-1.55-3.44v-13c-.74-.07-1.58-.24-2.52-.5v-1.8c.53.12.97.18,1.33.18.96,0,1.82-.27,2.59-.81.77-.54,1.42-1.18,1.96-1.91.54-.73,1.15-1.66,1.82-2.79.48-.89.88-1.52,1.19-1.91h.83v6.8c3.33.07,5-.58,7.3-1.62,1.91-1.06,2.49-1.68,3.33-2.56.36-.38.58-.67,1.77-1.97.66-.72,2.14-1.98,2.76-2.44,1.43-1.1,2.12-1.49,3.27-2.09,1.14-.61,2.11-.76,3.26-.88,2.04-.21,3.13.16,4.06,1.16Z"/>
+    </svg>
+    <h1>What does care look like <em>when you stop holding it all in your head?</em></h1>
+  </div>
+  <div class="auth-body">
+    <div id="auth-form-state">
+      <div class="auth-title">Your Wellet</div>
+      <p class="auth-subtitle">Enter your email and we'll send you a magic link — no password needed.</p>
+      <div class="auth-input-wrap">
+        <label class="auth-input-label" for="auth-email">Email address</label>
+        <input type="email" id="auth-email" class="auth-input" placeholder="you@email.com" autocomplete="email">
+      </div>
+      <button class="btn-primary" onclick="sendMagicLink()" id="auth-send-btn">
+        Send magic link <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>
+      </button>
+      <button class="auth-demo-link" onclick="enterDemoMode()">
+        <i data-lucide="play" style="width:14px;height:14px;"></i>
+        See what it becomes → (demo)
+      </button>
+    </div>
+    <div id="auth-sent-state" class="auth-sent">
+      <div class="auth-sent-icon"><i data-lucide="mail-check" style="width:24px;height:24px;"></i></div>
+      <div class="auth-sent-title">Check your email</div>
+      <p class="auth-sent-body">We sent a magic link to <strong id="auth-sent-email"></strong>. Click it to open your Wellet — no password needed.</p>
+      <button class="auth-demo-link" onclick="enterDemoMode()">
+        <i data-lucide="play" style="width:14px;height:14px;"></i>
+        Try the demo while you wait
+      </button>
+    </div>
+  </div>
+  <div class="auth-privacy">
+    <p>No password required. <strong>Your data stays private</strong> — protected by row-level security.</p>
+  </div>
+</div>
+
+<!-- LANDING (demo mode) -->
 <div id="landing">
   <div class="hero-band">
-    <!-- Wellet wordmark: extracted from wellet.svg paths, colored white -->
     <svg class="hero-wordmark" viewBox="0 138 150 42" xmlns="http://www.w3.org/2000/svg" aria-label="Wellet">
       <path fill="white" d="M45.5,142c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83l.25-2.56h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z"/>
       <path fill="white" d="M57.31,168.14c-1.13,1.44-2.57,2.56-4.32,3.37-1.75.8-3.61,1.21-5.58,1.21s-3.92-.49-5.65-1.48c-1.73-.98-3.1-2.32-4.1-4.01-1.01-1.69-1.51-3.55-1.51-5.56s.5-3.87,1.51-5.56c1.01-1.69,2.38-3.03,4.1-4.01,1.73-.98,3.61-1.48,5.65-1.48,1.92,0,3.62.28,5.09.83s2.62,1.31,3.42,2.29c.8.97,1.21,2.06,1.21,3.26,0,2.62-1.68,4.46-5.04,5.54-1.49.46-3.06.68-4.72.68-1.08,0-2.24-.11-3.49-.32.02,1.13.35,2.16.99,3.1.64.94,1.46,1.67,2.47,2.21s2.05.81,3.13.81c.96,0,1.94-.2,2.93-.61,1-.41,1.82-.98,2.47-1.73l1.44,1.48ZM45.7,155.59c-.8,1.26-1.34,2.86-1.6,4.81.84.17,1.64.25,2.41.25,1.61,0,2.87-.34,3.78-1.01.91-.67,1.51-1.5,1.8-2.48.1-.29.14-.59.14-.9,0-.86-.32-1.56-.95-2.09-.64-.53-1.36-.76-2.18-.68-1.46.14-2.6.85-3.4,2.11Z"/>
@@ -419,13 +587,16 @@
       <path fill="white" d="M104.11,168.14c-1.13,1.44-2.57,2.56-4.32,3.37-1.75.8-3.61,1.21-5.58,1.21s-3.92-.49-5.65-1.48c-1.73-.98-3.1-2.32-4.1-4.01-1.01-1.69-1.51-3.55-1.51-5.56s.5-3.87,1.51-5.56c1.01-1.69,2.38-3.03,4.1-4.01,1.73-.98,3.61-1.48,5.65-1.48,1.92,0,3.62.28,5.09.83,1.48.55,2.62,1.31,3.42,2.29.8.97,1.21,2.06,1.21,3.26,0,2.62-1.68,4.46-5.04,5.54-1.49.46-3.06.68-4.72.68-1.08,0-2.24-.11-3.49-.32.02,1.13.35,2.16.99,3.1.64.94,1.46,1.67,2.47,2.21,1.01.54,2.05.81,3.13.81.96,0,1.94-.2,2.93-.61s1.82-.98,2.47-1.73l1.44,1.48ZM92.5,155.59c-.8,1.26-1.34,2.86-1.6,4.81.84.17,1.64.25,2.41.25,1.61,0,2.87-.34,3.78-1.01s1.51-1.5,1.8-2.48c.09-.29.14-.59.14-.9,0-.86-.32-1.56-.95-2.09-.64-.53-1.36-.76-2.18-.68-1.46.14-2.6.85-3.4,2.11Z"/>
       <path fill="white" d="M139.93,141.71c.46.5.76,1.14.86,1.81.17,1.09-.14,2.07-.91,2.95s-1.69,1.36-2.84,1.51c-.83.11-1.71.14-2.64.09-1.17-.04-2.31,0-3.43.15-1.24.16-2.36.49-3.36,1-1,.5-1.5.85-2.29,1.37-1.25.83-.64.51-2.68,1.64-1.7.75-1.02.47-2.27.96-2.92,1.15-5.84,1.04-6.2,1.21v12.12c0,.86.13,1.51.38,1.93s.58.63.99.63c.26,0,.55-.09.86-.27.31-.18.6-.43.86-.74l1.44,1.48c-.98,1.1-1.96,1.87-2.92,2.3-.96.43-2.08.65-3.35.65-1.58,0-2.89-.4-3.92-1.21-1.03-.8-1.55-1.95-1.55-3.44v-13c-.74-.07-1.58-.24-2.52-.5v-1.8c.53.12.97.18,1.33.18.96,0,1.82-.27,2.59-.81.77-.54,1.42-1.18,1.96-1.91.54-.73,1.15-1.66,1.82-2.79.48-.89.88-1.52,1.19-1.91h.83v6.8c3.33.07,5-.58,7.3-1.62,1.91-1.06,2.49-1.68,3.33-2.56.36-.38.58-.67,1.77-1.97.66-.72,2.14-1.98,2.76-2.44,1.43-1.1,2.12-1.49,3.27-2.09,1.14-.61,2.11-.76,3.26-.88,2.04-.21,3.13.16,4.06,1.16Z"/>
     </svg>
-    <h1>What does care look like <em>six months in?</em></h1>
-    <p>See what Wellet becomes after a few months of use — then start building yours.</p>
+    <h1>What does care look like <em>when you stop holding it all in your head?</em></h1>
   </div>
 
   <div class="demo-preview">
-    <p class="label">Live demo — Dad's care</p>
-    <div class="preview-card">
+    <p class="label">Live demo</p>
+    <div class="demo-toggle">
+      <button class="demo-tab active" onclick="switchDemo('dad',this)">Dad's care</button>
+      <button class="demo-tab" onclick="switchDemo('vet',this)">Veteran's care</button>
+    </div>
+    <div id="demo-dad" class="preview-card">
       <div class="person-row">
         <div class="avatar">JB</div>
         <div>
@@ -434,7 +605,27 @@
         </div>
         <div class="status-dot"></div>
       </div>
-      <p class="preview-summary"><strong>Three months in,</strong> you'd know his BP has been climbing since the Hydrochlorothiazide dose change. You'd know oncology saw improvement last month. You'd know his PT is twice a week and his next visit is July 16th. And you wouldn't have had to remember any of it.</p>
+      <div class="preview-lines">
+        <div class="preview-line">BP trending up since dose change</div>
+        <div class="preview-line">Oncology: improvement last month</div>
+        <div class="preview-line">PT twice a week</div>
+        <div class="preview-line">Next visit: July 16th</div>
+      </div>
+    </div>
+    <div id="demo-vet" class="preview-card" style="display:none;">
+      <div class="person-row">
+        <div class="avatar" style="background: #4F7A68;">R</div>
+        <div>
+          <div class="person-name">Ray — husband and veteran</div>
+          <div class="person-meta">Army, Gulf War · Care across two systems</div>
+        </div>
+        <div class="status-dot"></div>
+      </div>
+      <div class="preview-lines">
+        <div class="preview-line">VA + Duke appointments in one place</div>
+        <div class="preview-line">Prazosin adjusted · sleep improving</div>
+        <div class="preview-line">Durham VA visit: Tuesday</div>
+      </div>
     </div>
   </div>
 
@@ -449,15 +640,16 @@
     </div>
     <div class="vp-item">
       <div class="vp-icon"><i data-lucide="shield" style="width:18px;height:18px;"></i></div>
-      <div class="vp-text"><strong>Stays on your device</strong><span>All data is stored locally. Wellet never sells, shares, or tracks. You decide what gets shared, when.</span></div>
+      <div class="vp-text"><strong>Private and secure</strong><span>All data is protected by row-level security. You decide what gets shared, when.</span></div>
     </div>
   </div>
 
   <div class="hero-cta">
     <button class="btn-primary" onclick="showApp()">See what it becomes <i data-lucide="arrow-right" style="width:16px;height:16px;"></i></button>
-    <button class="btn-secondary" onclick="showOnboarding()"><i data-lucide="plus" style="width:16px;height:16px;"></i> Start my own story</button>  </div>
+    <button class="btn-secondary" onclick="showOnboarding()"><i data-lucide="plus" style="width:16px;height:16px;"></i> Start my own story</button>
+  </div>
   <div class="privacy-footer">
-    <p class="privacy-note">No login required for the demo. <strong>Your data stays yours</strong> — always local, always private.</p>
+    <p class="privacy-note">Demo mode — no login required. <strong>Sign in to save your data</strong> between sessions.</p>
   </div>
 </div>
 
@@ -476,18 +668,17 @@
             <path fill="#608F7C" d="M104.11,168.14c-1.13,1.44-2.57,2.56-4.32,3.37-1.75.8-3.61,1.21-5.58,1.21s-3.92-.49-5.65-1.48c-1.73-.98-3.1-2.32-4.1-4.01-1.01-1.69-1.51-3.55-1.51-5.56s.5-3.87,1.51-5.56c1.01-1.69,2.38-3.03,4.1-4.01,1.73-.98,3.61-1.48,5.65-1.48,1.92,0,3.62.28,5.09.83,1.48.55,2.62,1.31,3.42,2.29.8.97,1.21,2.06,1.21,3.26,0,2.62-1.68,4.46-5.04,5.54-1.49.46-3.06.68-4.72.68-1.08,0-2.24-.11-3.49-.32.02,1.13.35,2.16.99,3.1.64.94,1.46,1.67,2.47,2.21,1.01.54,2.05.81,3.13.81.96,0,1.94-.2,2.93-.61s1.82-.98,2.47-1.73l1.44,1.48ZM92.5,155.59c-.8,1.26-1.34,2.86-1.6,4.81.84.17,1.64.25,2.41.25,1.61,0,2.87-.34,3.78-1.01s1.51-1.5,1.8-2.48c.09-.29.14-.59.14-.9,0-.86-.32-1.56-.95-2.09-.64-.53-1.36-.76-2.18-.68-1.46.14-2.6.85-3.4,2.11Z"/>
             <path fill="#608F7C" d="M139.93,141.71c.46.5.76,1.14.86,1.81.17,1.09-.14,2.07-.91,2.95s-1.69,1.36-2.84,1.51c-.83.11-1.71.14-2.64.09-1.17-.04-2.31,0-3.43.15-1.24.16-2.36.49-3.36,1-1,.5-1.5.85-2.29,1.37-1.25.83-.64.51-2.68,1.64-1.7.75-1.02.47-2.27.96-2.92,1.15-5.84,1.04-6.2,1.21v12.12c0,.86.13,1.51.38,1.93s.58.63.99.63c.26,0,.55-.09.86-.27.31-.18.6-.43.86-.74l1.44,1.48c-.98,1.1-1.96,1.87-2.92,2.3-.96.43-2.08.65-3.35.65-1.58,0-2.89-.4-3.92-1.21-1.03-.8-1.55-1.95-1.55-3.44v-13c-.74-.07-1.58-.24-2.52-.5v-1.8c.53.12.97.18,1.33.18.96,0,1.82-.27,2.59-.81.77-.54,1.42-1.18,1.96-1.91.54-.73,1.15-1.66,1.82-2.79.48-.89.88-1.52,1.19-1.91h.83v6.8c3.33.07,5-.58,7.3-1.62,1.91-1.06,2.49-1.68,3.33-2.56.36-.38.58-.67,1.77-1.97.66-.72,2.14-1.98,2.76-2.44,1.43-1.1,2.12-1.49,3.27-2.09,1.14-.61,2.11-.76,3.26-.88,2.04-.21,3.13.16,4.06,1.16Z"/>
           </svg>
-          <div class="header-meta">Updated 2 hours ago</div>
+          <div class="header-meta" id="header-meta-text">Updated just now</div>
         </div>
       </div>
-      <div class="header-actions">
-        <div class="header-actions">
+      <div class="header-actions" style="display:flex;align-items:center;gap:6px;">
+          <button class="icon-btn" id="demo-back-btn" onclick="showLanding()" title="Back to start" style="display:none;"><i data-lucide="arrow-left" style="width:16px;height:16px;"></i></button>
           <button class="icon-btn" onclick="openSettings()" title="Settings"><i data-lucide="settings" style="width:16px;height:16px;"></i></button>
-        </div>
       </div>
     </div>
     <div class="person-switcher" id="header-person-switcher">
-      <button class="person-pill active" onclick="switchPerson(this)"><span class="pip"></span>Dad</button>
-      <button class="person-pill" onclick="switchPerson(this)"><span class="pip"></span>Mom</button>
+      <button class="person-pill active" onclick="switchPerson(this,'dad')"><span class="pip"></span>Dad</button>
+      <button class="person-pill" onclick="switchPerson(this,'mom')"><span class="pip"></span>Mom</button>
     </div>
     <div class="tab-bar" id="header-tab-bar">
       <button class="tab active" onclick="switchTab(this,'update')">Update Me</button>
@@ -522,31 +713,34 @@
       </div>
       <div class="timeline-section" style="margin-top:16px;">
         <p class="section-label">Recent activity</p>
-        <div class="tl-item">
-          <div class="tl-line-col"><div class="tl-dot appt"></div><div class="tl-connector"></div></div>
-          <div class="tl-card moss-border">
-            <div class="tl-card-type-row"><i data-lucide="calendar-check" style="width:11px;height:11px;color:var(--moss);"></i><span class="tl-card-type appt">Appointment</span></div>
-            <div class="tl-card-title">Annual physical — Dr. Waite</div>
-            <div class="tl-card-body">All chronic conditions reviewed. Stable. Follow-up in 6 months.</div>
-            <div class="tl-card-date">May 12, 2025</div>
+        <div id="recent-activity-list">
+          <!-- populated by renderRecentActivity() -->
+          <div class="tl-item">
+            <div class="tl-line-col"><div class="tl-dot appt"></div><div class="tl-connector"></div></div>
+            <div class="tl-card moss-border">
+              <div class="tl-card-type-row"><i data-lucide="calendar-check" style="width:11px;height:11px;color:var(--moss);"></i><span class="tl-card-type appt">Appointment</span></div>
+              <div class="tl-card-title">Annual physical — Dr. Waite</div>
+              <div class="tl-card-body">All chronic conditions reviewed. Stable. Follow-up in 6 months.</div>
+              <div class="tl-card-date">May 12, 2025</div>
+            </div>
           </div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-line-col"><div class="tl-dot med"></div><div class="tl-connector"></div></div>
-          <div class="tl-card amber-border">
-            <div class="tl-card-type-row"><i data-lucide="pill" style="width:11px;height:11px;color:var(--amber);"></i><span class="tl-card-type med">Medication change</span></div>
-            <div class="tl-card-title">Hydrochlorothiazide adjusted</div>
-            <div class="tl-card-body">Dose increased June 18 for blood pressure management.</div>
-            <div class="tl-card-date">June 18, 2025</div>
+          <div class="tl-item">
+            <div class="tl-line-col"><div class="tl-dot med"></div><div class="tl-connector"></div></div>
+            <div class="tl-card amber-border">
+              <div class="tl-card-type-row"><i data-lucide="pill" style="width:11px;height:11px;color:var(--amber);"></i><span class="tl-card-type med">Medication change</span></div>
+              <div class="tl-card-title">Hydrochlorothiazide adjusted</div>
+              <div class="tl-card-body">Dose increased June 18 for blood pressure management.</div>
+              <div class="tl-card-date">June 18, 2025</div>
+            </div>
           </div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-line-col"><div class="tl-dot alert"></div></div>
-          <div class="tl-card red-border">
-            <div class="tl-card-type-row"><i data-lucide="activity" style="width:11px;height:11px;color:var(--red);"></i><span class="tl-card-type alert">Pattern noticed</span></div>
-            <div class="tl-card-title">BP elevated since dose change</div>
-            <div class="tl-card-body">Readings averaging 142/89 this week, up from 128/82 baseline.</div>
-            <div class="tl-card-date">This week</div>
+          <div class="tl-item">
+            <div class="tl-line-col"><div class="tl-dot alert"></div></div>
+            <div class="tl-card red-border">
+              <div class="tl-card-type-row"><i data-lucide="activity" style="width:11px;height:11px;color:var(--red);"></i><span class="tl-card-type alert">Pattern noticed</span></div>
+              <div class="tl-card-title">BP elevated since dose change</div>
+              <div class="tl-card-body">Readings averaging 142/89 this week, up from 128/82 baseline.</div>
+              <div class="tl-card-date">This week</div>
+            </div>
           </div>
         </div>
       </div>
@@ -554,7 +748,7 @@
 
     <!-- TIMELINE -->
     <div id="tab-timeline" class="tab-pane">
-      <div class="timeline-section">
+      <div class="timeline-section" id="timeline-content">
         <div class="tl-month">July 2025</div>
         <div class="tl-item">
           <div class="tl-line-col"><div class="tl-dot alert"></div><div class="tl-connector"></div></div>
@@ -672,7 +866,8 @@
         <div class="view-title">People</div>
         <div class="view-subtitle">Everyone you're caring for</div>
       </div>
-      <div class="people-section">
+      <div class="people-section" id="people-list">
+        <!-- populated by renderPeople() or demo content -->
         <div class="person-card">
           <div class="person-card-top">
             <div class="person-card-avatar moss">JB</div>
@@ -743,22 +938,27 @@
         <div class="record-group">
           <div class="record-group-header">
             <div class="record-group-title"><i data-lucide="pill" style="width:14px;height:14px;color:var(--amber);"></i>Medications</div>
-            <span class="record-group-count">6 active</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="record-group-count" id="dad-med-count">6 active</span>
+              <button onclick="openAddMed()" style="background:var(--mint);border:none;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:500;color:var(--moss-dark);cursor:pointer;font-family:'DM Sans',sans-serif;">+ Add</button>
+            </div>
           </div>
-          <div class="record-row">
-            <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
-            <div style="flex:1;"><div class="record-label">Lisinopril 20mg</div><div class="record-meta">Once daily · Hypertension</div></div>
-            <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
-          </div>
-          <div class="record-row">
-            <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
-            <div style="flex:1;"><div class="record-label">Hydrochlorothiazide 25mg</div><div class="record-meta">Once daily · Hypertension</div></div>
-            <span class="record-badge amber">Changed Jun 18</span>
-          </div>
-          <div class="record-row">
-            <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
-            <div style="flex:1;"><div class="record-label">Gleevec (Imatinib) 400mg</div><div class="record-meta">Once daily · CML</div></div>
-            <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
+          <div id="dad-meds-list">
+            <div class="record-row">
+              <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
+              <div style="flex:1;"><div class="record-label">Lisinopril 20mg</div><div class="record-meta">Once daily · Hypertension</div></div>
+              <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
+            </div>
+            <div class="record-row">
+              <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
+              <div style="flex:1;"><div class="record-label">Hydrochlorothiazide 25mg</div><div class="record-meta">Once daily · Hypertension</div></div>
+              <span class="record-badge amber">Changed Jun 18</span>
+            </div>
+            <div class="record-row">
+              <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
+              <div style="flex:1;"><div class="record-label">Gleevec (Imatinib) 400mg</div><div class="record-meta">Once daily · CML</div></div>
+              <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
+            </div>
           </div>
         </div>
 
@@ -818,15 +1018,16 @@
           </div>
         </div>
       </div>
-      </div><!-- end records-dad -->
 
       <!-- MOM'S RECORDS -->
       <div id="records-mom" class="records-section" style="display:none;">
-
         <div class="record-group">
           <div class="record-group-header">
             <div class="record-group-title"><i data-lucide="pill" style="width:14px;height:14px;color:var(--amber);"></i>Medications</div>
-            <span class="record-group-count">3 active</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="record-group-count">3 active</span>
+              <button onclick="openAddMed()" style="background:var(--mint);border:none;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:500;color:var(--moss-dark);cursor:pointer;font-family:'DM Sans',sans-serif;">+ Add</button>
+            </div>
           </div>
           <div class="record-row">
             <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
@@ -844,7 +1045,6 @@
             <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
           </div>
         </div>
-
         <div class="record-group">
           <div class="record-group-header">
             <div class="record-group-title"><i data-lucide="stethoscope" style="width:14px;height:14px;color:var(--moss);"></i>Diagnoses</div>
@@ -861,7 +1061,6 @@
             <span class="record-badge moss">Stable</span>
           </div>
         </div>
-
         <div class="record-group">
           <div class="record-group-header">
             <div class="record-group-title"><i data-lucide="flask-conical" style="width:14px;height:14px;color:var(--blue);"></i>Recent labs</div>
@@ -878,7 +1077,6 @@
             <span class="record-badge moss">Normal</span>
           </div>
         </div>
-
         <div class="record-group">
           <div class="record-group-header">
             <div class="record-group-title"><i data-lucide="pencil-line" style="width:14px;height:14px;color:var(--text-muted);"></i>Caregiver notes</div>
@@ -890,7 +1088,6 @@
             <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
           </div>
         </div>
-
       </div><!-- end records-mom -->
 
     <!-- ASK WELLET VIEW -->
@@ -930,6 +1127,11 @@
 
   </div><!-- end app-body -->
 
+  <!-- FAB for adding events -->
+  <button class="fab" id="add-event-fab" onclick="openAddEvent()" title="Add health event" style="display:none;">
+    <i data-lucide="plus" style="width:20px;height:20px;"></i>
+  </button>
+
   <div class="bottom-nav">
     <button class="nav-item active" onclick="switchNavTo('home')"><span class="nav-icon"><i data-lucide="house" style="width:20px;height:20px;"></i></span>Home</button>
     <button class="nav-item" onclick="switchNavTo('people')"><span class="nav-icon"><i data-lucide="users" style="width:20px;height:20px;"></i></span>People</button>
@@ -939,42 +1141,26 @@
 </div>
 
 
-<!-- ONBOARDING -->
+<!-- ONBOARDING CHAT -->
 <div id="onboarding">
-  <div class="onboard-header">
-    <button class="back-btn" onclick="showApp()"><i data-lucide="arrow-left" style="width:20px;height:20px;"></i></button>
-    <h2>Start your story</h2>
+  <div class="ob-header">
+    <button class="ob-back" onclick="showLanding()"><i data-lucide="arrow-left" style="width:20px;height:20px;"></i></button>
+    <div>
+      <div class="ob-title">Start my own story</div>
+      <div class="ob-subtitle">Ask Wellet</div>
+    </div>
   </div>
-  <div class="onboard-body">
-    <p style="font-size:14px;color:var(--text-secondary);line-height:1.7;margin-bottom:24px;">The demo shows John's timeline after 3 months of use. Yours starts with a single person and a single moment.</p>
-    <div class="onboard-step">
-      <div class="step-num done"><i data-lucide="check" style="width:14px;height:14px;"></i></div>
-      <div class="step-title">You understand what it becomes.</div>
-      <div class="step-body">You just saw it.</div>
-    </div>
-    <div class="onboard-step">
-      <div class="step-num" id="step2-num">2</div>
-      <div class="step-title">Who are you caring for?</div>
-      <div class="step-body">Just a first name is enough to start.</div>
-      <input id="person-name" class="input-field" type="text" placeholder="e.g. Dad, Mom, Grandma…" oninput="handleName(this.value)">
-      <div class="name-filled" id="name-confirm">
-        <div class="filled-badge"><i data-lucide="check" style="width:14px;height:14px;"></i><span id="name-out"></span> added</div>
-      </div>
-    </div>
-    <div class="onboard-step">
-      <div class="step-num">3</div>
-      <div class="step-title">Connect health records</div>
-      <div class="step-body">Link their patient portal (MyChart, Epic) or Apple Health — or skip and add things manually. You can always do this later.</div>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
-        <button class="btn-primary" style="font-size:14px;padding:12px;"><i data-lucide="link" style="width:15px;height:15px;"></i> Connect a portal or Apple Health</button>
-        <button class="btn-secondary" style="font-size:14px;padding:10px;border-width:1px;"><i data-lucide="pencil" style="width:15px;height:15px;"></i> I'll add things manually for now</button>
-      </div>
-    </div>
-    <div class="privacy-footer" style="margin-top:8px;">
-      <p class="privacy-note">Everything stays on your device. Wellet is <strong>local-first, private by design</strong>. No account needed to start.</p>
-    </div>
+  <div class="ob-chat" id="ob-chat-area"></div>
+  <div class="ob-input-row">
+    <textarea class="ob-input" id="ob-input" rows="1" placeholder="Type a message…" disabled
+      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();obSend();}"></textarea>
+    <button class="ob-send" id="ob-send-btn" onclick="obSend()" disabled>
+      <i data-lucide="send" style="width:16px;height:16px;"></i>
+    </button>
   </div>
 </div>
+
+
 
 <!-- EMERGENCY SUMMARY SHEET -->
 <div class="qa-overlay" id="emergency-overlay">
@@ -1028,7 +1214,7 @@
       <button class="btn-primary" style="font-size:13px;padding:12px;" onclick="showToast('Emergency summary downloaded')">
         <i data-lucide="download" style="width:15px;height:15px;"></i> Download PDF
       </button>
-      <button class="btn-primary" style="font-size:13px;padding:12px;background:var(--forest);" onclick="showToast('Link copied to clipboard')">
+      <button class="btn-primary" style="font-size:13px;padding:12px;background:var(--moss-dark);" onclick="showToast('Link copied to clipboard')">
         <i data-lucide="share-2" style="width:15px;height:15px;"></i> Share
       </button>
     </div>
@@ -1146,7 +1332,6 @@
     <div class="upload-title">Add a document</div>
     <div class="upload-person">Adding to <strong id="upload-person-name"></strong></div>
 
-    <!-- Step 1: pick source -->
     <div id="upload-step1">
       <div class="upload-drop" onclick="simulateUpload()">
         <div class="upload-drop-icon"><i data-lucide="upload-cloud" style="width:32px;height:32px;"></i></div>
@@ -1195,7 +1380,6 @@
       </div>
     </div>
 
-    <!-- Step 2: tag & confirm -->
     <div id="upload-step2" style="display:none;">
       <div class="upload-success show">
         <div class="upload-file-card">
@@ -1236,6 +1420,24 @@
     </div>
     <div class="settings-title">Settings</div>
 
+    <!-- Account section (shown when logged in) -->
+    <div class="settings-section" id="settings-account-section" style="display:none;">
+      <div class="settings-section-label">Account</div>
+      <div class="settings-row">
+        <div class="settings-row-left">
+          <div class="settings-row-icon"><i data-lucide="user" style="width:15px;height:15px;"></i></div>
+          <div><div class="settings-row-label" id="settings-user-email">Signed in</div><div class="settings-row-meta">Magic link authentication</div></div>
+        </div>
+      </div>
+      <div class="settings-row" style="cursor:pointer;" onclick="handleLogout()">
+        <div class="settings-row-left">
+          <div class="settings-row-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="log-out" style="width:15px;height:15px;"></i></div>
+          <div><div class="settings-row-label" style="color:var(--red);">Sign out</div><div class="settings-row-meta">Return to login screen</div></div>
+        </div>
+        <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+      </div>
+    </div>
+
     <div class="settings-section">
       <div class="settings-section-label">Notifications</div>
       <div class="settings-row">
@@ -1270,7 +1472,7 @@
         </div>
         <button class="toggle on" onclick="this.classList.toggle('on')"></button>
       </div>
-      <div class="settings-row">
+            <div class="settings-row">
         <div class="settings-row-left">
           <div class="settings-row-icon"><i data-lucide="shield" style="width:15px;height:15px;"></i></div>
           <div><div class="settings-row-label">Export control</div><div class="settings-row-meta">Confirm before sharing data</div></div>
@@ -1281,7 +1483,6 @@
 
     <div class="settings-section" style="margin-top:12px;">
       <div class="settings-section-label">Family &amp; care circle</div>
-
       <div class="contact-card">
         <div class="contact-avatar">SB</div>
         <div style="flex:1;">
@@ -1291,27 +1492,6 @@
         <span class="contact-role primary">Primary</span>
         <button class="contact-edit-btn" onclick="openContactEdit('Sarah Bell','Primary','sarah@email.com','(919) 555-0142','All alerts + weekly digest')"><i data-lucide="pencil" style="width:14px;height:14px;"></i></button>
       </div>
-
-      <div class="contact-card">
-        <div class="contact-avatar sage">MB</div>
-        <div style="flex:1;">
-          <div class="contact-name">Michael Bell</div>
-          <div class="contact-meta">michael@email.com · (919) 555-0198</div>
-        </div>
-        <span class="contact-role secondary">Secondary</span>
-        <button class="contact-edit-btn" onclick="openContactEdit('Michael Bell','Secondary','michael@email.com','(919) 555-0198','Weekly digest only')"><i data-lucide="pencil" style="width:14px;height:14px;"></i></button>
-      </div>
-
-      <div class="contact-card">
-        <div class="contact-avatar forest">LB</div>
-        <div style="flex:1;">
-          <div class="contact-name">Lisa Bell</div>
-          <div class="contact-meta">lisa@email.com · (919) 555-0167</div>
-        </div>
-        <span class="contact-role emergency">Emergency</span>
-        <button class="contact-edit-btn" onclick="openContactEdit('Lisa Bell','Emergency','lisa@email.com','(919) 555-0167','Critical alerts only')"><i data-lucide="pencil" style="width:14px;height:14px;"></i></button>
-      </div>
-
       <button class="add-contact-btn" onclick="openContactEdit(null)">
         <i data-lucide="user-plus" style="width:15px;height:15px;"></i>
         Add family member
@@ -1327,35 +1507,22 @@
         </div>
         <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
       </div>
-      <div class="settings-row">
-        <div class="settings-row-left">
-          <div class="settings-row-icon"><i data-lucide="building-2" style="width:15px;height:15px;"></i></div>
-          <div><div class="settings-row-label">Duke MyChart</div><div class="settings-row-meta">Connected · John Bell</div></div>
-        </div>
-        <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
-      </div>
     </div>
 
     <div class="settings-section" style="margin-top:12px;">
-      <div class="settings-section-label">Data</div>
-      <div class="settings-row">
-        <div class="settings-row-left">
-          <div class="settings-row-icon"><i data-lucide="download" style="width:15px;height:15px;"></i></div>
-          <div><div class="settings-row-label">Export all data</div><div class="settings-row-meta">Download as PDF or ZIP</div></div>
+      <div class="settings-section-label">Your plan</div>
+      <div style="background:var(--mint);border-radius:12px;padding:14px 16px;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+          <div class="settings-row-icon" style="width:26px;height:26px;background:var(--moss);color:white;border-radius:7px;"><i data-lucide="heart" style="width:13px;height:13px;"></i></div>
+          <div style="font-size:14px;font-weight:600;color:var(--moss-dark);">Free</div>
+          <div style="font-size:11px;color:var(--moss);background:white;padding:2px 8px;border-radius:10px;font-weight:500;">Current</div>
         </div>
-        <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
-      </div>
-      <div class="settings-row">
-        <div class="settings-row-left">
-          <div class="settings-row-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="trash-2" style="width:15px;height:15px;"></i></div>
-          <div><div class="settings-row-label" style="color:var(--red);">Clear all local data</div><div class="settings-row-meta">Removes everything from this device</div></div>
-        </div>
-        <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+        <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;">Fully functional. Everything a single caregiver needs to witness and remember.</div>
       </div>
     </div>
 
     <div style="padding:20px 20px 0;text-align:center;">
-      <p style="font-size:12px;color:var(--text-muted);line-height:1.6;">Wellet v1.0 · Local-first, private by design.<br>Your data never leaves your device.</p>
+      <p style="font-size:12px;color:var(--text-muted);line-height:1.6;">Wellet v1.0 · Private by design.<br>Your data is protected with row-level security.</p>
     </div>
   </div>
 </div>
@@ -1368,7 +1535,6 @@
       <button class="close-btn" onclick="closeSheet('contact-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
     <div class="qa-sheet-title" id="contact-sheet-title">Edit contact</div>
-
     <div style="padding:0 20px 16px;display:flex;flex-direction:column;gap:10px;">
       <div>
         <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Name</div>
@@ -1382,7 +1548,6 @@
         <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Phone (optional)</div>
         <input class="input-field" id="contact-phone-input" style="margin-top:0;" type="tel" placeholder="(000) 000-0000">
       </div>
-
       <div>
         <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:8px;">Role</div>
         <div style="display:flex;gap:8px;">
@@ -1391,30 +1556,7 @@
           <button class="upload-tag" id="role-emergency" onclick="selectRole('Emergency')">Emergency</button>
         </div>
       </div>
-
-      <div>
-        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:8px;">Notifications</div>
-        <div style="display:flex;flex-direction:column;gap:6px;">
-          <label style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--cream);border-radius:9px;font-size:13px;cursor:pointer;">
-            <span>All alerts + weekly digest</span>
-            <input type="radio" name="notif" id="notif-all" style="accent-color:var(--moss);" checked>
-          </label>
-          <label style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--cream);border-radius:9px;font-size:13px;cursor:pointer;">
-            <span>Weekly digest only</span>
-            <input type="radio" name="notif" id="notif-digest" style="accent-color:var(--moss);">
-          </label>
-          <label style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--cream);border-radius:9px;font-size:13px;cursor:pointer;">
-            <span>Critical alerts only</span>
-            <input type="radio" name="notif" id="notif-critical" style="accent-color:var(--moss);">
-          </label>
-          <label style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--cream);border-radius:9px;font-size:13px;cursor:pointer;">
-            <span>No notifications</span>
-            <input type="radio" name="notif" id="notif-none" style="accent-color:var(--moss);">
-          </label>
-        </div>
-      </div>
     </div>
-
     <div style="padding:0 20px;display:flex;flex-direction:column;gap:8px;">
       <button class="btn-primary" style="font-size:14px;padding:13px;" onclick="saveContact()">
         <i data-lucide="check" style="width:15px;height:15px;"></i>
@@ -1433,7 +1575,7 @@
   <div class="modal-sheet">
     <div class="modal-handle"></div>
     <div class="modal-title">Remove this person?</div>
-    <div class="modal-body">This will remove <span class="modal-name" id="modal-person-name"></span> and all their locally stored data from Wellet. This can't be undone.</div>
+    <div class="modal-body">This will remove <span class="modal-name" id="modal-person-name"></span> and all their data from Wellet. This can't be undone.</div>
     <button class="btn-danger" onclick="removePerson()">
       <i data-lucide="trash-2" style="width:16px;height:16px;"></i>
       Remove person
@@ -1442,13 +1584,801 @@
   </div>
 </div>
 
+<!-- ADD HEALTH EVENT MODAL -->
+<div class="qa-overlay" id="add-event-overlay">
+  <div class="qa-sheet">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" onclick="closeSheet('add-event-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title">Add health event</div>
+    <div class="qa-sheet-sub" id="add-event-person-label">Adding to your timeline</div>
+    <div style="padding:0 20px 16px;display:flex;flex-direction:column;gap:12px;">
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Type</div>
+        <select id="event-type-select" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;appearance:none;-webkit-appearance:none;">
+          <option value="appointment">Appointment</option>
+          <option value="medication">Medication change</option>
+          <option value="lab_result">Lab result</option>
+          <option value="note">Caregiver note</option>
+          <option value="pattern">Pattern noticed</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Date</div>
+        <input id="event-date-input" type="date" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Title</div>
+        <input id="event-title-input" type="text" placeholder="e.g. Primary care visit with Dr. Smith" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Notes (optional)</div>
+        <textarea id="event-notes-input" rows="3" placeholder="Any details worth remembering…" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;resize:none;line-height:1.5;"></textarea>
+      </div>
+    </div>
+    <div style="padding:0 20px 8px;">
+      <button class="btn-primary" style="font-size:14px;padding:13px;" onclick="submitHealthEvent()">
+        <i data-lucide="check" style="width:15px;height:15px;"></i>
+        Save event
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD MEDICATION MODAL -->
+<div class="qa-overlay" id="add-med-overlay">
+  <div class="qa-sheet">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" onclick="closeSheet('add-med-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title">Add medication</div>
+    <div class="qa-sheet-sub" id="add-med-person-label">Adding to records</div>
+    <div style="padding:0 20px 16px;display:flex;flex-direction:column;gap:12px;">
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Medication name</div>
+        <input id="med-name-input" type="text" placeholder="e.g. Lisinopril 20mg" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Dose</div>
+        <input id="med-dose-input" type="text" placeholder="e.g. 20mg" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Frequency</div>
+        <input id="med-freq-input" type="text" placeholder="e.g. Once daily" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Prescriber (optional)</div>
+        <input id="med-prescriber-input" type="text" placeholder="e.g. Dr. Johnson" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;">
+        <span style="font-size:14px;font-weight:500;">Active</span>
+        <button id="med-active-toggle" class="toggle on" onclick="this.classList.toggle('on')"></button>
+      </div>
+    </div>
+    <div style="padding:0 20px 8px;">
+      <button class="btn-primary" style="font-size:14px;padding:13px;" onclick="submitMedication()">
+        <i data-lucide="check" style="width:15px;height:15px;"></i>
+        Save medication
+      </button>
+    </div>
+  </div>
+</div>
+
 </div><!-- end page-wrap -->
 <script>
+// ── SUPABASE SETUP ──────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://nrpdhxygzyfmyljzfexv.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ── GLOBAL STATE ─────────────────────────────────────────────────────────────
+var isDemoMode = false;
+var currentUser = null;
+var currentPeople = [];   // [{id, name, relationship, avatar_initials}]
+var currentPersonId = null; // selected person uuid
+var liveEvents = [];      // health_events fetched from DB
+var liveMeds = [];        // medications fetched from DB
+var _cardToRemove = null;
+var _cardToRemoveId = null; // Supabase id if real person
+var _currentAskPerson = 'dad';
+
+// ── ICON INIT ────────────────────────────────────────────────────────────────
 function initIcons() { if (window.lucide) lucide.createIcons(); }
 window.addEventListener('load', initIcons);
 
-var _currentAskPerson = 'dad';
+// ── AUTH FLOW ────────────────────────────────────────────────────────────────
+async function initApp() {
+  const { data: { session } } = await db.auth.getSession();
+  if (session) {
+    currentUser = session.user;
+    await loadUserData();
+  } else {
+    showAuthScreen();
+  }
+  // Handle auth state changes (magic link callback)
+  db.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && session) {
+      currentUser = session.user;
+      await loadUserData();
+    } else if (event === 'SIGNED_OUT') {
+      currentUser = null;
+      showAuthScreen();
+    }
+  });
+}
 
+async function sendMagicLink() {
+  const email = document.getElementById('auth-email').value.trim();
+  if (!email) { showToast('Please enter your email'); return; }
+  var sentEmail = document.getElementById('auth-sent-email');
+  if (sentEmail) sentEmail.textContent = email;
+  const btn = document.getElementById('auth-send-btn');
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  const { error } = await db.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: window.location.href }
+  });
+  if (error) {
+    showToast('Error: ' + error.message);
+    btn.disabled = false;
+    btn.innerHTML = 'Send magic link <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>';
+    initIcons();
+  } else {
+    document.getElementById('auth-form-state').style.display = 'none';
+    document.getElementById('auth-sent-state').style.display = 'block';
+  }
+}
+
+async function handleLogout() {
+  await db.auth.signOut();
+  isDemoMode = false;
+  currentUser = null;
+  currentPeople = [];
+  currentPersonId = null;
+  liveEvents = [];
+  liveMeds = [];
+  closeSettings();
+  showAuthScreen();
+  showToast('Signed out');
+}
+
+// ── LOAD USER DATA ────────────────────────────────────────────────────────────
+async function loadUserData() {
+  const { data: people, error } = await db
+    .from('people')
+    .select('*')
+    .order('sort_order', { ascending: true });
+  if (error) { console.error('Error loading people:', error); }
+  currentPeople = people || [];
+
+  if (currentPeople.length === 0) {
+    // New user — start onboarding
+    showOnboarding();
+  } else {
+    // Returning user — show app with real data
+    currentPersonId = currentPeople[0].id;
+    await loadPersonData(currentPersonId);
+    showAuthenticatedApp();
+  }
+}
+
+async function loadPersonData(personId) {
+  currentPersonId = personId;
+  // Load events
+  const { data: events } = await db
+    .from('health_events')
+    .select('*')
+    .eq('person_id', personId)
+    .order('event_date', { ascending: false });
+  liveEvents = events || [];
+
+  // Load meds
+  const { data: meds } = await db
+    .from('medications')
+    .select('*')
+    .eq('person_id', personId)
+    .order('created_at', { ascending: true });
+  liveMeds = meds || [];
+}
+
+// ── SHOW AUTHENTICATED APP ────────────────────────────────────────────────────
+function showAuthenticatedApp() {
+  isDemoMode = false;
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('landing').style.display = 'none';
+  document.getElementById('onboarding').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  window.scrollTo(0, 0);
+
+  renderPersonSwitcher();
+  renderUpdateMe();
+  renderTimeline();
+  renderPeopleView();
+  renderRecordsView();
+  updateSettingsAccount();
+  initIcons();
+}
+
+// ── PERSON SWITCHER ───────────────────────────────────────────────────────────
+function renderPersonSwitcher() {
+  var switcher = document.getElementById('header-person-switcher');
+  if (!switcher) return;
+  var html = '';
+  currentPeople.forEach(function(p, i) {
+    var active = p.id === currentPersonId ? ' active' : '';
+    html += '<button class="person-pill' + active + '" onclick="switchToRealPerson('' + p.id + '',this)">'
+      + '<span class="pip"></span>' + escHtml(p.name.split(' ')[0]) + '</button>';
+  });
+  switcher.innerHTML = html;
+}
+
+async function switchToRealPerson(personId, el) {
+  document.querySelectorAll('.person-pill').forEach(function(p){ p.classList.remove('active'); });
+  el.classList.add('active');
+  await loadPersonData(personId);
+  renderUpdateMe();
+  renderTimeline();
+  initIcons();
+}
+
+// ── RENDER UPDATE ME ──────────────────────────────────────────────────────────
+function renderUpdateMe() {
+  var pane = document.getElementById('tab-update');
+  if (!pane) return;
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var name = person ? person.name.split(' ')[0] : 'your loved one';
+  var recentEvents = liveEvents.slice(0, 3);
+
+  var timelineHTML = '';
+  if (recentEvents.length === 0) {
+    timelineHTML = '<div style="text-align:center;padding:24px 16px;color:var(--text-muted);font-size:13px;font-style:italic;">Your timeline will appear here as you add things.</div>';
+  } else {
+    recentEvents.forEach(function(ev, i) {
+      var isLast = i === recentEvents.length - 1;
+      var typeInfo = getEventTypeInfo(ev.event_type);
+      var dateStr = formatEventDate(ev.event_date);
+      timelineHTML += '<div class="tl-item">'
+        + '<div class="tl-line-col"><div class="tl-dot ' + typeInfo.dot + '"></div>' + (isLast ? '' : '<div class="tl-connector"></div>') + '</div>'
+        + '<div class="tl-card ' + typeInfo.border + '">'
+        + '<div class="tl-card-type-row"><i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + typeInfo.color + ';"></i>'
+        + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span></div>'
+        + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
+        + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
+        + '<div class="tl-card-date">' + dateStr + '</div>'
+        + '</div></div>';
+    });
+  }
+
+  pane.innerHTML = '<div class="update-me-section">'
+    + '<div class="update-card">'
+    + '<div class="update-label">What's going on with ' + escHtml(name) + ' right now</div>'
+    + (liveEvents.length === 0
+      ? '<p class="update-text" style="color:var(--text-muted);font-style:italic;">Nothing here yet — and that's exactly right. As you add appointments, medications, notes, and documents, this summary will build itself.</p>'
+      : '<p class="update-text">' + escHtml(name) + ' has <strong>' + liveEvents.length + ' health event' + (liveEvents.length !== 1 ? 's' : '') + '</strong> logged. '
+        + (liveMeds.filter(function(m){ return m.active; }).length > 0 ? 'Currently on <strong>' + liveMeds.filter(function(m){ return m.active; }).length + ' active medication' + (liveMeds.filter(function(m){ return m.active; }).length !== 1 ? 's' : '') + '</strong>.' : '') + '</p>')
+    + '<div class="update-meta">' + liveEvents.length + ' health event' + (liveEvents.length !== 1 ? 's' : '') + ' logged</div>'
+    + '</div></div>'
+    + '<div class="quick-actions">'
+    + '<button class="qa-btn" onclick="openAddEvent()"><span class="qa-icon"><i data-lucide="plus-circle" style="width:18px;height:18px;"></i></span>Add event</button>'
+    + '<button class="qa-btn" onclick="openEmergencySummary()"><span class="qa-icon"><i data-lucide="file-heart" style="width:18px;height:18px;"></i></span>Emergency summary</button>'
+    + '<button class="qa-btn" onclick="openShareFamily()"><span class="qa-icon"><i data-lucide="share-2" style="width:18px;height:18px;"></i></span>Share with family</button>'
+    + '</div>'
+    + '<div class="timeline-section" style="margin-top:16px;">'
+    + '<p class="section-label">Recent activity</p>'
+    + timelineHTML
+    + '</div>';
+  initIcons();
+}
+
+// ── RENDER TIMELINE ───────────────────────────────────────────────────────────
+function renderTimeline() {
+  var pane = document.getElementById('tab-timeline');
+  if (!pane) return;
+
+  // Add event button + FAB
+  var addBtn = '<div style="padding:16px 20px 4px;display:flex;justify-content:flex-end;">'
+    + '<button class="btn-primary" style="width:auto;padding:10px 16px;font-size:13px;gap:6px;" onclick="openAddEvent()">'
+    + '<i data-lucide="plus" style="width:14px;height:14px;"></i> Add event</button></div>';
+
+  if (liveEvents.length === 0) {
+    pane.innerHTML = addBtn + '<div class="timeline-section">'
+      + '<div style="text-align:center;padding:48px 24px;">'
+      + '<div style="font-size:32px;margin-bottom:12px;opacity:0.3;"><i data-lucide="calendar" style="width:32px;height:32px;"></i></div>'
+      + '<div style="font-size:14px;color:var(--text-muted);line-height:1.6;">Appointments, medications, lab results, and your own notes — they'll all show up here in order as you add them.</div>'
+      + '</div></div>';
+    initIcons();
+    return;
+  }
+
+  // Group by month
+  var months = {};
+  liveEvents.forEach(function(ev) {
+    var d = new Date(ev.event_date);
+    var key = d.getFullYear() + '-' + String(d.getMonth()).padStart(2,'0');
+    var label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    if (!months[key]) months[key] = { label: label, events: [] };
+    months[key].events.push(ev);
+  });
+
+  var html = addBtn + '<div class="timeline-section">';
+  Object.keys(months).sort().reverse().forEach(function(k) {
+    html += '<div class="tl-month">' + months[k].label + '</div>';
+    months[k].events.forEach(function(ev, i) {
+      var isLast = i === months[k].events.length - 1;
+      var typeInfo = getEventTypeInfo(ev.event_type);
+      var dateStr = formatEventDate(ev.event_date);
+      html += '<div class="tl-item">'
+        + '<div class="tl-line-col"><div class="tl-dot ' + typeInfo.dot + '"></div>' + (isLast ? '' : '<div class="tl-connector"></div>') + '</div>'
+        + '<div class="tl-card ' + typeInfo.border + '">'
+        + '<div class="tl-card-type-row"><i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + typeInfo.color + ';"></i>'
+        + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span></div>'
+        + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
+        + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
+        + '<div class="tl-card-date">' + dateStr + '</div>'
+        + '</div></div>';
+    });
+  });
+  html += '</div>';
+  pane.innerHTML = html;
+  initIcons();
+}
+
+// ── RENDER PEOPLE VIEW ────────────────────────────────────────────────────────
+function renderPeopleView() {
+  var view = document.getElementById('view-people');
+  if (!view) return;
+
+  var html = '<div class="view-header"><div class="view-title">People</div>'
+    + '<div class="view-subtitle">Everyone you're caring for</div></div>'
+    + '<div class="people-section">';
+
+  currentPeople.forEach(function(p) {
+    var initials = p.avatar_initials || p.name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2);
+    var evCount = 0; // could count per person if needed
+    html += '<div class="person-card" id="pcard-' + p.id + '">'
+      + '<div class="person-card-top">'
+      + '<div class="person-card-avatar moss">' + escHtml(initials) + '</div>'
+      + '<div><div class="person-card-name">' + escHtml(p.name) + '</div>'
+      + '<div class="person-card-rel">' + escHtml(p.relationship || '') + '</div></div>'
+      + '<div class="person-card-status stable"><i data-lucide="check-circle" style="width:13px;height:13px;"></i> Active</div>'
+      + '<button class="remove-btn" onclick="confirmRemovePerson('' + p.id + '','' + p.name.replace(/'/g,"\'") + '')" title="Remove person">'
+      + '<i data-lucide="x" style="width:16px;height:16px;"></i></button>'
+      + '</div>'
+      + '<div class="person-card-action">'
+      + '<button class="card-action-btn" onclick="switchToRealPersonNav('' + p.id + '')">Update Me</button>'
+      + '<button class="card-action-btn" onclick="openAddEvent('' + p.id + '')">Add event</button>'
+      + '<button class="card-action-btn" onclick="openUpload('' + p.name + '')">Add document</button>'
+      + '</div></div>';
+  });
+
+  html += '<button class="add-person-btn" onclick="showOnboarding()">'
+    + '<i data-lucide="plus" style="width:16px;height:16px;"></i>'
+    + ' Add another person</button>'
+    + '</div>';
+
+  view.innerHTML = html;
+  initIcons();
+}
+
+async function switchToRealPersonNav(personId) {
+  await loadPersonData(personId);
+  renderPersonSwitcher();
+  renderUpdateMe();
+  renderTimeline();
+  switchNavTo('home');
+}
+
+function confirmRemovePerson(personId, personName) {
+  _cardToRemoveId = personId;
+  document.getElementById('modal-person-name').textContent = personName;
+  document.getElementById('remove-modal').classList.add('show');
+  initIcons();
+}
+
+async function removePerson() {
+  if (_cardToRemoveId) {
+    // Demo mode just removes from DOM
+    var card = document.getElementById('pcard-' + _cardToRemoveId);
+    if (card) {
+      card.style.transition = 'opacity 0.2s, transform 0.2s';
+      card.style.opacity = '0';
+      card.style.transform = 'scale(0.97)';
+      setTimeout(function() { if (card) card.remove(); }, 200);
+    }
+    // Remove from Supabase
+    if (!isDemoMode) {
+      await db.from('people').delete().eq('id', _cardToRemoveId);
+      currentPeople = currentPeople.filter(function(p){ return p.id !== _cardToRemoveId; });
+      if (currentPersonId === _cardToRemoveId && currentPeople.length > 0) {
+        currentPersonId = currentPeople[0].id;
+        await loadPersonData(currentPersonId);
+        renderPersonSwitcher();
+        renderUpdateMe();
+        renderTimeline();
+      }
+    }
+    _cardToRemoveId = null;
+  } else if (_cardToRemove) {
+    _cardToRemove.style.transition = 'opacity 0.2s, transform 0.2s';
+    _cardToRemove.style.opacity = '0';
+    _cardToRemove.style.transform = 'scale(0.97)';
+    setTimeout(function() { if (_cardToRemove) { _cardToRemove.remove(); _cardToRemove = null; } }, 200);
+  }
+  closeModal();
+}
+
+// ── RENDER RECORDS VIEW ───────────────────────────────────────────────────────
+function renderRecordsView() {
+  var view = document.getElementById('view-records');
+  if (!view) return;
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var name = person ? person.name.split(' ')[0] : 'Person';
+  var activeMeds = liveMeds.filter(function(m){ return m.active; });
+
+  var html = '<div class="view-header"><div class="view-title">Records</div>'
+    + '<div style="display:flex;gap:8px;margin-top:10px;">';
+  currentPeople.forEach(function(p, i) {
+    var active = p.id === currentPersonId ? ' active' : '';
+    html += '<button class="person-pill' + active + '" onclick="switchRecordsToRealPerson('' + p.id + '',this)">'
+      + '<span class="pip"></span>' + escHtml(p.name.split(' ')[0]) + '</button>';
+  });
+  html += '</div></div>';
+
+  // Medications section
+  html += '<div class="records-section">'
+    + '<div class="record-group">'
+    + '<div class="record-group-header">'
+    + '<div class="record-group-title"><i data-lucide="pill" style="width:14px;height:14px;color:var(--amber);"></i>Medications</div>'
+    + '<span class="record-group-count">' + activeMeds.length + ' active</span>'
+    + '</div>';
+
+  if (activeMeds.length === 0) {
+    html += '<div style="text-align:center;padding:24px 16px;color:var(--text-muted);font-size:13px;font-style:italic;">No medications added yet.</div>';
+  } else {
+    activeMeds.forEach(function(med) {
+      html += '<div class="record-row">'
+        + '<div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>'
+        + '<div style="flex:1;"><div class="record-label">' + escHtml(med.name) + (med.dose ? ' ' + escHtml(med.dose) : '') + '</div>'
+        + '<div class="record-meta">' + (med.frequency ? escHtml(med.frequency) : '') + (med.prescriber ? ' · ' + escHtml(med.prescriber) : '') + '</div></div>'
+        + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>'
+        + '</div>';
+    });
+  }
+
+  html += '<button class="add-person-btn" style="border-style:dashed;margin:12px 0 4px;" onclick="openAddMed()">'
+    + '<i data-lucide="plus" style="width:15px;height:15px;"></i> Add medication</button>'
+    + '</div>';
+
+  // Events by type
+  var labEvents = liveEvents.filter(function(e){ return e.event_type === 'lab_result'; });
+  var noteEvents = liveEvents.filter(function(e){ return e.event_type === 'note'; });
+  var apptEvents = liveEvents.filter(function(e){ return e.event_type === 'appointment'; });
+
+  if (apptEvents.length > 0) {
+    html += '<div class="record-group"><div class="record-group-header">'
+      + '<div class="record-group-title"><i data-lucide="calendar-check" style="width:14px;height:14px;color:var(--moss);"></i>Appointments</div>'
+      + '<span class="record-group-count">' + apptEvents.length + ' logged</span></div>';
+    apptEvents.slice(0,3).forEach(function(ev) {
+      html += '<div class="record-row"><div class="record-icon moss"><i data-lucide="calendar-check" style="width:15px;height:15px;"></i></div>'
+        + '<div style="flex:1;"><div class="record-label">' + escHtml(ev.title) + '</div>'
+        + '<div class="record-meta">' + formatEventDate(ev.event_date) + '</div></div>'
+        + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i></div>';
+    });
+    html += '</div>';
+  }
+
+  if (labEvents.length > 0) {
+    html += '<div class="record-group"><div class="record-group-header">'
+      + '<div class="record-group-title"><i data-lucide="flask-conical" style="width:14px;height:14px;color:var(--blue);"></i>Lab results</div>'
+      + '<span class="record-group-count">' + labEvents.length + ' logged</span></div>';
+    labEvents.slice(0,3).forEach(function(ev) {
+      html += '<div class="record-row"><div class="record-icon blue"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>'
+        + '<div style="flex:1;"><div class="record-label">' + escHtml(ev.title) + '</div>'
+        + '<div class="record-meta">' + formatEventDate(ev.event_date) + '</div></div>'
+        + '<span class="record-badge moss">Logged</span></div>';
+    });
+    html += '</div>';
+  }
+
+  if (noteEvents.length > 0) {
+    html += '<div class="record-group"><div class="record-group-header">'
+      + '<div class="record-group-title"><i data-lucide="pencil-line" style="width:14px;height:14px;color:var(--text-muted);"></i>Caregiver notes</div>'
+      + '<span class="record-group-count">' + noteEvents.length + ' notes</span></div>';
+    noteEvents.slice(0,3).forEach(function(ev) {
+      html += '<div class="record-row"><div class="record-icon muted"><i data-lucide="pencil-line" style="width:15px;height:15px;"></i></div>'
+        + '<div style="flex:1;"><div class="record-label">' + escHtml(ev.title) + '</div>'
+        + '<div class="record-meta">' + formatEventDate(ev.event_date) + ' · you</div></div>'
+        + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i></div>';
+    });
+    html += '</div>';
+  }
+
+  html += '</div>';
+  view.innerHTML = html;
+  initIcons();
+}
+
+async function switchRecordsToRealPerson(personId, el) {
+  document.querySelectorAll('#view-records .person-pill').forEach(function(p){ p.classList.remove('active'); });
+  el.classList.add('active');
+  await loadPersonData(personId);
+  renderRecordsView();
+}
+
+// ── ADD HEALTH EVENT ──────────────────────────────────────────────────────────
+function openAddEvent(personId) {
+  var pid = personId || currentPersonId;
+  var person = currentPeople.find(function(p){ return p.id === pid; });
+  document.getElementById('add-event-person-label').textContent = 'Adding to ' + (person ? person.name + ''s' : 'your') + ' timeline';
+  // Set today's date as default
+  var today = new Date().toISOString().split('T')[0];
+  document.getElementById('event-date-input').value = today;
+  document.getElementById('event-title-input').value = '';
+  document.getElementById('event-notes-input').value = '';
+  document.getElementById('event-type-select').value = 'appointment';
+  // Store personId for submission
+  document.getElementById('add-event-overlay').dataset.personId = pid;
+  document.getElementById('add-event-overlay').classList.add('show');
+  initIcons();
+}
+
+async function submitHealthEvent() {
+  var overlay = document.getElementById('add-event-overlay');
+  var personId = overlay.dataset.personId || currentPersonId;
+  var type = document.getElementById('event-type-select').value;
+  var date = document.getElementById('event-date-input').value;
+  var title = document.getElementById('event-title-input').value.trim();
+  var notes = document.getElementById('event-notes-input').value.trim();
+
+  if (!title) { showToast('Please enter a title'); return; }
+  if (!date) { showToast('Please select a date'); return; }
+
+  var btn = overlay.querySelector('.btn-primary');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  const { data, error } = await db.from('health_events').insert({
+    person_id: personId,
+    event_type: type,
+    event_date: date + 'T00:00:00Z',
+    title: title,
+    notes: notes || null,
+    source: 'manual'
+  }).select().single();
+
+  btn.disabled = false;
+  btn.innerHTML = '<i data-lucide="check" style="width:15px;height:15px;"></i> Save event';
+  initIcons();
+
+  if (error) {
+    showToast('Error saving: ' + error.message);
+    return;
+  }
+
+  closeSheet('add-event-overlay');
+  showToast('Event saved to timeline');
+
+  // Reload data and re-render
+  await loadPersonData(personId);
+  renderUpdateMe();
+  renderTimeline();
+  renderRecordsView();
+}
+
+// ── ADD MEDICATION ────────────────────────────────────────────────────────────
+function openAddMed() {
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  document.getElementById('add-med-person-label').textContent = 'Adding to ' + (person ? person.name + ''s' : 'your') + ' records';
+  document.getElementById('med-name-input').value = '';
+  document.getElementById('med-dose-input').value = '';
+  document.getElementById('med-freq-input').value = '';
+  document.getElementById('med-prescriber-input').value = '';
+  var toggle = document.getElementById('med-active-toggle');
+  if (toggle) toggle.classList.add('on');
+  document.getElementById('add-med-overlay').classList.add('show');
+  initIcons();
+}
+
+async function submitMedication() {
+  var name = document.getElementById('med-name-input').value.trim();
+  var dose = document.getElementById('med-dose-input').value.trim();
+  var freq = document.getElementById('med-freq-input').value.trim();
+  var prescriber = document.getElementById('med-prescriber-input').value.trim();
+  var activeToggle = document.getElementById('med-active-toggle');
+  var active = activeToggle ? activeToggle.classList.contains('on') : true;
+
+  if (!name) { showToast('Please enter a medication name'); return; }
+
+  var btn = document.querySelector('#add-med-overlay .btn-primary');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  const { data, error } = await db.from('medications').insert({
+    person_id: currentPersonId,
+    name: name,
+    dose: dose || null,
+    frequency: freq || null,
+    prescriber: prescriber || null,
+    active: active,
+    source: 'manual'
+  }).select().single();
+
+  btn.disabled = false;
+  btn.innerHTML = '<i data-lucide="check" style="width:15px;height:15px;"></i> Save medication';
+  initIcons();
+
+  if (error) {
+    showToast('Error saving: ' + error.message);
+    return;
+  }
+
+  closeSheet('add-med-overlay');
+  showToast('Medication saved to records');
+
+  await loadPersonData(currentPersonId);
+  renderRecordsView();
+  renderUpdateMe();
+}
+
+// ── SAVE PERSON AFTER ONBOARDING ──────────────────────────────────────────────
+async function savePersonToSupabase() {
+  if (!currentUser) return null;
+  var name = obState.personName || 'My loved one';
+  var relationship = obState.situation || null;
+  var initials = name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2);
+  if (initials.length < 2) initials = name.slice(0,2).toUpperCase();
+
+  const { data, error } = await db.from('people').insert({
+    user_id: currentUser.id,
+    name: name,
+    relationship: relationship,
+    avatar_initials: initials,
+    sort_order: currentPeople.length
+  }).select().single();
+
+  if (error) { console.error('Error saving person:', error); return null; }
+  currentPeople.push(data);
+  currentPersonId = data.id;
+  return data;
+}
+
+// ── SETTINGS ACCOUNT ──────────────────────────────────────────────────────────
+function updateSettingsAccount() {
+  var section = document.getElementById('settings-account-section');
+  if (!section) return;
+  if (currentUser && !isDemoMode) {
+    section.style.display = 'block';
+    var emailEl = document.getElementById('settings-user-email');
+    if (emailEl) emailEl.textContent = currentUser.email || 'Signed in';
+  } else {
+    section.style.display = 'none';
+  }
+}
+
+// ── SCREEN TRANSITIONS ────────────────────────────────────────────────────────
+function showAuthScreen() {
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('landing').style.display = 'none';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('onboarding').style.display = 'none';
+  window.scrollTo(0, 0);
+  initIcons();
+}
+
+function enterDemoMode() {
+  // Called from auth screen - goes straight to demo
+  showApp();
+  switchNavTo('home');
+  document.querySelectorAll('.tab')[0].click();
+}
+
+function showApp() {
+  // Demo mode
+  isDemoMode = true;
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('landing').style.display = 'none';
+  document.getElementById('onboarding').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  // Restore demo HTML if it was replaced
+  restoreDemoHTML();
+  window.scrollTo(0, 0);
+  initIcons();
+}
+
+function showLanding() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('landing').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('onboarding').style.display = 'none';
+  window.scrollTo(0, 0); initIcons();
+}
+
+function showOnboarding() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('landing').style.display = 'none';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('onboarding').style.display = 'flex';
+  window.scrollTo(0, 0);
+  obInit();
+  initIcons();
+}
+
+// ── DEMO HTML SNAPSHOTS ───────────────────────────────────────────────────────
+var _demoHTMLSaved = false;
+var _demoUpdateHTML = '';
+var _demoTimelineHTML = '';
+var _demoPatternsHTML = '';
+var _demoPeopleHTML = '';
+var _demoRecordsHTML = '';
+var _demoSwitcherHTML = '';
+
+function saveDemoHTML() {
+  if (_demoHTMLSaved) return;
+  var u = document.getElementById('tab-update');
+  var tl = document.getElementById('tab-timeline');
+  var pt = document.getElementById('tab-patterns');
+  var pv = document.getElementById('view-people');
+  var rv = document.getElementById('view-records');
+  var sw = document.getElementById('header-person-switcher');
+  if (u) _demoUpdateHTML = u.innerHTML;
+  if (tl) _demoTimelineHTML = tl.innerHTML;
+  if (pt) _demoPatternsHTML = pt.innerHTML;
+  if (pv) _demoPeopleHTML = pv.innerHTML;
+  if (rv) _demoRecordsHTML = rv.innerHTML;
+  if (sw) _demoSwitcherHTML = sw.innerHTML;
+  _demoHTMLSaved = true;
+}
+
+function restoreDemoHTML() {
+  if (!_demoHTMLSaved) return;
+  var u = document.getElementById('tab-update');
+  var tl = document.getElementById('tab-timeline');
+  var pt = document.getElementById('tab-patterns');
+  var pv = document.getElementById('view-people');
+  var rv = document.getElementById('view-records');
+  var sw = document.getElementById('header-person-switcher');
+  if (u) u.innerHTML = _demoUpdateHTML;
+  if (tl) tl.innerHTML = _demoTimelineHTML;
+  if (pt) pt.innerHTML = _demoPatternsHTML;
+  if (pv) pv.innerHTML = _demoPeopleHTML;
+  if (rv) rv.innerHTML = _demoRecordsHTML;
+  if (sw) sw.innerHTML = _demoSwitcherHTML;
+  initIcons();
+}
+
+window.addEventListener('load', function() {
+  saveDemoHTML();
+  initApp();
+});
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function getEventTypeInfo(type) {
+  var map = {
+    appointment: { dot:'appt', border:'moss-border', icon:'calendar-check', color:'var(--moss)', label:'Appointment' },
+    medication:  { dot:'med',  border:'amber-border', icon:'pill', color:'var(--amber)', label:'Medication' },
+    lab_result:  { dot:'lab',  border:'blue-border', icon:'flask-conical', color:'var(--blue)', label:'Lab result' },
+    note:        { dot:'note', border:'', icon:'pencil-line', color:'var(--text-muted)', label:'Note' },
+    pattern:     { dot:'alert', border:'red-border', icon:'activity', color:'var(--red)', label:'Pattern noticed' }
+  };
+  return map[type] || map['note'];
+}
+
+function formatEventDate(dateStr) {
+  if (!dateStr) return '';
+  var d = new Date(dateStr);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function escHtml(t) {
+  if (!t) return '';
+  return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── EXISTING UI FUNCTIONS (preserved) ────────────────────────────────────────
 var _responses = {
   dad: {
     'What\'s his current BP trend?': 'Dad\'s blood pressure has been <strong>running higher than usual this week</strong> — averaging 142/89. This started around June 18, the same day his Hydrochlorothiazide dose was increased. BP medications can take 2–4 weeks to show full effect, so this may still be adjusting. Dr. Johnson is aware and reviewing at the July 16 visit.',
@@ -1459,29 +2389,26 @@ var _responses = {
     default: 'Based on Dad\'s records, I can see he\'s managing several conditions — hypertension, CML, and others. His CML is improving and his next appointment is July 16. Is there something specific you\'d like to know?'
   },
   mom: {
-    'What\'s her current BP trend?': 'Mom\'s blood pressure has been <strong>stable</strong> — her last reading was 118/76, which is well within normal range. No changes to her BP medications recently.',
-    'When is her next appointment?': 'Mom\'s next appointment is <strong>August 4</strong>. I don\'t have the provider details yet — you can add them manually in her Records.',
+    'Is she stable?': 'Yes — Mom\'s conditions are <strong>stable</strong>. Hypercholesterolemia is well-controlled with Atorvastatin, and her hypothyroidism is managed with Levothyroxine. Her last TSH was 2.4 mIU/L — right in range.',
+    'When is her next appointment?': 'Mom\'s next appointment is <strong>August 4</strong>. Her lipid panel and TSH were both within normal range at the last check.',
     'What changed this month?': 'No significant changes noted for Mom this month. Her 2 active diagnoses remain stable and her medications are unchanged.',
-    'What meds is she taking?': 'Mom is on <strong>3 active medications</strong>. You can view the full list in her Records tab. No changes have been logged recently.',
-    'How is his CML doing?': 'That question looks like it\'s about Dad — switch to Dad above to ask about his CML. Mom\'s records don\'t include a CML diagnosis.',
+    'What meds is she taking?': 'Mom is on <strong>3 active medications</strong>: Atorvastatin 20mg (daily, cholesterol), Levothyroxine 50mcg (daily, thyroid), and Vitamin D3 2000IU (daily). No changes have been logged recently.',
     default: 'Mom\'s records show she\'s stable overall with 2 active diagnoses and 3 medications. Her next appointment is August 4. What would you like to know?'
   }
 };
 
 function selectAskPerson(el, person) {
   _currentAskPerson = person;
-  document.querySelectorAll('.ask-person-pill').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.ask-person-pill').forEach(function(p){ p.classList.remove('active'); });
   el.classList.add('active');
   var name = person === 'dad' ? 'Dad' : 'Mom';
   document.getElementById('ask-input').placeholder = 'Ask about ' + name + '\'s health…';
-  // Update suggestion chips for mom
   var chips = document.getElementById('suggestion-chips');
   if (person === 'mom') {
     chips.innerHTML = '<button class="chip" onclick="askQuestion(this.textContent)">Is she stable?</button><button class="chip" onclick="askQuestion(this.textContent)">When is her next appointment?</button><button class="chip" onclick="askQuestion(this.textContent)">What meds is she taking?</button><button class="chip" onclick="askQuestion(this.textContent)">What changed this month?</button>';
   } else {
     chips.innerHTML = '<button class="chip" onclick="askQuestion(this.textContent)">What\'s his current BP trend?</button><button class="chip" onclick="askQuestion(this.textContent)">When is his next appointment?</button><button class="chip" onclick="askQuestion(this.textContent)">What changed this month?</button><button class="chip" onclick="askQuestion(this.textContent)">What meds is he taking?</button><button class="chip" onclick="askQuestion(this.textContent)">How is his CML doing?</button>';
   }
-  // Add a wellet message acknowledging the switch
   addWelletMessage('Switched to ' + name + '. Ask me anything from ' + (person === 'dad' ? 'his' : 'her') + ' records.');
 }
 
@@ -1505,13 +2432,11 @@ function sendAskMessage() {
   if (!text) return;
   input.value = ''; input.style.height = 'auto';
   addUserMessage(text);
-  // hide chips after first real question
   document.getElementById('suggestion-chips').style.display = 'none';
-  // show typing then respond
   var typingId = showTyping();
   setTimeout(function() {
     removeTyping(typingId);
-    var responses = _responses[_currentAskPerson];
+    var responses = _responses[_currentAskPerson] || _responses['dad'];
     var reply = responses[text] || responses['default'];
     addWelletMessage(reply);
   }, 900 + Math.random() * 600);
@@ -1552,24 +2477,14 @@ function removeTyping(id) {
   if (el) el.remove();
 }
 
-function escHtml(t) {
-  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
 function confirmRemove(name, btn) {
   _cardToRemove = btn.closest('.person-card');
+  _cardToRemoveId = null;
   document.getElementById('modal-person-name').textContent = name;
   document.getElementById('remove-modal').classList.add('show');
   initIcons();
 }
-function removePerson() {
-  if (_cardToRemove) {
-    _cardToRemove.style.transition = 'opacity 0.2s, transform 0.2s';
-    _cardToRemove.style.opacity = '0';
-    _cardToRemove.style.transform = 'scale(0.97)';
-    setTimeout(function() { if (_cardToRemove) { _cardToRemove.remove(); _cardToRemove = null; } }, 200);
-  }
-  closeModal();
-}
+
 function closeModal() {
   document.getElementById('remove-modal').classList.remove('show');
 }
@@ -1590,7 +2505,7 @@ function closeSheet(id) {
   document.getElementById(id).classList.remove('show');
 }
 function setFormat(btn) {
-  btn.closest('.format-toggle').querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
+  btn.closest('.format-toggle').querySelectorAll('.format-btn').forEach(function(b){ b.classList.remove('active'); });
   btn.classList.add('active');
 }
 function showToast(msg) {
@@ -1623,15 +2538,13 @@ function simulateUpload(type) {
   document.getElementById('upload-file-name').textContent = name;
   document.getElementById('upload-step1').style.display = 'none';
   document.getElementById('upload-step2').style.display = 'block';
-  // reset tags
-  document.querySelectorAll('.upload-tag').forEach(t => t.classList.remove('selected'));
-  // auto-select a relevant tag
+  document.querySelectorAll('.upload-tag').forEach(function(t){ t.classList.remove('selected'); });
   var tagMap = {
     'Visit summary': 'Labs', 'Lab results': 'Labs',
     'Prescription': 'Medications', 'Imaging': 'Imaging'
   };
   if (tagMap[type]) {
-    document.querySelectorAll('.upload-tag').forEach(t => {
+    document.querySelectorAll('.upload-tag').forEach(function(t){
       if (t.textContent === tagMap[type]) t.classList.add('selected');
     });
   }
@@ -1641,16 +2554,14 @@ function backToUploadStep1() {
   document.getElementById('upload-step1').style.display = 'block';
   document.getElementById('upload-step2').style.display = 'none';
 }
-function toggleTag(el) {
-  el.classList.toggle('selected');
-}
+function toggleTag(el) { el.classList.toggle('selected'); }
 function confirmUpload() {
   closeUpload();
   showToast('Document saved to records');
 }
 
 function switchRecordsPerson(el, person) {
-  document.querySelectorAll('#view-records .person-pill').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('#view-records .person-pill').forEach(function(p){ p.classList.remove('active'); });
   el.classList.add('active');
   document.getElementById('records-dad').style.display = person === 'dad' ? 'block' : 'none';
   document.getElementById('records-mom').style.display = person === 'mom' ? 'block' : 'none';
@@ -1664,37 +2575,36 @@ function openContactEdit(name, role, email, phone, notif) {
   document.getElementById('contact-email-input').value = email || '';
   document.getElementById('contact-phone-input').value = phone || '';
   document.getElementById('contact-remove-btn').style.display = isNew ? 'none' : 'flex';
-  // set role
   ['Primary','Secondary','Emergency'].forEach(function(r) {
     var el = document.getElementById('role-' + r.toLowerCase());
     if (el) el.classList.toggle('selected', r === role);
   });
-  // set notif radio
-  var notifMap = {
-    'All alerts + weekly digest': 'notif-all',
-    'Weekly digest only': 'notif-digest',
-    'Critical alerts only': 'notif-critical',
-    'No notifications': 'notif-none'
-  };
-  var radioId = notifMap[notif] || 'notif-all';
-  var radio = document.getElementById(radioId);
-  if (radio) radio.checked = true;
   closeSettings();
   document.getElementById('contact-overlay').classList.add('show');
   initIcons();
 }
+
+function switchDemo(which, btn) {
+  document.querySelectorAll('.demo-tab').forEach(function(t){ t.classList.remove('active'); });
+  btn.classList.add('active');
+  document.getElementById('demo-dad').style.display = which === 'dad' ? 'block' : 'none';
+  document.getElementById('demo-vet').style.display = which === 'vet' ? 'block' : 'none';
+}
+
 function selectRole(role) {
   ['Primary','Secondary','Emergency'].forEach(function(r) {
     var el = document.getElementById('role-' + r.toLowerCase());
     if (el) el.classList.toggle('selected', r === role);
   });
 }
+
 function saveContact() {
   closeSheet('contact-overlay');
   showToast('Contact saved');
 }
 
 function openSettings() {
+  updateSettingsAccount();
   document.getElementById('settings-overlay').classList.add('show');
   initIcons();
 }
@@ -1702,54 +2612,437 @@ function closeSettings() {
   document.getElementById('settings-overlay').classList.remove('show');
 }
 
-function showApp() {
-  document.getElementById('landing').style.display='none';
-  document.getElementById('onboarding').style.display='none';
-  document.getElementById('app').style.display='flex';
-  window.scrollTo(0,0); initIcons();
-}
-function showOnboarding() {
-  document.getElementById('landing').style.display='none';
-  document.getElementById('app').style.display='none';
-  document.getElementById('onboarding').style.display='flex';
-  window.scrollTo(0,0); initIcons();
-}
-function switchTab(el,id) {
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+function switchTab(el, id) {
+  document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('.tab-pane').forEach(function(p){ p.classList.remove('active'); });
   el.classList.add('active');
   document.getElementById('tab-'+id).classList.add('active');
 }
+
 function switchNavTo(view) {
-  document.querySelectorAll('.app-view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.app-view').forEach(function(v){ v.classList.remove('active'); });
   document.getElementById('view-' + view).classList.add('active');
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const navMap = { home: 0, people: 1, records: 2, ask: 3 };
+  document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
+  var navMap = { home: 0, people: 1, records: 2, ask: 3 };
   document.querySelectorAll('.nav-item')[navMap[view]].classList.add('active');
-  const isHome = view === 'home';
+  var isHome = view === 'home';
   document.getElementById('header-person-switcher').style.display = isHome ? 'flex' : 'none';
   document.getElementById('header-tab-bar').style.display = isHome ? 'flex' : 'none';
   window.scrollTo(0, 0);
   initIcons();
 }
+
 function switchPerson(el) {
-  document.querySelectorAll('.person-pill').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.person-pill').forEach(function(p){ p.classList.remove('active'); });
   el.classList.add('active');
 }
-function handleName(val) {
-  const v=val.trim();
-  const conf=document.getElementById('name-confirm');
-  const num=document.getElementById('step2-num');
-  if(v.length>0){
-    conf.classList.add('show');
-    document.getElementById('name-out').textContent=v;
-    num.innerHTML='<i data-lucide="check" style="width:14px;height:14px;"></i>';
-    num.classList.add('done'); initIcons();
+
+// ── ONBOARDING CHAT ENGINE ─────────────────────────────────────────────────
+var obState = { step: 0, situation: null, userName: null, personName: null };
+
+var obSituations = [
+  { id:'parent',    icon:'heart', label:'A parent or family member with a health condition' },
+  { id:'diagnosis', icon:'stethoscope', label:'Someone who was just diagnosed with something serious' },
+  { id:'family',    icon:'users', label:'I\'m coordinating care across my family' },
+  { id:'self',      icon:'user', label:'I\'m managing my own health condition' },
+  { id:'menopause', icon:'moon', label:'I\'m navigating menopause' },
+  { id:'veteran',   icon:'shield', label:'I\'m caring for a veteran' },
+  { id:'endoflife', icon:'feather', label:'I\'m caring for someone at the end of their life' },
+  { id:'mentalhealth', icon:'brain', label:'I\'m caring for someone with a mental health condition' },
+  { id:'other',     icon:'message-circle', label:'Something else' },
+];
+
+var obFlows = {
+  parent:    {
+    q1: 'I\'m here to help. What\'s your name, and whose care are you managing?',
+    q2: function(n,p){ return 'Got it — '+n+', caring for '+p+'. What\'s going on with their health right now? You can share as much or as little as you know.'; },
+    q3: function(p){ return 'I\'ve noted that. Do you know what medications '+p+' is currently taking? Even just the ones you remember are helpful.'; },
+    confirm: function(n,p){ return 'That\'s enough to start — we can fill in the rest later. I\'ve got '+p+' set up for you, '+n+'.'; }
+  },
+  diagnosis: {
+    q1: 'I\'m here. What\'s your name, and who was diagnosed?',
+    q2: function(n,p){ return 'Got it — '+n+', and '+p+'. You don\'t have to have all the answers right now. What do you know about the diagnosis so far?'; },
+    q3: function(p){ return 'I\'ve noted that. Who is '+p+'\'s main doctor or care team right now?'; },
+    confirm: function(n,p){ return 'That\'s enough to start. I\'ve set up '+p+'\'s record, '+n+'. We can fill in more as things become clearer.'; }
+  },
+  family: {
+    q1: 'I can help with that. What\'s your name, and who are you coordinating care for?',
+    q2: function(n,p){ return 'Keeping everyone informed is exhausting. I\'ll help with that. What\'s going on with '+p+'\'s health right now?'; },
+    q3: function(p){ return 'I\'ve noted that. Who else is involved in '+p+'\'s care — other family members, doctors, anyone you\'re coordinating with?'; },
+    confirm: function(n,p){ return 'Got it. I\'ve set up '+p+'\'s record, '+n+', and noted the people involved. You\'re building a care network — that\'s a big deal.'; }
+  },
+  self: {
+    q1: 'You know your situation better than anyone. What\'s your name?',
+    q2: function(n){ return 'Hi '+n+'. What conditions are you managing, and who\'s on your care team?'; },
+    q3: function(n){ return 'I\'ve noted that. What\'s been hardest to communicate to your doctors — the things that don\'t always make it into the chart?'; },
+    confirm: function(n){ return 'That\'s exactly the kind of thing I\'m here to hold. Your Wellet is set up, '+n+'. I\'ll help you build the record your doctors don\'t have yet.'; }
+  },
+  menopause: {
+    q1: 'You\'ve probably been paying attention to this longer than anyone gave you credit for. What\'s your name?',
+    q2: function(n){ return 'Hi '+n+'. Where are you right now — perimenopause, menopause, or post-menopause?'; },
+    q3: function(n){ return 'Got it. Do you have a specialist, or are you working with your GP?'; },
+    confirm: function(n){ return 'I\'ll help you build the record. Your Wellet is set up, '+n+'. I\'m here whenever you need me.'; }
+  },
+  veteran: {
+    q1: 'I\'m here to help. What\'s your name, and who are you caring for?',
+    q2: function(n,p){ return 'Got it — '+n+', caring for '+p+'. Does '+p+' get care through the VA, through civilian providers, or both?'; },
+    q3: function(p){ return 'That\'s a lot to keep track of across two systems. I\'ll help you hold both. What are the main things going on with '+p+'\'s health right now?'; },
+    confirm: function(n,p){ return 'I\'ve got '+p+' set up across both systems, '+n+'. We can fill in more as you have it.'; }
+  },
+  endoflife: {
+    q1: 'I\'m here. What\'s your name, and who are you caring for?',
+    q2: function(n,p){ return 'I\'m glad you\'re here, '+n+'. What\'s going on with '+p+' right now — what does their care look like day to day?'; },
+    q3: function(p){ return 'I\'ve noted that. Who else is involved in '+p+'\'s care — hospice, palliative team, family members?'; },
+    confirm: function(n,p){ return 'I\'ve set up '+p+'\'s record, '+n+'. You don\'t have to carry all of this alone. I\'m here whenever you need me.'; }
+  },
+  mentalhealth: {
+    q1: 'I\'m here to help. What\'s your name, and who are you caring for?',
+    q2: function(n,p){ return 'Got it — '+n+', caring for '+p+'. What\'s going on with '+p+'\'s mental health right now? Share whatever feels right.'; },
+    q3: function(p){ return 'I\'ve noted that. Who is '+p+' working with — a therapist, psychiatrist, or another provider?'; },
+    confirm: function(n,p){ return 'I\'ve got '+p+' set up, '+n+'. This kind of care is hard to hold alone. I\'m here to help you keep it all together.'; }
+  },
+  other: {
+    q1: 'I\'m here. Tell me a bit about your situation — whatever feels right to share.',
+    q2: function(n){ return 'Got it, '+n+'. What\'s the most important thing for me to know right now?'; },
+    q3: function(n){ return 'I\'ve noted that. Is there someone specific whose care you\'re managing, or is this more about your own health?'; },
+    confirm: function(n){ return 'That\'s enough to start. Your Wellet is set up, '+n+'. I\'ll adapt as we go.'; }
+  }
+};
+
+function obInit() {
+  obState = { step: 0, situation: null, userName: null, personName: null };
+  var chat = document.getElementById('ob-chat-area');
+  chat.innerHTML = '';
+  chat.scrollTop = 0;
+  document.getElementById('ob-input').value = '';
+  document.getElementById('ob-input').disabled = true;
+  document.getElementById('ob-send-btn').disabled = true;
+  window.scrollTo(0, 0);
+  document.getElementById('onboarding').scrollTop = 0;
+  setTimeout(function() { obTypeThen("Hi. I\'m going to ask you a few things so I can set up your Wellet around your situation. You can tell me as much or as little as you want — we can always add more later.", obShowSituationChips, 900); }, 400);
+}
+
+function obTypeThen(text, callback, delay) {
+  var chat = document.getElementById('ob-chat-area');
+  var typingGroup = document.createElement('div');
+  typingGroup.className = 'ob-msg-group from-wellet';
+  typingGroup.innerHTML = '<div class="ob-sender">Wellet</div><div class="ob-typing"><span class="ob-dot"></span><span class="ob-dot"></span><span class="ob-dot"></span></div>';
+  chat.appendChild(typingGroup);
+  obScroll();
+  setTimeout(function() {
+    chat.removeChild(typingGroup);
+    obAddBubble('wellet', text);
+    if (callback) setTimeout(callback, 120);
+  }, delay || 700);
+}
+
+function obAddBubble(from, html, isHTML) {
+  var chat = document.getElementById('ob-chat-area');
+  var group = document.createElement('div');
+  group.className = 'ob-msg-group from-' + from;
+  var sender = from === 'wellet' ? '<div class="ob-sender">Wellet</div>' : '';
+  var content = isHTML ? html : html.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  group.innerHTML = sender + '<div class="ob-bubble ' + from + '">' + content + '</div>';
+  chat.appendChild(group);
+  obScroll();
+}
+
+function obShowSituationChips() {
+  var chat = document.getElementById('ob-chat-area');
+  var group = document.createElement('div');
+  group.className = 'ob-msg-group from-wellet';
+  group.id = 'ob-situation-group';
+  var chipsHTML = '<div class="ob-sender">Wellet</div><div class="ob-bubble wellet">Who are you here for?</div><div class="ob-chips" id="ob-situation-chips">';
+  obSituations.forEach(function(s) {
+    chipsHTML += '<button class="ob-chip" onclick="obSelectSituation(\'' + s.id + '\',this)"><i data-lucide="' + s.icon + '" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:4px;"></i>' + s.label + '</button>';
+  });
+  chipsHTML += '</div>';
+  group.innerHTML = chipsHTML;
+  chat.appendChild(group);
+  initIcons();
+  setTimeout(function(){ chat.scrollTop = 0; }, 60);
+}
+
+function obSelectSituation(id, btn) {
+  document.querySelectorAll('#ob-situation-chips .ob-chip').forEach(function(c){ c.disabled = true; c.classList.add('used'); });
+  btn.classList.remove('used'); btn.style.opacity='1'; btn.style.borderColor='var(--moss)'; btn.style.background='var(--mint)'; btn.style.color='var(--moss)';
+  var label = btn.textContent.trim();
+  setTimeout(function(){ obAddBubble('user', label); }, 150);
+  obState.situation = id;
+  obState.step = 1;
+  var flow = obFlows[id];
+  setTimeout(function(){ obTypeThen(flow.q1, function(){
+    document.getElementById('ob-input').disabled = false;
+    document.getElementById('ob-send-btn').disabled = false;
+    document.getElementById('ob-input').focus();
+  }, 800); }, 400);
+}
+
+function obSend() {
+  var input = document.getElementById('ob-input');
+  var val = input.value.trim();
+  if (!val) return;
+  input.value = '';
+  input.style.height = 'auto';
+  obAddBubble('user', val);
+  input.disabled = true;
+  document.getElementById('ob-send-btn').disabled = true;
+  var flow = obFlows[obState.situation];
+  var step = obState.step;
+
+  if (step === 1) {
+    var parts = val.split(/[\s,]+/);
+    obState.userName = parts[0] || 'you';
+    var selfModes = ['self','menopause','other'];
+    if (selfModes.indexOf(obState.situation) > -1) {
+      obState.personName = obState.userName;
+      obState.step = 2;
+      obTypeThen(flow.q2(obState.userName), function(){
+        document.getElementById('ob-input').disabled = false;
+        document.getElementById('ob-send-btn').disabled = false;
+        document.getElementById('ob-input').focus();
+      }, 850);
+    } else {
+      var personMatch = val.match(/(?:for|caring for|my|his|her|their)\s+([A-Z][a-z]+)/);
+      if (personMatch) { obState.personName = personMatch[1]; }
+      else if (parts.length >= 2) { obState.personName = parts[parts.length-1]; }
+      else { obState.personName = 'them'; }
+      obState.step = 2;
+      obTypeThen(flow.q2(obState.userName, obState.personName), function(){
+        document.getElementById('ob-input').disabled = false;
+        document.getElementById('ob-send-btn').disabled = false;
+        document.getElementById('ob-input').focus();
+      }, 850);
+    }
+  } else if (step === 2) {
+    obState.step = 3;
+    var q3 = obFlows[obState.situation].q3;
+    var selfModes2 = ['self','menopause','other'];
+    var msg = (selfModes2.indexOf(obState.situation) > -1) ? q3(obState.userName) : q3(obState.personName);
+    obTypeThen(msg, function(){
+      document.getElementById('ob-input').disabled = false;
+      document.getElementById('ob-send-btn').disabled = false;
+      document.getElementById('ob-input').focus();
+    }, 850);
+  } else if (step === 3) {
+    obState.step = 4;
+    var selfModes3 = ['self','menopause','other'];
+    var confirm = (selfModes3.indexOf(obState.situation) > -1)
+      ? obFlows[obState.situation].confirm(obState.userName)
+      : obFlows[obState.situation].confirm(obState.userName, obState.personName);
+    obTypeThen(confirm, function(){
+      setTimeout(obShowTourOffer, 300);
+    }, 900);
   } else {
-    conf.classList.remove('show');
-    num.textContent='2'; num.classList.remove('done');
+    obTypeThen("Got it. Your Wellet is ready — and I\'m here whenever you need me.", null, 600);
   }
 }
+
+function obShowTourOffer() {
+  var chat = document.getElementById('ob-chat-area');
+  var group = document.createElement('div');
+  group.className = 'ob-msg-group from-wellet';
+  var personLabel = obState.personName && obState.personName !== obState.userName ? obState.personName + '\'s Wellet' : 'your Wellet';
+  group.innerHTML = '<div class="ob-sender">Wellet</div>'
+    + '<div class="ob-bubble wellet">I\'ve set up ' + personLabel + ' with everything you\'ve shared. Would you like me to show you around?</div>'
+    + '<div class="ob-chips" style="margin-top:6px;">'
+    + '<button class="ob-chip" onclick="obTourYes()" style="border-color:var(--moss);color:var(--moss);">✓&nbsp; Yes, show me around</button>'
+    + '<button class="ob-chip" onclick="obTourNo()">I\'ll explore on my own</button>'
+    + '</div>';
+  chat.appendChild(group);
+  obScroll();
+  document.getElementById('ob-input').disabled = true;
+  document.getElementById('ob-send-btn').disabled = true;
+}
+
+function obTourYes() {
+  document.querySelectorAll('#ob-chat-area .ob-chips:last-of-type .ob-chip').forEach(function(c){ c.disabled=true; c.classList.add('used'); });
+  obAddBubble('user', 'Yes, show me around');
+  setTimeout(function(){
+    obTypeThen('Great — let me show you around. It only takes a minute.', function(){
+      setTimeout(async function(){
+        // Save to Supabase if logged in
+        if (currentUser) { await savePersonToSupabase(); }
+        showOwnWellet();
+        startTour();
+      }, 600);
+    }, 800);
+  }, 200);
+}
+
+function obTourNo() {
+  document.querySelectorAll('#ob-chat-area .ob-chips:last-of-type .ob-chip').forEach(function(c){ c.disabled=true; c.classList.add('used'); });
+  obAddBubble('user', "I\'ll explore on my own");
+  setTimeout(function(){
+    obTypeThen('Your Wellet is ready — and I\'m here whenever you need me.', function(){
+      obShowAppCTA();
+    }, 700);
+  }, 200);
+}
+
+function obShowAppCTA() {
+  var chat = document.getElementById('ob-chat-area');
+  var wrap = document.createElement('div');
+  wrap.className = 'ob-cta-wrap';
+  wrap.innerHTML = '<button class="ob-cta" onclick="obFinishAndOpen()"><i data-lucide="arrow-right" style="width:16px;height:16px;"></i>&nbsp; Open my Wellet</button>';
+  chat.appendChild(wrap);
+  obScroll();
+  initIcons();
+}
+
+async function obFinishAndOpen() {
+  if (currentUser) { await savePersonToSupabase(); }
+  showOwnWellet();
+}
+
+function obScroll() {
+  var chat = document.getElementById('ob-chat-area');
+  setTimeout(function(){ chat.scrollTop = chat.scrollHeight; }, 50);
+}
+
+var isOwnWellet = false;
+function showOwnWellet() {
+  isOwnWellet = true;
+  isDemoMode = false;
+  // If we have real people data, show the authenticated app
+  if (currentPeople.length > 0) {
+    currentPersonId = currentPeople[currentPeople.length - 1].id;
+    loadPersonData(currentPersonId).then(function() {
+      showAuthenticatedApp();
+    });
+    return;
+  }
+  // Fallback: show empty-state app
+  showApp();
+  var name = obState.personName || 'your loved one';
+  var isSelf = obState.personName && obState.personName === obState.userName;
+  var displayName = isSelf ? obState.userName : name;
+  var possessive = isSelf ? 'your' : name + '\u2019s';
+
+  var switcher = document.getElementById('header-person-switcher');
+  if (switcher) {
+    switcher.innerHTML = '<button class="person-pill active" onclick="switchPerson(this)"><span class="pip"></span>' + displayName + '</button>';
+  }
+
+  var updatePane = document.getElementById('tab-update');
+  if (updatePane) {
+    updatePane.innerHTML = '<div class="update-me-section">'
+      + '<div class="update-card">'
+      + '<div class="update-label">What's going on with ' + displayName + ' right now</div>'
+      + '<p class="update-text" style="color:var(--text-muted);font-style:italic;">Nothing here yet — and that's exactly right. As you add appointments, medications, notes, and documents, this summary will build itself. No setup required.</p>'
+      + '<div class="update-meta" style="color:var(--text-muted);">0 health events so far</div>'
+      + '</div></div>'
+      + '<div class="quick-actions">'
+      + '<button class="qa-btn" onclick="openAddEvent()"><span class="qa-icon"><i data-lucide="plus-circle" style="width:18px;height:18px;"></i></span>Add event</button>'
+      + '<button class="qa-btn" onclick="openEmergencySummary()"><span class="qa-icon"><i data-lucide="file-heart" style="width:18px;height:18px;"></i></span>Emergency summary</button>'
+      + '<button class="qa-btn" onclick="openShareFamily()"><span class="qa-icon"><i data-lucide="share-2" style="width:18px;height:18px;"></i></span>Share with family</button>'
+      + '</div>'
+      + '<div class="timeline-section" style="margin-top:16px;">'
+      + '<p class="section-label">Recent activity</p>'
+      + '<div style="text-align:center;padding:24px 16px;color:var(--text-muted);font-size:13px;font-style:italic;">Your timeline will appear here as you add things.</div>'
+      + '</div>';
+  }
+
+  var timelinePane = document.getElementById('tab-timeline');
+  if (timelinePane) {
+    timelinePane.innerHTML = '<div class="timeline-section">'
+      + '<div style="text-align:center;padding:48px 24px;">'
+      + '<div style="font-size:32px;margin-bottom:12px;opacity:0.3;"><i data-lucide="calendar" style="width:32px;height:32px;"></i></div>'
+      + '<div style="font-size:14px;color:var(--text-muted);line-height:1.6;">Appointments, medications, lab results, and your own notes — they'll all show up here in order as you add them.</div>'
+      + '</div></div>';
+  }
+
+  var patternsPane = document.getElementById('tab-patterns');
+  if (patternsPane) {
+    patternsPane.innerHTML = '<div class="patterns-section">'
+      + '<p class="section-label">What Wellet has noticed</p>'
+      + '<div style="text-align:center;padding:48px 24px;">'
+      + '<div style="font-size:32px;margin-bottom:12px;opacity:0.3;"><i data-lucide="eye" style="width:32px;height:32px;"></i></div>'
+      + '<div style="font-size:14px;color:var(--text-muted);line-height:1.6;">Wellet is listening. As your timeline grows, patterns will surface here.</div>'
+      + '</div></div>';
+  }
+
+  switchNavTo('home');
+  document.querySelectorAll('.tab')[0].click();
+  initIcons();
+}
+
+// ── GUIDED TOUR ─────────────────────────────────────────────────────────────
+var tourSteps = [
+  { target: '#header-tab-bar .tab:first-child', title: 'Update Me', text: 'This is your home base — a plain-English summary of what's happening right now.', arrow: 'top', offsetY: 8 },
+  { target: '#header-tab-bar .tab:nth-child(2)', title: 'Timeline', text: 'Everything that's happened, in order. You'll never have to reconstruct it from memory.', arrow: 'top', offsetY: 8, before: function(){ document.querySelectorAll('.tab')[1].click(); } },
+  { target: '#header-tab-bar .tab:nth-child(3)', title: 'Patterns', text: 'Wellet quietly watches for patterns — like how sleep connects to pain, or whether a medication change made a difference.', arrow: 'top', offsetY: 8, before: function(){ document.querySelectorAll('.tab')[2].click(); } },
+  { target: '.nav-item:nth-child(2)', title: 'People', text: 'Everyone involved in care, in one place.', arrow: 'bottom', offsetY: -8, before: function(){ switchNavTo('people'); } },
+  { target: '.nav-item:nth-child(3)', title: 'Records', text: 'Upload photos of documents, prescriptions, or insurance cards. Wellet reads them and files them automatically.', arrow: 'bottom', offsetY: -8, before: function(){ switchNavTo('records'); } },
+  { target: '.nav-item:nth-child(4)', title: 'Ask Wellet', text: 'Ask anything about your care history. Wellet knows.', arrow: 'bottom', offsetY: -8, before: function(){ switchNavTo('ask'); } }
+];
+var tourCurrent = 0;
+
+function startTour() { tourCurrent = 0; showTourStep(0); }
+
+function showTourStep(idx) {
+  var old = document.querySelector('.tour-overlay');
+  if (old) old.remove();
+  document.querySelectorAll('.tour-highlight').forEach(function(el){ el.classList.remove('tour-highlight'); });
+  if (idx >= tourSteps.length) { endTour(); return; }
+  var step = tourSteps[idx];
+  tourCurrent = idx;
+  if (step.before) step.before();
+  setTimeout(function(){
+    var targetEl = document.querySelector(step.target);
+    if (!targetEl) { showTourStep(idx + 1); return; }
+    targetEl.classList.add('tour-highlight');
+    var overlay = document.createElement('div');
+    overlay.className = 'tour-overlay';
+    var tooltip = document.createElement('div');
+    tooltip.className = 'tour-tooltip arrow-' + step.arrow;
+    var stepNum = (idx + 1) + ' of ' + tourSteps.length;
+    var btnLabel = idx < tourSteps.length - 1 ? 'Next' : 'Got it';
+    tooltip.innerHTML = '<div class="tour-step-count">' + stepNum + '</div>'
+      + '<h4>' + step.title + '</h4>'
+      + '<p>' + step.text + '</p>'
+      + '<div><button class="tour-btn" onclick="nextTourStep()">' + btnLabel + '</button>'
+      + '<button class="tour-skip" onclick="endTour()">Skip tour</button></div>';
+    overlay.appendChild(tooltip);
+    document.body.appendChild(overlay);
+    var rect = targetEl.getBoundingClientRect();
+    if (step.arrow === 'top') {
+      tooltip.style.top = (rect.bottom + (step.offsetY || 0) + 8) + 'px';
+      tooltip.style.left = Math.max(12, rect.left - 10) + 'px';
+    } else {
+      tooltip.style.bottom = (window.innerHeight - rect.top + (Math.abs(step.offsetY) || 0) + 8) + 'px';
+      tooltip.style.left = Math.max(12, rect.left - 10) + 'px';
+    }
+    requestAnimationFrame(function(){
+      var tr = tooltip.getBoundingClientRect();
+      if (tr.right > window.innerWidth - 12) {
+        tooltip.style.left = (window.innerWidth - tr.width - 12) + 'px';
+      }
+    });
+    initIcons();
+  }, 150);
+}
+
+function nextTourStep() { showTourStep(tourCurrent + 1); }
+function endTour() {
+  var old = document.querySelector('.tour-overlay');
+  if (old) old.remove();
+  document.querySelectorAll('.tour-highlight').forEach(function(el){ el.classList.remove('tour-highlight'); });
+  showOwnWellet();
+}
+
+// Fix mobile viewport when keyboard opens
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', function() {
+    var ob = document.getElementById('onboarding');
+    if (ob && ob.style.display === 'flex') {
+      ob.style.height = window.visualViewport.height + 'px';
+      obScroll();
+    }
+  });
+}
+
+function handleName(val) { /* legacy stub */ }
 </script>
 </body>
 </html>
