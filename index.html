@@ -549,6 +549,16 @@
   .doc-status.extracted { background: var(--mint); color: var(--moss-dark); }
   .doc-status.failed { background: #FEF0EE; color: var(--red); }
   @keyframes statusPulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+  .doc-actions { display: flex; gap: 4px; flex-shrink: 0; margin-left: auto; }
+  .doc-action-btn { background: none; border: 1px solid var(--border); border-radius: 8px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-muted); transition: all 0.15s; flex-shrink: 0; padding: 0; }
+  .doc-action-btn:hover { border-color: var(--moss); color: var(--moss); background: var(--mint); }
+
+  /* ── DOCUMENT VIEWER OVERLAY ── */
+  .doc-viewer-img { width: 100%; border-radius: 12px; display: block; margin: 0 auto; }
+  .doc-viewer-img-wrap { padding: 0 20px 16px; }
+  .doc-viewer-actions { padding: 0 20px 8px; display: flex; flex-direction: column; gap: 8px; }
+  .doc-viewer-link { font-size: 13px; color: var(--moss); text-decoration: none; display: flex; align-items: center; gap: 4px; padding: 0 20px 8px; }
+  .doc-viewer-link:hover { color: var(--moss-dark); }
 
   /* ── EXTRACTION OVERLAY ── */
   .ext-summary { margin: 0 20px 14px; background: var(--mint); border-radius: 12px; padding: 14px 16px; font-size: 13px; line-height: 1.65; color: var(--text-primary); }
@@ -1707,6 +1717,31 @@
   </div>
 </div>
 
+<!-- DOCUMENT VIEWER OVERLAY -->
+<div class="qa-overlay" id="doc-viewer-overlay">
+  <div class="qa-sheet">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" onclick="closeSheet('doc-viewer-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title" id="doc-viewer-title">Document</div>
+    <div class="qa-sheet-sub" id="doc-viewer-sub"></div>
+    <div class="doc-viewer-img-wrap" id="doc-viewer-img-wrap">
+      <img class="doc-viewer-img" id="doc-viewer-img" src="" alt="Document image">
+    </div>
+    <a class="doc-viewer-link" id="doc-viewer-extraction-link" style="display:none;" href="javascript:void(0)">
+      <i data-lucide="sparkles" style="width:13px;height:13px;"></i> View AI extraction
+    </a>
+    <div class="doc-viewer-actions">
+      <button class="btn-primary" style="font-size:14px;padding:13px;" id="doc-viewer-download-btn">
+        <i data-lucide="download" style="width:15px;height:15px;"></i>
+        Download
+      </button>
+      <button class="ext-dismiss" onclick="closeSheet('doc-viewer-overlay')">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- PROFILE EDIT OVERLAY -->
 <div class="profile-overlay" id="profile-overlay">
   <div class="profile-sheet">
@@ -2492,6 +2527,10 @@ function renderRecordsView() {
         + '<div class="doc-info"><div class="doc-name">' + escHtml(doc.file_name) + '</div>'
         + '<div class="doc-meta">' + escHtml(doc.document_type || 'Document') + ' · ' + dateStr + '</div></div>'
         + '<span class="doc-status ' + statusClass + '">' + statusLabel + '</span>'
+        + '<div class="doc-actions">'
+        + '<button class="doc-action-btn" title="View" onclick="event.stopPropagation();viewDocument(\'' + doc.id + '\')"><i data-lucide="eye" style="width:14px;height:14px;"></i></button>'
+        + '<button class="doc-action-btn" title="Download" onclick="event.stopPropagation();downloadDocument(\'' + doc.id + '\')"><i data-lucide="download" style="width:14px;height:14px;"></i></button>'
+        + '</div>'
         + '</div>';
     });
   }
@@ -2550,6 +2589,87 @@ function relativeTime(dateStr) {
   if (days === 1) return 'Yesterday';
   if (days < 7) return days + ' days ago';
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// ── DOCUMENT VIEWER / DOWNLOAD ──────────────────────────────────────────────
+function getFileExtension(fileName) {
+  if (!fileName) return '';
+  var parts = fileName.split('.');
+  return parts.length > 1 ? parts.pop().toLowerCase() : '';
+}
+
+function isImageFile(fileName) {
+  var ext = getFileExtension(fileName);
+  return ['jpg','jpeg','png','gif','webp'].indexOf(ext) !== -1;
+}
+
+function isPdfFile(fileName) {
+  return getFileExtension(fileName) === 'pdf';
+}
+
+async function viewDocument(docId) {
+  var doc = liveDocs.find(function(d) { return d.id === docId; });
+  if (!doc) return;
+
+  var result = await db.storage.from('documents').createSignedUrl(doc.storage_path, 3600);
+  if (!result.data || !result.data.signedUrl) {
+    showToast('Could not load document');
+    return;
+  }
+  var signedUrl = result.data.signedUrl;
+
+  if (isImageFile(doc.file_name)) {
+    // Show in image viewer overlay
+    document.getElementById('doc-viewer-title').textContent = doc.file_name;
+    document.getElementById('doc-viewer-sub').textContent =
+      (doc.document_type || 'Document') + ' · ' + formatEventDate(doc.created_at);
+    document.getElementById('doc-viewer-img').src = signedUrl;
+
+    // Download button
+    var dlBtn = document.getElementById('doc-viewer-download-btn');
+    dlBtn.onclick = function() { triggerDownload(signedUrl, doc.file_name); };
+
+    // Extraction link
+    var extLink = document.getElementById('doc-viewer-extraction-link');
+    if (doc.extraction_status === 'completed') {
+      extLink.style.display = 'flex';
+      extLink.onclick = function() {
+        closeSheet('doc-viewer-overlay');
+        showExtractionResults(doc.id);
+      };
+    } else {
+      extLink.style.display = 'none';
+    }
+
+    document.getElementById('doc-viewer-overlay').classList.add('show');
+    initIcons();
+  } else if (isPdfFile(doc.file_name)) {
+    window.open(signedUrl, '_blank');
+  } else {
+    triggerDownload(signedUrl, doc.file_name);
+  }
+}
+
+async function downloadDocument(docId) {
+  var doc = liveDocs.find(function(d) { return d.id === docId; });
+  if (!doc) return;
+
+  var result = await db.storage.from('documents').createSignedUrl(doc.storage_path, 3600);
+  if (!result.data || !result.data.signedUrl) {
+    showToast('Could not download document');
+    return;
+  }
+  triggerDownload(result.data.signedUrl, doc.file_name);
+}
+
+function triggerDownload(url, fileName) {
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = fileName || 'document';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 var _currentExtDoc = null; // document being viewed in extraction overlay
