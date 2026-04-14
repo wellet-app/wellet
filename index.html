@@ -40,7 +40,7 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--text-primary); min-height: 100vh; }
-  .page-wrap { max-width: 420px; margin: 0 auto; background: var(--warm-white); min-height: 100vh; }
+  .page-wrap { max-width: 768px; margin: 0 auto; background: var(--warm-white); min-height: 100vh; }
 
   /* ── AUTH SCREEN ── */
   #auth-screen { display: none; flex-direction: column; min-height: 100vh; background: var(--cream); }
@@ -136,7 +136,7 @@
   /* ── SETTINGS SHEET ── */
   .settings-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-end; justify-content: center; }
   .settings-overlay.show { display: flex; }
-  .settings-sheet { background: white; border-radius: 20px 20px 0 0; padding: 0 0 36px; width: 100%; max-width: 420px; max-height: 80vh; overflow-y: auto; }
+  .settings-sheet { background: white; border-radius: 20px 20px 0 0; padding: 0 0 36px; width: 100%; max-width: 768px; max-height: 80vh; overflow-y: auto; }
   .settings-handle-row { padding: 16px 20px 4px; display: flex; align-items: center; justify-content: space-between; }
   .settings-handle { width: 36px; height: 4px; background: var(--border-medium); border-radius: 2px; margin: 0 auto; }
   .settings-title { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; padding: 4px 20px 16px; }
@@ -201,7 +201,7 @@
   /* upload sheet */
   .upload-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-end; justify-content: center; }
   .upload-overlay.show { display: flex; }
-  .upload-sheet { background: white; border-radius: 20px 20px 0 0; padding: 0 0 40px; width: 100%; max-width: 420px; }
+  .upload-sheet { background: white; border-radius: 20px 20px 0 0; padding: 0 0 40px; width: 100%; max-width: 768px; }
   .upload-handle-row { padding: 16px 20px 0; display: flex; align-items: center; justify-content: space-between; }
   .upload-handle { width: 36px; height: 4px; background: var(--border-medium); border-radius: 2px; }
   .upload-title { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; padding: 12px 20px 4px; }
@@ -240,7 +240,7 @@
   /* ── QUICK ACTION SHEETS (shared base) ── */
   .qa-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-end; justify-content: center; }
   .qa-overlay.show { display: flex; }
-  .qa-sheet { background: white; border-radius: 20px 20px 0 0; width: 100%; max-width: 420px; max-height: 88vh; overflow-y: auto; padding-bottom: 36px; }
+  .qa-sheet { background: white; border-radius: 20px 20px 0 0; width: 100%; max-width: 768px; max-height: 88vh; overflow-y: auto; padding-bottom: 36px; }
   .qa-handle-row { padding: 16px 20px 0; display: flex; align-items: flex-start; justify-content: space-between; }
   .qa-handle { width: 36px; height: 4px; background: var(--border-medium); border-radius: 2px; margin-top: 4px; }
   .qa-sheet-title { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; padding: 12px 20px 4px; }
@@ -328,7 +328,7 @@
   .modal-overlay.show { display: flex; }
   .modal-sheet {
     background: white; border-radius: 20px 20px 0 0;
-    padding: 24px 20px 36px; width: 100%; max-width: 420px;
+    padding: 24px 20px 36px; width: 100%; max-width: 768px;
   }
   .modal-handle { width: 36px; height: 4px; background: var(--border-medium); border-radius: 2px; margin: 0 auto 20px; }
   .modal-title { font-size: 17px; font-weight: 500; margin-bottom: 6px; }
@@ -437,7 +437,7 @@
   .bar-fill.amber { background: var(--amber); }
 
   /* bottom nav */
-  .bottom-nav { position: fixed; bottom: 0; width: 420px; max-width: 100%; background: white; border-top: 1px solid var(--border); display: flex; padding: 10px 0 20px; z-index: 20; }
+  .bottom-nav { position: fixed; bottom: 0; width: 100%; max-width: 768px; background: white; border-top: 1px solid var(--border); display: flex; padding: 10px 0 20px; z-index: 20; left: 50%; transform: translateX(-50%); }
   .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; font-size: 10px; color: var(--text-muted); padding: 4px 0; background: none; border: none; font-family: 'DM Sans', sans-serif; transition: color 0.15s; }
   .nav-item.active { color: var(--moss); }
   .nav-icon { display: flex; align-items: center; }
@@ -503,14 +503,14 @@
   /* ── ADD EVENT MODAL ── */
   #add-event-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-end; justify-content: center; }
   #add-event-overlay.show { display: flex; }
-  .add-event-sheet { background: white; border-radius: 20px 20px 0 0; width: 100%; max-width: 420px; max-height: 88vh; overflow-y: auto; padding-bottom: 36px; }
+  .add-event-sheet { background: white; border-radius: 20px 20px 0 0; width: 100%; max-width: 768px; max-height: 88vh; overflow-y: auto; padding-bottom: 36px; }
   .form-field { padding: 0 20px; margin-bottom: 14px; }
   .form-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 5px; display: block; }
 
   /* ── ADD MEDICATION MODAL ── */
   #add-med-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-end; justify-content: center; }
   #add-med-overlay.show { display: flex; }
-  .add-med-sheet { background: white; border-radius: 20px 20px 0 0; width: 100%; max-width: 420px; max-height: 88vh; overflow-y: auto; padding-bottom: 36px; }
+  .add-med-sheet { background: white; border-radius: 20px 20px 0 0; width: 100%; max-width: 768px; max-height: 88vh; overflow-y: auto; padding-bottom: 36px; }
 
   /* ── EDIT/DELETE OVERLAYS ── */
   #edit-event-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-end; justify-content: center; }
@@ -537,9 +537,9 @@
   .tl-card[onclick]:hover { border-color: var(--moss); box-shadow: 0 1px 4px rgba(96,143,124,0.12); }
 
   /* ── FAB ── */
-  .fab { position: fixed; bottom: 86px; right: calc(50% - 210px + 16px); width: 48px; height: 48px; border-radius: 50%; background: var(--moss); color: white; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 16px rgba(96,143,124,0.4); z-index: 15; transition: background 0.15s, transform 0.15s; }
+  .fab { position: fixed; bottom: 86px; right: calc(50% - 384px + 16px); width: 48px; height: 48px; border-radius: 50%; background: var(--moss); color: white; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 16px rgba(96,143,124,0.4); z-index: 15; transition: background 0.15s, transform 0.15s; }
   .fab:hover { background: var(--moss-dark); transform: scale(1.05); }
-  @media (max-width: 420px) { .fab { right: 16px; } }
+  @media (max-width: 768px) { .fab { right: 16px; } }
 
   /* ── LOADING ── */
   #loading-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 16px; }
@@ -609,7 +609,7 @@
   /* ── PROFILE OVERLAY ── */
   .profile-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-end; justify-content: center; }
   .profile-overlay.show { display: flex; }
-  .profile-sheet { background: white; border-radius: 20px 20px 0 0; width: 100%; max-width: 420px; max-height: 92vh; overflow-y: auto; padding-bottom: 36px; }
+  .profile-sheet { background: white; border-radius: 20px 20px 0 0; width: 100%; max-width: 768px; max-height: 92vh; overflow-y: auto; padding-bottom: 36px; }
   .profile-handle-row { padding: 16px 20px 0; display: flex; align-items: center; justify-content: space-between; }
   .profile-handle { width: 36px; height: 4px; background: var(--border-medium); border-radius: 2px; }
   .profile-title { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; padding: 12px 20px 4px; }
@@ -619,6 +619,13 @@
   .profile-form-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 5px; display: block; }
   .profile-edit-btn { display: flex; align-items: center; gap: 5px; background: var(--cream); border: 1px solid var(--border); border-radius: 7px; padding: 5px 9px; font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; }
   .profile-edit-btn:hover { border-color: var(--moss); color: var(--moss); background: var(--mint); }
+
+  /* ── RESPONSIVE: TABLET & DESKTOP ── */
+  .auth-body { max-width: 420px; }
+  @media (min-width: 480px) {
+    .auth-headline, .auth-description, .auth-signals, .auth-body { padding-left: 40px; padding-right: 40px; }
+    .view-content, .tab-pane, .update-card { padding-left: 28px; padding-right: 28px; }
+  }
 </style>
 </head>
 <body>
