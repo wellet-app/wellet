@@ -61,7 +61,7 @@
   .auth-signal-dot--amber { background: var(--amber); }
   .auth-signal-text { font-size: 12px; line-height: 1.45; color: var(--text-secondary); }
   .auth-signal-text strong { color: var(--text-primary); font-weight: 500; }
-  .auth-body { padding: 16px 28px; flex: 1; }
+  .auth-body { padding: 20px; margin: 16px 28px 0; background: white; border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
   .auth-title { font-family: 'DM Serif Display', serif; font-size: 22px; font-weight: 400; margin-bottom: 6px; }
   .auth-subtitle { font-size: 14px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5; }
   .auth-input-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 5px; display: block; }
@@ -75,7 +75,7 @@
   .auth-demo-link { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14px; color: var(--moss); cursor: pointer; background: transparent; border: 1.5px solid var(--moss); border-radius: 12px; font-family: 'DM Sans', sans-serif; font-weight: 500; padding: 11px 16px; transition: background 0.15s; flex: 1; }
   .auth-demo-link:hover { background: var(--mint); }
   .auth-links-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 12px; }
-  .auth-privacy { padding: 0 28px 24px; text-align: center; }
+  .auth-privacy { padding: 12px 0 0; text-align: center; }
   .auth-privacy-toggle { background: none; border: none; font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--moss); cursor: pointer; padding: 0; display: inline-flex; align-items: center; gap: 3px; }
   .auth-privacy-toggle:hover { text-decoration: underline; }
   .auth-privacy-detail { max-height: 0; overflow: hidden; transition: max-height 0.35s ease, opacity 0.35s ease; opacity: 0; }
@@ -780,8 +780,7 @@
         Try the demo while you wait
       </button>
     </div>
-  </div>
-  <div class="auth-privacy">
+    <div class="auth-privacy">
     <p>No password required. <button class="auth-privacy-toggle" onclick="togglePrivacyDetail()"><strong>Your data stays private</strong> <i data-lucide="chevron-down" style="width:12px;height:12px;vertical-align:middle;" id="privacy-chevron"></i></button></p>
     <div id="auth-privacy-detail" class="auth-privacy-detail">
       <p>Wellet is built on a <strong>privacy-first architecture</strong>. Your health information is encrypted and isolated with row-level security — no other user or even Wellet staff can access it. AI features process your data in real time and return insights without storing or training on anything. Your data lives on your device and in your own encrypted vault. Period.</p>
