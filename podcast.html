@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wellet: Building in Public — Podcast</title>
+<meta name="description" content="A solo founder journal from inside the Billion Dollar Build competition. Follow Betsy Eble as she builds Wellet — an AI care companion for family caregivers.">
+<meta property="og:title" content="Wellet: Building in Public — Podcast">
+<meta property="og:description" content="A solo founder journal from inside the Billion Dollar Build competition.">
+<meta property="og:image" content="https://mywellet.com/podcast-cover.png">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #F5F2EC;
+    --warm-white: #FAFAF8;
+    --moss: #4A7C6E;
+    --moss-dark: #2C5F52;
+    --mint: #E1F5EE;
+    --text-primary: #2C2A26;
+    --text-secondary: #5A5A5A;
+    --text-muted: #8A8A8A;
+    --border: #E8E6E1;
+    --border-medium: #D5D3CE;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--text-primary); min-height: 100vh; }
+  .page { max-width: 640px; margin: 0 auto; padding: 0 24px; }
+
+  /* Header */
+  .pod-header { padding: 32px 0 24px; display: flex; align-items: center; justify-content: space-between; }
+  .pod-back { font-size: 13px; color: var(--text-muted); text-decoration: none; display: flex; align-items: center; gap: 4px; }
+  .pod-back:hover { color: var(--moss); }
+  .pod-badge { font-size: 10px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--moss); border: 1.5px solid var(--moss); border-radius: 5px; padding: 4px 10px; }
+
+  /* Hero */
+  .pod-hero { text-align: center; padding: 16px 0 32px; }
+  .pod-cover { width: 200px; height: 200px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin: 0 auto 24px; display: block; }
+  .pod-title { font-family: 'DM Serif Display', serif; font-size: 28px; font-weight: 400; color: var(--text-primary); margin-bottom: 6px; }
+  .pod-subtitle { font-size: 15px; color: var(--text-secondary); line-height: 1.6; font-weight: 300; }
+  .pod-author { font-size: 13px; color: var(--moss); font-weight: 500; margin-top: 8px; }
+
+  /* Spotify CTA */
+  .pod-spotify { display: inline-flex; align-items: center; gap: 8px; background: #1DB954; color: white; border: none; border-radius: 24px; padding: 10px 22px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; text-decoration: none; margin-top: 16px; transition: background 0.15s; }
+  .pod-spotify:hover { background: #1AA34A; }
+  .pod-spotify svg { width: 18px; height: 18px; }
+
+  /* Episodes */
+  .pod-section-label { font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 16px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .pod-episode { background: var(--warm-white); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 16px; }
+  .pod-ep-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+  .pod-ep-num { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--moss); }
+  .pod-ep-date { font-size: 12px; color: var(--text-muted); }
+  .pod-ep-title { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; margin-bottom: 8px; }
+  .pod-ep-desc { font-size: 14px; color: var(--text-secondary); line-height: 1.65; margin-bottom: 16px; font-weight: 300; }
+
+  /* Audio player */
+  .pod-player { width: 100%; }
+  .pod-player audio { width: 100%; height: 40px; border-radius: 8px; }
+  audio::-webkit-media-controls-panel { background: var(--mint); }
+
+  /* Footer */
+  .pod-footer { text-align: center; padding: 32px 0 48px; }
+  .pod-footer p { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+  .pod-footer a { color: var(--moss); text-decoration: none; }
+  .pod-footer a:hover { text-decoration: underline; }
+
+  @media (max-width: 480px) {
+    .pod-cover { width: 160px; height: 160px; }
+    .pod-title { font-size: 24px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="pod-header">
+    <a href="/" class="pod-back">&larr; mywellet.com</a>
+    <span class="pod-badge">BUILDING IN PUBLIC</span>
+  </div>
+
+  <div class="pod-hero">
+    <img src="podcast-cover.png" alt="Wellet: Building in Public cover art" class="pod-cover">
+    <div class="pod-title">Wellet: Building in Public</div>
+    <div class="pod-subtitle">A solo founder journal from inside the Billion Dollar Build competition. Follow along as Wellet goes from idea to product.</div>
+    <div class="pod-author">Betsy Eble, Founder</div>
+    <!-- Uncomment and replace with your Spotify show URL once published:
+    <a href="https://open.spotify.com/show/YOUR_SHOW_ID" target="_blank" rel="noopener" class="pod-spotify">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+      Listen on Spotify
+    </a>
+    -->
+  </div>
+
+  <div class="pod-section-label">Episodes</div>
+
+  <div class="pod-episode">
+    <div class="pod-ep-header">
+      <span class="pod-ep-num">Episode 1</span>
+      <span class="pod-ep-date">April 14, 2026</span>
+    </div>
+    <div class="pod-ep-title">Day One: The Foundation</div>
+    <p class="pod-ep-desc">The first day of the Billion Dollar Build. Why Wellet exists, what got built in 12 hours, and the decisions behind privacy-first architecture, the Fogg behavior model for AI voice, and a 30-second animated brand film made entirely in CSS. Auth screen redesign, PDF export, document viewer, responsive layout — and a promise: no shame in this app. Ever.</p>
+    <div class="pod-player">
+      <audio controls preload="metadata">
+        <source src="podcast-ep1.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+      </audio>
+    </div>
+  </div>
+
+  <!-- Future episodes go here:
+  <div class="pod-episode">
+    <div class="pod-ep-header">
+      <span class="pod-ep-num">Episode 2</span>
+      <span class="pod-ep-date">April 15, 2026</span>
+    </div>
+    <div class="pod-ep-title">Day Two: [Title]</div>
+    <p class="pod-ep-desc">[Description]</p>
+    <div class="pod-player">
+      <audio controls preload="metadata">
+        <source src="podcast-ep2.mp3" type="audio/mpeg">
+      </audio>
+    </div>
+  </div>
+  -->
+
+  <div class="pod-footer">
+    <p><a href="/">Wellet</a> &mdash; an AI care companion for family caregivers.<br>
+    Built with Perplexity Computer for the <a href="https://billiondollarbuild.com" target="_blank" rel="noopener">Billion Dollar Build</a> competition.</p>
+  </div>
+
+</div>
+</body>
+</html>
