@@ -3768,6 +3768,7 @@ function showAuthScreen() {
 
 function enterDemoMode() {
   // Called from auth screen - goes straight to demo
+  try { new Audio('welcome-to-wellet.mp3').play(); } catch(e) {}
   showApp();
   switchNavTo('home');
   document.querySelectorAll('.tab')[0].click();
