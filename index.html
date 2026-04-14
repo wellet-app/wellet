@@ -66,7 +66,7 @@
   .auth-privacy strong { color: var(--moss); font-weight: 500; }
 
   /* ── LANDING ── */
-  #landing { display: flex; flex-direction: column; min-height: 100vh; }
+  #landing { display: none; flex-direction: column; min-height: 100vh; }
 
   .hero-band { background: var(--moss); padding: 52px 28px 32px; color: white; }
   .hero-wordmark { width: 110px; margin-bottom: 18px; display: block; }
@@ -649,7 +649,7 @@
     <button class="btn-secondary" onclick="showOnboarding()"><i data-lucide="plus" style="width:16px;height:16px;"></i> Start my own story</button>
   </div>
   <div class="privacy-footer">
-    <p class="privacy-note">Demo mode — no login required. <strong>Sign in to save your data</strong> between sessions.</p>
+    <p class="privacy-note">Demo mode — no login required. <strong style="cursor:pointer;text-decoration:underline;" onclick="showAuthScreen()">Sign in to save your data</strong> between sessions.</p>
   </div>
 </div>
 
@@ -2362,7 +2362,19 @@ function restoreDemoHTML() {
 
 window.addEventListener('load', function() {
   saveDemoHTML();
-  initApp();
+  // Safety timeout: if initApp hasn't resolved in 8s, show auth screen anyway
+  var _initResolved = false;
+  setTimeout(function() {
+    if (!_initResolved && document.getElementById('loading-screen').style.display !== 'none') {
+      console.warn('initApp timeout — falling back to auth screen');
+      showAuthScreen();
+    }
+  }, 8000);
+  initApp().then(function() { _initResolved = true; }).catch(function(e) {
+    console.error('initApp failed:', e);
+    _initResolved = true;
+    showAuthScreen();
+  });
 });
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
