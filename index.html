@@ -1691,11 +1691,16 @@ window.addEventListener('load', initIcons);
 
 // ── AUTH FLOW ────────────────────────────────────────────────────────────────
 async function initApp() {
-  const { data: { session } } = await db.auth.getSession();
-  if (session) {
-    currentUser = session.user;
-    await loadUserData();
-  } else {
+  try {
+    const { data: { session } } = await db.auth.getSession();
+    if (session) {
+      currentUser = session.user;
+      await loadUserData();
+    } else {
+      showAuthScreen();
+    }
+  } catch (e) {
+    console.error('Auth init error:', e);
     showAuthScreen();
   }
   // Handle auth state changes (magic link callback)
@@ -1788,6 +1793,7 @@ async function loadPersonData(personId) {
 // ── SHOW AUTHENTICATED APP ────────────────────────────────────────────────────
 function showAuthenticatedApp() {
   isDemoMode = false;
+  document.getElementById('loading-screen').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('landing').style.display = 'none';
   document.getElementById('onboarding').style.display = 'none';
@@ -2261,6 +2267,7 @@ function updateSettingsAccount() {
 
 // ── SCREEN TRANSITIONS ────────────────────────────────────────────────────────
 function showAuthScreen() {
+  document.getElementById('loading-screen').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'flex';
   document.getElementById('landing').style.display = 'none';
   document.getElementById('app').style.display = 'none';
@@ -2279,6 +2286,7 @@ function enterDemoMode() {
 function showApp() {
   // Demo mode
   isDemoMode = true;
+  document.getElementById('loading-screen').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('landing').style.display = 'none';
   document.getElementById('onboarding').style.display = 'none';
@@ -2290,6 +2298,7 @@ function showApp() {
 }
 
 function showLanding() {
+  document.getElementById('loading-screen').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('landing').style.display = 'flex';
   document.getElementById('app').style.display = 'none';
@@ -2298,6 +2307,7 @@ function showLanding() {
 }
 
 function showOnboarding() {
+  document.getElementById('loading-screen').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('landing').style.display = 'none';
   document.getElementById('app').style.display = 'none';
