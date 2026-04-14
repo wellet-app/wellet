@@ -498,6 +498,30 @@
   #add-med-overlay.show { display: flex; }
   .add-med-sheet { background: white; border-radius: 20px 20px 0 0; width: 100%; max-width: 420px; max-height: 88vh; overflow-y: auto; padding-bottom: 36px; }
 
+  /* ── EDIT/DELETE OVERLAYS ── */
+  #edit-event-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-end; justify-content: center; }
+  #edit-event-overlay.show { display: flex; }
+  #edit-med-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-end; justify-content: center; }
+  #edit-med-overlay.show { display: flex; }
+  .delete-confirm-row { display: flex; gap: 8px; margin-top: 8px; }
+  .delete-confirm-row button { flex: 1; padding: 11px; border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; border: none; }
+  .delete-confirm-row .btn-cancel-sm { background: var(--border); color: var(--text-primary); }
+  .delete-confirm-row .btn-delete-sm { background: var(--red); color: white; }
+
+  /* ── DYNAMIC PATTERNS ── */
+  .pattern-bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .pattern-bar-label { font-size: 12px; color: var(--text-secondary); width: 90px; flex-shrink: 0; }
+  .pattern-bar-track { flex: 1; height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; }
+  .pattern-bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+  .pattern-bar-count { font-size: 12px; font-weight: 500; color: var(--text-primary); width: 24px; text-align: right; flex-shrink: 0; }
+  .monthly-bar-row { display: flex; align-items: flex-end; gap: 6px; height: 80px; padding-top: 8px; }
+  .monthly-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .monthly-bar { width: 100%; border-radius: 4px 4px 0 0; background: var(--moss); min-height: 2px; transition: height 0.3s; }
+  .monthly-bar-label { font-size: 10px; color: var(--text-muted); }
+  .monthly-bar-count { font-size: 10px; font-weight: 500; color: var(--text-primary); }
+  .tl-card[onclick] { cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
+  .tl-card[onclick]:hover { border-color: var(--moss); box-shadow: 0 1px 4px rgba(96,143,124,0.12); }
+
   /* ── FAB ── */
   .fab { position: fixed; bottom: 86px; right: calc(50% - 210px + 16px); width: 48px; height: 48px; border-radius: 50%; background: var(--moss); color: white; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 16px rgba(96,143,124,0.4); z-index: 15; transition: background 0.15s, transform 0.15s; }
   .fab:hover { background: var(--moss-dark); transform: scale(1.05); }
@@ -1858,6 +1882,100 @@
   </div>
 </div>
 
+<!-- EDIT HEALTH EVENT MODAL -->
+<div class="qa-overlay" id="edit-event-overlay">
+  <div class="qa-sheet">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" onclick="closeSheet('edit-event-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title">Edit health event</div>
+    <div class="qa-sheet-sub" id="edit-event-person-label">Editing event</div>
+    <div style="padding:0 20px 16px;display:flex;flex-direction:column;gap:12px;">
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Type</div>
+        <select id="edit-event-type-select" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;appearance:none;-webkit-appearance:none;">
+          <option value="appointment">Appointment</option>
+          <option value="medication">Medication change</option>
+          <option value="lab_result">Lab result</option>
+          <option value="note">Caregiver note</option>
+          <option value="pattern">Pattern noticed</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Date</div>
+        <input id="edit-event-date-input" type="date" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Title</div>
+        <input id="edit-event-title-input" type="text" placeholder="e.g. Primary care visit with Dr. Smith" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Notes (optional)</div>
+        <textarea id="edit-event-notes-input" rows="3" placeholder="Any details worth remembering…" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;resize:none;line-height:1.5;"></textarea>
+      </div>
+    </div>
+    <div style="padding:0 20px 8px;">
+      <button class="btn-primary" style="font-size:14px;padding:13px;" id="edit-event-save-btn" onclick="saveEditEvent()">
+        <i data-lucide="check" style="width:15px;height:15px;"></i>
+        Save changes
+      </button>
+      <div id="edit-event-delete-area" style="margin-top:8px;">
+        <button class="btn-danger" id="edit-event-delete-btn" onclick="confirmDeleteEvent()">
+          <i data-lucide="trash-2" style="width:15px;height:15px;"></i>
+          Delete event
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT MEDICATION MODAL -->
+<div class="qa-overlay" id="edit-med-overlay">
+  <div class="qa-sheet">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" onclick="closeSheet('edit-med-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title">Edit medication</div>
+    <div class="qa-sheet-sub" id="edit-med-person-label">Editing medication</div>
+    <div style="padding:0 20px 16px;display:flex;flex-direction:column;gap:12px;">
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Medication name</div>
+        <input id="edit-med-name-input" type="text" placeholder="e.g. Lisinopril 20mg" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Dose</div>
+        <input id="edit-med-dose-input" type="text" placeholder="e.g. 20mg" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Frequency</div>
+        <input id="edit-med-freq-input" type="text" placeholder="e.g. Once daily" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Prescriber (optional)</div>
+        <input id="edit-med-prescriber-input" type="text" placeholder="e.g. Dr. Johnson" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;">
+        <span style="font-size:14px;font-weight:500;">Active</span>
+        <button id="edit-med-active-toggle" class="toggle on" onclick="this.classList.toggle('on')"></button>
+      </div>
+    </div>
+    <div style="padding:0 20px 8px;">
+      <button class="btn-primary" style="font-size:14px;padding:13px;" id="edit-med-save-btn" onclick="saveEditMed()">
+        <i data-lucide="check" style="width:15px;height:15px;"></i>
+        Save changes
+      </button>
+      <div id="edit-med-delete-area" style="margin-top:8px;">
+        <button class="btn-danger" id="edit-med-delete-btn" onclick="confirmDeleteMed()">
+          <i data-lucide="trash-2" style="width:15px;height:15px;"></i>
+          Delete medication
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 </div><!-- end page-wrap -->
 <script>
 // ── SUPABASE SETUP ──────────────────────────────────────────────────────────
@@ -1880,6 +1998,8 @@ var _cardToRemove = null;
 var _cardToRemoveId = null; // Supabase id if real person
 var _currentAskPerson = 'dad';
 var _editingContactId = null; // care_circle_members id being edited
+var _editingEventId = null;   // health_events id being edited
+var _editingMedId = null;     // medications id being edited
 
 // ── ICON INIT ────────────────────────────────────────────────────────────────
 function initIcons() { if (window.lucide) lucide.createIcons(); }
@@ -2020,6 +2140,7 @@ function showAuthenticatedApp() {
   renderTimeline();
   renderPeopleView();
   renderRecordsView();
+  renderPatterns();
   renderAskView();
   updateSettingsAccount();
   initIcons();
@@ -2044,6 +2165,7 @@ async function switchToRealPerson(personId, el) {
   await loadPersonData(personId);
   renderUpdateMe();
   renderTimeline();
+  renderPatterns();
   initIcons();
 }
 
@@ -2165,7 +2287,7 @@ function renderTimeline() {
       var dateStr = formatEventDate(ev.event_date);
       html += '<div class="tl-item">'
         + '<div class="tl-line-col"><div class="tl-dot ' + typeInfo.dot + '"></div>' + (isLast ? '' : '<div class="tl-connector"></div>') + '</div>'
-        + '<div class="tl-card ' + typeInfo.border + '">'
+        + '<div class="tl-card ' + typeInfo.border + '" onclick="openEditEvent(\'' + ev.id + '\')">'
         + '<div class="tl-card-type-row"><i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + typeInfo.color + ';"></i>'
         + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span></div>'
         + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
@@ -2292,7 +2414,7 @@ function renderRecordsView() {
     html += '<div style="text-align:center;padding:24px 16px;color:var(--text-muted);font-size:13px;font-style:italic;">No medications added yet.</div>';
   } else {
     activeMeds.forEach(function(med) {
-      html += '<div class="record-row">'
+      html += '<div class="record-row" onclick="openEditMed(\'' + med.id + '\')">'
         + '<div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">' + escHtml(med.name) + (med.dose ? ' ' + escHtml(med.dose) : '') + '</div>'
         + '<div class="record-meta">' + (med.frequency ? escHtml(med.frequency) : '') + (med.prescriber ? ' · ' + escHtml(med.prescriber) : '') + '</div></div>'
@@ -2315,7 +2437,7 @@ function renderRecordsView() {
       + '<div class="record-group-title"><i data-lucide="calendar-check" style="width:14px;height:14px;color:var(--moss);"></i>Appointments</div>'
       + '<span class="record-group-count">' + apptEvents.length + ' logged</span></div>';
     apptEvents.slice(0,3).forEach(function(ev) {
-      html += '<div class="record-row"><div class="record-icon moss"><i data-lucide="calendar-check" style="width:15px;height:15px;"></i></div>'
+      html += '<div class="record-row" onclick="openEditEvent(\'' + ev.id + '\')"><div class="record-icon moss"><i data-lucide="calendar-check" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">' + escHtml(ev.title) + '</div>'
         + '<div class="record-meta">' + formatEventDate(ev.event_date) + '</div></div>'
         + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i></div>';
@@ -2328,7 +2450,7 @@ function renderRecordsView() {
       + '<div class="record-group-title"><i data-lucide="flask-conical" style="width:14px;height:14px;color:var(--blue);"></i>Lab results</div>'
       + '<span class="record-group-count">' + labEvents.length + ' logged</span></div>';
     labEvents.slice(0,3).forEach(function(ev) {
-      html += '<div class="record-row"><div class="record-icon blue"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>'
+      html += '<div class="record-row" onclick="openEditEvent(\'' + ev.id + '\')"><div class="record-icon blue"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">' + escHtml(ev.title) + '</div>'
         + '<div class="record-meta">' + formatEventDate(ev.event_date) + '</div></div>'
         + '<span class="record-badge moss">Logged</span></div>';
@@ -2341,7 +2463,7 @@ function renderRecordsView() {
       + '<div class="record-group-title"><i data-lucide="pencil-line" style="width:14px;height:14px;color:var(--text-muted);"></i>Caregiver notes</div>'
       + '<span class="record-group-count">' + noteEvents.length + ' notes</span></div>';
     noteEvents.slice(0,3).forEach(function(ev) {
-      html += '<div class="record-row"><div class="record-icon muted"><i data-lucide="pencil-line" style="width:15px;height:15px;"></i></div>'
+      html += '<div class="record-row" onclick="openEditEvent(\'' + ev.id + '\')"><div class="record-icon muted"><i data-lucide="pencil-line" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">' + escHtml(ev.title) + '</div>'
         + '<div class="record-meta">' + formatEventDate(ev.event_date) + ' · you</div></div>'
         + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i></div>';
@@ -2752,6 +2874,7 @@ async function submitHealthEvent() {
   renderUpdateMe();
   renderTimeline();
   renderRecordsView();
+  renderPatterns();
 }
 
 // ── ADD MEDICATION ────────────────────────────────────────────────────────────
@@ -2807,6 +2930,290 @@ async function submitMedication() {
   await loadPersonData(currentPersonId);
   renderRecordsView();
   renderUpdateMe();
+  renderPatterns();
+}
+
+// ── EDIT/DELETE EVENT ────────────────────────────────────────────────────────
+function openEditEvent(eventId) {
+  var ev = liveEvents.find(function(e) { return e.id === eventId; });
+  if (!ev) return;
+  _editingEventId = eventId;
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  document.getElementById('edit-event-person-label').textContent = 'Editing ' + (person ? person.name.split(' ')[0] + '\u2019s' : 'your') + ' event';
+  document.getElementById('edit-event-type-select').value = ev.event_type || 'note';
+  var dateVal = ev.event_date ? ev.event_date.substring(0, 10) : '';
+  document.getElementById('edit-event-date-input').value = dateVal;
+  document.getElementById('edit-event-title-input').value = ev.title || '';
+  document.getElementById('edit-event-notes-input').value = ev.notes || '';
+  // Reset delete area to default button state
+  var deleteArea = document.getElementById('edit-event-delete-area');
+  deleteArea.innerHTML = '<button class="btn-danger" id="edit-event-delete-btn" onclick="confirmDeleteEvent()">'
+    + '<i data-lucide="trash-2" style="width:15px;height:15px;"></i> Delete event</button>';
+  document.getElementById('edit-event-overlay').classList.add('show');
+  initIcons();
+}
+
+async function saveEditEvent() {
+  var title = document.getElementById('edit-event-title-input').value.trim();
+  var date = document.getElementById('edit-event-date-input').value;
+  var type = document.getElementById('edit-event-type-select').value;
+  var notes = document.getElementById('edit-event-notes-input').value.trim();
+  if (!title) { showToast('Please enter a title'); return; }
+  if (!date) { showToast('Please select a date'); return; }
+
+  var btn = document.getElementById('edit-event-save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving\u2026';
+
+  var { error } = await db.from('health_events').update({
+    event_type: type,
+    event_date: date + 'T00:00:00Z',
+    title: title,
+    notes: notes || null
+  }).eq('id', _editingEventId);
+
+  btn.disabled = false;
+  btn.innerHTML = '<i data-lucide="check" style="width:15px;height:15px;"></i> Save changes';
+  initIcons();
+
+  if (error) { showToast('Error saving: ' + error.message); return; }
+
+  closeSheet('edit-event-overlay');
+  showToast('Event updated');
+  await loadPersonData(currentPersonId);
+  renderUpdateMe();
+  renderTimeline();
+  renderRecordsView();
+  renderPatterns();
+}
+
+function confirmDeleteEvent() {
+  var deleteArea = document.getElementById('edit-event-delete-area');
+  deleteArea.innerHTML = '<div style="font-size:13px;color:var(--red);font-weight:500;text-align:center;margin-bottom:4px;">Delete this event? This cannot be undone.</div>'
+    + '<div class="delete-confirm-row">'
+    + '<button class="btn-cancel-sm" onclick="cancelDeleteEvent()">Cancel</button>'
+    + '<button class="btn-delete-sm" onclick="deleteEvent()">Delete</button>'
+    + '</div>';
+}
+
+function cancelDeleteEvent() {
+  var deleteArea = document.getElementById('edit-event-delete-area');
+  deleteArea.innerHTML = '<button class="btn-danger" id="edit-event-delete-btn" onclick="confirmDeleteEvent()">'
+    + '<i data-lucide="trash-2" style="width:15px;height:15px;"></i> Delete event</button>';
+  initIcons();
+}
+
+async function deleteEvent() {
+  var { error } = await db.from('health_events').delete().eq('id', _editingEventId);
+  if (error) { showToast('Error deleting: ' + error.message); return; }
+
+  closeSheet('edit-event-overlay');
+  showToast('Event deleted');
+  await loadPersonData(currentPersonId);
+  renderUpdateMe();
+  renderTimeline();
+  renderRecordsView();
+  renderPatterns();
+}
+
+// ── EDIT/DELETE MEDICATION ───────────────────────────────────────────────────
+function openEditMed(medId) {
+  var med = liveMeds.find(function(m) { return m.id === medId; });
+  if (!med) return;
+  _editingMedId = medId;
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  document.getElementById('edit-med-person-label').textContent = 'Editing ' + (person ? person.name.split(' ')[0] + '\u2019s' : 'your') + ' medication';
+  document.getElementById('edit-med-name-input').value = med.name || '';
+  document.getElementById('edit-med-dose-input').value = med.dose || '';
+  document.getElementById('edit-med-freq-input').value = med.frequency || '';
+  document.getElementById('edit-med-prescriber-input').value = med.prescriber || '';
+  var toggle = document.getElementById('edit-med-active-toggle');
+  if (toggle) {
+    if (med.active) { toggle.classList.add('on'); } else { toggle.classList.remove('on'); }
+  }
+  // Reset delete area
+  var deleteArea = document.getElementById('edit-med-delete-area');
+  deleteArea.innerHTML = '<button class="btn-danger" id="edit-med-delete-btn" onclick="confirmDeleteMed()">'
+    + '<i data-lucide="trash-2" style="width:15px;height:15px;"></i> Delete medication</button>';
+  document.getElementById('edit-med-overlay').classList.add('show');
+  initIcons();
+}
+
+async function saveEditMed() {
+  var name = document.getElementById('edit-med-name-input').value.trim();
+  var dose = document.getElementById('edit-med-dose-input').value.trim();
+  var freq = document.getElementById('edit-med-freq-input').value.trim();
+  var prescriber = document.getElementById('edit-med-prescriber-input').value.trim();
+  var activeToggle = document.getElementById('edit-med-active-toggle');
+  var active = activeToggle ? activeToggle.classList.contains('on') : true;
+
+  if (!name) { showToast('Please enter a medication name'); return; }
+
+  var btn = document.getElementById('edit-med-save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving\u2026';
+
+  var { error } = await db.from('medications').update({
+    name: name,
+    dose: dose || null,
+    frequency: freq || null,
+    prescriber: prescriber || null,
+    active: active
+  }).eq('id', _editingMedId);
+
+  btn.disabled = false;
+  btn.innerHTML = '<i data-lucide="check" style="width:15px;height:15px;"></i> Save changes';
+  initIcons();
+
+  if (error) { showToast('Error saving: ' + error.message); return; }
+
+  closeSheet('edit-med-overlay');
+  showToast('Medication updated');
+  await loadPersonData(currentPersonId);
+  renderRecordsView();
+  renderUpdateMe();
+  renderPatterns();
+}
+
+function confirmDeleteMed() {
+  var deleteArea = document.getElementById('edit-med-delete-area');
+  deleteArea.innerHTML = '<div style="font-size:13px;color:var(--red);font-weight:500;text-align:center;margin-bottom:4px;">Delete this medication? This cannot be undone.</div>'
+    + '<div class="delete-confirm-row">'
+    + '<button class="btn-cancel-sm" onclick="cancelDeleteMed()">Cancel</button>'
+    + '<button class="btn-delete-sm" onclick="deleteMed()">Delete</button>'
+    + '</div>';
+}
+
+function cancelDeleteMed() {
+  var deleteArea = document.getElementById('edit-med-delete-area');
+  deleteArea.innerHTML = '<button class="btn-danger" id="edit-med-delete-btn" onclick="confirmDeleteMed()">'
+    + '<i data-lucide="trash-2" style="width:15px;height:15px;"></i> Delete medication</button>';
+  initIcons();
+}
+
+async function deleteMed() {
+  var { error } = await db.from('medications').delete().eq('id', _editingMedId);
+  if (error) { showToast('Error deleting: ' + error.message); return; }
+
+  closeSheet('edit-med-overlay');
+  showToast('Medication deleted');
+  await loadPersonData(currentPersonId);
+  renderRecordsView();
+  renderUpdateMe();
+  renderPatterns();
+}
+
+// ── RENDER PATTERNS (dynamic for authenticated users) ────────────────────────
+function renderPatterns() {
+  var pane = document.getElementById('tab-patterns');
+  if (!pane) return;
+  if (isDemoMode) return; // keep demo HTML untouched
+
+  // No events — friendly empty state
+  if (liveEvents.length === 0 && liveMeds.length === 0) {
+    pane.innerHTML = '<div class="patterns-section">'
+      + '<p class="section-label">What Wellet has noticed</p>'
+      + '<div style="text-align:center;padding:48px 24px;">'
+      + '<div style="font-size:32px;margin-bottom:12px;opacity:0.3;"><i data-lucide="bar-chart-3" style="width:32px;height:32px;"></i></div>'
+      + '<div style="font-size:14px;color:var(--text-muted);line-height:1.6;">Add health events to see patterns emerge here.</div>'
+      + '</div></div>';
+    initIcons();
+    return;
+  }
+
+  var html = '<div class="patterns-section"><p class="section-label">What Wellet has noticed</p>';
+
+  // 1. Event Type Breakdown
+  var typeCounts = { appointment: 0, medication: 0, lab_result: 0, note: 0, pattern: 0 };
+  liveEvents.forEach(function(ev) {
+    if (typeCounts.hasOwnProperty(ev.event_type)) typeCounts[ev.event_type]++;
+    else typeCounts['note']++;
+  });
+  var totalEvents = liveEvents.length;
+  var typeLabels = { appointment: 'Appointments', medication: 'Medication changes', lab_result: 'Lab results', note: 'Notes', pattern: 'Patterns noticed' };
+  var typeColors = { appointment: 'var(--moss)', medication: 'var(--amber)', lab_result: 'var(--blue)', note: 'var(--text-muted)', pattern: 'var(--red)' };
+
+  html += '<div class="insight-card">'
+    + '<div class="insight-row"><div class="insight-count">' + totalEvents + '</div><div><div class="insight-label">Health events logged</div></div></div>'
+    + '<div class="insight-sub">Breakdown by type</div>';
+
+  var typeKeys = ['appointment', 'medication', 'lab_result', 'note', 'pattern'];
+  typeKeys.forEach(function(key) {
+    if (typeCounts[key] > 0) {
+      var pct = totalEvents > 0 ? Math.round((typeCounts[key] / totalEvents) * 100) : 0;
+      html += '<div class="pattern-bar-row">'
+        + '<div class="pattern-bar-label">' + escHtml(typeLabels[key]) + '</div>'
+        + '<div class="pattern-bar-track"><div class="pattern-bar-fill" style="width:' + pct + '%;background:' + typeColors[key] + ';"></div></div>'
+        + '<div class="pattern-bar-count">' + typeCounts[key] + '</div>'
+        + '</div>';
+    }
+  });
+  html += '</div>';
+
+  // 2. Monthly Activity (last 6 months)
+  var now = new Date();
+  var monthBuckets = [];
+  var maxCount = 0;
+  for (var mi = 5; mi >= 0; mi--) {
+    var mDate = new Date(now.getFullYear(), now.getMonth() - mi, 1);
+    var mKey = mDate.getFullYear() + '-' + String(mDate.getMonth() + 1).padStart(2, '0');
+    var mLabel = mDate.toLocaleDateString('en-US', { month: 'short' });
+    var count = 0;
+    liveEvents.forEach(function(ev) {
+      var d = new Date(ev.event_date);
+      var evKey = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      if (evKey === mKey) count++;
+    });
+    if (count > maxCount) maxCount = count;
+    monthBuckets.push({ label: mLabel, count: count });
+  }
+
+  if (maxCount > 0) {
+    html += '<div class="insight-card">'
+      + '<div class="insight-row"><div class="insight-count">' + monthBuckets[monthBuckets.length - 1].count + '</div><div><div class="insight-label">Events this month</div></div></div>'
+      + '<div class="insight-sub">Activity over the last 6 months</div>'
+      + '<div class="monthly-bar-row">';
+    monthBuckets.forEach(function(b) {
+      var h = maxCount > 0 ? Math.max(2, Math.round((b.count / maxCount) * 60)) : 2;
+      html += '<div class="monthly-bar-col">'
+        + '<div class="monthly-bar-count">' + b.count + '</div>'
+        + '<div class="monthly-bar" style="height:' + h + 'px;"></div>'
+        + '<div class="monthly-bar-label">' + b.label + '</div>'
+        + '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  // 3. "Wellet is witnessing" narrative card
+  var thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  var recentEvents = liveEvents.filter(function(ev) { return new Date(ev.event_date) >= thirtyDaysAgo; });
+  var recentAppts = recentEvents.filter(function(ev) { return ev.event_type === 'appointment'; }).length;
+  var recentMedChanges = recentEvents.filter(function(ev) { return ev.event_type === 'medication'; }).length;
+  var recentLabs = recentEvents.filter(function(ev) { return ev.event_type === 'lab_result'; }).length;
+  var recentNotes = recentEvents.filter(function(ev) { return ev.event_type === 'note'; }).length;
+  var activeMedCount = liveMeds.filter(function(m) { return m.active; }).length;
+
+  var narrativeParts = [];
+  if (recentAppts > 0) narrativeParts.push(recentAppts + ' appointment' + (recentAppts > 1 ? 's' : '') + ' in the last 30 days');
+  if (recentMedChanges > 0) narrativeParts.push(recentMedChanges + ' medication change' + (recentMedChanges > 1 ? 's' : '') + ' this month');
+  if (recentLabs > 0) narrativeParts.push(recentLabs + ' lab result' + (recentLabs > 1 ? 's' : '') + ' recorded recently');
+  if (recentNotes > 0) narrativeParts.push(recentNotes + ' caregiver note' + (recentNotes > 1 ? 's' : '') + ' logged');
+  if (activeMedCount > 0) narrativeParts.push(activeMedCount + ' active medication' + (activeMedCount > 1 ? 's' : '') + ' being tracked');
+  if (narrativeParts.length === 0) narrativeParts.push('Events are being recorded \u2014 patterns will become clearer over time');
+
+  var narrative = narrativeParts.join('. ') + '.';
+
+  html += '<div class="insight-card" style="border-color:var(--mint-deep);background:var(--mint);">'
+    + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">'
+    + '<i data-lucide="eye" style="width:13px;height:13px;color:var(--moss);"></i>'
+    + '<span style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--moss-dark);font-weight:500;">Wellet is witnessing</span>'
+    + '</div>'
+    + '<p style="font-size:13px;line-height:1.65;color:var(--text-secondary);">' + escHtml(narrative) + '</p>'
+    + '</div>';
+
+  html += '</div>';
+  pane.innerHTML = html;
+  initIcons();
 }
 
 // ── SAVE PERSON AFTER ONBOARDING ──────────────────────────────────────────────
