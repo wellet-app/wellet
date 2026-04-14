@@ -43,13 +43,25 @@
   .page-wrap { max-width: 420px; margin: 0 auto; background: var(--warm-white); min-height: 100vh; }
 
   /* ── AUTH SCREEN ── */
-  #auth-screen { display: none; flex-direction: column; min-height: 100vh; }
-  .auth-hero { background: var(--moss); padding: 52px 28px 32px; color: white; }
-  .auth-hero-wordmark { width: 110px; margin-bottom: 18px; display: block; }
-  .auth-hero h1 { font-family: 'DM Serif Display', serif; font-size: 28px; line-height: 1.22; font-weight: 400; margin-bottom: 10px; }
-  .auth-hero h1 em { font-style: italic; }
-  .auth-hero p { font-size: 15px; line-height: 1.6; opacity: 0.85; font-weight: 300; }
-  .auth-body { padding: 28px 24px; flex: 1; }
+  #auth-screen { display: none; flex-direction: column; min-height: 100vh; background: var(--cream); }
+  .auth-header { display: flex; align-items: center; justify-content: space-between; padding: 24px 28px 0; }
+  .auth-header-wordmark { width: 100px; display: block; }
+  .auth-early-badge { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; color: var(--moss); border: 1.5px solid var(--moss); border-radius: 6px; padding: 5px 12px; text-transform: uppercase; }
+  .auth-building-badge { display: flex; align-items: center; gap: 8px; padding: 32px 28px 0; font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--moss); }
+  .auth-building-dot { width: 7px; height: 7px; border-radius: 50%; background: #47B08A; flex-shrink: 0; }
+  .auth-headline { padding: 20px 28px 0; }
+  .auth-headline h1 { font-family: 'DM Serif Display', serif; font-size: 38px; line-height: 1.15; font-weight: 400; color: #2C2A26; margin: 0; }
+  .auth-headline h1 em { font-family: 'DM Serif Display', serif; font-style: italic; color: #4A7A66; }
+  .auth-description { padding: 20px 28px 0; font-size: 15px; line-height: 1.65; color: #5A5A5A; font-weight: 300; }
+  .auth-signals { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 28px 28px 0; }
+  .auth-signal-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  .auth-signal-label { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
+  .auth-signal-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .auth-signal-dot--green { background: #47B08A; }
+  .auth-signal-dot--amber { background: var(--amber); }
+  .auth-signal-text { font-size: 13px; line-height: 1.55; color: var(--text-secondary); }
+  .auth-signal-text strong { color: var(--text-primary); font-weight: 500; }
+  .auth-body { padding: 28px 28px; flex: 1; }
   .auth-title { font-family: 'DM Serif Display', serif; font-size: 22px; font-weight: 400; margin-bottom: 6px; }
   .auth-subtitle { font-size: 14px; color: var(--text-muted); margin-bottom: 24px; line-height: 1.5; }
   .auth-input-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 5px; display: block; }
@@ -62,9 +74,10 @@
   .auth-sent-body { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
   .auth-demo-link { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 16px; font-size: 13px; color: var(--text-muted); cursor: pointer; background: none; border: none; font-family: 'DM Sans', sans-serif; padding: 8px; }
   .auth-demo-link:hover { color: var(--moss); }
-  .auth-privacy { padding: 0 24px 24px; text-align: center; }
+  .auth-privacy { padding: 0 28px 24px; text-align: center; }
   .auth-privacy p { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
   .auth-privacy strong { color: var(--moss); font-weight: 500; }
+  @media (max-width: 340px) { .auth-signals { grid-template-columns: 1fr; } }
 
   /* ── LANDING ── */
   #landing { display: none; flex-direction: column; min-height: 100vh; }
@@ -628,20 +641,38 @@
 
 <!-- AUTH SCREEN -->
 <div id="auth-screen">
-  <div class="auth-hero">
-    <svg class="auth-hero-wordmark" viewBox="0 138 150 42" xmlns="http://www.w3.org/2000/svg" aria-label="Wellet">
-      <path fill="white" d="M45.5,142c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83l.25-2.56h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z"/>
-      <path fill="white" d="M57.31,168.14c-1.13,1.44-2.57,2.56-4.32,3.37-1.75.8-3.61,1.21-5.58,1.21s-3.92-.49-5.65-1.48c-1.73-.98-3.1-2.32-4.1-4.01-1.01-1.69-1.51-3.55-1.51-5.56s.5-3.87,1.51-5.56c1.01-1.69,2.38-3.03,4.1-4.01,1.73-.98,3.61-1.48,5.65-1.48,1.92,0,3.62.28,5.09.83s2.62,1.31,3.42,2.29c.8.97,1.21,2.06,1.21,3.26,0,2.62-1.68,4.46-5.04,5.54-1.49.46-3.06.68-4.72.68-1.08,0-2.24-.11-3.49-.32.02,1.13.35,2.16.99,3.1.64.94,1.46,1.67,2.47,2.21s2.05.81,3.13.81c.96,0,1.94-.2,2.93-.61,1-.41,1.82-.98,2.47-1.73l1.44,1.48ZM45.7,155.59c-.8,1.26-1.34,2.86-1.6,4.81.84.17,1.64.25,2.41.25,1.61,0,2.87-.34,3.78-1.01.91-.67,1.51-1.5,1.8-2.48.1-.29.14-.59.14-.9,0-.86-.32-1.56-.95-2.09-.64-.53-1.36-.76-2.18-.68-1.46.14-2.6.85-3.4,2.11Z"/>
-      <path fill="white" d="M58.21,170.23c.7-.12,1.26-.52,1.69-1.21.43-.68.65-1.9.65-3.65v-14.26c0-1.18-.13-2.08-.38-2.72s-.5-1.06-.76-1.26-.71-.51-1.39-.92c.65-.84,1.61-1.47,2.9-1.89,1.28-.42,2.59-.63,3.91-.63,1.15,0,2.04.14,2.66.43v21.24c0,1.75.22,2.97.65,3.65.43.68,1,1.09,1.69,1.21l.11,1.62h-11.84l.11-1.62Z"/>
-      <path fill="white" d="M70.85,170.23c.7-.12,1.26-.52,1.69-1.21.43-.68.65-1.9.65-3.65v-14.26c0-1.18-.13-2.08-.38-2.72s-.5-1.06-.76-1.26-.71-.51-1.39-.92c.65-.84,1.61-1.47,2.9-1.89,1.28-.42,2.59-.63,3.91-.63,1.15,0,2.04.14,2.66.43v21.24c0,1.75.22,2.97.65,3.65.43.68,1,1.09,1.69,1.21l.11,1.62h-11.84l.11-1.62Z"/>
-      <path fill="white" d="M104.11,168.14c-1.13,1.44-2.57,2.56-4.32,3.37-1.75.8-3.61,1.21-5.58,1.21s-3.92-.49-5.65-1.48c-1.73-.98-3.1-2.32-4.1-4.01-1.01-1.69-1.51-3.55-1.51-5.56s.5-3.87,1.51-5.56c1.01-1.69,2.38-3.03,4.1-4.01,1.73-.98,3.61-1.48,5.65-1.48,1.92,0,3.62.28,5.09.83,1.48.55,2.62,1.31,3.42,2.29.8.97,1.21,2.06,1.21,3.26,0,2.62-1.68,4.46-5.04,5.54-1.49.46-3.06.68-4.72.68-1.08,0-2.24-.11-3.49-.32.02,1.13.35,2.16.99,3.1.64.94,1.46,1.67,2.47,2.21,1.01.54,2.05.81,3.13.81.96,0,1.94-.2,2.93-.61s1.82-.98,2.47-1.73l1.44,1.48ZM92.5,155.59c-.8,1.26-1.34,2.86-1.6,4.81.84.17,1.64.25,2.41.25,1.61,0,2.87-.34,3.78-1.01s1.51-1.5,1.8-2.48c.09-.29.14-.59.14-.9,0-.86-.32-1.56-.95-2.09-.64-.53-1.36-.76-2.18-.68-1.46.14-2.6.85-3.4,2.11Z"/>
-      <path fill="white" d="M139.93,141.71c.46.5.76,1.14.86,1.81.17,1.09-.14,2.07-.91,2.95s-1.69,1.36-2.84,1.51c-.83.11-1.71.14-2.64.09-1.17-.04-2.31,0-3.43.15-1.24.16-2.36.49-3.36,1-1,.5-1.5.85-2.29,1.37-1.25.83-.64.51-2.68,1.64-1.7.75-1.02.47-2.27.96-2.92,1.15-5.84,1.04-6.2,1.21v12.12c0,.86.13,1.51.38,1.93s.58.63.99.63c.26,0,.55-.09.86-.27.31-.18.6-.43.86-.74l1.44,1.48c-.98,1.1-1.96,1.87-2.92,2.3-.96.43-2.08.65-3.35.65-1.58,0-2.89-.4-3.92-1.21-1.03-.8-1.55-1.95-1.55-3.44v-13c-.74-.07-1.58-.24-2.52-.5v-1.8c.53.12.97.18,1.33.18.96,0,1.82-.27,2.59-.81.77-.54,1.42-1.18,1.96-1.91.54-.73,1.15-1.66,1.82-2.79.48-.89.88-1.52,1.19-1.91h.83v6.8c3.33.07,5-.58,7.3-1.62,1.91-1.06,2.49-1.68,3.33-2.56.36-.38.58-.67,1.77-1.97.66-.72,2.14-1.98,2.76-2.44,1.43-1.1,2.12-1.49,3.27-2.09,1.14-.61,2.11-.76,3.26-.88,2.04-.21,3.13.16,4.06,1.16Z"/>
+  <div class="auth-header">
+    <svg class="auth-header-wordmark" viewBox="0 138 150 42" xmlns="http://www.w3.org/2000/svg" aria-label="Wellet">
+      <path fill="#608F7C" d="M45.5,142c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83l.25-2.56h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z"/>
+      <path fill="#608F7C" d="M57.31,168.14c-1.13,1.44-2.57,2.56-4.32,3.37-1.75.8-3.61,1.21-5.58,1.21s-3.92-.49-5.65-1.48c-1.73-.98-3.1-2.32-4.1-4.01-1.01-1.69-1.51-3.55-1.51-5.56s.5-3.87,1.51-5.56c1.01-1.69,2.38-3.03,4.1-4.01,1.73-.98,3.61-1.48,5.65-1.48,1.92,0,3.62.28,5.09.83s2.62,1.31,3.42,2.29c.8.97,1.21,2.06,1.21,3.26,0,2.62-1.68,4.46-5.04,5.54-1.49.46-3.06.68-4.72.68-1.08,0-2.24-.11-3.49-.32.02,1.13.35,2.16.99,3.1.64.94,1.46,1.67,2.47,2.21s2.05.81,3.13.81c.96,0,1.94-.2,2.93-.61,1-.41,1.82-.98,2.47-1.73l1.44,1.48ZM45.7,155.59c-.8,1.26-1.34,2.86-1.6,4.81.84.17,1.64.25,2.41.25,1.61,0,2.87-.34,3.78-1.01.91-.67,1.51-1.5,1.8-2.48.1-.29.14-.59.14-.9,0-.86-.32-1.56-.95-2.09-.64-.53-1.36-.76-2.18-.68-1.46.14-2.6.85-3.4,2.11Z"/>
+      <path fill="#608F7C" d="M58.21,170.23c.7-.12,1.26-.52,1.69-1.21.43-.68.65-1.9.65-3.65v-14.26c0-1.18-.13-2.08-.38-2.72s-.5-1.06-.76-1.26-.71-.51-1.39-.92c.65-.84,1.61-1.47,2.9-1.89,1.28-.42,2.59-.63,3.91-.63,1.15,0,2.04.14,2.66.43v21.24c0,1.75.22,2.97.65,3.65.43.68,1,1.09,1.69,1.21l.11,1.62h-11.84l.11-1.62Z"/>
+      <path fill="#608F7C" d="M70.85,170.23c.7-.12,1.26-.52,1.69-1.21.43-.68.65-1.9.65-3.65v-14.26c0-1.18-.13-2.08-.38-2.72s-.5-1.06-.76-1.26-.71-.51-1.39-.92c.65-.84,1.61-1.47,2.9-1.89,1.28-.42,2.59-.63,3.91-.63,1.15,0,2.04.14,2.66.43v21.24c0,1.75.22,2.97.65,3.65.43.68,1,1.09,1.69,1.21l.11,1.62h-11.84l.11-1.62Z"/>
+      <path fill="#608F7C" d="M104.11,168.14c-1.13,1.44-2.57,2.56-4.32,3.37-1.75.8-3.61,1.21-5.58,1.21s-3.92-.49-5.65-1.48c-1.73-.98-3.1-2.32-4.1-4.01-1.01-1.69-1.51-3.55-1.51-5.56s.5-3.87,1.51-5.56c1.01-1.69,2.38-3.03,4.1-4.01,1.73-.98,3.61-1.48,5.65-1.48,1.92,0,3.62.28,5.09.83,1.48.55,2.62,1.31,3.42,2.29.8.97,1.21,2.06,1.21,3.26,0,2.62-1.68,4.46-5.04,5.54-1.49.46-3.06.68-4.72.68-1.08,0-2.24-.11-3.49-.32.02,1.13.35,2.16.99,3.1.64.94,1.46,1.67,2.47,2.21,1.01.54,2.05.81,3.13.81.96,0,1.94-.2,2.93-.61s1.82-.98,2.47-1.73l1.44,1.48ZM92.5,155.59c-.8,1.26-1.34,2.86-1.6,4.81.84.17,1.64.25,2.41.25,1.61,0,2.87-.34,3.78-1.01s1.51-1.5,1.8-2.48c.09-.29.14-.59.14-.9,0-.86-.32-1.56-.95-2.09-.64-.53-1.36-.76-2.18-.68-1.46.14-2.6.85-3.4,2.11Z"/>
+      <path fill="#608F7C" d="M139.93,141.71c.46.5.76,1.14.86,1.81.17,1.09-.14,2.07-.91,2.95s-1.69,1.36-2.84,1.51c-.83.11-1.71.14-2.64.09-1.17-.04-2.31,0-3.43.15-1.24.16-2.36.49-3.36,1-1,.5-1.5.85-2.29,1.37-1.25.83-.64.51-2.68,1.64-1.7.75-1.02.47-2.27.96-2.92,1.15-5.84,1.04-6.2,1.21v12.12c0,.86.13,1.51.38,1.93s.58.63.99.63c.26,0,.55-.09.86-.27.31-.18.6-.43.86-.74l1.44,1.48c-.98,1.1-1.96,1.87-2.92,2.3-.96.43-2.08.65-3.35.65-1.58,0-2.89-.4-3.92-1.21-1.03-.8-1.55-1.95-1.55-3.44v-13c-.74-.07-1.58-.24-2.52-.5v-1.8c.53.12.97.18,1.33.18.96,0,1.82-.27,2.59-.81.77-.54,1.42-1.18,1.96-1.91.54-.73,1.15-1.66,1.82-2.79.48-.89.88-1.52,1.19-1.91h.83v6.8c3.33.07,5-.58,7.3-1.62,1.91-1.06,2.49-1.68,3.33-2.56.36-.38.58-.67,1.77-1.97.66-.72,2.14-1.98,2.76-2.44,1.43-1.1,2.12-1.49,3.27-2.09,1.14-.61,2.11-.76,3.26-.88,2.04-.21,3.13.16,4.06,1.16Z"/>
     </svg>
-    <h1>What does care look like <em>when you stop holding it all in your head?</em></h1>
+    <span class="auth-early-badge">EARLY ACCESS</span>
+  </div>
+  <div class="auth-building-badge">
+    <span class="auth-building-dot"></span>
+    NOW BUILDING · SPRING 2026
+  </div>
+  <div class="auth-headline">
+    <h1>Stop wondering<br>if Mom is okay.<br><em>Wellet is watching,<br>so you don't have to.</em></h1>
+  </div>
+  <p class="auth-description">Wellet is an AI care companion for family caregivers. It keeps track of the people you love — their medications, appointments, health patterns, and history — and tells you what's changing before it becomes a crisis.</p>
+  <div class="auth-signals">
+    <div class="auth-signal-card">
+      <div class="auth-signal-label"><span class="auth-signal-dot auth-signal-dot--green"></span> TODAY</div>
+      <p class="auth-signal-text"><strong>Dad took his medications</strong> this morning. BP readings have been higher than usual since his dose changed June 18.</p>
+    </div>
+    <div class="auth-signal-card">
+      <div class="auth-signal-label"><span class="auth-signal-dot auth-signal-dot--amber"></span> WORTH WATCHING</div>
+      <p class="auth-signal-text"><strong>Mom's sleep has been fragmented</strong> for four nights. Her next appointment is August 4 — this is worth mentioning.</p>
+    </div>
   </div>
   <div class="auth-body">
     <div id="auth-form-state">
-      <div class="auth-title">To get started</div>
+      <div class="auth-title">Get early access</div>
       <p class="auth-subtitle">Enter your email and we'll send you a magic link — no password needed.</p>
       <div class="auth-input-wrap">
         <label class="auth-input-label" for="auth-email">Email address</label>
