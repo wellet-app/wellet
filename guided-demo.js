@@ -343,7 +343,11 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
   function gdScrollTo(selector, delay) {
     setTimeout(function() {
       var el = document.querySelector(selector);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (!el) return;
+      var header = document.querySelector('.app-header');
+      var headerH = header ? header.offsetHeight : 0;
+      var top = el.getBoundingClientRect().top + window.pageYOffset - headerH - 12;
+      window.scrollTo({ top: top, behavior: 'smooth' });
     }, delay || 200);
   }
 

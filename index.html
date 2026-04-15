@@ -191,6 +191,7 @@
   /* ── APP ── */
   #app { display: none; flex-direction: column; min-height: 100vh; }
   .app-header { background: white; border-bottom: 1px solid var(--border); padding: 52px 20px 0; position: sticky; top: 0; z-index: 10; }
+  html { scroll-padding-top: 160px; }
   .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
   .app-logo-row { display: flex; align-items: center; gap: 10px; }
   .app-icon { width: 30px; height: 30px; border-radius: 7px; overflow: hidden; flex-shrink: 0; }
@@ -4291,7 +4292,10 @@ function showAuthScreen() {
 
 function enterDemoMode() {
   // Called from auth screen - goes straight to demo
-  try { new Audio('welcome-to-wellet.mp3').play(); } catch(e) {}
+  // Skip welcome audio if guided demo is active (narration handles its own audio)
+  if (new URLSearchParams(window.location.search).get('demo') !== 'guided') {
+    try { new Audio('welcome-to-wellet.mp3').play(); } catch(e) {}
+  }
   showApp();
   switchNavTo('home');
   document.querySelectorAll('.tab')[0].click();
@@ -6779,7 +6783,10 @@ function switchNavTo(view) {
   document.getElementById('header-tab-bar').style.display = isHome ? 'flex' : 'none';
   if (view === 'signals') { renderSignalsView(); }
   if (view === 'ask' && !isDemoMode) { renderAskView(); }
-  window.scrollTo(0, 0);
+  // Let guided demo handle its own scrolling; otherwise scroll to top
+  if (new URLSearchParams(window.location.search).get('demo') !== 'guided') {
+    window.scrollTo(0, 0);
+  }
   initIcons();
 }
 
