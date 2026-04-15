@@ -6706,11 +6706,6 @@ var obSituations = [
   { id:'parent',    icon:'heart', label:'A parent or family member with a health condition' },
   { id:'diagnosis', icon:'stethoscope', label:'Someone who was just diagnosed with something serious' },
   { id:'family',    icon:'users', label:'I\'m coordinating care across my family' },
-  { id:'self',      icon:'user', label:'I\'m managing my own health condition' },
-  { id:'menopause', icon:'moon', label:'I\'m navigating menopause' },
-  { id:'veteran',   icon:'shield', label:'I\'m caring for a veteran' },
-  { id:'endoflife', icon:'feather', label:'I\'m caring for someone at the end of their life' },
-  { id:'mentalhealth', icon:'brain', label:'I\'m caring for someone with a mental health condition' },
   { id:'other',     icon:'message-circle', label:'Something else' },
 ];
 
@@ -6732,36 +6727,6 @@ var obFlows = {
     q2: function(n,p){ return 'Keeping everyone informed is exhausting. I\'ll help with that. What\'s going on with '+p+'\'s health right now?'; },
     q3: function(p){ return 'I\'ve noted that. Who else is involved in '+p+'\'s care — other family members, doctors, anyone you\'re coordinating with?'; },
     confirm: function(n,p){ return 'Got it. I\'ve set up '+p+'\'s record, '+n+', and noted the people involved. You\'re building a care network — that\'s a big deal.'; }
-  },
-  self: {
-    q1: 'You know your situation better than anyone. What\'s your name?',
-    q2: function(n){ return 'Hi '+n+'. What conditions are you managing, and who\'s on your care team?'; },
-    q3: function(n){ return 'I\'ve noted that. What\'s been hardest to communicate to your doctors — the things that don\'t always make it into the chart?'; },
-    confirm: function(n){ return 'That\'s exactly the kind of thing I\'m here to hold. Your Wellet is set up, '+n+'. I\'ll help you build the record your doctors don\'t have yet.'; }
-  },
-  menopause: {
-    q1: 'You\'ve probably been paying attention to this longer than anyone gave you credit for. What\'s your name?',
-    q2: function(n){ return 'Hi '+n+'. Where are you right now — perimenopause, menopause, or post-menopause?'; },
-    q3: function(n){ return 'Got it. Do you have a specialist, or are you working with your GP?'; },
-    confirm: function(n){ return 'I\'ll help you build the record. Your Wellet is set up, '+n+'. I\'m here whenever you need me.'; }
-  },
-  veteran: {
-    q1: 'I\'m here to help. What\'s your name, and who are you caring for?',
-    q2: function(n,p){ return 'Got it — '+n+', caring for '+p+'. Does '+p+' get care through the VA, through civilian providers, or both?'; },
-    q3: function(p){ return 'That\'s a lot to keep track of across two systems. I\'ll help you hold both. What are the main things going on with '+p+'\'s health right now?'; },
-    confirm: function(n,p){ return 'I\'ve got '+p+' set up across both systems, '+n+'. We can fill in more as you have it.'; }
-  },
-  endoflife: {
-    q1: 'I\'m here. What\'s your name, and who are you caring for?',
-    q2: function(n,p){ return 'I\'m glad you\'re here, '+n+'. What\'s going on with '+p+' right now — what does their care look like day to day?'; },
-    q3: function(p){ return 'I\'ve noted that. Who else is involved in '+p+'\'s care — hospice, palliative team, family members?'; },
-    confirm: function(n,p){ return 'I\'ve set up '+p+'\'s record, '+n+'. You don\'t have to carry all of this alone. I\'m here whenever you need me.'; }
-  },
-  mentalhealth: {
-    q1: 'I\'m here to help. What\'s your name, and who are you caring for?',
-    q2: function(n,p){ return 'Got it — '+n+', caring for '+p+'. What\'s going on with '+p+'\'s mental health right now? Share whatever feels right.'; },
-    q3: function(p){ return 'I\'ve noted that. Who is '+p+' working with — a therapist, psychiatrist, or another provider?'; },
-    confirm: function(n,p){ return 'I\'ve got '+p+' set up, '+n+'. This kind of care is hard to hold alone. I\'m here to help you keep it all together.'; }
   },
   other: {
     q1: 'I\'m here. Tell me a bit about your situation — whatever feels right to share.',
@@ -6855,7 +6820,7 @@ function obSend() {
   if (step === 1) {
     var parts = val.split(/[\s,]+/);
     obState.userName = parts[0] || 'you';
-    var selfModes = ['self','menopause','other'];
+    var selfModes = ['other'];
     if (selfModes.indexOf(obState.situation) > -1) {
       obState.personName = obState.userName;
       obState.step = 2;
@@ -6879,7 +6844,7 @@ function obSend() {
   } else if (step === 2) {
     obState.step = 3;
     var q3 = obFlows[obState.situation].q3;
-    var selfModes2 = ['self','menopause','other'];
+    var selfModes2 = ['other'];
     var msg = (selfModes2.indexOf(obState.situation) > -1) ? q3(obState.userName) : q3(obState.personName);
     obTypeThen(msg, function(){
       document.getElementById('ob-input').disabled = false;
@@ -6888,7 +6853,7 @@ function obSend() {
     }, 850);
   } else if (step === 3) {
     obState.step = 4;
-    var selfModes3 = ['self','menopause','other'];
+    var selfModes3 = ['other'];
     var confirm = (selfModes3.indexOf(obState.situation) > -1)
       ? obFlows[obState.situation].confirm(obState.userName)
       : obFlows[obState.situation].confirm(obState.userName, obState.personName);
