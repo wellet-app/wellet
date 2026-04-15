@@ -1,0 +1,569 @@
+<?xml version="1.0" encoding="UTF-8"?><?xml-stylesheet type='text/xsl' href='STYLE.XSL'?><ClinicalDocument xmlns="urn:hl7-org:v3"><realmCode code="US" /><typeId extension="POCD_HD000040" root="2.16.840.1.113883.1.3" /><templateId root="1.2.840.114350.1.72.1.51693" /><templateId root="2.16.840.1.113883.10.20.22.1.1" /><templateId root="2.16.840.1.113883.10.20.22.1.1" extension="2015-08-01" /><templateId root="2.16.840.1.113883.10.20.22.1.2" /><templateId root="2.16.840.1.113883.10.20.22.1.2" extension="2015-08-01" /><id assigningAuthorityName="EPC" root="1.2.840.114350.1.13.999.2.7.8.688883.1000000001" /><code code="34133-9" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="Summarization of Episode Note" /><title>Patient Health Summary</title><effectiveTime value="20260415091032-0400" /><confidentialityCode code="N" codeSystem="2.16.840.1.113883.5.25" displayName="Normal" /><languageCode code="en-US" /><recordTarget><patientRole><id root="1.2.840.114350.1.13.999.2.7.3.688884.100" extension="TEST-12345" /><addr use="HP"><streetAddressLine>100 Test Street</streetAddressLine><city>Durham</city><state>NC</state><postalCode>27701</postalCode><country>USA</country></addr><telecom use="MC" value="tel:+1-919-555-0100" /><patient><name use="L"><given>Jane</given><family>TestPatient</family></name><administrativeGenderCode code="F" codeSystem="2.16.840.1.113883.5.1" displayName="Female" /><birthTime value="19500115" /><raceCode code="2106-3" codeSystem="2.16.840.1.113883.6.238" displayName="White" /><ethnicGroupCode code="2186-5" codeSystem="2.16.840.1.113883.6.238" displayName="Not Hispanic or Latino" /></patient></patientRole></recordTarget><author><time value="20260415091032-0400" /><assignedAuthor><id root="1.2.840.114350.1.13.999.2.7.1.1133" extension="900000001" /><addr use="WP"><streetAddressLine>2301 Erwin Rd</streetAddressLine><city>Durham</city><state>NC</state><postalCode>27710</postalCode></addr><assignedPerson><name><given>Test</given><family>Provider</family></name></assignedPerson><representedOrganization><name>Duke Health (Synthetic)</name></representedOrganization></assignedAuthor></author><custodian><assignedCustodian><representedCustodianOrganization><name>Epic Systems (Synthetic Test)</name></representedCustodianOrganization></assignedCustodian></custodian><component><structuredBody>
+
+<!-- ============================================================ -->
+<!-- ALLERGIES SECTION — Replicates Epic's encoding quirks        -->
+<!-- ============================================================ -->
+<component><section>
+<templateId root="2.16.840.1.113883.10.20.22.2.6.1" />
+<templateId root="2.16.840.1.113883.10.20.22.2.6.1" extension="2015-08-01" />
+<code code="48765-2" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="Allergies and adverse reactions Document" />
+<title>Allergies</title>
+<text>
+<list>
+<item ID="allergy1">
+<content ID="allergy1allergen" styleCode="Bold">Penicillin</content> (<content ID="allergy1reaction1">Hives, Rash</content>) - <content ID="allergy1severity">High Criticality</content>
+</item>
+<item ID="allergy2">
+<content ID="allergy2allergen" styleCode="Bold">Lisinopril</content> (<content ID="allergy2reaction1">Other (See Comments)</content>) - <content ID="allergy2severity">Low Criticality</content>
+</item>
+</list>
+</text>
+
+<!-- Allergy 1: Well-structured — Penicillin with proper coding -->
+<entry>
+<act classCode="ACT" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.30" />
+<templateId root="2.16.840.1.113883.10.20.22.4.30" extension="2015-08-01" />
+<id root="1.2.840.114350.1.13.999.2.7.2.768076" extension="ALLERGY-001-concern" />
+<code code="CONC" codeSystem="2.16.840.1.113883.5.6" />
+<text><reference value="#allergy1" /></text>
+<statusCode code="active" />
+<effectiveTime><low value="20100315" /></effectiveTime>
+<entryRelationship inversionInd="false" typeCode="SUBJ">
+<observation classCode="OBS" moodCode="EVN" negationInd="false">
+<templateId root="2.16.840.1.113883.10.20.22.4.7" />
+<templateId root="2.16.840.1.113883.10.20.22.4.7" extension="2014-06-09" />
+<id root="1.2.840.114350.1.13.999.2.7.2.768076" extension="ALLERGY-001" />
+<code code="ASSERTION" codeSystem="2.16.840.1.113883.5.4" />
+<text><reference value="#allergy1" /></text>
+<statusCode code="completed" />
+<effectiveTime><low value="20100315" /></effectiveTime>
+<value code="419511003" codeSystem="2.16.840.1.113883.6.96" codeSystemName="SNOMED CT" displayName="Propensity to adverse reactions to drug" xsi:type="CD" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+<!-- Epic quirk: the actual allergen is in participant, not in value -->
+<participant typeCode="CSM">
+<participantRole classCode="MANU">
+<playingEntity classCode="MMAT">
+<code code="70618" codeSystem="2.16.840.1.113883.6.88" codeSystemName="RxNorm" displayName="Penicillin">
+<originalText><reference value="#allergy1allergen" /></originalText>
+</code>
+</playingEntity>
+</participantRole>
+</participant>
+<entryRelationship typeCode="MFST" inversionInd="true">
+<observation classCode="OBS" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.9" />
+<code code="ASSERTION" codeSystem="2.16.840.1.113883.5.4" />
+<text><reference value="#allergy1reaction1" /></text>
+<statusCode code="completed" />
+<value code="247472004" codeSystem="2.16.840.1.113883.6.96" codeSystemName="SNOMED CT" displayName="Hives" xsi:type="CD" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+</observation>
+</entryRelationship>
+<entryRelationship typeCode="SUBJ" inversionInd="true">
+<observation classCode="OBS" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.8" />
+<code code="SEV" codeSystem="2.16.840.1.113883.5.4" displayName="Severity" />
+<text><reference value="#allergy1severity" /></text>
+<statusCode code="completed" />
+<value code="24484000" codeSystem="2.16.840.1.113883.6.96" codeSystemName="SNOMED CT" displayName="Severe" xsi:type="CD" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+</observation>
+</entryRelationship>
+</observation>
+</entryRelationship>
+</act>
+</entry>
+
+<!-- Allergy 2: GARBAGE ENCODING — Lisinopril with Epic quirks -->
+<!-- This replicates what we found in the real Duke export:
+     - The observation value uses generic SNOMED "Propensity to adverse reactions"
+     - The participant has an RxNorm code but NO displayName
+     - The reaction text is "Other (See Comments)" which is useless
+     - A naive parser will extract "Active" or "Other (See Comments)" as substance name -->
+<entry>
+<act classCode="ACT" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.30" />
+<templateId root="2.16.840.1.113883.10.20.22.4.30" extension="2015-08-01" />
+<id root="1.2.840.114350.1.13.999.2.7.2.768076" extension="ALLERGY-002-concern" />
+<code code="CONC" codeSystem="2.16.840.1.113883.5.6" />
+<text><reference value="#allergy2" /></text>
+<statusCode code="active" />
+<effectiveTime><low value="20200811" /></effectiveTime>
+<entryRelationship inversionInd="false" typeCode="SUBJ">
+<observation classCode="OBS" moodCode="EVN" negationInd="false">
+<templateId root="2.16.840.1.113883.10.20.22.4.7" />
+<templateId root="2.16.840.1.113883.10.20.22.4.7" extension="2014-06-09" />
+<id root="1.2.840.114350.1.13.999.2.7.2.768076" extension="ALLERGY-002" />
+<code code="ASSERTION" codeSystem="2.16.840.1.113883.5.4" />
+<text><reference value="#allergy2" /></text>
+<statusCode code="completed" />
+<effectiveTime><low value="20200811" /></effectiveTime>
+<!-- Epic quirk: generic SNOMED code, not allergen-specific -->
+<value code="419511003" codeSystem="2.16.840.1.113883.6.96" codeSystemName="SNOMED CT" displayName="Propensity to adverse reactions to drug" xsi:type="CD" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+<!-- Epic quirk: participant has RxNorm code but NO displayName attribute -->
+<participant typeCode="CSM">
+<participantRole classCode="MANU">
+<playingEntity classCode="MMAT">
+<code code="29046" codeSystem="2.16.840.1.113883.6.88" codeSystemName="RxNorm">
+<originalText><reference value="#allergy2allergen" /></originalText>
+</code>
+</playingEntity>
+</participantRole>
+</participant>
+<!-- Epic quirk: reaction is generic "Other (See Comments)" -->
+<entryRelationship typeCode="MFST" inversionInd="true">
+<observation classCode="OBS" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.9" />
+<code code="ASSERTION" codeSystem="2.16.840.1.113883.5.4" />
+<text><reference value="#allergy2reaction1" /></text>
+<statusCode code="completed" />
+<!-- No specific SNOMED code for the reaction — just a generic assertion -->
+<value code="419511003" codeSystem="2.16.840.1.113883.6.96" codeSystemName="SNOMED CT" displayName="Other (See Comments)" xsi:type="CD" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+</observation>
+</entryRelationship>
+</observation>
+</entryRelationship>
+</act>
+</entry>
+</section></component>
+
+<!-- ============================================================ -->
+<!-- MEDICATIONS SECTION — Replicates originalText/reference      -->
+<!-- ============================================================ -->
+<component><section>
+<templateId root="2.16.840.1.113883.10.20.22.2.1.1" />
+<templateId root="2.16.840.1.113883.10.20.22.2.1.1" extension="2014-06-09" />
+<code code="10160-0" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="History of Medication use Narrative" />
+<title>Medications</title>
+<text>
+<list>
+<item ID="currx1">
+<content ID="med1" styleCode="Bold">metformin (GLUCOPHAGE) 1000 MG tablet</content>
+<content> (Started 3/15/2018)</content>
+<paragraph ID="sig1" styleCode="xIndent">Take 1 tablet (1000 mg total) by mouth twice daily with meals</paragraph>
+<paragraph styleCode="xIndent">3 refills by 3/15/2027</paragraph>
+</item>
+<item ID="currx2">
+<content ID="med2" styleCode="Bold">lisinopril (PRINIVIL) 20 MG tablet</content>
+<content> (Started 6/10/2015)</content>
+<paragraph ID="sig2" styleCode="xIndent">Take 1 tablet (20 mg total) by mouth once daily</paragraph>
+<paragraph styleCode="xIndent">5 refills by 6/10/2026</paragraph>
+</item>
+<item ID="currx3">
+<content ID="med3" styleCode="Bold">atorvastatin (LIPITOR) 40 MG tablet</content>
+<content> (Started 1/22/2020)</content>
+<paragraph ID="sig3" styleCode="xIndent">Take 1 tablet (40 mg total) by mouth at bedtime</paragraph>
+<paragraph styleCode="xIndent">2 refills by 1/22/2027</paragraph>
+</item>
+<item ID="currx4">
+<content ID="med4" styleCode="Bold">aspirin 81 MG chewable tablet</content>
+<paragraph ID="sig4" styleCode="xIndent">Take 1 tablet by mouth once daily</paragraph>
+</item>
+<item ID="currx5">
+<content ID="med5" styleCode="Bold">glipizide (GLUCOTROL) 5 MG tablet</content>
+<content> (Started 9/5/2023)</content>
+<paragraph ID="sig5" styleCode="xIndent">Take 1 tablet (5 mg total) by mouth once daily before breakfast</paragraph>
+<paragraph styleCode="xIndent">1 refill by 9/5/2026</paragraph>
+</item>
+</list>
+</text>
+
+<!-- Med 1: metformin — with originalText/reference (NO displayName on code) -->
+<entry>
+<substanceAdministration classCode="SBADM" moodCode="INT">
+<templateId root="2.16.840.1.113883.10.20.22.4.16" />
+<templateId root="2.16.840.1.113883.10.20.22.4.16" extension="2014-06-09" />
+<id root="1.2.840.114350.1.13.999.2.7.2.798268" extension="MED-001" />
+<text><reference value="#sig1" /></text>
+<statusCode code="active" />
+<effectiveTime xsi:type="IVL_TS" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<low value="20180315" />
+<high nullFlavor="UNK" />
+</effectiveTime>
+<effectiveTime xsi:type="PIVL_TS" institutionSpecified="true" operator="A" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<period unit="d" value=".5" />
+</effectiveTime>
+<routeCode code="C38288" codeSystem="2.16.840.1.113883.3.26.1.1" codeSystemName="NCI Thesaurus" displayName="Oral">
+<originalText>Oral</originalText>
+</routeCode>
+<doseQuantity unit="mg" value="1000" />
+<consumable typeCode="CSM">
+<manufacturedProduct classCode="MANU">
+<templateId root="2.16.840.1.113883.10.20.22.4.23" />
+<templateId root="2.16.840.1.113883.10.20.22.4.23" extension="2014-06-09" />
+<manufacturedMaterial>
+<!-- EPIC QUIRK: code has RxNorm but NO displayName. Must resolve #med1 -->
+<code code="861004" codeSystem="2.16.840.1.113883.6.88" codeSystemName="RxNorm">
+<originalText><reference value="#med1" /></originalText>
+<translation code="0087-6071-05" codeSystem="2.16.840.1.113883.6.69" codeSystemName="NDC" />
+</code>
+</manufacturedMaterial>
+</manufacturedProduct>
+</consumable>
+</substanceAdministration>
+</entry>
+
+<!-- Med 2: lisinopril — same pattern, reference to #med2 -->
+<entry>
+<substanceAdministration classCode="SBADM" moodCode="INT">
+<templateId root="2.16.840.1.113883.10.20.22.4.16" />
+<templateId root="2.16.840.1.113883.10.20.22.4.16" extension="2014-06-09" />
+<id root="1.2.840.114350.1.13.999.2.7.2.798268" extension="MED-002" />
+<text><reference value="#sig2" /></text>
+<statusCode code="active" />
+<effectiveTime xsi:type="IVL_TS" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<low value="20150610" />
+<high nullFlavor="UNK" />
+</effectiveTime>
+<routeCode code="C38288" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="Oral" />
+<doseQuantity unit="mg" value="20" />
+<consumable typeCode="CSM">
+<manufacturedProduct classCode="MANU">
+<templateId root="2.16.840.1.113883.10.20.22.4.23" />
+<manufacturedMaterial>
+<code code="314076" codeSystem="2.16.840.1.113883.6.88" codeSystemName="RxNorm">
+<originalText><reference value="#med2" /></originalText>
+</code>
+</manufacturedMaterial>
+</manufacturedProduct>
+</consumable>
+</substanceAdministration>
+</entry>
+
+<!-- Med 3: atorvastatin — with displayName (for contrast — some entries DO have it) -->
+<entry>
+<substanceAdministration classCode="SBADM" moodCode="INT">
+<templateId root="2.16.840.1.113883.10.20.22.4.16" />
+<templateId root="2.16.840.1.113883.10.20.22.4.16" extension="2014-06-09" />
+<id root="1.2.840.114350.1.13.999.2.7.2.798268" extension="MED-003" />
+<text><reference value="#sig3" /></text>
+<statusCode code="active" />
+<effectiveTime xsi:type="IVL_TS" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<low value="20200122" />
+<high nullFlavor="UNK" />
+</effectiveTime>
+<routeCode code="C38288" codeSystem="2.16.840.1.113883.3.26.1.1" displayName="Oral" />
+<doseQuantity unit="mg" value="40" />
+<consumable typeCode="CSM">
+<manufacturedProduct classCode="MANU">
+<templateId root="2.16.840.1.113883.10.20.22.4.23" />
+<manufacturedMaterial>
+<!-- This one HAS displayName — parser should prefer it over reference -->
+<code code="259255" codeSystem="2.16.840.1.113883.6.88" codeSystemName="RxNorm" displayName="atorvastatin (LIPITOR) 40 MG tablet">
+<originalText><reference value="#med3" /></originalText>
+</code>
+</manufacturedMaterial>
+</manufacturedProduct>
+</consumable>
+</substanceAdministration>
+</entry>
+
+<!-- Med 4: aspirin — OTC, no start date, no refills -->
+<entry>
+<substanceAdministration classCode="SBADM" moodCode="INT">
+<templateId root="2.16.840.1.113883.10.20.22.4.16" />
+<id root="1.2.840.114350.1.13.999.2.7.2.798268" extension="MED-004" />
+<text><reference value="#sig4" /></text>
+<statusCode code="active" />
+<effectiveTime xsi:type="IVL_TS" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<low nullFlavor="UNK" />
+<high nullFlavor="UNK" />
+</effectiveTime>
+<doseQuantity unit="mg" value="81" />
+<consumable typeCode="CSM">
+<manufacturedProduct classCode="MANU">
+<templateId root="2.16.840.1.113883.10.20.22.4.23" />
+<manufacturedMaterial>
+<code code="243670" codeSystem="2.16.840.1.113883.6.88" codeSystemName="RxNorm">
+<originalText><reference value="#med4" /></originalText>
+</code>
+</manufacturedMaterial>
+</manufacturedProduct>
+</consumable>
+</substanceAdministration>
+</entry>
+
+<!-- Med 5: glipizide — reference pattern -->
+<entry>
+<substanceAdministration classCode="SBADM" moodCode="INT">
+<templateId root="2.16.840.1.113883.10.20.22.4.16" />
+<id root="1.2.840.114350.1.13.999.2.7.2.798268" extension="MED-005" />
+<text><reference value="#sig5" /></text>
+<statusCode code="active" />
+<effectiveTime xsi:type="IVL_TS" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<low value="20230905" />
+<high nullFlavor="UNK" />
+</effectiveTime>
+<doseQuantity unit="mg" value="5" />
+<consumable typeCode="CSM">
+<manufacturedProduct classCode="MANU">
+<templateId root="2.16.840.1.113883.10.20.22.4.23" />
+<manufacturedMaterial>
+<code code="310488" codeSystem="2.16.840.1.113883.6.88" codeSystemName="RxNorm">
+<originalText><reference value="#med5" /></originalText>
+</code>
+</manufacturedMaterial>
+</manufacturedProduct>
+</consumable>
+</substanceAdministration>
+</entry>
+</section></component>
+
+<!-- ============================================================ -->
+<!-- VITAL SIGNS SECTION                                          -->
+<!-- ============================================================ -->
+<component><section>
+<templateId root="2.16.840.1.113883.10.20.22.2.4.1" />
+<templateId root="2.16.840.1.113883.10.20.22.2.4.1" extension="2015-08-01" />
+<code code="8716-3" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="Vital signs" />
+<title>Vital Signs</title>
+<text>
+<table><thead><tr><th>Date</th><th>Vital</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>04/01/2026</td><td>Blood Pressure</td><td ID="vit1">138/82 mm[Hg]</td></tr>
+<tr><td>04/01/2026</td><td>Heart Rate</td><td ID="vit2">76 /min</td></tr>
+<tr><td>04/01/2026</td><td>Weight</td><td ID="vit3">82.1 kg</td></tr>
+<tr><td>04/01/2026</td><td>BMI</td><td ID="vit4">28.3 kg/m2</td></tr>
+</tbody></table>
+</text>
+
+<!-- BP as component-based observation -->
+<entry>
+<organizer classCode="CLUSTER" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.26" />
+<id root="1.2.840.114350.1.13.999.2.7.2.999001" />
+<code code="46680005" codeSystem="2.16.840.1.113883.6.96" codeSystemName="SNOMED CT" displayName="Vital signs" />
+<statusCode code="completed" />
+<effectiveTime value="20260401100000-0400" />
+
+<component>
+<observation classCode="OBS" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.27" />
+<id root="1.2.840.114350.1.13.999.2.7.2.999002" />
+<code code="85354-9" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="Blood pressure panel">
+<translation code="85354-9" codeSystem="2.16.840.1.113883.6.1" />
+</code>
+<text><reference value="#vit1" /></text>
+<statusCode code="completed" />
+<effectiveTime value="20260401100000-0400" />
+<!-- BP uses component pattern — systolic + diastolic -->
+<component>
+<observation classCode="OBS" moodCode="EVN">
+<code code="8480-6" codeSystem="2.16.840.1.113883.6.1" displayName="Systolic blood pressure" />
+<value xsi:type="PQ" unit="mm[Hg]" value="138" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+</observation>
+</component>
+<component>
+<observation classCode="OBS" moodCode="EVN">
+<code code="8462-4" codeSystem="2.16.840.1.113883.6.1" displayName="Diastolic blood pressure" />
+<value xsi:type="PQ" unit="mm[Hg]" value="82" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+</observation>
+</component>
+</observation>
+</component>
+
+<component>
+<observation classCode="OBS" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.27" />
+<code code="8867-4" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="Heart rate" />
+<text><reference value="#vit2" /></text>
+<statusCode code="completed" />
+<effectiveTime value="20260401100000-0400" />
+<value xsi:type="PQ" unit="/min" value="76" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+</observation>
+</component>
+
+<component>
+<observation classCode="OBS" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.27" />
+<code code="29463-7" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="Body weight" />
+<text><reference value="#vit3" /></text>
+<statusCode code="completed" />
+<effectiveTime value="20260401100000-0400" />
+<value xsi:type="PQ" unit="kg" value="82.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+</observation>
+</component>
+
+<component>
+<observation classCode="OBS" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.27" />
+<code code="39156-5" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="Body mass index" />
+<text><reference value="#vit4" /></text>
+<statusCode code="completed" />
+<effectiveTime value="20260401100000-0400" />
+<value xsi:type="PQ" unit="kg/m2" value="28.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+</observation>
+</component>
+</organizer>
+</entry>
+</section></component>
+
+<!-- ============================================================ -->
+<!-- RESULTS / LABS SECTION                                       -->
+<!-- ============================================================ -->
+<component><section>
+<templateId root="2.16.840.1.113883.10.20.22.2.3.1" />
+<templateId root="2.16.840.1.113883.10.20.22.2.3.1" extension="2015-08-01" />
+<code code="30954-2" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="Relevant diagnostic tests/laboratory data Narrative" />
+<title>Results</title>
+<text>
+<table><thead><tr><th>Test</th><th>Result</th><th>Units</th><th>Ref Range</th><th>Date</th></tr></thead>
+<tbody>
+<tr><td ID="lab1name">Glucose</td><td ID="lab1val">142</td><td>mg/dL</td><td>70 - 100</td><td>04/01/2026</td></tr>
+<tr><td ID="lab2name">BUN</td><td ID="lab2val">18</td><td>mg/dL</td><td>7 - 20</td><td>04/01/2026</td></tr>
+<tr><td ID="lab3name">Creatinine</td><td ID="lab3val">1.1</td><td>mg/dL</td><td>0.7 - 1.3</td><td>04/01/2026</td></tr>
+<tr><td ID="lab4name">HbA1c</td><td ID="lab4val">7.8</td><td>%</td><td>4.0 - 5.6</td><td>04/01/2026</td></tr>
+<tr><td ID="lab5name">WBC</td><td ID="lab5val">7.2</td><td>x10^3/uL</td><td>4.5 - 11.0</td><td>04/01/2026</td></tr>
+<tr><td ID="lab6name">Hemoglobin</td><td ID="lab6val">13.5</td><td>g/dL</td><td>12.0 - 16.0</td><td>04/01/2026</td></tr>
+</tbody></table>
+</text>
+
+<!-- BMP Organizer -->
+<entry>
+<organizer classCode="BATTERY" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.1" />
+<id root="1.2.840.114350.1.13.999.2.7.2.999100" />
+<code code="51990-0" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="Basic Metabolic Panel" />
+<statusCode code="completed" />
+
+<component>
+<observation classCode="OBS" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.2" />
+<code code="2345-7" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="Glucose">
+<originalText><reference value="#lab1name" /></originalText>
+</code>
+<text><reference value="#lab1val" /></text>
+<statusCode code="completed" />
+<effectiveTime value="20260401" />
+<value xsi:type="PQ" unit="mg/dL" value="142" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+<interpretationCode code="H" codeSystem="2.16.840.1.113883.5.83" displayName="High" />
+<referenceRange><observationRange><text>70 - 100</text><value xsi:type="IVL_PQ" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><low unit="mg/dL" value="70" /><high unit="mg/dL" value="100" /></value></observationRange></referenceRange>
+</observation>
+</component>
+
+<component>
+<observation classCode="OBS" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.2" />
+<code code="3094-0" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="BUN" />
+<statusCode code="completed" />
+<effectiveTime value="20260401" />
+<value xsi:type="PQ" unit="mg/dL" value="18" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+<interpretationCode code="N" codeSystem="2.16.840.1.113883.5.83" displayName="Normal" />
+<referenceRange><observationRange><text>7 - 20</text></observationRange></referenceRange>
+</observation>
+</component>
+
+<component>
+<observation classCode="OBS" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.2" />
+<code code="2160-0" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="Creatinine" />
+<statusCode code="completed" />
+<effectiveTime value="20260401" />
+<value xsi:type="PQ" unit="mg/dL" value="1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+<interpretationCode code="N" codeSystem="2.16.840.1.113883.5.83" displayName="Normal" />
+<referenceRange><observationRange><text>0.7 - 1.3</text></observationRange></referenceRange>
+</observation>
+</component>
+</organizer>
+</entry>
+
+<!-- HbA1c (standalone, not in organizer) -->
+<entry>
+<observation classCode="OBS" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.2" />
+<code code="4548-4" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="Hemoglobin A1c" />
+<statusCode code="completed" />
+<effectiveTime value="20260401" />
+<value xsi:type="PQ" unit="%" value="7.8" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+<interpretationCode code="H" codeSystem="2.16.840.1.113883.5.83" displayName="High" />
+<referenceRange><observationRange><text>4.0 - 5.6</text></observationRange></referenceRange>
+</observation>
+</entry>
+
+<!-- CBC Organizer -->
+<entry>
+<organizer classCode="BATTERY" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.1" />
+<code code="58410-2" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="Complete Blood Count" />
+<statusCode code="completed" />
+
+<component>
+<observation classCode="OBS" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.2" />
+<code code="6690-2" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="WBC" />
+<statusCode code="completed" />
+<effectiveTime value="20260401" />
+<value xsi:type="PQ" unit="x10^3/uL" value="7.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+<interpretationCode code="N" codeSystem="2.16.840.1.113883.5.83" />
+<referenceRange><observationRange><text>4.5 - 11.0</text></observationRange></referenceRange>
+</observation>
+</component>
+
+<component>
+<observation classCode="OBS" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.2" />
+<code code="718-7" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="Hemoglobin" />
+<statusCode code="completed" />
+<effectiveTime value="20260401" />
+<value xsi:type="PQ" unit="g/dL" value="13.5" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+<interpretationCode code="N" codeSystem="2.16.840.1.113883.5.83" />
+<referenceRange><observationRange><text>12.0 - 16.0</text></observationRange></referenceRange>
+</observation>
+</component>
+</organizer>
+</entry>
+</section></component>
+
+<!-- ============================================================ -->
+<!-- PROBLEMS / CONDITIONS SECTION                                -->
+<!-- ============================================================ -->
+<component><section>
+<templateId root="2.16.840.1.113883.10.20.22.2.5.1" />
+<code code="11450-4" codeSystem="2.16.840.1.113883.6.1" codeSystemName="LOINC" displayName="Problem list" />
+<title>Problems</title>
+<text>
+<list>
+<item ID="prob1"><content ID="prob1name">Essential hypertension</content> (Active since 2010)</item>
+<item ID="prob2"><content ID="prob2name">Type 2 diabetes mellitus</content> (Active since 2017)</item>
+<item ID="prob3"><content ID="prob3name">Hyperlipidemia</content> (Active since 2019)</item>
+</list>
+</text>
+
+<entry>
+<act classCode="ACT" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.3" />
+<id root="1.2.840.114350.1.13.999.2.7.2.999200" extension="PROB-001" />
+<code code="CONC" codeSystem="2.16.840.1.113883.5.6" />
+<statusCode code="active" />
+<entryRelationship typeCode="SUBJ">
+<observation classCode="OBS" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.4" />
+<code code="55607006" codeSystem="2.16.840.1.113883.6.96" displayName="Problem" />
+<text><reference value="#prob1" /></text>
+<statusCode code="completed" />
+<effectiveTime><low value="20100101" /></effectiveTime>
+<value code="59621000" codeSystem="2.16.840.1.113883.6.96" codeSystemName="SNOMED CT" displayName="Essential hypertension" xsi:type="CD" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+</observation>
+</entryRelationship>
+</act>
+</entry>
+
+<entry>
+<act classCode="ACT" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.3" />
+<id root="1.2.840.114350.1.13.999.2.7.2.999200" extension="PROB-002" />
+<code code="CONC" codeSystem="2.16.840.1.113883.5.6" />
+<statusCode code="active" />
+<entryRelationship typeCode="SUBJ">
+<observation classCode="OBS" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.4" />
+<code code="55607006" codeSystem="2.16.840.1.113883.6.96" displayName="Problem" />
+<text><reference value="#prob2" /></text>
+<statusCode code="completed" />
+<effectiveTime><low value="20170601" /></effectiveTime>
+<value code="44054006" codeSystem="2.16.840.1.113883.6.96" codeSystemName="SNOMED CT" displayName="Type 2 diabetes mellitus" xsi:type="CD" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+</observation>
+</entryRelationship>
+</act>
+</entry>
+</section></component>
+
+</structuredBody></component></ClinicalDocument>

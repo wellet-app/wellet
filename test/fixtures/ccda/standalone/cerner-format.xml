@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- TEST FIXTURE: Cerner-style CDA without IHE_XDM wrapper.
+     Placed at root level (not in IHE_XDM/ folder).
+     Uses displayName attributes instead of originalText/reference.
+     Parser should handle both Epic-style and Cerner-style encoding. -->
+<ClinicalDocument xmlns="urn:hl7-org:v3">
+<realmCode code="US" />
+<typeId extension="POCD_HD000040" root="2.16.840.1.113883.1.3" />
+<templateId root="2.16.840.1.113883.10.20.22.1.1" />
+<templateId root="2.16.840.1.113883.10.20.22.1.2" />
+<id root="2.16.840.1.113883.19.5.99999.1" />
+<code code="34133-9" codeSystem="2.16.840.1.113883.6.1" displayName="Summarization of Episode Note" />
+<title>Continuity of Care Document</title>
+<effectiveTime value="20260410120000-0500" />
+<confidentialityCode code="N" codeSystem="2.16.840.1.113883.5.25" />
+<languageCode code="en-US" />
+<recordTarget><patientRole>
+<id root="2.16.840.1.113883.19.5.99999" extension="CERNER-TEST-001" />
+<patient>
+<name><given>Robert</given><family>CernerTest</family></name>
+<administrativeGenderCode code="M" codeSystem="2.16.840.1.113883.5.1" />
+<birthTime value="19550720" />
+</patient>
+</patientRole></recordTarget>
+<author><time value="20260410" /><assignedAuthor><id root="2.16.840.1.113883.19.5.99999" /><assignedPerson><name><given>Cerner</given><family>Provider</family></name></assignedPerson><representedOrganization><name>Cerner Health System (Synthetic)</name></representedOrganization></assignedAuthor></author>
+<custodian><assignedCustodian><representedCustodianOrganization><name>Oracle Cerner (Synthetic)</name></representedCustodianOrganization></assignedCustodian></custodian>
+<component><structuredBody>
+
+<!-- Allergies — Cerner style: displayName on value, not just on participant -->
+<component><section>
+<templateId root="2.16.840.1.113883.10.20.22.2.6.1" />
+<code code="48765-2" codeSystem="2.16.840.1.113883.6.1" displayName="Allergies" />
+<title>Allergies</title>
+<text><list>
+<item>Sulfa drugs - Rash (Moderate)</item>
+</list></text>
+<entry>
+<act classCode="ACT" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.30" />
+<code code="CONC" codeSystem="2.16.840.1.113883.5.6" />
+<statusCode code="active" />
+<entryRelationship typeCode="SUBJ">
+<observation classCode="OBS" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.7" />
+<code code="ASSERTION" codeSystem="2.16.840.1.113883.5.4" />
+<statusCode code="completed" />
+<!-- Cerner style: allergen directly in value with displayName -->
+<value code="91936005" codeSystem="2.16.840.1.113883.6.96" codeSystemName="SNOMED CT" displayName="Allergy to penicillin" xsi:type="CD" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+<participant typeCode="CSM">
+<participantRole classCode="MANU">
+<playingEntity classCode="MMAT">
+<!-- Cerner HAS displayName here -->
+<code code="82312" codeSystem="2.16.840.1.113883.6.88" codeSystemName="RxNorm" displayName="Sulfonamide antibacterial" />
+</playingEntity>
+</participantRole>
+</participant>
+<entryRelationship typeCode="MFST" inversionInd="true">
+<observation classCode="OBS" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.9" />
+<code code="ASSERTION" codeSystem="2.16.840.1.113883.5.4" />
+<statusCode code="completed" />
+<value code="271807003" codeSystem="2.16.840.1.113883.6.96" displayName="Rash" xsi:type="CD" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+</observation>
+</entryRelationship>
+<entryRelationship typeCode="SUBJ" inversionInd="true">
+<observation classCode="OBS" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.8" />
+<code code="SEV" codeSystem="2.16.840.1.113883.5.4" />
+<statusCode code="completed" />
+<value code="6736007" codeSystem="2.16.840.1.113883.6.96" displayName="Moderate" xsi:type="CD" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+</observation>
+</entryRelationship>
+</observation>
+</entryRelationship>
+</act>
+</entry>
+</section></component>
+
+<!-- Medications — Cerner style: displayName on code, no originalText/reference -->
+<component><section>
+<templateId root="2.16.840.1.113883.10.20.22.2.1.1" />
+<code code="10160-0" codeSystem="2.16.840.1.113883.6.1" displayName="Medications" />
+<title>Medications</title>
+<text><list>
+<item>amlodipine 5 MG tablet - Take once daily</item>
+<item>metoprolol tartrate 50 MG tablet - Take twice daily</item>
+</list></text>
+
+<entry>
+<substanceAdministration classCode="SBADM" moodCode="INT">
+<templateId root="2.16.840.1.113883.10.20.22.4.16" />
+<statusCode code="active" />
+<effectiveTime xsi:type="IVL_TS" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<low value="20220315" /><high nullFlavor="UNK" />
+</effectiveTime>
+<doseQuantity unit="mg" value="5" />
+<consumable typeCode="CSM">
+<manufacturedProduct classCode="MANU">
+<templateId root="2.16.840.1.113883.10.20.22.4.23" />
+<manufacturedMaterial>
+<!-- CERNER: displayName IS present -->
+<code code="197361" codeSystem="2.16.840.1.113883.6.88" codeSystemName="RxNorm" displayName="amlodipine 5 MG Oral Tablet" />
+</manufacturedMaterial>
+</manufacturedProduct>
+</consumable>
+</substanceAdministration>
+</entry>
+
+<entry>
+<substanceAdministration classCode="SBADM" moodCode="INT">
+<templateId root="2.16.840.1.113883.10.20.22.4.16" />
+<statusCode code="active" />
+<effectiveTime xsi:type="IVL_TS" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<low value="20230801" /><high nullFlavor="UNK" />
+</effectiveTime>
+<doseQuantity unit="mg" value="50" />
+<consumable typeCode="CSM">
+<manufacturedProduct classCode="MANU">
+<templateId root="2.16.840.1.113883.10.20.22.4.23" />
+<manufacturedMaterial>
+<code code="866924" codeSystem="2.16.840.1.113883.6.88" codeSystemName="RxNorm" displayName="metoprolol tartrate 50 MG Oral Tablet" />
+</manufacturedMaterial>
+</manufacturedProduct>
+</consumable>
+</substanceAdministration>
+</entry>
+</section></component>
+
+</structuredBody></component>
+</ClinicalDocument>

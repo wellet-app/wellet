@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- TEST FIXTURE: Summary of Care document (one per encounter).
+     Contains DUPLICATE medications and allergies from DOC0001.
+     The parser/deduplicator must not double-insert these.
+     Also contains encounter-specific labs from a different date. -->
+<ClinicalDocument xmlns="urn:hl7-org:v3">
+<realmCode code="US" />
+<typeId extension="POCD_HD000040" root="2.16.840.1.113883.1.3" />
+<templateId root="2.16.840.1.113883.10.20.22.1.1" />
+<templateId root="2.16.840.1.113883.10.20.22.1.2" />
+<id root="1.2.840.114350.1.13.999.2.7.8.688883.2000000001" />
+<code code="34133-9" codeSystem="2.16.840.1.113883.6.1" displayName="Summarization of Episode Note" />
+<title>Summary of Care</title>
+<effectiveTime value="20260301091032-0500" />
+<confidentialityCode code="N" codeSystem="2.16.840.1.113883.5.25" />
+<languageCode code="en-US" />
+<recordTarget><patientRole>
+<id root="1.2.840.114350.1.13.999.2.7.3.688884.100" extension="TEST-12345" />
+<patient>
+<name><given>Jane</given><family>TestPatient</family></name>
+<administrativeGenderCode code="F" codeSystem="2.16.840.1.113883.5.1" />
+<birthTime value="19500115" />
+</patient>
+</patientRole></recordTarget>
+<author><time value="20260301" /><assignedAuthor><id root="1.2.840.114350.1.13.999" /><assignedPerson><name><given>Test</given><family>Provider</family></name></assignedPerson></assignedAuthor></author>
+<custodian><assignedCustodian><representedCustodianOrganization><name>Epic Systems (Synthetic Test)</name></representedCustodianOrganization></assignedCustodian></custodian>
+<component><structuredBody>
+
+<!-- DUPLICATE Allergies — same allergens as DOC0001 -->
+<component><section>
+<templateId root="2.16.840.1.113883.10.20.22.2.6.1" />
+<code code="48765-2" codeSystem="2.16.840.1.113883.6.1" displayName="Allergies" />
+<title>Allergies</title>
+<text>
+<list>
+<item ID="allergy1"><content ID="allergy1allergen" styleCode="Bold">Penicillin</content> - High Criticality</item>
+<item ID="allergy2"><content ID="allergy2allergen" styleCode="Bold">Lisinopril</content> - Low Criticality</item>
+</list>
+</text>
+<entry>
+<act classCode="ACT" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.30" />
+<code code="CONC" codeSystem="2.16.840.1.113883.5.6" />
+<statusCode code="active" />
+<entryRelationship typeCode="SUBJ">
+<observation classCode="OBS" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.7" />
+<code code="ASSERTION" codeSystem="2.16.840.1.113883.5.4" />
+<statusCode code="completed" />
+<value code="419511003" codeSystem="2.16.840.1.113883.6.96" displayName="Propensity to adverse reactions to drug" xsi:type="CD" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+<participant typeCode="CSM"><participantRole classCode="MANU"><playingEntity classCode="MMAT">
+<code code="70618" codeSystem="2.16.840.1.113883.6.88" displayName="Penicillin">
+<originalText><reference value="#allergy1allergen" /></originalText>
+</code>
+</playingEntity></participantRole></participant>
+</observation>
+</entryRelationship>
+</act>
+</entry>
+</section></component>
+
+<!-- DUPLICATE Medications — same meds as DOC0001 (dedup should catch) -->
+<component><section>
+<templateId root="2.16.840.1.113883.10.20.22.2.1.1" />
+<code code="10160-0" codeSystem="2.16.840.1.113883.6.1" displayName="Medications" />
+<title>Medications</title>
+<text>
+<list>
+<item ID="currx1"><content ID="med1" styleCode="Bold">metformin (GLUCOPHAGE) 1000 MG tablet</content></item>
+<item ID="currx2"><content ID="med2" styleCode="Bold">lisinopril (PRINIVIL) 20 MG tablet</content></item>
+</list>
+</text>
+<entry>
+<substanceAdministration classCode="SBADM" moodCode="INT">
+<templateId root="2.16.840.1.113883.10.20.22.4.16" />
+<statusCode code="active" />
+<consumable typeCode="CSM"><manufacturedProduct classCode="MANU">
+<templateId root="2.16.840.1.113883.10.20.22.4.23" />
+<manufacturedMaterial>
+<code code="861004" codeSystem="2.16.840.1.113883.6.88">
+<originalText><reference value="#med1" /></originalText>
+</code>
+</manufacturedMaterial>
+</manufacturedProduct></consumable>
+</substanceAdministration>
+</entry>
+</section></component>
+
+<!-- DIFFERENT labs — from March 1, 2026 (DOC0001 has April 1) -->
+<!-- These should NOT be deduped because they're from a different date -->
+<component><section>
+<templateId root="2.16.840.1.113883.10.20.22.2.3.1" />
+<code code="30954-2" codeSystem="2.16.840.1.113883.6.1" displayName="Results" />
+<title>Results</title>
+<text><table><thead><tr><th>Test</th><th>Result</th><th>Date</th></tr></thead>
+<tbody>
+<tr><td>Glucose</td><td>155</td><td>03/01/2026</td></tr>
+<tr><td>HbA1c</td><td>8.1</td><td>03/01/2026</td></tr>
+</tbody></table></text>
+
+<entry>
+<observation classCode="OBS" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.2" />
+<code code="2345-7" codeSystem="2.16.840.1.113883.6.1" displayName="Glucose" />
+<statusCode code="completed" />
+<effectiveTime value="20260301" />
+<value xsi:type="PQ" unit="mg/dL" value="155" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+<interpretationCode code="H" codeSystem="2.16.840.1.113883.5.83" />
+<referenceRange><observationRange><text>70 - 100</text></observationRange></referenceRange>
+</observation>
+</entry>
+
+<entry>
+<observation classCode="OBS" moodCode="EVN">
+<templateId root="2.16.840.1.113883.10.20.22.4.2" />
+<code code="4548-4" codeSystem="2.16.840.1.113883.6.1" displayName="Hemoglobin A1c" />
+<statusCode code="completed" />
+<effectiveTime value="20260301" />
+<value xsi:type="PQ" unit="%" value="8.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+<interpretationCode code="H" codeSystem="2.16.840.1.113883.5.83" />
+<referenceRange><observationRange><text>4.0 - 5.6</text></observationRange></referenceRange>
+</observation>
+</entry>
+</section></component>
+
+</structuredBody></component>
+</ClinicalDocument>

@@ -1,0 +1,159 @@
+{
+  "patient": {
+    "name": "Jane TestPatient",
+    "dob": "1950-01-15",
+    "gender": "Female",
+    "mrn": "TEST-12345"
+  },
+  "allergies": [
+    {
+      "substance": "Penicillin",
+      "reaction": "Hives",
+      "severity": "severe",
+      "clinical_status": "active",
+      "source_code": "70618",
+      "source_system": "rxnorm",
+      "_note": "Well-structured allergy with displayName on participant code"
+    },
+    {
+      "substance": "Lisinopril",
+      "reaction": null,
+      "severity": "mild",
+      "clinical_status": "active",
+      "source_code": "29046",
+      "source_system": "rxnorm",
+      "_note": "EPIC QUIRK: No displayName on participant code. Parser must resolve #allergy2allergen from narrative text section. If parser returns 'Active', 'Other (See Comments)', or 'low criticality' as substance, it failed."
+    }
+  ],
+  "medications": [
+    {
+      "name": "metformin (GLUCOPHAGE) 1000 MG tablet",
+      "dose": "1000 mg",
+      "frequency": "Take 1 tablet (1000 mg total) by mouth twice daily with meals",
+      "active": true,
+      "_note": "EPIC QUIRK: No displayName on code. Must resolve #med1 from narrative. If parser returns RxNorm code '861004' or 'Unknown medication', it failed."
+    },
+    {
+      "name": "lisinopril (PRINIVIL) 20 MG tablet",
+      "dose": "20 mg",
+      "frequency": "Take 1 tablet (20 mg total) by mouth once daily",
+      "active": true,
+      "_note": "Same reference pattern as med1"
+    },
+    {
+      "name": "atorvastatin (LIPITOR) 40 MG tablet",
+      "dose": "40 mg",
+      "frequency": "Take 1 tablet (40 mg total) by mouth at bedtime",
+      "active": true,
+      "_note": "HAS displayName on code — parser should prefer this over reference"
+    },
+    {
+      "name": "aspirin 81 MG chewable tablet",
+      "dose": "81 mg",
+      "active": true,
+      "_note": "OTC — no start date, no refills, no frequency text in structured entry"
+    },
+    {
+      "name": "glipizide (GLUCOTROL) 5 MG tablet",
+      "dose": "5 mg",
+      "frequency": "Take 1 tablet (5 mg total) by mouth once daily before breakfast",
+      "active": true,
+      "_note": "Reference pattern, newer medication"
+    }
+  ],
+  "vitals": [
+    {
+      "vital_type": "blood_pressure",
+      "value": "138/82",
+      "unit": "mm[Hg]",
+      "effective_date": "2026-04-01",
+      "_note": "Component-based BP observation (systolic + diastolic)"
+    },
+    {
+      "vital_type": "heart_rate",
+      "value": "76",
+      "unit": "/min",
+      "effective_date": "2026-04-01"
+    },
+    {
+      "vital_type": "weight",
+      "value": "82.1",
+      "unit": "kg",
+      "effective_date": "2026-04-01"
+    },
+    {
+      "vital_type": "bmi",
+      "value": "28.3",
+      "unit": "kg/m2",
+      "effective_date": "2026-04-01"
+    }
+  ],
+  "lab_results": [
+    {
+      "test_name": "Glucose",
+      "value": "142",
+      "unit": "mg/dL",
+      "reference_range": "70 - 100",
+      "status": "abnormal",
+      "effective_date": "2026-04-01",
+      "loinc_code": "2345-7"
+    },
+    {
+      "test_name": "BUN",
+      "value": "18",
+      "unit": "mg/dL",
+      "reference_range": "7 - 20",
+      "status": "normal",
+      "effective_date": "2026-04-01",
+      "loinc_code": "3094-0"
+    },
+    {
+      "test_name": "Creatinine",
+      "value": "1.1",
+      "unit": "mg/dL",
+      "reference_range": "0.7 - 1.3",
+      "status": "normal",
+      "effective_date": "2026-04-01",
+      "loinc_code": "2160-0"
+    },
+    {
+      "test_name": "Hemoglobin A1c",
+      "value": "7.8",
+      "unit": "%",
+      "reference_range": "4.0 - 5.6",
+      "status": "abnormal",
+      "effective_date": "2026-04-01",
+      "loinc_code": "4548-4"
+    },
+    {
+      "test_name": "WBC",
+      "value": "7.2",
+      "unit": "x10^3/uL",
+      "reference_range": "4.5 - 11.0",
+      "status": "normal",
+      "effective_date": "2026-04-01",
+      "loinc_code": "6690-2"
+    },
+    {
+      "test_name": "Hemoglobin",
+      "value": "13.5",
+      "unit": "g/dL",
+      "reference_range": "12.0 - 16.0",
+      "status": "normal",
+      "effective_date": "2026-04-01",
+      "loinc_code": "718-7"
+    }
+  ],
+  "conditions": [
+    {
+      "title": "Essential hypertension",
+      "event_type": "condition",
+      "onset_date": "2010-01-01"
+    },
+    {
+      "title": "Type 2 diabetes mellitus",
+      "event_type": "condition",
+      "onset_date": "2017-06-01"
+    }
+  ]
+}
