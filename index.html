@@ -127,6 +127,52 @@
   .privacy-note { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
   .privacy-note strong { color: var(--moss); font-weight: 500; }
 
+  /* ── NOTIFICATION BELL & PANEL ── */
+  .notif-bell-wrap { position: relative; }
+  .notif-bell-badge { position: absolute; top: -2px; right: -2px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--red); color: white; font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; padding: 0 4px; line-height: 1; pointer-events: none; }
+  .notif-bell-badge:empty, .notif-bell-badge[data-count="0"] { display: none; }
+
+  .notif-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-start; justify-content: flex-end; }
+  .notif-overlay.show { display: flex; }
+  .notif-panel { background: white; width: 100%; max-width: 380px; height: 100%; overflow-y: auto; box-shadow: -4px 0 24px rgba(0,0,0,0.12); animation: notif-slide-in 0.25s ease; }
+  @keyframes notif-slide-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
+  .notif-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 52px 16px 12px; border-bottom: 1px solid var(--border); }
+  .notif-panel-title { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; }
+  .notif-mark-read { background: none; border: none; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; color: var(--moss); cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: background 0.15s; }
+  .notif-mark-read:hover { background: var(--mint); }
+  .notif-group-label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); font-weight: 500; padding: 12px 16px 6px; }
+  .notif-item { display: flex; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border); transition: background 0.15s; }
+  .notif-item.unread { background: var(--mint); }
+  .notif-item-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .notif-item-icon.med { background: var(--amber-bg); color: var(--amber); }
+  .notif-item-icon.appt { background: var(--mint); color: var(--moss); }
+  .notif-item-body { flex: 1; min-width: 0; }
+  .notif-item-title { font-size: 13px; font-weight: 500; line-height: 1.4; }
+  .notif-item-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .notif-empty { text-align: center; padding: 48px 24px; color: var(--text-muted); font-size: 13px; line-height: 1.6; }
+  .notif-empty-icon { display: flex; justify-content: center; margin-bottom: 12px; opacity: 0.3; }
+  .notif-close-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); display: flex; padding: 4px; border-radius: 6px; }
+  .notif-close-btn:hover { color: var(--text-primary); }
+
+  /* ── MEDICATION REMINDER SHEET ── */
+  .med-reminder-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-end; justify-content: center; }
+  .med-reminder-overlay.show { display: flex; }
+  .med-reminder-sheet { background: white; border-radius: 20px 20px 0 0; padding: 0 0 36px; width: 100%; max-width: 768px; }
+  .med-reminder-handle-row { padding: 16px 20px 0; display: flex; align-items: center; justify-content: space-between; }
+  .med-reminder-handle { width: 36px; height: 4px; background: var(--border-medium); border-radius: 2px; }
+  .med-reminder-title { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; padding: 12px 20px 4px; }
+  .med-reminder-sub { font-size: 13px; color: var(--text-muted); padding: 0 20px 16px; }
+  .reminder-time-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 20px 16px; }
+  .reminder-time-opt { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1.5px solid var(--border-medium); border-radius: 12px; cursor: pointer; transition: all 0.15s; background: white; }
+  .reminder-time-opt.selected { background: var(--mint); border-color: var(--moss); }
+  .reminder-time-check { width: 20px; height: 20px; border-radius: 5px; border: 1.5px solid var(--border-medium); background: white; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.15s; }
+  .reminder-time-opt.selected .reminder-time-check { background: var(--moss); border-color: var(--moss); }
+  .reminder-time-label { font-size: 14px; font-weight: 500; }
+  .reminder-time-sub { font-size: 12px; color: var(--text-muted); }
+  .reminder-save-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: calc(100% - 40px); margin: 4px 20px 0; background: var(--moss); color: white; border: none; border-radius: 12px; padding: 14px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500; cursor: pointer; transition: background 0.15s; }
+  .reminder-save-btn:hover { background: var(--moss-dark); }
+  .reminder-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 8px; background: var(--mint); color: var(--moss-dark); margin-left: 6px; vertical-align: middle; }
+
   /* ── APP ── */
   #app { display: none; flex-direction: column; min-height: 100vh; }
   .app-header { background: white; border-bottom: 1px solid var(--border); padding: 52px 20px 0; position: sticky; top: 0; z-index: 10; }
@@ -906,6 +952,10 @@
       </div>
       <div class="header-actions" style="display:flex;align-items:center;gap:6px;">
           <button class="icon-btn" id="demo-back-btn" onclick="showLanding()" title="Back to start" style="display:none;"><i data-lucide="arrow-left" style="width:16px;height:16px;"></i></button>
+          <div class="notif-bell-wrap">
+            <button class="icon-btn" id="notif-bell-btn" onclick="openNotifPanel()" title="Reminders"><i data-lucide="bell" style="width:16px;height:16px;"></i></button>
+            <span class="notif-bell-badge" id="notif-bell-badge" data-count="0"></span>
+          </div>
           <button class="icon-btn" onclick="openSettings()" title="Settings"><i data-lucide="settings" style="width:16px;height:16px;"></i></button>
       </div>
     </div>
@@ -2043,6 +2093,55 @@
         Save profile
       </button>
     </div>
+  </div>
+</div>
+
+<!-- NOTIFICATION PANEL (slide-in drawer) -->
+<div class="notif-overlay" id="notif-overlay" onclick="if(event.target===this)closeNotifPanel();">
+  <div class="notif-panel">
+    <div class="notif-panel-header">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="notif-panel-title">Reminders</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button class="notif-mark-read" id="notif-mark-all-btn" onclick="markAllNotifRead()">Mark all read</button>
+        <button class="notif-close-btn" onclick="closeNotifPanel()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+      </div>
+    </div>
+    <div id="notif-list"></div>
+  </div>
+</div>
+
+<!-- MEDICATION REMINDER SHEET -->
+<div class="med-reminder-overlay" id="med-reminder-overlay" onclick="if(event.target===this)closeMedReminder();">
+  <div class="med-reminder-sheet">
+    <div class="med-reminder-handle-row">
+      <div class="med-reminder-handle"></div>
+      <button class="close-btn" onclick="closeMedReminder()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="med-reminder-title" id="med-reminder-title">Set reminder</div>
+    <div class="med-reminder-sub" id="med-reminder-sub">Choose when to be reminded</div>
+    <div class="reminder-time-grid" id="reminder-time-grid">
+      <div class="reminder-time-opt" onclick="toggleReminderTime(this,'08:00')">
+        <div class="reminder-time-check"><i data-lucide="check" style="width:12px;height:12px;color:white;"></i></div>
+        <div><div class="reminder-time-label">Morning</div><div class="reminder-time-sub">8:00 AM</div></div>
+      </div>
+      <div class="reminder-time-opt" onclick="toggleReminderTime(this,'12:00')">
+        <div class="reminder-time-check"><i data-lucide="check" style="width:12px;height:12px;color:white;"></i></div>
+        <div><div class="reminder-time-label">Noon</div><div class="reminder-time-sub">12:00 PM</div></div>
+      </div>
+      <div class="reminder-time-opt" onclick="toggleReminderTime(this,'18:00')">
+        <div class="reminder-time-check"><i data-lucide="check" style="width:12px;height:12px;color:white;"></i></div>
+        <div><div class="reminder-time-label">Evening</div><div class="reminder-time-sub">6:00 PM</div></div>
+      </div>
+      <div class="reminder-time-opt" onclick="toggleReminderTime(this,'22:00')">
+        <div class="reminder-time-check"><i data-lucide="check" style="width:12px;height:12px;color:white;"></i></div>
+        <div><div class="reminder-time-label">Bedtime</div><div class="reminder-time-sub">10:00 PM</div></div>
+      </div>
+    </div>
+    <button class="reminder-save-btn" id="reminder-save-btn" onclick="saveReminder()">
+      <i data-lucide="bell" style="width:16px;height:16px;"></i> Save reminder
+    </button>
   </div>
 </div>
 
@@ -6266,6 +6365,613 @@ async function generateVisitExport() {
   }
 }
 
+
+// ── NOTIFICATION LAYER ─────────────────────────────────────────────────────
+var _notifList = [];           // [{id, type:'med'|'appt', title, body, time, personName, seen:bool}]
+var _medReminders = {};        // { medicationId: { times:[], active:true } }  (in-memory for demo, or from DB)
+var _reminderMedId = null;     // currently-editing medication id in reminder sheet
+var _reminderMedName = '';     // name of med being edited
+var _reminderPersonName = '';  // person name for that med
+var _selectedReminderTimes = [];
+var _notifPermission = localStorage.getItem('wellet_notif_perm') || 'default';
+var _seenNotifIds = JSON.parse(localStorage.getItem('wellet_seen_notifs') || '[]');
+var _reminderCheckTimer = null;
+var _lastReminderCheck = {};   // { "medId:08:00": timestamp } to avoid re-firing within same minute
+
+// ── NOTIFICATION PANEL ────────────────────────────────────────────────────
+function openNotifPanel() {
+  renderNotifList();
+  document.getElementById('notif-overlay').classList.add('show');
+  initIcons();
+  // Mark visible ones as seen
+  _notifList.forEach(function(n) { n.seen = true; });
+  _seenNotifIds = _notifList.map(function(n) { return n.id; });
+  localStorage.setItem('wellet_seen_notifs', JSON.stringify(_seenNotifIds));
+  updateNotifBadge();
+}
+
+function closeNotifPanel() {
+  document.getElementById('notif-overlay').classList.remove('show');
+}
+
+function markAllNotifRead() {
+  _notifList.forEach(function(n) { n.seen = true; });
+  _seenNotifIds = _notifList.map(function(n) { return n.id; });
+  localStorage.setItem('wellet_seen_notifs', JSON.stringify(_seenNotifIds));
+  updateNotifBadge();
+  renderNotifList();
+}
+
+function updateNotifBadge() {
+  var unseen = _notifList.filter(function(n) { return !n.seen; }).length;
+  var badge = document.getElementById('notif-bell-badge');
+  if (!badge) return;
+  badge.textContent = unseen > 0 ? String(unseen) : '';
+  badge.setAttribute('data-count', String(unseen));
+}
+
+function renderNotifList() {
+  var container = document.getElementById('notif-list');
+  if (!container) return;
+
+  if (_notifList.length === 0) {
+    container.innerHTML = '<div class="notif-empty">'
+      + '<div class="notif-empty-icon"><i data-lucide="bell-off" style="width:32px;height:32px;"></i></div>'
+      + 'No reminders right now.<br>Set medication reminders in Records.'
+      + '</div>';
+    document.getElementById('notif-mark-all-btn').style.display = 'none';
+    initIcons();
+    return;
+  }
+
+  document.getElementById('notif-mark-all-btn').style.display = '';
+
+  // Group: Now (within last 30 min), Today, Upcoming
+  var now = new Date();
+  var nowMs = now.getTime();
+  var todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  var todayEnd = todayStart + 86400000;
+
+  var groups = { now: [], today: [], upcoming: [] };
+  _notifList.forEach(function(n) {
+    var t = new Date(n.time).getTime();
+    if (t <= nowMs && t > nowMs - 1800000) {
+      groups.now.push(n);
+    } else if (t >= todayStart && t < todayEnd) {
+      groups.today.push(n);
+    } else {
+      groups.upcoming.push(n);
+    }
+  });
+
+  var html = '';
+  if (groups.now.length > 0) {
+    html += '<div class="notif-group-label">Now</div>';
+    groups.now.forEach(function(n) { html += renderNotifItem(n); });
+  }
+  if (groups.today.length > 0) {
+    html += '<div class="notif-group-label">Today</div>';
+    groups.today.forEach(function(n) { html += renderNotifItem(n); });
+  }
+  if (groups.upcoming.length > 0) {
+    html += '<div class="notif-group-label">Upcoming</div>';
+    groups.upcoming.forEach(function(n) { html += renderNotifItem(n); });
+  }
+
+  container.innerHTML = html;
+  initIcons();
+}
+
+function renderNotifItem(n) {
+  var iconClass = n.type === 'med' ? 'med' : 'appt';
+  var iconName = n.type === 'med' ? 'pill' : 'calendar-check';
+  var unread = n.seen ? '' : ' unread';
+  var timeStr = formatNotifTime(n.time);
+  return '<div class="notif-item' + unread + '">'
+    + '<div class="notif-item-icon ' + iconClass + '"><i data-lucide="' + iconName + '" style="width:15px;height:15px;"></i></div>'
+    + '<div class="notif-item-body">'
+    + '<div class="notif-item-title">' + escHtml(n.title) + '</div>'
+    + '<div class="notif-item-meta">' + escHtml(n.personName) + ' · ' + timeStr + '</div>'
+    + '</div></div>';
+}
+
+function formatNotifTime(dateStr) {
+  var d = new Date(dateStr);
+  var now = new Date();
+  var diff = d.getTime() - now.getTime();
+  if (Math.abs(diff) < 60000) return 'Just now';
+  if (diff > 0 && diff < 3600000) return 'In ' + Math.round(diff / 60000) + ' min';
+  if (diff < 0 && diff > -3600000) return Math.round(Math.abs(diff) / 60000) + ' min ago';
+  var isToday = d.toDateString() === now.toDateString();
+  var tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 1);
+  var isTomorrow = d.toDateString() === tomorrow.toDateString();
+  var timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  if (isToday) return 'Today ' + timeStr;
+  if (isTomorrow) return 'Tomorrow ' + timeStr;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + timeStr;
+}
+
+// ── MEDICATION REMINDER SHEET ─────────────────────────────────────────────
+function openMedReminder(medId, medName, personName) {
+  _reminderMedId = medId;
+  _reminderMedName = medName;
+  _reminderPersonName = personName;
+
+  document.getElementById('med-reminder-title').textContent = 'Remind: ' + medName;
+  document.getElementById('med-reminder-sub').textContent = 'Choose when to remind for ' + personName;
+
+  // Load existing times for this med
+  var existing = _medReminders[medId];
+  _selectedReminderTimes = existing && existing.times ? existing.times.slice() : [];
+
+  // Update checkboxes
+  document.querySelectorAll('#reminder-time-grid .reminder-time-opt').forEach(function(opt) {
+    var time = opt.getAttribute('onclick').match(/'([^']+)'/)[1];
+    if (_selectedReminderTimes.indexOf(time) !== -1) {
+      opt.classList.add('selected');
+    } else {
+      opt.classList.remove('selected');
+    }
+  });
+
+  document.getElementById('med-reminder-overlay').classList.add('show');
+  initIcons();
+}
+
+function closeMedReminder() {
+  document.getElementById('med-reminder-overlay').classList.remove('show');
+}
+
+function toggleReminderTime(el, time) {
+  el.classList.toggle('selected');
+  var idx = _selectedReminderTimes.indexOf(time);
+  if (idx !== -1) {
+    _selectedReminderTimes.splice(idx, 1);
+  } else {
+    _selectedReminderTimes.push(time);
+  }
+}
+
+async function saveReminder() {
+  _medReminders[_reminderMedId] = {
+    times: _selectedReminderTimes.slice(),
+    active: _selectedReminderTimes.length > 0,
+    medName: _reminderMedName,
+    personName: _reminderPersonName
+  };
+
+  // Save to Supabase if not demo
+  if (!isDemoMode && currentUser) {
+    var existing = await db
+      .from('medication_reminders')
+      .select('id')
+      .eq('medication_id', _reminderMedId)
+      .eq('user_id', currentUser.id)
+      .limit(1);
+
+    if (existing.data && existing.data.length > 0) {
+      await db
+        .from('medication_reminders')
+        .update({
+          reminder_times: _selectedReminderTimes,
+          active: _selectedReminderTimes.length > 0,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existing.data[0].id);
+    } else if (_selectedReminderTimes.length > 0) {
+      await db
+        .from('medication_reminders')
+        .insert({
+          user_id: currentUser.id,
+          person_id: currentPersonId,
+          medication_id: _reminderMedId,
+          reminder_times: _selectedReminderTimes,
+          active: true
+        });
+    }
+  }
+
+  // Request notification permission if needed (not in demo)
+  if (!isDemoMode && _selectedReminderTimes.length > 0 && 'Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission().then(function(perm) {
+      _notifPermission = perm;
+      localStorage.setItem('wellet_notif_perm', perm);
+    });
+  }
+
+  closeMedReminder();
+  showToast(_selectedReminderTimes.length > 0 ? 'Reminder set' : 'Reminder removed');
+
+  // Re-render records to show badge
+  if (isDemoMode) {
+    refreshDemoRecordBadges();
+  } else {
+    renderRecordsView();
+  }
+
+  // Rebuild notification list
+  buildNotifList();
+}
+
+// ── LOAD REMINDERS FROM DB ────────────────────────────────────────────────
+async function loadRemindersFromDB() {
+  if (isDemoMode || !currentUser) return;
+  var result = await db
+    .from('medication_reminders')
+    .select('*')
+    .eq('user_id', currentUser.id);
+
+  if (result.data) {
+    result.data.forEach(function(r) {
+      // Match med name from liveMeds
+      var med = liveMeds.find(function(m) { return m.id === r.medication_id; });
+      var person = currentPeople.find(function(p) { return p.id === r.person_id; });
+      _medReminders[r.medication_id] = {
+        times: r.reminder_times || [],
+        active: r.active,
+        medName: med ? med.name + (med.dose ? ' ' + med.dose : '') : 'Medication',
+        personName: person ? person.name.split(' ')[0] : 'Your loved one'
+      };
+    });
+  }
+}
+
+// ── BUILD NOTIFICATIONS LIST ──────────────────────────────────────────────
+function buildNotifList() {
+  _notifList = [];
+  var now = new Date();
+  var todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  // 1. Medication reminders for today + upcoming
+  Object.keys(_medReminders).forEach(function(medId) {
+    var rem = _medReminders[medId];
+    if (!rem.active || !rem.times || rem.times.length === 0) return;
+
+    rem.times.forEach(function(timeStr) {
+      var parts = timeStr.split(':');
+      var h = parseInt(parts[0], 10);
+      var m = parseInt(parts[1], 10);
+
+      // Today's reminder
+      var reminderDate = new Date(todayStart);
+      reminderDate.setHours(h, m, 0, 0);
+
+      var id = 'med:' + medId + ':' + timeStr + ':' + reminderDate.toDateString();
+      var seen = _seenNotifIds.indexOf(id) !== -1;
+
+      // Only show if within window: from 30 min ago to end of day
+      if (reminderDate.getTime() >= now.getTime() - 1800000 && reminderDate.getTime() < todayStart.getTime() + 86400000) {
+        var doseInfo = rem.medName || 'Medication';
+        _notifList.push({
+          id: id,
+          type: 'med',
+          title: escHtml(rem.personName) + '\u2019s ' + escHtml(doseInfo) + ' \u2014 Time to take',
+          body: '',
+          time: reminderDate.toISOString(),
+          personName: rem.personName || '',
+          seen: seen
+        });
+      }
+    });
+  });
+
+  // 2. Appointment reminders (auto-generated)
+  var appointments = [];
+  if (isDemoMode) {
+    appointments = getDemoAppointments();
+  } else {
+    // Gather future appointments from all loaded events
+    appointments = liveEvents.filter(function(e) {
+      return e.event_type === 'appointment' && new Date(e.event_date) > new Date(now.getTime() - 86400000);
+    }).map(function(e) {
+      var person = currentPeople.find(function(p) { return p.id === e.person_id; });
+      return {
+        title: e.title,
+        date: e.event_date,
+        personName: person ? person.name.split(' ')[0] : 'Your loved one'
+      };
+    });
+  }
+
+  appointments.forEach(function(appt) {
+    var apptDate = new Date(appt.date);
+    var oneDayBefore = new Date(apptDate.getTime() - 86400000);
+    var oneHourBefore = new Date(apptDate.getTime() - 3600000);
+
+    // 1-day-before reminder
+    var id1 = 'appt:1d:' + appt.title + ':' + apptDate.toDateString();
+    if (oneDayBefore.getTime() >= now.getTime() - 1800000 && oneDayBefore.getTime() < now.getTime() + 172800000) {
+      _notifList.push({
+        id: id1,
+        type: 'appt',
+        title: 'Tomorrow: ' + escHtml(appt.personName) + ' has ' + escHtml(appt.title),
+        body: '',
+        time: oneDayBefore.toISOString(),
+        personName: appt.personName,
+        seen: _seenNotifIds.indexOf(id1) !== -1
+      });
+    }
+
+    // 1-hour-before reminder
+    var id2 = 'appt:1h:' + appt.title + ':' + apptDate.toDateString();
+    if (oneHourBefore.getTime() >= now.getTime() - 1800000 && oneHourBefore.getTime() < now.getTime() + 86400000) {
+      _notifList.push({
+        id: id2,
+        type: 'appt',
+        title: escHtml(appt.personName) + '\u2019s ' + escHtml(appt.title) + ' is in 1 hour',
+        body: '',
+        time: oneHourBefore.toISOString(),
+        personName: appt.personName,
+        seen: _seenNotifIds.indexOf(id2) !== -1
+      });
+    }
+  });
+
+  // Sort by time
+  _notifList.sort(function(a, b) { return new Date(a.time) - new Date(b.time); });
+
+  updateNotifBadge();
+}
+
+// ── DEMO APPOINTMENTS ─────────────────────────────────────────────────────
+function getDemoAppointments() {
+  var now = new Date();
+  var tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(9, 0, 0, 0);
+
+  var nextWeek = new Date(now);
+  nextWeek.setDate(nextWeek.getDate() + 5);
+  nextWeek.setHours(14, 0, 0, 0);
+
+  return [
+    { title: 'Dr. Johnson \u2014 Primary Care', date: tomorrow.toISOString(), personName: 'Dad' },
+    { title: 'Dr. Edwards \u2014 Oncology follow-up', date: nextWeek.toISOString(), personName: 'Dad' }
+  ];
+}
+
+// ── DEMO MODE NOTIFICATIONS ───────────────────────────────────────────────
+function initDemoNotifications() {
+  // Set up demo medication reminders
+  var now = new Date();
+  var morningTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8, 0, 0);
+  var noonTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0);
+  var eveningTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0, 0);
+
+  _medReminders['demo-lisinopril'] = {
+    times: ['08:00', '18:00'],
+    active: true,
+    medName: 'Lisinopril 20mg',
+    personName: 'Dad'
+  };
+  _medReminders['demo-metformin'] = {
+    times: ['08:00', '12:00', '18:00'],
+    active: true,
+    medName: 'Gleevec 400mg',
+    personName: 'Dad'
+  };
+  _medReminders['demo-hctz'] = {
+    times: ['08:00'],
+    active: true,
+    medName: 'Hydrochlorothiazide 25mg',
+    personName: 'Dad'
+  };
+
+  buildNotifList();
+}
+
+// ── REMINDER CHECK LOOP (60s) ─────────────────────────────────────────────
+function startReminderCheck() {
+  if (_reminderCheckTimer) clearInterval(_reminderCheckTimer);
+  checkRemindersNow();
+  _reminderCheckTimer = setInterval(checkRemindersNow, 60000);
+}
+
+function checkRemindersNow() {
+  var now = new Date();
+  var nowH = String(now.getHours()).padStart(2, '0');
+  var nowM = String(now.getMinutes()).padStart(2, '0');
+  var nowTime = nowH + ':' + nowM;
+
+  Object.keys(_medReminders).forEach(function(medId) {
+    var rem = _medReminders[medId];
+    if (!rem.active || !rem.times) return;
+
+    rem.times.forEach(function(timeStr) {
+      if (timeStr === nowTime) {
+        var key = medId + ':' + timeStr;
+        var lastFired = _lastReminderCheck[key];
+        if (lastFired && now.getTime() - lastFired < 120000) return; // debounce 2 min
+        _lastReminderCheck[key] = now.getTime();
+
+        var title = (rem.personName || 'Your loved one') + '\u2019s ' + (rem.medName || 'medication');
+        var body = 'Time to take ' + (rem.medName || 'medication');
+
+        // Fire browser notification if permitted (not in demo)
+        if (!isDemoMode && 'Notification' in window && Notification.permission === 'granted') {
+          try { new Notification(title, { body: body, icon: '/favicon.svg' }); } catch(e) {}
+        }
+
+        // In-app toast
+        showToast('\ud83d\udc8a ' + title + ' \u2014 time to take');
+
+        // Add to notif list
+        var id = 'med:' + medId + ':' + timeStr + ':' + now.toDateString();
+        var alreadyIn = _notifList.find(function(n) { return n.id === id; });
+        if (!alreadyIn) {
+          _notifList.unshift({
+            id: id,
+            type: 'med',
+            title: title + ' \u2014 Time to take',
+            body: body,
+            time: now.toISOString(),
+            personName: rem.personName || '',
+            seen: false
+          });
+        }
+        updateNotifBadge();
+      }
+    });
+  });
+
+  // Check appointment reminders
+  checkAppointmentReminders(now);
+}
+
+function checkAppointmentReminders(now) {
+  var appointments = isDemoMode ? getDemoAppointments() : liveEvents.filter(function(e) {
+    return e.event_type === 'appointment' && new Date(e.event_date) > now;
+  }).map(function(e) {
+    var person = currentPeople.find(function(p) { return p.id === e.person_id; });
+    return { title: e.title, date: e.event_date, personName: person ? person.name.split(' ')[0] : 'Your loved one' };
+  });
+
+  appointments.forEach(function(appt) {
+    var apptDate = new Date(appt.date);
+    var diffMs = apptDate.getTime() - now.getTime();
+
+    // 1-hour before (within 2 min window)
+    if (diffMs > 0 && diffMs <= 3600000 && diffMs > 3480000) {
+      var key = 'appt:1h:' + appt.title;
+      if (!_lastReminderCheck[key]) {
+        _lastReminderCheck[key] = now.getTime();
+        var title = appt.personName + '\u2019s ' + appt.title + ' is in 1 hour';
+        if (!isDemoMode && 'Notification' in window && Notification.permission === 'granted') {
+          try { new Notification(title, { icon: '/favicon.svg' }); } catch(e) {}
+        }
+        showToast('\ud83d\udcc5 ' + title);
+      }
+    }
+
+    // 1-day before (within 2 min window around 24h mark)
+    if (diffMs > 86280000 && diffMs <= 86400000) {
+      var key2 = 'appt:1d:' + appt.title;
+      if (!_lastReminderCheck[key2]) {
+        _lastReminderCheck[key2] = now.getTime();
+        var title2 = 'Tomorrow: ' + appt.personName + ' has ' + appt.title;
+        if (!isDemoMode && 'Notification' in window && Notification.permission === 'granted') {
+          try { new Notification(title2, { icon: '/favicon.svg' }); } catch(e) {}
+        }
+        showToast('\ud83d\udcc5 ' + title2);
+      }
+    }
+  });
+}
+
+// ── RECORDS VIEW: ADD REMINDER BUTTONS TO MED CARDS ───────────────────────
+var _origRenderRecordsView = renderRecordsView;
+renderRecordsView = function() {
+  _origRenderRecordsView();
+  addReminderBtnsToRecords();
+};
+
+function addReminderBtnsToRecords() {
+  var view = document.getElementById('view-records');
+  if (!view) return;
+
+  // For authenticated mode, add reminder buttons to dynamically rendered meds
+  if (!isDemoMode) {
+    var medRows = view.querySelectorAll('.record-row');
+    liveMeds.filter(function(m) { return m.active; }).forEach(function(med, i) {
+      var row = medRows[i];
+      if (!row) return;
+      var person = currentPeople.find(function(p) { return p.id === med.person_id; });
+      var personName = person ? person.name.split(' ')[0] : 'Your loved one';
+      var rem = _medReminders[med.id];
+      var badgeHtml = '';
+      if (rem && rem.active && rem.times && rem.times.length > 0) {
+        badgeHtml = '<span class="reminder-badge"><i data-lucide="bell" style="width:10px;height:10px;"></i>' + rem.times.length + ' reminder' + (rem.times.length > 1 ? 's' : '') + '</span>';
+      }
+      // Add reminder button before chevron
+      var chevron = row.querySelector('[data-lucide="chevron-right"]');
+      if (chevron && !row.querySelector('.reminder-badge') && !row.querySelector('.med-remind-btn')) {
+        var btn = document.createElement('button');
+        btn.className = 'med-remind-btn';
+        btn.style.cssText = 'background:var(--mint);border:none;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:500;color:var(--moss-dark);cursor:pointer;font-family:DM Sans,sans-serif;margin-right:4px;display:flex;align-items:center;gap:3px;';
+        btn.innerHTML = (rem && rem.active && rem.times && rem.times.length > 0)
+          ? '<i data-lucide="bell" style="width:10px;height:10px;"></i>' + rem.times.length
+          : '<i data-lucide="bell-plus" style="width:10px;height:10px;"></i>';
+        btn.title = 'Set reminder';
+        (function(mId, mName, pName) {
+          btn.onclick = function(e) { e.stopPropagation(); openMedReminder(mId, mName, pName); };
+        })(med.id, med.name + (med.dose ? ' ' + med.dose : ''), personName);
+        row.insertBefore(btn, chevron);
+      }
+    });
+    initIcons();
+    return;
+  }
+
+  // Demo mode: add to static demo records
+  refreshDemoRecordBadges();
+}
+
+function refreshDemoRecordBadges() {
+  // Demo mode: add reminder buttons to static medication rows in Dad's records
+  var dadRecords = document.getElementById('records-dad');
+  if (!dadRecords) return;
+  var medRows = dadRecords.querySelectorAll('.record-group:first-child .record-row');
+  var demoMeds = [
+    { id: 'demo-lisinopril', name: 'Lisinopril 20mg', person: 'Dad' },
+    { id: 'demo-hctz', name: 'Hydrochlorothiazide 25mg', person: 'Dad' },
+    { id: 'demo-metformin', name: 'Gleevec (Imatinib) 400mg', person: 'Dad' }
+  ];
+
+  medRows.forEach(function(row, i) {
+    if (i >= demoMeds.length) return;
+    var med = demoMeds[i];
+    var rem = _medReminders[med.id];
+
+    // Remove existing reminder btn
+    var existingBtn = row.querySelector('.med-remind-btn');
+    if (existingBtn) existingBtn.remove();
+
+    var chevron = row.querySelector('[data-lucide="chevron-right"]');
+    var badge = row.querySelector('.record-badge');
+    var insertBefore = chevron || badge;
+    if (!insertBefore) return;
+
+    var btn = document.createElement('button');
+    btn.className = 'med-remind-btn';
+    btn.style.cssText = 'background:var(--mint);border:none;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:500;color:var(--moss-dark);cursor:pointer;font-family:DM Sans,sans-serif;margin-right:4px;display:flex;align-items:center;gap:3px;white-space:nowrap;';
+    btn.innerHTML = (rem && rem.active && rem.times && rem.times.length > 0)
+      ? '<i data-lucide="bell" style="width:10px;height:10px;"></i>' + rem.times.length
+      : '<i data-lucide="bell-plus" style="width:10px;height:10px;"></i>';
+    btn.title = 'Set reminder';
+    (function(mId, mName, pName) {
+      btn.onclick = function(e) { e.stopPropagation(); openMedReminder(mId, mName, pName); };
+    })(med.id, med.name, med.person);
+    row.insertBefore(btn, insertBefore);
+  });
+  initIcons();
+}
+
+// ── INITIALIZE NOTIFICATIONS ON APP LOAD ──────────────────────────────────
+var _origEnterDemoMode = enterDemoMode;
+enterDemoMode = function() {
+  _origEnterDemoMode();
+  initDemoNotifications();
+  refreshDemoRecordBadges();
+  startReminderCheck();
+};
+
+var _origShowAuthenticatedApp = showAuthenticatedApp;
+showAuthenticatedApp = function() {
+  _origShowAuthenticatedApp();
+  loadRemindersFromDB().then(function() {
+    buildNotifList();
+    startReminderCheck();
+  });
+};
+
+// Also refresh demo badges after restoreDemoHTML
+var _origRestoreDemoHTML = restoreDemoHTML;
+restoreDemoHTML = function() {
+  _origRestoreDemoHTML();
+  if (isDemoMode) {
+    setTimeout(function() { refreshDemoRecordBadges(); }, 50);
+  }
+};
 
 function handleName(val) { /* legacy stub */ }
 </script>
