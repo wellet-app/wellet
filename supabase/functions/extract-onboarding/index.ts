@@ -4,10 +4,11 @@
 // Returns structured data for the name confirmation screen.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { unzipSync } from 'https://esm.sh/fflate@0.8.2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-user-token',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
@@ -28,14 +29,17 @@ Deno.serve(async (req) => {
   const openaiKey = Deno.env.get('OPENAI_API_KEY') ?? '';
 
   // Authenticate the caller
-  const authHeader = req.headers.get('Authorization');
-  if (!authHeader) {
+  // Note: verify_jwt is true, so the gateway requires an HS256 JWT (the anon key).
+  // The actual user token comes via Authorization header (standard) or x-user-token
+  // header (workaround when gateway verify_jwt blocks ES256 user tokens).
+  const userToken = req.headers.get('x-user-token') || req.headers.get('Authorization');
+  if (!userToken) {
     return jsonResponse({ error: 'No authorization header' }, 401);
   }
 
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
   const anonClient = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: authHeader } },
+    global: { headers: { Authorization: userToken.startsWith('Bearer ') ? userToken : `Bearer ${userToken}` } },
   });
   const { data: { user }, error: userError } = await anonClient.auth.getUser();
   if (userError || !user) {
@@ -150,8 +154,6 @@ async function processZipFile(zipBuffer: Uint8Array): Promise<ZipResult> {
   let docCount = 0;
 
   try {
-    // Dynamic import fflate for ZIP decompression
-    const { unzipSync } = await import('npm:fflate@0.8.2');
     const files = unzipSync(zipBuffer);
 
     for (const path in files) {

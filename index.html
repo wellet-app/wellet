@@ -7356,7 +7356,7 @@ async function obHandleFiles(input, type) {
   // Try to extract data via edge function (if it exists)
   var extractedData = null;
   try {
-    var extractRes = await fetch(SUPABASE_URL + '/functions/v1/extract-onboarding', {
+    var extractRes = await fetch(SUPABASE_URL + '/functions/v1/extract-onboarding-v2', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
