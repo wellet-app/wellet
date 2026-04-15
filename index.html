@@ -793,6 +793,119 @@
   .ehr-demo-tooltip { position:relative; }
   .ehr-demo-tooltip:hover::after { content:attr(data-tooltip); position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%); background:var(--text-primary); color:white; font-size:11px; padding:6px 10px; border-radius:8px; white-space:nowrap; z-index:10; pointer-events:none; }
   .ehr-demo-tooltip:hover::before { content:''; position:absolute; bottom:calc(100% + 2px); left:50%; transform:translateX(-50%); border:4px solid transparent; border-top-color:var(--text-primary); z-index:10; }
+
+  /* ── CARESIGNALS ──────────────────────────────────────────────────────────── */
+  .signals-view { padding:20px 16px 100px 16px; }
+  .signals-section { margin-bottom:28px; }
+  .signals-section-title { font-family:'DM Serif Display',serif; font-size:18px; font-weight:400; color:var(--text-primary); margin-bottom:4px; }
+  .signals-section-sub { font-size:12px; color:var(--text-muted); margin-bottom:12px; }
+  .signals-card { background:white; border:1px solid var(--border); border-radius:14px; padding:16px; margin-bottom:10px; }
+  .signals-label { font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px; }
+  .signals-metric { font-family:'DM Sans',sans-serif; font-size:28px; font-weight:600; color:var(--text-primary); line-height:1.2; }
+  .signals-metric-sm { font-size:13px; color:var(--text-secondary); margin-top:2px; }
+
+  /* Medication tracker */
+  .med-item { display:flex; align-items:flex-start; gap:12px; padding:12px 0; border-bottom:1px solid var(--border); }
+  .med-item:last-child { border-bottom:none; }
+  .med-icon-wrap { width:36px; height:36px; border-radius:10px; background:var(--mint); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .med-icon-wrap i { width:18px; height:18px; color:var(--moss); }
+  .med-info { flex:1; min-width:0; }
+  .med-name { font-size:14px; font-weight:500; color:var(--text-primary); }
+  .med-dose { font-size:12px; color:var(--text-secondary); margin-top:1px; }
+  .med-times { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+  .med-badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:500; padding:3px 8px; border-radius:20px; }
+  .med-badge--taken { background:#E8F5E9; color:#2E7D32; }
+  .med-badge--missed { background:var(--amber-bg); color:var(--amber); }
+  .med-badge--due { background:var(--mint); color:var(--moss-dark); animation:sig-pulse 2s ease-in-out infinite; }
+  .med-badge--upcoming { background:#F3F3F3; color:var(--text-muted); }
+  @keyframes sig-pulse { 0%,100%{ opacity:1; } 50%{ opacity:.6; } }
+
+  /* Adherence signal card */
+  .adherence-signal { display:flex; align-items:flex-start; gap:10px; padding:12px; background:var(--mint); border-radius:12px; margin-top:10px; }
+  .adherence-signal i { width:18px; height:18px; color:var(--moss); flex-shrink:0; margin-top:1px; }
+  .adherence-signal-text { font-size:13px; color:var(--moss-dark); line-height:1.4; }
+
+  /* Weekly adherence chart */
+  .adherence-chart { display:flex; align-items:flex-end; gap:6px; height:60px; margin-top:12px; }
+  .adherence-bar-wrap { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .adherence-bar { width:100%; border-radius:4px 4px 0 0; min-height:4px; transition:height .3s; }
+  .adherence-bar--full { background:var(--moss); }
+  .adherence-bar--partial { background:var(--amber); }
+  .adherence-bar--zero { background:var(--red); }
+  .adherence-day { font-size:10px; color:var(--text-muted); }
+
+  /* Wearable cards */
+  .wearable-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .wearable-card { background:white; border:1px solid var(--border); border-radius:14px; padding:14px; }
+  .wearable-card .signals-label { margin-bottom:2px; }
+  .wearable-card .signals-metric { font-size:24px; }
+  .wearable-sparkline { margin-top:6px; }
+  .wearable-sync { display:inline-flex; align-items:center; gap:4px; font-size:11px; color:var(--text-muted); background:#F3F3F3; padding:2px 8px; border-radius:20px; margin-left:8px; }
+  .wearable-sync::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--moss); }
+
+  /* Progress ring */
+  .progress-ring-wrap { display:flex; align-items:center; gap:12px; margin-top:6px; }
+  .progress-ring-label { font-size:12px; color:var(--text-secondary); }
+
+  /* Sleep bar */
+  .sleep-bar { display:flex; height:10px; border-radius:5px; overflow:hidden; margin-top:8px; }
+  .sleep-bar-seg { height:100%; }
+  .sleep-bar-seg--deep { background:#4338CA; }
+  .sleep-bar-seg--core { background:#3B6EA5; }
+  .sleep-bar-seg--rem { background:#0D9488; }
+  .sleep-bar-seg--awake { background:#D1D5DB; }
+  .sleep-legend { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+  .sleep-legend-item { display:flex; align-items:center; gap:3px; font-size:10px; color:var(--text-secondary); }
+  .sleep-legend-dot { width:6px; height:6px; border-radius:50%; }
+
+  /* Trend alert */
+  .trend-alert { background:white; border:1px solid var(--border); border-left:3px solid var(--amber); border-radius:14px; padding:14px; margin-top:10px; }
+  .trend-alert-title { font-size:14px; font-weight:500; color:var(--text-primary); display:flex; align-items:center; gap:6px; margin-bottom:4px; }
+  .trend-alert-title i { width:16px; height:16px; color:var(--amber); }
+  .trend-alert-body { font-size:13px; color:var(--text-secondary); line-height:1.5; }
+
+  /* Sensor list */
+  .sensor-item { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--border); }
+  .sensor-item:last-child { border-bottom:none; }
+  .sensor-icon-wrap { width:34px; height:34px; border-radius:10px; background:var(--cream); display:flex; align-items:center; justify-content:center; }
+  .sensor-icon-wrap i { width:16px; height:16px; color:var(--text-secondary); }
+  .sensor-info { flex:1; }
+  .sensor-name { font-size:14px; font-weight:500; color:var(--text-primary); }
+  .sensor-detail { font-size:12px; color:var(--text-muted); margin-top:1px; }
+  .sensor-status { width:8px; height:8px; border-radius:50%; background:var(--moss); flex-shrink:0; }
+
+  /* Timeline */
+  .signals-timeline { position:relative; padding-left:28px; margin-top:12px; }
+  .signals-timeline::before { content:''; position:absolute; left:9px; top:0; bottom:0; width:2px; background:var(--border); }
+  .tl-event { position:relative; padding:8px 0 8px 0; }
+  .tl-dot { position:absolute; left:-23px; top:12px; width:10px; height:10px; border-radius:50%; background:var(--border); border:2px solid white; z-index:1; }
+  .tl-event--highlight .tl-dot { background:var(--moss); }
+  .tl-event--highlight { background:var(--mint); margin-left:-8px; padding-left:8px; padding-right:8px; border-radius:8px; }
+  .tl-event--highlight .tl-dot { left:-15px; }
+  .tl-time { font-size:11px; color:var(--text-muted); }
+  .tl-desc { font-size:13px; color:var(--text-primary); margin-top:1px; display:flex; align-items:center; gap:4px; }
+  .tl-desc i { width:14px; height:14px; color:var(--text-secondary); }
+
+  /* Pattern cards */
+  .pattern-card { background:white; border:1px solid var(--border); border-radius:14px; padding:14px; margin-bottom:10px; }
+  .pattern-card--moss { border-left:3px solid var(--moss); }
+  .pattern-card--amber { border-left:3px solid var(--amber); }
+  .pattern-title { font-size:14px; font-weight:500; color:var(--text-primary); display:flex; align-items:center; gap:6px; margin-bottom:4px; }
+  .pattern-title i { width:16px; height:16px; }
+  .pattern-card--moss .pattern-title i { color:var(--moss); }
+  .pattern-card--amber .pattern-title i { color:var(--amber); }
+  .pattern-body { font-size:13px; color:var(--text-secondary); line-height:1.5; margin-bottom:8px; }
+  .pattern-sources { display:flex; flex-wrap:wrap; gap:4px; }
+  .pattern-source { font-size:10px; color:var(--text-muted); background:#F3F3F3; padding:2px 8px; border-radius:20px; }
+
+  /* Connect prompts */
+  .signals-connect { text-align:center; padding:32px 16px; }
+  .signals-connect-card { background:white; border:1px solid var(--border); border-radius:14px; padding:24px 16px; margin-bottom:12px; }
+  .signals-connect-icon { width:48px; height:48px; border-radius:50%; background:var(--mint); display:flex; align-items:center; justify-content:center; margin:0 auto 12px; }
+  .signals-connect-icon i { width:24px; height:24px; color:var(--moss); }
+  .signals-connect-title { font-family:'DM Serif Display',serif; font-size:16px; color:var(--text-primary); margin-bottom:4px; }
+  .signals-connect-desc { font-size:13px; color:var(--text-secondary); line-height:1.4; margin-bottom:12px; }
+  .signals-connect-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 20px; background:var(--moss); color:white; border:none; border-radius:10px; font-size:13px; font-weight:500; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -1538,6 +1651,11 @@
       </div><!-- end records-mom -->
     </div><!-- end view-records -->
 
+    <!-- CARESIGNALS VIEW -->
+    <div id="view-signals" class="app-view">
+      <!-- Content rendered by renderSignalsView() -->
+    </div>
+
     <!-- ASK WELLET VIEW -->
     <div id="view-ask" class="app-view">
       <div class="ask-view">
@@ -1587,6 +1705,7 @@
     <button class="nav-item active" onclick="switchNavTo('home')"><span class="nav-icon"><i data-lucide="house" style="width:20px;height:20px;"></i></span>Home</button>
     <button class="nav-item" onclick="switchNavTo('people')"><span class="nav-icon"><i data-lucide="users" style="width:20px;height:20px;"></i></span>People</button>
     <button class="nav-item" onclick="switchNavTo('records')"><span class="nav-icon"><i data-lucide="folder-heart" style="width:20px;height:20px;"></i></span>Records</button>
+    <button class="nav-item" onclick="switchNavTo('signals')"><span class="nav-icon"><i data-lucide="activity" style="width:20px;height:20px;"></i></span>Signals</button>
     <button class="nav-item" id="nav-ask" onclick="switchNavTo('ask')"><span class="nav-icon"><svg class="wellet-nav-icon" viewBox="0 138 50 42" xmlns="http://www.w3.org/2000/svg"><path d="M45.5,142c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83l.25-2.56h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z"/></svg></span>Ask Wellet</button>
   </div>
 </div>
@@ -4220,6 +4339,7 @@ var _demoPeopleHTML = '';
 var _demoRecordsHTML = '';
 var _demoSwitcherHTML = '';
 var _demoAskHTML = '';
+var _demoSignalsHTML = '';
 
 function saveDemoHTML() {
   if (_demoHTMLSaved) return;
@@ -4235,6 +4355,8 @@ function saveDemoHTML() {
   if (pv) _demoPeopleHTML = pv.innerHTML;
   if (rv) _demoRecordsHTML = rv.innerHTML;
   if (sw) _demoSwitcherHTML = sw.innerHTML;
+  var sig = document.getElementById('view-signals');
+  if (sig) _demoSignalsHTML = sig.innerHTML;
   var ak = document.getElementById('view-ask');
   if (ak) _demoAskHTML = ak.innerHTML;
   _demoHTMLSaved = true;
@@ -4254,6 +4376,8 @@ function restoreDemoHTML() {
   if (pv) pv.innerHTML = _demoPeopleHTML;
   if (rv) rv.innerHTML = _demoRecordsHTML;
   if (sw) sw.innerHTML = _demoSwitcherHTML;
+  var sig = document.getElementById('view-signals');
+  if (sig && _demoSignalsHTML) sig.innerHTML = _demoSignalsHTML;
   var ak = document.getElementById('view-ask');
   if (ak && _demoAskHTML) ak.innerHTML = _demoAskHTML;
   initIcons();
@@ -4335,6 +4459,352 @@ var DEMO_EHR_DATA = {
   provider: 'Duke Health (Epic)',
   synced_at: new Date().toISOString()
 };
+
+// ── DEMO CARESIGNALS DATA ────────────────────────────────────────────────────
+var DEMO_CARESIGNALS = {
+  medications: [
+    { name: 'Levodopa/Carbidopa 25-100mg', dose: '1 tablet', times: ['08:00','14:00','20:00'], frequency: '3x daily' },
+    { name: 'Lisinopril 20mg', dose: '1 tablet', times: ['08:00'], frequency: 'Once daily' }
+  ],
+  wearable: {
+    device: 'Apple Watch',
+    personName: 'Don',
+    lastSync: '8 min ago',
+    heartRate: { current: 72, min: 58, max: 94, resting: 64, trend: [68,72,71,74,69,72,78,74,71,68,72,72] },
+    steps: { today: 3847, goal: 6000 },
+    sleep: { total: 402, deep: 52, core: 198, rem: 92, awake: 38, bedTime: '10:42 PM', wakeTime: '5:24 AM' },
+    spo2: { current: 96, min: 94, max: 98 },
+    hrv: { current: 28, unit: 'ms' }
+  },
+  sensors: [
+    { id: 'hallway', name: 'Hallway Motion', icon: 'move', lastEvent: '7:42 AM', eventsToday: 12, status: 'active' },
+    { id: 'fridge', name: 'Fridge', icon: 'refrigerator', lastEvent: '7:15 AM', eventsToday: 4, status: 'active' },
+    { id: 'medcabinet', name: 'Medicine Cabinet', icon: 'pill', lastEvent: '8:12 AM', eventsToday: 1, status: 'active' },
+    { id: 'bedroom', name: 'Bedroom Motion', icon: 'bed-double', lastEvent: '6:48 AM', eventsToday: 3, status: 'active' }
+  ],
+  timeline: [
+    { time: '6:48 AM', event: 'Bedroom motion detected', icon: 'bed-double', type: 'sensor' },
+    { time: '7:05 AM', event: 'Hallway motion', icon: 'move', type: 'sensor' },
+    { time: '7:12 AM', event: 'Fridge opened', icon: 'refrigerator', type: 'sensor', note: 'Breakfast' },
+    { time: '7:15 AM', event: 'Fridge closed', icon: 'refrigerator', type: 'sensor' },
+    { time: '7:42 AM', event: 'Hallway motion', icon: 'move', type: 'sensor' },
+    { time: '8:12 AM', event: 'Medicine cabinet opened', icon: 'pill', type: 'med', highlight: true },
+    { time: '8:45 AM', event: 'Hallway motion', icon: 'move', type: 'sensor' }
+  ],
+  patterns: [
+    { title: 'Morning routine is consistent', accent: 'moss', icon: 'check-circle',
+      body: 'Your family member has been waking between 6:30\u20137:00 AM and having breakfast within 30 minutes for the last 7 days. This is a stable pattern.',
+      sources: ['Bedroom sensor', 'Fridge sensor', 'Apple Watch'] },
+    { title: 'Medication adherence improving', accent: 'moss', icon: 'trending-up',
+      body: 'Missed doses decreased from 4 last week to 1 this week. The medicine cabinet sensor confirms morning doses are being taken within the 8:00\u20138:30 AM window.',
+      sources: ['Medicine cabinet', 'Medication tracker'] },
+    { title: 'Afternoon activity has decreased', accent: 'amber', icon: 'alert-triangle',
+      body: 'Hallway motion events between 1\u20134 PM dropped 35% compared to last week. This may reflect increased fatigue or a change in routine worth mentioning at the next visit.',
+      sources: ['Hallway sensor', 'Apple Watch'] },
+    { title: 'Sleep quality declining slightly', accent: 'amber', icon: 'moon',
+      body: 'Average deep sleep decreased from 1h 20m to 52 minutes over the past week. Total sleep time is unchanged, but sleep is more fragmented.',
+      sources: ['Apple Watch'] }
+  ],
+  weeklyAdherence: [100, 100, 100, 67, 100, 100, 50]
+};
+
+// ── CARESIGNALS HELPERS ──────────────────────────────────────────────────────
+function buildSparkline(values, width, height, color) {
+  var max = Math.max.apply(null, values);
+  var min = Math.min.apply(null, values);
+  var range = max - min || 1;
+  var step = width / (values.length - 1);
+  var points = values.map(function(v, i) {
+    return (i * step) + ',' + (height - ((v - min) / range) * height);
+  }).join(' ');
+  return '<svg width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '">'
+    + '<polyline fill="none" stroke="' + color + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" points="' + points + '"/>'
+    + '</svg>';
+}
+
+function buildProgressRing(percent, size, color) {
+  var r = (size - 6) / 2;
+  var circ = 2 * Math.PI * r;
+  var offset = circ - (percent / 100) * circ;
+  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">'
+    + '<circle cx="' + size/2 + '" cy="' + size/2 + '" r="' + r + '" fill="none" stroke="#eee" stroke-width="4"/>'
+    + '<circle cx="' + size/2 + '" cy="' + size/2 + '" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="4" '
+    + 'stroke-dasharray="' + circ + '" stroke-dashoffset="' + offset + '" stroke-linecap="round" '
+    + 'transform="rotate(-90 ' + size/2 + ' ' + size/2 + ')"/>'
+    + '</svg>';
+}
+
+function fmtMin(m) {
+  if (m < 60) return m + 'm';
+  var h = Math.floor(m / 60);
+  var r = m % 60;
+  return r ? h + 'h ' + r + 'm' : h + 'h';
+}
+
+function buildSleepBar(sleep) {
+  var total = sleep.deep + sleep.core + sleep.rem + sleep.awake;
+  if (!total) return '';
+  var pctDeep = (sleep.deep / total * 100).toFixed(1);
+  var pctCore = (sleep.core / total * 100).toFixed(1);
+  var pctRem = (sleep.rem / total * 100).toFixed(1);
+  var pctAwake = (sleep.awake / total * 100).toFixed(1);
+  var html = '<div class="sleep-bar">'
+    + '<div class="sleep-bar-seg sleep-bar-seg--deep" style="width:' + pctDeep + '%"></div>'
+    + '<div class="sleep-bar-seg sleep-bar-seg--core" style="width:' + pctCore + '%"></div>'
+    + '<div class="sleep-bar-seg sleep-bar-seg--rem" style="width:' + pctRem + '%"></div>'
+    + '<div class="sleep-bar-seg sleep-bar-seg--awake" style="width:' + pctAwake + '%"></div>'
+    + '</div>';
+  html += '<div class="sleep-legend">'
+    + '<span class="sleep-legend-item"><span class="sleep-legend-dot" style="background:#4338CA"></span>' + fmtMin(sleep.deep) + ' deep</span>'
+    + '<span class="sleep-legend-item"><span class="sleep-legend-dot" style="background:#3B6EA5"></span>' + fmtMin(sleep.core) + ' core</span>'
+    + '<span class="sleep-legend-item"><span class="sleep-legend-dot" style="background:#0D9488"></span>' + fmtMin(sleep.rem) + ' REM</span>'
+    + '<span class="sleep-legend-item"><span class="sleep-legend-dot" style="background:#D1D5DB"></span>' + fmtMin(sleep.awake) + ' awake</span>'
+    + '</div>';
+  return html;
+}
+
+function getMedStatus(timeStr, now, cabinetHour) {
+  var parts = timeStr.split(':');
+  var schedH = parseInt(parts[0], 10);
+  var schedM = parseInt(parts[1], 10);
+  var schedMin = schedH * 60 + schedM;
+  var nowMin = now.getHours() * 60 + now.getMinutes();
+  var diff = schedMin - nowMin;
+  if (diff <= 0 && diff > -30) return 'due';
+  if (diff > 0 && diff <= 30) return 'due';
+  if (schedMin < nowMin) {
+    if (cabinetHour >= 0 && Math.abs(schedH - cabinetHour) <= 1) return 'taken';
+    return 'missed';
+  }
+  return 'upcoming';
+}
+
+function formatTime12(timeStr) {
+  var parts = timeStr.split(':');
+  var h = parseInt(parts[0], 10);
+  var m = parts[1];
+  var ampm = h >= 12 ? 'PM' : 'AM';
+  var h12 = h % 12 || 12;
+  return h12 + ':' + m + ' ' + ampm;
+}
+
+// ── RENDER SIGNALS VIEW ──────────────────────────────────────────────────────
+function renderSignalsView() {
+  var el = document.getElementById('view-signals');
+  if (!el) return;
+
+  var data = isDemoMode ? DEMO_CARESIGNALS : null;
+
+  if (!data) {
+    el.innerHTML = '<div class="signals-view">'
+      + '<div class="signals-connect">'
+      + '<div class="signals-connect-card">'
+      + '<div class="signals-connect-icon"><i data-lucide="watch"></i></div>'
+      + '<div class="signals-connect-title">Connect Apple Health</div>'
+      + '<div class="signals-connect-desc">Share health data from your loved one\u2019s Apple Watch to track heart rate, steps, sleep, and more.</div>'
+      + '<button class="signals-connect-btn"><i data-lucide="link" style="width:14px;height:14px;"></i> Connect</button>'
+      + '</div>'
+      + '<div class="signals-connect-card">'
+      + '<div class="signals-connect-icon"><i data-lucide="radio"></i></div>'
+      + '<div class="signals-connect-title">Set Up Home Sensors</div>'
+      + '<div class="signals-connect-desc">Add motion, door, and cabinet sensors to quietly monitor daily routines without cameras.</div>'
+      + '<button class="signals-connect-btn"><i data-lucide="plus" style="width:14px;height:14px;"></i> Set Up</button>'
+      + '</div>'
+      + '</div>'
+      + '</div>';
+    initIcons();
+    return;
+  }
+
+  var now = new Date();
+  var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var dateStr = days[now.getDay()] + ', ' + months[now.getMonth()] + ' ' + now.getDate();
+  var dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+  var cabinetHour = -1;
+  var cabinetTimeStr = '';
+  for (var si = 0; si < data.sensors.length; si++) {
+    if (data.sensors[si].id === 'medcabinet') {
+      cabinetTimeStr = data.sensors[si].lastEvent;
+      var cParts = cabinetTimeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+      if (cParts) {
+        cabinetHour = parseInt(cParts[1], 10);
+        if (cParts[3].toUpperCase() === 'PM' && cabinetHour !== 12) cabinetHour += 12;
+        if (cParts[3].toUpperCase() === 'AM' && cabinetHour === 12) cabinetHour = 0;
+      }
+      break;
+    }
+  }
+
+  var html = '<div class="signals-view">';
+
+  // ── Section 1: Medication Tracker ──────────────────────────────────────
+  html += '<div class="signals-section">';
+  html += '<div class="signals-section-title">Today\u2019s Medications</div>';
+  html += '<div class="signals-section-sub">' + escHtml(dateStr) + '</div>';
+  html += '<div class="signals-card">';
+  for (var mi = 0; mi < data.medications.length; mi++) {
+    var med = data.medications[mi];
+    html += '<div class="med-item">';
+    html += '<div class="med-icon-wrap"><i data-lucide="pill"></i></div>';
+    html += '<div class="med-info">';
+    html += '<div class="med-name">' + escHtml(med.name) + '</div>';
+    html += '<div class="med-dose">' + escHtml(med.dose) + ' \u00b7 ' + escHtml(med.frequency) + '</div>';
+    html += '<div class="med-times">';
+    for (var ti = 0; ti < med.times.length; ti++) {
+      var status = getMedStatus(med.times[ti], now, cabinetHour);
+      var badgeClass = 'med-badge med-badge--' + status;
+      var statusIcon = '';
+      var statusLabel = '';
+      if (status === 'taken') { statusIcon = '\u2705'; statusLabel = 'Taken'; }
+      else if (status === 'missed') { statusIcon = '\u26a0\ufe0f'; statusLabel = 'Missed'; }
+      else if (status === 'due') { statusIcon = '\ud83d\udd14'; statusLabel = 'Due now'; }
+      else { statusIcon = '\u23f0'; statusLabel = 'Upcoming'; }
+      html += '<span class="' + badgeClass + '">' + statusIcon + ' ' + formatTime12(med.times[ti]) + ' \u00b7 ' + statusLabel + '</span>';
+    }
+    html += '</div></div></div>';
+  }
+  html += '</div>';
+
+  // Adherence signal card
+  if (cabinetHour >= 0) {
+    html += '<div class="adherence-signal">';
+    html += '<i data-lucide="check-circle"></i>';
+    html += '<div class="adherence-signal-text">Medicine cabinet opened at ' + escHtml(cabinetTimeStr) + ' \u2014 matches morning medication window</div>';
+    html += '</div>';
+  }
+
+  // Weekly adherence chart
+  html += '<div class="signals-card" style="margin-top:10px;">';
+  html += '<div class="signals-label">Weekly Adherence</div>';
+  html += '<div class="adherence-chart">';
+  for (var ai = 0; ai < data.weeklyAdherence.length; ai++) {
+    var pct = data.weeklyAdherence[ai];
+    var barH = Math.max(4, pct / 100 * 48);
+    var barClass = 'adherence-bar';
+    if (pct === 100) barClass += ' adherence-bar--full';
+    else if (pct > 0) barClass += ' adherence-bar--partial';
+    else barClass += ' adherence-bar--zero';
+    html += '<div class="adherence-bar-wrap">';
+    html += '<div class="' + barClass + '" style="height:' + barH + 'px"></div>';
+    html += '<div class="adherence-day">' + dayNames[ai] + '</div>';
+    html += '</div>';
+  }
+  html += '</div></div>';
+  html += '</div>';
+
+  // ── Section 2: Wearable Data ──────────────────────────────────────────
+  var w = data.wearable;
+  html += '<div class="signals-section">';
+  html += '<div class="signals-section-title">' + escHtml(w.device) + ' \u00b7 ' + escHtml(w.personName) + '<span class="wearable-sync">' + escHtml(w.lastSync) + '</span></div>';
+  html += '<div class="signals-section-sub">via Health Sharing</div>';
+  html += '<div class="wearable-grid">';
+
+  // Heart rate card
+  html += '<div class="wearable-card">';
+  html += '<div class="signals-label">Heart Rate</div>';
+  html += '<div class="signals-metric">' + w.heartRate.current + ' <span style="font-size:14px;font-weight:400;color:var(--text-secondary);">bpm</span></div>';
+  html += '<div class="wearable-sparkline">' + buildSparkline(w.heartRate.trend, 120, 28, 'var(--red)') + '</div>';
+  html += '<div class="signals-metric-sm">' + w.heartRate.min + '\u2013' + w.heartRate.max + ' today</div>';
+  html += '</div>';
+
+  // Steps card
+  var stepsPct = Math.round(w.steps.today / w.steps.goal * 100);
+  html += '<div class="wearable-card">';
+  html += '<div class="signals-label">Steps</div>';
+  html += '<div class="signals-metric">' + w.steps.today.toLocaleString() + '</div>';
+  html += '<div class="progress-ring-wrap">';
+  html += buildProgressRing(stepsPct, 40, 'var(--moss)');
+  html += '<div class="progress-ring-label">' + stepsPct + '% of goal</div>';
+  html += '</div>';
+  html += '</div>';
+
+  // Sleep card
+  var sleepH = Math.floor(w.sleep.total / 60);
+  var sleepM = w.sleep.total % 60;
+  html += '<div class="wearable-card">';
+  html += '<div class="signals-label">Sleep</div>';
+  html += '<div class="signals-metric">' + sleepH + 'h ' + sleepM + 'm</div>';
+  html += buildSleepBar(w.sleep);
+  html += '<div class="signals-metric-sm">' + escHtml(w.sleep.bedTime) + ' \u2013 ' + escHtml(w.sleep.wakeTime) + '</div>';
+  html += '</div>';
+
+  // Blood oxygen card
+  html += '<div class="wearable-card">';
+  html += '<div class="signals-label">Blood Oxygen</div>';
+  html += '<div class="signals-metric">' + w.spo2.current + '<span style="font-size:14px;font-weight:400;">%</span></div>';
+  html += '<div style="display:flex;align-items:center;gap:4px;margin-top:4px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--moss);display:inline-block;"></span><span class="signals-metric-sm">' + w.spo2.min + '\u2013' + w.spo2.max + '% range</span></div>';
+  html += '</div>';
+
+  html += '</div>';
+
+  // Trend alert
+  html += '<div class="trend-alert">';
+  html += '<div class="trend-alert-title"><i data-lucide="trending-up"></i>Resting heart rate trending up</div>';
+  html += '<div class="trend-alert-body">Resting heart rate has increased 8 bpm over the last 2 weeks (56 \u2192 64 bpm). This could reflect medication changes, reduced activity, or stress. Worth noting at the next appointment.</div>';
+  html += '</div>';
+
+  html += '</div>';
+
+  // ── Section 3: Home Sensors ───────────────────────────────────────────
+  html += '<div class="signals-section">';
+  html += '<div class="signals-section-title">Home Sensors</div>';
+  html += '<div class="signals-section-sub">Zigbee \u00b7 ' + data.sensors.length + ' devices</div>';
+  html += '<div class="signals-card">';
+  for (var sei = 0; sei < data.sensors.length; sei++) {
+    var s = data.sensors[sei];
+    html += '<div class="sensor-item">';
+    html += '<div class="sensor-icon-wrap"><i data-lucide="' + escHtml(s.icon) + '"></i></div>';
+    html += '<div class="sensor-info">';
+    html += '<div class="sensor-name">' + escHtml(s.name) + '</div>';
+    html += '<div class="sensor-detail">Last: ' + escHtml(s.lastEvent) + ' \u00b7 ' + s.eventsToday + ' event' + (s.eventsToday !== 1 ? 's' : '') + ' today</div>';
+    html += '</div>';
+    html += '<div class="sensor-status"></div>';
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // Daily routine timeline
+  html += '<div class="signals-card" style="margin-top:10px;">';
+  html += '<div class="signals-label">Today\u2019s Activity</div>';
+  html += '<div class="signals-timeline">';
+  for (var tli = 0; tli < data.timeline.length; tli++) {
+    var ev = data.timeline[tli];
+    var hlClass = ev.highlight ? ' tl-event--highlight' : '';
+    html += '<div class="tl-event' + hlClass + '">';
+    html += '<div class="tl-dot"></div>';
+    html += '<div class="tl-time">' + escHtml(ev.time) + '</div>';
+    html += '<div class="tl-desc"><i data-lucide="' + escHtml(ev.icon) + '"></i>' + escHtml(ev.event);
+    if (ev.note) html += ' <span style="color:var(--text-muted);font-size:11px;">(' + escHtml(ev.note) + ')</span>';
+    html += '</div>';
+    html += '</div>';
+  }
+  html += '</div></div>';
+  html += '</div>';
+
+  // ── Section 4: Pattern Detection ──────────────────────────────────────
+  html += '<div class="signals-section">';
+  html += '<div class="signals-section-title">Patterns</div>';
+  html += '<div class="signals-section-sub">AI analysis across all signals</div>';
+  for (var pi = 0; pi < data.patterns.length; pi++) {
+    var p = data.patterns[pi];
+    html += '<div class="pattern-card pattern-card--' + escHtml(p.accent) + '">';
+    html += '<div class="pattern-title"><i data-lucide="' + escHtml(p.icon) + '"></i>' + escHtml(p.title) + '</div>';
+    html += '<div class="pattern-body">' + escHtml(p.body) + '</div>';
+    html += '<div class="pattern-sources">';
+    for (var psi = 0; psi < p.sources.length; psi++) {
+      html += '<span class="pattern-source">' + escHtml(p.sources[psi]) + '</span>';
+    }
+    html += '</div></div>';
+  }
+  html += '</div>';
+
+  html += '</div>';
+
+  el.innerHTML = html;
+  initIcons();
+}
 
 // Load cached EHR data from localStorage
 function loadEhrCache(personId) {
@@ -6213,11 +6683,12 @@ function switchNavTo(view) {
   document.querySelectorAll('.app-view').forEach(function(v){ v.classList.remove('active'); });
   document.getElementById('view-' + view).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
-  var navMap = { home: 0, people: 1, records: 2, ask: 3 };
+  var navMap = { home: 0, people: 1, records: 2, signals: 3, ask: 4 };
   document.querySelectorAll('.nav-item')[navMap[view]].classList.add('active');
   var isHome = view === 'home';
   document.getElementById('header-person-switcher').style.display = isHome ? 'flex' : 'none';
   document.getElementById('header-tab-bar').style.display = isHome ? 'flex' : 'none';
+  if (view === 'signals') { renderSignalsView(); }
   if (view === 'ask' && !isDemoMode) { renderAskView(); }
   window.scrollTo(0, 0);
   initIcons();
@@ -6565,7 +7036,8 @@ var tourSteps = [
   { target: '#header-tab-bar .tab:nth-child(3)', title: 'Patterns', text: 'Wellet quietly watches for patterns — like how sleep connects to pain, or whether a medication change made a difference.', arrow: 'top', offsetY: 8, before: function(){ document.querySelectorAll('.tab')[2].click(); } },
   { target: '.nav-item:nth-child(2)', title: 'People', text: 'Everyone involved in care, in one place.', arrow: 'bottom', offsetY: -8, before: function(){ switchNavTo('people'); } },
   { target: '.nav-item:nth-child(3)', title: 'Records', text: 'Upload photos of documents, prescriptions, or insurance cards. Wellet reads them and files them automatically.', arrow: 'bottom', offsetY: -8, before: function(){ switchNavTo('records'); } },
-  { target: '.nav-item:nth-child(4)', title: 'Ask Wellet', text: 'Ask anything about your care history. Wellet knows.', arrow: 'bottom', offsetY: -8, before: function(){ switchNavTo('ask'); } }
+  { target: '.nav-item:nth-child(4)', title: 'CareSignals', text: 'Wearable data, home sensors, and medication patterns \u2014 Wellet watches for changes across every signal.', arrow: 'bottom', offsetY: -8, before: function(){ switchNavTo('signals'); } },
+  { target: '.nav-item:nth-child(5)', title: 'Ask Wellet', text: 'Ask anything about your care history. Wellet knows.', arrow: 'bottom', offsetY: -8, before: function(){ switchNavTo('ask'); } }
 ];
 var tourCurrent = 0;
 
