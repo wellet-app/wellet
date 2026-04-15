@@ -190,12 +190,13 @@
 
   /* ── APP ── */
   #app { display: none; flex-direction: column; min-height: 100vh; }
-  .app-header { background: white; border-bottom: 1px solid var(--border); padding: 52px 20px 0; position: sticky; top: 0; z-index: 10; }
+  .app-header { background: white; border-bottom: 1px solid var(--border); padding: 40px 20px 0; position: sticky; top: 0; z-index: 10; }
   html { scroll-padding-top: 160px; }
   .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
   .app-logo-row { display: flex; align-items: center; gap: 10px; }
   .app-icon { width: 30px; height: 30px; border-radius: 7px; overflow: hidden; flex-shrink: 0; }
-  .app-wordmark { height: 20px; display: block; }
+  .app-wordmark { height: 24px; display: block; }
+  .app-wordmark path { fill: #3D6B58; }
   .header-meta { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
   .header-actions { display: flex; gap: 8px; }
   .icon-btn { width: 34px; height: 34px; border-radius: 50%; background: var(--mint); display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; color: var(--moss); transition: background 0.15s; }
@@ -240,7 +241,7 @@
   /* ── NAV VIEWS ── */
   .app-view { display: none; }
   .app-view.active { display: block; }
-  #view-ask.active { display: flex; flex-direction: column; height: calc(100vh - 130px); }
+  #view-ask.active { display: flex; flex-direction: column; height: calc(100vh - 130px - 70px); }
   .view-header { padding: 20px 20px 4px; }
   .view-title { font-family: 'DM Serif Display', serif; font-size: 22px; font-weight: 400; margin-bottom: 4px; }
   .view-subtitle { font-size: 13px; color: var(--text-muted); }
@@ -592,6 +593,56 @@
   .ob-cta:hover { background: var(--moss-dark); }
   .ob-cta-ghost { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: transparent; color: var(--moss); border: 1.5px solid var(--moss); border-radius: 12px; padding: 12px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500; cursor: pointer; transition: background 0.15s; margin-top: 8px; }
   .ob-cta-ghost:hover { background: var(--mint); }
+
+  /* ── UPLOAD-FIRST ONBOARDING ── */
+  .ob-upload-header { display: flex; align-items: center; gap: 12px; padding: 40px 20px 14px; flex-shrink: 0; }
+  .ob-upload-wordmark { height: 22px; width: auto; }
+  .ob-upload-wordmark path { fill: #3D6B58; }
+  .ob-upload-body { flex: 1; overflow-y: auto; padding: 0 24px 32px; }
+  .ob-upload-hero { text-align: left; padding: 20px 0 24px; }
+  .ob-upload-hero-icon { margin-bottom: 14px; }
+  .ob-upload-title { font-family: 'DM Serif Display', serif; font-size: 24px; color: var(--text-primary); margin-bottom: 10px; line-height: 1.3; }
+  .ob-upload-desc { font-size: 14px; color: var(--text-secondary); line-height: 1.6; max-width: 360px; }
+  .ob-upload-options { display: flex; flex-direction: column; gap: 10px; }
+  .ob-upload-card { display: flex; align-items: center; gap: 14px; padding: 16px; background: white; border: 1.5px solid var(--border-medium); border-radius: 14px; cursor: pointer; transition: all 0.15s; font-family: 'DM Sans', sans-serif; text-align: left; width: 100%; }
+  .ob-upload-card:hover { border-color: var(--moss); background: var(--mint); }
+  .ob-upload-card:active { transform: scale(0.98); }
+  .ob-upload-card-outline { background: var(--cream); border-style: dashed; }
+  .ob-upload-card-icon { width: 44px; height: 44px; border-radius: 12px; background: var(--mint); display: flex; align-items: center; justify-content: center; color: var(--moss); flex-shrink: 0; }
+  .ob-upload-card-text { flex: 1; min-width: 0; }
+  .ob-upload-card-label { font-size: 15px; font-weight: 500; color: var(--text-primary); margin-bottom: 2px; }
+  .ob-upload-card-sub { font-size: 12px; color: var(--text-muted); line-height: 1.4; }
+  .ob-upload-divider { display: flex; align-items: center; gap: 12px; margin: 6px 0; }
+  .ob-upload-divider::before, .ob-upload-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .ob-upload-divider span { font-size: 12px; color: var(--text-muted); }
+  .ob-upload-skip { background: none; border: none; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text-muted); cursor: pointer; padding: 20px 0 8px; text-decoration: underline; text-underline-offset: 3px; text-align: center; width: 100%; }
+  .ob-upload-skip:hover { color: var(--text-secondary); }
+
+  /* Processing screen */
+  .ob-processing-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 24px; text-align: center; }
+  .ob-processing-spinner { margin-bottom: 24px; }
+  .ob-spinner { width: 48px; height: 48px; border: 3px solid var(--mint-deep); border-top-color: var(--moss); border-radius: 50%; animation: obspin 0.8s linear infinite; }
+  @keyframes obspin { to { transform: rotate(360deg); } }
+  .ob-processing-label { font-family: 'DM Serif Display', serif; font-size: 20px; color: var(--text-primary); margin-bottom: 8px; }
+  .ob-processing-sub { font-size: 13px; color: var(--text-secondary); line-height: 1.6; max-width: 280px; }
+  .ob-processing-files { margin-top: 24px; width: 100%; max-width: 320px; }
+  .ob-proc-file { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: white; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 6px; font-size: 13px; color: var(--text-primary); }
+  .ob-proc-file-icon { color: var(--moss); flex-shrink: 0; }
+  .ob-proc-file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ob-proc-file-status { font-size: 11px; color: var(--moss); font-weight: 500; flex-shrink: 0; }
+
+  /* Name confirm screen */
+  .ob-name-body { flex: 1; display: flex; flex-direction: column; padding: 32px 24px; }
+  .ob-name-found { margin-bottom: 20px; }
+  .ob-name-found-card { padding: 14px 16px; background: var(--mint); border-radius: 12px; display: flex; align-items: flex-start; gap: 10px; }
+  .ob-name-found-card .found-icon { color: var(--moss); flex-shrink: 0; margin-top: 2px; }
+  .ob-name-found-card .found-text { font-size: 13px; color: var(--text-primary); line-height: 1.5; }
+  .ob-name-found-card .found-text strong { font-weight: 600; }
+  .ob-name-form { display: flex; flex-direction: column; }
+  .ob-name-label { font-size: 14px; font-weight: 500; color: var(--text-primary); margin-bottom: 8px; }
+  .ob-name-input { border: 1.5px solid var(--border-medium); border-radius: 12px; padding: 14px 16px; font-size: 16px; font-family: 'DM Sans', sans-serif; color: var(--text-primary); background: white; width: 100%; }
+  .ob-name-input:focus { outline: none; border-color: var(--moss); }
+  .ob-name-go { margin-top: 24px; padding: 15px; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; }
   .back-btn { background: none; border: none; cursor: pointer; padding: 0; color: var(--text-secondary); display: flex; align-items: center; }
 
   /* Tour overlay */
@@ -1716,23 +1767,120 @@
 </div>
 
 
-<!-- ONBOARDING CHAT -->
+<!-- ONBOARDING: UPLOAD-FIRST -->
 <div id="onboarding">
-  <div class="ob-header">
-    <button class="ob-back" onclick="showLanding()"><i data-lucide="arrow-left" style="width:20px;height:20px;"></i></button>
-    <div>
-      <div class="ob-title">Start my own story</div>
-      <div class="ob-subtitle">Ask Wellet</div>
+  <!-- Step 1: Upload screen -->
+  <div id="ob-upload-screen" style="display:flex;flex-direction:column;height:100%;">
+    <div class="ob-upload-header">
+      <button class="ob-back" onclick="showLanding()"><i data-lucide="arrow-left" style="width:20px;height:20px;"></i></button>
+      <svg class="ob-upload-wordmark" viewBox="0 0 465 66" xmlns="http://www.w3.org/2000/svg"><path d="M45.5,4c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83L.25,13.32h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z" fill="#3D6B58"/><path d="M67.97,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08s-1.4-1.71-1.4-2.99c0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M85.12,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M99.88,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M130.39,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08-.94-.72-1.4-1.71-1.4-2.99,0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M155.96,13.83h-4.14v-3.89l4.47-.43.94-6.77h4.21l-.47,6.77h7.06l-.29,4.32h-6.88l-.47,12.06c-.02,1.42.29,2.48.94,3.17.65.69,1.49,1.04,2.52,1.04,1.22,0,2.48-.47,3.78-1.4l1.4,3.56c-2.06,1.37-4.25,2.05-6.55,2.05-2.16,0-3.89-.69-5.18-2.07-1.3-1.38-1.91-3.35-1.84-5.9l.5-12.53Z" fill="#3D6B58"/></svg>
+    </div>
+    <div class="ob-upload-body">
+      <div class="ob-upload-hero">
+        <div class="ob-upload-hero-icon"><i data-lucide="heart-handshake" style="width:36px;height:36px;color:var(--moss);"></i></div>
+        <h1 class="ob-upload-title">Give Wellet something to work with</h1>
+        <p class="ob-upload-desc">Upload health records, snap a photo of a prescription, or connect to a patient portal. Wellet will read and organize everything — so you never have to type it in.</p>
+      </div>
+
+      <div class="ob-upload-options">
+        <button class="ob-upload-card" onclick="obUploadEhrZip()">
+          <div class="ob-upload-card-icon"><i data-lucide="file-archive" style="width:22px;height:22px;"></i></div>
+          <div class="ob-upload-card-text">
+            <div class="ob-upload-card-label">Upload EHR export (zip)</div>
+            <div class="ob-upload-card-sub">MyChart, patient portal downloads</div>
+          </div>
+          <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);flex-shrink:0;"></i>
+        </button>
+
+        <button class="ob-upload-card" onclick="obUploadPhoto()">
+          <div class="ob-upload-card-icon"><i data-lucide="camera" style="width:22px;height:22px;"></i></div>
+          <div class="ob-upload-card-text">
+            <div class="ob-upload-card-label">Take a photo</div>
+            <div class="ob-upload-card-sub">Medication bottles, discharge papers, lab printouts</div>
+          </div>
+          <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);flex-shrink:0;"></i>
+        </button>
+
+        <button class="ob-upload-card" onclick="obUploadFile()">
+          <div class="ob-upload-card-icon"><i data-lucide="upload" style="width:22px;height:22px;"></i></div>
+          <div class="ob-upload-card-text">
+            <div class="ob-upload-card-label">Upload a document</div>
+            <div class="ob-upload-card-sub">PDF, images — visit summaries, lab results, anything</div>
+          </div>
+          <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);flex-shrink:0;"></i>
+        </button>
+
+        <div class="ob-upload-divider"><span>or</span></div>
+
+        <button class="ob-upload-card ob-upload-card-outline" onclick="obConnectEhr()">
+          <div class="ob-upload-card-icon" style="background:white;border:1.5px solid var(--border-medium);"><i data-lucide="link" style="width:22px;height:22px;"></i></div>
+          <div class="ob-upload-card-text">
+            <div class="ob-upload-card-label">Connect health records</div>
+            <div class="ob-upload-card-sub">Link a patient portal directly</div>
+          </div>
+          <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);flex-shrink:0;"></i>
+        </button>
+      </div>
+
+      <button class="ob-upload-skip" onclick="obSkipToChat()">I don't have anything yet — let me type it in</button>
     </div>
   </div>
-  <div class="ob-chat" id="ob-chat-area"></div>
-  <div class="ob-input-row">
-    <textarea class="ob-input" id="ob-input" rows="1" placeholder="Type a message…" disabled
-      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();obSend();}"></textarea>
-    <button class="ob-send" id="ob-send-btn" onclick="obSend()" disabled>
-      <i data-lucide="send" style="width:16px;height:16px;"></i>
-    </button>
+
+  <!-- Step 2: Processing screen (shown after upload) -->
+  <div id="ob-processing-screen" style="display:none;flex-direction:column;height:100%;">
+    <div class="ob-upload-header">
+      <div style="width:20px;"></div>
+      <svg class="ob-upload-wordmark" viewBox="0 0 465 66" xmlns="http://www.w3.org/2000/svg"><path d="M45.5,4c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83L.25,13.32h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z" fill="#3D6B58"/><path d="M67.97,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08s-1.4-1.71-1.4-2.99c0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M85.12,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M99.88,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M130.39,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08-.94-.72-1.4-1.71-1.4-2.99,0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M155.96,13.83h-4.14v-3.89l4.47-.43.94-6.77h4.21l-.47,6.77h7.06l-.29,4.32h-6.88l-.47,12.06c-.02,1.42.29,2.48.94,3.17.65.69,1.49,1.04,2.52,1.04,1.22,0,2.48-.47,3.78-1.4l1.4,3.56c-2.06,1.37-4.25,2.05-6.55,2.05-2.16,0-3.89-.69-5.18-2.07-1.3-1.38-1.91-3.35-1.84-5.9l.5-12.53Z" fill="#3D6B58"/></svg>
+    </div>
+    <div class="ob-processing-body">
+      <div class="ob-processing-spinner"><div class="ob-spinner"></div></div>
+      <div class="ob-processing-label" id="ob-processing-label">Wellet is reading your documents...</div>
+      <div class="ob-processing-sub" id="ob-processing-sub">This usually takes about 30 seconds. We'll organize everything we find.</div>
+      <div class="ob-processing-files" id="ob-processing-files"></div>
+    </div>
   </div>
+
+  <!-- Step 3: Quick name confirm (shown after extraction) -->
+  <div id="ob-name-screen" style="display:none;flex-direction:column;height:100%;">
+    <div class="ob-upload-header">
+      <div style="width:20px;"></div>
+      <svg class="ob-upload-wordmark" viewBox="0 0 465 66" xmlns="http://www.w3.org/2000/svg"><path d="M45.5,4c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83L.25,13.32h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z" fill="#3D6B58"/><path d="M67.97,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08s-1.4-1.71-1.4-2.99c0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M85.12,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M99.88,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M130.39,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08-.94-.72-1.4-1.71-1.4-2.99,0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M155.96,13.83h-4.14v-3.89l4.47-.43.94-6.77h4.21l-.47,6.77h7.06l-.29,4.32h-6.88l-.47,12.06c-.02,1.42.29,2.48.94,3.17.65.69,1.49,1.04,2.52,1.04,1.22,0,2.48-.47,3.78-1.4l1.4,3.56c-2.06,1.37-4.25,2.05-6.55,2.05-2.16,0-3.89-.69-5.18-2.07-1.3-1.38-1.91-3.35-1.84-5.9l.5-12.53Z" fill="#3D6B58"/></svg>
+    </div>
+    <div class="ob-name-body">
+      <div class="ob-name-found" id="ob-name-found"></div>
+      <div class="ob-name-form">
+        <label class="ob-name-label">What should we call you?</label>
+        <input class="ob-name-input" id="ob-your-name" type="text" placeholder="Your first name" autocomplete="given-name">
+        <label class="ob-name-label" style="margin-top:16px;">Who is this health record for?</label>
+        <input class="ob-name-input" id="ob-person-name" type="text" placeholder="Their name (or yours if it's for you)" autocomplete="off">
+        <button class="btn-primary ob-name-go" onclick="obFinishWithNames()"><i data-lucide="arrow-right" style="width:16px;height:16px;"></i> Open my Wellet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fallback: original chat (only shown via skip) -->
+  <div id="ob-chat-screen" style="display:none;flex-direction:column;height:100%;">
+    <div class="ob-header">
+      <button class="ob-back" onclick="obBackToUpload()"><i data-lucide="arrow-left" style="width:20px;height:20px;"></i></button>
+      <div>
+        <div class="ob-title">Tell me about your situation</div>
+        <div class="ob-subtitle">Ask Wellet</div>
+      </div>
+    </div>
+    <div class="ob-chat" id="ob-chat-area"></div>
+    <div class="ob-input-row">
+      <textarea class="ob-input" id="ob-input" rows="1" placeholder="Type a message…" disabled
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();obSend();}"></textarea>
+      <button class="ob-send" id="ob-send-btn" onclick="obSend()" disabled>
+        <i data-lucide="send" style="width:16px;height:16px;"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Hidden file inputs for onboarding uploads -->
+  <input type="file" id="ob-file-ehr" accept=".zip" style="display:none;" onchange="obHandleFiles(this,'ehr')">
+  <input type="file" id="ob-file-photo" accept="image/*" capture="environment" style="display:none;" onchange="obHandleFiles(this,'photo')">
+  <input type="file" id="ob-file-doc" accept=".pdf,.jpg,.jpeg,.png,.heic,.doc,.docx" multiple style="display:none;" onchange="obHandleFiles(this,'doc')">
 </div>
 
 
@@ -3147,7 +3295,7 @@ function renderUpdateMe() {
 
   var timelineHTML = '';
   if (recentEvents.length === 0) {
-    timelineHTML = '<div style="text-align:center;padding:24px 16px;color:var(--text-muted);font-size:13px;font-style:italic;">Your timeline will appear here as you add things.</div>';
+    timelineHTML = '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">Your timeline will appear here as you add things.</div>';
   } else {
     recentEvents.forEach(function(ev, i) {
       var isLast = i === recentEvents.length - 1;
@@ -3173,7 +3321,7 @@ function renderUpdateMe() {
       + '<span class="update-summary-label">Wellet summary</span>'
       + '<button class="update-summary-refresh" onclick="fetchUpdateMeSummary(true)" title="Refresh summary"><i data-lucide="refresh-cw" style="width:13px;height:13px;"></i></button>'
       + '</div>'
-      + '<p class="update-summary-text" style="color:var(--text-muted);font-style:italic;">Start adding health events and documents \u2014 Wellet will generate your personalized summary here.</p>'
+      + '<p class="update-summary-text" style="color:var(--text-secondary);font-style:italic;">Start adding health events and documents \u2014 Wellet will generate your personalized summary here.</p>'
       + '</div>';
   } else if (summaryCache[currentPersonId]) {
     summarySection = '<div class="update-summary-card">'
@@ -3194,12 +3342,23 @@ function renderUpdateMe() {
     fetchUpdateMeSummary(false);
   }
 
+  // Build empty-state vs populated content
+  var emptyActions = '<div style="text-align:center;padding:24px 0 8px;">'
+    + '<div style="font-family:\'DM Serif Display\',serif;font-size:20px;margin-bottom:6px;color:var(--text-primary);">Give Wellet something to work with</div>'
+    + '<div style="font-size:13px;color:var(--text-secondary);line-height:1.5;max-width:300px;margin:0 auto;">Upload a document or connect to health records \u2014 Wellet will read, organize, and remember everything.</div>'
+    + '</div>'
+    + '<div style="display:flex;flex-direction:column;gap:10px;margin:20px 0 16px;">'
+    + '<button class="btn-primary" style="width:100%;padding:14px;font-size:14px;gap:8px;display:flex;align-items:center;justify-content:center;" onclick="openUpload(\'' + escHtml(name) + '\')"><i data-lucide="upload" style="width:18px;height:18px;"></i> Upload a document</button>'
+    + '<button style="width:100%;padding:14px;font-size:14px;gap:8px;display:flex;align-items:center;justify-content:center;background:white;border:1.5px solid var(--moss);border-radius:12px;color:var(--moss);font-family:\'DM Sans\',sans-serif;font-weight:500;cursor:pointer;" onclick="startEhrConnect()"><i data-lucide="link" style="width:18px;height:18px;"></i> Connect health records</button>'
+    + '</div>';
+
   pane.innerHTML = '<div class="update-me-section">'
     + summarySection
+    + (liveEvents.length === 0 ? emptyActions : '')
     + '<div class="update-card">'
     + '<div class="update-label">What\u2019s going on with ' + escHtml(name) + ' right now</div>'
     + (liveEvents.length === 0
-      ? '<p class="update-text" style="color:var(--text-muted);font-style:italic;">Nothing here yet \u2014 and that\u2019s exactly right. As you add appointments, medications, notes, and documents, this summary will build itself.</p>'
+      ? '<p class="update-text" style="color:var(--text-secondary);font-style:italic;">As you add documents, appointments, and medications, this summary will build itself.</p>'
       : '<p class="update-text">' + escHtml(name) + ' has <strong>' + liveEvents.length + ' health event' + (liveEvents.length !== 1 ? 's' : '') + '</strong> logged. '
         + (liveMeds.filter(function(m){ return m.active; }).length > 0 ? 'Currently on <strong>' + liveMeds.filter(function(m){ return m.active; }).length + ' active medication' + (liveMeds.filter(function(m){ return m.active; }).length !== 1 ? 's' : '') + '</strong>.' : '') + '</p>')
     + '<div class="update-meta">' + liveEvents.length + ' health event' + (liveEvents.length !== 1 ? 's' : '') + ' logged</div>'
@@ -3426,7 +3585,7 @@ function renderRecordsView() {
     + '</div>';
 
   if (totalMeds === 0) {
-    html += '<div style="text-align:center;padding:24px 16px;color:var(--text-muted);font-size:13px;font-style:italic;">No medications added yet.</div>';
+    html += '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">No medications added yet.</div>';
     if (!ehrData) html += buildEhrPrompt();
   } else {
     activeMeds.forEach(function(med) {
@@ -3570,7 +3729,7 @@ function renderRecordsView() {
     + '</div>';
 
   if (liveDocs.length === 0) {
-    html += '<div style="text-align:center;padding:24px 16px;color:var(--text-muted);font-size:13px;font-style:italic;">No documents uploaded yet.</div>';
+    html += '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">No documents uploaded yet.</div>';
   } else {
     liveDocs.forEach(function(doc) {
       var iconName = getDocTypeIcon(doc.document_type);
@@ -3805,7 +3964,7 @@ function renderExtractedItems() {
   });
 
   if (_currentExtItems.length === 0) {
-    html = '<div style="text-align:center;padding:24px 16px;color:var(--text-muted);font-size:13px;font-style:italic;">No items were extracted from this document.</div>';
+    html = '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">No items were extracted from this document.</div>';
   }
 
   container.innerHTML = html;
@@ -4543,8 +4702,15 @@ function showOnboarding() {
   document.getElementById('landing').style.display = 'none';
   document.getElementById('app').style.display = 'none';
   document.getElementById('onboarding').style.display = 'flex';
+  // Show upload-first screen (default), hide others
+  document.getElementById('ob-upload-screen').style.display = 'flex';
+  document.getElementById('ob-processing-screen').style.display = 'none';
+  document.getElementById('ob-name-screen').style.display = 'none';
+  document.getElementById('ob-chat-screen').style.display = 'none';
+  _obUploadedFiles = [];
+  _obUploadPaths = [];
+  _obExtractedData = null;
   window.scrollTo(0, 0);
-  obInit();
   initIcons();
 }
 
@@ -6637,7 +6803,7 @@ function renderEmergencySummary() {
   }
 
   if (!person.date_of_birth && !person.allergies && activeMeds.length === 0) {
-    html += '<div style="padding:16px 20px;font-size:13px;color:var(--text-muted);font-style:italic;">Add profile information to make this summary more complete.</div>';
+    html += '<div style="padding:16px 20px;font-size:13px;color:var(--text-secondary);font-style:italic;">Add profile information to make this summary more complete.</div>';
   }
 
   container.innerHTML = html;
@@ -6832,7 +6998,7 @@ function renderCareCircle() {
   if (!container) return;
 
   if (liveCareCircle.length === 0) {
-    container.innerHTML = '<div style="text-align:center;padding:16px 0 8px;font-size:13px;color:var(--text-muted);font-style:italic;">No care circle members yet.</div>';
+    container.innerHTML = '<div style="text-align:center;padding:16px 0 8px;font-size:13px;color:var(--text-secondary);font-style:italic;">No care circle members yet.</div>';
     return;
   }
 
@@ -7088,7 +7254,242 @@ function switchPerson(el) {
   el.classList.add('active');
 }
 
-// ── ONBOARDING CHAT ENGINE ─────────────────────────────────────────────────
+// ── UPLOAD-FIRST ONBOARDING FUNCTIONS ────────────────────────────────────────
+var _obUploadedFiles = [];
+var _obExtractedData = null;
+var _obUploadPaths = [];
+
+function obUploadEhrZip() { document.getElementById('ob-file-ehr').click(); }
+function obUploadPhoto() { document.getElementById('ob-file-photo').click(); }
+function obUploadFile() { document.getElementById('ob-file-doc').click(); }
+
+function obConnectEhr() {
+  // Use the existing EHR connect flow (gated for alpha)
+  startEhrConnect();
+}
+
+function obSkipToChat() {
+  // Fall back to the chat-based onboarding
+  obShowScreen('ob-chat-screen');
+  obInit();
+}
+
+function obBackToUpload() {
+  obShowScreen('ob-upload-screen');
+}
+
+function obShowScreen(screenId) {
+  ['ob-upload-screen','ob-processing-screen','ob-name-screen','ob-chat-screen'].forEach(function(id) {
+    document.getElementById(id).style.display = 'none';
+  });
+  document.getElementById(screenId).style.display = 'flex';
+  window.scrollTo(0, 0);
+  initIcons();
+}
+
+async function obHandleFiles(input, type) {
+  if (!input.files || input.files.length === 0) return;
+  var files = Array.from(input.files);
+  _obUploadedFiles = _obUploadedFiles.concat(files);
+
+  // Show processing screen
+  obShowScreen('ob-processing-screen');
+
+  // Update label based on type
+  var label = document.getElementById('ob-processing-label');
+  if (type === 'ehr') {
+    label.textContent = 'Wellet is reading your health records...';
+  } else if (type === 'photo') {
+    label.textContent = 'Wellet is reading your photo...';
+  } else {
+    label.textContent = 'Wellet is reading your documents...';
+  }
+
+  // Show file list in processing screen
+  var filesEl = document.getElementById('ob-processing-files');
+  filesEl.innerHTML = '';
+  _obUploadedFiles.forEach(function(f) {
+    var fileDiv = document.createElement('div');
+    fileDiv.className = 'ob-proc-file';
+    fileDiv.innerHTML = '<div class="ob-proc-file-icon"><i data-lucide="file" style="width:16px;height:16px;"></i></div>'
+      + '<div class="ob-proc-file-name">' + escHtml(f.name) + '</div>'
+      + '<div class="ob-proc-file-status">Uploading...</div>';
+    filesEl.appendChild(fileDiv);
+  });
+  initIcons();
+
+  // Upload each file to Supabase Storage
+  if (!currentUser) {
+    // If somehow not logged in, skip to name screen
+    obShowNameScreen(null);
+    return;
+  }
+
+  var uploadedPaths = [];
+  for (var i = 0; i < files.length; i++) {
+    var file = files[i];
+    var ext = file.name.split('.').pop().toLowerCase();
+    var storagePath = currentUser.id + '/onboarding/' + Date.now() + '_' + i + '.' + ext;
+    try {
+      var result = await db.storage.from('documents').upload(storagePath, file, { upsert: true });
+      if (result.error) {
+        console.error('Upload error:', result.error);
+        // Update file status to error
+        var statusEls = filesEl.querySelectorAll('.ob-proc-file-status');
+        if (statusEls[i]) { statusEls[i].textContent = 'Error'; statusEls[i].style.color = 'var(--red)'; }
+      } else {
+        uploadedPaths.push(storagePath);
+        _obUploadPaths.push(storagePath);
+        // Update file status to done
+        var statusEls2 = filesEl.querySelectorAll('.ob-proc-file-status');
+        if (statusEls2[i]) { statusEls2[i].textContent = 'Uploaded'; statusEls2[i].style.color = 'var(--moss)'; }
+      }
+    } catch(e) {
+      console.error('Upload exception:', e);
+    }
+  }
+
+  // Update processing label
+  label.textContent = 'Organizing what we found...';
+  document.getElementById('ob-processing-sub').textContent = 'Wellet is extracting names, medications, conditions, and dates.';
+
+  // Try to extract data via edge function (if it exists)
+  var extractedData = null;
+  try {
+    var extractRes = await fetch(SUPABASE_URL + '/functions/v1/extract-onboarding', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + (await db.auth.getSession()).data.session.access_token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ paths: uploadedPaths, user_id: currentUser.id })
+    });
+    if (extractRes.ok) {
+      extractedData = await extractRes.json();
+      _obExtractedData = extractedData;
+    }
+  } catch(e) {
+    console.log('Extraction not available yet, skipping:', e.message);
+  }
+
+  // Short delay for the user to see upload completion, then proceed to name screen
+  setTimeout(function() {
+    obShowNameScreen(extractedData);
+  }, 1200);
+
+  // Reset file inputs
+  input.value = '';
+}
+
+function obShowNameScreen(extractedData) {
+  obShowScreen('ob-name-screen');
+
+  var foundEl = document.getElementById('ob-name-found');
+  var personInput = document.getElementById('ob-person-name');
+  var yourNameInput = document.getElementById('ob-your-name');
+
+  if (extractedData && extractedData.patient_name) {
+    // We found a name in the documents — pre-fill and show confirmation
+    personInput.value = extractedData.patient_name;
+    var foundItems = [];
+    if (extractedData.patient_name) foundItems.push('<strong>' + escHtml(extractedData.patient_name) + '</strong>');
+    if (extractedData.conditions && extractedData.conditions.length) foundItems.push(extractedData.conditions.length + ' condition' + (extractedData.conditions.length > 1 ? 's' : ''));
+    if (extractedData.medications && extractedData.medications.length) foundItems.push(extractedData.medications.length + ' medication' + (extractedData.medications.length > 1 ? 's' : ''));
+    if (extractedData.doc_count) foundItems.push(extractedData.doc_count + ' document' + (extractedData.doc_count > 1 ? 's' : ''));
+
+    foundEl.innerHTML = '<div class="ob-name-found-card">'
+      + '<div class="found-icon"><i data-lucide="check-circle" style="width:18px;height:18px;"></i></div>'
+      + '<div class="found-text">Wellet found ' + foundItems.join(', ') + ' in your upload. We\'ve set things up — just confirm the names below.</div>'
+      + '</div>';
+  } else {
+    // No extraction or extraction didn't find a name — show simpler message
+    var fileCount = _obUploadedFiles.length;
+    foundEl.innerHTML = '<div class="ob-name-found-card">'
+      + '<div class="found-icon"><i data-lucide="check-circle" style="width:18px;height:18px;"></i></div>'
+      + '<div class="found-text">' + fileCount + ' file' + (fileCount > 1 ? 's' : '') + ' uploaded. Wellet will process ' + (fileCount > 1 ? 'them' : 'it') + ' once your account is set up.</div>'
+      + '</div>';
+  }
+
+  // Pre-fill user email-based first name guess
+  if (currentUser && currentUser.email) {
+    var emailName = currentUser.email.split('@')[0].split('.')[0];
+    emailName = emailName.charAt(0).toUpperCase() + emailName.slice(1).toLowerCase();
+    if (!yourNameInput.value) yourNameInput.value = emailName;
+  }
+
+  initIcons();
+  yourNameInput.focus();
+}
+
+async function obFinishWithNames() {
+  var yourName = document.getElementById('ob-your-name').value.trim() || 'you';
+  var personName = document.getElementById('ob-person-name').value.trim() || 'My loved one';
+
+  // Set obState so savePersonToSupabase works
+  obState.userName = yourName;
+  obState.personName = personName;
+  obState.situation = 'parent'; // default relationship
+
+  // Save to Supabase
+  if (currentUser) {
+    var person = await savePersonToSupabase();
+
+    // If we have uploaded files, associate them with the person via documents table
+    if (person && _obUploadPaths.length > 0) {
+      for (var i = 0; i < _obUploadPaths.length; i++) {
+        var fname = _obUploadedFiles[i] ? _obUploadedFiles[i].name : 'document';
+        try {
+          await db.from('documents').insert({
+            person_id: person.id,
+            user_id: currentUser.id,
+            file_name: fname,
+            file_path: _obUploadPaths[i],
+            doc_type: 'Onboarding upload',
+            status: 'pending'
+          });
+        } catch(e) {
+          console.log('Doc record insert skipped:', e.message);
+        }
+      }
+    }
+
+    // If extraction found conditions/meds, save them as health events
+    if (person && _obExtractedData) {
+      if (_obExtractedData.conditions) {
+        for (var c = 0; c < _obExtractedData.conditions.length; c++) {
+          try {
+            await db.from('health_events').insert({
+              person_id: person.id,
+              user_id: currentUser.id,
+              event_type: 'condition',
+              title: _obExtractedData.conditions[c],
+              source: 'Onboarding upload'
+            });
+          } catch(e) { console.log('Condition insert skipped:', e.message); }
+        }
+      }
+      if (_obExtractedData.medications) {
+        for (var m = 0; m < _obExtractedData.medications.length; m++) {
+          try {
+            await db.from('medications').insert({
+              person_id: person.id,
+              user_id: currentUser.id,
+              name: _obExtractedData.medications[m].name || _obExtractedData.medications[m],
+              status: 'active',
+              source: 'Onboarding upload'
+            });
+          } catch(e) { console.log('Med insert skipped:', e.message); }
+        }
+      }
+    }
+  }
+
+  // Transition to the app
+  showOwnWellet();
+}
+
+// ── ORIGINAL CHAT-BASED ONBOARDING ENGINE ────────────────────────────────────
 var obState = { step: 0, situation: null, userName: null, personName: null };
 
 var obSituations = [
@@ -7343,19 +7744,19 @@ function showOwnWellet() {
   var updatePane = document.getElementById('tab-update');
   if (updatePane) {
     updatePane.innerHTML = '<div class="update-me-section">'
-      + '<div class="update-card">'
-      + '<div class="update-label">What\u2019s going on with ' + displayName + ' right now</div>'
-      + '<p class="update-text" style="color:var(--text-muted);font-style:italic;">Nothing here yet \u2014 and that\u2019s exactly right. As you add appointments, medications, notes, and documents, this summary will build itself. No setup required.</p>'
-      + '<div class="update-meta" style="color:var(--text-muted);">0 health events so far</div>'
-      + '</div></div>'
+      + '<div style="text-align:center;padding:24px 0 8px;">'
+      + '<div style="font-family:\'DM Serif Display\',serif;font-size:20px;margin-bottom:6px;color:var(--text-primary);">Give Wellet something to work with</div>'
+      + '<div style="font-size:13px;color:var(--text-secondary);line-height:1.5;max-width:300px;margin:0 auto;">Upload a document or connect to health records \u2014 Wellet will read, organize, and remember everything.</div>'
+      + '</div>'
+      + '<div style="display:flex;flex-direction:column;gap:10px;margin:20px 0 16px;">'
+      + '<button class="btn-primary" style="width:100%;padding:14px;font-size:14px;gap:8px;display:flex;align-items:center;justify-content:center;" onclick="openUpload(\'' + escHtml(displayName) + '\')"><i data-lucide="upload" style="width:18px;height:18px;"></i> Upload a document</button>'
+      + '<button style="width:100%;padding:14px;font-size:14px;gap:8px;display:flex;align-items:center;justify-content:center;background:white;border:1.5px solid var(--moss);border-radius:12px;color:var(--moss);font-family:\'DM Sans\',sans-serif;font-weight:500;cursor:pointer;" onclick="startEhrConnect()"><i data-lucide="link" style="width:18px;height:18px;"></i> Connect health records</button>'
+      + '</div>'
       + '<div class="quick-actions">'
       + '<button class="qa-btn" onclick="openAddEvent()"><span class="qa-icon"><i data-lucide="plus-circle" style="width:18px;height:18px;"></i></span>Add event</button>'
       + '<button class="qa-btn" onclick="openEmergencySummary()"><span class="qa-icon"><i data-lucide="file-heart" style="width:18px;height:18px;"></i></span>Emergency summary</button>'
       + '<button class="qa-btn" onclick="openShareFamily()"><span class="qa-icon"><i data-lucide="share-2" style="width:18px;height:18px;"></i></span>Share with family</button>'
       + '</div>'
-      + '<div class="timeline-section" style="margin-top:16px;">'
-      + '<p class="section-label">Recent activity</p>'
-      + '<div style="text-align:center;padding:24px 16px;color:var(--text-muted);font-size:13px;font-style:italic;">Your timeline will appear here as you add things.</div>'
       + '</div>';
   }
 
