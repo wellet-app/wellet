@@ -970,13 +970,13 @@
       </button>
       <p style="font-size:12px;color:var(--text-muted);margin-top:10px;line-height:1.5;">Already signed up? Your session may have expired — just enter the same email to get a fresh link.</p>
       <div class="auth-links-row">
-        <button class="auth-demo-link" onclick="enterDemoMode()">
-          <i data-lucide="play-circle" style="width:14px;height:14px;"></i>
-          Try the demo
+        <button class="auth-demo-link" onclick="window.location.search='?demo=guided'" style="background:var(--moss);color:white;border-color:var(--moss);">
+          <i data-lucide="play" style="width:14px;height:14px;"></i>
+          Watch the guided demo
         </button>
-        <button class="auth-demo-link" onclick="showExplainer()">
-          <i data-lucide="film" style="width:14px;height:14px;"></i>
-          Watch the story
+        <button class="auth-demo-link" onclick="enterDemoMode()">
+          <i data-lucide="compass" style="width:14px;height:14px;"></i>
+          Explore on your own
         </button>
       </div>
     </div>
