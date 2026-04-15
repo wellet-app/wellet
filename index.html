@@ -1555,50 +1555,28 @@
       <div class="qa-handle"></div>
       <button class="close-btn" onclick="closeSheet('export-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
-    <div class="qa-sheet-title">Export for visit</div>
-    <div class="qa-sheet-sub">Prepare a summary for Dad's March 16 appointment</div>
+    <div class="qa-sheet-title">Visit Summary</div>
+    <div class="qa-sheet-sub" id="export-sheet-sub">Generate a printable PDF to bring to the next appointment</div>
 
-    <div class="export-section">
-      <div class="export-section-label">Format</div>
-      <div class="format-toggle">
-        <button class="format-btn active" onclick="setFormat(this)">PDF</button>
-        <button class="format-btn" onclick="setFormat(this)">CSV</button>
-        <button class="format-btn" onclick="setFormat(this)">Print</button>
+    <div class="export-section" style="padding:0 20px;">
+      <div style="background:var(--mint);border-radius:10px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;">
+        <i data-lucide="file-text" style="width:20px;height:20px;color:var(--moss);flex-shrink:0;margin-top:1px;"></i>
+        <div style="font-size:12px;line-height:1.55;color:var(--text-secondary);">
+          Your Visit Summary will include active medications, recent health events, patterns, emergency contacts, and AI-generated questions to discuss with the doctor.
+        </div>
       </div>
     </div>
 
-    <div class="export-section">
-      <div class="export-section-label">Include in export</div>
-      <div class="export-check-row">
-        <div class="export-check-left"><div class="export-check-icon"><i data-lucide="stethoscope" style="width:15px;height:15px;"></i></div>Active diagnoses</div>
-        <div class="export-checkbox checked" onclick="this.classList.toggle('checked')"><i data-lucide="check" style="width:12px;height:12px;color:white;"></i></div>
-      </div>
-      <div class="export-check-row">
-        <div class="export-check-left"><div class="export-check-icon"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>Current medications</div>
-        <div class="export-checkbox checked" onclick="this.classList.toggle('checked')"><i data-lucide="check" style="width:12px;height:12px;color:white;"></i></div>
-      </div>
-      <div class="export-check-row">
-        <div class="export-check-left"><div class="export-check-icon"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>Recent labs (past 90 days)</div>
-        <div class="export-checkbox checked" onclick="this.classList.toggle('checked')"><i data-lucide="check" style="width:12px;height:12px;color:white;"></i></div>
-      </div>
-      <div class="export-check-row">
-        <div class="export-check-left"><div class="export-check-icon"><i data-lucide="calendar-check" style="width:15px;height:15px;"></i></div>Appointment history</div>
-        <div class="export-checkbox checked" onclick="this.classList.toggle('checked')"><i data-lucide="check" style="width:12px;height:12px;color:white;"></i></div>
-      </div>
-      <div class="export-check-row">
-        <div class="export-check-left"><div class="export-check-icon"><i data-lucide="pencil-line" style="width:15px;height:15px;"></i></div>Caregiver notes</div>
-        <div class="export-checkbox" onclick="this.classList.toggle('checked')"></div>
-      </div>
-      <div class="export-check-row">
-        <div class="export-check-left"><div class="export-check-icon"><i data-lucide="activity" style="width:15px;height:15px;"></i></div>Update Me summary</div>
-        <div class="export-checkbox checked" onclick="this.classList.toggle('checked')"><i data-lucide="check" style="width:12px;height:12px;color:white;"></i></div>
-      </div>
+    <div id="export-loading" style="display:none;padding:24px 20px;text-align:center;">
+      <i data-lucide="loader" style="width:22px;height:22px;animation:spin 1.2s linear infinite;color:var(--moss);"></i>
+      <div style="font-size:13px;color:var(--text-muted);margin-top:10px;">Generating your Visit Summary&hellip;</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">This may take a moment while we prepare questions for the doctor.</div>
     </div>
 
-    <div style="padding:0 20px;">
+    <div id="export-actions" style="padding:0 20px;">
       <button class="btn-primary" style="font-size:14px;padding:13px;" onclick="generateVisitExport()">
         <i data-lucide="download" style="width:15px;height:15px;"></i>
-        Generate export
+        Generate Visit Summary
       </button>
     </div>
   </div>
@@ -4374,6 +4352,14 @@ function openShareEmail(url) {
   showToast('Opened in Mail');
 }
 function openExportVisit() {
+  var firstName = getPersonFirstName();
+  var subEl = document.getElementById('export-sheet-sub');
+  if (subEl) subEl.textContent = 'Generate a printable PDF to bring to ' + firstName + '\u2019s next appointment';
+  // Reset loading state
+  var loadingEl = document.getElementById('export-loading');
+  var actionsEl = document.getElementById('export-actions');
+  if (loadingEl) loadingEl.style.display = 'none';
+  if (actionsEl) actionsEl.style.display = 'block';
   document.getElementById('export-overlay').classList.add('show');
   initIcons();
 }
@@ -6003,188 +5989,59 @@ function downloadSharePDF() {
 }
 
 // ── FEATURE 3: EXPORT FOR VISIT ─────────────────────────────────────────────
-function downloadCSV(filename, csvContent) {
-  var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  var link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  link.click();
+
+// Fetch AI-generated visit questions (demo or live)
+async function fetchVisitQuestions() {
+  if (isDemoMode) {
+    return [
+      'His blood pressure has been running higher lately \u2014 should we adjust the Lisinopril or Hydrochlorothiazide dosage?',
+      'He\'s been on Gleevec (Imatinib) for several years now. Are there any new CML treatment options to consider, or is the current regimen still the best approach?',
+      'With Stage 3a CKD, are there any dietary changes or additional monitoring we should be doing to slow progression?',
+      'He started Zepbound recently \u2014 how is that interacting with his other medications, and what side effects should we watch for?',
+      'Are there any upcoming screenings or preventive care visits we should schedule given his current conditions?'
+    ];
+  }
+
+  try {
+    var session = await db.auth.getSession();
+    var token = session.data.session.access_token;
+    var res = await fetch(
+      'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/generate-visit-questions',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token,
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU'
+        },
+        body: JSON.stringify({ person_id: currentPersonId })
+      }
+    );
+    if (res.ok) {
+      var data = await res.json();
+      if (data.questions && data.questions.length > 0) return data.questions;
+    }
+  } catch (err) {
+    console.error('Visit questions error:', err);
+  }
+  return [];
 }
 
-function generateVisitExport() {
-  try {
-  var exportOverlay = document.getElementById('export-overlay');
-  var firstName = getPersonFirstName();
-  var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
-  var fullName = isDemoMode ? 'John Bell' : (person ? person.name : 'Patient');
-
-  // Determine selected format
-  var formatBtn = exportOverlay.querySelector('.format-btn.active');
-  var format = formatBtn ? formatBtn.textContent.trim() : 'PDF';
-
-  // Determine which sections are checked
-  var checkRows = exportOverlay.querySelectorAll('.export-check-row');
-  var sections = {};
-  var sectionKeys = ['diagnoses', 'medications', 'labs', 'appointments', 'notes', 'summary'];
-  checkRows.forEach(function(row, idx) {
-    var cb = row.querySelector('.export-checkbox');
-    if (cb && idx < sectionKeys.length) {
-      sections[sectionKeys[idx]] = cb.classList.contains('checked');
-    }
-  });
-
-  // Gather data
-  var diagnoses = [];
-  var medications = [];
-  var labs = [];
-  var appointments = [];
-  var notes = [];
-  var summaryText = '';
-
-  if (isDemoMode) {
-    diagnoses = [
-      { name: 'Hypertension', detail: 'Since Apr 2022' },
-      { name: 'CML', detail: 'Since 2019 \u00b7 Responding' },
-      { name: 'Stage 3a CKD', detail: 'Stable' },
-      { name: 'Glaucoma', detail: 'Stable' }
-    ];
-    medications = [
-      { name: 'Lisinopril', dose: '20mg', frequency: 'daily', prescriber: '' },
-      { name: 'Hydrochlorothiazide', dose: '25mg', frequency: 'daily', prescriber: '' },
-      { name: 'Gleevec (Imatinib)', dose: '400mg', frequency: 'daily', prescriber: '' },
-      { name: 'Metoprolol', dose: '50mg', frequency: 'daily', prescriber: '' },
-      { name: 'Citalopram', dose: '10mg', frequency: 'daily', prescriber: '' },
-      { name: 'Zepbound', dose: '12.5mg', frequency: 'weekly', prescriber: '' }
-    ];
-    var previewEl = document.querySelector('#share-overlay .share-preview-text');
-    summaryText = previewEl ? previewEl.textContent : '';
-  } else {
-    // Diagnoses from person.conditions
-    if (person && person.conditions) {
-      diagnoses = person.conditions.split(',').map(function(c){ return { name: c.trim(), detail: 'Active' }; }).filter(function(d){ return d.name; });
-    }
-    // Medications
-    medications = liveMeds.filter(function(m){ return m.active; }).map(function(m) {
-      return { name: m.name, dose: m.dose || '', frequency: m.frequency || '', prescriber: m.prescriber || '' };
-    });
-    // Labs (past 90 days)
-    var ninetyDaysAgo = new Date();
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-    labs = liveEvents.filter(function(e) {
-      return e.event_type === 'lab_result' && new Date(e.event_date) >= ninetyDaysAgo;
-    });
-    // Appointments
-    appointments = liveEvents.filter(function(e){ return e.event_type === 'appointment'; });
-    // Notes
-    notes = liveEvents.filter(function(e){ return e.event_type === 'note'; });
-    // Summary
-    if (summaryCache[currentPersonId] && summaryCache[currentPersonId] !== 'empty') {
-      summaryText = summaryCache[currentPersonId];
-    }
-  }
-
-  if (format === 'CSV') {
-    var csv = 'Section,Item,Detail\n';
-    if (sections.diagnoses) {
-      diagnoses.forEach(function(d) { csv += 'Diagnosis,"' + d.name.replace(/"/g, '""') + '","' + d.detail.replace(/"/g, '""') + '"\n'; });
-    }
-    if (sections.medications) {
-      medications.forEach(function(m) { csv += 'Medication,"' + m.name.replace(/"/g, '""') + '","' + (m.dose + ' ' + m.frequency).trim().replace(/"/g, '""') + '"\n'; });
-    }
-    if (sections.labs) {
-      labs.forEach(function(e) {
-        var dateStr = e.event_date ? new Date(e.event_date).toLocaleDateString('en-US') : '';
-        csv += 'Lab,"' + (e.title || '').replace(/"/g, '""') + '","' + dateStr + ' ' + (e.notes || '').replace(/"/g, '""') + '"\n';
-      });
-    }
-    if (sections.appointments) {
-      appointments.forEach(function(e) {
-        var dateStr = e.event_date ? new Date(e.event_date).toLocaleDateString('en-US') : '';
-        csv += 'Appointment,"' + (e.title || '').replace(/"/g, '""') + '","' + dateStr + ' ' + (e.notes || '').replace(/"/g, '""') + '"\n';
-      });
-    }
-    if (sections.notes) {
-      notes.forEach(function(e) {
-        var dateStr = e.event_date ? new Date(e.event_date).toLocaleDateString('en-US') : '';
-        csv += 'Note,"' + (e.title || '').replace(/"/g, '""') + '","' + dateStr + ' ' + (e.notes || '').replace(/"/g, '""') + '"\n';
-      });
-    }
-    if (sections.summary && summaryText) {
-      csv += 'Summary,"Update Me","' + summaryText.replace(/"/g, '""') + '"\n';
-    }
-    downloadCSV(firstName + '-Visit-Export.csv', csv);
-    showToast('CSV export downloaded');
-    closeSheet('export-overlay');
-    return;
-  }
-
-  if (format === 'Print') {
-    var printHTML = '<!DOCTYPE html><html><head><title>Visit Export - ' + fullName + '</title>'
-      + '<style>body{font-family:Helvetica,Arial,sans-serif;padding:40px;color:#2C2A26;max-width:700px;margin:0 auto;}'
-      + 'h1{color:#608F7C;font-size:22px;margin-bottom:4px;}h2{color:#608F7C;font-size:14px;border-bottom:1px solid #608F7C;padding-bottom:4px;margin-top:20px;}'
-      + 'table{width:100%;border-collapse:collapse;margin:8px 0;}td{padding:4px 8px;font-size:12px;border-bottom:1px solid #eee;}'
-      + 'td:first-child{font-weight:bold;width:40%;}.meta{font-size:11px;color:#888;margin-bottom:20px;}'
-      + 'p{font-size:12px;line-height:1.6;}.footer{text-align:center;color:#999;font-size:10px;margin-top:40px;}</style></head><body>';
-    printHTML += '<h1>Visit Export</h1><div class="meta">' + fullName + ' &middot; ' + new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) + '</div>';
-
-    if (sections.diagnoses && diagnoses.length > 0) {
-      printHTML += '<h2>Active Diagnoses</h2><table>';
-      diagnoses.forEach(function(d) { printHTML += '<tr><td>' + d.name + '</td><td>' + d.detail + '</td></tr>'; });
-      printHTML += '</table>';
-    }
-    if (sections.medications && medications.length > 0) {
-      printHTML += '<h2>Current Medications</h2><table>';
-      medications.forEach(function(m) { printHTML += '<tr><td>' + m.name + '</td><td>' + (m.dose + ' \u00b7 ' + m.frequency).trim() + (m.prescriber ? ' \u00b7 ' + m.prescriber : '') + '</td></tr>'; });
-      printHTML += '</table>';
-    }
-    if (sections.labs && labs.length > 0) {
-      printHTML += '<h2>Recent Labs</h2><table>';
-      labs.forEach(function(e) {
-        var dateStr = e.event_date ? new Date(e.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-        printHTML += '<tr><td>' + (e.title || '') + '</td><td>' + (e.notes || '') + ' (' + dateStr + ')</td></tr>';
-      });
-      printHTML += '</table>';
-    }
-    if (sections.appointments && appointments.length > 0) {
-      printHTML += '<h2>Appointment History</h2><table>';
-      appointments.forEach(function(e) {
-        var dateStr = e.event_date ? new Date(e.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-        printHTML += '<tr><td>' + (e.title || '') + '</td><td>' + (e.notes || '') + ' (' + dateStr + ')</td></tr>';
-      });
-      printHTML += '</table>';
-    }
-    if (sections.notes && notes.length > 0) {
-      printHTML += '<h2>Caregiver Notes</h2><table>';
-      notes.forEach(function(e) {
-        var dateStr = e.event_date ? new Date(e.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-        printHTML += '<tr><td>' + (e.title || '') + '</td><td>' + (e.notes || '') + ' (' + dateStr + ')</td></tr>';
-      });
-      printHTML += '</table>';
-    }
-    if (sections.summary && summaryText) {
-      printHTML += '<h2>Update Me Summary</h2><p>' + summaryText + '</p>';
-    }
-    printHTML += '<div class="footer">Generated by Wellet &middot; mywellet.com</div></body></html>';
-
-    var printWin = window.open('', '_blank');
-    printWin.document.write(printHTML);
-    printWin.document.close();
-    printWin.focus();
-    printWin.print();
-    showToast('Print dialog opened');
-    closeSheet('export-overlay');
-    return;
-  }
-
-  // Default: PDF format
+// Build the Visit Summary PDF
+function buildVisitSummaryPDF(fullName, firstName, medications, recentEvents, patterns, emergencyContact, questions) {
   var doc = new window.jspdf.jsPDF();
   var y = 25;
+  var dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
   // Header
   doc.setFont('Helvetica', 'bold');
-  doc.setFontSize(18);
-  doc.setTextColor(96, 143, 124);
-  doc.text('Visit Export', 20, y);
+  doc.setFontSize(20);
+  doc.setTextColor(45, 106, 79);
+  doc.text('Visit Summary', 20, y);
+  y += 4;
+  doc.setDrawColor(45, 106, 79);
+  doc.setLineWidth(0.8);
+  doc.line(20, y, 190, y);
   y += 8;
   doc.setFont('Helvetica', 'normal');
   doc.setFontSize(11);
@@ -6193,69 +6050,222 @@ function generateVisitExport() {
   y += 6;
   doc.setFontSize(9);
   doc.setTextColor(120, 120, 120);
-  doc.text(new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }), 20, y);
-  y += 12;
+  doc.text('Prepared ' + dateStr, 20, y);
+  y += 14;
 
-  if (sections.diagnoses && diagnoses.length > 0) {
-    var diagItems = diagnoses.map(function(d){ return { label: d.name, value: d.detail }; });
-    y = pdfAddSection(doc, 'Active Diagnoses', y, diagItems);
-  }
-  if (sections.medications && medications.length > 0) {
+  // Active Medications
+  if (medications.length > 0) {
     var medItems = medications.map(function(m) {
-      var val = (m.dose + ' \u00b7 ' + m.frequency).trim();
-      if (m.prescriber) val += ' \u00b7 ' + m.prescriber;
-      return { label: m.name, value: val };
+      var val = '';
+      if (m.dose) val += m.dose;
+      if (m.frequency) val += (val ? ' \u00b7 ' : '') + m.frequency;
+      return { label: m.name, value: val || 'Active' };
     });
-    y = pdfAddSection(doc, 'Current Medications', y, medItems);
+    y = pdfAddSection(doc, 'Active Medications', y, medItems);
   }
-  if (sections.labs && labs.length > 0) {
-    var labItems = labs.map(function(e) {
-      var dateStr = e.event_date ? new Date(e.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-      return { label: e.title || 'Lab', value: (e.notes || '') + (dateStr ? ' (' + dateStr + ')' : '') };
+
+  // Recent Health Events (last 90 days)
+  if (recentEvents.length > 0) {
+    var eventItems = recentEvents.slice(0, 15).map(function(e) {
+      var evDate = e.date || '';
+      var desc = e.title || '';
+      if (e.notes) desc += (desc ? ' \u2014 ' : '') + e.notes;
+      return { label: evDate, value: desc || 'Health event' };
     });
-    y = pdfAddSection(doc, 'Recent Labs (Past 90 Days)', y, labItems);
+    y = pdfAddSection(doc, 'Recent Health Events (Last 90 Days)', y, eventItems);
   }
-  if (sections.appointments && appointments.length > 0) {
-    var apptItems = appointments.map(function(e) {
-      var dateStr = e.event_date ? new Date(e.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-      return { label: e.title || 'Appointment', value: (e.notes || '') + (dateStr ? ' (' + dateStr + ')' : '') };
+
+  // Patterns & Alerts
+  if (patterns.length > 0) {
+    var patternItems = patterns.map(function(p) {
+      return { text: p };
     });
-    y = pdfAddSection(doc, 'Appointment History', y, apptItems);
+    y = pdfAddSection(doc, 'Patterns & Alerts', y, patternItems);
   }
-  if (sections.notes && notes.length > 0) {
-    var noteItems = notes.slice(0, 10).map(function(e) {
-      var dateStr = e.event_date ? new Date(e.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-      return { label: e.title || 'Note', value: (e.notes || '') + (dateStr ? ' (' + dateStr + ')' : '') };
-    });
-    y = pdfAddSection(doc, 'Caregiver Notes', y, noteItems);
-  }
-  if (sections.summary && summaryText) {
-    if (y > 265) { doc.addPage(); y = 25; }
+
+  // Questions to Discuss with Your Doctor
+  if (questions.length > 0) {
+    if (y > 230) { doc.addPage(); y = 25; }
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(12);
-    doc.setTextColor(96, 143, 124);
-    doc.text('Update Me Summary', 20, y);
+    doc.setTextColor(45, 106, 79);
+    doc.text('Questions to Discuss with Your Doctor', 20, y);
     y += 2;
-    doc.setDrawColor(96, 143, 124);
+    doc.setDrawColor(45, 106, 79);
+    doc.setLineWidth(0.4);
     doc.line(20, y, 190, y);
-    y += 7;
+    y += 8;
     doc.setFont('Helvetica', 'normal');
     doc.setFontSize(10);
     doc.setTextColor(0, 0, 0);
-    var sLines = doc.splitTextToSize(summaryText, 170);
-    doc.text(sLines, 20, y);
+    for (var qi = 0; qi < questions.length; qi++) {
+      if (y > 270) { doc.addPage(); y = 25; }
+      var qLines = doc.splitTextToSize((qi + 1) + '. ' + questions[qi], 165);
+      doc.text(qLines, 22, y);
+      y += qLines.length * 5 + 4;
+    }
+    y += 4;
   }
 
-  pdfAddFooter(doc);
-  doc.save(firstName + '-Visit-Export.pdf');
-  showToast('Visit export downloaded');
-  closeSheet('export-overlay');
-  } catch(e) {
-    console.error('Export error:', e);
-    showToast('Export generated — check your downloads folder');
+  // Emergency Contact
+  if (emergencyContact) {
+    y = pdfAddSection(doc, 'Emergency Contact', y, [
+      { text: emergencyContact }
+    ]);
+  }
+
+  // Footer on every page
+  var pageCount = doc.getNumberOfPages();
+  for (var fi = 1; fi <= pageCount; fi++) {
+    doc.setPage(fi);
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text('Generated by Wellet \u2014 getwellet.com', 105, 285, { align: 'center' });
+  }
+
+  return doc;
+}
+
+async function generateVisitExport() {
+  var loadingEl = document.getElementById('export-loading');
+  var actionsEl = document.getElementById('export-actions');
+
+  // Show loading state
+  if (loadingEl) loadingEl.style.display = 'block';
+  if (actionsEl) actionsEl.style.display = 'none';
+
+  try {
+    var firstName = getPersonFirstName();
+    var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
+    var fullName = isDemoMode ? 'John Bell' : (person ? person.name : 'Patient');
+
+    // Gather medications
+    var medications = [];
+    if (isDemoMode) {
+      medications = [
+        { name: 'Lisinopril', dose: '20mg', frequency: 'daily' },
+        { name: 'Hydrochlorothiazide', dose: '25mg', frequency: 'daily' },
+        { name: 'Gleevec (Imatinib)', dose: '400mg', frequency: 'daily' },
+        { name: 'Metoprolol', dose: '50mg', frequency: 'daily' },
+        { name: 'Citalopram', dose: '10mg', frequency: 'daily' },
+        { name: 'Zepbound', dose: '12.5mg', frequency: 'weekly' }
+      ];
+    } else {
+      medications = liveMeds.filter(function(m){ return m.active; }).map(function(m) {
+        return { name: m.name, dose: m.dose || '', frequency: m.frequency || '' };
+      });
+    }
+
+    // Gather recent health events (last 90 days)
+    var recentEvents = [];
+    var ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    if (isDemoMode) {
+      recentEvents = [
+        { date: 'Mar 10, 2026', title: 'BP reading: 142/89', notes: 'Higher than usual \u2014 monitoring' },
+        { date: 'Mar 4, 2026', title: 'Oncology follow-up', notes: 'Dr. Edwards \u2014 CML responding well to Gleevec' },
+        { date: 'Feb 26, 2026', title: 'Zepbound dose increased', notes: '10mg to 12.5mg weekly' },
+        { date: 'Feb 18, 2026', title: 'BP pattern noticed', notes: 'Readings consistently higher since this date' },
+        { date: 'Feb 10, 2026', title: 'Lab work \u2014 CMP', notes: 'eGFR 42, creatinine 1.6 \u2014 stable CKD' },
+        { date: 'Jan 28, 2026', title: 'Glaucoma check', notes: 'Dr. Patel \u2014 pressures stable at 16/17' },
+        { date: 'Jan 15, 2026', title: 'Primary care visit', notes: 'Dr. Johnson \u2014 routine follow-up, all stable' }
+      ];
+    } else {
+      recentEvents = liveEvents.filter(function(e) {
+        return new Date(e.event_date) >= ninetyDaysAgo;
+      }).map(function(e) {
+        return {
+          date: new Date(e.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          title: e.title || '',
+          notes: e.notes || e.description || ''
+        };
+      });
+    }
+
+    // Gather patterns/alerts
+    var patterns = [];
+    if (isDemoMode) {
+      patterns = [
+        'Blood pressure readings have been consistently higher since February 18 \u2014 averaging 142/89, up from typical 128/78.',
+        'Zepbound dose was recently increased (Feb 26). Monitor for GI side effects and any interaction with existing medications.',
+        'CKD Stage 3a remains stable (eGFR 42 as of Feb 10) \u2014 next kidney function labs recommended within 90 days.'
+      ];
+    } else {
+      // Pull patterns from alert banner if visible
+      var alertBanner = document.querySelector('.alert-banner');
+      if (alertBanner) {
+        var alertTitle = alertBanner.querySelector('.alert-title');
+        var alertBody = alertBanner.querySelector('.alert-body');
+        if (alertTitle && alertTitle.textContent) {
+          var patternText = alertTitle.textContent;
+          if (alertBody && alertBody.textContent) patternText += ' \u2014 ' + alertBody.textContent;
+          patterns.push(patternText);
+        }
+      }
+      // Add medication change patterns from recent events
+      var medChangeEvents = liveEvents.filter(function(e) {
+        return e.event_type === 'medication' && new Date(e.event_date) >= ninetyDaysAgo;
+      });
+      medChangeEvents.forEach(function(e) {
+        var txt = (e.title || 'Medication change');
+        if (e.notes) txt += ' \u2014 ' + e.notes;
+        if (e.event_date) txt += ' (' + new Date(e.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ')';
+        patterns.push(txt);
+      });
+      // Add pattern-type events
+      var patternEvents = liveEvents.filter(function(e) {
+        return e.event_type === 'pattern' && new Date(e.event_date) >= ninetyDaysAgo;
+      });
+      patternEvents.forEach(function(e) {
+        var txt = (e.title || 'Pattern noticed');
+        if (e.notes) txt += ' \u2014 ' + e.notes;
+        patterns.push(txt);
+      });
+    }
+
+    // Gather emergency contact
+    var emergencyContact = '';
+    if (isDemoMode) {
+      emergencyContact = 'Sarah Bell \u00b7 (919) 555-0142 \u00b7 Daughter';
+    } else if (person) {
+      if (person.emergency_contact_name) {
+        emergencyContact = person.emergency_contact_name;
+        if (person.emergency_contact_phone) emergencyContact += ' \u00b7 ' + person.emergency_contact_phone;
+      } else if (liveCareCircle.length > 0) {
+        var primary = liveCareCircle.find(function(c){ return c.role === 'Primary'; }) || liveCareCircle[0];
+        emergencyContact = primary.member_name;
+        if (primary.phone) emergencyContact += ' \u00b7 ' + primary.phone;
+        if (primary.role) emergencyContact += ' \u00b7 ' + primary.role;
+      }
+    }
+
+    // Fetch AI-generated questions
+    var questions = await fetchVisitQuestions();
+
+    // Build and save PDF
+    var doc = buildVisitSummaryPDF(fullName, firstName, medications, recentEvents, patterns, emergencyContact, questions);
+
+    var today = new Date();
+    var yyyy = today.getFullYear();
+    var mm = String(today.getMonth() + 1).padStart(2, '0');
+    var dd = String(today.getDate()).padStart(2, '0');
+    var filename = fullName.replace(/\s+/g, '-') + '-Visit-Summary-' + yyyy + '-' + mm + '-' + dd + '.pdf';
+
+    doc.save(filename);
+    showToast('Visit Summary downloaded');
     closeSheet('export-overlay');
+  } catch (e) {
+    console.error('Export error:', e);
+    showToast('Export generated \u2014 check your downloads folder');
+    closeSheet('export-overlay');
+  } finally {
+    // Reset loading state
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (actionsEl) actionsEl.style.display = 'block';
   }
 }
+
 
 function handleName(val) { /* legacy stub */ }
 </script>
