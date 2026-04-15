@@ -1429,39 +1429,53 @@
       <button class="close-btn" onclick="closeSheet('share-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
     <div class="qa-sheet-title">Share with family</div>
-    <div class="qa-sheet-sub">Send a summary of what's going on with Dad</div>
+    <div class="qa-sheet-sub" id="share-sheet-sub">Send a summary of what's going on with Dad</div>
 
     <div class="share-preview">
       <div class="share-preview-label">What you're sharing</div>
-      <div class="share-preview-text">Dad is 2 months post-op from his second peroneal knee release and attending PT twice weekly. His CML test came back &lt;0.001 — continued improvement. BP has been running higher since the February 18 medication adjustment. Next visit March 16 with Dr. Johnson.</div>
+      <div class="share-preview-text" id="share-preview-text">Dad is 2 months post-op from his second peroneal knee release and attending PT twice weekly. His CML test came back &lt;0.001 — continued improvement. BP has been running higher since the February 18 medication adjustment. Next visit March 16 with Dr. Johnson.</div>
     </div>
 
     <div class="share-toggle-row">
       <span class="share-toggle-label">Include caregiver notes</span>
-      <button class="toggle" onclick="this.classList.toggle('on')"></button>
+      <button id="share-toggle-notes" class="toggle" onclick="this.classList.toggle('on')"></button>
     </div>
     <div class="share-toggle-row" style="margin-bottom:16px;">
       <span class="share-toggle-label">Include medications list</span>
-      <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+      <button id="share-toggle-meds" class="toggle on" onclick="this.classList.toggle('on')"></button>
     </div>
 
-    <div class="share-options">
-      <div class="share-option" onclick="showToast('Opened in Messages')">
-        <div class="share-option-icon" style="background:#DCE9FF;color:#3B6EA5;"><i data-lucide="message-circle" style="width:17px;height:17px;"></i></div>
-        <div><div class="share-option-label">Send via text</div><div class="share-option-sub">Opens in Messages</div></div>
+    <!-- Share link result area (hidden initially) -->
+    <div id="share-link-result" style="display:none;padding:0 20px;margin-bottom:16px;">
+      <div style="background:var(--mint);border:1px solid var(--moss);border-radius:12px;padding:14px 16px;">
+        <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--moss-dark);font-weight:500;margin-bottom:6px;">Share link created</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input id="share-link-input" type="text" readonly style="flex:1;padding:9px 12px;border:1.5px solid var(--border-medium);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-primary);background:white;">
+          <button onclick="copyShareLink()" style="padding:9px 14px;background:var(--moss);color:white;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;">Copy</button>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px;"><i data-lucide="clock" style="width:11px;height:11px;vertical-align:-2px;"></i> Link expires in 7 days</div>
       </div>
-      <div class="share-option" onclick="showToast('Opened in Mail')">
-        <div class="share-option-icon" style="background:#FDF5E8;color:var(--amber);"><i data-lucide="mail" style="width:17px;height:17px;"></i></div>
-        <div><div class="share-option-label">Send via email</div><div class="share-option-sub">Opens in Mail</div></div>
-      </div>
-      <div class="share-option" onclick="showToast('Link copied to clipboard')">
+    </div>
+
+    <div class="share-options" id="share-options">
+      <div class="share-option" onclick="createShareLink('copy')">
         <div class="share-option-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="link" style="width:17px;height:17px;"></i></div>
-        <div><div class="share-option-label">Copy link</div><div class="share-option-sub">Anyone with the link can view</div></div>
+        <div><div class="share-option-label">Copy link</div><div class="share-option-sub">Anyone with the link can view for 7 days</div></div>
+      </div>
+      <div class="share-option" onclick="createShareLink('email')">
+        <div class="share-option-icon" style="background:#FDF5E8;color:var(--amber);"><i data-lucide="mail" style="width:17px;height:17px;"></i></div>
+        <div><div class="share-option-label">Send via email</div><div class="share-option-sub">Opens a pre-filled email with the link</div></div>
       </div>
       <div class="share-option" onclick="downloadSharePDF()">
         <div class="share-option-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="file-text" style="width:17px;height:17px;"></i></div>
         <div><div class="share-option-label">Download as PDF</div><div class="share-option-sub">Save or print a copy</div></div>
       </div>
+    </div>
+
+    <!-- Loading state shown while generating share link -->
+    <div id="share-loading" style="display:none;padding:20px;text-align:center;">
+      <i data-lucide="loader" style="width:18px;height:18px;animation:spin 1.2s linear infinite;color:var(--moss);"></i>
+      <div style="font-size:13px;color:var(--text-muted);margin-top:8px;">Creating share link&hellip;</div>
     </div>
   </div>
 </div>
@@ -4060,8 +4074,233 @@ function openEmergencySummary() {
   initIcons();
 }
 function openShareFamily() {
+  // Reset share link state
+  document.getElementById('share-link-result').style.display = 'none';
+  document.getElementById('share-options').style.display = '';
+  document.getElementById('share-loading').style.display = 'none';
+
+  var firstName = getPersonFirstName();
+  var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var fullName = isDemoMode ? 'John Bell' : (person ? person.name : 'your loved one');
+
+  // Update subtitle
+  document.getElementById('share-sheet-sub').textContent = 'Send a summary of what\u2019s going on with ' + firstName;
+
+  // Populate preview text with the current summary
+  var previewEl = document.getElementById('share-preview-text');
+  if (!isDemoMode && summaryCache[currentPersonId] && summaryCache[currentPersonId] !== 'empty') {
+    previewEl.textContent = summaryCache[currentPersonId];
+  } else if (isDemoMode) {
+    // Keep the hardcoded demo text already in the HTML
+  } else {
+    previewEl.textContent = firstName + ' has ' + liveEvents.length + ' health event' + (liveEvents.length !== 1 ? 's' : '') + ' logged.';
+  }
+
   document.getElementById('share-overlay').classList.add('show');
   initIcons();
+}
+
+var _lastShareUrl = '';
+
+function gatherSharePayload() {
+  var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var firstName = getPersonFirstName();
+  var fullName = isDemoMode ? 'John Bell' : (person ? person.name : 'Patient');
+  var summaryText = document.getElementById('share-preview-text').textContent || '';
+  var includeNotes = document.getElementById('share-toggle-notes').classList.contains('on');
+  var includeMeds = document.getElementById('share-toggle-meds').classList.contains('on');
+
+  // Gather recent events (last 5)
+  var recentEvents = [];
+  if (isDemoMode) {
+    recentEvents = [
+      { title: 'CML lab result', type: 'lab_result', date: '2026-02-28', notes: 'BCR-ABL <0.001 — undetectable' },
+      { title: 'Hydrochlorothiazide dose increased', type: 'medication_change', date: '2026-02-18', notes: '12.5mg to 25mg' },
+      { title: 'Physical therapy', type: 'appointment', date: '2026-02-14', notes: 'Knee rehab session #12' }
+    ];
+  } else {
+    recentEvents = liveEvents.slice(0, 5).map(function(ev) {
+      return { title: ev.title, type: ev.event_type, date: ev.event_date, notes: ev.notes || '' };
+    });
+  }
+
+  // Gather medications
+  var medications = [];
+  if (includeMeds) {
+    if (isDemoMode) {
+      medications = [
+        { name: 'Lisinopril', dose: '20mg', frequency: 'daily' },
+        { name: 'Hydrochlorothiazide', dose: '25mg', frequency: 'daily' },
+        { name: 'Gleevec (Imatinib)', dose: '400mg', frequency: 'daily' },
+        { name: 'Metoprolol', dose: '50mg', frequency: 'daily' },
+        { name: 'Citalopram', dose: '10mg', frequency: 'daily' },
+        { name: 'Zepbound', dose: '12.5mg', frequency: 'weekly' }
+      ];
+    } else {
+      medications = liveMeds.filter(function(m){ return m.active; }).map(function(m) {
+        return { name: m.name, dose: m.dose || '', frequency: m.frequency || '' };
+      });
+    }
+  }
+
+  // Gather upcoming appointments
+  var appointments = [];
+  var now = new Date();
+  if (isDemoMode) {
+    appointments = [
+      { title: 'Dr. Johnson — Primary Care', date: '2026-03-16', notes: 'BP check & medication review' }
+    ];
+  } else {
+    appointments = liveEvents.filter(function(ev) {
+      return ev.event_type === 'appointment' && new Date(ev.event_date) >= now;
+    }).slice(0, 5).map(function(ev) {
+      return { title: ev.title, date: ev.event_date, notes: ev.notes || '' };
+    });
+  }
+
+  return {
+    person_id: isDemoMode ? 'demo' : currentPersonId,
+    person_name: fullName,
+    summary_text: summaryText,
+    recent_events: recentEvents,
+    medications: medications,
+    appointments: appointments,
+    include_notes: includeNotes,
+    include_meds: includeMeds
+  };
+}
+
+async function createShareLink(action) {
+  if (isDemoMode) {
+    // In demo mode, simulate a share link
+    var demoToken = 'demo-' + Date.now().toString(36);
+    var demoUrl = window.location.origin + window.location.pathname.replace('index.html', '') + 'share.html?token=' + demoToken;
+    _lastShareUrl = demoUrl;
+    if (action === 'copy') {
+      showShareLinkResult(demoUrl);
+    } else if (action === 'email') {
+      openShareEmail(demoUrl);
+    }
+    return;
+  }
+
+  // Show loading state
+  document.getElementById('share-options').style.display = 'none';
+  document.getElementById('share-loading').style.display = 'block';
+  initIcons();
+
+  try {
+    var payload = gatherSharePayload();
+    var session = await db.auth.getSession();
+    var token = session.data.session ? session.data.session.access_token : '';
+
+    var resp = await fetch(SUPABASE_URL + '/functions/v1/create-share', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify(payload)
+    });
+
+    var result = await resp.json();
+
+    if (!resp.ok || result.error) {
+      throw new Error(result.error || 'Failed to create share');
+    }
+
+    _lastShareUrl = result.share_url;
+
+    // Also store in shares table directly as fallback
+    // (edge function handles this, but track locally)
+    document.getElementById('share-loading').style.display = 'none';
+
+    if (action === 'copy') {
+      showShareLinkResult(_lastShareUrl);
+    } else if (action === 'email') {
+      document.getElementById('share-options').style.display = '';
+      openShareEmail(_lastShareUrl);
+    }
+  } catch (err) {
+    console.error('Share error:', err);
+    document.getElementById('share-loading').style.display = 'none';
+    document.getElementById('share-options').style.display = '';
+
+    // Fallback: create share directly via Supabase client
+    try {
+      var fallbackPayload = gatherSharePayload();
+      var fbToken = generateShareToken();
+      var expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      var { data, error } = await db.from('shares').insert({
+        token: fbToken,
+        user_id: currentUser.id,
+        person_id: fallbackPayload.person_id,
+        person_name: fallbackPayload.person_name,
+        summary_text: fallbackPayload.summary_text,
+        recent_events: fallbackPayload.recent_events,
+        medications: fallbackPayload.medications,
+        appointments: fallbackPayload.appointments,
+        include_notes: fallbackPayload.include_notes,
+        include_meds: fallbackPayload.include_meds,
+        expires_at: expiresAt
+      }).select().single();
+
+      if (error) throw error;
+
+      var fallbackUrl = window.location.origin + window.location.pathname.replace('index.html', '') + 'share.html?token=' + fbToken;
+      _lastShareUrl = fallbackUrl;
+
+      if (action === 'copy') {
+        showShareLinkResult(fallbackUrl);
+      } else if (action === 'email') {
+        openShareEmail(fallbackUrl);
+      }
+    } catch (fbErr) {
+      console.error('Fallback share error:', fbErr);
+      showToast('Could not create share link. Please try again.');
+    }
+  }
+}
+
+function generateShareToken() {
+  var chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  var token = '';
+  for (var i = 0; i < 24; i++) {
+    token += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return token;
+}
+
+function showShareLinkResult(url) {
+  document.getElementById('share-link-input').value = url;
+  document.getElementById('share-link-result').style.display = 'block';
+  document.getElementById('share-options').style.display = '';
+  initIcons();
+  copyShareLink();
+}
+
+function copyShareLink() {
+  var input = document.getElementById('share-link-input');
+  var url = input.value;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(function() {
+      showToast('Link copied to clipboard');
+    });
+  } else {
+    input.select();
+    document.execCommand('copy');
+    showToast('Link copied to clipboard');
+  }
+}
+
+function openShareEmail(url) {
+  var firstName = getPersonFirstName();
+  var subject = encodeURIComponent('Health update for ' + firstName + ' — from Wellet');
+  var body = encodeURIComponent('Hi,\n\nHere\u2019s a health summary for ' + firstName + ':\n\n' + url + '\n\nThis link will expire in 7 days.\n\nSent from Wellet \u2014 mywellet.com');
+  window.location.href = 'mailto:?subject=' + subject + '&body=' + body;
+  showToast('Opened in Mail');
 }
 function openExportVisit() {
   document.getElementById('export-overlay').classList.add('show');
