@@ -2692,8 +2692,134 @@ var _editingMedId = null;     // medications id being edited
 function initIcons() { if (window.lucide) lucide.createIcons(); }
 window.addEventListener('load', function() { initIcons(); initVoiceInput(); });
 
+// ── CARE CIRCLE INVITE ACCEPTANCE ─────────────────────────────────────────
+var _pendingInviteToken = null;
+var _inviteData = null;
+
+async function checkInviteOnLoad() {
+  var params = new URLSearchParams(window.location.search);
+  var token = params.get('invite');
+  if (!token) return false;
+  _pendingInviteToken = token;
+
+  try {
+    var res = await fetch(SUPABASE_URL + '/functions/v1/care-circle-invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+      body: JSON.stringify({ action: 'lookup', invite_token: token })
+    });
+    var data = await res.json();
+    if (!res.ok || !data.success) {
+      showInviteError(data.error || 'This invite link is no longer valid.');
+      return true;
+    }
+    _inviteData = data;
+    return true;
+  } catch(e) {
+    console.error('Invite lookup error:', e);
+    showInviteError('Could not load invite. Please try again.');
+    return true;
+  }
+}
+
+function showInviteAcceptUI() {
+  if (!_inviteData) return;
+  var d = _inviteData;
+  var overlay = document.getElementById('invite-accept-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'invite-accept-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(44,42,38,0.5);z-index:250;display:flex;align-items:center;justify-content:center;padding:24px;';
+    document.body.appendChild(overlay);
+  }
+  var inviterName = escHtml(d.inviter_name || 'Someone');
+  var personName = escHtml(d.person_name || 'their loved one');
+  var memberRole = escHtml(d.member_role || 'Care Circle Member');
+  overlay.innerHTML = '<div style="background:white;border-radius:20px;padding:32px 24px 24px;max-width:360px;width:100%;text-align:center;font-family:DM Sans,sans-serif;">'
+    + '<div style="width:56px;height:56px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">'
+    + '<i data-lucide="heart-handshake" style="width:26px;height:26px;color:var(--moss);"></i></div>'
+    + '<div style="font-family:DM Serif Display,serif;font-size:20px;margin-bottom:6px;">You\u2019re invited</div>'
+    + '<div style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:20px;">'
+    + inviterName + ' invited you to join the care circle for <strong>' + personName + '</strong> as <strong>' + memberRole + '</strong>.'
+    + '</div>'
+    + '<div style="font-size:12px;color:var(--text-muted);line-height:1.5;margin-bottom:20px;padding:12px;background:var(--cream);border-radius:10px;">'
+    + 'When you join, you\u2019ll be able to see ' + personName + '\u2019s health timeline, medications, and care updates.</div>'
+    + (currentUser
+      ? '<button onclick="acceptInvite()" style="background:var(--moss);color:white;border:none;border-radius:12px;padding:13px 32px;font-size:15px;font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;width:100%;margin-bottom:10px;">Join Care Circle</button>'
+      : '<div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;">Sign in or create an account to join</div>'
+      + '<button onclick="dismissInviteUI();showAuthForInvite()" style="background:var(--moss);color:white;border:none;border-radius:12px;padding:13px 32px;font-size:15px;font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;width:100%;margin-bottom:10px;">Sign in to join</button>')
+    + '<button onclick="dismissInviteUI();clearInviteParam()" style="background:none;border:none;color:var(--text-muted);font-size:13px;cursor:pointer;font-family:DM Sans,sans-serif;padding:6px;">Not now</button>'
+    + '</div>';
+  overlay.style.display = 'flex';
+  initIcons();
+}
+
+function showInviteError(msg) {
+  var overlay = document.createElement('div');
+  overlay.className = 'invite-err';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(44,42,38,0.5);z-index:250;display:flex;align-items:center;justify-content:center;padding:24px;';
+  overlay.innerHTML = '<div style="background:white;border-radius:20px;padding:32px 24px 24px;max-width:340px;width:100%;text-align:center;font-family:DM Sans,sans-serif;">'
+    + '<div style="width:52px;height:52px;border-radius:50%;background:#FFF0F0;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">'
+    + '<i data-lucide="alert-triangle" style="width:24px;height:24px;color:var(--red);"></i></div>'
+    + '<div style="font-family:DM Serif Display,serif;font-size:18px;margin-bottom:8px;">Invalid Invite</div>'
+    + '<div style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:20px;">' + escHtml(msg) + '</div>'
+    + '<button onclick="this.closest(\'.invite-err\').remove();clearInviteParam()" style="background:var(--moss);color:white;border:none;border-radius:12px;padding:12px 28px;font-size:14px;font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;">OK</button>'
+    + '</div>';
+  document.body.appendChild(overlay);
+  initIcons();
+}
+
+function dismissInviteUI() {
+  var overlay = document.getElementById('invite-accept-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function showAuthForInvite() {
+  showAuthScreen();
+}
+
+function clearInviteParam() {
+  var url = new URL(window.location);
+  url.searchParams.delete('invite');
+  window.history.replaceState({}, '', url.pathname + (url.search || ''));
+  _pendingInviteToken = null;
+  _inviteData = null;
+}
+
+async function acceptInvite() {
+  if (!currentUser || !_pendingInviteToken) {
+    showToast('Please sign in first');
+    return;
+  }
+  dismissInviteUI();
+  showToast('Joining care circle\u2026');
+
+  try {
+    var session = (await db.auth.getSession()).data.session;
+    var res = await fetch(SUPABASE_URL + '/functions/v1/care-circle-invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+      body: JSON.stringify({ action: 'accept', invite_token: _pendingInviteToken })
+    });
+    var data = await res.json();
+    if (!res.ok || !data.success) {
+      showToast('Error: ' + (data.error || 'Could not accept invite'));
+      return;
+    }
+    clearInviteParam();
+    showToast('You\u2019ve joined the care circle!');
+    await loadUserData();
+  } catch(e) {
+    console.error('Accept invite error:', e);
+    showToast('Error joining circle: ' + e.message);
+  }
+}
+
 // ── AUTH FLOW ────────────────────────────────────────────────────────────────
 async function initApp() {
+  // Check for invite token in URL first
+  var hasInvite = await checkInviteOnLoad();
+
   try {
     var { data: { session } } = await db.auth.getSession();
     if (session) {
@@ -2708,8 +2834,18 @@ async function initApp() {
       }
       currentUser = session.user;
       await loadUserData();
+      // If there's a pending invite and user is signed in, show accept UI
+      if (_pendingInviteToken && _inviteData) {
+        showInviteAcceptUI();
+      }
     } else {
-      showAuthScreen();
+      // If invite pending, show the invite UI on top of auth screen
+      if (hasInvite && _inviteData) {
+        showAuthScreen();
+        showInviteAcceptUI();
+      } else {
+        showAuthScreen();
+      }
     }
   } catch (e) {
     console.error('Auth init error:', e);
@@ -2728,6 +2864,10 @@ async function initApp() {
       }
       currentUser = session.user;
       await loadUserData();
+      // Auto-accept invite if pending
+      if (_pendingInviteToken && _inviteData) {
+        await acceptInvite();
+      }
     } else if (event === 'SIGNED_OUT') {
       currentUser = null;
       showAuthScreen();
@@ -4941,6 +5081,16 @@ function startEhrConnect() {
     showToast('In the real app, this connects to your provider\u2019s records');
     return;
   }
+
+  // Alpha testing gate — EHR connection not yet available
+  showAlphaFeatureNotice('EHR Connection',
+    'Connecting to your health provider is coming soon. '
+    + 'For now, you can upload documents like visit summaries, lab results, or prescriptions '
+    + 'and Wellet will read and organize them for you.'
+  );
+  return;
+
+  /* ── production EHR flow (disabled during alpha) ── */
   if (_ehrConnecting) return;
   if (!currentUser) {
     showToast('Please sign in first');
@@ -5931,6 +6081,24 @@ function showToast(msg) {
   setTimeout(function() { toast.style.opacity='0'; setTimeout(function() { toast.remove(); }, 400); }, 2000);
 }
 
+// ── ALPHA FEATURE NOTICE ─────────────────────────────────────────────────
+function showAlphaFeatureNotice(featureName, message) {
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(44,42,38,0.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var card = document.createElement('div');
+  card.style.cssText = 'background:white;border-radius:20px;padding:28px 24px 24px;max-width:340px;width:100%;text-align:center;font-family:DM Sans,sans-serif;';
+  card.innerHTML = '<div style="width:52px;height:52px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">'
+    + '<i data-lucide="construction" style="width:24px;height:24px;color:var(--moss);"></i></div>'
+    + '<div style="font-family:DM Serif Display,serif;font-size:18px;margin-bottom:8px;">' + escHtml(featureName) + '</div>'
+    + '<div style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:20px;">' + escHtml(message) + '</div>'
+    + '<button onclick="this.closest(\'.alpha-notice-overlay\').remove()" style="background:var(--moss);color:white;border:none;border-radius:12px;padding:12px 28px;font-size:14px;font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;">Got it</button>';
+  overlay.classList.add('alpha-notice-overlay');
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+  initIcons();
+}
+
 // ── DOCUMENT UPLOAD (real Supabase Storage + AI extraction) ─────────────
 var _uploadPersonName = '';
 var _uploadDocType = null;
@@ -6671,18 +6839,70 @@ function renderCareCircle() {
     var roleClass = (member.role || '').toLowerCase();
     if (roleClass !== 'primary' && roleClass !== 'secondary' && roleClass !== 'emergency') roleClass = 'secondary';
     var roleLabel = member.role || 'Member';
+    var inviteStatus = member.invite_status || 'pending';
+    var inviteBadge = '';
+    var inviteBtn = '';
+    if (inviteStatus === 'accepted') {
+      inviteBadge = '<span style="font-size:10px;color:var(--moss);background:var(--mint);padding:2px 8px;border-radius:10px;font-weight:500;white-space:nowrap;">Joined</span>';
+    } else if (inviteStatus === 'invited') {
+      inviteBadge = '<span style="font-size:10px;color:#8B6914;background:#FFF8E1;padding:2px 8px;border-radius:10px;font-weight:500;white-space:nowrap;">Invited</span>';
+    } else if (member.email) {
+      inviteBtn = '<button class="contact-edit-btn" onclick="event.stopPropagation();sendCareCircleInvite(\'' + member.id + '\')" title="Send invite" style="color:var(--moss);"><i data-lucide="send" style="width:14px;height:14px;"></i></button>';
+    }
     html += '<div class="contact-card">'
       + '<div class="contact-avatar">' + escHtml(initials) + '</div>'
-      + '<div style="flex:1;">'
+      + '<div style="flex:1;min-width:0;">'
       + '<div class="contact-name">' + escHtml(member.member_name) + '</div>'
       + '<div class="contact-meta">' + (member.email ? escHtml(member.email) : '') + (member.email && member.phone ? ' \u00b7 ' : '') + (member.phone ? escHtml(member.phone) : '') + '</div>'
       + '</div>'
+      + inviteBadge
       + '<span class="contact-role ' + roleClass + '">' + escHtml(roleLabel) + '</span>'
+      + inviteBtn
       + '<button class="contact-edit-btn" onclick="openContactEditById(\'' + member.id + '\')" title="Edit"><i data-lucide="pencil" style="width:14px;height:14px;"></i></button>'
       + '</div>';
   });
   container.innerHTML = html;
   initIcons();
+}
+
+async function sendCareCircleInvite(memberId) {
+  var member = liveCareCircle.find(function(c){ return c.id === memberId; });
+  if (!member || !member.email) { showToast('No email address for this member'); return; }
+
+  showToast('Generating invite\u2026');
+
+  try {
+    var session = (await db.auth.getSession()).data.session;
+    var res = await fetch(SUPABASE_URL + '/functions/v1/care-circle-invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+      body: JSON.stringify({ action: 'create', member_id: memberId })
+    });
+    var data = await res.json();
+    if (!res.ok || !data.success) { showToast('Error: ' + (data.error || 'Could not create invite')); return; }
+
+    // Open mailto with pre-filled invite
+    var personName = data.person_name || 'your loved one';
+    var subject = encodeURIComponent('Join my care circle on Wellet');
+    var body = encodeURIComponent(
+      'Hi ' + data.member_name + ',\n\n'
+      + 'I\'m using Wellet to help manage ' + personName + '\'s health information \u2014 medications, appointments, and care updates all in one place.\n\n'
+      + 'I\'d like you to join our care circle so we can stay on the same page.\n\n'
+      + 'Click here to join:\n'
+      + data.invite_link + '\n\n'
+      + 'Wellet is free to use. Once you join, you\'ll be able to see ' + personName + '\'s health timeline, medications, and care updates.\n\n'
+      + 'Thank you!'
+    );
+    window.open('mailto:' + encodeURIComponent(data.member_email) + '?subject=' + subject + '&body=' + body, '_self');
+
+    // Update local state
+    member.invite_status = 'invited';
+    member.invited_at = new Date().toISOString();
+    renderCareCircle();
+    showToast('Invite ready \u2014 send from your email');
+  } catch(e) {
+    showToast('Error: ' + e.message);
+  }
 }
 
 function openContactEditById(memberId) {
