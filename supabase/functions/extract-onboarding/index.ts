@@ -248,11 +248,14 @@ function parseCdaXml(xml: string): CdaParsed {
     for (const section of medSections) {
       const entries = matchAll(section, RE_ENTRY);
       for (const entry of entries) {
+        // Priority 1: displayName on manufacturedMaterial code (e.g. atorvastatin)
         let medName = extractNestedDisplayName(entry, 'manufacturedMaterial');
+        // Priority 2: resolve originalText reference inside manufacturedMaterial (e.g. #med1 → "metformin...")
         if (!medName || isGarbageValue(medName)) {
-          const refId = extractReference(entry);
+          const refId = extractMedReference(entry);
           if (refId) medName = resolveReference(section, refId);
         }
+        // Priority 3: displayName on the entry-level code
         if (!medName || isGarbageValue(medName)) {
           medName = extractDisplayName(entry, 'code');
         }
@@ -271,12 +274,20 @@ function parseCdaXml(xml: string): CdaParsed {
       for (const entry of entries) {
         const participantMatch = entry.match(RE_PARTICIPANT);
         let allergen: string | null = null;
+        // Priority 1: displayName on participant's code (e.g. Penicillin)
         if (participantMatch) {
           allergen = extractDisplayName(participantMatch[0], 'code');
         }
+        // Priority 2: resolve originalText reference inside participant (e.g. #allergy2allergen → "Lisinopril")
+        if (!allergen || isGarbageValue(allergen)) {
+          const refId = extractAllergyReference(entry);
+          if (refId) allergen = resolveReference(section, refId);
+        }
+        // Priority 3: displayName on observation value
         if (!allergen || isGarbageValue(allergen)) {
           allergen = extractDisplayName(entry, 'value');
         }
+        // Priority 4: generic entry-level reference (last resort)
         if (!allergen || isGarbageValue(allergen)) {
           const refId = extractReference(entry);
           if (refId) allergen = resolveReference(section, refId);
@@ -330,6 +341,36 @@ function extractNestedDisplayName(xml: string, containerTag: string): string | n
 function extractReference(entry: string): string | null {
   const match = entry.match(/<reference\s+value="#([^"]+)"/i);
   return match ? match[1] : null;
+}
+
+// Extract the reference ID from originalText inside manufacturedMaterial.
+// In Epic C-CDAs, the drug name is in the narrative <content ID="med1"> and the
+// structured entry points to it via <originalText><reference value="#med1"/></originalText>.
+// This is distinct from the entry-level <text><reference value="#sig1"/> which
+// points to the dosing INSTRUCTIONS, not the drug name.
+function extractMedReference(entry: string): string | null {
+  const matMatch = entry.match(new RegExp('<manufacturedMaterial' + RE_ANY + '*?</manufacturedMaterial>', 'i'));
+  if (!matMatch) return null;
+  const origMatch = matMatch[0].match(/<originalText[^>]*>[\s\S]*?<reference\s+value="#([^"]+)"[\s\S]*?<\/originalText>/i);
+  if (origMatch) return origMatch[1];
+  // Fallback: any reference inside manufacturedMaterial
+  const refMatch = matMatch[0].match(/<reference\s+value="#([^"]+)"/i);
+  return refMatch ? refMatch[1] : null;
+}
+
+// Extract the reference ID from originalText inside participant.
+// In Epic C-CDAs, the allergen name is in the narrative <content ID="allergy2allergen"> and the
+// structured entry points to it via participant > playingEntity > code > <originalText><reference value="#allergy2allergen"/></originalText>.
+// This is distinct from the entry-level <text><reference value="#allergy2"/> which
+// points to the whole allergy ITEM, not the allergen substance name.
+function extractAllergyReference(entry: string): string | null {
+  const partMatch = entry.match(RE_PARTICIPANT);
+  if (!partMatch) return null;
+  const origMatch = partMatch[0].match(/<originalText[^>]*>[\s\S]*?<reference\s+value="#([^"]+)"[\s\S]*?<\/originalText>/i);
+  if (origMatch) return origMatch[1];
+  // Fallback: any reference inside participant
+  const refMatch = partMatch[0].match(/<reference\s+value="#([^"]+)"/i);
+  return refMatch ? refMatch[1] : null;
 }
 
 function resolveReference(section: string, refId: string): string | null {
