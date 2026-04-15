@@ -229,9 +229,7 @@ async function loadShare() {
     var client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     var { data, error } = await client
-      .from('shares')
-      .select('*')
-      .eq('token', token)
+      .rpc('get_share_by_token', { share_token: token })
       .single();
 
     if (error || !data) {
