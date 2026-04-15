@@ -1443,30 +1443,33 @@
             </div>
           </div>
           <div id="dad-meds-list">
-            <div class="record-row">
+            <div class="record-row" onclick="openMedDetail('lisinopril')" style="cursor:pointer;">
               <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
               <div style="flex:1;"><div class="record-label">Lisinopril 20mg</div><div class="record-meta">Once daily · Hypertension</div></div>
               <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
             </div>
-            <div class="record-row">
+            <div class="record-row" onclick="openMedDetail('hctz')" style="cursor:pointer;">
               <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
               <div style="flex:1;"><div class="record-label">Hydrochlorothiazide 25mg</div><div class="record-meta">Once daily · Hypertension</div></div>
               <span class="record-badge amber">Changed Feb 18</span>
+              <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
             </div>
-            <div class="record-row">
+            <div class="record-row" onclick="openMedDetail('gleevec')" style="cursor:pointer;">
               <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
               <div style="flex:1;"><div class="record-label">Gleevec (Imatinib) 400mg</div><div class="record-meta">Once daily · CML</div></div>
               <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
             </div>
-            <div class="record-row">
+            <div class="record-row" onclick="openMedDetail('levodopa')" style="cursor:pointer;">
               <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
               <div style="flex:1;"><div class="record-label">Levodopa/Carbidopa 25-100mg <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div><div class="record-meta">3x daily · Parkinson's</div></div>
               <span class="ehr-provider-badge">From Duke Health</span>
+              <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
             </div>
-            <div class="record-row">
+            <div class="record-row" onclick="openMedDetail('lisinopril-ehr')" style="cursor:pointer;">
               <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
               <div style="flex:1;"><div class="record-label">Lisinopril 20mg <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div><div class="record-meta">Once daily · Hypertension</div></div>
               <span class="ehr-provider-badge">From Duke Health</span>
+              <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
             </div>
           </div>
         </div>
@@ -1591,17 +1594,17 @@
               <button onclick="openAddMed()" style="background:var(--mint);border:none;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:500;color:var(--moss-dark);cursor:pointer;font-family:'DM Sans',sans-serif;">+ Add</button>
             </div>
           </div>
-          <div class="record-row">
+          <div class="record-row" onclick="openMedDetail('atorvastatin')" style="cursor:pointer;">
             <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
             <div style="flex:1;"><div class="record-label">Atorvastatin 20mg</div><div class="record-meta">Once daily · Cholesterol</div></div>
             <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
           </div>
-          <div class="record-row">
+          <div class="record-row" onclick="openMedDetail('levothyroxine')" style="cursor:pointer;">
             <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
             <div style="flex:1;"><div class="record-label">Levothyroxine 50mcg</div><div class="record-meta">Once daily · Hypothyroidism</div></div>
             <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
           </div>
-          <div class="record-row">
+          <div class="record-row" onclick="openMedDetail('vitamin-d')" style="cursor:pointer;">
             <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
             <div style="flex:1;"><div class="record-label">Vitamin D3 2000IU</div><div class="record-meta">Once daily · Supplement</div></div>
             <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
@@ -2636,6 +2639,26 @@
           Delete medication
         </button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- MEDICATION DETAIL SHEET -->
+<div class="qa-overlay" id="med-detail-overlay">
+  <div class="qa-sheet">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" onclick="closeSheet('med-detail-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div style="padding:4px 20px 20px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <div class="record-icon amber" style="width:36px;height:36px;"><i data-lucide="pill" style="width:18px;height:18px;"></i></div>
+        <div>
+          <div id="med-detail-name" style="font-family:'DM Serif Display',serif;font-size:20px;"></div>
+          <div id="med-detail-status" style="font-size:12px;color:var(--moss);font-weight:500;margin-top:2px;"></div>
+        </div>
+      </div>
+      <div id="med-detail-body" style="display:flex;flex-direction:column;gap:14px;"></div>
     </div>
   </div>
 </div>
@@ -3893,6 +3916,53 @@ async function submitHealthEvent() {
   renderTimeline();
   renderRecordsView();
   renderPatterns();
+}
+
+// ── MEDICATION DETAIL (demo + real) ──────────────────────────────────────────
+var _demoMedDetails = {
+  'lisinopril': { name: 'Lisinopril 20mg', dose: '20mg', frequency: 'Once daily', condition: 'Hypertension', prescriber: 'Dr. Johnson', started: 'Apr 2022', source: 'Manual entry', status: 'Active', notes: 'Take in the morning. Monitor blood pressure weekly.' },
+  'hctz': { name: 'Hydrochlorothiazide 25mg', dose: '25mg (was 12.5mg)', frequency: 'Once daily', condition: 'Hypertension', prescriber: 'Dr. Johnson', started: 'Apr 2022', changed: 'Feb 18, 2026', source: 'Manual entry', status: 'Active — dose changed', notes: 'Dose increased from 12.5mg to 25mg on Feb 18. Watch for dizziness or electrolyte changes.' },
+  'gleevec': { name: 'Gleevec (Imatinib) 400mg', dose: '400mg', frequency: 'Once daily', condition: 'CML (Chronic Myeloid Leukemia)', prescriber: 'Dr. Edwards', started: '2019', source: 'Manual entry', status: 'Active', notes: 'Take with food and a full glass of water. Avoid grapefruit.' },
+  'levodopa': { name: 'Levodopa/Carbidopa 25-100mg', dose: '25-100mg', frequency: '3x daily', condition: "Parkinson's disease", prescriber: 'Dr. Martinez', started: 'Jun 2023', source: 'Duke Health (Epic)', status: 'Active', notes: 'Imported from EHR. Space doses evenly throughout the day.' },
+  'lisinopril-ehr': { name: 'Lisinopril 20mg', dose: '20mg', frequency: 'Once daily', condition: 'Hypertension', prescriber: 'Dr. Johnson', started: 'Apr 2020', source: 'Duke Health (Epic)', status: 'Active', notes: 'Imported from EHR. Matches manually entered Lisinopril.' },
+  'citalopram': { name: 'Citalopram 10mg', dose: '10mg', frequency: 'Once daily', condition: '', prescriber: '', started: '', source: 'Manual entry', status: 'Active', notes: '' },
+  'metoprolol': { name: 'Metoprolol 50mg', dose: '50mg', frequency: 'Once daily', condition: '', prescriber: 'Dr. Johnson', started: '', source: 'Manual entry', status: 'Active', notes: '' },
+  'zepbound': { name: 'Zepbound 12.5mg', dose: '12.5mg', frequency: 'Weekly injection', condition: '', prescriber: '', started: '', source: 'Manual entry', status: 'Active', notes: '' },
+  'atorvastatin': { name: 'Atorvastatin 20mg', dose: '20mg', frequency: 'Once daily', condition: 'High cholesterol', prescriber: 'Dr. Chen', started: '2018', source: 'Manual entry', status: 'Active', notes: 'Take in the evening for best effect.' },
+  'levothyroxine': { name: 'Levothyroxine 50mcg', dose: '50mcg', frequency: 'Once daily', condition: 'Hypothyroidism', prescriber: 'Dr. Chen', started: '2020', source: 'Manual entry', status: 'Active', notes: 'Take on an empty stomach, 30 min before breakfast.' },
+  'vitamin-d': { name: 'Vitamin D3 2000IU', dose: '2000 IU', frequency: 'Once daily', condition: 'Supplement', prescriber: '', started: '', source: 'Manual entry', status: 'Active', notes: '' }
+};
+
+function openMedDetail(medKey) {
+  var med = _demoMedDetails[medKey];
+  if (!med) return;
+  document.getElementById('med-detail-name').textContent = med.name;
+  document.getElementById('med-detail-status').textContent = med.status || 'Active';
+  var rows = '';
+  var fields = [
+    { label: 'Dose', value: med.dose, icon: 'flask-conical' },
+    { label: 'Frequency', value: med.frequency, icon: 'clock' },
+    { label: 'Condition', value: med.condition, icon: 'stethoscope' },
+    { label: 'Prescriber', value: med.prescriber, icon: 'user' },
+    { label: 'Started', value: med.started, icon: 'calendar' },
+    { label: 'Source', value: med.source, icon: 'link' }
+  ];
+  if (med.changed) fields.splice(2, 0, { label: 'Last changed', value: med.changed, icon: 'refresh-cw' });
+  fields.forEach(function(f) {
+    if (!f.value) return;
+    rows += '<div style="display:flex;align-items:flex-start;gap:10px;">'
+      + '<i data-lucide="' + f.icon + '" style="width:15px;height:15px;color:var(--text-muted);margin-top:2px;flex-shrink:0;"></i>'
+      + '<div><div style="font-size:11px;color:var(--text-muted);font-weight:500;text-transform:uppercase;letter-spacing:0.5px;">' + f.label + '</div>'
+      + '<div style="font-size:14px;color:var(--text-primary);margin-top:1px;">' + escHtml(f.value) + '</div></div></div>';
+  });
+  if (med.notes) {
+    rows += '<div style="background:var(--mint);border-radius:10px;padding:12px 14px;margin-top:4px;">'
+      + '<div style="font-size:11px;color:var(--moss-dark);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;"><i data-lucide="info" style="width:12px;height:12px;vertical-align:-2px;"></i> Notes</div>'
+      + '<div style="font-size:13px;color:var(--text-primary);line-height:1.4;">' + escHtml(med.notes) + '</div></div>';
+  }
+  document.getElementById('med-detail-body').innerHTML = rows;
+  document.getElementById('med-detail-overlay').classList.add('show');
+  initIcons();
 }
 
 // ── ADD MEDICATION ────────────────────────────────────────────────────────────
