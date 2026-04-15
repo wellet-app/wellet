@@ -264,6 +264,46 @@
   .emrg-val { font-weight: 500; text-align: right; max-width: 60%; }
   .emrg-actions { padding: 4px 20px 0; display: flex; gap: 8px; }
 
+  /* ── FULL-SCREEN EMERGENCY OVERLAY ── */
+  .er-overlay { display: none; position: fixed; inset: 0; background: #1a1a1a; z-index: 200; flex-direction: column; }
+  .er-overlay.show { display: flex; }
+  .er-container { display: flex; flex-direction: column; height: 100%; max-width: 768px; margin: 0 auto; width: 100%; overflow-y: auto; }
+  .er-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: #dc2626; color: white; flex-shrink: 0; }
+  .er-header-left { display: flex; align-items: center; gap: 10px; }
+  .er-header-title { font-family: 'DM Sans', sans-serif; font-size: 16px; font-weight: 600; letter-spacing: 0.02em; }
+  .er-close-btn { background: rgba(255,255,255,0.2); border: none; color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s; flex-shrink: 0; }
+  .er-close-btn:hover { background: rgba(255,255,255,0.35); }
+  .er-patient-banner { padding: 16px 20px; background: #fef2f2; border-bottom: 2px solid #dc2626; flex-shrink: 0; }
+  .er-patient-name { font-family: 'DM Serif Display', serif; font-size: 26px; font-weight: 400; color: #1a1a1a; line-height: 1.2; }
+  .er-patient-dob { font-family: 'DM Sans', sans-serif; font-size: 15px; color: #6b6560; margin-top: 4px; }
+  .er-body { flex: 1; padding: 0; background: white; overflow-y: auto; }
+  .er-body .emrg-section { margin: 0; padding: 14px 20px; border-bottom: 1px solid rgba(79,77,92,0.1); }
+  .er-body .emrg-section:last-child { border-bottom: none; }
+  .er-body .emrg-section-title { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #dc2626; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .er-body .emrg-row { font-size: 15px; padding: 8px 0; }
+  .er-body .emrg-label { font-size: 15px; color: var(--text-secondary); }
+  .er-body .emrg-val { font-size: 15px; font-weight: 600; }
+
+  /* AI Emergency Brief section */
+  #er-ai-section { padding: 16px 20px; background: #fef2f2; border-top: 2px solid #fecaca; }
+  .er-ai-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .er-ai-label { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #dc2626; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .er-ai-refresh { background: none; border: none; cursor: pointer; color: #dc2626; display: flex; padding: 4px; border-radius: 4px; opacity: 0.7; transition: opacity 0.15s; }
+  .er-ai-refresh:hover { opacity: 1; }
+  .er-ai-body { font-size: 15px; line-height: 1.75; color: var(--text-primary); white-space: pre-wrap; }
+  .er-ai-loading { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-muted); animation: statusPulse 2s ease-in-out infinite; padding: 8px 0; }
+  .er-ai-text { font-size: 15px; line-height: 1.75; color: var(--text-primary); white-space: pre-wrap; }
+  .er-ai-cached-note { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-muted); margin-top: 10px; padding-top: 8px; border-top: 1px solid #fecaca; }
+
+  /* Action buttons */
+  .er-actions { display: flex; gap: 8px; padding: 14px 20px; background: white; border-top: 1px solid rgba(79,77,92,0.1); flex-shrink: 0; }
+  .er-action-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; border-radius: 12px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s; border: none; }
+  .er-action-share { background: #dc2626; color: white; }
+  .er-action-share:hover { background: #b91c1c; }
+  .er-action-pdf { background: white; color: var(--text-primary); border: 1.5px solid var(--border-medium); }
+  .er-action-pdf:hover { border-color: var(--moss); color: var(--moss); background: var(--mint); }
+  .er-footer { text-align: center; padding: 10px 20px 20px; font-size: 11px; color: var(--text-muted); background: white; flex-shrink: 0; }
+
   /* share sheet */
   .share-preview { margin: 0 20px 16px; background: var(--mint); border-radius: 12px; padding: 14px 16px; }
   .share-preview-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--moss-dark); font-weight: 500; margin-bottom: 6px; }
@@ -1359,64 +1399,92 @@
 
 
 
-<!-- EMERGENCY SUMMARY SHEET -->
-<div class="qa-overlay" id="emergency-overlay">
-  <div class="qa-sheet">
-    <div class="qa-handle-row">
-      <div class="qa-handle"></div>
-      <button class="close-btn" onclick="closeSheet('emergency-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
-    </div>
-    <div class="qa-sheet-title">Emergency Summary</div>
-    <div class="qa-sheet-sub" id="emrg-sheet-sub">Dad · John Bell · Last updated today</div>
-
-    <div class="emrg-band">
-      <i data-lucide="shield-alert" style="width:20px;height:20px;flex-shrink:0;"></i>
-      <div class="emrg-band-text" id="emrg-band-text">Share this with ER staff or any new provider who needs a quick snapshot of Dad's health.</div>
-    </div>
-
-    <div id="emrg-dynamic-content">
-      <!-- populated by renderEmergencySummary() for authenticated users -->
-      <div class="emrg-section">
-        <div class="emrg-section-title"><i data-lucide="user" style="width:12px;height:12px;"></i> Patient</div>
-        <div class="emrg-row"><span class="emrg-label">Name</span><span class="emrg-val">John Bell</span></div>
-        <div class="emrg-row"><span class="emrg-label">Date of birth</span><span class="emrg-val">March 4, 1954 (Age 71)</span></div>
-        <div class="emrg-row"><span class="emrg-label">Emergency contact</span><span class="emrg-val">Sarah Bell · (919) 555-0142</span></div>
-        <div class="emrg-row"><span class="emrg-label">Allergies</span><span class="emrg-val">Penicillin (rash)</span></div>
+<!-- EMERGENCY SUMMARY OVERLAY (full-screen, ER-optimized) -->
+<div class="er-overlay" id="emergency-overlay">
+  <div class="er-container">
+    <div class="er-header">
+      <div class="er-header-left">
+        <i data-lucide="shield-alert" style="width:22px;height:22px;"></i>
+        <span class="er-header-title">Emergency Summary</span>
       </div>
-
-      <div class="emrg-section">
-        <div class="emrg-section-title"><i data-lucide="stethoscope" style="width:12px;height:12px;"></i> Active diagnoses</div>
-        <div class="emrg-row"><span class="emrg-label">Hypertension</span><span class="emrg-val">Since Apr 2022</span></div>
-        <div class="emrg-row"><span class="emrg-label">CML</span><span class="emrg-val">Since 2019 · Responding</span></div>
-        <div class="emrg-row"><span class="emrg-label">Stage 3a CKD</span><span class="emrg-val">Stable</span></div>
-        <div class="emrg-row"><span class="emrg-label">Glaucoma</span><span class="emrg-val">Stable</span></div>
-      </div>
-
-      <div class="emrg-section">
-        <div class="emrg-section-title"><i data-lucide="pill" style="width:12px;height:12px;"></i> Current medications</div>
-        <div class="emrg-row"><span class="emrg-label">Lisinopril</span><span class="emrg-val">20mg · daily</span></div>
-        <div class="emrg-row"><span class="emrg-label">Hydrochlorothiazide</span><span class="emrg-val">25mg · daily</span></div>
-        <div class="emrg-row"><span class="emrg-label">Gleevec (Imatinib)</span><span class="emrg-val">400mg · daily</span></div>
-        <div class="emrg-row"><span class="emrg-label">Metoprolol</span><span class="emrg-val">50mg · daily</span></div>
-        <div class="emrg-row"><span class="emrg-label">Citalopram</span><span class="emrg-val">10mg · daily</span></div>
-        <div class="emrg-row"><span class="emrg-label">Zepbound</span><span class="emrg-val">12.5mg · weekly</span></div>
-      </div>
-
-      <div class="emrg-section">
-        <div class="emrg-section-title"><i data-lucide="users" style="width:12px;height:12px;"></i> Care team</div>
-        <div class="emrg-row"><span class="emrg-label">Primary care</span><span class="emrg-val">Dr. Johnson</span></div>
-        <div class="emrg-row"><span class="emrg-label">Oncology</span><span class="emrg-val">Dr. Edwards · Duke</span></div>
-        <div class="emrg-row"><span class="emrg-label">Ophthalmology</span><span class="emrg-val">Dr. Patel</span></div>
-      </div>
-    </div>
-
-    <div class="emrg-actions">
-      <button class="btn-primary" style="font-size:13px;padding:12px;" onclick="downloadEmergencyPDF()">
-        <i data-lucide="download" style="width:15px;height:15px;"></i> Download PDF
+      <button class="er-close-btn" onclick="closeSheet('emergency-overlay')">
+        <i data-lucide="x" style="width:22px;height:22px;"></i>
       </button>
-      <button class="btn-primary" style="font-size:13px;padding:12px;background:var(--moss-dark);" onclick="showToast('Link copied to clipboard')">
-        <i data-lucide="share-2" style="width:15px;height:15px;"></i> Share
+    </div>
+
+    <div class="er-patient-banner" id="er-patient-banner">
+      <div class="er-patient-name" id="er-patient-name">John Bell</div>
+      <div class="er-patient-dob" id="er-patient-dob">DOB: March 4, 1954 · Age 71</div>
+    </div>
+
+    <div class="er-body" id="er-body">
+      <!-- Structured data section (always shown) -->
+      <div id="er-structured-content">
+        <div id="emrg-dynamic-content">
+          <!-- populated by renderEmergencySummary() for authenticated users -->
+          <div class="emrg-section">
+            <div class="emrg-section-title"><i data-lucide="user" style="width:12px;height:12px;"></i> Patient</div>
+            <div class="emrg-row"><span class="emrg-label">Name</span><span class="emrg-val">John Bell</span></div>
+            <div class="emrg-row"><span class="emrg-label">Date of birth</span><span class="emrg-val">March 4, 1954 (Age 71)</span></div>
+            <div class="emrg-row"><span class="emrg-label">Emergency contact</span><span class="emrg-val">Sarah Bell · (919) 555-0142</span></div>
+            <div class="emrg-row"><span class="emrg-label">Allergies</span><span class="emrg-val">Penicillin (rash)</span></div>
+          </div>
+          <div class="emrg-section">
+            <div class="emrg-section-title"><i data-lucide="stethoscope" style="width:12px;height:12px;"></i> Active diagnoses</div>
+            <div class="emrg-row"><span class="emrg-label">Hypertension</span><span class="emrg-val">Since Apr 2022</span></div>
+            <div class="emrg-row"><span class="emrg-label">CML</span><span class="emrg-val">Since 2019 · Responding</span></div>
+            <div class="emrg-row"><span class="emrg-label">Stage 3a CKD</span><span class="emrg-val">Stable</span></div>
+            <div class="emrg-row"><span class="emrg-label">Glaucoma</span><span class="emrg-val">Stable</span></div>
+          </div>
+          <div class="emrg-section">
+            <div class="emrg-section-title"><i data-lucide="pill" style="width:12px;height:12px;"></i> Current medications</div>
+            <div class="emrg-row"><span class="emrg-label">Lisinopril</span><span class="emrg-val">20mg · daily</span></div>
+            <div class="emrg-row"><span class="emrg-label">Hydrochlorothiazide</span><span class="emrg-val">25mg · daily</span></div>
+            <div class="emrg-row"><span class="emrg-label">Gleevec (Imatinib)</span><span class="emrg-val">400mg · daily</span></div>
+            <div class="emrg-row"><span class="emrg-label">Metoprolol</span><span class="emrg-val">50mg · daily</span></div>
+            <div class="emrg-row"><span class="emrg-label">Citalopram</span><span class="emrg-val">10mg · daily</span></div>
+            <div class="emrg-row"><span class="emrg-label">Zepbound</span><span class="emrg-val">12.5mg · weekly</span></div>
+          </div>
+          <div class="emrg-section">
+            <div class="emrg-section-title"><i data-lucide="users" style="width:12px;height:12px;"></i> Care team</div>
+            <div class="emrg-row"><span class="emrg-label">Primary care</span><span class="emrg-val">Dr. Johnson</span></div>
+            <div class="emrg-row"><span class="emrg-label">Oncology</span><span class="emrg-val">Dr. Edwards · Duke</span></div>
+            <div class="emrg-row"><span class="emrg-label">Ophthalmology</span><span class="emrg-val">Dr. Patel</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI-generated emergency brief section -->
+      <div id="er-ai-section">
+        <div class="er-ai-header">
+          <div class="er-ai-label"><i data-lucide="sparkles" style="width:13px;height:13px;"></i> AI Emergency Brief</div>
+          <button class="er-ai-refresh" onclick="fetchEmergencyBrief(true)" title="Regenerate brief">
+            <i data-lucide="refresh-cw" style="width:13px;height:13px;"></i>
+          </button>
+        </div>
+        <div class="er-ai-body" id="er-ai-body">
+          <div class="er-ai-loading" id="er-ai-loading" style="display:none;">
+            <i data-lucide="loader" style="width:14px;height:14px;animation:spin 1.2s linear infinite;"></i> Generating emergency brief…
+          </div>
+          <div class="er-ai-text" id="er-ai-text"></div>
+        </div>
+        <div class="er-ai-cached-note" id="er-ai-cached-note" style="display:none;">
+          <i data-lucide="wifi-off" style="width:11px;height:11px;"></i> Showing cached version
+        </div>
+      </div>
+    </div>
+
+    <div class="er-actions">
+      <button class="er-action-btn er-action-share" onclick="shareEmergencySummary()">
+        <i data-lucide="share-2" style="width:16px;height:16px;"></i> Share this summary
       </button>
+      <button class="er-action-btn er-action-pdf" onclick="downloadEmergencyPDF()">
+        <i data-lucide="download" style="width:16px;height:16px;"></i> Download PDF
+      </button>
+    </div>
+
+    <div class="er-footer">
+      <span>Generated by Wellet · Not a medical record</span>
     </div>
   </div>
 </div>
@@ -4055,7 +4123,10 @@ function closeModal() {
 }
 
 function openEmergencySummary() {
-  if (!isDemoMode) { renderEmergencySummary(); }
+  if (!isDemoMode) {
+    renderEmergencySummary();
+    fetchEmergencyBrief(false);
+  }
   document.getElementById('emergency-overlay').classList.add('show');
   initIcons();
 }
@@ -4483,6 +4554,8 @@ async function saveProfile() {
 }
 
 // ── EMERGENCY SUMMARY (Feature 3 - dynamic) ────────────────────────────
+var _emergencyBriefCache = {}; // { personId: { text, timestamp } }
+
 function renderEmergencySummary() {
   // Only override demo content for authenticated users
   if (isDemoMode) return;
@@ -4490,13 +4563,22 @@ function renderEmergencySummary() {
   if (!person) return;
 
   var name = person.name;
-  var firstName = name.split(' ')[0];
 
-  var subEl = document.getElementById('emrg-sheet-sub');
-  if (subEl) subEl.textContent = firstName + ' \u00b7 ' + name + ' \u00b7 Last updated today';
+  // Populate patient banner
+  var nameEl = document.getElementById('er-patient-name');
+  if (nameEl) nameEl.textContent = escHtml(name);
 
-  var bandEl = document.getElementById('emrg-band-text');
-  if (bandEl) bandEl.textContent = 'Share this with ER staff or any new provider who needs a quick snapshot of ' + firstName + '\'s health.';
+  var dobEl = document.getElementById('er-patient-dob');
+  if (dobEl) {
+    if (person.date_of_birth) {
+      var dob = new Date(person.date_of_birth);
+      var age = Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+      var dobStr = dob.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      dobEl.textContent = 'DOB: ' + dobStr + ' · Age ' + age;
+    } else {
+      dobEl.textContent = '';
+    }
+  }
 
   var container = document.getElementById('emrg-dynamic-content');
   if (!container) return;
@@ -4507,25 +4589,34 @@ function renderEmergencySummary() {
     + '<div class="emrg-row"><span class="emrg-label">Name</span><span class="emrg-val">' + escHtml(name) + '</span></div>';
 
   if (person.date_of_birth) {
-    var dob = new Date(person.date_of_birth);
-    var age = Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-    var dobStr = dob.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-    html += '<div class="emrg-row"><span class="emrg-label">Date of birth</span><span class="emrg-val">' + escHtml(dobStr) + ' (Age ' + age + ')</span></div>';
+    var dob2 = new Date(person.date_of_birth);
+    var age2 = Math.floor((Date.now() - dob2.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+    var dobStr2 = dob2.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    html += '<div class="emrg-row"><span class="emrg-label">Date of birth</span><span class="emrg-val">' + escHtml(dobStr2) + ' (Age ' + age2 + ')</span></div>';
   }
 
   if (person.emergency_contact_name) {
     var ecVal = escHtml(person.emergency_contact_name);
-    if (person.emergency_contact_phone) ecVal += ' \u00b7 ' + escHtml(person.emergency_contact_phone);
+    if (person.emergency_contact_phone) ecVal += ' · ' + escHtml(person.emergency_contact_phone);
     html += '<div class="emrg-row"><span class="emrg-label">Emergency contact</span><span class="emrg-val">' + ecVal + '</span></div>';
   } else if (liveCareCircle.length > 0) {
     var primary = liveCareCircle.find(function(c){ return c.role === 'Primary'; }) || liveCareCircle[0];
     var ecVal2 = escHtml(primary.member_name);
-    if (primary.phone) ecVal2 += ' \u00b7 ' + escHtml(primary.phone);
+    if (primary.phone) ecVal2 += ' · ' + escHtml(primary.phone);
     html += '<div class="emrg-row"><span class="emrg-label">Emergency contact</span><span class="emrg-val">' + ecVal2 + '</span></div>';
   }
 
+  // Show all care circle members if available
+  if (liveCareCircle.length > 0) {
+    liveCareCircle.forEach(function(member) {
+      var memberVal = escHtml(member.member_name) + ' (' + escHtml(member.role) + ')';
+      if (member.phone) memberVal += ' · ' + escHtml(member.phone);
+      html += '<div class="emrg-row"><span class="emrg-label">Care circle</span><span class="emrg-val">' + memberVal + '</span></div>';
+    });
+  }
+
   if (person.allergies) {
-    html += '<div class="emrg-row"><span class="emrg-label">Allergies</span><span class="emrg-val">' + escHtml(person.allergies) + '</span></div>';
+    html += '<div class="emrg-row"><span class="emrg-label">Allergies</span><span class="emrg-val" style="color:#dc2626;font-weight:700;">' + escHtml(person.allergies) + '</span></div>';
   }
   if (person.blood_type) {
     html += '<div class="emrg-row"><span class="emrg-label">Blood type</span><span class="emrg-val">' + escHtml(person.blood_type) + '</span></div>';
@@ -4554,13 +4645,41 @@ function renderEmergencySummary() {
     activeMeds.forEach(function(med) {
       var valStr = '';
       if (med.dose) valStr += escHtml(med.dose);
-      if (med.frequency) valStr += (valStr ? ' \u00b7 ' : '') + escHtml(med.frequency);
+      if (med.frequency) valStr += (valStr ? ' · ' : '') + escHtml(med.frequency);
       html += '<div class="emrg-row"><span class="emrg-label">' + escHtml(med.name) + '</span><span class="emrg-val">' + (valStr || 'Active') + '</span></div>';
     });
     html += '</div>';
   }
 
-  // Doctor section
+  // Recent surgeries/procedures (last 12 months from health events)
+  var twelveMonthsAgo = new Date();
+  twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
+  var recentProcedures = liveEvents.filter(function(ev) {
+    if (!ev.event_date) return false;
+    var evDate = new Date(ev.event_date);
+    if (evDate < twelveMonthsAgo) return false;
+    var titleLower = (ev.title || '').toLowerCase();
+    var descLower = (ev.description || '').toLowerCase();
+    var combined = titleLower + ' ' + descLower;
+    return combined.indexOf('surgery') !== -1 || combined.indexOf('procedure') !== -1
+      || combined.indexOf('operation') !== -1 || combined.indexOf('biopsy') !== -1
+      || combined.indexOf('endoscopy') !== -1 || combined.indexOf('colonoscopy') !== -1
+      || combined.indexOf('catheter') !== -1 || combined.indexOf('implant') !== -1
+      || combined.indexOf('removal') !== -1 || combined.indexOf('repair') !== -1
+      || combined.indexOf('release') !== -1 || combined.indexOf('replacement') !== -1
+      || ev.event_type === 'appointment';
+  });
+  // Also include any events the user explicitly tagged as procedures
+  if (recentProcedures.length > 0) {
+    html += '<div class="emrg-section"><div class="emrg-section-title"><i data-lucide="scissors" style="width:12px;height:12px;"></i> Recent procedures (12 months)</div>';
+    recentProcedures.slice(0, 10).forEach(function(ev) {
+      var dateStr = formatEventDate(ev.event_date);
+      html += '<div class="emrg-row"><span class="emrg-label">' + escHtml(ev.title) + '</span><span class="emrg-val">' + escHtml(dateStr) + '</span></div>';
+    });
+    html += '</div>';
+  }
+
+  // Doctor / Care team section
   if (person.primary_doctor) {
     html += '<div class="emrg-section"><div class="emrg-section-title"><i data-lucide="users" style="width:12px;height:12px;"></i> Care team</div>'
       + '<div class="emrg-row"><span class="emrg-label">Primary doctor</span><span class="emrg-val">' + escHtml(person.primary_doctor) + '</span></div>'
@@ -4573,6 +4692,187 @@ function renderEmergencySummary() {
 
   container.innerHTML = html;
   initIcons();
+}
+
+// ── EMERGENCY BRIEF (AI-generated, cached in localStorage) ─────────────
+async function fetchEmergencyBrief(forceRefresh) {
+  if (isDemoMode || !currentPersonId || !currentUser) return;
+  var pid = currentPersonId;
+
+  var loadingEl = document.getElementById('er-ai-loading');
+  var textEl = document.getElementById('er-ai-text');
+  var cachedNoteEl = document.getElementById('er-ai-cached-note');
+
+  // Check localStorage cache first (critical for offline ER scenarios)
+  var cacheKey = 'wellet_er_brief_' + pid;
+  var cached = null;
+  try { cached = JSON.parse(localStorage.getItem(cacheKey)); } catch(e) {}
+
+  if (!forceRefresh && cached && cached.text) {
+    textEl.textContent = cached.text;
+    // Show cached note if older than 1 hour
+    var cacheAge = Date.now() - (cached.timestamp || 0);
+    if (cacheAge > 3600000) {
+      cachedNoteEl.style.display = 'flex';
+    } else {
+      cachedNoteEl.style.display = 'none';
+    }
+    initIcons();
+    return;
+  }
+
+  // Also check in-memory cache
+  if (!forceRefresh && _emergencyBriefCache[pid]) {
+    textEl.textContent = _emergencyBriefCache[pid].text;
+    cachedNoteEl.style.display = 'none';
+    return;
+  }
+
+  // Show loading state
+  if (loadingEl) loadingEl.style.display = 'flex';
+  if (textEl) textEl.textContent = '';
+  if (cachedNoteEl) cachedNoteEl.style.display = 'none';
+  initIcons();
+
+  try {
+    var session = await db.auth.getSession();
+    var token = session.data.session.access_token;
+    var res = await fetch(
+      'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/generate-emergency-summary',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token,
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU'
+        },
+        body: JSON.stringify({ person_id: pid })
+      }
+    );
+    if (res.ok) {
+      var data = await res.json();
+      if (data.empty || !data.summary) {
+        if (loadingEl) loadingEl.style.display = 'none';
+        textEl.textContent = 'Add health events and profile information to generate an AI emergency brief.';
+        textEl.style.fontStyle = 'italic';
+        textEl.style.color = 'var(--text-muted)';
+        return;
+      }
+      var briefText = data.summary;
+      // Store in both memory and localStorage
+      _emergencyBriefCache[pid] = { text: briefText, timestamp: Date.now() };
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({ text: briefText, timestamp: Date.now() }));
+      } catch(e) { /* localStorage full or unavailable */ }
+      if (loadingEl) loadingEl.style.display = 'none';
+      textEl.style.fontStyle = '';
+      textEl.style.color = '';
+      textEl.textContent = briefText;
+      cachedNoteEl.style.display = 'none';
+    } else {
+      // Network error — try to show cached version
+      if (cached && cached.text) {
+        if (loadingEl) loadingEl.style.display = 'none';
+        textEl.textContent = cached.text;
+        cachedNoteEl.style.display = 'flex';
+        initIcons();
+      } else {
+        if (loadingEl) loadingEl.style.display = 'none';
+        textEl.textContent = 'Unable to generate brief. Check your connection and try again.';
+        textEl.style.fontStyle = 'italic';
+        textEl.style.color = 'var(--text-muted)';
+      }
+    }
+  } catch (e) {
+    console.warn('Emergency brief fetch error:', e);
+    // Offline fallback — show cached version if available
+    if (cached && cached.text) {
+      if (loadingEl) loadingEl.style.display = 'none';
+      textEl.textContent = cached.text;
+      cachedNoteEl.style.display = 'flex';
+      initIcons();
+    } else {
+      if (loadingEl) loadingEl.style.display = 'none';
+      textEl.textContent = 'Unable to generate brief. Check your connection and try again.';
+      textEl.style.fontStyle = 'italic';
+      textEl.style.color = 'var(--text-muted)';
+    }
+  }
+}
+
+function shareEmergencySummary() {
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var name = person ? person.name : 'Patient';
+
+  // Build a text summary from the structured data visible on screen
+  var lines = [];
+  lines.push('EMERGENCY SUMMARY — ' + escHtml(name));
+  lines.push('Generated by Wellet · ' + new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }));
+  lines.push('');
+
+  // Gather data from the rendered content
+  if (person) {
+    if (person.date_of_birth) {
+      var dob = new Date(person.date_of_birth);
+      var age = Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+      lines.push('DOB: ' + dob.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) + ' (Age ' + age + ')');
+    }
+    if (person.allergies) lines.push('ALLERGIES: ' + person.allergies);
+    if (person.blood_type) lines.push('Blood type: ' + person.blood_type);
+    if (person.conditions) lines.push('CONDITIONS: ' + person.conditions);
+
+    var activeMeds = liveMeds.filter(function(m){ return m.active; });
+    if (activeMeds.length > 0) {
+      lines.push('');
+      lines.push('MEDICATIONS:');
+      activeMeds.forEach(function(med) {
+        var line = '  ' + med.name;
+        if (med.dose) line += ' ' + med.dose;
+        if (med.frequency) line += ' ' + med.frequency;
+        lines.push(line);
+      });
+    }
+
+    if (person.primary_doctor) {
+      lines.push('');
+      lines.push('Primary doctor: ' + person.primary_doctor);
+    }
+    if (person.emergency_contact_name) {
+      lines.push('Emergency contact: ' + person.emergency_contact_name + (person.emergency_contact_phone ? ' ' + person.emergency_contact_phone : ''));
+    }
+  }
+
+  // Append AI brief if available
+  var aiText = document.getElementById('er-ai-text');
+  if (aiText && aiText.textContent && aiText.style.fontStyle !== 'italic') {
+    lines.push('');
+    lines.push('--- AI BRIEF ---');
+    lines.push(aiText.textContent);
+  }
+
+  var shareText = lines.join('\n');
+
+  // Use Web Share API if available, otherwise copy to clipboard
+  if (navigator.share) {
+    navigator.share({
+      title: 'Emergency Summary — ' + name,
+      text: shareText
+    }).catch(function() {});
+  } else {
+    navigator.clipboard.writeText(shareText).then(function() {
+      showToast('Summary copied to clipboard');
+    }).catch(function() {
+      // Fallback for older browsers
+      var ta = document.createElement('textarea');
+      ta.value = shareText;
+      ta.style.cssText = 'position:fixed;opacity:0;';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+      showToast('Summary copied to clipboard');
+    });
+  }
 }
 
 // ── CARE CIRCLE (Feature 4) ─────────────────────────────────────────────────
