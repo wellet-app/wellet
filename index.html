@@ -846,8 +846,8 @@
   </div>
   <div class="auth-body">
     <div id="auth-form-state">
-      <div class="auth-title">Get early access</div>
-      <p class="auth-subtitle">Join the waitlist — we'll send a magic link when your spot opens.</p>
+      <div class="auth-title">Sign in to Wellet</div>
+      <p class="auth-subtitle">Enter your email and we'll send a magic link. No password needed.</p>
       <div class="auth-input-wrap">
         <label class="auth-input-label" for="auth-email">Email address</label>
         <input type="email" id="auth-email" class="auth-input" placeholder="you@email.com" autocomplete="email">
@@ -855,6 +855,7 @@
       <button class="btn-primary" onclick="sendMagicLink()" id="auth-send-btn">
         Send magic link <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>
       </button>
+      <p style="font-size:12px;color:var(--text-muted);margin-top:10px;line-height:1.5;">Already signed up? Your session may have expired — just enter the same email to get a fresh link.</p>
       <div class="auth-links-row">
         <button class="auth-demo-link" onclick="enterDemoMode()">
           <i data-lucide="play-circle" style="width:14px;height:14px;"></i>
@@ -1024,6 +1025,7 @@
             <button class="icon-btn" id="notif-bell-btn" onclick="openNotifPanel()" title="Reminders"><i data-lucide="bell" style="width:16px;height:16px;"></i></button>
             <span class="notif-bell-badge" id="notif-bell-badge" data-count="0"></span>
           </div>
+          <button class="icon-btn" id="header-feedback-btn" onclick="openFeedbackSheet()" title="Send feedback"><i data-lucide="message-square-heart" style="width:16px;height:16px;"></i></button>
           <button class="icon-btn" onclick="openSettings()" title="Settings"><i data-lucide="settings" style="width:16px;height:16px;"></i></button>
       </div>
     </div>
