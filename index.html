@@ -7444,9 +7444,9 @@ async function obFinishWithNames() {
             person_id: person.id,
             user_id: currentUser.id,
             file_name: fname,
-            file_path: _obUploadPaths[i],
-            doc_type: 'Onboarding upload',
-            status: 'pending'
+            storage_path: _obUploadPaths[i],
+            document_type: 'Onboarding upload',
+            extraction_status: 'pending'
           });
         } catch(e) {
           console.log('Doc record insert skipped:', e.message);
