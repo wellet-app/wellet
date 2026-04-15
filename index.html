@@ -4535,6 +4535,9 @@ function showLanding() {
 }
 
 function showOnboarding() {
+  // Dismiss welcome overlay if it's still visible
+  var welcomeEl = document.getElementById('welcome-overlay');
+  if (welcomeEl && welcomeEl.classList.contains('show')) { closeSheet('welcome-overlay'); }
   document.getElementById('loading-screen').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('landing').style.display = 'none';
@@ -7392,7 +7395,13 @@ var tourSteps = [
 ];
 var tourCurrent = 0;
 
-function startTour() { tourCurrent = 0; showTourStep(0); }
+function startTour() {
+  // Dismiss welcome overlay if still showing (tour needs to see the UI)
+  var welcomeEl = document.getElementById('welcome-overlay');
+  if (welcomeEl && welcomeEl.classList.contains('show')) { closeSheet('welcome-overlay'); }
+  tourCurrent = 0;
+  showTourStep(0);
+}
 
 function showTourStep(idx) {
   var old = document.querySelector('.tour-overlay');
