@@ -769,6 +769,30 @@
   #explainer-stage { width:100%; max-width:720px; aspect-ratio:16/9; position:relative; border-radius:12px; overflow:hidden; box-shadow:0 8px 40px rgba(0,0,0,0.4); }
   #explainer-stage video { width:100%; height:100%; object-fit:cover; display:block; }
   @media (max-width:768px) { #explainer-stage { max-width:95vw; } }
+
+  /* ── EHR INTEGRATION ── */
+  .ehr-badge { display:inline-flex; align-items:center; gap:3px; font-size:10px; font-weight:600; letter-spacing:0.04em; color:white; background:#2d6a4f; border-radius:6px; padding:2px 7px; line-height:1.4; vertical-align:middle; white-space:nowrap; }
+  .ehr-badge i { width:10px; height:10px; }
+  .ehr-provider-badge { display:inline-flex; align-items:center; gap:3px; font-size:10px; font-weight:500; color:var(--moss-dark); background:var(--mint); border-radius:6px; padding:2px 7px; line-height:1.4; white-space:nowrap; }
+  .ehr-connect-card { background:white; border:1.5px dashed var(--moss); border-radius:14px; padding:16px; text-align:center; cursor:pointer; transition:background 0.15s, border-color 0.15s; }
+  .ehr-connect-card:hover { background:var(--mint); border-color:var(--moss-dark); }
+  .ehr-connect-icon { width:44px; height:44px; border-radius:50%; background:var(--mint); display:flex; align-items:center; justify-content:center; margin:0 auto 10px; color:var(--moss); }
+  .ehr-connect-title { font-size:14px; font-weight:500; color:var(--text-primary); margin-bottom:4px; }
+  .ehr-connect-desc { font-size:12px; color:var(--text-muted); line-height:1.5; }
+  .ehr-status-bar { display:flex; align-items:center; justify-content:space-between; padding:10px 16px; background:var(--mint); border-radius:10px; margin-bottom:12px; }
+  .ehr-status-left { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--moss-dark); }
+  .ehr-status-dot { width:7px; height:7px; border-radius:50%; background:#47B08A; flex-shrink:0; }
+  .ehr-status-right { display:flex; align-items:center; gap:8px; }
+  .ehr-refresh-btn { background:none; border:none; color:var(--moss); cursor:pointer; padding:4px; border-radius:6px; display:flex; align-items:center; justify-content:center; transition:background 0.15s; }
+  .ehr-refresh-btn:hover { background:rgba(45,106,79,0.1); }
+  .ehr-privacy-notice { background:var(--cream); border-radius:10px; padding:12px 14px; margin:12px 0; font-size:12px; color:var(--text-secondary); line-height:1.6; display:flex; gap:8px; align-items:flex-start; }
+  .ehr-privacy-notice i { flex-shrink:0; color:var(--moss); margin-top:1px; }
+  .ehr-section-prompt { text-align:center; padding:16px; color:var(--text-muted); font-size:12px; line-height:1.5; font-style:italic; }
+  .ehr-section-prompt a { color:var(--moss); text-decoration:none; font-style:normal; font-weight:500; cursor:pointer; }
+  .ehr-section-prompt a:hover { text-decoration:underline; }
+  .ehr-demo-tooltip { position:relative; }
+  .ehr-demo-tooltip:hover::after { content:attr(data-tooltip); position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%); background:var(--text-primary); color:white; font-size:11px; padding:6px 10px; border-radius:8px; white-space:nowrap; z-index:10; pointer-events:none; }
+  .ehr-demo-tooltip:hover::before { content:''; position:absolute; bottom:calc(100% + 2px); left:50%; transform:translateX(-50%); border:4px solid transparent; border-top-color:var(--text-primary); z-index:10; }
 </style>
 </head>
 <body>
@@ -1095,6 +1119,30 @@
             <div class="tl-card-date">March 16 @ 9:00 AM</div>
           </div>
         </div>
+        <div class="tl-item">
+          <div class="tl-line-col"><div class="tl-dot appt"></div><div class="tl-connector"></div></div>
+          <div class="tl-card moss-border">
+            <div class="tl-card-type-row"><i data-lucide="calendar-check" style="width:11px;height:11px;color:var(--moss);"></i><span class="tl-card-type appt">Appointment</span> <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div>
+            <div class="tl-card-title">Office visit — Neurology</div>
+            <div class="tl-card-date">March 28 · <span style="color:var(--moss);font-weight:500;">From Duke Health (Epic)</span></div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-line-col"><div class="tl-dot lab"></div><div class="tl-connector"></div></div>
+          <div class="tl-card blue-border">
+            <div class="tl-card-type-row"><i data-lucide="flask-conical" style="width:11px;height:11px;color:var(--blue);"></i><span class="tl-card-type lab">Lab result</span> <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div>
+            <div class="tl-card-title">CBC — WBC 6.8, Hemoglobin 14.2</div>
+            <div class="tl-card-date">March 28 · <span style="color:var(--moss);font-weight:500;">From Duke Health (Epic)</span></div>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-line-col"><div class="tl-dot lab"></div><div class="tl-connector"></div></div>
+          <div class="tl-card blue-border">
+            <div class="tl-card-type-row"><i data-lucide="flask-conical" style="width:11px;height:11px;color:var(--blue);"></i><span class="tl-card-type lab">Lab result</span> <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div>
+            <div class="tl-card-title">Metabolic panel — Glucose 98, Creatinine 1.0</div>
+            <div class="tl-card-date">March 15 · <span style="color:var(--moss);font-weight:500;">From Duke Health (Epic)</span></div>
+          </div>
+        </div>
         <div class="tl-month">February 2026</div>
         <div class="tl-item">
           <div class="tl-line-col"><div class="tl-dot med"></div><div class="tl-connector"></div></div>
@@ -1262,11 +1310,18 @@
         </div>
       </div>
       <div id="records-dad" class="records-section">
+        <div class="ehr-status-bar">
+          <div class="ehr-status-left"><div class="ehr-status-dot"></div><strong>EHR Connected</strong> · Duke Health (Epic)</div>
+          <div class="ehr-status-right">
+            <span style="font-size:11px;color:var(--text-muted);">Demo data</span>
+            <button class="ehr-demo-tooltip ehr-refresh-btn" data-tooltip="In the real app, this connects to your provider's records" onclick="showToast('In the real app, this refreshes data from your provider')"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>
+          </div>
+        </div>
         <div class="record-group">
           <div class="record-group-header">
             <div class="record-group-title"><i data-lucide="pill" style="width:14px;height:14px;color:var(--amber);"></i>Medications</div>
             <div style="display:flex;align-items:center;gap:8px;">
-              <span class="record-group-count" id="dad-med-count">6 active</span>
+              <span class="record-group-count" id="dad-med-count">8 active</span>
               <button onclick="openAddMed()" style="background:var(--mint);border:none;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:500;color:var(--moss-dark);cursor:pointer;font-family:'DM Sans',sans-serif;">+ Add</button>
             </div>
           </div>
@@ -1286,13 +1341,23 @@
               <div style="flex:1;"><div class="record-label">Gleevec (Imatinib) 400mg</div><div class="record-meta">Once daily · CML</div></div>
               <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
             </div>
+            <div class="record-row">
+              <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
+              <div style="flex:1;"><div class="record-label">Levodopa/Carbidopa 25-100mg <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div><div class="record-meta">3x daily · Parkinson's</div></div>
+              <span class="ehr-provider-badge">From Duke Health</span>
+            </div>
+            <div class="record-row">
+              <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
+              <div style="flex:1;"><div class="record-label">Lisinopril 20mg <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div><div class="record-meta">Once daily · Hypertension</div></div>
+              <span class="ehr-provider-badge">From Duke Health</span>
+            </div>
           </div>
         </div>
 
         <div class="record-group">
           <div class="record-group-header">
             <div class="record-group-title"><i data-lucide="stethoscope" style="width:14px;height:14px;color:var(--moss);"></i>Diagnoses</div>
-            <span class="record-group-count">4 active</span>
+            <span class="record-group-count">6 active</span>
           </div>
           <div class="record-row">
             <div class="record-icon moss"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>
@@ -1309,12 +1374,34 @@
             <div style="flex:1;"><div class="record-label">Glaucoma</div><div class="record-meta">Stable · Dr. Patel</div></div>
             <span class="record-badge moss">Stable</span>
           </div>
+          <div class="record-row">
+            <div class="record-icon moss"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">Parkinson's disease <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div><div class="record-meta">Since Jun 2023</div></div>
+            <span class="record-badge amber">Active</span>
+          </div>
+          <div class="record-row">
+            <div class="record-icon moss"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">Essential hypertension <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div><div class="record-meta">Since Mar 2020</div></div>
+            <span class="record-badge amber">Active</span>
+          </div>
+        </div>
+
+        <div class="record-group">
+          <div class="record-group-header">
+            <div class="record-group-title"><i data-lucide="alert-triangle" style="width:14px;height:14px;color:var(--red);"></i>Allergies <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div>
+            <span class="record-group-count">1 from EHR</span>
+          </div>
+          <div class="record-row">
+            <div class="record-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="alert-triangle" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">Sulfonamide</div><div class="record-meta">Skin rash, Hives · moderate</div></div>
+            <span class="ehr-provider-badge">From Duke Health</span>
+          </div>
         </div>
 
         <div class="record-group">
           <div class="record-group-header">
             <div class="record-group-title"><i data-lucide="flask-conical" style="width:14px;height:14px;color:var(--blue);"></i>Recent labs</div>
-            <span class="record-group-count">3 this month</span>
+            <span class="record-group-count">7 this month</span>
           </div>
           <div class="record-row">
             <div class="record-icon blue"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>
@@ -1325,6 +1412,33 @@
             <div class="record-icon blue"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>
             <div style="flex:1;"><div class="record-label">Basic metabolic panel</div><div class="record-meta">January 12 · All normal</div></div>
             <span class="record-badge moss">Normal</span>
+          </div>
+          <div class="record-row">
+            <div class="record-icon blue"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">Complete blood count (CBC) <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div><div class="record-meta">Mar 28 · WBC 6.8, Hgb 14.2</div></div>
+            <span class="record-badge moss">Normal</span>
+          </div>
+          <div class="record-row">
+            <div class="record-icon blue"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">Comprehensive metabolic panel <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div><div class="record-meta">Mar 15 · Glucose 98, Creatinine 1.0</div></div>
+            <span class="record-badge moss">Normal</span>
+          </div>
+        </div>
+
+        <div class="record-group">
+          <div class="record-group-header">
+            <div class="record-group-title"><i data-lucide="calendar-check" style="width:14px;height:14px;color:var(--moss);"></i>Recent visits <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div>
+            <span class="record-group-count">2 from EHR</span>
+          </div>
+          <div class="record-row">
+            <div class="record-icon moss"><i data-lucide="calendar-check" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">Office visit — Neurology</div><div class="record-meta">Mar 28</div></div>
+            <span class="ehr-provider-badge">From Duke Health</span>
+          </div>
+          <div class="record-row">
+            <div class="record-icon moss"><i data-lucide="calendar-check" style="width:15px;height:15px;"></i></div>
+            <div style="flex:1;"><div class="record-label">Annual physical exam</div><div class="record-meta">Feb 15</div></div>
+            <span class="ehr-provider-badge">From Duke Health</span>
           </div>
         </div>
 
@@ -1343,6 +1457,10 @@
             <div style="flex:1;"><div class="record-label">Ask Dr. E about ferritin levels</div><div class="record-meta">Feb 22 · you</div></div>
             <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
           </div>
+        </div>
+        <div class="ehr-privacy-notice">
+          <i data-lucide="shield-check" style="width:16px;height:16px;"></i>
+          <span>Your health records stay on this device. Wellet never stores raw medical data on our servers.</span>
         </div>
       </div>
 
@@ -1900,7 +2018,18 @@
     </div>
 
     <div class="settings-section" style="margin-top:12px;">
-      <div class="settings-section-label">Connected services</div>
+      <div class="settings-section-label">Health Records</div>
+      <div style="padding:0 0 4px;">
+        <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px;">Connect your EHR to import medical data — medications, conditions, lab results, and more.</div>
+        <div id="settings-ehr-status"></div>
+        <div class="settings-row" style="cursor:pointer;" onclick="startEhrConnect()">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="hospital" style="width:15px;height:15px;"></i></div>
+            <div><div class="settings-row-label" id="settings-ehr-label">Connect Health Records</div><div class="settings-row-meta" id="settings-ehr-meta">Import data from your provider (Epic, Cerner, etc.)</div></div>
+          </div>
+          <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+        </div>
+      </div>
       <div class="settings-row">
         <div class="settings-row-left">
           <div class="settings-row-icon"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>
@@ -2129,6 +2258,15 @@
     <div class="profile-form-row">
       <label class="profile-form-label">Insurance info</label>
       <input class="input-field" id="profile-insurance-input" style="margin-top:0;" type="text" placeholder="e.g. Blue Cross PPO #123456">
+    </div>
+
+    <div class="profile-section-label">Health Records (EHR)</div>
+    <div id="profile-ehr-section" style="padding:0 20px;">
+      <div class="ehr-connect-card" onclick="startEhrConnect()" id="profile-ehr-connect-card">
+        <div class="ehr-connect-icon"><i data-lucide="hospital" style="width:22px;height:22px;"></i></div>
+        <div class="ehr-connect-title">Connect Health Records</div>
+        <div class="ehr-connect-desc">Import medications, conditions, and lab results from your provider</div>
+      </div>
     </div>
 
     <div style="padding:8px 20px 0;display:flex;flex-direction:column;gap:8px;">
@@ -2449,6 +2587,8 @@ async function initApp() {
       showAuthScreen();
     }
   });
+  // Check for EHR OAuth callback code in URL
+  checkEhrCallbackOnLoad();
 }
 
 function togglePrivacyDetail() {
@@ -2657,6 +2797,10 @@ async function loadPersonData(personId) {
     .eq('person_id', personId)
     .order('created_at', { ascending: true });
   liveCareCircle = circle || [];
+
+  // Load cached EHR data and auto-refresh if stale
+  loadEhrCache(personId);
+  autoRefreshEhrIfNeeded(personId);
 }
 
 // ── SHOW AUTHENTICATED APP ────────────────────────────────────────────────────
@@ -2796,11 +2940,34 @@ function renderTimeline() {
     + '<button class="btn-primary" style="width:auto;padding:10px 16px;font-size:13px;gap:6px;" onclick="openAddEvent()">'
     + '<i data-lucide="plus" style="width:14px;height:14px;"></i> Add event</button></div>';
 
-  if (liveEvents.length === 0) {
+  // Merge EHR events into timeline
+  var ehrData = getEhrData(currentPersonId);
+  var ehrTimelineItems = [];
+  if (ehrData) {
+    (ehrData.encounters || []).forEach(function(enc) {
+      ehrTimelineItems.push({ event_type:'appointment', title:enc.name, event_date:enc.start_date, notes:'', source:'ehr', _ehrProvider:ehrData.provider });
+    });
+    (ehrData.conditions || []).forEach(function(c) {
+      ehrTimelineItems.push({ event_type:'note', title:c.name + ' (diagnosed)', event_date:c.onset_date || c.recorded_date, notes:'', source:'ehr', _ehrProvider:ehrData.provider });
+    });
+    (ehrData.procedures || []).forEach(function(p) {
+      ehrTimelineItems.push({ event_type:'appointment', title:p.name, event_date:p.performed_date, notes:'', source:'ehr', _ehrProvider:ehrData.provider });
+    });
+    (ehrData.observations || []).forEach(function(obs) {
+      var valStr = obs.value ? ' \u2014 ' + obs.value + (obs.unit ? ' ' + obs.unit : '') : '';
+      ehrTimelineItems.push({ event_type:'lab_result', title:obs.name + valStr, event_date:obs.effective_date, notes:'', source:'ehr', _ehrProvider:ehrData.provider });
+    });
+  }
+
+  var allEvents = liveEvents.concat(ehrTimelineItems.filter(function(e){ return e.event_date; }));
+  allEvents.sort(function(a,b) { return new Date(b.event_date) - new Date(a.event_date); });
+
+  if (allEvents.length === 0) {
     pane.innerHTML = addBtn + '<div class="timeline-section">'
       + '<div style="text-align:center;padding:48px 24px;">'
       + '<div style="font-size:32px;margin-bottom:12px;opacity:0.3;"><i data-lucide="calendar" style="width:32px;height:32px;"></i></div>'
       + '<div style="font-size:14px;color:var(--text-muted);line-height:1.6;">Appointments, medications, lab results, and your own notes \u2014 they\u2019ll all show up here in order as you add them.</div>'
+      + (!ehrData && !isDemoMode ? buildEhrPrompt() : '')
       + '</div></div>';
     initIcons();
     return;
@@ -2808,29 +2975,38 @@ function renderTimeline() {
 
   // Group by month
   var months = {};
-  liveEvents.forEach(function(ev) {
+  allEvents.forEach(function(ev) {
     var d = new Date(ev.event_date);
+    if (isNaN(d.getTime())) return;
     var key = d.getFullYear() + '-' + String(d.getMonth()).padStart(2,'0');
     var label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     if (!months[key]) months[key] = { label: label, events: [] };
     months[key].events.push(ev);
   });
 
-  var html = addBtn + '<div class="timeline-section">';
+  var html = addBtn;
+  if (ehrData) html += buildEhrStatusBar(ehrData);
+  html += '<div class="timeline-section">';
   Object.keys(months).sort().reverse().forEach(function(k) {
     html += '<div class="tl-month">' + months[k].label + '</div>';
     months[k].events.forEach(function(ev, i) {
       var isLast = i === months[k].events.length - 1;
       var typeInfo = getEventTypeInfo(ev.event_type);
       var dateStr = formatEventDate(ev.event_date);
+      var isEhr = ev.source === 'ehr';
+      var clickAttr = isEhr ? '' : ' onclick="openEditEvent(\'' + ev.id + '\')"';
       html += '<div class="tl-item">'
         + '<div class="tl-line-col"><div class="tl-dot ' + typeInfo.dot + '"></div>' + (isLast ? '' : '<div class="tl-connector"></div>') + '</div>'
-        + '<div class="tl-card ' + typeInfo.border + '" onclick="openEditEvent(\'' + ev.id + '\')">'
+        + '<div class="tl-card ' + typeInfo.border + '"' + clickAttr + '>'
         + '<div class="tl-card-type-row"><i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + typeInfo.color + ';"></i>'
-        + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span></div>'
+        + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span>'
+        + (isEhr ? ' ' + ehrBadgeHtml() : '')
+        + '</div>'
         + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
         + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
-        + '<div class="tl-card-date">' + dateStr + '</div>'
+        + '<div class="tl-card-date">' + dateStr
+        + (isEhr ? ' \u00B7 <span style="color:var(--moss);font-weight:500;">From ' + escHtml(ev._ehrProvider || 'EHR') + '</span>' : '')
+        + '</div>'
         + '</div></div>';
     });
   });
@@ -2930,6 +3106,14 @@ function renderRecordsView() {
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
   var name = person ? person.name.split(' ')[0] : 'Person';
   var activeMeds = liveMeds.filter(function(m){ return m.active; });
+  var ehrData = getEhrData(currentPersonId);
+  var ehrMeds = ehrData ? ehrData.medications || [] : [];
+  var ehrConditions = ehrData ? ehrData.conditions || [] : [];
+  var ehrAllergies = ehrData ? ehrData.allergies || [] : [];
+  var ehrObs = ehrData ? ehrData.observations || [] : [];
+  var ehrEncounters = ehrData ? ehrData.encounters || [] : [];
+  var ehrProcedures = ehrData ? ehrData.procedures || [] : [];
+  var ehrProvider = ehrData ? ehrData.provider || 'EHR' : '';
 
   var html = '<div class="view-header"><div class="view-title">Records</div>'
     + '<div style="display:flex;gap:8px;margin-top:10px;">';
@@ -2940,23 +3124,39 @@ function renderRecordsView() {
   });
   html += '</div></div>';
 
-  // Medications section
-  html += '<div class="records-section">'
-    + '<div class="record-group">'
+  // EHR status bar
+  if (ehrData) {
+    html += buildEhrStatusBar(ehrData);
+  }
+
+  html += '<div class="records-section">';
+
+  // Medications section (manual + EHR)
+  var totalMeds = activeMeds.length + ehrMeds.length;
+  html += '<div class="record-group">'
     + '<div class="record-group-header">'
     + '<div class="record-group-title"><i data-lucide="pill" style="width:14px;height:14px;color:var(--amber);"></i>Medications</div>'
-    + '<span class="record-group-count">' + activeMeds.length + ' active</span>'
+    + '<span class="record-group-count">' + totalMeds + ' active</span>'
     + '</div>';
 
-  if (activeMeds.length === 0) {
+  if (totalMeds === 0) {
     html += '<div style="text-align:center;padding:24px 16px;color:var(--text-muted);font-size:13px;font-style:italic;">No medications added yet.</div>';
+    if (!ehrData) html += buildEhrPrompt();
   } else {
     activeMeds.forEach(function(med) {
       html += '<div class="record-row" onclick="openEditMed(\'' + med.id + '\')">'
         + '<div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">' + escHtml(med.name) + (med.dose ? ' ' + escHtml(med.dose) : '') + '</div>'
-        + '<div class="record-meta">' + (med.frequency ? escHtml(med.frequency) : '') + (med.prescriber ? ' · ' + escHtml(med.prescriber) : '') + '</div></div>'
+        + '<div class="record-meta">' + (med.frequency ? escHtml(med.frequency) : '') + (med.prescriber ? ' \u00B7 ' + escHtml(med.prescriber) : '') + '</div></div>'
         + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>'
+        + '</div>';
+    });
+    ehrMeds.forEach(function(med) {
+      html += '<div class="record-row">'
+        + '<div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>'
+        + '<div style="flex:1;"><div class="record-label">' + escHtml(med.name) + ' ' + ehrBadgeHtml() + '</div>'
+        + '<div class="record-meta">' + escHtml(med.dosage || med.frequency || '') + '</div></div>'
+        + ehrProviderBadgeHtml(ehrProvider)
         + '</div>';
     });
   }
@@ -2965,33 +3165,100 @@ function renderRecordsView() {
     + '<i data-lucide="plus" style="width:15px;height:15px;"></i> Add medication</button>'
     + '</div>';
 
-  // Events by type
+  // EHR Conditions section
+  if (ehrConditions.length > 0) {
+    html += '<div class="record-group"><div class="record-group-header">'
+      + '<div class="record-group-title"><i data-lucide="stethoscope" style="width:14px;height:14px;color:var(--moss);"></i>Conditions ' + ehrBadgeHtml() + '</div>'
+      + '<span class="record-group-count">' + ehrConditions.length + ' from EHR</span></div>';
+    ehrConditions.forEach(function(c) {
+      var statusBadge = c.status === 'active' ? '<span class="record-badge amber">Active</span>' : '<span class="record-badge moss">' + escHtml(c.status || 'Recorded') + '</span>';
+      html += '<div class="record-row">'
+        + '<div class="record-icon moss"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>'
+        + '<div style="flex:1;"><div class="record-label">' + escHtml(c.name) + '</div>'
+        + '<div class="record-meta">' + (c.onset_date ? 'Since ' + formatEventDate(c.onset_date) : '') + '</div></div>'
+        + statusBadge
+        + '</div>';
+    });
+    html += '</div>';
+  }
+
+  // EHR Allergies section
+  if (ehrAllergies.length > 0) {
+    html += '<div class="record-group"><div class="record-group-header">'
+      + '<div class="record-group-title"><i data-lucide="alert-triangle" style="width:14px;height:14px;color:var(--red);"></i>Allergies ' + ehrBadgeHtml() + '</div>'
+      + '<span class="record-group-count">' + ehrAllergies.length + ' from EHR</span></div>';
+    ehrAllergies.forEach(function(a) {
+      var reactionStr = a.reactions && a.reactions.length > 0 ? a.reactions.join(', ') : '';
+      html += '<div class="record-row">'
+        + '<div class="record-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="alert-triangle" style="width:15px;height:15px;"></i></div>'
+        + '<div style="flex:1;"><div class="record-label">' + escHtml(a.name) + '</div>'
+        + '<div class="record-meta">' + (reactionStr ? escHtml(reactionStr) : '') + (a.severity ? ' \u00B7 ' + escHtml(a.severity) : '') + '</div></div>'
+        + ehrProviderBadgeHtml(ehrProvider)
+        + '</div>';
+    });
+    html += '</div>';
+  }
+
+  // Events by type (manual)
   var labEvents = liveEvents.filter(function(e){ return e.event_type === 'lab_result'; });
   var noteEvents = liveEvents.filter(function(e){ return e.event_type === 'note'; });
   var apptEvents = liveEvents.filter(function(e){ return e.event_type === 'appointment'; });
 
-  if (apptEvents.length > 0) {
+  if (apptEvents.length > 0 || ehrEncounters.length > 0) {
+    var totalAppts = apptEvents.length + ehrEncounters.length;
     html += '<div class="record-group"><div class="record-group-header">'
-      + '<div class="record-group-title"><i data-lucide="calendar-check" style="width:14px;height:14px;color:var(--moss);"></i>Appointments</div>'
-      + '<span class="record-group-count">' + apptEvents.length + ' logged</span></div>';
+      + '<div class="record-group-title"><i data-lucide="calendar-check" style="width:14px;height:14px;color:var(--moss);"></i>Appointments &amp; visits</div>'
+      + '<span class="record-group-count">' + totalAppts + ' logged</span></div>';
     apptEvents.slice(0,3).forEach(function(ev) {
       html += '<div class="record-row" onclick="openEditEvent(\'' + ev.id + '\')"><div class="record-icon moss"><i data-lucide="calendar-check" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">' + escHtml(ev.title) + '</div>'
         + '<div class="record-meta">' + formatEventDate(ev.event_date) + '</div></div>'
         + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i></div>';
     });
+    ehrEncounters.forEach(function(enc) {
+      html += '<div class="record-row"><div class="record-icon moss"><i data-lucide="calendar-check" style="width:15px;height:15px;"></i></div>'
+        + '<div style="flex:1;"><div class="record-label">' + escHtml(enc.name) + ' ' + ehrBadgeHtml() + '</div>'
+        + '<div class="record-meta">' + formatEventDate(enc.start_date) + '</div></div>'
+        + ehrProviderBadgeHtml(ehrProvider)
+        + '</div>';
+    });
     html += '</div>';
   }
 
-  if (labEvents.length > 0) {
+  // Lab results (manual + EHR)
+  var totalLabs = labEvents.length + ehrObs.length;
+  if (totalLabs > 0) {
     html += '<div class="record-group"><div class="record-group-header">'
       + '<div class="record-group-title"><i data-lucide="flask-conical" style="width:14px;height:14px;color:var(--blue);"></i>Lab results</div>'
-      + '<span class="record-group-count">' + labEvents.length + ' logged</span></div>';
+      + '<span class="record-group-count">' + totalLabs + ' logged</span></div>';
     labEvents.slice(0,3).forEach(function(ev) {
       html += '<div class="record-row" onclick="openEditEvent(\'' + ev.id + '\')"><div class="record-icon blue"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">' + escHtml(ev.title) + '</div>'
         + '<div class="record-meta">' + formatEventDate(ev.event_date) + '</div></div>'
         + '<span class="record-badge moss">Logged</span></div>';
+    });
+    ehrObs.forEach(function(obs) {
+      var valStr = obs.value ? obs.value + (obs.unit ? ' ' + obs.unit : '') : '';
+      html += '<div class="record-row"><div class="record-icon blue"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>'
+        + '<div style="flex:1;"><div class="record-label">' + escHtml(obs.name) + ' ' + ehrBadgeHtml() + '</div>'
+        + '<div class="record-meta">' + formatEventDate(obs.effective_date) + (valStr ? ' \u00B7 ' + escHtml(valStr) : '') + '</div></div>'
+        + (obs.reference_range ? '<span class="record-badge moss" title="Ref: ' + escHtml(obs.reference_range) + '">Normal</span>' : ehrProviderBadgeHtml(ehrProvider))
+        + '</div>';
+    });
+    html += '</div>';
+  }
+
+  // EHR Procedures section
+  if (ehrProcedures.length > 0) {
+    html += '<div class="record-group"><div class="record-group-header">'
+      + '<div class="record-group-title"><i data-lucide="scissors" style="width:14px;height:14px;color:var(--text-secondary);"></i>Procedures ' + ehrBadgeHtml() + '</div>'
+      + '<span class="record-group-count">' + ehrProcedures.length + ' from EHR</span></div>';
+    ehrProcedures.forEach(function(p) {
+      html += '<div class="record-row"><div class="record-icon" style="background:var(--cream);color:var(--text-secondary);"><i data-lucide="scissors" style="width:15px;height:15px;"></i></div>'
+        + '<div style="flex:1;"><div class="record-label">' + escHtml(p.name) + '</div>'
+        + '<div class="record-meta">' + formatEventDate(p.performed_date) + '</div></div>'
+        + ehrProviderBadgeHtml(ehrProvider)
+        + '</div>';
     });
     html += '</div>';
   }
@@ -3003,7 +3270,7 @@ function renderRecordsView() {
     noteEvents.slice(0,3).forEach(function(ev) {
       html += '<div class="record-row" onclick="openEditEvent(\'' + ev.id + '\')"><div class="record-icon muted"><i data-lucide="pencil-line" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">' + escHtml(ev.title) + '</div>'
-        + '<div class="record-meta">' + formatEventDate(ev.event_date) + ' · you</div></div>'
+        + '<div class="record-meta">' + formatEventDate(ev.event_date) + ' \u00B7 you</div></div>'
         + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i></div>';
     });
     html += '</div>';
@@ -3028,7 +3295,7 @@ function renderRecordsView() {
       html += '<div class="doc-row"' + clickable + '>'
         + '<div class="doc-icon"><i data-lucide="' + iconName + '" style="width:15px;height:15px;"></i></div>'
         + '<div class="doc-info"><div class="doc-name">' + escHtml(doc.file_name) + '</div>'
-        + '<div class="doc-meta">' + escHtml(doc.document_type || 'Document') + ' · ' + dateStr + '</div></div>'
+        + '<div class="doc-meta">' + escHtml(doc.document_type || 'Document') + ' \u00B7 ' + dateStr + '</div></div>'
         + '<span class="doc-status ' + statusClass + '">' + statusLabel + '</span>'
         + '<div class="doc-actions">'
         + '<button class="doc-action-btn" title="View" onclick="event.stopPropagation();viewDocument(\'' + doc.id + '\')"><i data-lucide="eye" style="width:14px;height:14px;"></i></button>'
@@ -3041,6 +3308,11 @@ function renderRecordsView() {
   html += '<button class="add-person-btn" style="border-style:dashed;margin:12px 0 4px;" onclick="openUploadById(\'' + currentPersonId + '\')">'
     + '<i data-lucide="upload-cloud" style="width:15px;height:15px;"></i> Upload document</button>'
     + '</div>';
+
+  // EHR prompt if no connection
+  if (!ehrData && !isDemoMode) {
+    html += buildEhrPrompt();
+  }
 
   html += '</div>';
   view.innerHTML = html;
@@ -4025,6 +4297,421 @@ function escHtml(t) {
   return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+// ── EHR INTEGRATION (1upHealth FHIR) ────────────────────────────────────────
+var ehrCache = {}; // { personId: { data: {...}, synced_at: '...' } }
+var _ehrConnecting = false;
+var _ehrPendingPersonId = null;
+
+// Demo EHR data for Dad
+var DEMO_EHR_DATA = {
+  conditions: [
+    { type:'condition', source:'ehr', name:"Parkinson's disease", code:'49049000', status:'active', onset_date:'2023-06-15', recorded_date:'2023-06-15' },
+    { type:'condition', source:'ehr', name:'Essential hypertension', code:'59621000', status:'active', onset_date:'2020-03-10', recorded_date:'2020-03-10' }
+  ],
+  medications: [
+    { type:'medication', source:'ehr', name:'Levodopa/Carbidopa 25-100mg', code:'197741', status:'active', dosage:'1 tablet three times daily', frequency:'3x daily', date_asserted:'2023-07-01' },
+    { type:'medication', source:'ehr', name:'Lisinopril 20mg', code:'314077', status:'active', dosage:'1 tablet daily', frequency:'Once daily', date_asserted:'2020-04-01' }
+  ],
+  allergies: [
+    { type:'allergy', source:'ehr', name:'Sulfonamide', code:'387406002', severity:'moderate', reactions:['Skin rash','Hives'], status:'active', recorded_date:'2019-11-20' }
+  ],
+  observations: [
+    { type:'observation', source:'ehr', name:'Complete blood count (CBC)', code:'58410-2', value:'', unit:'', reference_range:'', status:'final', effective_date:'2026-03-28', category:'laboratory' },
+    { type:'observation', source:'ehr', name:'White blood cell count', code:'6690-2', value:'6.8', unit:'10*3/uL', reference_range:'4.5-11.0', status:'final', effective_date:'2026-03-28', category:'laboratory' },
+    { type:'observation', source:'ehr', name:'Hemoglobin', code:'718-7', value:'14.2', unit:'g/dL', reference_range:'13.5-17.5', status:'final', effective_date:'2026-03-28', category:'laboratory' },
+    { type:'observation', source:'ehr', name:'Comprehensive metabolic panel', code:'24323-8', value:'', unit:'', reference_range:'', status:'final', effective_date:'2026-03-15', category:'laboratory' },
+    { type:'observation', source:'ehr', name:'Glucose', code:'2345-7', value:'98', unit:'mg/dL', reference_range:'70-100', status:'final', effective_date:'2026-03-15', category:'laboratory' },
+    { type:'observation', source:'ehr', name:'Creatinine', code:'2160-0', value:'1.0', unit:'mg/dL', reference_range:'0.7-1.3', status:'final', effective_date:'2026-03-15', category:'laboratory' }
+  ],
+  encounters: [
+    { type:'encounter', source:'ehr', name:'Office visit — Neurology', status:'finished', start_date:'2026-03-28', end_date:'2026-03-28', class:'AMB' },
+    { type:'encounter', source:'ehr', name:'Annual physical exam', status:'finished', start_date:'2026-02-15', end_date:'2026-02-15', class:'AMB' }
+  ],
+  procedures: [
+    { type:'procedure', source:'ehr', name:'Electroencephalogram (EEG)', code:'54093003', status:'completed', performed_date:'2026-01-10' }
+  ],
+  provider: 'Duke Health (Epic)',
+  synced_at: new Date().toISOString()
+};
+
+// Load cached EHR data from localStorage
+function loadEhrCache(personId) {
+  if (!personId) return null;
+  try {
+    var key = 'wellet_ehr_' + personId;
+    var cached = localStorage.getItem(key);
+    if (cached) {
+      var parsed = JSON.parse(cached);
+      ehrCache[personId] = parsed;
+      return parsed;
+    }
+  } catch(e) { console.warn('EHR cache read error:', e); }
+  return null;
+}
+
+// Save EHR data to localStorage
+function saveEhrCache(personId, data) {
+  if (!personId || !data) return;
+  try {
+    var key = 'wellet_ehr_' + personId;
+    ehrCache[personId] = data;
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch(e) { console.warn('EHR cache write error:', e); }
+}
+
+// Clear EHR cache for a person
+function clearEhrCache(personId) {
+  if (!personId) return;
+  try {
+    delete ehrCache[personId];
+    localStorage.removeItem('wellet_ehr_' + personId);
+  } catch(e) {}
+}
+
+// Check if cached EHR data is stale (older than 24 hours)
+function isEhrCacheStale(personId) {
+  var cached = ehrCache[personId];
+  if (!cached || !cached.synced_at) return true;
+  var age = Date.now() - new Date(cached.synced_at).getTime();
+  return age > 24 * 60 * 60 * 1000;
+}
+
+// Get EHR data for current person (demo or real)
+function getEhrData(personId) {
+  if (isDemoMode) {
+    // In demo mode, only Dad has EHR data
+    var pills = document.querySelectorAll('#view-records .person-pill, .person-pill.active');
+    var isDad = !personId || personId === 'dad';
+    if (isDad) return DEMO_EHR_DATA;
+    return null;
+  }
+  return ehrCache[personId] || loadEhrCache(personId);
+}
+
+// Start the EHR connection OAuth flow
+function startEhrConnect() {
+  if (isDemoMode) {
+    showToast('In the real app, this connects to your provider\u2019s records');
+    return;
+  }
+  if (_ehrConnecting) return;
+  if (!currentUser) {
+    showToast('Please sign in first');
+    return;
+  }
+  var personId = currentPersonId;
+  if (!personId) {
+    showToast('Please select a person first');
+    return;
+  }
+
+  _ehrConnecting = true;
+  _ehrPendingPersonId = personId;
+
+  // Store the person_id so we can use it when the callback returns
+  try { localStorage.setItem('wellet_ehr_pending_person', personId); } catch(e) {}
+
+  // Show privacy notice
+  var confirmed = confirm(
+    'Connect Health Records\n\n'
+    + 'Your health records stay on this device. Wellet processes the data to show you what matters \u2014 it\u2019s never stored on our servers.\n\n'
+    + 'You\u2019ll be redirected to select your health provider and sign in.'
+  );
+  if (!confirmed) {
+    _ehrConnecting = false;
+    return;
+  }
+
+  showToast('Connecting to health records\u2026');
+
+  // Call the oneup-auth edge function to get the authorize URL
+  db.auth.getSession().then(function(sessionRes) {
+    var session = sessionRes.data.session;
+    if (!session) {
+      showToast('Session expired. Please sign in again.');
+      _ehrConnecting = false;
+      return;
+    }
+    return fetch(SUPABASE_URL + '/functions/v1/oneup-auth', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + session.access_token,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ action: 'start', person_id: personId })
+    });
+  }).then(function(res) {
+    if (!res) return;
+    return res.json();
+  }).then(function(data) {
+    _ehrConnecting = false;
+    if (!data) return;
+    if (data.error) {
+      showToast('Error: ' + data.error);
+      return;
+    }
+    if (data.authorize_url) {
+      // Redirect to 1upHealth system picker
+      window.location.href = data.authorize_url;
+    }
+  }).catch(function(err) {
+    _ehrConnecting = false;
+    console.error('EHR connect error:', err);
+    showToast('Failed to start EHR connection');
+  });
+}
+
+// Handle the OAuth callback (called on page load if code is present)
+function handleEhrCallback() {
+  var params = new URLSearchParams(window.location.search);
+  var code = params.get('code');
+  if (!code) return;
+
+  // Get the pending person_id
+  var personId;
+  try { personId = localStorage.getItem('wellet_ehr_pending_person'); } catch(e) {}
+  if (!personId) {
+    console.warn('EHR callback: no pending person_id');
+    return;
+  }
+
+  // Clean up URL
+  try {
+    var cleanUrl = window.location.origin + window.location.pathname;
+    window.history.replaceState({}, '', cleanUrl);
+  } catch(e) {}
+
+  // Wait for auth to be ready, then exchange the code
+  var checkAuth = setInterval(function() {
+    if (!currentUser) return;
+    clearInterval(checkAuth);
+
+    showToast('Completing EHR connection\u2026');
+
+    db.auth.getSession().then(function(sessionRes) {
+      var session = sessionRes.data.session;
+      if (!session) return;
+      return fetch(SUPABASE_URL + '/functions/v1/oneup-auth', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + session.access_token,
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({ action: 'callback', code: code, person_id: personId })
+      });
+    }).then(function(res) {
+      if (!res) return;
+      return res.json();
+    }).then(function(data) {
+      if (!data) return;
+      if (data.error) {
+        showToast('EHR connection failed: ' + data.error);
+        return;
+      }
+      try { localStorage.removeItem('wellet_ehr_pending_person'); } catch(e) {}
+      showToast('Health records connected! Fetching data\u2026');
+      // Fetch EHR data now
+      fetchEhrData(personId);
+    }).catch(function(err) {
+      console.error('EHR callback error:', err);
+      showToast('EHR connection failed');
+    });
+  }, 500);
+
+  // Timeout after 15 seconds
+  setTimeout(function() { clearInterval(checkAuth); }, 15000);
+}
+
+// Fetch EHR data from the edge function
+function fetchEhrData(personId) {
+  if (isDemoMode || !currentUser || !personId) return;
+
+  db.auth.getSession().then(function(sessionRes) {
+    var session = sessionRes.data.session;
+    if (!session) return;
+    return fetch(SUPABASE_URL + '/functions/v1/fetch-ehr-data', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + session.access_token,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ person_id: personId })
+    });
+  }).then(function(res) {
+    if (!res) return;
+    return res.json();
+  }).then(function(data) {
+    if (!data || data.error) {
+      console.log('EHR fetch:', data ? data.error : 'no response');
+      return;
+    }
+    saveEhrCache(personId, data);
+    showToast('Health records updated');
+    // Re-render views with EHR data
+    if (personId === currentPersonId) {
+      renderRecordsView();
+      renderTimeline();
+    }
+  }).catch(function(err) {
+    console.error('EHR fetch error:', err);
+  });
+}
+
+// Refresh EHR data (manual button click)
+function refreshEhrData() {
+  if (isDemoMode) {
+    showToast('Demo data refreshed');
+    return;
+  }
+  var personId = currentPersonId;
+  if (!personId) return;
+  showToast('Refreshing health records\u2026');
+  fetchEhrData(personId);
+}
+
+// Disconnect EHR
+function disconnectEhr() {
+  if (isDemoMode) return;
+  var personId = currentPersonId;
+  if (!personId) return;
+  if (!confirm('Disconnect health records? Cached data on this device will be removed.')) return;
+
+  clearEhrCache(personId);
+
+  db.auth.getSession().then(function(sessionRes) {
+    var session = sessionRes.data.session;
+    if (!session) return;
+    return fetch(SUPABASE_URL + '/functions/v1/oneup-auth', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + session.access_token,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ action: 'disconnect', person_id: personId })
+    });
+  }).then(function() {
+    showToast('Health records disconnected');
+    renderRecordsView();
+    renderTimeline();
+    updateSettingsEhr();
+  }).catch(function(err) {
+    console.error('EHR disconnect error:', err);
+  });
+}
+
+// Update settings EHR status display
+function updateSettingsEhr() {
+  var statusEl = document.getElementById('settings-ehr-status');
+  var labelEl = document.getElementById('settings-ehr-label');
+  var metaEl = document.getElementById('settings-ehr-meta');
+  if (!statusEl) return;
+
+  var ehrData = getEhrData(currentPersonId);
+  if (isDemoMode && ehrData) {
+    statusEl.innerHTML = '<div class="ehr-status-bar">'
+      + '<div class="ehr-status-left"><div class="ehr-status-dot"></div>Connected to ' + escHtml(ehrData.provider) + '</div>'
+      + '<div class="ehr-status-right"><span style="font-size:11px;color:var(--text-muted);">Demo data</span></div>'
+      + '</div>';
+    if (labelEl) labelEl.textContent = 'Health Records Connected';
+    if (metaEl) metaEl.textContent = 'Demo mode \u2014 showing sample EHR data';
+  } else if (ehrData && ehrData.synced_at) {
+    var syncedStr = formatEventDate(ehrData.synced_at);
+    statusEl.innerHTML = '<div class="ehr-status-bar">'
+      + '<div class="ehr-status-left"><div class="ehr-status-dot"></div>Connected to ' + escHtml(ehrData.provider || 'EHR Provider') + '</div>'
+      + '<div class="ehr-status-right">'
+      + '<span style="font-size:11px;color:var(--text-muted);">Synced ' + syncedStr + '</span>'
+      + '<button class="ehr-refresh-btn" onclick="event.stopPropagation();refreshEhrData();" title="Refresh"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>'
+      + '<button class="ehr-refresh-btn" onclick="event.stopPropagation();disconnectEhr();" title="Disconnect" style="color:var(--red);"><i data-lucide="unplug" style="width:14px;height:14px;"></i></button>'
+      + '</div></div>';
+    if (labelEl) labelEl.textContent = 'Manage Health Records';
+    if (metaEl) metaEl.textContent = 'Connected to ' + (ehrData.provider || 'EHR Provider');
+    initIcons();
+  } else {
+    statusEl.innerHTML = '';
+    if (labelEl) labelEl.textContent = 'Connect Health Records';
+    if (metaEl) metaEl.textContent = 'Import data from your provider (Epic, Cerner, etc.)';
+  }
+}
+
+// Update profile EHR section
+function updateProfileEhr(personId) {
+  var section = document.getElementById('profile-ehr-section');
+  if (!section) return;
+  var pid = personId || currentPersonId;
+  var ehrData = getEhrData(pid);
+
+  if (isDemoMode && ehrData) {
+    section.innerHTML = '<div class="ehr-status-bar">'
+      + '<div class="ehr-status-left"><div class="ehr-status-dot"></div>Connected to ' + escHtml(ehrData.provider) + '</div>'
+      + '<div class="ehr-status-right"><span style="font-size:11px;color:var(--text-muted);">Demo</span></div>'
+      + '</div>';
+  } else if (ehrData && ehrData.synced_at) {
+    section.innerHTML = '<div class="ehr-status-bar">'
+      + '<div class="ehr-status-left"><div class="ehr-status-dot"></div>Connected to ' + escHtml(ehrData.provider || 'EHR Provider') + '</div>'
+      + '<div class="ehr-status-right">'
+      + '<button class="ehr-refresh-btn" onclick="event.stopPropagation();refreshEhrData();" title="Refresh"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>'
+      + '</div></div>';
+    initIcons();
+  } else {
+    section.innerHTML = '<div class="ehr-connect-card" onclick="startEhrConnect()">'
+      + '<div class="ehr-connect-icon"><i data-lucide="hospital" style="width:22px;height:22px;"></i></div>'
+      + '<div class="ehr-connect-title">Connect Health Records</div>'
+      + '<div class="ehr-connect-desc">Import medications, conditions, and lab results from your provider</div>'
+      + '</div>';
+    initIcons();
+  }
+}
+
+// Build EHR badge HTML
+function ehrBadgeHtml(provider) {
+  return '<span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span>';
+}
+
+function ehrProviderBadgeHtml(provider) {
+  return '<span class="ehr-provider-badge">From ' + escHtml(provider || 'EHR') + '</span>';
+}
+
+// Build EHR status bar for Records view
+function buildEhrStatusBar(ehrData) {
+  if (!ehrData || !ehrData.synced_at) return '';
+  var syncedStr = formatEventDate(ehrData.synced_at);
+  return '<div class="ehr-status-bar">'
+    + '<div class="ehr-status-left"><div class="ehr-status-dot"></div><strong>EHR Connected</strong> \u00B7 ' + escHtml(ehrData.provider || 'Provider') + '</div>'
+    + '<div class="ehr-status-right">'
+    + '<span style="font-size:11px;color:var(--text-muted);">Synced ' + syncedStr + '</span>'
+    + '<button class="ehr-refresh-btn" onclick="refreshEhrData()" title="Refresh data"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>'
+    + '</div></div>';
+}
+
+// Build the "no EHR connected" prompt
+function buildEhrPrompt() {
+  return '<div class="ehr-section-prompt">'
+    + '<i data-lucide="hospital" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:3px;color:var(--moss);"></i>'
+    + '<a onclick="startEhrConnect()">Connect health records</a> to see medications, conditions, and lab results from your provider.'
+    + '</div>';
+}
+
+// Check for auth callback code on page load
+function checkEhrCallbackOnLoad() {
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('code')) {
+    handleEhrCallback();
+  }
+}
+
+// Auto-refresh stale EHR data on person load
+function autoRefreshEhrIfNeeded(personId) {
+  if (isDemoMode || !currentUser || !personId) return;
+  var cached = loadEhrCache(personId);
+  if (cached && isEhrCacheStale(personId)) {
+    fetchEhrData(personId);
+  }
+}
+
 // ── EXISTING UI FUNCTIONS (preserved) ────────────────────────────────────────
 var _responses = {
   dad: {
@@ -4958,6 +5645,7 @@ function openProfileEdit(personId) {
   document.getElementById('profile-ec-phone-input').value = person.emergency_contact_phone || '';
   document.getElementById('profile-insurance-input').value = person.insurance_info || '';
 
+  updateProfileEhr(pid);
   document.getElementById('profile-overlay').classList.add('show');
   initIcons();
 }
@@ -5446,6 +6134,7 @@ async function removeContact() {
 
 function openSettings() {
   updateSettingsAccount();
+  updateSettingsEhr();
   if (!isDemoMode) { renderCareCircle(); }
   document.getElementById('settings-overlay').classList.add('show');
   initIcons();
