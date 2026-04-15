@@ -443,12 +443,49 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
   };
 
   // ── START ──
+  // Show a "tap to start" splash so the first audio.play() happens inside a
+  // user-gesture handler. Browsers block autoplay without a gesture.
   window.addEventListener('load', function() {
-    // Wait for the app to render (auth screen appears), then inject and start
     setTimeout(function() {
       gdInjectUI();
-      gdRunStep(0);
-    }, 2000);
+      // Build splash overlay
+      var splash = document.createElement('div');
+      splash.id = 'guided-splash';
+      splash.style.cssText = 'position:fixed;inset:0;z-index:100001;display:flex;align-items:center;'
+        + 'justify-content:center;flex-direction:column;gap:20px;'
+        + 'background:linear-gradient(160deg,#3A6152 0%,#4F7A68 40%,#608F7C 100%);'
+        + 'font-family:"DM Sans",sans-serif;text-align:center;padding:40px 24px;'
+        + 'opacity:0;transition:opacity 0.4s ease;cursor:pointer;';
+      splash.innerHTML = ''
+        + '<div style="margin-bottom:8px;">'
+        + '  <img src="/wellet-logo-white.png" alt="Wellet" style="height:40px;" onerror="this.style.display=\'none\'">'
+        + '</div>'
+        + '<h2 style="font-family:\'DM Serif Display\',serif;font-size:clamp(28px,5vw,44px);color:white;font-weight:400;line-height:1.2;margin:0;">Guided Demo</h2>'
+        + '<p style="color:rgba(255,255,255,0.7);font-size:15px;max-width:320px;line-height:1.5;margin:0;">See how Wellet helps caregivers manage their loved one\u2019s health.</p>'
+        + '<button id="gd-start-btn" style="margin-top:12px;display:flex;align-items:center;gap:10px;'
+        + 'background:white;color:#3A6152;border:none;border-radius:14px;padding:16px 36px;'
+        + 'font-size:17px;font-weight:600;cursor:pointer;font-family:inherit;'
+        + 'transition:transform 0.15s;box-shadow:0 4px 20px rgba(0,0,0,0.2);">'
+        + '<svg width="20" height="20" viewBox="0 0 24 24" fill="#3A6152" stroke="none"><polygon points="6,3 20,12 6,21"/></svg>'
+        + 'Start demo</button>'
+        + '<span style="color:rgba(255,255,255,0.45);font-size:12px;margin-top:4px;">About 2 minutes · with narration</span>';
+      document.body.appendChild(splash);
+
+      // Fade in
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() { splash.style.opacity = '1'; });
+      });
+
+      // Start on tap (user gesture unlocks audio)
+      var startBtn = document.getElementById('gd-start-btn');
+      function startDemo() {
+        splash.style.opacity = '0';
+        setTimeout(function() { splash.remove(); }, 400);
+        gdRunStep(0);
+      }
+      startBtn.addEventListener('click', function(e) { e.stopPropagation(); startDemo(); });
+      splash.addEventListener('click', startDemo);
+    }, 1500);
   });
 
 }
