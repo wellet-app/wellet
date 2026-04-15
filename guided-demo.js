@@ -1,295 +1,450 @@
 // ── WELLET GUIDED DEMO ─────────────────────────────────────────────────────
 // Self-playing walkthrough triggered by ?demo=guided
 // Plays narration audio (ElevenLabs), shows captions, navigates the app
-// Each step: { audio, caption, duration (ms), action (fn) }
+// Scroll-aware, audio-driven timing, end card overlay
 
-(function() {
-  'use strict';
+if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
 
-  if (new URLSearchParams(window.location.search).get('demo') !== 'guided') return;
-
-  // ── CONFIG ──
-  var AUDIO_BASE = '/narration/';  // folder for mp3 clips
-  var CAPTION_ID = 'guided-caption';
-  var OVERLAY_ID = 'guided-overlay';
-  var PROGRESS_ID = 'guided-progress';
-  var CONTROLS_ID = 'guided-controls';
+  var _gd = {
+    currentStep: -1,
+    isPaused: false,
+    audio: null,
+    timer: null,
+    typeInterval: null,
+    started: false
+  };
 
   // ── STEPS ──
-  // duration = time before auto-advancing (ms). Set to match audio length + pause.
-  var steps = [
-    // 0 — INTRO (on auth/landing screen)
+  // duration = fallback if audio missing. With audio, auto-advances when clip ends + 800ms pause.
+  var guidedSteps = [
+    // 0 — INTRO (auth screen visible)
     {
       audio: '00-intro.mp3',
       caption: 'This is Wellet — a health companion for family caregivers. Let me show you how it works.',
-      duration: 6000,
-      action: function() { /* stays on auth screen */ }
+      duration: 5500,
+      action: function() { /* auth screen stays visible */ }
     },
-    // 1 — Enter demo
+    // 1 — Enter demo, land on Update Me
     {
       audio: '01-enter-demo.mp3',
       caption: 'We\'ll start with Dad\'s care view. His health data is already here — pulled from his EHR, his Apple Watch, and home sensors.',
-      duration: 7000,
+      duration: 6500,
       action: function() {
         enterDemoMode();
         switchNavTo('home');
         document.querySelectorAll('.tab')[0].click();
+        gdScrollTo('#tab-update .update-card', 200);
       }
     },
-    // 2 — Update Me
+    // 2 — Update Me highlight
     {
       audio: '02-update-me.mp3',
-      caption: 'Update Me is your home base. It\'s a plain-English summary of what\'s happening right now — no medical jargon, no digging through portals.',
-      duration: 8000,
+      caption: 'Update Me is your home base. A plain-English summary of what\'s happening right now — no jargon, no portal-hopping.',
+      duration: 7500,
       action: function() {
         switchNavTo('home');
         document.querySelectorAll('.tab')[0].click();
-        highlightEl('#tab-update .update-card');
+        gdHighlight('#tab-update .update-card');
+        gdScrollTo('#tab-update .update-card', 100);
       }
     },
     // 3 — Timeline
     {
       audio: '03-timeline.mp3',
-      caption: 'The Timeline shows everything in order — appointments, lab results, medication changes, your own notes. You\'ll never have to reconstruct it from memory.',
-      duration: 8000,
+      caption: 'The Timeline shows everything in order — appointments, labs, medication changes, your own notes. Never reconstruct from memory again.',
+      duration: 7500,
       action: function() {
+        gdClearHighlight();
         document.querySelectorAll('.tab')[1].click();
-        highlightEl('#tab-timeline');
+        gdScrollTo('#tab-timeline', 100);
       }
     },
     // 4 — Patterns
     {
       audio: '04-patterns.mp3',
-      caption: 'Wellet watches for patterns — like how a medication change affected blood pressure, or whether sleep is getting worse. It surfaces what matters.',
-      duration: 8000,
+      caption: 'Wellet watches for patterns — like how a medication change affected blood pressure, or whether sleep is getting worse.',
+      duration: 7500,
       action: function() {
         document.querySelectorAll('.tab')[2].click();
-        highlightEl('#tab-patterns');
+        gdScrollTo('#tab-patterns', 100);
       }
     },
     // 5 — People
     {
       audio: '05-people.mp3',
-      caption: 'Everyone involved in care, in one place. Doctors, specialists, family members — with contact info and notes.',
-      duration: 6000,
+      caption: 'Everyone involved in care, in one place. Doctors, specialists, family members — contact info and notes.',
+      duration: 5500,
       action: function() {
-        clearHighlight();
+        gdClearHighlight();
         switchNavTo('people');
+        gdScrollTo('#view-people', 100);
       }
     },
     // 6 — Records
     {
       audio: '06-records.mp3',
-      caption: 'Upload a photo of a prescription, discharge summary, or insurance card. Wellet reads it and files it automatically.',
-      duration: 7000,
+      caption: 'Upload a photo of a prescription or discharge summary. Wellet reads it and files it automatically.',
+      duration: 6500,
       action: function() {
         switchNavTo('records');
+        gdScrollTo('#view-records', 100);
       }
     },
     // 7 — CareSignals
     {
       audio: '07-caresignals.mp3',
-      caption: 'CareSignals brings in wearable data and home sensors. You can see Dad\'s heart rate, steps, sleep — and know that the medicine cabinet was opened at 8:12 this morning.',
-      duration: 9000,
+      caption: 'CareSignals brings in wearable data and home sensors. Dad\'s heart rate, steps, sleep — and the medicine cabinet opened at 8:12 this morning.',
+      duration: 8500,
       action: function() {
         switchNavTo('signals');
+        gdScrollTo('#view-signals', 100);
       }
     },
-    // 8 — Ask Wellet (navigate)
+    // 8 — Ask Wellet intro
     {
       audio: '08-ask-intro.mp3',
       caption: 'And then there\'s Ask Wellet. Ask anything about your family member\'s health — in plain language.',
-      duration: 6000,
+      duration: 5500,
       action: function() {
         switchNavTo('ask');
+        // Clear any previous chat for a clean demo
+        var chatArea = document.getElementById('chat-area');
+        if (chatArea) {
+          var bubbles = chatArea.querySelectorAll('.chat-group');
+          // Keep only the first welcome message if present
+          for (var i = bubbles.length - 1; i > 0; i--) bubbles[i].remove();
+        }
+        var chips = document.getElementById('suggestion-chips');
+        if (chips) chips.style.display = 'flex';
       }
     },
-    // 9 — Ask Wellet (type a question)
+    // 9 — Type question
     {
       audio: '09-ask-question.mp3',
-      caption: 'Let\'s try: "Is Dad\'s blood pressure getting better since the medication change?"',
-      duration: 7000,
+      caption: '"Is Dad\'s blood pressure getting better since the medication change?"',
+      duration: 6500,
       action: function() {
+        var chips = document.getElementById('suggestion-chips');
+        if (chips) chips.style.display = 'none';
         var input = document.getElementById('ask-input');
-        var question = "Is Dad's blood pressure getting better since the medication change?";
-        input.value = '';
-        typeText(input, question, 60);
+        if (input) {
+          input.value = '';
+          input.focus();
+          gdTypeText(input, "Is Dad's blood pressure getting better since the medication change?", 55);
+        }
       }
     },
-    // 10 — Ask Wellet (send + wait for response)
+    // 10 — Send + show AI response
     {
       audio: '10-ask-response.mp3',
-      caption: 'Wellet knows the full picture — medications, labs, wearable data, sensor patterns — and answers with real context, not a generic search result.',
+      caption: 'Wellet knows the full picture — medications, labs, wearable data, sensor patterns — and answers with real context.',
       duration: 10000,
       action: function() {
+        gdClearTypeInterval();
+        // Make sure the full question is in the input before sending
+        var input = document.getElementById('ask-input');
+        if (input) input.value = "Is Dad's blood pressure getting better since the medication change?";
         sendAskMessage();
       }
     },
-    // 11 — Closing
+    // 11 — Closing with end card
     {
       audio: '11-closing.mp3',
-      caption: 'That\'s Wellet. One place to remember what matters. Try it yourself at mywellet.com — or join the waitlist at getwellet.com.',
-      duration: 8000,
+      caption: '',
+      duration: 10000,
       action: function() {
-        clearHighlight();
+        gdClearHighlight();
+        gdShowEndCard();
       }
     }
   ];
 
-  var currentStep = -1;
-  var isPaused = false;
-  var currentAudio = null;
-  var stepTimer = null;
-
-  // ── UI SETUP ──
-  function injectUI() {
-    // Caption bar
-    var caption = document.createElement('div');
-    caption.id = CAPTION_ID;
-    caption.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);'
-      + 'max-width:640px;width:calc(100% - 32px);background:rgba(0,0,0,0.82);color:white;'
-      + 'padding:14px 20px;border-radius:14px;font-family:"DM Sans",sans-serif;font-size:15px;'
-      + 'line-height:1.55;text-align:center;z-index:99999;opacity:0;transition:opacity 0.4s;'
-      + 'pointer-events:none;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);';
-    document.body.appendChild(caption);
+  // ── INJECT UI ──
+  function gdInjectUI() {
+    // Caption bar (above bottom nav, below app content)
+    var cap = document.createElement('div');
+    cap.id = 'guided-caption';
+    cap.style.cssText = 'position:fixed;bottom:84px;left:50%;transform:translateX(-50%);'
+      + 'max-width:600px;width:calc(100% - 40px);background:rgba(20,20,20,0.88);color:white;'
+      + 'padding:14px 22px;border-radius:14px;font-family:"DM Sans",sans-serif;font-size:15px;'
+      + 'line-height:1.55;text-align:center;z-index:99999;opacity:0;transition:opacity 0.4s ease;'
+      + 'pointer-events:none;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);'
+      + 'box-shadow:0 4px 24px rgba(0,0,0,0.3);';
+    document.body.appendChild(cap);
 
     // Progress bar
-    var progress = document.createElement('div');
-    progress.id = PROGRESS_ID;
-    progress.style.cssText = 'position:fixed;top:0;left:0;height:3px;background:#608F7C;'
-      + 'z-index:99999;transition:width 0.5s ease;width:0;';
-    document.body.appendChild(progress);
+    var prog = document.createElement('div');
+    prog.id = 'guided-progress';
+    prog.style.cssText = 'position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,#608F7C,#8BB5A2);'
+      + 'z-index:99999;transition:width 0.6s ease;width:0;box-shadow:0 0 8px rgba(96,143,124,0.4);';
+    document.body.appendChild(prog);
 
     // Controls
-    var controls = document.createElement('div');
-    controls.id = CONTROLS_ID;
-    controls.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);'
-      + 'display:flex;gap:8px;z-index:99999;font-family:"DM Sans",sans-serif;';
-    controls.innerHTML = ''
-      + '<button id="guided-prev" style="background:rgba(0,0,0,0.7);color:white;border:none;border-radius:10px;padding:8px 16px;font-size:13px;cursor:pointer;font-family:inherit;backdrop-filter:blur(8px);" onclick="guidedPrev()">← Back</button>'
-      + '<button id="guided-pause" style="background:#608F7C;color:white;border:none;border-radius:10px;padding:8px 20px;font-size:13px;cursor:pointer;font-family:inherit;" onclick="guidedTogglePause()">⏸ Pause</button>'
-      + '<button id="guided-next" style="background:rgba(0,0,0,0.7);color:white;border:none;border-radius:10px;padding:8px 16px;font-size:13px;cursor:pointer;font-family:inherit;backdrop-filter:blur(8px);" onclick="guidedNext()">Next →</button>'
-      + '<button id="guided-exit" style="background:rgba(0,0,0,0.5);color:rgba(255,255,255,0.7);border:none;border-radius:10px;padding:8px 14px;font-size:13px;cursor:pointer;font-family:inherit;backdrop-filter:blur(8px);" onclick="guidedExit()">✕ Exit</button>';
-    document.body.appendChild(controls);
+    var ctrl = document.createElement('div');
+    ctrl.id = 'guided-controls';
+    ctrl.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);'
+      + 'display:flex;gap:6px;z-index:99999;font-family:"DM Sans",sans-serif;';
+    ctrl.innerHTML = ''
+      + '<button onclick="gdPrev()" style="background:rgba(0,0,0,0.7);color:white;border:none;border-radius:10px;padding:8px 14px;font-size:12px;cursor:pointer;font-family:inherit;backdrop-filter:blur(8px);transition:background 0.2s;">← Back</button>'
+      + '<button id="gd-pause-btn" onclick="gdTogglePause()" style="background:#608F7C;color:white;border:none;border-radius:10px;padding:8px 18px;font-size:12px;cursor:pointer;font-family:inherit;transition:background 0.2s;">⏸ Pause</button>'
+      + '<button onclick="gdNext()" style="background:rgba(0,0,0,0.7);color:white;border:none;border-radius:10px;padding:8px 14px;font-size:12px;cursor:pointer;font-family:inherit;backdrop-filter:blur(8px);transition:background 0.2s;">Next →</button>'
+      + '<button onclick="gdExit()" style="background:rgba(0,0,0,0.45);color:rgba(255,255,255,0.65);border:none;border-radius:10px;padding:8px 12px;font-size:12px;cursor:pointer;font-family:inherit;backdrop-filter:blur(8px);">✕</button>';
+    document.body.appendChild(ctrl);
+
+    // End card overlay (hidden)
+    var ec = document.createElement('div');
+    ec.id = 'guided-endcard';
+    ec.style.cssText = 'position:fixed;inset:0;z-index:100000;display:none;align-items:center;justify-content:center;'
+      + 'background:linear-gradient(160deg,#3A6152 0%,#4F7A68 40%,#608F7C 100%);'
+      + 'font-family:"DM Sans",sans-serif;flex-direction:column;padding:40px 24px;text-align:center;'
+      + 'opacity:0;transition:opacity 0.6s ease;';
+    ec.innerHTML = ''
+      + '<div style="margin-bottom:16px;">'
+      + '  <img src="/wellet-logo-white.png" alt="Wellet" style="height:48px;" onerror="this.style.display=\'none\'">'
+      + '</div>'
+      + '<p style="color:rgba(255,255,255,0.7);font-size:16px;margin-bottom:32px;">Your health companion for caregivers</p>'
+      + '<h2 style="font-family:\'DM Serif Display\',serif;font-size:clamp(32px,6vw,52px);color:white;font-weight:400;margin-bottom:40px;line-height:1.15;">See what Wellet can do.</h2>'
+      + '<div style="display:flex;flex-direction:column;gap:14px;width:100%;max-width:340px;margin-bottom:36px;">'
+      + '  <a href="https://mywellet.com" style="display:flex;align-items:center;justify-content:center;gap:8px;background:white;color:#3A6152;border-radius:14px;padding:16px 24px;font-size:17px;font-weight:600;text-decoration:none;transition:transform 0.2s;">Try it yourself <span style="font-size:20px;">→</span></a>'
+      + '  <span style="color:rgba(255,255,255,0.5);font-size:13px;">mywellet.com</span>'
+      + '  <a href="https://getwellet.com" style="display:flex;align-items:center;justify-content:center;gap:8px;background:transparent;color:white;border:2px solid rgba(255,255,255,0.5);border-radius:14px;padding:14px 24px;font-size:17px;font-weight:500;text-decoration:none;transition:border-color 0.2s;">Join the waitlist <span style="font-size:20px;">→</span></a>'
+      + '  <span style="color:rgba(255,255,255,0.5);font-size:13px;">getwellet.com</span>'
+      + '</div>'
+      + '<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-bottom:auto;">'
+      + '  <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);">AI health summaries</span>'
+      + '  <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);">EHR integration</span>'
+      + '  <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);">Wearable tracking</span>'
+      + '  <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);">Home sensors</span>'
+      + '  <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);">HIPAA compliant</span>'
+      + '</div>';
+    document.body.appendChild(ec);
   }
 
   // ── STEP RUNNER ──
-  function runStep(idx) {
-    if (idx < 0 || idx >= steps.length) return;
-    currentStep = idx;
+  function gdRunStep(idx) {
+    if (idx < 0 || idx >= guidedSteps.length) return;
+    _gd.currentStep = idx;
 
-    // Clear previous
-    if (stepTimer) clearTimeout(stepTimer);
-    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+    // Cleanup
+    if (_gd.timer) { clearTimeout(_gd.timer); _gd.timer = null; }
+    if (_gd.audio) { _gd.audio.pause(); _gd.audio.currentTime = 0; _gd.audio = null; }
+    gdClearTypeInterval();
 
-    var step = steps[idx];
-    var caption = document.getElementById(CAPTION_ID);
-    var progress = document.getElementById(PROGRESS_ID);
+    var step = guidedSteps[idx];
+    var capEl = document.getElementById('guided-caption');
+    var progEl = document.getElementById('guided-progress');
+
+    // Hide end card if going backwards
+    var ec = document.getElementById('guided-endcard');
+    if (ec && idx < guidedSteps.length - 1) {
+      ec.style.opacity = '0';
+      setTimeout(function() { ec.style.display = 'none'; }, 400);
+    }
+
+    // Show controls (might be hidden from end card)
+    var ctrl = document.getElementById('guided-controls');
+    if (ctrl) ctrl.style.display = 'flex';
 
     // Progress
-    progress.style.width = ((idx + 1) / steps.length * 100) + '%';
+    if (progEl) progEl.style.width = ((idx + 1) / guidedSteps.length * 100) + '%';
 
-    // Action
+    // Run action
     if (step.action) step.action();
 
     // Caption
-    caption.textContent = step.caption;
-    caption.style.opacity = '1';
-
-    // Audio
-    if (step.audio) {
-      currentAudio = new Audio(AUDIO_BASE + step.audio);
-      currentAudio.play().catch(function(e) { console.log('Audio play blocked:', e); });
+    if (capEl) {
+      if (step.caption) {
+        capEl.textContent = step.caption;
+        capEl.style.opacity = '1';
+      } else {
+        capEl.style.opacity = '0';
+      }
     }
 
-    // Auto-advance
-    if (!isPaused) {
-      stepTimer = setTimeout(function() {
-        if (idx < steps.length - 1) {
-          runStep(idx + 1);
+    // Audio + auto-advance
+    if (!_gd.isPaused) {
+      gdPlayAndAdvance(idx, step);
+    }
+  }
+
+  function gdPlayAndAdvance(idx, step) {
+    var audioFile = '/narration/' + step.audio;
+    var aud = new Audio(audioFile);
+    _gd.audio = aud;
+    var useAudioTiming = false; // true when real narration clips are present
+
+    var advanced = false;
+    function advance() {
+      if (advanced) return;
+      advanced = true;
+      if (_gd.currentStep === idx && !_gd.isPaused) {
+        _gd.timer = setTimeout(function() {
+          if (idx < guidedSteps.length - 1) {
+            gdRunStep(idx + 1);
+          } else {
+            var capEl = document.getElementById('guided-caption');
+            if (capEl) capEl.style.opacity = '0';
+          }
+        }, 800);
+      }
+    }
+
+    // Error fallback
+    aud.addEventListener('error', function() {
+      _gd.timer = setTimeout(advance, step.duration);
+    });
+
+    aud.play().then(function() {
+      // Check audio length once metadata loads
+      function checkDuration() {
+        if (aud.duration && aud.duration > 2.5) {
+          // Real narration clip — advance when it ends
+          useAudioTiming = true;
+          aud.addEventListener('ended', advance);
         } else {
-          // Demo complete
-          caption.textContent = 'Demo complete. Use the controls below or explore on your own.';
-          setTimeout(function() { caption.style.opacity = '0'; }, 5000);
+          // Placeholder or very short — use step duration
+          _gd.timer = setTimeout(advance, step.duration);
         }
-      }, step.duration);
-    }
+      }
+      if (aud.readyState >= 1) {
+        checkDuration();
+      } else {
+        aud.addEventListener('loadedmetadata', checkDuration);
+      }
+    }).catch(function() {
+      // Autoplay blocked — fall back to timer
+      _gd.timer = setTimeout(advance, step.duration);
+    });
+
+    // Safety net: never hang longer than duration + 8s
+    setTimeout(function() { advance(); }, step.duration + 8000);
   }
 
-  // ── HIGHLIGHT HELPERS ──
-  function highlightEl(selector) {
-    clearHighlight();
+  // ── HIGHLIGHTS ──
+  function gdHighlight(selector) {
+    gdClearHighlight();
     var el = document.querySelector(selector);
-    if (el) {
-      el.style.transition = 'box-shadow 0.3s';
-      el.style.boxShadow = '0 0 0 3px rgba(96,143,124,0.4), 0 0 20px rgba(96,143,124,0.15)';
-      el.style.borderRadius = '12px';
-      el.dataset.guidedHighlight = '1';
-    }
+    if (!el) return;
+    el.style.transition = 'box-shadow 0.4s ease';
+    el.style.boxShadow = '0 0 0 3px rgba(96,143,124,0.45), 0 0 24px rgba(96,143,124,0.15)';
+    el.style.borderRadius = '14px';
+    el.dataset.gdHighlight = '1';
   }
 
-  function clearHighlight() {
-    document.querySelectorAll('[data-guided-highlight]').forEach(function(el) {
+  function gdClearHighlight() {
+    document.querySelectorAll('[data-gd-highlight]').forEach(function(el) {
       el.style.boxShadow = '';
-      delete el.dataset.guidedHighlight;
+      el.style.borderRadius = '';
+      delete el.dataset.gdHighlight;
     });
   }
 
-  // ── TYPE ANIMATION ──
-  function typeText(input, text, charDelay) {
+  // ── SCROLL ──
+  function gdScrollTo(selector, delay) {
+    setTimeout(function() {
+      var el = document.querySelector(selector);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, delay || 200);
+  }
+
+  // ── TYPING ──
+  function gdTypeText(input, text, charDelay) {
+    gdClearTypeInterval();
     var i = 0;
     input.value = '';
     input.focus();
-    var interval = setInterval(function() {
+    _gd.typeInterval = setInterval(function() {
       if (i < text.length) {
         input.value += text[i];
         i++;
       } else {
-        clearInterval(interval);
+        gdClearTypeInterval();
       }
     }, charDelay);
   }
 
-  // ── CONTROLS ──
-  window.guidedNext = function() { runStep(Math.min(currentStep + 1, steps.length - 1)); };
-  window.guidedPrev = function() { runStep(Math.max(currentStep - 1, 0)); };
-  window.guidedTogglePause = function() {
-    isPaused = !isPaused;
-    var btn = document.getElementById('guided-pause');
-    if (isPaused) {
-      btn.textContent = '▶ Play';
-      if (stepTimer) clearTimeout(stepTimer);
-      if (currentAudio) currentAudio.pause();
+  function gdClearTypeInterval() {
+    if (_gd.typeInterval) { clearInterval(_gd.typeInterval); _gd.typeInterval = null; }
+  }
+
+  // ── END CARD ──
+  function gdShowEndCard() {
+    var ec = document.getElementById('guided-endcard');
+    if (!ec) return;
+    ec.style.display = 'flex';
+    // Force reflow then animate
+    ec.offsetHeight;
+    ec.style.opacity = '1';
+    // Hide controls behind end card
+    var ctrl = document.getElementById('guided-controls');
+    if (ctrl) ctrl.style.display = 'none';
+  }
+
+  // ── CONTROLS (global) ──
+  window.gdNext = function() {
+    _gd.isPaused = false;
+    var btn = document.getElementById('gd-pause-btn');
+    if (btn) btn.textContent = '⏸ Pause';
+    gdRunStep(Math.min(_gd.currentStep + 1, guidedSteps.length - 1));
+  };
+
+  window.gdPrev = function() {
+    _gd.isPaused = false;
+    var btn = document.getElementById('gd-pause-btn');
+    if (btn) btn.textContent = '⏸ Pause';
+    gdRunStep(Math.max(_gd.currentStep - 1, 0));
+  };
+
+  window.gdTogglePause = function() {
+    _gd.isPaused = !_gd.isPaused;
+    var btn = document.getElementById('gd-pause-btn');
+    if (_gd.isPaused) {
+      if (btn) btn.textContent = '▶ Play';
+      if (_gd.timer) { clearTimeout(_gd.timer); _gd.timer = null; }
+      if (_gd.audio) _gd.audio.pause();
+      gdClearTypeInterval();
     } else {
-      btn.textContent = '⏸ Pause';
-      // Resume from current step
-      var remaining = steps[currentStep].duration * 0.5; // rough remaining
-      if (currentAudio) currentAudio.play().catch(function(){});
-      stepTimer = setTimeout(function() {
-        if (currentStep < steps.length - 1) runStep(currentStep + 1);
-      }, remaining);
+      if (btn) btn.textContent = '⏸ Pause';
+      // Resume: replay current step's audio-advance logic
+      var step = guidedSteps[_gd.currentStep];
+      if (_gd.audio && _gd.audio.paused) {
+        _gd.audio.play().catch(function(){});
+      }
+      gdPlayAndAdvance(_gd.currentStep, step);
     }
   };
-  window.guidedExit = function() {
-    isPaused = true;
-    if (stepTimer) clearTimeout(stepTimer);
-    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
-    var caption = document.getElementById(CAPTION_ID);
-    if (caption) caption.style.opacity = '0';
-    var controls = document.getElementById(CONTROLS_ID);
-    if (controls) controls.style.display = 'none';
-    var progress = document.getElementById(PROGRESS_ID);
-    if (progress) progress.style.display = 'none';
-    clearHighlight();
+
+  window.gdExit = function() {
+    _gd.isPaused = true;
+    if (_gd.timer) { clearTimeout(_gd.timer); _gd.timer = null; }
+    if (_gd.audio) { _gd.audio.pause(); _gd.audio = null; }
+    gdClearTypeInterval();
+    gdClearHighlight();
+
+    var cap = document.getElementById('guided-caption');
+    if (cap) { cap.style.opacity = '0'; setTimeout(function() { cap.remove(); }, 500); }
+    var ctrl = document.getElementById('guided-controls');
+    if (ctrl) ctrl.remove();
+    var prog = document.getElementById('guided-progress');
+    if (prog) prog.remove();
+    var ec = document.getElementById('guided-endcard');
+    if (ec) { ec.style.opacity = '0'; setTimeout(function() { ec.remove(); }, 500); }
+
+    // Drop the ?demo=guided param so refreshes don't restart
+    if (window.history && window.history.replaceState) {
+      var url = new URL(window.location);
+      url.searchParams.delete('demo');
+      window.history.replaceState({}, '', url);
+    }
   };
 
-  // ── INIT ──
-  // Wait for app load, then start
+  // ── START ──
   window.addEventListener('load', function() {
+    // Wait for the app to render (auth screen appears), then inject and start
     setTimeout(function() {
-      injectUI();
-      runStep(0);
-    }, 1500); // let the app render first
+      gdInjectUI();
+      gdRunStep(0);
+    }, 2000);
   });
 
-})();
+}
