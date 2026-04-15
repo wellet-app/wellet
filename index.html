@@ -72,6 +72,21 @@
   .auth-sent-icon { width: 52px; height: 52px; border-radius: 50%; background: var(--mint); display: flex; align-items: center; justify-content: center; color: var(--moss); margin: 0 auto 16px; }
   .auth-sent-title { font-family: 'DM Serif Display', serif; font-size: 20px; margin-bottom: 8px; }
   .auth-sent-body { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
+  .auth-gate { display: none; text-align: center; padding: 24px 0; }
+  .auth-gate-icon { width: 52px; height: 52px; border-radius: 50%; background: var(--mint); display: flex; align-items: center; justify-content: center; color: var(--moss); margin: 0 auto 16px; }
+  .auth-gate-title { font-family: 'DM Serif Display', serif; font-size: 20px; margin-bottom: 8px; }
+  .auth-gate-body { font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 16px; }
+  .auth-gate-input-wrap { margin-bottom: 12px; }
+  .auth-gate-input { width: 100%; padding: 14px 16px; border: 1.5px solid var(--border); border-radius: 12px; font-family: 'DM Sans', sans-serif; font-size: 15px; color: var(--text); background: var(--cream); box-sizing: border-box; }
+  .auth-gate-input:focus { outline: none; border-color: var(--moss); background: #fff; }
+  .auth-gate-success { display: none; text-align: center; padding: 12px 0 0; }
+  .auth-gate-success-icon { width: 44px; height: 44px; border-radius: 50%; background: var(--mint); display: flex; align-items: center; justify-content: center; color: var(--moss); margin: 0 auto 12px; }
+  .auth-gate-success-title { font-family: 'DM Serif Display', serif; font-size: 18px; margin-bottom: 6px; }
+  .auth-gate-success-body { font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 12px; }
+  .auth-gate-link { font-size: 13px; color: var(--moss); text-decoration: none; font-weight: 500; }
+  .auth-gate-link:hover { text-decoration: underline; }
+  .auth-gate-back { background: none; border: none; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--moss); cursor: pointer; padding: 0; margin-top: 12px; }
+  .auth-gate-back:hover { text-decoration: underline; }
   .auth-demo-link { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14px; color: var(--moss); cursor: pointer; background: transparent; border: 1.5px solid var(--moss); border-radius: 12px; font-family: 'DM Sans', sans-serif; font-weight: 500; padding: 11px 16px; transition: background 0.15s; flex: 1; }
   .auth-demo-link:hover { background: var(--mint); }
   .auth-links-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 12px; }
@@ -835,6 +850,35 @@
         <i data-lucide="play" style="width:14px;height:14px;"></i>
         Try the demo while you wait
       </button>
+    </div>
+    <div id="auth-gate-state" class="auth-gate">
+      <div class="auth-gate-icon"><i data-lucide="lock" style="width:24px;height:24px;"></i></div>
+      <div class="auth-gate-title">Private alpha</div>
+      <p class="auth-gate-body">Wellet is in private alpha right now. Drop your email below and we'll let you know when it's your turn.</p>
+      <div id="auth-gate-form">
+        <div class="auth-gate-input-wrap">
+          <input type="email" id="auth-gate-email" class="auth-gate-input" placeholder="you@email.com" autocomplete="email">
+        </div>
+        <button class="btn-primary" onclick="submitWaitlistRequest()" id="auth-gate-btn">
+          Request access <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>
+        </button>
+      </div>
+      <div id="auth-gate-success" class="auth-gate-success">
+        <div class="auth-gate-success-icon"><i data-lucide="check" style="width:22px;height:22px;"></i></div>
+        <div class="auth-gate-success-title">You're on the list</div>
+        <p class="auth-gate-success-body">We'll send you a magic link when your spot opens.</p>
+        <a href="https://getwellet.com" target="_blank" rel="noopener" class="auth-gate-link">Learn more about Wellet &rarr;</a>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:16px;">
+        <button class="auth-demo-link" style="width:100%;" onclick="enterDemoMode()">
+          <i data-lucide="play-circle" style="width:14px;height:14px;"></i>
+          Try the demo
+        </button>
+        <button class="auth-gate-back" onclick="showAuthFormState()">
+          <i data-lucide="arrow-left" style="width:12px;height:12px;vertical-align:middle;"></i>
+          Back to sign in
+        </button>
+      </div>
     </div>
     <div class="auth-privacy">
     <p>No password required. <button class="auth-privacy-toggle" onclick="togglePrivacyDetail()"><strong>Your data stays private</strong> <i data-lucide="chevron-down" style="width:12px;height:12px;vertical-align:middle;" id="privacy-chevron"></i></button></p>
@@ -2367,8 +2411,17 @@ window.addEventListener('load', function() { initIcons(); initVoiceInput(); });
 // ── AUTH FLOW ────────────────────────────────────────────────────────────────
 async function initApp() {
   try {
-    const { data: { session } } = await db.auth.getSession();
+    var { data: { session } } = await db.auth.getSession();
     if (session) {
+      // Verify the user is still on the alpha allowlist
+      var stillAllowed = await checkAlphaAllowlist(session.user.email);
+      if (!stillAllowed) {
+        console.warn('User removed from alpha allowlist — signing out');
+        await db.auth.signOut();
+        showAuthScreen();
+        showToast('Your alpha access has been revoked');
+        return;
+      }
       currentUser = session.user;
       await loadUserData();
     } else {
@@ -2381,6 +2434,14 @@ async function initApp() {
   // Handle auth state changes (magic link callback)
   db.auth.onAuthStateChange(async (event, session) => {
     if (event === 'SIGNED_IN' && session) {
+      // Verify allowlist on sign-in too
+      var allowed = await checkAlphaAllowlist(session.user.email);
+      if (!allowed) {
+        await db.auth.signOut();
+        showAuthScreen();
+        showToast('Your email is not on the alpha list');
+        return;
+      }
       currentUser = session.user;
       await loadUserData();
     } else if (event === 'SIGNED_OUT') {
@@ -2437,16 +2498,39 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
+async function checkAlphaAllowlist(email) {
+  var normalized = email.toLowerCase().trim();
+  var { data, error } = await db
+    .from('alpha_allowlist')
+    .select('id')
+    .eq('email', normalized)
+    .maybeSingle();
+  if (error) { console.error('Allowlist check error:', error); return false; }
+  return !!data;
+}
+
 async function sendMagicLink() {
-  const email = document.getElementById('auth-email').value.trim();
+  var email = document.getElementById('auth-email').value.trim();
   if (!email) { showToast('Please enter your email'); return; }
+  var btn = document.getElementById('auth-send-btn');
+  btn.disabled = true;
+  btn.textContent = 'Checking…';
+
+  // Alpha gate: check allowlist before sending magic link
+  var allowed = await checkAlphaAllowlist(email);
+  if (!allowed) {
+    btn.disabled = false;
+    btn.innerHTML = 'Send magic link <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>';
+    initIcons();
+    showAlphaGate(email);
+    return;
+  }
+
+  btn.textContent = 'Sending…';
   var sentEmail = document.getElementById('auth-sent-email');
   if (sentEmail) sentEmail.textContent = email;
-  const btn = document.getElementById('auth-send-btn');
-  btn.disabled = true;
-  btn.textContent = 'Sending…';
-  const { error } = await db.auth.signInWithOtp({
-    email,
+  var { error } = await db.auth.signInWithOtp({
+    email: email,
     options: { emailRedirectTo: 'https://mywellet.com' }
   });
   if (error) {
@@ -2457,7 +2541,51 @@ async function sendMagicLink() {
   } else {
     document.getElementById('auth-form-state').style.display = 'none';
     document.getElementById('auth-sent-state').style.display = 'block';
+    document.getElementById('auth-gate-state').style.display = 'none';
   }
+}
+
+function showAlphaGate(email) {
+  document.getElementById('auth-form-state').style.display = 'none';
+  document.getElementById('auth-sent-state').style.display = 'none';
+  document.getElementById('auth-gate-state').style.display = 'block';
+  // Pre-fill the gate email input with what they already typed
+  var gateInput = document.getElementById('auth-gate-email');
+  if (gateInput && email) gateInput.value = email;
+  // Reset to form view (hide success in case they come back)
+  document.getElementById('auth-gate-form').style.display = 'block';
+  document.getElementById('auth-gate-success').style.display = 'none';
+  initIcons();
+}
+
+function showAuthFormState() {
+  document.getElementById('auth-form-state').style.display = 'block';
+  document.getElementById('auth-sent-state').style.display = 'none';
+  document.getElementById('auth-gate-state').style.display = 'none';
+  initIcons();
+}
+
+async function submitWaitlistRequest() {
+  var email = document.getElementById('auth-gate-email').value.trim();
+  if (!email) { showToast('Please enter your email'); return; }
+  var btn = document.getElementById('auth-gate-btn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting…';
+  var { error } = await db.from('waitlist_requests').upsert(
+    { email: email.toLowerCase(), requested_at: new Date().toISOString() },
+    { onConflict: 'email' }
+  );
+  if (error) {
+    showToast('Error: ' + error.message);
+    btn.disabled = false;
+    btn.innerHTML = 'Request access <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>';
+    initIcons();
+    return;
+  }
+  // Show success
+  document.getElementById('auth-gate-form').style.display = 'none';
+  document.getElementById('auth-gate-success').style.display = 'block';
+  initIcons();
 }
 
 async function handleLogout() {
@@ -3759,6 +3887,10 @@ function showAuthScreen() {
   document.getElementById('landing').style.display = 'none';
   document.getElementById('app').style.display = 'none';
   document.getElementById('onboarding').style.display = 'none';
+  // Reset auth sub-states to default (show form, hide sent/gate)
+  document.getElementById('auth-form-state').style.display = 'block';
+  document.getElementById('auth-sent-state').style.display = 'none';
+  document.getElementById('auth-gate-state').style.display = 'none';
   window.scrollTo(0, 0);
   initIcons();
 }
