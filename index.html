@@ -5401,6 +5401,70 @@ function fuzzyMatchDemoResponse(text, person) {
   return null;
 }
 
+function buildDemoContext(person) {
+  if (person === 'mom') {
+    return 'Patient: Mom (Margaret Bell)\n'
+      + 'Relationship: Mother\n'
+      + 'Conditions: Hypercholesterolemia (controlled), Hypothyroidism (managed)\n'
+      + 'Allergies: None recorded\n\n'
+      + 'Active medications:\n'
+      + '- Atorvastatin 20mg, daily (cholesterol)\n'
+      + '- Levothyroxine 50mcg, daily (thyroid)\n'
+      + '- Vitamin D3 2000IU, daily\n\n'
+      + 'Recent health events:\n'
+      + '- [2026-04-04] Appointment: Annual check-up\n'
+      + '- [2026-03-15] Lab result: Lipid panel — within normal range\n'
+      + '- [2026-03-15] Lab result: TSH 2.4 mIU/L — normal range (0.4-4.0)\n\n'
+      + 'Summary: Mom is stable. Her hypercholesterolemia is well-controlled with Atorvastatin, '
+      + 'and her hypothyroidism is managed with Levothyroxine. Last TSH was 2.4 mIU/L — right in range. '
+      + 'No significant changes this month. Next appointment is April 4.';
+  }
+  // Dad — built from DEMO_EHR_DATA + DEMO_CARESIGNALS
+  var ctx = 'Patient: Dad (John Bell), age 74\n'
+    + 'Relationship: Father\n'
+    + 'Conditions: Parkinson\'s disease (active, onset June 2023), Essential hypertension (active, onset March 2020)\n'
+    + 'Allergies: Sulfonamide (moderate — skin rash, hives)\n'
+    + 'Primary doctor: Dr. Johnson (Primary Care)\n\n'
+    + 'Active medications:\n'
+    + '- Levodopa/Carbidopa 25-100mg, 1 tablet three times daily (Parkinson\'s)\n'
+    + '- Lisinopril 20mg, 1 tablet daily (hypertension)\n'
+    + '- Hydrochlorothiazide 25mg, daily (hypertension — dose increased from 12.5mg on Feb 18)\n'
+    + '- Gleevec (Imatinib) 400mg, daily (CML)\n'
+    + '- Citalopram 10mg, daily\n'
+    + '- Metoprolol 50mg, daily\n'
+    + '- Zepbound 12.5mg, weekly injection\n\n'
+    + 'Recent health events (newest first):\n'
+    + '- [2026-03-28] Office visit — Neurology\n'
+    + '- [2026-03-28] Lab: Complete blood count (CBC) — WBC 6.8 10*3/uL (normal 4.5-11.0), Hemoglobin 14.2 g/dL (normal 13.5-17.5)\n'
+    + '- [2026-03-16] Upcoming appointment: Dr. Johnson — BP check & medication review\n'
+    + '- [2026-03-15] Lab: Comprehensive metabolic panel — Glucose 98 mg/dL (normal 70-100), Creatinine 1.0 mg/dL (normal 0.7-1.3)\n'
+    + '- [2026-02-28] Lab: CML BCR-ABL test — <0.001 (undetectable), down from <0.003 six months ago\n'
+    + '- [2026-02-18] Medication change: Hydrochlorothiazide increased 12.5mg to 25mg\n'
+    + '- [2026-02-15] Annual physical exam\n'
+    + '- [2026-02-14] Physical therapy — knee rehab session #12 (2 months post-op, second peroneal knee release)\n'
+    + '- [2026-01-10] Procedure: Electroencephalogram (EEG)\n\n'
+    + 'EHR provider: Duke Health (Epic)\n\n'
+    + 'Wearable data (Apple Watch, synced via WelletBridge):\n'
+    + '- Heart rate: current 72 bpm, resting 64, range 58-94\n'
+    + '- Steps today: 3,847 of 6,000 goal\n'
+    + '- Sleep last night: 6h 42m total (52min deep, 3h 18m core, 1h 32m REM, 38min awake). Bed 10:42 PM, wake 5:24 AM\n'
+    + '- SpO2: 96% (range 94-98%)\n'
+    + '- HRV: 28ms\n\n'
+    + 'Home sensors (CareSignals):\n'
+    + '- Hallway motion: 12 events today, last at 7:42 AM\n'
+    + '- Fridge: 4 events today, last at 7:15 AM (breakfast)\n'
+    + '- Medicine cabinet: 1 event today at 8:12 AM (morning dose taken)\n'
+    + '- Bedroom motion: 3 events today, last at 6:48 AM\n\n'
+    + 'Patterns observed:\n'
+    + '- Morning routine is consistent: waking 6:30-7:00 AM, breakfast within 30 min, 7 days running\n'
+    + '- Medication adherence improving: missed doses decreased from 4 last week to 1 this week\n'
+    + '- Blood pressure has been running higher since the Feb 18 Hydrochlorothiazide dose change (averaging 142/89). '
+    + 'BP medications can take 2-4 weeks to show full effect. Dr. Johnson reviewing at March 16 visit.\n'
+    + '- CML responding well: BCR-ABL undetectable (<0.001), down from <0.003. Dr. Edwards pleased with Gleevec response. '
+    + 'Next oncology labs due in ~6 weeks.';
+  return ctx;
+}
+
 function sendAskMessage() {
   var input = document.getElementById('ask-input');
   var text = input.value.trim();
@@ -5441,19 +5505,43 @@ function sendAskMessage() {
       }
     })();
   } else {
-    // Demo mode — use fuzzy keyword matching, then exact, then default
-    setTimeout(function() {
-      removeTyping(typingId);
-      var responses = _responses[_currentAskPerson] || _responses['dad'];
-      var exactMatch = responses[text];
-      if (exactMatch) {
-        addWelletMessage(exactMatch);
-      } else {
-        var fuzzyKey = fuzzyMatchDemoResponse(text, _currentAskPerson);
-        var reply = fuzzyKey ? responses[fuzzyKey] : responses['default'];
-        addWelletMessage(reply);
+    // Demo mode — call LLM via demo-ask edge function, canned responses as fallback
+    (async function() {
+      try {
+        var context = buildDemoContext(_currentAskPerson);
+        var res = await fetch(
+          'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/demo-ask',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question: text, context: context })
+          }
+        );
+        removeTyping(typingId);
+        if (res.ok) {
+          var data = await res.json();
+          if (data.answer) {
+            addWelletMessage(escHtml(data.answer));
+          } else {
+            throw new Error('empty');
+          }
+        } else {
+          throw new Error('status ' + res.status);
+        }
+      } catch (e) {
+        // Fallback to canned responses
+        removeTyping(typingId);
+        var responses = _responses[_currentAskPerson] || _responses['dad'];
+        var exactMatch = responses[text];
+        if (exactMatch) {
+          addWelletMessage(exactMatch);
+        } else {
+          var fuzzyKey = fuzzyMatchDemoResponse(text, _currentAskPerson);
+          var reply = fuzzyKey ? responses[fuzzyKey] : responses['default'];
+          addWelletMessage(reply);
+        }
       }
-    }, 900 + Math.random() * 600);
+    })();
   }
 }
 
