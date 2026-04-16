@@ -753,6 +753,15 @@
   .ext-add-btn { background: var(--mint); border: none; border-radius: 8px; padding: 6px 12px; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; color: var(--moss-dark); cursor: pointer; transition: background 0.15s; display: flex; align-items: center; gap: 4px; flex-shrink: 0; margin-top: 2px; }
   .ext-add-btn:hover { background: var(--mint-deep); }
   .ext-add-btn.added { background: var(--mint); color: var(--moss); pointer-events: none; }
+  .ext-edit-btn { background: none; border: none; padding: 4px; cursor: pointer; color: var(--text-muted); border-radius: 6px; transition: color 0.15s, background 0.15s; flex-shrink: 0; }
+  .ext-edit-btn:hover { color: var(--moss-dark); background: var(--mint); }
+  .ext-item-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; margin-top: 2px; }
+  .ext-edit-input { width: 100%; border: 1px solid var(--border-medium); border-radius: 8px; padding: 8px 10px; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text-primary); background: var(--cream); outline: none; transition: border-color 0.15s; }
+  .ext-edit-input:focus { border-color: var(--moss); }
+  .ext-edit-input.ext-title-input { font-size: 14px; font-weight: 500; }
+  .ext-edit-row { display: flex; gap: 6px; margin-top: 8px; }
+  .ext-save-btn { background: var(--moss); color: white; border: none; border-radius: 8px; padding: 6px 14px; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; }
+  .ext-cancel-btn { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; font-family: 'DM Sans', sans-serif; font-size: 12px; cursor: pointer; }
   .ext-actions { padding: 16px 20px 0; display: flex; flex-direction: column; gap: 8px; }
   .ext-dismiss { background: none; border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text-muted); padding: 8px; text-align: center; }
   .ext-dismiss:hover { color: var(--text-primary); }
@@ -4158,6 +4167,8 @@ function showExtractionResults(docId) {
   initIcons();
 }
 
+var _editingExtIdx = -1;
+
 function renderExtractedItems() {
   var container = document.getElementById('ext-items-list');
   var html = '';
@@ -4165,20 +4176,39 @@ function renderExtractedItems() {
   _currentExtItems.forEach(function(item, idx) {
     var typeInfo = getEventTypeInfo(item.type);
     var isAdded = _addedExtItems[idx];
+    var isEditing = (_editingExtIdx === idx);
 
-    html += '<div class="ext-item">'
+    html += '<div class="ext-item"'
+      + (isEditing ? ' style="flex-wrap:wrap;"' : '') + '>'
       + '<div class="ext-item-icon" style="background:' + getExtItemBg(item.type) + ';color:' + typeInfo.color + ';">'
-      + '<i data-lucide="' + typeInfo.icon + '" style="width:15px;height:15px;"></i></div>'
-      + '<div class="ext-item-body">'
-      + '<div class="ext-item-title">' + escHtml(item.title) + '</div>'
-      + '<div class="ext-item-detail">' + escHtml(item.detail || '') + '</div>'
-      + '</div>';
+      + '<i data-lucide="' + typeInfo.icon + '" style="width:15px;height:15px;"></i></div>';
 
-    if (isAdded) {
-      html += '<div class="ext-add-btn added"><i data-lucide="check" style="width:12px;height:12px;"></i> Added</div>';
+    if (isEditing) {
+      html += '<div class="ext-item-body">'
+        + '<input class="ext-edit-input ext-title-input" id="ext-edit-title-' + idx + '" value="' + escHtml(item.title) + '" placeholder="Title">'
+        + '<input class="ext-edit-input" id="ext-edit-detail-' + idx + '" value="' + escHtml(item.detail || '') + '" placeholder="Detail" style="margin-top:6px;">'
+        + '<div class="ext-edit-row">'
+        + '<button class="ext-save-btn" onclick="saveExtractedEdit(' + idx + ')">Save</button>'
+        + '<button class="ext-cancel-btn" onclick="cancelExtractedEdit()">Cancel</button>'
+        + '</div></div>';
     } else {
-      html += '<button class="ext-add-btn" onclick="addExtractedItem(' + idx + ')">'
-        + '<i data-lucide="plus" style="width:12px;height:12px;"></i> Add</button>';
+      html += '<div class="ext-item-body">'
+        + '<div class="ext-item-title">' + escHtml(item.title) + '</div>'
+        + '<div class="ext-item-detail">' + escHtml(item.detail || '') + '</div>'
+        + '</div>';
+
+      html += '<div class="ext-item-actions">';
+      if (isAdded) {
+        html += '<div class="ext-add-btn added"><i data-lucide="check" style="width:12px;height:12px;"></i> Added</div>';
+      } else {
+        html += '<button class="ext-add-btn" onclick="addExtractedItem(' + idx + ')">'
+          + '<i data-lucide="plus" style="width:12px;height:12px;"></i> Add</button>';
+      }
+      if (!isAdded) {
+        html += '<button class="ext-edit-btn" title="Edit" onclick="startExtractedEdit(' + idx + ')">'
+          + '<i data-lucide="pencil" style="width:13px;height:13px;"></i></button>';
+      }
+      html += '</div>';
     }
 
     html += '</div>';
@@ -4190,6 +4220,35 @@ function renderExtractedItems() {
 
   container.innerHTML = html;
   initIcons();
+
+  if (_editingExtIdx >= 0) {
+    var titleInput = document.getElementById('ext-edit-title-' + _editingExtIdx);
+    if (titleInput) titleInput.focus();
+  }
+}
+
+function startExtractedEdit(idx) {
+  _editingExtIdx = idx;
+  renderExtractedItems();
+}
+
+function cancelExtractedEdit() {
+  _editingExtIdx = -1;
+  renderExtractedItems();
+}
+
+function saveExtractedEdit(idx) {
+  var titleInput = document.getElementById('ext-edit-title-' + idx);
+  var detailInput = document.getElementById('ext-edit-detail-' + idx);
+  if (!titleInput) return;
+  var newTitle = titleInput.value.trim();
+  var newDetail = detailInput ? detailInput.value.trim() : '';
+  if (!newTitle) { showToast('Title cannot be empty'); return; }
+  _currentExtItems[idx].title = newTitle;
+  _currentExtItems[idx].detail = newDetail;
+  _editingExtIdx = -1;
+  renderExtractedItems();
+  showToast('Updated');
 }
 
 function getExtItemBg(type) {
