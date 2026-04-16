@@ -1,0 +1,14 @@
+{
+  "name": "wellet-tests",
+  "private": true,
+  "scripts": {
+    "test": "npx playwright test",
+    "test:xss": "npx playwright test tests/xss-protection.spec.ts",
+    "test:phi": "npx playwright test tests/phi-clearing.spec.ts",
+    "test:share": "npx playwright test tests/share-token-auth.spec.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "@supabase/supabase-js": "^2.49.0"
+  }
+}
