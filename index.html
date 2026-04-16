@@ -2075,7 +2075,7 @@
 </div>
 
 <!-- UPLOAD SHEET -->
-<input type="file" id="upload-file-input" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.txt" style="display:none;" onchange="handleFileSelected(this)">
+<input type="file" id="upload-file-input" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.txt,.m4a,.mp3,.wav,.ogg,.webm,audio/mp4,audio/mpeg,audio/wav,audio/ogg,audio/webm" style="display:none;" onchange="handleFileSelected(this)">
 <div class="upload-overlay" id="upload-overlay">
   <div class="upload-sheet">
     <div class="upload-handle-row">
@@ -2089,7 +2089,7 @@
       <div class="upload-drop" onclick="triggerFileUpload()">
         <div class="upload-drop-icon"><i data-lucide="upload-cloud" style="width:32px;height:32px;"></i></div>
         <div class="upload-drop-label">Tap to upload a file</div>
-        <div class="upload-drop-sub">PDF, JPG, or PNG · up to 25MB</div>
+        <div class="upload-drop-sub">PDF, JPG, PNG, or audio · up to 25MB</div>
       </div>
 
       <div class="upload-divider"><span>or choose a type</span></div>
@@ -2100,6 +2100,13 @@
           <div>
             <div class="upload-option-label">Visit summary</div>
             <div class="upload-option-sub">After-visit notes from a provider</div>
+          </div>
+        </div>
+        <div class="upload-option" onclick="triggerFileUpload('Doctor visit recording')">
+          <div class="upload-option-icon"><i data-lucide="mic" style="width:17px;height:17px;"></i></div>
+          <div>
+            <div class="upload-option-label">Doctor visit recording</div>
+            <div class="upload-option-sub">Audio from an appointment</div>
           </div>
         </div>
         <div class="upload-option" onclick="triggerFileUpload('Lab results')">
@@ -3784,6 +3791,7 @@ async function switchRecordsToRealPerson(personId, el) {
 function getDocTypeIcon(type) {
   var map = {
     'Visit summary': 'clipboard-list',
+    'Doctor visit recording': 'mic',
     'Lab results': 'flask-conical',
     'Prescription': 'pill',
     'Imaging': 'scan',
@@ -3834,6 +3842,11 @@ function isImageFile(fileName) {
 
 function isPdfFile(fileName) {
   return getFileExtension(fileName) === 'pdf';
+}
+
+function isAudioFile(fileName) {
+  var ext = getFileExtension(fileName);
+  return ['m4a','mp3','wav','ogg','webm'].indexOf(ext) !== -1;
 }
 
 async function viewDocument(docId) {
@@ -6406,16 +6419,30 @@ function triggerFileUpload(type) {
 function handleFileSelected(input) {
   if (!input.files || !input.files[0]) return;
   _uploadFile = input.files[0];
-  
+
+  // Auto-select Doctor visit recording when audio file is picked
+  if (isAudioFile(_uploadFile.name)) {
+    _uploadDocType = 'Doctor visit recording';
+  }
+
   // Show step 2 with real file info
   document.getElementById('upload-file-name').textContent = _uploadFile.name;
   var sizeMB = (_uploadFile.size / (1024 * 1024)).toFixed(1);
   document.getElementById('upload-file-size').textContent = sizeMB + ' MB';
-  document.getElementById('upload-file-meta').textContent = 'Ready to save \u00b7 Wellet will read and summarize this';
-  
+
+  var isAudio = isAudioFile(_uploadFile.name);
+  var fileIcon = document.querySelector('#upload-step2 .upload-file-icon');
+  if (isAudio) {
+    fileIcon.innerHTML = '<i data-lucide="mic" style="width:22px;height:22px;"></i>';
+    document.getElementById('upload-file-meta').textContent = 'Ready to save \u00b7 Wellet will transcribe and extract health data';
+  } else {
+    fileIcon.innerHTML = '<i data-lucide="file-check" style="width:22px;height:22px;"></i>';
+    document.getElementById('upload-file-meta').textContent = 'Ready to save \u00b7 Wellet will read and summarize this';
+  }
+
   document.getElementById('upload-step1').style.display = 'none';
   document.getElementById('upload-step2').style.display = 'block';
-  
+
   // Auto-select tag based on document type
   document.querySelectorAll('#upload-step2 .upload-tag').forEach(function(t){ t.classList.remove('selected'); });
   var tagMap = {
@@ -6433,6 +6460,7 @@ function handleFileSelected(input) {
 function simulateDemoUpload(type) {
   var names = {
     'Visit summary': 'visit_summary_mar2026.pdf',
+    'Doctor visit recording': 'dr_appointment_apr2026.m4a',
     'Lab results': 'lab_results_feb28.pdf',
     'Prescription': 'rx_hydrochlorothiazide.pdf',
     'Imaging': 'mri_report_feb27.pdf',
