@@ -6188,7 +6188,7 @@ function escHtml(t) {
   return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-// ── EHR INTEGRATION (1upHealth FHIR) ────────────────────────────────────────
+// ── EHR INTEGRATION (Epic SMART on FHIR) ────────────────────────────────────
 var ehrCache = {}; // { personId: { data: {...}, synced_at: '...' } }
 var _ehrConnecting = false;
 var _ehrPendingPersonId = null;
@@ -6660,22 +6660,13 @@ function getEhrData(personId) {
   return ehrCache[personId] || loadEhrCache(personId);
 }
 
-// Start the EHR connection OAuth flow
+// Start the EHR connection OAuth flow (Epic SMART on FHIR)
 function startEhrConnect() {
   if (isDemoMode) {
     showToast('In the real app, this connects to your provider\u2019s records');
     return;
   }
 
-  // Alpha testing gate — EHR connection not yet available
-  showAlphaFeatureNotice('EHR Connection',
-    'Connecting to your health provider is coming soon. '
-    + 'For now, you can upload documents like visit summaries, lab results, or prescriptions '
-    + 'and Wellet will read and organize them for you.'
-  );
-  return;
-
-  /* ── production EHR flow (disabled during alpha) ── */
   if (_ehrConnecting) return;
   if (!currentUser) {
     showToast('Please sign in first');
@@ -6697,16 +6688,16 @@ function startEhrConnect() {
   var confirmed = confirm(
     'Connect Health Records\n\n'
     + 'Your health records are encrypted and protected with row-level security. Wellet processes the data to show you what matters \u2014 you own it and control who sees it.\n\n'
-    + 'You\u2019ll be redirected to select your health provider and sign in.'
+    + 'You\u2019ll be redirected to Epic MyChart to sign in and authorize access.'
   );
   if (!confirmed) {
     _ehrConnecting = false;
     return;
   }
 
-  showToast('Connecting to health records\u2026');
+  showToast('Connecting to Epic MyChart\u2026');
 
-  // Call the oneup-auth edge function to get the authorize URL
+  // Call the epic-auth edge function to get the authorize URL
   db.auth.getSession().then(function(sessionRes) {
     var session = sessionRes.data.session;
     if (!session) {
@@ -6714,7 +6705,7 @@ function startEhrConnect() {
       _ehrConnecting = false;
       return;
     }
-    return fetch(SUPABASE_URL + '/functions/v1/oneup-auth', {
+    return fetch(SUPABASE_URL + '/functions/v1/epic-auth', {
       method: 'POST',
       headers: {
         'Authorization': 'Bearer ' + session.access_token,
@@ -6737,7 +6728,7 @@ function startEhrConnect() {
       // Validate redirect URL to prevent open redirect
       try {
         var authUrl = new URL(data.authorize_url);
-        if (authUrl.hostname.endsWith('1up.health')) {
+        if (authUrl.hostname.endsWith('epic.com')) {
           window.location.href = data.authorize_url;
         } else {
           showToast('Invalid authorize URL');
@@ -6753,13 +6744,14 @@ function startEhrConnect() {
   });
 }
 
-// Handle the OAuth callback (called on page load if code is present)
+// Handle the Epic OAuth callback (called on page load if code is present)
 function handleEhrCallback() {
   var params = new URLSearchParams(window.location.search);
   var code = params.get('code');
   if (!code) return;
-  // Validate OAuth code format (alphanumeric, hyphens, underscores)
-  if (!/^[a-zA-Z0-9\-_]{1,256}$/.test(code)) return;
+  // Validate OAuth code format (alphanumeric, hyphens, underscores, dots, periods)
+  if (!/^[a-zA-Z0-9\-_.]{1,512}$/.test(code)) return;
+  var state = params.get('state') || '';
 
   // Get the pending person_id
   var personId;
@@ -6769,10 +6761,9 @@ function handleEhrCallback() {
     return;
   }
 
-  // Clean up URL
+  // Clean up URL — navigate back to root
   try {
-    var cleanUrl = window.location.origin + window.location.pathname;
-    window.history.replaceState({}, '', cleanUrl);
+    window.history.replaceState({}, '', window.location.origin + '/');
   } catch(e) {}
 
   // Wait for auth to be ready, then exchange the code
@@ -6780,19 +6771,19 @@ function handleEhrCallback() {
     if (!currentUser) return;
     clearInterval(checkAuth);
 
-    showToast('Completing EHR connection\u2026');
+    showToast('Completing Epic connection\u2026');
 
     db.auth.getSession().then(function(sessionRes) {
       var session = sessionRes.data.session;
       if (!session) return;
-      return fetch(SUPABASE_URL + '/functions/v1/oneup-auth', {
+      return fetch(SUPABASE_URL + '/functions/v1/epic-auth', {
         method: 'POST',
         headers: {
           'Authorization': 'Bearer ' + session.access_token,
           'Content-Type': 'application/json',
           'apikey': SUPABASE_ANON_KEY
         },
-        body: JSON.stringify({ action: 'callback', code: code, person_id: personId })
+        body: JSON.stringify({ action: 'callback', code: code, state: state, person_id: personId })
       });
     }).then(function(res) {
       if (!res) return;
@@ -6815,6 +6806,14 @@ function handleEhrCallback() {
 
   // Timeout after 15 seconds
   setTimeout(function() { clearInterval(checkAuth); }, 15000);
+}
+
+// Handle the /epic-callback route specifically
+function handleEpicCallback() {
+  var path = window.location.pathname;
+  if (path === '/epic-callback') {
+    handleEhrCallback();
+  }
 }
 
 // Fetch EHR data from the edge function
@@ -6877,7 +6876,7 @@ function disconnectEhr() {
   db.auth.getSession().then(function(sessionRes) {
     var session = sessionRes.data.session;
     if (!session) return;
-    return fetch(SUPABASE_URL + '/functions/v1/oneup-auth', {
+    return fetch(SUPABASE_URL + '/functions/v1/epic-auth', {
       method: 'POST',
       headers: {
         'Authorization': 'Bearer ' + session.access_token,
@@ -6999,10 +6998,10 @@ function buildEhrPrompt() {
     + '</div>';
 }
 
-// Check for auth callback code on page load
+// Check for auth callback code on page load (supports both /epic-callback route and ?code= param)
 function checkEhrCallbackOnLoad() {
   var params = new URLSearchParams(window.location.search);
-  if (params.get('code')) {
+  if (window.location.pathname === '/epic-callback' || params.get('code')) {
     handleEhrCallback();
   }
 }
