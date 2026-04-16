@@ -274,8 +274,8 @@
   /* upload sheet */
   .upload-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-end; justify-content: center; }
   .upload-overlay.show { display: flex; }
-  .upload-sheet { background: white; border-radius: 20px 20px 0 0; padding: 0 0 40px; width: 100%; max-width: 768px; }
-  .upload-handle-row { padding: 16px 20px 0; display: flex; align-items: center; justify-content: space-between; }
+  .upload-sheet { background: white; border-radius: 20px 20px 0 0; padding: 0 0 40px; width: 100%; max-width: 768px; max-height: 90vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .upload-handle-row { padding: 16px 20px 0; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: white; z-index: 2; border-radius: 20px 20px 0 0; }
   .upload-handle { width: 36px; height: 4px; background: var(--border-medium); border-radius: 2px; }
   .upload-title { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; padding: 12px 20px 4px; }
   .upload-person { font-size: 13px; color: var(--text-muted); padding: 0 20px 16px; }
@@ -2076,7 +2076,7 @@
 
 <!-- UPLOAD SHEET -->
 <input type="file" id="upload-file-input" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.txt,.m4a,.mp3,.wav,.ogg,.webm,audio/mp4,audio/mpeg,audio/wav,audio/ogg,audio/webm" style="display:none;" onchange="handleFileSelected(this)">
-<div class="upload-overlay" id="upload-overlay">
+<div class="upload-overlay" id="upload-overlay" onclick="if(event.target===this)closeUpload()">
   <div class="upload-sheet">
     <div class="upload-handle-row">
       <div class="upload-handle"></div>
@@ -2199,7 +2199,7 @@
 </div>
 
 <!-- SETTINGS SHEET -->
-<div class="settings-overlay" id="settings-overlay">
+<div class="settings-overlay" id="settings-overlay" onclick="if(event.target===this)closeSettings()">
   <div class="settings-sheet">
     <div class="settings-handle-row">
       <div class="settings-handle"></div>
