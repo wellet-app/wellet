@@ -2232,7 +2232,8 @@
         <div style="margin-top:16px;background:var(--border);border-radius:6px;height:4px;overflow:hidden;">
           <div id="upload-progress-bar" style="height:100%;background:var(--moss);border-radius:6px;width:0%;transition:width 0.3s ease;"></div>
         </div>
-        <button id="upload-cancel-btn" onclick="cancelActiveUpload()" style="margin-top:16px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;padding:8px 16px;">Cancel</button>
+        <div id="upload-time-estimate" style="margin-top:10px;font-size:12px;color:var(--text-muted);min-height:18px;"></div>
+        <button id="upload-cancel-btn" onclick="cancelActiveUpload()" style="margin-top:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;padding:8px 16px;">Cancel</button>
       </div>
     </div>
 
@@ -4000,6 +4001,10 @@ async function retryTranscription(docId, storagePath) {
     var pollMax = 20;
     var retryPollTimer = setInterval(async function() {
       pollAttempts++;
+      // After 2 minutes, reassure user
+      if (pollAttempts === 40) {
+        showToast('Still working \u2014 longer recordings take more time');
+      }
       if (pollAttempts > pollMax) {
         clearInterval(retryPollTimer);
         showToast('Transcription is taking longer than expected');
@@ -4423,14 +4428,31 @@ function pollExtractionStatus(docId, isAudio) {
   _pollAttempts = 0;
   if (_pollTimer) clearInterval(_pollTimer);
   var maxAttempts = isAudio ? 20 : 10;
+  var _pollPhase = 'transcribing';
 
   var statusEl = document.getElementById('upload-ext-status');
   statusEl.innerHTML = '<div class="upload-ext-pulse"><i data-lucide="loader" style="width:14px;height:14px;animation:spin 1.2s linear infinite;"></i> '
-    + (isAudio ? 'Transcribing your recording\u2026' : 'Analyzing your document\u2026') + '</div>';
+    + (isAudio ? 'Transcribing your recording\u2026' : 'Reading your document\u2026') + '</div>';
   initIcons();
 
   _pollTimer = setInterval(async function() {
     _pollAttempts++;
+
+    // After ~15 seconds (5 polls), switch to extraction phase message
+    if (_pollAttempts === 5 && _pollPhase === 'transcribing') {
+      _pollPhase = 'extracting';
+      statusEl.innerHTML = '<div class="upload-ext-pulse"><i data-lucide="loader" style="width:14px;height:14px;animation:spin 1.2s linear infinite;"></i> '
+        + 'Reading transcript for medications, conditions, and follow\u2011ups\u2026</div>';
+      initIcons();
+    }
+
+    // After 2 minutes (40 polls at 3s), show reassurance
+    if (_pollAttempts === 40) {
+      statusEl.innerHTML = '<div class="upload-ext-pulse"><i data-lucide="loader" style="width:14px;height:14px;animation:spin 1.2s linear infinite;"></i> '
+        + 'Still working \u2014 longer recordings take more time</div>';
+      initIcons();
+    }
+
     if (_pollAttempts > maxAttempts) {
       clearInterval(_pollTimer);
       _pollTimer = null;
@@ -6696,8 +6718,26 @@ function cancelActiveUpload() {
     _activeUploadXhr.abort();
     _activeUploadXhr = null;
   }
+  if (_transcriptionTimeoutTimer) { clearTimeout(_transcriptionTimeoutTimer); _transcriptionTimeoutTimer = null; }
   closeUpload();
   showToast('Upload cancelled');
+}
+
+var _transcriptionTimeoutTimer = null;
+
+function formatTimeRemaining(seconds) {
+  if (seconds < 5) return 'a few seconds';
+  if (seconds < 60) return '~' + Math.ceil(seconds / 5) * 5 + ' seconds';
+  var mins = Math.round(seconds / 60);
+  return '~' + mins + ' minute' + (mins !== 1 ? 's' : '');
+}
+
+function estimateTranscriptionTime(fileSizeBytes) {
+  var sizeMB = fileSizeBytes / (1024 * 1024);
+  if (sizeMB > 10) return null;
+  var estimatedMinutes = sizeMB;
+  var estSeconds = estimatedMinutes * 4;
+  return Math.max(3, Math.round(estSeconds));
 }
 
 function openUploadById(personId) {
@@ -6725,6 +6765,7 @@ function closeUpload() {
   _uploadFile = null;
   // Clear extraction polling if active
   if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+  if (_transcriptionTimeoutTimer) { clearTimeout(_transcriptionTimeoutTimer); _transcriptionTimeoutTimer = null; }
   document.getElementById('upload-ext-status').innerHTML = '';
 }
 
@@ -6844,6 +6885,10 @@ async function confirmUpload() {
   document.getElementById('upload-progress-title').textContent = isAudio ? 'Uploading recording...' : 'Uploading document...';
   document.getElementById('upload-progress-sub').textContent = 'Storing ' + file.name;
   document.getElementById('upload-cancel-btn').style.display = 'inline-block';
+
+  // Show initial upload time estimate
+  var uploadEstSec = Math.ceil(file.size / (2 * 1024 * 1024));
+  document.getElementById('upload-time-estimate').textContent = formatTimeRemaining(uploadEstSec) + ' remaining';
   initIcons();
 
   try {
@@ -6884,6 +6929,7 @@ async function confirmUpload() {
         reject(new Error('Upload timed out. Please check your connection and try again.'));
       }, 90000);
 
+      var uploadStartTime = Date.now();
       xhr.upload.onprogress = function(e) {
         lastProgressTime = Date.now();
         if (e.lengthComputable) {
@@ -6892,6 +6938,16 @@ async function confirmUpload() {
           var uploadedMB = (e.loaded / (1024 * 1024)).toFixed(1);
           var totalMB = (e.total / (1024 * 1024)).toFixed(1);
           document.getElementById('upload-progress-sub').textContent = 'Uploading ' + uploadedMB + ' / ' + totalMB + ' MB';
+
+          // Update time remaining based on actual speed
+          var elapsed = (Date.now() - uploadStartTime) / 1000;
+          if (e.loaded > 0 && elapsed > 0.5) {
+            var speed = e.loaded / elapsed;
+            var remaining = (e.total - e.loaded) / speed;
+            document.getElementById('upload-time-estimate').textContent = remaining < 2
+              ? 'Almost done...'
+              : formatTimeRemaining(remaining) + ' remaining';
+          }
         }
       };
 
@@ -6936,6 +6992,7 @@ async function confirmUpload() {
     document.getElementById('upload-progress-bar').style.width = '50%';
     document.getElementById('upload-progress-title').textContent = 'Saving record...';
     document.getElementById('upload-progress-sub').textContent = 'Creating document entry';
+    document.getElementById('upload-time-estimate').textContent = '';
 
     // 2. Insert document record
     var insertResult = await db.from('documents').insert({
@@ -6954,11 +7011,27 @@ async function confirmUpload() {
     document.getElementById('upload-progress-bar').style.width = '75%';
 
     if (isAudio) {
+      var estTransSec = estimateTranscriptionTime(file.size);
       document.getElementById('upload-progress-title').textContent = 'Transcribing your recording...';
-      document.getElementById('upload-progress-sub').textContent = 'This may take a minute for longer recordings';
+      if (estTransSec) {
+        document.getElementById('upload-progress-sub').textContent = 'This usually takes about ' + Math.ceil(estTransSec) + ' seconds';
+        document.getElementById('upload-time-estimate').textContent = '';
+      } else {
+        document.getElementById('upload-progress-sub').textContent = 'This may take a minute or two for longer recordings';
+        document.getElementById('upload-time-estimate').textContent = '';
+      }
+      // Timeout: if transcription exceeds 2 minutes, reassure user
+      if (_transcriptionTimeoutTimer) clearTimeout(_transcriptionTimeoutTimer);
+      _transcriptionTimeoutTimer = setTimeout(function() {
+        var titleEl = document.getElementById('upload-progress-title');
+        if (titleEl && titleEl.textContent.indexOf('Transcribing') !== -1) {
+          document.getElementById('upload-time-estimate').textContent = 'Still working \u2014 longer recordings take more time';
+        }
+      }, 120000);
     } else {
       document.getElementById('upload-progress-title').textContent = 'Analyzing document...';
       document.getElementById('upload-progress-sub').textContent = 'Wellet is reading your document';
+      document.getElementById('upload-time-estimate').textContent = '';
     }
 
     // 3. Call Edge Function for AI extraction/transcription
@@ -6997,6 +7070,8 @@ async function confirmUpload() {
       console.warn('AI extraction call failed (non-blocking):', fnErr);
     }
 
+    if (_transcriptionTimeoutTimer) { clearTimeout(_transcriptionTimeoutTimer); _transcriptionTimeoutTimer = null; }
+    document.getElementById('upload-time-estimate').textContent = '';
     document.getElementById('upload-progress-bar').style.width = '100%';
 
     // 4. Show success state + start extraction polling
@@ -7026,10 +7101,12 @@ async function confirmUpload() {
     renderRecordsView();
     
   } catch (err) {
+    if (_transcriptionTimeoutTimer) { clearTimeout(_transcriptionTimeoutTimer); _transcriptionTimeoutTimer = null; }
     console.error('Upload error:', err);
     document.getElementById('upload-progress-title').textContent = 'Upload failed';
     document.getElementById('upload-progress-sub').textContent = err.message || 'Something went wrong. Please try again.';
     document.getElementById('upload-progress-bar').style.width = '0%';
+    document.getElementById('upload-time-estimate').textContent = '';
     // Allow closing after error
     setTimeout(function() {
       document.getElementById('upload-step3').style.display = 'none';
