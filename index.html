@@ -11752,6 +11752,19 @@ function handleName(val) { /* legacy stub */ }
 
 var _terraPopup = null;
 
+// Listen for Terra auth popup messages
+window.addEventListener('message', function(event) {
+  if (!event.data || !event.data.type) return;
+  if (event.data.type === 'terra_auth_success') {
+    storeTerraConnection(event.data.person_id, event.data.terra_user_id, event.data.provider);
+    showToast('Wearable connected successfully', 'success');
+    // Refresh signals view if on that tab
+    if (typeof loadSignalsView === 'function') { try { loadSignalsView(); } catch(e){} }
+  } else if (event.data.type === 'terra_auth_failure') {
+    showToast('Wearable connection was cancelled', 'error');
+  }
+});
+
 async function openTerraConnect() {
   if (!currentPersonId) { showToast('Select a person first', 'error'); return; }
   var token = (await db.auth.getSession()).data.session.access_token;
@@ -11789,6 +11802,8 @@ function handleTerraCallback() {
   var terraAuth = params.get('terra_auth');
   if (!terraAuth) return;
 
+  var isPopup = window.opener && window.opener !== window;
+
   if (terraAuth === 'success') {
     var terraUserId = params.get('user_id');
     var referenceId = params.get('reference_id');
@@ -11799,12 +11814,30 @@ function handleTerraCallback() {
       var personId = parts.length > 1 ? parts[1] : null;
 
       if (personId) {
+        if (isPopup) {
+          // Store connection from parent window context, then close popup
+          try {
+            window.opener.postMessage({
+              type: 'terra_auth_success',
+              terra_user_id: terraUserId,
+              person_id: personId,
+              provider: provider
+            }, '*');
+          } catch (e) { /* cross-origin fallback handled below */ }
+          window.close();
+          return;
+        }
         storeTerraConnection(personId, terraUserId, provider);
       }
     }
 
     showToast('Wearable connected successfully', 'success');
   } else {
+    if (isPopup) {
+      try { window.opener.postMessage({ type: 'terra_auth_failure' }, '*'); } catch (e) {}
+      window.close();
+      return;
+    }
     showToast('Wearable connection was cancelled', 'error');
   }
 
