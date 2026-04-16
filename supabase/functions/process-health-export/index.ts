@@ -1,6 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import JSZip from "https://esm.sh/jszip@3.10.1";
+import { parseCcdaXml } from "./ccda-parser.ts";
+import { deduplicateRecords } from "./deduplicator.ts";
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -173,16 +175,154 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── Phase 2: Parse C-CDA XML files ─────────────────────────────────────
+    const parsedData = {
+      medications: [] as ReturnType<typeof parseCcdaXml>["medications"],
+      allergies: [] as ReturnType<typeof parseCcdaXml>["allergies"],
+      lab_results: [] as ReturnType<typeof parseCcdaXml>["lab_results"],
+      vitals: [] as ReturnType<typeof parseCcdaXml>["vitals"],
+      conditions: [] as ReturnType<typeof parseCcdaXml>["conditions"],
+    };
+    const xmlParseErrors: { file: string; error: string }[] = [];
+    let xmlParsed = 0;
+
+    for (const xmlPath of xmlFiles) {
+      try {
+        const xmlContent = await zip.file(xmlPath)!.async("text");
+        // Skip non-CDA XMLs (manifest files, metadata, etc.)
+        if (!xmlContent.includes("ClinicalDocument")) continue;
+
+        const extracted = parseCcdaXml(xmlContent, xmlPath);
+        parsedData.medications.push(...extracted.medications);
+        parsedData.allergies.push(...extracted.allergies);
+        parsedData.lab_results.push(...extracted.lab_results);
+        parsedData.vitals.push(...extracted.vitals);
+        parsedData.conditions.push(...extracted.conditions);
+
+        // Collect section-level parse errors but don't fail the job
+        for (const err of extracted.errors) {
+          xmlParseErrors.push({ file: xmlPath + " [" + err.section + "]", error: err.error });
+        }
+        xmlParsed++;
+      } catch (e) {
+        xmlParseErrors.push({ file: xmlPath, error: (e as Error).message });
+      }
+    }
+
+    // Deduplicate against existing records
+    const deduped = await deduplicateRecords(db, personId, parsedData);
+
+    // Batch insert — each table independently, partial failures logged
+    const insertErrors: { table: string; error: string }[] = [];
+
+    if (deduped.allergies.length > 0) {
+      const rows = deduped.allergies.map((a) => ({
+        person_id: personId,
+        substance: a.substance,
+        reaction: a.reaction,
+        severity: a.severity,
+        clinical_status: a.clinical_status,
+        source: a.source,
+        source_system: a.source_system,
+        export_job_id: job_id,
+      }));
+      const { error: err } = await db.from("allergies").insert(rows);
+      if (err) insertErrors.push({ table: "allergies", error: err.message });
+    }
+
+    if (deduped.lab_results.length > 0) {
+      const rows = deduped.lab_results.map((l) => ({
+        person_id: personId,
+        test_name: l.test_name,
+        value: l.value,
+        unit: l.unit,
+        reference_range: l.reference_range,
+        status: l.status,
+        effective_date: l.effective_date,
+        loinc_code: l.loinc_code,
+        category: l.category,
+        source: l.source,
+        export_job_id: job_id,
+      }));
+      const { error: err } = await db.from("lab_results").insert(rows);
+      if (err) insertErrors.push({ table: "lab_results", error: err.message });
+    }
+
+    if (deduped.vitals.length > 0) {
+      const rows = deduped.vitals.map((v) => ({
+        person_id: personId,
+        vital_type: v.vital_type,
+        value: v.value,
+        unit: v.unit,
+        effective_date: v.effective_date,
+        loinc_code: v.loinc_code,
+        source: v.source,
+        export_job_id: job_id,
+      }));
+      const { error: err } = await db.from("vitals").insert(rows);
+      if (err) insertErrors.push({ table: "vitals", error: err.message });
+    }
+
+    if (deduped.medications.length > 0) {
+      const rows = deduped.medications.map((m) => ({
+        person_id: personId,
+        name: m.name,
+        dose: m.dose,
+        frequency: m.frequency,
+        active: m.active,
+        source: m.source,
+        ehr_system: m.ehr_system,
+        export_job_id: job_id,
+      }));
+      const { error: err } = await db.from("medications").insert(rows);
+      if (err) insertErrors.push({ table: "medications", error: err.message });
+    }
+
+    if (deduped.conditions.length > 0) {
+      const rows = deduped.conditions.map((c) => ({
+        person_id: personId,
+        event_type: c.event_type,
+        title: c.title,
+        event_date: c.event_date || new Date().toISOString(),
+        source: c.source,
+        ehr_system: c.ehr_system,
+        export_job_id: job_id,
+      }));
+      const { error: err } = await db.from("health_events").insert(rows);
+      if (err) insertErrors.push({ table: "health_events", error: err.message });
+    }
+
     // Build summary
-    const summary = {
+    const summary: Record<string, unknown> = {
       pdf_count: pdfFiles.length,
       pdf_stored: uploadedDocs,
       xml_count: xmlFiles.length,
-      has_structured_data: hasIheXdm || xmlFiles.length > 0,
+      xml_parsed: xmlParsed,
+      has_structured_data: xmlParsed > 0,
       source_system: sourceSystem,
+      medications_found: parsedData.medications.length,
+      medications_new: deduped.medications.length,
+      allergies_found: parsedData.allergies.length,
+      allergies_new: deduped.allergies.length,
+      lab_results_found: parsedData.lab_results.length,
+      lab_results_new: deduped.lab_results.length,
+      vitals_found: parsedData.vitals.length,
+      vitals_new: deduped.vitals.length,
+      conditions_found: parsedData.conditions.length,
+      conditions_new: deduped.conditions.length,
     };
 
-    const finalStatus = uploadErrors.length > 0 && uploadedDocs === 0 ? "failed" : "completed";
+    const allErrors = [
+      ...uploadErrors.map((e) => ({ ...e, phase: "pdf" })),
+      ...xmlParseErrors.map((e) => ({ ...e, phase: "xml_parse" })),
+      ...insertErrors.map((e) => ({ ...e, phase: "xml_insert" })),
+    ];
+    const finalStatus =
+      allErrors.length > 0 && uploadedDocs === 0 && xmlParsed === 0
+        ? "failed"
+        : allErrors.length > 0
+          ? "completed"
+          : "completed";
 
     // Update job with summary
     await db
@@ -191,7 +331,7 @@ Deno.serve(async (req) => {
         status: finalStatus,
         source_system: sourceSystem,
         summary: summary,
-        errors: uploadErrors.length > 0 ? uploadErrors : [],
+        errors: allErrors.length > 0 ? allErrors : [],
         completed_at: new Date().toISOString(),
       })
       .eq("id", job_id);
@@ -199,7 +339,7 @@ Deno.serve(async (req) => {
     return json({
       success: true,
       summary: summary,
-      errors: uploadErrors,
+      errors: allErrors,
     });
   } catch (e) {
     console.error("process-health-export error:", e);
