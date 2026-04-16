@@ -1,0 +1,5 @@
+# SPA routing — serve index.html for all paths that don't match a file
+# Required for Epic SMART on FHIR OAuth callback at /epic-callback
+/epic-callback    /index.html    200
+/share.html       /share.html    200
+/*                /index.html    200

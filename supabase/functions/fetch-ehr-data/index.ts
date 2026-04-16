@@ -1,16 +1,10 @@
 // Supabase Edge Function: fetch-ehr-data
-// Fetches FHIR resources from 1upHealth for a connected person,
+// Fetches FHIR R4 resources from the connected EHR provider (Epic),
 // maps them to a simplified Wellet-friendly JSON structure,
 // and returns the data to the frontend (NOT stored in Supabase).
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders } from '../_shared/cors.ts';
-
-const ONEUP_CLIENT_ID = Deno.env.get('ONEUP_CLIENT_ID') ?? '';
-const ONEUP_CLIENT_SECRET = Deno.env.get('ONEUP_CLIENT_SECRET') ?? '';
-const ONEUP_API_BASE = 'https://api.1up.health';
-const ONEUP_AUTH_BASE = 'https://auth.1up.health';
-const FHIR_BASE = `${ONEUP_API_BASE}/fhir/r4`;
 
 function getAdminClient() {
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
@@ -32,32 +26,22 @@ async function getAuthenticatedUser(req: Request) {
   return user;
 }
 
-// Refresh expired tokens
-async function refreshTokens(refreshToken: string) {
-  const res = await fetch(`${ONEUP_AUTH_BASE}/oauth2/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: ONEUP_CLIENT_ID,
-      client_secret: ONEUP_CLIENT_SECRET,
-      refresh_token: refreshToken,
-      grant_type: 'refresh_token',
-    }),
-  });
-  if (!res.ok) throw new Error('Token refresh failed');
-  return await res.json();
-}
-
-// Fetch a FHIR resource type, handling pagination
-async function fetchFhirResource(resourceType: string, accessToken: string): Promise<unknown[]> {
+// Fetch a FHIR resource type from the EHR's FHIR endpoint, handling pagination
+async function fetchFhirResource(
+  fhirBaseUrl: string,
+  resourceType: string,
+  accessToken: string,
+  queryParams?: string,
+): Promise<unknown[]> {
   const entries: unknown[] = [];
-  let url: string | null = `${FHIR_BASE}/${resourceType}?_count=50`;
+  const query = queryParams ? `&${queryParams}` : '';
+  let url: string | null = `${fhirBaseUrl}/${resourceType}?_count=50${query}`;
 
   while (url && entries.length < 200) {
     const res = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
+        'Accept': 'application/fhir+json',
       },
     });
 
@@ -220,6 +204,46 @@ function mapProcedures(resources: unknown[]) {
   });
 }
 
+function mapImmunizations(resources: unknown[]) {
+  return (resources as Record<string, unknown>[]).map((r) => {
+    const vaccineCode = (r.vaccineCode as Record<string, unknown>) || {};
+    const coding = (vaccineCode.coding as Record<string, unknown>[]) || [];
+    const firstCoding = coding[0] || {};
+
+    return {
+      type: 'immunization',
+      source: 'ehr',
+      name: vaccineCode.text || firstCoding.display || 'Immunization',
+      code: firstCoding.code || '',
+      status: r.status || '',
+      date: r.occurrenceDateTime || (r.occurrenceString as string) || '',
+      lot_number: r.lotNumber || '',
+    };
+  });
+}
+
+function mapDiagnosticReports(resources: unknown[]) {
+  return (resources as Record<string, unknown>[]).map((r) => {
+    const coding = (r.code as Record<string, unknown>)?.coding as Record<string, unknown>[] || [];
+    const firstCoding = coding[0] || {};
+    const categories = (r.category as Record<string, unknown>[]) || [];
+    const firstCategory = categories.length > 0
+      ? ((categories[0].coding as Record<string, unknown>[]) || [])[0]?.display || categories[0].text || ''
+      : '';
+
+    return {
+      type: 'diagnostic_report',
+      source: 'ehr',
+      name: (r.code as Record<string, unknown>)?.text || firstCoding.display || 'Diagnostic Report',
+      code: firstCoding.code || '',
+      status: r.status || '',
+      category: firstCategory,
+      effective_date: r.effectiveDateTime || (r.effectivePeriod as Record<string, unknown>)?.start || '',
+      issued: r.issued || '',
+    };
+  });
+}
+
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
   function jsonResponse(data: unknown, status = 200) {
@@ -257,40 +281,31 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'No EHR connection found for this person' }, 404);
     }
 
-    let accessToken = conn.access_token;
-
-    // Refresh token if expired
+    // Check token expiry — Epic public clients don't issue refresh tokens
     if (conn.token_expires_at && new Date(conn.token_expires_at) <= new Date()) {
-      if (!conn.refresh_token) {
-        return jsonResponse({ error: 'Token expired and no refresh token available' }, 401);
-      }
-
-      const refreshed = await refreshTokens(conn.refresh_token);
-      accessToken = refreshed.access_token;
-      const newExpiry = new Date(Date.now() + (refreshed.expires_in || 7200) * 1000).toISOString();
-
-      await admin.from('ehr_connections').update({
-        access_token: refreshed.access_token,
-        refresh_token: refreshed.refresh_token || conn.refresh_token,
-        token_expires_at: newExpiry,
-      }).eq('id', conn.id);
+      return jsonResponse({ error: 'Token expired. Please reconnect to Epic MyChart.' }, 401);
     }
 
-    // Fetch all FHIR resource types in parallel
-    const [conditions, medications, allergies, observations, encounters, procedures] = await Promise.all([
-      fetchFhirResource('Condition', accessToken),
-      fetchFhirResource('MedicationStatement', accessToken).then(async (stmts) => {
-        // Also try MedicationRequest if MedicationStatement is empty
-        if (stmts.length === 0) {
-          return await fetchFhirResource('MedicationRequest', accessToken);
-        }
-        return stmts;
-      }),
-      fetchFhirResource('AllergyIntolerance', accessToken),
-      fetchFhirResource('Observation', accessToken),
-      fetchFhirResource('Encounter', accessToken),
-      fetchFhirResource('Procedure', accessToken),
+    const accessToken = conn.access_token;
+    const fhirBaseUrl = conn.fhir_base_url || 'https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4';
+    const patientId = conn.patient_id;
+
+    // Build patient search param for scoped queries
+    const patientParam = patientId ? `patient=${patientId}` : '';
+
+    // Fetch all FHIR resource types in parallel from Epic's FHIR R4 endpoint
+    const [conditions, medications, allergies, labObservations, vitalObservations, immunizations, diagnosticReports] = await Promise.all([
+      fetchFhirResource(fhirBaseUrl, 'Condition', accessToken, patientParam),
+      fetchFhirResource(fhirBaseUrl, 'MedicationRequest', accessToken, patientParam),
+      fetchFhirResource(fhirBaseUrl, 'AllergyIntolerance', accessToken, patientParam),
+      fetchFhirResource(fhirBaseUrl, 'Observation', accessToken, patientParam ? `${patientParam}&category=laboratory` : 'category=laboratory'),
+      fetchFhirResource(fhirBaseUrl, 'Observation', accessToken, patientParam ? `${patientParam}&category=vital-signs` : 'category=vital-signs'),
+      fetchFhirResource(fhirBaseUrl, 'Immunization', accessToken, patientParam),
+      fetchFhirResource(fhirBaseUrl, 'DiagnosticReport', accessToken, patientParam),
     ]);
+
+    // Combine lab and vital observations
+    const observations = [...labObservations, ...vitalObservations];
 
     // Map FHIR resources to Wellet-friendly format
     const result = {
@@ -298,9 +313,9 @@ Deno.serve(async (req) => {
       medications: mapMedications(medications),
       allergies: mapAllergies(allergies),
       observations: mapObservations(observations),
-      encounters: mapEncounters(encounters),
-      procedures: mapProcedures(procedures),
-      provider: conn.connected_provider || 'EHR Provider',
+      immunizations: mapImmunizations(immunizations),
+      diagnostic_reports: mapDiagnosticReports(diagnosticReports),
+      provider: conn.connected_provider || 'Epic MyChart',
       synced_at: new Date().toISOString(),
     };
 
