@@ -20,6 +20,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="/lucide.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   :root {
     --moss: #608F7C;
@@ -5144,6 +5145,24 @@ function cancelHealthImport() {
   showToast('Import cancelled');
 }
 
+async function uploadBlobToStorage(blob, storagePath, token, contentType) {
+  var response = await fetch(SUPABASE_URL + '/storage/v1/object/documents/' + storagePath, {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'apikey': SUPABASE_ANON_KEY,
+      'x-upsert': 'true',
+      'Content-Type': contentType || 'application/octet-stream'
+    },
+    body: blob
+  });
+  if (!response.ok) {
+    var errMsg = 'Upload failed (HTTP ' + response.status + ')';
+    try { errMsg = (await response.json()).message || errMsg; } catch(_e) {}
+    throw new Error(errMsg);
+  }
+}
+
 async function startHealthImport() {
   if (!currentUser || !_hiFile) return;
   var file = _hiFile;
@@ -5153,98 +5172,52 @@ async function startHealthImport() {
   // Switch to processing step
   document.getElementById('hi-step-confirm').style.display = 'none';
   document.getElementById('hi-step-processing').style.display = 'block';
-  document.getElementById('hi-progress-bar').style.width = '5%';
-  document.getElementById('hi-progress-title').textContent = 'Uploading health records...';
-  document.getElementById('hi-progress-sub').textContent = 'Storing ' + escHtml(file.name);
+  document.getElementById('hi-progress-bar').style.width = '2%';
+  document.getElementById('hi-progress-title').textContent = 'Unpacking health records...';
+  document.getElementById('hi-progress-sub').textContent = 'Reading ' + escHtml(file.name);
 
   try {
-    // 1. Upload ZIP to Supabase Storage
-    var timestamp = Date.now();
-    var safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    var storagePath = userId + '/' + timestamp + '_' + safeName;
-
     var session = await db.auth.getSession();
     var uploadToken = session.data.session.access_token;
-    var uploadUrl = SUPABASE_URL + '/storage/v1/object/documents/' + storagePath;
+    var timestamp = Date.now();
 
-    await new Promise(function(resolve, reject) {
-      var xhr = new XMLHttpRequest();
-      _hiXhr = xhr;
-      var uploadTimedOut = false;
-      var lastProgressTime = Date.now();
+    // ── Phase 1 (0-20%): Unzip client-side ──────────────────────────────
+    var arrayBuffer = await file.arrayBuffer();
+    document.getElementById('hi-progress-bar').style.width = '8%';
 
-      // Stall detection: abort if no progress for 30 seconds
-      var stallCheck = setInterval(function() {
-        if (Date.now() - lastProgressTime > 30000) {
-          clearInterval(stallCheck);
-          uploadTimedOut = true;
-          xhr.abort();
-          reject(new Error('Upload stalled — no progress for 30 seconds.'));
-        }
-      }, 5000);
+    var zip;
+    try {
+      zip = await JSZip.loadAsync(arrayBuffer);
+    } catch (zipErr) {
+      throw new Error('Could not open ZIP file. Please make sure this is the export file from your health portal.');
+    }
 
-      // Hard timeout: 180 seconds for large ZIP files
-      var uploadTimeout = setTimeout(function() {
-        clearInterval(stallCheck);
-        uploadTimedOut = true;
-        xhr.abort();
-        reject(new Error('Upload timed out. Please check your connection and try again.'));
-      }, 180000);
-
-      xhr.upload.onprogress = function(e) {
-        lastProgressTime = Date.now();
-        if (e.lengthComputable) {
-          var pct = Math.round(5 + (e.loaded / e.total) * 40);
-          document.getElementById('hi-progress-bar').style.width = pct + '%';
-          var uploadedMB = (e.loaded / (1024 * 1024)).toFixed(1);
-          var totalMB = (e.total / (1024 * 1024)).toFixed(1);
-          document.getElementById('hi-progress-sub').textContent = 'Uploading ' + uploadedMB + ' / ' + totalMB + ' MB';
-        }
-      };
-
-      xhr.onload = function() {
-        clearTimeout(uploadTimeout);
-        clearInterval(stallCheck);
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve();
-        } else {
-          var errMsg = 'Storage upload failed (HTTP ' + xhr.status + ')';
-          try { errMsg = JSON.parse(xhr.responseText).message || errMsg; } catch(_e) {}
-          reject(new Error(errMsg));
-        }
-      };
-
-      xhr.onerror = function() {
-        clearTimeout(uploadTimeout);
-        clearInterval(stallCheck);
-        if (!uploadTimedOut) reject(new Error('Upload failed — network error.'));
-      };
-
-      xhr.onabort = function() {
-        clearTimeout(uploadTimeout);
-        clearInterval(stallCheck);
-        if (!uploadTimedOut) reject(new Error('Upload was cancelled.'));
-      };
-
-      xhr.open('POST', uploadUrl, true);
-      xhr.setRequestHeader('Authorization', 'Bearer ' + uploadToken);
-      xhr.setRequestHeader('apikey', SUPABASE_ANON_KEY);
-      xhr.setRequestHeader('x-upsert', 'true');
-      xhr.setRequestHeader('cache-control', '3600');
-      xhr.send(file);
+    var xmlFiles = [];
+    var pdfFiles = [];
+    zip.forEach(function(relativePath, zipEntry) {
+      if (zipEntry.dir) return;
+      var lower = relativePath.toLowerCase();
+      if (lower.endsWith('.xml')) xmlFiles.push({ path: relativePath, entry: zipEntry });
+      if (lower.endsWith('.pdf')) pdfFiles.push({ path: relativePath, entry: zipEntry });
     });
-    _hiXhr = null;
 
-    document.getElementById('hi-progress-bar').style.width = '50%';
-    document.getElementById('hi-progress-title').textContent = 'Processing health records...';
-    document.getElementById('hi-progress-sub').textContent = 'Unpacking and organizing documents';
+    var totalFiles = xmlFiles.length + pdfFiles.length;
+    if (totalFiles === 0) {
+      throw new Error('No health record files found in this ZIP. Expected XML or PDF files from a health portal export.');
+    }
+
+    document.getElementById('hi-progress-bar').style.width = '20%';
+    var compressedMB = (file.size / (1024 * 1024)).toFixed(1);
+    document.getElementById('hi-progress-title').textContent = 'Found ' + totalFiles + ' document' + (totalFiles !== 1 ? 's' : '');
+    document.getElementById('hi-progress-sub').textContent = compressedMB + ' MB compressed — uploading files individually';
+
+    // ── Phase 2 (20-70%): Upload files individually ─────────────────────
     document.getElementById('hi-cancel-btn').style.display = 'none';
 
-    // 2. Create health_export_jobs row
+    // Create the health_export_jobs row first
     var jobInsert = await db.from('health_export_jobs').insert({
       user_id: userId,
       person_id: personId,
-      file_path: storagePath,
       file_name: file.name,
       file_size_bytes: file.size,
       status: 'uploading'
@@ -5253,11 +5226,57 @@ async function startHealthImport() {
     if (jobInsert.error) {
       throw new Error('Failed to create import job: ' + jobInsert.error.message);
     }
-
     _hiJobId = jobInsert.data.id;
-    document.getElementById('hi-progress-bar').style.width = '55%';
 
-    // 3. Call Edge Function
+    var filesUploaded = 0;
+    var xmlStoragePaths = [];
+    var pdfCount = 0;
+
+    // Upload PDFs + create documents rows (no edge function needed)
+    for (var pi = 0; pi < pdfFiles.length; pi++) {
+      var pdf = pdfFiles[pi];
+      var pdfBlob = await pdf.entry.async('blob');
+      var pdfSafeName = pdf.path.split('/').pop().replace(/[^a-zA-Z0-9._-]/g, '_');
+      var pdfPath = userId + '/' + timestamp + '_' + pdfSafeName;
+
+      await uploadBlobToStorage(pdfBlob, pdfPath, uploadToken, 'application/pdf');
+
+      await db.from('documents').insert({
+        person_id: personId,
+        file_name: pdfSafeName,
+        storage_path: pdfPath,
+        document_type: 'Health record PDF',
+        extraction_status: 'stored'
+      });
+
+      pdfCount++;
+      filesUploaded++;
+      var uploadPct = Math.round(20 + (filesUploaded / totalFiles) * 50);
+      document.getElementById('hi-progress-bar').style.width = uploadPct + '%';
+      document.getElementById('hi-progress-sub').textContent = 'Uploaded ' + filesUploaded + ' of ' + totalFiles + ' files';
+    }
+
+    // Upload XMLs to storage
+    for (var xi = 0; xi < xmlFiles.length; xi++) {
+      var xml = xmlFiles[xi];
+      var xmlBlob = await xml.entry.async('blob');
+      var xmlSafeName = xml.path.split('/').pop().replace(/[^a-zA-Z0-9._-]/g, '_');
+      var xmlPath = userId + '/' + timestamp + '_' + xmlSafeName;
+
+      await uploadBlobToStorage(xmlBlob, xmlPath, uploadToken, 'text/xml');
+      xmlStoragePaths.push(xmlPath);
+
+      filesUploaded++;
+      var xmlUploadPct = Math.round(20 + (filesUploaded / totalFiles) * 50);
+      document.getElementById('hi-progress-bar').style.width = xmlUploadPct + '%';
+      document.getElementById('hi-progress-sub').textContent = 'Uploaded ' + filesUploaded + ' of ' + totalFiles + ' files';
+    }
+
+    // ── Phase 3 (70-100%): Call edge function for XML analysis ──────────
+    document.getElementById('hi-progress-bar').style.width = '70%';
+    document.getElementById('hi-progress-title').textContent = 'Analyzing health records...';
+    document.getElementById('hi-progress-sub').textContent = 'Extracting medications, allergies, and lab results';
+
     var token = (await db.auth.getSession()).data.session.access_token;
     var fnResponse = await fetch(SUPABASE_URL + '/functions/v1/process-health-export', {
       method: 'POST',
@@ -5268,12 +5287,17 @@ async function startHealthImport() {
       },
       body: JSON.stringify({
         job_id: _hiJobId,
-        storage_path: storagePath
+        xml_paths: xmlStoragePaths
       })
     });
 
     if (fnResponse.ok) {
       var result = await fnResponse.json();
+      // Merge client-side PDF count into the summary
+      if (result.summary) {
+        result.summary.pdf_stored = (result.summary.pdf_stored || 0) + pdfCount;
+        result.summary.pdf_count = (result.summary.pdf_count || 0) + pdfCount;
+      }
       document.getElementById('hi-progress-bar').style.width = '100%';
       showHealthImportSummary(result.summary);
     } else {
