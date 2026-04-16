@@ -3370,7 +3370,7 @@ function renderUpdateMe() {
 
   // Build empty-state vs populated content
   var emptyActions = '<div style="text-align:center;padding:24px 0 8px;">'
-    + '<div style="font-family:\'DM Serif Display\',serif;font-size:20px;margin-bottom:6px;color:var(--text-primary);">Give Wellet something to work with</div>'
+    + '<div style="font-family:\'DM Serif Display\',serif;font-size:20px;margin-bottom:6px;color:var(--text-primary);">Add files to help Wellet get to know ' + escHtml(name) + '</div>'
     + '<div style="font-size:13px;color:var(--text-secondary);line-height:1.5;max-width:300px;margin:0 auto;">Upload a document or connect to health records \u2014 Wellet will read, organize, and remember everything.</div>'
     + '</div>'
     + '<div style="display:flex;flex-direction:column;gap:10px;margin:20px 0 16px;">'
@@ -3378,26 +3378,48 @@ function renderUpdateMe() {
     + '<button style="width:100%;padding:14px;font-size:14px;gap:8px;display:flex;align-items:center;justify-content:center;background:white;border:1.5px solid var(--moss);border-radius:12px;color:var(--moss);font-family:\'DM Sans\',sans-serif;font-weight:500;cursor:pointer;" onclick="startEhrConnect()"><i data-lucide="link" style="width:18px;height:18px;"></i> Connect health records</button>'
     + '</div>';
 
-  pane.innerHTML = '<div class="update-me-section">'
-    + summarySection
-    + (liveEvents.length === 0 ? emptyActions : '')
-    + '<div class="update-card">'
-    + '<div class="update-label">What\u2019s going on with ' + escHtml(name) + ' right now</div>'
-    + (liveEvents.length === 0
-      ? '<p class="update-text" style="color:var(--text-secondary);font-style:italic;">As you add documents, appointments, and medications, this summary will build itself.</p>'
-      : '<p class="update-text">' + escHtml(name) + ' has <strong>' + liveEvents.length + ' health event' + (liveEvents.length !== 1 ? 's' : '') + '</strong> logged. '
-        + (liveMeds.filter(function(m){ return m.active; }).length > 0 ? 'Currently on <strong>' + liveMeds.filter(function(m){ return m.active; }).length + ' active medication' + (liveMeds.filter(function(m){ return m.active; }).length !== 1 ? 's' : '') + '</strong>.' : '') + '</p>')
-    + '<div class="update-meta">' + liveEvents.length + ' health event' + (liveEvents.length !== 1 ? 's' : '') + ' logged</div>'
-    + '</div></div>'
-    + '<div class="quick-actions">'
-    + '<button class="qa-btn" onclick="openAddEvent()"><span class="qa-icon"><i data-lucide="plus-circle" style="width:18px;height:18px;"></i></span>Add event</button>'
-    + '<button class="qa-btn" onclick="openEmergencySummary()"><span class="qa-icon"><i data-lucide="file-heart" style="width:18px;height:18px;"></i></span>Emergency summary</button>'
-    + '<button class="qa-btn" onclick="openShareFamily()"><span class="qa-icon"><i data-lucide="share-2" style="width:18px;height:18px;"></i></span>Share with family</button>'
+  var emptyPlaceholder = '<div class="update-summary-card">'
+    + '<div class="update-summary-header">'
+    + '<span class="update-summary-label">Wellet summary</span>'
     + '</div>'
-    + '<div class="timeline-section" style="margin-top:16px;">'
-    + '<p class="section-label">Recent activity</p>'
-    + timelineHTML
+    + '<p class="update-summary-text" style="color:var(--text-secondary);font-style:italic;">As you add documents, appointments, and medications, Wellet will build a personalized summary here.</p>'
     + '</div>';
+
+  if (liveEvents.length === 0) {
+    // Empty state: upload CTA first, then single consolidated summary placeholder
+    pane.innerHTML = '<div class="update-me-section">'
+      + emptyActions
+      + emptyPlaceholder
+      + '</div>'
+      + '<div class="quick-actions">'
+      + '<button class="qa-btn" onclick="openAddEvent()"><span class="qa-icon"><i data-lucide="plus-circle" style="width:18px;height:18px;"></i></span>Add event</button>'
+      + '<button class="qa-btn" onclick="openEmergencySummary()"><span class="qa-icon"><i data-lucide="file-heart" style="width:18px;height:18px;"></i></span>Emergency summary</button>'
+      + '<button class="qa-btn" onclick="openShareFamily()"><span class="qa-icon"><i data-lucide="share-2" style="width:18px;height:18px;"></i></span>Share with family</button>'
+      + '</div>'
+      + '<div class="timeline-section" style="margin-top:16px;">'
+      + '<p class="section-label">Recent activity</p>'
+      + timelineHTML
+      + '</div>';
+  } else {
+    // Populated state: show both summary card and status card
+    pane.innerHTML = '<div class="update-me-section">'
+      + summarySection
+      + '<div class="update-card">'
+      + '<div class="update-label">What\u2019s going on with ' + escHtml(name) + ' right now</div>'
+      + '<p class="update-text">' + escHtml(name) + ' has <strong>' + liveEvents.length + ' health event' + (liveEvents.length !== 1 ? 's' : '') + '</strong> logged. '
+        + (liveMeds.filter(function(m){ return m.active; }).length > 0 ? 'Currently on <strong>' + liveMeds.filter(function(m){ return m.active; }).length + ' active medication' + (liveMeds.filter(function(m){ return m.active; }).length !== 1 ? 's' : '') + '</strong>.' : '') + '</p>'
+      + '<div class="update-meta">' + liveEvents.length + ' health event' + (liveEvents.length !== 1 ? 's' : '') + ' logged</div>'
+      + '</div></div>'
+      + '<div class="quick-actions">'
+      + '<button class="qa-btn" onclick="openAddEvent()"><span class="qa-icon"><i data-lucide="plus-circle" style="width:18px;height:18px;"></i></span>Add event</button>'
+      + '<button class="qa-btn" onclick="openEmergencySummary()"><span class="qa-icon"><i data-lucide="file-heart" style="width:18px;height:18px;"></i></span>Emergency summary</button>'
+      + '<button class="qa-btn" onclick="openShareFamily()"><span class="qa-icon"><i data-lucide="share-2" style="width:18px;height:18px;"></i></span>Share with family</button>'
+      + '</div>'
+      + '<div class="timeline-section" style="margin-top:16px;">'
+      + '<p class="section-label">Recent activity</p>'
+      + timelineHTML
+      + '</div>';
+  }
   initIcons();
 }
 
@@ -5753,9 +5775,18 @@ function renderAskView() {
   personBar.innerHTML = pillsHtml;
 
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
-  var firstName = person ? person.name.split(' ')[0] : 'them';
+  var firstName = person ? person.name.split(' ')[0] : 'your loved one';
   var inputEl = document.getElementById('ask-input');
-  if (inputEl) inputEl.placeholder = 'Ask about ' + firstName + '\u2019s health\u2026';
+  if (inputEl) inputEl.placeholder = 'Ask about ' + escHtml(firstName) + '\u2019s health\u2026';
+
+  // Update the welcome bubble with dynamic name
+  var chatArea = document.getElementById('chat-area');
+  if (chatArea) {
+    var firstBubble = chatArea.querySelector('.chat-group.from-wellet .chat-bubble.wellet');
+    if (firstBubble && firstBubble.textContent.indexOf('Ask me anything about') !== -1) {
+      firstBubble.textContent = 'Ask me anything about ' + firstName + '\u2019s health. I\u2019ll answer from what\u2019s in ' + firstName + '\u2019s records.';
+    }
+  }
 
   var chips = document.getElementById('suggestion-chips');
   if (chips) {
@@ -7986,18 +8017,24 @@ function showOwnWellet() {
   if (updatePane) {
     updatePane.innerHTML = '<div class="update-me-section">'
       + '<div style="text-align:center;padding:24px 0 8px;">'
-      + '<div style="font-family:\'DM Serif Display\',serif;font-size:20px;margin-bottom:6px;color:var(--text-primary);">Give Wellet something to work with</div>'
+      + '<div style="font-family:\'DM Serif Display\',serif;font-size:20px;margin-bottom:6px;color:var(--text-primary);">Add files to help Wellet get to know ' + escHtml(displayName) + '</div>'
       + '<div style="font-size:13px;color:var(--text-secondary);line-height:1.5;max-width:300px;margin:0 auto;">Upload a document or connect to health records \u2014 Wellet will read, organize, and remember everything.</div>'
       + '</div>'
       + '<div style="display:flex;flex-direction:column;gap:10px;margin:20px 0 16px;">'
       + '<button class="btn-primary" style="width:100%;padding:14px;font-size:14px;gap:8px;display:flex;align-items:center;justify-content:center;" onclick="openUpload(\'' + escHtml(displayName) + '\')"><i data-lucide="upload" style="width:18px;height:18px;"></i> Upload a document</button>'
       + '<button style="width:100%;padding:14px;font-size:14px;gap:8px;display:flex;align-items:center;justify-content:center;background:white;border:1.5px solid var(--moss);border-radius:12px;color:var(--moss);font-family:\'DM Sans\',sans-serif;font-weight:500;cursor:pointer;" onclick="startEhrConnect()"><i data-lucide="link" style="width:18px;height:18px;"></i> Connect health records</button>'
       + '</div>'
+      + '<div class="update-summary-card">'
+      + '<div class="update-summary-header">'
+      + '<span class="update-summary-label">Wellet summary</span>'
+      + '</div>'
+      + '<p class="update-summary-text" style="color:var(--text-secondary);font-style:italic;">As you add documents, appointments, and medications, Wellet will build a personalized summary here.</p>'
+      + '</div>'
+      + '</div>'
       + '<div class="quick-actions">'
       + '<button class="qa-btn" onclick="openAddEvent()"><span class="qa-icon"><i data-lucide="plus-circle" style="width:18px;height:18px;"></i></span>Add event</button>'
       + '<button class="qa-btn" onclick="openEmergencySummary()"><span class="qa-icon"><i data-lucide="file-heart" style="width:18px;height:18px;"></i></span>Emergency summary</button>'
       + '<button class="qa-btn" onclick="openShareFamily()"><span class="qa-icon"><i data-lucide="share-2" style="width:18px;height:18px;"></i></span>Share with family</button>'
-      + '</div>'
       + '</div>';
   }
 
