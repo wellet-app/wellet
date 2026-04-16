@@ -2179,6 +2179,7 @@
         <div style="margin-top:16px;background:var(--border);border-radius:6px;height:4px;overflow:hidden;">
           <div id="upload-progress-bar" style="height:100%;background:var(--moss);border-radius:6px;width:0%;transition:width 0.3s ease;"></div>
         </div>
+        <button id="upload-cancel-btn" onclick="cancelActiveUpload()" style="margin-top:16px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;padding:8px 16px;">Cancel</button>
       </div>
     </div>
 
@@ -6514,6 +6515,16 @@ function showAlphaFeatureNotice(featureName, message) {
 var _uploadPersonName = '';
 var _uploadDocType = null;
 var _uploadFile = null;
+var _activeUploadXhr = null;
+
+function cancelActiveUpload() {
+  if (_activeUploadXhr) {
+    _activeUploadXhr.abort();
+    _activeUploadXhr = null;
+  }
+  closeUpload();
+  showToast('Upload cancelled');
+}
 
 function openUploadById(personId) {
   var person = currentPeople.find(function(p){ return p.id === personId; });
@@ -6658,6 +6669,7 @@ async function confirmUpload() {
   document.getElementById('upload-progress-bar').style.width = '10%';
   document.getElementById('upload-progress-title').textContent = isAudio ? 'Uploading recording...' : 'Uploading document...';
   document.getElementById('upload-progress-sub').textContent = 'Storing ' + file.name;
+  document.getElementById('upload-cancel-btn').style.display = 'inline-block';
   initIcons();
 
   try {
@@ -6676,22 +6688,42 @@ async function confirmUpload() {
 
     await new Promise(function(resolve, reject) {
       var xhr = new XMLHttpRequest();
+      _activeUploadXhr = xhr;
       var uploadTimedOut = false;
+      var lastProgressTime = Date.now();
+
+      // Abort if no progress for 20 seconds (stall detection)
+      var stallCheck = setInterval(function() {
+        if (Date.now() - lastProgressTime > 20000) {
+          clearInterval(stallCheck);
+          uploadTimedOut = true;
+          xhr.abort();
+          reject(new Error('Upload stalled — no progress for 20 seconds. Please try again.'));
+        }
+      }, 5000);
+
+      // Hard timeout at 90 seconds for large files
       var uploadTimeout = setTimeout(function() {
+        clearInterval(stallCheck);
         uploadTimedOut = true;
         xhr.abort();
-        reject(new Error('Upload timed out after 60 seconds. Please check your connection and try again.'));
-      }, 60000);
+        reject(new Error('Upload timed out. Please check your connection and try again.'));
+      }, 90000);
 
       xhr.upload.onprogress = function(e) {
+        lastProgressTime = Date.now();
         if (e.lengthComputable) {
           var pct = Math.round(15 + (e.loaded / e.total) * 35);
           document.getElementById('upload-progress-bar').style.width = pct + '%';
+          var uploadedMB = (e.loaded / (1024 * 1024)).toFixed(1);
+          var totalMB = (e.total / (1024 * 1024)).toFixed(1);
+          document.getElementById('upload-progress-sub').textContent = 'Uploading ' + uploadedMB + ' / ' + totalMB + ' MB';
         }
       };
 
       xhr.onload = function() {
         clearTimeout(uploadTimeout);
+        clearInterval(stallCheck);
         if (xhr.status >= 200 && xhr.status < 300) {
           resolve();
         } else {
@@ -6703,6 +6735,7 @@ async function confirmUpload() {
 
       xhr.onerror = function() {
         clearTimeout(uploadTimeout);
+        clearInterval(stallCheck);
         if (!uploadTimedOut) {
           reject(new Error('Upload failed — network error. Please check your connection.'));
         }
@@ -6710,6 +6743,7 @@ async function confirmUpload() {
 
       xhr.onabort = function() {
         clearTimeout(uploadTimeout);
+        clearInterval(stallCheck);
         if (!uploadTimedOut) {
           reject(new Error('Upload was cancelled.'));
         }
@@ -6718,10 +6752,12 @@ async function confirmUpload() {
       xhr.open('POST', uploadUrl, true);
       xhr.setRequestHeader('Authorization', 'Bearer ' + uploadToken);
       xhr.setRequestHeader('apikey', SUPABASE_ANON_KEY);
-      xhr.setRequestHeader('x-upsert', 'false');
+      xhr.setRequestHeader('x-upsert', 'true');
       xhr.setRequestHeader('cache-control', '3600');
       xhr.send(file);
     });
+    _activeUploadXhr = null;
+    document.getElementById('upload-cancel-btn').style.display = 'none';
 
     document.getElementById('upload-progress-bar').style.width = '50%';
     document.getElementById('upload-progress-title').textContent = 'Saving record...';
