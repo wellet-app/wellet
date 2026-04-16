@@ -1916,6 +1916,44 @@
     </div>
   </div>
 
+  <!-- Step 4: Health records import prompt (shown after person is created) -->
+  <div id="ob-health-records-screen" style="display:none;flex-direction:column;height:100%;">
+    <div class="ob-upload-header">
+      <div style="width:20px;"></div>
+      <svg class="ob-upload-wordmark" viewBox="0 0 465 66" xmlns="http://www.w3.org/2000/svg"><path d="M45.5,4c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83L.25,13.32h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z" fill="#3D6B58"/><path d="M67.97,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08s-1.4-1.71-1.4-2.99c0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M85.12,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M99.88,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M130.39,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08-.94-.72-1.4-1.71-1.4-2.99,0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M155.96,13.83h-4.14v-3.89l4.47-.43.94-6.77h4.21l-.47,6.77h7.06l-.29,4.32h-6.88l-.47,12.06c-.02,1.42.29,2.48.94,3.17.65.69,1.49,1.04,2.52,1.04,1.22,0,2.48-.47,3.78-1.4l1.4,3.56c-2.06,1.37-4.25,2.05-6.55,2.05-2.16,0-3.89-.69-5.18-2.07-1.3-1.38-1.91-3.35-1.84-5.9l.5-12.53Z" fill="#3D6B58"/></svg>
+    </div>
+    <div class="ob-upload-body" style="justify-content:center;text-align:center;padding:0 24px;">
+      <div style="width:64px;height:64px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+        <i data-lucide="file-heart" style="width:28px;height:28px;color:var(--moss);"></i>
+      </div>
+      <h1 class="ob-upload-title" id="ob-hr-title">Do you have health records to import?</h1>
+      <p class="ob-upload-desc" id="ob-hr-desc" style="margin-bottom:28px;">If you have a health record export (ZIP file from MyChart or another patient portal), Wellet can import everything at once.</p>
+
+      <div style="display:flex;flex-direction:column;gap:10px;max-width:340px;margin:0 auto;width:100%;">
+        <button class="ob-upload-card" onclick="obStartHealthImport()" style="text-align:left;">
+          <div class="ob-upload-card-icon"><i data-lucide="file-archive" style="width:22px;height:22px;"></i></div>
+          <div class="ob-upload-card-text">
+            <div class="ob-upload-card-label">I have a file to upload</div>
+            <div class="ob-upload-card-sub">ZIP or PDF from a patient portal</div>
+          </div>
+          <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);flex-shrink:0;"></i>
+        </button>
+
+        <button class="ob-upload-card" onclick="obSkipHealthImport('manual')" style="text-align:left;">
+          <div class="ob-upload-card-icon"><i data-lucide="pencil-line" style="width:22px;height:22px;"></i></div>
+          <div class="ob-upload-card-text">
+            <div class="ob-upload-card-label">I'll enter it manually</div>
+            <div class="ob-upload-card-sub">Add medications, conditions, and more by hand</div>
+          </div>
+          <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);flex-shrink:0;"></i>
+        </button>
+
+        <button class="ob-upload-skip" onclick="obSkipHealthImport('skip')" style="margin-top:8px;">Skip for now</button>
+      </div>
+    </div>
+    <input type="file" id="ob-health-file-input" accept=".zip,.pdf,application/zip,application/pdf" style="display:none;" onchange="obHealthFileSelected(this)">
+  </div>
+
   <!-- Fallback: original chat (only shown via skip) -->
   <div id="ob-chat-screen" style="display:none;flex-direction:column;height:100%;">
     <div class="ob-header">
@@ -2128,7 +2166,7 @@
 </div>
 
 <!-- UPLOAD SHEET -->
-<input type="file" id="upload-file-input" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.txt,.m4a,.mp3,.wav,.ogg,.webm,audio/mp4,audio/mpeg,audio/wav,audio/ogg,audio/webm" style="display:none;" onchange="handleFileSelected(this)">
+<input type="file" id="upload-file-input" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.txt,.m4a,.mp3,.wav,.ogg,.webm,.zip,application/zip,audio/mp4,audio/mpeg,audio/wav,audio/ogg,audio/webm" style="display:none;" onchange="handleFileSelected(this)">
 <div class="upload-overlay" id="upload-overlay" onclick="if(event.target===this)closeUpload()">
   <div class="upload-sheet">
     <div class="upload-handle-row">
@@ -2246,6 +2284,72 @@
         <div class="upload-ext-status" id="upload-ext-status"></div>
         <button class="btn-primary" style="font-size:14px;padding:13px;margin-top:16px;" id="upload-done-btn" onclick="closeUpload()">Done</button>
       </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- HEALTH RECORD IMPORT OVERLAY -->
+<div class="upload-overlay" id="health-import-overlay" onclick="if(event.target===this)closeHealthImport()">
+  <div class="upload-sheet" style="max-height:92vh;overflow-y:auto;">
+    <div class="upload-handle-row">
+      <div class="upload-handle"></div>
+      <button class="close-btn" aria-label="Close" onclick="closeHealthImport()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+
+    <!-- Step 1: Confirm import -->
+    <div id="hi-step-confirm" style="padding:4px 20px 24px;">
+      <div style="text-align:center;">
+        <div style="width:52px;height:52px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+          <i data-lucide="file-archive" style="width:24px;height:24px;color:var(--moss);"></i>
+        </div>
+        <div style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:6px;">Import health records</div>
+        <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;" id="hi-confirm-sub">Wellet will unpack this file and store your documents securely.</div>
+      </div>
+      <div class="upload-file-card" style="margin-bottom:16px;">
+        <div class="upload-file-icon"><i data-lucide="file-archive" style="width:22px;height:22px;"></i></div>
+        <div>
+          <div class="upload-file-name" id="hi-file-name">health_export.zip</div>
+          <div class="upload-file-size" id="hi-file-size" style="font-size:11px;color:var(--text-muted);margin-top:2px;"></div>
+        </div>
+      </div>
+      <button class="btn-primary" style="font-size:14px;padding:13px;width:100%;" onclick="startHealthImport()">
+        <i data-lucide="upload-cloud" style="width:15px;height:15px;"></i> Import records
+      </button>
+      <button style="margin-top:8px;width:100%;padding:11px;border-radius:12px;border:1px solid var(--border-medium);background:transparent;font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;color:var(--text-secondary);" onclick="closeHealthImport()">Cancel</button>
+    </div>
+
+    <!-- Step 2: Uploading + Processing -->
+    <div id="hi-step-processing" style="display:none;padding:24px 20px;text-align:center;">
+      <div style="width:52px;height:52px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+        <i data-lucide="loader" style="width:24px;height:24px;color:var(--moss);animation:spin 1.2s linear infinite;"></i>
+      </div>
+      <div id="hi-progress-title" style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:6px;">Uploading health records...</div>
+      <div id="hi-progress-sub" style="font-size:13px;color:var(--text-secondary);line-height:1.6;">This may take a moment for larger files</div>
+      <div style="margin-top:16px;background:var(--border);border-radius:6px;height:4px;overflow:hidden;">
+        <div id="hi-progress-bar" style="height:100%;background:var(--moss);border-radius:6px;width:0%;transition:width 0.3s ease;"></div>
+      </div>
+      <button id="hi-cancel-btn" onclick="cancelHealthImport()" style="margin-top:16px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;padding:8px 16px;">Cancel</button>
+    </div>
+
+    <!-- Step 3: Summary -->
+    <div id="hi-step-summary" style="display:none;padding:24px 20px;text-align:center;">
+      <div style="width:52px;height:52px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+        <i data-lucide="check-circle" style="width:24px;height:24px;color:var(--moss);"></i>
+      </div>
+      <div id="hi-summary-title" style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:6px;">Health records imported</div>
+      <div id="hi-summary-detail" style="font-size:13px;color:var(--text-secondary);line-height:1.8;margin-bottom:20px;"></div>
+      <button class="btn-primary" style="font-size:14px;padding:13px;width:100%;" id="hi-done-btn" onclick="closeHealthImport()">Done</button>
+    </div>
+
+    <!-- Step: Failed -->
+    <div id="hi-step-failed" style="display:none;padding:24px 20px;text-align:center;">
+      <div style="width:52px;height:52px;border-radius:50%;background:#FEF0EE;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+        <i data-lucide="alert-circle" style="width:24px;height:24px;color:var(--red);"></i>
+      </div>
+      <div style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:6px;">Import failed</div>
+      <div id="hi-fail-detail" style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:20px;">Something went wrong while processing your file. Please try again.</div>
+      <button class="btn-primary" style="font-size:14px;padding:13px;width:100%;" onclick="closeHealthImport()">Close</button>
     </div>
 
   </div>
@@ -3879,6 +3983,8 @@ function renderRecordsView() {
 
   html += '<button class="add-person-btn" style="border-style:dashed;margin:12px 0 4px;" onclick="openUploadById(\'' + currentPersonId + '\')">'
     + '<i data-lucide="upload-cloud" style="width:15px;height:15px;"></i> Upload document</button>'
+    + '<button class="add-person-btn" style="border-style:dashed;margin:4px 0 4px;color:var(--moss);" onclick="openHealthImportPicker()">'
+    + '<i data-lucide="file-archive" style="width:15px;height:15px;"></i> Import health records (ZIP)</button>'
     + '</div>';
 
   // EHR prompt if no connection
@@ -3958,6 +4064,10 @@ function isPdfFile(fileName) {
 function isAudioFile(fileName) {
   var ext = getFileExtension(fileName);
   return ['m4a','mp3','wav','ogg','webm'].indexOf(ext) !== -1;
+}
+
+function isZipFile(fileName) {
+  return getFileExtension(fileName) === 'zip';
 }
 
 async function retryTranscription(docId, storagePath) {
@@ -4480,6 +4590,319 @@ function pollExtractionStatus(docId, isAudio) {
       statusEl.innerHTML = '<div style="font-size:12px;color:var(--red);margin-top:4px;">Extraction failed. The document was saved to your records.</div>';
     }
   }, 3000);
+}
+
+// ── HEALTH RECORD IMPORT (ZIP) ──────────────────────────────────────────────
+var _hiFile = null;
+var _hiXhr = null;
+var _hiJobId = null;
+var _hiPollTimer = null;
+var _hiCallback = null; // optional callback when import completes (used by onboarding)
+
+function openHealthImport(file, callback) {
+  _hiFile = file;
+  _hiCallback = callback || null;
+  _hiJobId = null;
+  // Show confirm step, hide others
+  document.getElementById('hi-step-confirm').style.display = 'block';
+  document.getElementById('hi-step-processing').style.display = 'none';
+  document.getElementById('hi-step-summary').style.display = 'none';
+  document.getElementById('hi-step-failed').style.display = 'none';
+  document.getElementById('hi-file-name').textContent = file.name;
+  var sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+  document.getElementById('hi-file-size').textContent = sizeMB + ' MB';
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var name = person ? person.name.split(' ')[0] : 'your family member';
+  document.getElementById('hi-confirm-sub').textContent = 'Wellet will unpack this file and store ' + escHtml(name) + '\'s documents securely.';
+  openSheetAccessible('health-import-overlay');
+  initIcons();
+}
+
+function closeHealthImport() {
+  if (_hiPollTimer) { clearInterval(_hiPollTimer); _hiPollTimer = null; }
+  if (_hiXhr) { _hiXhr.abort(); _hiXhr = null; }
+  closeSheet('health-import-overlay');
+  _hiFile = null;
+  // Reset the file input so the same file can be re-selected
+  document.getElementById('upload-file-input').value = '';
+}
+
+function cancelHealthImport() {
+  if (_hiXhr) { _hiXhr.abort(); _hiXhr = null; }
+  if (_hiPollTimer) { clearInterval(_hiPollTimer); _hiPollTimer = null; }
+  closeHealthImport();
+  showToast('Import cancelled');
+}
+
+async function startHealthImport() {
+  if (!currentUser || !_hiFile) return;
+  var file = _hiFile;
+  var personId = currentPersonId;
+  var userId = currentUser.id;
+
+  // Switch to processing step
+  document.getElementById('hi-step-confirm').style.display = 'none';
+  document.getElementById('hi-step-processing').style.display = 'block';
+  document.getElementById('hi-progress-bar').style.width = '5%';
+  document.getElementById('hi-progress-title').textContent = 'Uploading health records...';
+  document.getElementById('hi-progress-sub').textContent = 'Storing ' + escHtml(file.name);
+
+  try {
+    // 1. Upload ZIP to Supabase Storage
+    var timestamp = Date.now();
+    var safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    var storagePath = userId + '/' + timestamp + '_' + safeName;
+
+    var session = await db.auth.getSession();
+    var uploadToken = session.data.session.access_token;
+    var uploadUrl = SUPABASE_URL + '/storage/v1/object/documents/' + storagePath;
+
+    await new Promise(function(resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      _hiXhr = xhr;
+      var uploadTimedOut = false;
+      var lastProgressTime = Date.now();
+
+      // Stall detection: abort if no progress for 30 seconds
+      var stallCheck = setInterval(function() {
+        if (Date.now() - lastProgressTime > 30000) {
+          clearInterval(stallCheck);
+          uploadTimedOut = true;
+          xhr.abort();
+          reject(new Error('Upload stalled — no progress for 30 seconds.'));
+        }
+      }, 5000);
+
+      // Hard timeout: 180 seconds for large ZIP files
+      var uploadTimeout = setTimeout(function() {
+        clearInterval(stallCheck);
+        uploadTimedOut = true;
+        xhr.abort();
+        reject(new Error('Upload timed out. Please check your connection and try again.'));
+      }, 180000);
+
+      xhr.upload.onprogress = function(e) {
+        lastProgressTime = Date.now();
+        if (e.lengthComputable) {
+          var pct = Math.round(5 + (e.loaded / e.total) * 40);
+          document.getElementById('hi-progress-bar').style.width = pct + '%';
+          var uploadedMB = (e.loaded / (1024 * 1024)).toFixed(1);
+          var totalMB = (e.total / (1024 * 1024)).toFixed(1);
+          document.getElementById('hi-progress-sub').textContent = 'Uploading ' + uploadedMB + ' / ' + totalMB + ' MB';
+        }
+      };
+
+      xhr.onload = function() {
+        clearTimeout(uploadTimeout);
+        clearInterval(stallCheck);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve();
+        } else {
+          var errMsg = 'Storage upload failed (HTTP ' + xhr.status + ')';
+          try { errMsg = JSON.parse(xhr.responseText).message || errMsg; } catch(_e) {}
+          reject(new Error(errMsg));
+        }
+      };
+
+      xhr.onerror = function() {
+        clearTimeout(uploadTimeout);
+        clearInterval(stallCheck);
+        if (!uploadTimedOut) reject(new Error('Upload failed — network error.'));
+      };
+
+      xhr.onabort = function() {
+        clearTimeout(uploadTimeout);
+        clearInterval(stallCheck);
+        if (!uploadTimedOut) reject(new Error('Upload was cancelled.'));
+      };
+
+      xhr.open('POST', uploadUrl, true);
+      xhr.setRequestHeader('Authorization', 'Bearer ' + uploadToken);
+      xhr.setRequestHeader('apikey', SUPABASE_ANON_KEY);
+      xhr.setRequestHeader('x-upsert', 'true');
+      xhr.setRequestHeader('cache-control', '3600');
+      xhr.send(file);
+    });
+    _hiXhr = null;
+
+    document.getElementById('hi-progress-bar').style.width = '50%';
+    document.getElementById('hi-progress-title').textContent = 'Processing health records...';
+    document.getElementById('hi-progress-sub').textContent = 'Unpacking and organizing documents';
+    document.getElementById('hi-cancel-btn').style.display = 'none';
+
+    // 2. Create health_export_jobs row
+    var jobInsert = await db.from('health_export_jobs').insert({
+      user_id: userId,
+      person_id: personId,
+      file_path: storagePath,
+      file_name: file.name,
+      file_size_bytes: file.size,
+      status: 'uploading'
+    }).select().single();
+
+    if (jobInsert.error) {
+      throw new Error('Failed to create import job: ' + jobInsert.error.message);
+    }
+
+    _hiJobId = jobInsert.data.id;
+    document.getElementById('hi-progress-bar').style.width = '55%';
+
+    // 3. Call Edge Function
+    var token = (await db.auth.getSession()).data.session.access_token;
+    var fnResponse = await fetch(SUPABASE_URL + '/functions/v1/process-health-export', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({
+        job_id: _hiJobId,
+        storage_path: storagePath
+      })
+    });
+
+    if (fnResponse.ok) {
+      var result = await fnResponse.json();
+      document.getElementById('hi-progress-bar').style.width = '100%';
+      showHealthImportSummary(result.summary);
+    } else {
+      var errBody = await fnResponse.text();
+      console.error('Health import edge function error:', fnResponse.status, errBody);
+      // Fall back to polling in case the function timed out but is still processing
+      pollHealthImportJob(_hiJobId);
+    }
+
+  } catch (err) {
+    console.error('Health import error:', err);
+    document.getElementById('hi-step-processing').style.display = 'none';
+    document.getElementById('hi-step-failed').style.display = 'block';
+    document.getElementById('hi-fail-detail').textContent = err.message || 'Something went wrong. Please try again.';
+    initIcons();
+  }
+}
+
+function pollHealthImportJob(jobId) {
+  var attempts = 0;
+  var maxAttempts = 30; // 90 seconds
+  document.getElementById('hi-progress-title').textContent = 'Processing health records...';
+  document.getElementById('hi-progress-sub').textContent = 'This may take a minute for larger files';
+
+  _hiPollTimer = setInterval(async function() {
+    attempts++;
+    if (attempts > maxAttempts) {
+      clearInterval(_hiPollTimer);
+      _hiPollTimer = null;
+      document.getElementById('hi-progress-sub').textContent = 'Processing is taking longer than expected. Check back in Records.';
+      return;
+    }
+
+    var { data: job } = await db.from('health_export_jobs').select('*').eq('id', jobId).single();
+    if (!job) return;
+
+    if (job.status === 'completed' || job.status === 'complete') {
+      clearInterval(_hiPollTimer);
+      _hiPollTimer = null;
+      document.getElementById('hi-progress-bar').style.width = '100%';
+      showHealthImportSummary(job.summary);
+    } else if (job.status === 'failed') {
+      clearInterval(_hiPollTimer);
+      _hiPollTimer = null;
+      document.getElementById('hi-step-processing').style.display = 'none';
+      document.getElementById('hi-step-failed').style.display = 'block';
+      var errMsg = 'Import processing failed.';
+      if (job.errors && job.errors.length > 0) {
+        errMsg = job.errors[0].message || errMsg;
+      }
+      document.getElementById('hi-fail-detail').textContent = errMsg;
+      initIcons();
+    } else {
+      // Still processing — update progress bar
+      var pct = Math.min(55 + attempts * 1.5, 95);
+      document.getElementById('hi-progress-bar').style.width = pct + '%';
+    }
+  }, 3000);
+}
+
+function showHealthImportSummary(summary) {
+  document.getElementById('hi-step-processing').style.display = 'none';
+  document.getElementById('hi-step-summary').style.display = 'block';
+
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var name = person ? person.name.split(' ')[0] : 'Your family member';
+
+  document.getElementById('hi-summary-title').textContent = escHtml(name) + '\'s records are in Wellet';
+
+  var details = [];
+  if (summary) {
+    if (summary.pdf_stored > 0) {
+      details.push('Found ' + summary.pdf_stored + ' PDF' + (summary.pdf_stored !== 1 ? 's' : ''));
+    }
+    if (summary.xml_count > 0) {
+      details.push(summary.xml_count + ' structured data file' + (summary.xml_count !== 1 ? 's' : '') + ' (will be parsed in a future update)');
+    }
+    if (summary.source_system && summary.source_system !== 'unknown') {
+      var sourceNames = { mychart: 'Epic MyChart', cerner: 'Cerner', generic: 'health record' };
+      details.push('Detected source: ' + (sourceNames[summary.source_system] || summary.source_system));
+    }
+  }
+
+  if (details.length === 0) {
+    details.push('Your file has been stored securely.');
+  }
+
+  details.push('Your documents are saved and Ask Wellet can answer questions about them.');
+
+  document.getElementById('hi-summary-detail').innerHTML = details.map(function(d){ return escHtml(d); }).join('<br>');
+
+  var doneBtn = document.getElementById('hi-done-btn');
+  doneBtn.onclick = function() {
+    closeHealthImport();
+    if (_hiCallback) {
+      _hiCallback(summary);
+      _hiCallback = null;
+    }
+  };
+
+  initIcons();
+
+  // Reload person data in background
+  loadPersonData(currentPersonId).then(function() {
+    renderRecordsView();
+  });
+}
+
+function openHealthImportPicker() {
+  // Create a temporary file input for ZIP/PDF picking
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.zip,.pdf,application/zip,application/pdf';
+  input.style.display = 'none';
+  input.onchange = function() {
+    if (input.files && input.files[0]) {
+      var file = input.files[0];
+      if (isZipFile(file.name)) {
+        openHealthImport(file);
+      } else if (isPdfFile(file.name)) {
+        // Single PDF — use the regular upload flow with pre-set type
+        _uploadDocType = 'Health record PDF';
+        var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+        openUpload(person ? person.name : 'Person');
+        // Set the file directly and show step 2
+        _uploadFile = file;
+        document.getElementById('upload-file-name').textContent = file.name;
+        var sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+        document.getElementById('upload-file-size').textContent = sizeMB + ' MB';
+        document.getElementById('upload-file-meta').textContent = 'Ready to save \u00b7 Wellet will read and summarize this';
+        document.getElementById('upload-step1').style.display = 'none';
+        document.getElementById('upload-step2').style.display = 'block';
+        initIcons();
+      }
+    }
+    input.remove();
+  };
+  document.body.appendChild(input);
+  input.click();
 }
 
 // ── ADD HEALTH EVENT ──────────────────────────────────────────────────────────
@@ -5033,6 +5456,7 @@ function showOnboarding() {
   document.getElementById('ob-processing-screen').style.display = 'none';
   document.getElementById('ob-name-screen').style.display = 'none';
   document.getElementById('ob-chat-screen').style.display = 'none';
+  document.getElementById('ob-health-records-screen').style.display = 'none';
   _obUploadedFiles = [];
   _obUploadPaths = [];
   _obExtractedData = null;
@@ -6743,6 +7167,13 @@ function handleFileSelected(input) {
   if (!input.files || !input.files[0]) return;
   _uploadFile = input.files[0];
 
+  // ZIP files → health record import flow
+  if (isZipFile(_uploadFile.name)) {
+    closeUpload();
+    openHealthImport(_uploadFile);
+    return;
+  }
+
   // Auto-select Doctor visit recording when audio file is picked
   if (isAudioFile(_uploadFile.name)) {
     _uploadDocType = 'Doctor visit recording';
@@ -8171,7 +8602,7 @@ function obBackToUpload() {
 }
 
 function obShowScreen(screenId) {
-  ['ob-upload-screen','ob-processing-screen','ob-name-screen','ob-chat-screen'].forEach(function(id) {
+  ['ob-upload-screen','ob-processing-screen','ob-name-screen','ob-chat-screen','ob-health-records-screen'].forEach(function(id) {
     document.getElementById(id).style.display = 'none';
   });
   document.getElementById(screenId).style.display = 'flex';
@@ -8377,8 +8808,45 @@ async function obFinishWithNames() {
     }
   }
 
-  // Transition to the app
-  showOwnWellet();
+  // Show health records import step instead of going straight to app
+  obShowHealthRecordsStep();
+}
+
+function obShowHealthRecordsStep() {
+  var personName = obState.personName || 'your loved one';
+  var firstName = personName.split(' ')[0];
+  document.getElementById('ob-hr-title').textContent = 'Do you have ' + escHtml(firstName) + '\'s health records?';
+  document.getElementById('ob-hr-desc').textContent = 'If you have a health record export (ZIP file from MyChart or another patient portal), Wellet can import everything at once.';
+  obShowScreen('ob-health-records-screen');
+}
+
+function obStartHealthImport() {
+  document.getElementById('ob-health-file-input').click();
+}
+
+function obHealthFileSelected(input) {
+  if (!input.files || !input.files[0]) return;
+  var file = input.files[0];
+  input.value = '';
+
+  if (isZipFile(file.name) || isPdfFile(file.name)) {
+    // Open the health import flow with a callback that finishes onboarding
+    openHealthImport(file, function() {
+      showOwnWellet();
+    });
+  } else {
+    showToast('Please select a ZIP or PDF file');
+  }
+}
+
+function obSkipHealthImport(choice) {
+  if (choice === 'manual') {
+    // Go straight to app — they'll enter data manually
+    showOwnWellet();
+  } else {
+    // Skip — go to app with empty state
+    showOwnWellet();
+  }
 }
 
 // ── ORIGINAL CHAT-BASED ONBOARDING ENGINE ────────────────────────────────────
