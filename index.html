@@ -3195,6 +3195,7 @@ async function initApp() {
         return;
       }
       currentUser = session.user;
+      resetInactivityTimer();
       await loadUserData();
       // Auto-accept invite if pending
       if (_pendingInviteToken && _inviteData) {
@@ -3202,6 +3203,7 @@ async function initApp() {
       }
     } else if (event === 'SIGNED_OUT') {
       currentUser = null;
+      if (_inactivityTimer) clearTimeout(_inactivityTimer);
       showAuthScreen();
     }
   });
@@ -3347,6 +3349,7 @@ async function submitWaitlistRequest() {
 }
 
 async function handleLogout() {
+  clearPhiFromStorage();
   await db.auth.signOut();
   isDemoMode = false;
   currentUser = null;
@@ -3358,10 +3361,44 @@ async function handleLogout() {
   liveCareCircle = [];
   summaryCache = {};
   if (_audioPlayer) { _audioPlayer.pause(); _audioPlayer = null; }
+  ehrCache = {};
+  _emergencyBriefCache = {};
   closeSettings();
   showAuthScreen();
   showToast('Signed out');
 }
+
+// ── PHI STORAGE CLEANUP ───────────────────────────────────────────────────────
+function clearPhiFromStorage() {
+  try {
+    var keysToRemove = [];
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (k && (k.indexOf('wellet_ehr_') === 0 || k.indexOf('wellet_er_brief_') === 0)) {
+        keysToRemove.push(k);
+      }
+    }
+    keysToRemove.forEach(function(k) { localStorage.removeItem(k); });
+  } catch(e) { /* localStorage unavailable */ }
+}
+
+// ── INACTIVITY TIMEOUT (15 minutes) ──────────────────────────────────────────
+var _inactivityTimer = null;
+var INACTIVITY_LIMIT_MS = 15 * 60 * 1000;
+
+function resetInactivityTimer() {
+  if (_inactivityTimer) clearTimeout(_inactivityTimer);
+  _inactivityTimer = setTimeout(function() {
+    if (currentUser && !isDemoMode) {
+      handleLogout();
+      showToast('Signed out due to inactivity');
+    }
+  }, INACTIVITY_LIMIT_MS);
+}
+
+['mousedown','keydown','touchstart','scroll'].forEach(function(evt) {
+  document.addEventListener(evt, resetInactivityTimer, { passive: true });
+});
 
 // ── LOAD USER DATA ────────────────────────────────────────────────────────────
 async function loadUserData() {
@@ -5576,7 +5613,7 @@ function formatEventDate(dateStr) {
 
 function escHtml(t) {
   if (!t) return '';
-  return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 // ── EHR INTEGRATION (1upHealth FHIR) ────────────────────────────────────────
@@ -6994,9 +7031,11 @@ async function createShareLink(action) {
 
 function generateShareToken() {
   var chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  var arr = new Uint32Array(24);
+  crypto.getRandomValues(arr);
   var token = '';
   for (var i = 0; i < 24; i++) {
-    token += chars.charAt(Math.floor(Math.random() * chars.length));
+    token += chars.charAt(arr[i] % chars.length);
   }
   return token;
 }
