@@ -1010,6 +1010,28 @@
   .signals-connect-desc { font-size:13px; color:var(--text-secondary); line-height:1.4; margin-bottom:12px; }
   .signals-connect-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 20px; background:var(--moss); color:white; border:none; border-radius:10px; font-size:13px; font-weight:500; cursor:pointer; }
 
+  /* ── CONNECTED DEVICES ──────────────────────────────────────────────────── */
+  .terra-devices-section { margin-bottom:24px; }
+  .terra-devices-title { font-family:'DM Serif Display',serif; font-size:18px; font-weight:400; color:var(--text-primary); margin-bottom:12px; }
+  .terra-device-card { background:white; border:1px solid var(--border); border-radius:14px; padding:14px 16px; margin-bottom:8px; display:flex; align-items:center; gap:12px; }
+  .terra-device-icon { width:40px; height:40px; border-radius:50%; background:var(--mint); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .terra-device-icon i { width:20px; height:20px; color:var(--moss); }
+  .terra-device-info { flex:1; min-width:0; }
+  .terra-device-name { font-size:14px; font-weight:500; color:var(--text-primary); display:flex; align-items:center; gap:6px; }
+  .terra-device-meta { font-size:12px; color:var(--text-muted); margin-top:2px; }
+  .terra-status-dot { width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0; }
+  .terra-status-dot--active { background:#4CAF50; }
+  .terra-status-dot--inactive { background:var(--text-muted); }
+  .terra-disconnect-btn { background:none; border:1px solid var(--border); border-radius:8px; padding:6px 12px; font-size:12px; color:var(--text-muted); cursor:pointer; flex-shrink:0; font-family:'DM Sans',sans-serif; }
+  .terra-disconnect-btn:hover { border-color:#e57373; color:#e57373; }
+  .terra-add-btn { display:inline-flex; align-items:center; gap:6px; padding:10px 20px; background:var(--moss); color:white; border:none; border-radius:10px; font-size:13px; font-weight:500; cursor:pointer; margin-top:8px; }
+  .terra-loading { text-align:center; padding:24px; color:var(--text-muted); font-size:13px; }
+  .terra-inline-list { margin-top:8px; }
+  .terra-inline-item { display:flex; align-items:center; gap:8px; padding:6px 0; font-size:13px; color:var(--text-secondary); }
+  .terra-inline-item .terra-status-dot { width:6px; height:6px; }
+  .terra-inline-disconnect { background:none; border:none; font-size:11px; color:var(--text-muted); cursor:pointer; text-decoration:underline; padding:0; font-family:'DM Sans',sans-serif; }
+  .terra-inline-disconnect:hover { color:#e57373; }
+
   /* ── END-OF-CARE JOURNEY ──────────────────────────────────────────────────── */
   .eoc-overlay { display:none; position:fixed; inset:0; background:rgba(44,42,38,0.5); z-index:150; align-items:flex-end; justify-content:center; }
   .eoc-overlay.show { display:flex; }
@@ -4484,8 +4506,14 @@ function renderRecordsView() {
     + '<button class="add-person-btn" style="border-style:dashed;margin:4px 0 4px;color:var(--moss);" onclick="openHealthImportPicker()">'
     + '<i data-lucide="file-archive" style="width:15px;height:15px;"></i> Import health records (ZIP)</button>'
     + '<button class="add-person-btn" style="border-style:dashed;margin:4px 0 4px;color:#4A90D9;" onclick="openTerraConnect()">'
-    + '<i data-lucide="watch" style="width:15px;height:15px;"></i> Connect a wearable device</button>'
-    + '</div>';
+    + '<i data-lucide="watch" style="width:15px;height:15px;"></i> Connect a wearable device</button>';
+
+  // Inline Terra connections placeholder (populated async)
+  if (!isDemoMode && currentPersonId) {
+    html += '<div id="records-terra-conns"></div>';
+  }
+
+  html += '</div>';
 
   // EHR prompt if no connection
   if (!ehrData && !isDemoMode) {
@@ -4495,6 +4523,30 @@ function renderRecordsView() {
   html += '</div>';
   view.innerHTML = html;
   initIcons();
+
+  // Load Terra connections asynchronously for inline display
+  if (!isDemoMode && currentPersonId) {
+    loadTerraConnections(currentPersonId).then(function(conns) {
+      _currentTerraConns = conns || [];
+      var container = document.getElementById('records-terra-conns');
+      if (!container) return;
+      var active = _currentTerraConns.filter(function(c){ return c.status === 'active'; });
+      if (active.length === 0) { container.innerHTML = ''; return; }
+      var ih = '<div class="terra-inline-list">';
+      for (var ti = 0; ti < active.length; ti++) {
+        var tc = active[ti];
+        var pName = tc.provider ? tc.provider.charAt(0).toUpperCase() + tc.provider.slice(1).toLowerCase() : 'Unknown';
+        var dotCls = tc.status === 'active' ? 'terra-status-dot--active' : 'terra-status-dot--inactive';
+        ih += '<div class="terra-inline-item">';
+        ih += '<span class="terra-status-dot ' + dotCls + '"></span>';
+        ih += 'Connected: ' + escHtml(pName) + ' (' + escHtml(tc.status) + ')';
+        ih += ' <button class="terra-inline-disconnect" onclick="disconnectTerra(\'' + tc.id + '\')">disconnect</button>';
+        ih += '</div>';
+      }
+      ih += '</div>';
+      container.innerHTML = ih;
+    }).catch(function(e) { console.error('Load inline Terra connections:', e); });
+  }
 }
 
 async function switchRecordsToRealPerson(personId, el) {
@@ -6302,29 +6354,64 @@ function formatTime12(timeStr) {
 }
 
 // ── RENDER SIGNALS VIEW ──────────────────────────────────────────────────────
-function renderSignalsView() {
+async function renderSignalsView() {
   var el = document.getElementById('view-signals');
   if (!el) return;
 
   var data = isDemoMode ? DEMO_CARESIGNALS : null;
 
   if (!data) {
-    el.innerHTML = '<div class="signals-view">'
-      + '<div class="signals-connect">'
-      + '<div class="signals-connect-card">'
-      + '<div class="signals-connect-icon"><i data-lucide="watch"></i></div>'
-      + '<div class="signals-connect-title">Connect a Wearable</div>'
-      + '<div class="signals-connect-desc">Stream heart rate, sleep, steps, and workouts automatically from your loved one\u2019s device.</div>'
-      + '<button class="signals-connect-btn" onclick="openTerraConnect()"><i data-lucide="link" style="width:14px;height:14px;"></i> Connect</button>'
-      + '</div>'
-      + '<div class="signals-connect-card">'
-      + '<div class="signals-connect-icon"><i data-lucide="radio"></i></div>'
-      + '<div class="signals-connect-title">Set Up Home Sensors</div>'
-      + '<div class="signals-connect-desc">Add motion, door, and cabinet sensors to quietly monitor daily routines without cameras.</div>'
-      + '<button class="signals-connect-btn"><i data-lucide="plus" style="width:14px;height:14px;"></i> Set Up</button>'
-      + '</div>'
-      + '</div>'
-      + '</div>';
+    // Show loading state while fetching connections
+    el.innerHTML = '<div class="signals-view"><div class="terra-loading"><i data-lucide="loader" style="width:20px;height:20px;animation:spin 1s linear infinite;"></i><div style="margin-top:8px;">Loading devices\u2026</div></div></div>';
+    initIcons();
+
+    var conns = [];
+    if (currentPersonId) {
+      try { conns = await loadTerraConnections(currentPersonId); } catch(e) { conns = []; }
+    }
+    var activeConns = conns.filter(function(c){ return c.status === 'active'; });
+
+    if (activeConns.length > 0) {
+      var ch = '<div class="signals-view">';
+      ch += '<div class="terra-devices-section">';
+      ch += '<div class="terra-devices-title">Connected Devices</div>';
+      for (var ci = 0; ci < activeConns.length; ci++) {
+        var conn = activeConns[ci];
+        var providerName = conn.provider ? conn.provider.charAt(0).toUpperCase() + conn.provider.slice(1).toLowerCase() : 'Unknown';
+        var statusDotClass = conn.status === 'active' ? 'terra-status-dot--active' : 'terra-status-dot--inactive';
+        var connDate = conn.connected_at ? new Date(conn.connected_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+        var lastData = conn.last_data_at ? 'Last data: ' + new Date(conn.last_data_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' at ' + new Date(conn.last_data_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : 'No data yet';
+        ch += '<div class="terra-device-card">';
+        ch += '<div class="terra-device-icon"><i data-lucide="watch"></i></div>';
+        ch += '<div class="terra-device-info">';
+        ch += '<div class="terra-device-name"><span class="terra-status-dot ' + statusDotClass + '"></span> ' + escHtml(providerName) + '</div>';
+        ch += '<div class="terra-device-meta">' + escHtml(lastData);
+        if (connDate) ch += ' \u00b7 Connected ' + escHtml(connDate);
+        ch += '</div></div>';
+        ch += '<button class="terra-disconnect-btn" onclick="disconnectTerra(\'' + conn.id + '\')">Disconnect</button>';
+        ch += '</div>';
+      }
+      ch += '<button class="terra-add-btn" onclick="openTerraConnect()"><i data-lucide="plus" style="width:14px;height:14px;"></i> Connect another device</button>';
+      ch += '</div></div>';
+      el.innerHTML = ch;
+    } else {
+      el.innerHTML = '<div class="signals-view">'
+        + '<div class="signals-connect">'
+        + '<div class="signals-connect-card">'
+        + '<div class="signals-connect-icon"><i data-lucide="watch"></i></div>'
+        + '<div class="signals-connect-title">Connect a Wearable</div>'
+        + '<div class="signals-connect-desc">Stream heart rate, sleep, steps, and workouts automatically from your loved one\u2019s device.</div>'
+        + '<button class="signals-connect-btn" onclick="openTerraConnect()"><i data-lucide="link" style="width:14px;height:14px;"></i> Connect</button>'
+        + '</div>'
+        + '<div class="signals-connect-card">'
+        + '<div class="signals-connect-icon"><i data-lucide="radio"></i></div>'
+        + '<div class="signals-connect-title">Set Up Home Sensors</div>'
+        + '<div class="signals-connect-desc">Add motion, door, and cabinet sensors to quietly monitor daily routines without cameras.</div>'
+        + '<button class="signals-connect-btn"><i data-lucide="plus" style="width:14px;height:14px;"></i> Set Up</button>'
+        + '</div>'
+        + '</div>'
+        + '</div>';
+    }
     initIcons();
     return;
   }
@@ -11751,6 +11838,7 @@ function handleName(val) { /* legacy stub */ }
 // ── TERRA WEARABLE CONNECTION ────────────────────────────────────────────────
 
 var _terraPopup = null;
+var _currentTerraConns = [];
 
 // Listen for Terra auth popup messages
 window.addEventListener('message', function(event) {
@@ -11759,7 +11847,7 @@ window.addEventListener('message', function(event) {
     storeTerraConnection(event.data.person_id, event.data.terra_user_id, event.data.provider);
     showToast('Wearable connected successfully', 'success');
     // Refresh signals view if on that tab
-    if (typeof loadSignalsView === 'function') { try { loadSignalsView(); } catch(e){} }
+    if (typeof renderSignalsView === 'function') { try { renderSignalsView(); } catch(e){} }
   } else if (event.data.type === 'terra_auth_failure') {
     showToast('Wearable connection was cancelled', 'error');
   }
@@ -11910,7 +11998,9 @@ async function disconnectTerra(connectionId) {
       body: JSON.stringify({ action: 'disconnect', connection_id: connectionId })
     });
     showToast('Wearable disconnected', 'info');
-    renderRecordsView(); // Refresh
+    renderRecordsView();
+    var sigEl = document.getElementById('view-signals');
+    if (sigEl && sigEl.offsetParent !== null) { renderSignalsView(); }
   } catch (e) {
     console.error('Disconnect Terra error:', e);
   }
