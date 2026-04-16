@@ -6667,16 +6667,61 @@ async function confirmUpload() {
     var safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     var storagePath = userId + '/' + timestamp + '_' + safeName;
 
-    document.getElementById('upload-progress-bar').style.width = '25%';
+    document.getElementById('upload-progress-bar').style.width = '15%';
 
-    var uploadResult = await db.storage.from('documents').upload(storagePath, file, {
-      cacheControl: '3600',
-      upsert: false
+    // Upload via XMLHttpRequest for real progress + timeout (fixes silent hang with SDK)
+    var session = await db.auth.getSession();
+    var uploadToken = session.data.session.access_token;
+    var uploadUrl = SUPABASE_URL + '/storage/v1/object/documents/' + storagePath;
+
+    await new Promise(function(resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      var uploadTimedOut = false;
+      var uploadTimeout = setTimeout(function() {
+        uploadTimedOut = true;
+        xhr.abort();
+        reject(new Error('Upload timed out after 60 seconds. Please check your connection and try again.'));
+      }, 60000);
+
+      xhr.upload.onprogress = function(e) {
+        if (e.lengthComputable) {
+          var pct = Math.round(15 + (e.loaded / e.total) * 35);
+          document.getElementById('upload-progress-bar').style.width = pct + '%';
+        }
+      };
+
+      xhr.onload = function() {
+        clearTimeout(uploadTimeout);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve();
+        } else {
+          var errMsg = 'Storage upload failed (HTTP ' + xhr.status + ')';
+          try { errMsg = JSON.parse(xhr.responseText).message || errMsg; } catch(_e) {}
+          reject(new Error(errMsg));
+        }
+      };
+
+      xhr.onerror = function() {
+        clearTimeout(uploadTimeout);
+        if (!uploadTimedOut) {
+          reject(new Error('Upload failed — network error. Please check your connection.'));
+        }
+      };
+
+      xhr.onabort = function() {
+        clearTimeout(uploadTimeout);
+        if (!uploadTimedOut) {
+          reject(new Error('Upload was cancelled.'));
+        }
+      };
+
+      xhr.open('POST', uploadUrl, true);
+      xhr.setRequestHeader('Authorization', 'Bearer ' + uploadToken);
+      xhr.setRequestHeader('apikey', SUPABASE_ANON_KEY);
+      xhr.setRequestHeader('x-upsert', 'false');
+      xhr.setRequestHeader('cache-control', '3600');
+      xhr.send(file);
     });
-
-    if (uploadResult.error) {
-      throw new Error('Storage upload failed: ' + uploadResult.error.message);
-    }
 
     document.getElementById('upload-progress-bar').style.width = '50%';
     document.getElementById('upload-progress-title').textContent = 'Saving record...';
