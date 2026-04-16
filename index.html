@@ -5418,7 +5418,7 @@ function fetchEhrData(personId) {
     return res.json();
   }).then(function(data) {
     if (!data || data.error) {
-      console.log('EHR fetch:', data ? data.error : 'no response');
+      // PHI log removed
       return;
     }
     saveEhrCache(personId, data);
@@ -6529,7 +6529,7 @@ async function confirmUpload() {
       
       if (fnResponse.ok) {
         var fnResult = await fnResponse.json();
-        console.log('AI extraction result:', fnResult);
+        // PHI log removed
       } else {
         console.warn('Edge function returned:', fnResponse.status);
       }
@@ -7436,7 +7436,7 @@ async function obHandleFiles(input, type) {
       _obExtractedData = extractedData;
     }
   } catch(e) {
-    console.log('Extraction not available yet, skipping:', e.message);
+    // PHI log removed
   }
 
   // Short delay for the user to see upload completion, then proceed to name screen
@@ -7515,7 +7515,7 @@ async function obFinishWithNames() {
             extraction_status: 'pending'
           });
         } catch(e) {
-          console.log('Doc record insert skipped:', e.message);
+          // PHI log removed
         }
       }
     }
@@ -7532,7 +7532,7 @@ async function obFinishWithNames() {
               title: _obExtractedData.conditions[c],
               source: 'Onboarding upload'
             });
-          } catch(e) { console.log('Condition insert skipped:', e.message); }
+          } catch(e) { /* PHI log removed */ }
         }
       }
       if (_obExtractedData.medications) {
@@ -7545,7 +7545,7 @@ async function obFinishWithNames() {
               status: 'active',
               source: 'Onboarding upload'
             });
-          } catch(e) { console.log('Med insert skipped:', e.message); }
+          } catch(e) { /* PHI log removed */ }
         }
       }
     }
