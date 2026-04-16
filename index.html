@@ -6813,8 +6813,10 @@ async function confirmUpload() {
 
       if (fnResponse.ok) {
         var fnResult = await fnResponse.json();
+        console.log('Edge function success:', fnResult);
       } else {
-        console.warn('Edge function returned:', fnResponse.status);
+        var fnErrBody = await fnResponse.text();
+        console.error('Edge function returned:', fnResponse.status, fnErrBody);
       }
     } catch (fnErr) {
       // Edge function failure is non-blocking — doc is still saved
