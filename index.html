@@ -3806,6 +3806,11 @@ function renderRecordsView() {
         + '<span class="doc-status ' + statusClass + '">' + statusLabel + '</span>'
         + '<div class="doc-actions">';
 
+      // Retry transcription button for stuck/failed audio documents
+      if (docIsAudio && (doc.extraction_status === 'pending' || doc.extraction_status === 'failed')) {
+        html += '<button class="doc-action-btn" title="Retry transcription" onclick="event.stopPropagation();retryTranscription(\'' + doc.id + '\',\'' + escHtml(doc.storage_path) + '\')"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>';
+      }
+
       // Audio playback button for audio files
       if (docIsAudio) {
         html += '<button class="doc-action-btn" title="Play" onclick="event.stopPropagation();playAudioDocument(\'' + doc.id + '\')"><i data-lucide="play" style="width:14px;height:14px;"></i></button>';
@@ -3900,6 +3905,72 @@ function isPdfFile(fileName) {
 function isAudioFile(fileName) {
   var ext = getFileExtension(fileName);
   return ['m4a','mp3','wav','ogg','webm'].indexOf(ext) !== -1;
+}
+
+async function retryTranscription(docId, storagePath) {
+  var doc = liveDocs.find(function(d) { return d.id === docId; });
+  if (!doc) return;
+
+  try {
+    var session = await db.auth.getSession();
+    var token = session.data.session.access_token;
+
+    // Update status to pending in DB so UI reflects immediately
+    await db.from('documents').update({ extraction_status: 'pending' }).eq('id', docId);
+    doc.extraction_status = 'pending';
+    renderRecordsView();
+    showToast('Retrying transcription\u2026');
+
+    var fnResponse = await fetch('https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/transcribe-audio', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({
+        document_id: docId,
+        storage_path: storagePath
+      })
+    });
+
+    if (fnResponse.ok) {
+      var fnResult = await fnResponse.json();
+      console.log('Retry transcription success:', fnResult);
+    } else {
+      var fnErrBody = await fnResponse.text();
+      console.error('Retry transcription returned:', fnResponse.status, fnErrBody);
+    }
+
+    // Poll for extraction status in the records view
+    var pollAttempts = 0;
+    var pollMax = 20;
+    var retryPollTimer = setInterval(async function() {
+      pollAttempts++;
+      if (pollAttempts > pollMax) {
+        clearInterval(retryPollTimer);
+        showToast('Transcription is taking longer than expected');
+        return;
+      }
+      var result = await db.from('documents').select('*').eq('id', docId).single();
+      if (!result.data) return;
+      var updatedDoc = result.data;
+      var idx = liveDocs.findIndex(function(d) { return d.id === docId; });
+      if (idx >= 0) liveDocs[idx] = updatedDoc;
+      if (updatedDoc.extraction_status === 'completed') {
+        clearInterval(retryPollTimer);
+        showToast('Transcription complete');
+        renderRecordsView();
+      } else if (updatedDoc.extraction_status === 'failed') {
+        clearInterval(retryPollTimer);
+        showToast('Transcription failed');
+        renderRecordsView();
+      }
+    }, 3000);
+  } catch (err) {
+    console.error('Retry transcription error:', err);
+    showToast('Could not retry transcription');
+  }
 }
 
 async function viewDocument(docId) {
