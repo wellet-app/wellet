@@ -5,24 +5,12 @@
 //   POST /callback — Exchanges auth code for tokens, stores in ehr_connections
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+import { getCorsHeaders } from '../_shared/cors.ts';
 
 const ONEUP_CLIENT_ID = Deno.env.get('ONEUP_CLIENT_ID') ?? '';
 const ONEUP_CLIENT_SECRET = Deno.env.get('ONEUP_CLIENT_SECRET') ?? '';
 const ONEUP_API_BASE = 'https://api.1up.health';
 const ONEUP_AUTH_BASE = 'https://auth.1up.health';
-
-function jsonResponse(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
 
 async function getAuthenticatedUser(req: Request) {
   const authHeader = req.headers.get('Authorization');
@@ -121,6 +109,13 @@ async function refreshAccessToken(refreshToken: string): Promise<{
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+  function jsonResponse(data: unknown, status = 200) {
+    return new Response(JSON.stringify(data), {
+      status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
