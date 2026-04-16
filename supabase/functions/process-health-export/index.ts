@@ -42,9 +42,10 @@ Deno.serve(async (req) => {
 
     const db = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { job_id, storage_path } = await req.json();
-    if (!job_id || !storage_path) {
-      return json({ error: "job_id and storage_path required" }, 400);
+    const body = await req.json();
+    const { job_id, storage_path, xml_paths } = body;
+    if (!job_id || (!storage_path && !xml_paths)) {
+      return json({ error: "job_id and either storage_path or xml_paths required" }, 400);
     }
 
     // Verify the job belongs to this user
@@ -67,140 +68,12 @@ Deno.serve(async (req) => {
       .update({ status: "processing" })
       .eq("id", job_id);
 
-    // Download the ZIP from Supabase Storage
-    const { data: fileData, error: dlError } = await db.storage
-      .from("documents")
-      .download(storage_path);
-
-    if (dlError || !fileData) {
-      await db
-        .from("health_export_jobs")
-        .update({
-          status: "failed",
-          errors: [{ message: "Failed to download file: " + (dlError?.message || "unknown") }],
-        })
-        .eq("id", job_id);
-      return json({ error: "Failed to download file" }, 500);
-    }
-
-    // Unzip and inventory contents
-    const arrayBuffer = await fileData.arrayBuffer();
-    let zip: JSZip;
-    try {
-      zip = await JSZip.loadAsync(arrayBuffer);
-    } catch (e) {
-      await db
-        .from("health_export_jobs")
-        .update({
-          status: "failed",
-          errors: [{ message: "Invalid ZIP file: " + (e as Error).message }],
-        })
-        .eq("id", job_id);
-      return json({ error: "Invalid ZIP file" }, 400);
-    }
-
-    // Inventory: count PDFs, XMLs, detect IHE_XDM and Apple Health
-    const pdfFiles: { name: string; relativePath: string }[] = [];
-    const xmlFiles: string[] = [];
-    let hasIheXdm = false;
-    let hasCcdaFolder = false;
-    let appleHealthXmlPath: string | null = null;
-
-    zip.forEach((relativePath, zipEntry) => {
-      if (zipEntry.dir) {
-        if (relativePath.toUpperCase().includes("IHE_XDM")) hasIheXdm = true;
-        if (relativePath.toUpperCase().includes("CCDA")) hasCcdaFolder = true;
-        return;
-      }
-      const lower = relativePath.toLowerCase();
-      if (lower.endsWith(".pdf")) {
-        const fileName = relativePath.split("/").pop() || relativePath;
-        pdfFiles.push({ name: fileName, relativePath });
-      }
-      if (lower.endsWith(".xml")) {
-        xmlFiles.push(relativePath);
-      }
-      // Check file paths for IHE_XDM too
-      if (lower.includes("ihe_xdm")) hasIheXdm = true;
-      // Detect Apple Health export.xml in root or apple_health_export/ folder
-      if (lower === "export.xml" || lower === "apple_health_export/export.xml") {
-        appleHealthXmlPath = relativePath;
-      }
-    });
-
-    // Detect source system
-    let sourceSystem = "unknown";
-    if (hasIheXdm) {
-      sourceSystem = "mychart";
-    } else if (hasCcdaFolder) {
-      sourceSystem = "cerner";
-    } else if (xmlFiles.length > 0) {
-      sourceSystem = "generic";
-    }
-
-    // Check if the detected XML is actually Apple Health
-    if (appleHealthXmlPath) {
-      try {
-        const ahPreview = await zip.file(appleHealthXmlPath)!.async("text");
-        const previewSlice = ahPreview.substring(0, 500);
-        if (
-          previewSlice.includes("<!DOCTYPE HealthData") ||
-          previewSlice.includes("<HealthData locale=") ||
-          previewSlice.includes("<HealthData")
-        ) {
-          sourceSystem = "apple_health";
-        } else {
-          appleHealthXmlPath = null; // Not actually Apple Health
-        }
-      } catch {
-        appleHealthXmlPath = null;
-      }
-    }
-
-    // For each PDF found: upload individually to documents bucket, create documents row
     const personId = job.person_id;
     const userId = job.user_id;
     let uploadedDocs = 0;
     const uploadErrors: { file: string; error: string }[] = [];
 
-    for (const pdf of pdfFiles) {
-      try {
-        const pdfData = await zip.file(pdf.relativePath)!.async("arraybuffer");
-        const pdfBlob = new Blob([pdfData], { type: "application/pdf" });
-
-        // Upload to storage
-        const safeName = pdf.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const pdfStoragePath = userId + "/" + Date.now() + "_" + safeName;
-
-        const { error: uploadErr } = await db.storage
-          .from("documents")
-          .upload(pdfStoragePath, pdfBlob, { upsert: true, contentType: "application/pdf" });
-
-        if (uploadErr) {
-          uploadErrors.push({ file: pdf.name, error: uploadErr.message });
-          continue;
-        }
-
-        // Create document record
-        const { error: insertErr } = await db.from("documents").insert({
-          person_id: personId,
-          file_name: pdf.name,
-          storage_path: pdfStoragePath,
-          document_type: "Health record PDF",
-          extraction_status: "stored",
-        });
-
-        if (insertErr) {
-          uploadErrors.push({ file: pdf.name, error: insertErr.message });
-        } else {
-          uploadedDocs++;
-        }
-      } catch (e) {
-        uploadErrors.push({ file: pdf.name, error: (e as Error).message });
-      }
-    }
-
-    // ── Phase 2: Parse C-CDA XML files ─────────────────────────────────────
+    // ── Shared data structures for XML parsing ─────────────────────────────
     const parsedData = {
       medications: [] as ReturnType<typeof parseCcdaXml>["medications"],
       allergies: [] as ReturnType<typeof parseCcdaXml>["allergies"],
@@ -211,58 +84,266 @@ Deno.serve(async (req) => {
     const xmlParseErrors: { file: string; error: string }[] = [];
     let xmlParsed = 0;
 
-    // ── Apple Health XML parsing ───────────────────────────────────────────
+    // Track inventory for summary
+    let pdfFileCount = 0;
+    let xmlFileCount = 0;
+    let sourceSystem = "unknown";
     let appleHealthStats = { vitals: 0, activities: 0, sleep: 0, workouts: 0 };
-    if (sourceSystem === "apple_health" && appleHealthXmlPath) {
-      try {
-        const ahContent = await zip.file(appleHealthXmlPath)!.async("text");
-        const ahResult = parseAppleHealthXml(ahContent);
 
-        parsedData.vitals.push(...ahResult.vitals);
-        parsedData.conditions.push(...ahResult.conditions);
+    if (xml_paths && Array.isArray(xml_paths)) {
+      // ── New flow: individual XML files already uploaded by client ───────
+      // PDFs were handled client-side, so we only process XMLs here
+      xmlFileCount = xml_paths.length;
 
-        for (const err of ahResult.errors) {
-          xmlParseErrors.push({ file: appleHealthXmlPath + " [" + err.section + "]", error: err.error });
+      for (const xmlStoragePath of xml_paths) {
+        try {
+          const { data: xmlData, error: xmlDlErr } = await db.storage
+            .from("documents")
+            .download(xmlStoragePath);
+
+          if (xmlDlErr || !xmlData) {
+            xmlParseErrors.push({ file: xmlStoragePath, error: "Download failed: " + (xmlDlErr?.message || "unknown") });
+            continue;
+          }
+
+          const xmlContent = await xmlData.text();
+
+          // Detect Apple Health XML
+          const previewSlice = xmlContent.substring(0, 500);
+          if (
+            previewSlice.includes("<!DOCTYPE HealthData") ||
+            previewSlice.includes("<HealthData locale=") ||
+            previewSlice.includes("<HealthData")
+          ) {
+            sourceSystem = "apple_health";
+            const ahResult = parseAppleHealthXml(xmlContent);
+
+            parsedData.vitals.push(...ahResult.vitals);
+            parsedData.conditions.push(...ahResult.conditions);
+
+            for (const err of ahResult.errors) {
+              xmlParseErrors.push({ file: xmlStoragePath + " [" + err.section + "]", error: err.error });
+            }
+
+            appleHealthStats.vitals = ahResult.vitals.length;
+            appleHealthStats.activities = ahResult.conditions.filter(
+              (c) => (c as { event_type: string }).event_type === "activity" || (c as { event_type: string }).event_type === "activity_summary",
+            ).length;
+            appleHealthStats.sleep = ahResult.conditions.filter(
+              (c) => (c as { event_type: string }).event_type === "sleep",
+            ).length;
+            appleHealthStats.workouts = ahResult.conditions.filter(
+              (c) => (c as { event_type: string }).event_type === "workout",
+            ).length;
+            xmlParsed++;
+            continue;
+          }
+
+          // Skip non-CDA XMLs (manifest files, metadata, etc.)
+          if (!xmlContent.includes("ClinicalDocument")) continue;
+
+          // Detect source system from XML content
+          if (sourceSystem === "unknown") {
+            if (xmlContent.includes("Epic") || xmlContent.includes("MyChart")) {
+              sourceSystem = "mychart";
+            } else if (xmlContent.includes("Cerner")) {
+              sourceSystem = "cerner";
+            } else {
+              sourceSystem = "generic";
+            }
+          }
+
+          const extracted = parseCcdaXml(xmlContent, xmlStoragePath);
+          parsedData.medications.push(...extracted.medications);
+          parsedData.allergies.push(...extracted.allergies);
+          parsedData.lab_results.push(...extracted.lab_results);
+          parsedData.vitals.push(...extracted.vitals);
+          parsedData.conditions.push(...extracted.conditions);
+
+          for (const err of extracted.errors) {
+            xmlParseErrors.push({ file: xmlStoragePath + " [" + err.section + "]", error: err.error });
+          }
+          xmlParsed++;
+        } catch (e) {
+          xmlParseErrors.push({ file: xmlStoragePath, error: (e as Error).message });
         }
-
-        // Tally Apple Health stats
-        appleHealthStats.vitals = ahResult.vitals.length;
-        appleHealthStats.activities = ahResult.conditions.filter(
-          (c) => (c as { event_type: string }).event_type === "activity" || (c as { event_type: string }).event_type === "activity_summary",
-        ).length;
-        appleHealthStats.sleep = ahResult.conditions.filter(
-          (c) => (c as { event_type: string }).event_type === "sleep",
-        ).length;
-        appleHealthStats.workouts = ahResult.conditions.filter(
-          (c) => (c as { event_type: string }).event_type === "workout",
-        ).length;
-        xmlParsed++;
-      } catch (e) {
-        xmlParseErrors.push({ file: appleHealthXmlPath, error: (e as Error).message });
       }
-    }
+    } else {
+      // ── Legacy flow: download ZIP and process server-side ───────────────
+      const { data: fileData, error: dlError } = await db.storage
+        .from("documents")
+        .download(storage_path);
 
-    // ── C-CDA XML parsing ─────────────────────────────────────────────────
-    for (const xmlPath of xmlFiles) {
+      if (dlError || !fileData) {
+        await db
+          .from("health_export_jobs")
+          .update({
+            status: "failed",
+            errors: [{ message: "Failed to download file: " + (dlError?.message || "unknown") }],
+          })
+          .eq("id", job_id);
+        return json({ error: "Failed to download file" }, 500);
+      }
+
+      const arrayBuffer = await fileData.arrayBuffer();
+      let zip: JSZip;
       try {
-        const xmlContent = await zip.file(xmlPath)!.async("text");
-        // Skip non-CDA XMLs (manifest files, metadata, Apple Health export.xml)
-        if (!xmlContent.includes("ClinicalDocument")) continue;
-
-        const extracted = parseCcdaXml(xmlContent, xmlPath);
-        parsedData.medications.push(...extracted.medications);
-        parsedData.allergies.push(...extracted.allergies);
-        parsedData.lab_results.push(...extracted.lab_results);
-        parsedData.vitals.push(...extracted.vitals);
-        parsedData.conditions.push(...extracted.conditions);
-
-        // Collect section-level parse errors but don't fail the job
-        for (const err of extracted.errors) {
-          xmlParseErrors.push({ file: xmlPath + " [" + err.section + "]", error: err.error });
-        }
-        xmlParsed++;
+        zip = await JSZip.loadAsync(arrayBuffer);
       } catch (e) {
-        xmlParseErrors.push({ file: xmlPath, error: (e as Error).message });
+        await db
+          .from("health_export_jobs")
+          .update({
+            status: "failed",
+            errors: [{ message: "Invalid ZIP file: " + (e as Error).message }],
+          })
+          .eq("id", job_id);
+        return json({ error: "Invalid ZIP file" }, 400);
+      }
+
+      // Inventory: count PDFs, XMLs, detect IHE_XDM and Apple Health
+      const pdfFiles: { name: string; relativePath: string }[] = [];
+      const xmlFiles: string[] = [];
+      let hasIheXdm = false;
+      let hasCcdaFolder = false;
+      let appleHealthXmlPath: string | null = null;
+
+      zip.forEach((relativePath, zipEntry) => {
+        if (zipEntry.dir) {
+          if (relativePath.toUpperCase().includes("IHE_XDM")) hasIheXdm = true;
+          if (relativePath.toUpperCase().includes("CCDA")) hasCcdaFolder = true;
+          return;
+        }
+        const lower = relativePath.toLowerCase();
+        if (lower.endsWith(".pdf")) {
+          const fileName = relativePath.split("/").pop() || relativePath;
+          pdfFiles.push({ name: fileName, relativePath });
+        }
+        if (lower.endsWith(".xml")) {
+          xmlFiles.push(relativePath);
+        }
+        if (lower.includes("ihe_xdm")) hasIheXdm = true;
+        // Detect Apple Health export.xml in root or apple_health_export/ folder
+        if (lower === "export.xml" || lower === "apple_health_export/export.xml") {
+          appleHealthXmlPath = relativePath;
+        }
+      });
+
+      if (hasIheXdm) {
+        sourceSystem = "mychart";
+      } else if (hasCcdaFolder) {
+        sourceSystem = "cerner";
+      } else if (xmlFiles.length > 0) {
+        sourceSystem = "generic";
+      }
+
+      // Check if the detected XML is actually Apple Health
+      if (appleHealthXmlPath) {
+        try {
+          const ahPreview = await zip.file(appleHealthXmlPath)!.async("text");
+          const previewSlice = ahPreview.substring(0, 500);
+          if (
+            previewSlice.includes("<!DOCTYPE HealthData") ||
+            previewSlice.includes("<HealthData locale=") ||
+            previewSlice.includes("<HealthData")
+          ) {
+            sourceSystem = "apple_health";
+          } else {
+            appleHealthXmlPath = null; // Not actually Apple Health
+          }
+        } catch {
+          appleHealthXmlPath = null;
+        }
+      }
+
+      pdfFileCount = pdfFiles.length;
+      xmlFileCount = xmlFiles.length;
+
+      // For each PDF found: upload individually to documents bucket, create documents row
+      for (const pdf of pdfFiles) {
+        try {
+          const pdfData = await zip.file(pdf.relativePath)!.async("arraybuffer");
+          const pdfBlob = new Blob([pdfData], { type: "application/pdf" });
+
+          const safeName = pdf.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+          const pdfStoragePath = userId + "/" + Date.now() + "_" + safeName;
+
+          const { error: uploadErr } = await db.storage
+            .from("documents")
+            .upload(pdfStoragePath, pdfBlob, { upsert: true, contentType: "application/pdf" });
+
+          if (uploadErr) {
+            uploadErrors.push({ file: pdf.name, error: uploadErr.message });
+            continue;
+          }
+
+          const { error: insertErr } = await db.from("documents").insert({
+            person_id: personId,
+            file_name: pdf.name,
+            storage_path: pdfStoragePath,
+            document_type: "Health record PDF",
+            extraction_status: "stored",
+          });
+
+          if (insertErr) {
+            uploadErrors.push({ file: pdf.name, error: insertErr.message });
+          } else {
+            uploadedDocs++;
+          }
+        } catch (e) {
+          uploadErrors.push({ file: pdf.name, error: (e as Error).message });
+        }
+      }
+
+      // ── Apple Health XML parsing ───────────────────────────────────────
+      if (sourceSystem === "apple_health" && appleHealthXmlPath) {
+        try {
+          const ahContent = await zip.file(appleHealthXmlPath)!.async("text");
+          const ahResult = parseAppleHealthXml(ahContent);
+
+          parsedData.vitals.push(...ahResult.vitals);
+          parsedData.conditions.push(...ahResult.conditions);
+
+          for (const err of ahResult.errors) {
+            xmlParseErrors.push({ file: appleHealthXmlPath + " [" + err.section + "]", error: err.error });
+          }
+
+          appleHealthStats.vitals = ahResult.vitals.length;
+          appleHealthStats.activities = ahResult.conditions.filter(
+            (c) => (c as { event_type: string }).event_type === "activity" || (c as { event_type: string }).event_type === "activity_summary",
+          ).length;
+          appleHealthStats.sleep = ahResult.conditions.filter(
+            (c) => (c as { event_type: string }).event_type === "sleep",
+          ).length;
+          appleHealthStats.workouts = ahResult.conditions.filter(
+            (c) => (c as { event_type: string }).event_type === "workout",
+          ).length;
+          xmlParsed++;
+        } catch (e) {
+          xmlParseErrors.push({ file: appleHealthXmlPath, error: (e as Error).message });
+        }
+      }
+
+      // ── C-CDA XML parsing ─────────────────────────────────────────────
+      for (const xmlPath of xmlFiles) {
+        try {
+          const xmlContent = await zip.file(xmlPath)!.async("text");
+          // Skip non-CDA XMLs (manifest files, metadata, Apple Health export.xml)
+          if (!xmlContent.includes("ClinicalDocument")) continue;
+
+          const extracted = parseCcdaXml(xmlContent, xmlPath);
+          parsedData.medications.push(...extracted.medications);
+          parsedData.allergies.push(...extracted.allergies);
+          parsedData.lab_results.push(...extracted.lab_results);
+          parsedData.vitals.push(...extracted.vitals);
+          parsedData.conditions.push(...extracted.conditions);
+
+          for (const err of extracted.errors) {
+            xmlParseErrors.push({ file: xmlPath + " [" + err.section + "]", error: err.error });
+          }
+          xmlParsed++;
+        } catch (e) {
+          xmlParseErrors.push({ file: xmlPath, error: (e as Error).message });
+        }
       }
     }
 
@@ -351,9 +432,9 @@ Deno.serve(async (req) => {
 
     // Build summary
     const summary: Record<string, unknown> = {
-      pdf_count: pdfFiles.length,
+      pdf_count: pdfFileCount,
       pdf_stored: uploadedDocs,
-      xml_count: xmlFiles.length,
+      xml_count: xmlFileCount,
       xml_parsed: xmlParsed,
       has_structured_data: xmlParsed > 0,
       source_system: sourceSystem,
@@ -383,9 +464,7 @@ Deno.serve(async (req) => {
     const finalStatus =
       allErrors.length > 0 && uploadedDocs === 0 && xmlParsed === 0
         ? "failed"
-        : allErrors.length > 0
-          ? "completed"
-          : "completed";
+        : "completed";
 
     // Update job with summary
     await db
