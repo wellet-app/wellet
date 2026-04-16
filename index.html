@@ -3247,7 +3247,7 @@ async function loadPersonData(personId) {
     .from('documents')
     .select('*')
     .eq('person_id', personId)
-    .order('created_at', { ascending: false });
+    .order('uploaded_at', { ascending: false });
   liveDocs = docs || [];
 
   // Load care circle members
@@ -3784,7 +3784,7 @@ function renderRecordsView() {
       var iconName = docIsAudio ? 'mic' : getDocTypeIcon(doc.document_type);
       var statusClass = getDocStatusClass(doc.extraction_status);
       var statusLabel = docIsAudio && doc.extraction_status === 'pending' ? 'Transcribing\u2026' : getDocStatusLabel(doc.extraction_status);
-      var dateStr = relativeTime(doc.created_at);
+      var dateStr = relativeTime(doc.uploaded_at);
       var clickable = doc.extraction_status === 'completed' ? ' onclick="showExtractionResults(\'' + doc.id + '\')"' : '';
       html += '<div class="doc-row"' + clickable + '>'
         + '<div class="doc-icon"><i data-lucide="' + iconName + '" style="width:15px;height:15px;"></i></div>'
@@ -3922,7 +3922,7 @@ async function viewDocument(docId) {
     // Show in image viewer overlay
     document.getElementById('doc-viewer-title').textContent = doc.file_name;
     document.getElementById('doc-viewer-sub').textContent =
-      (doc.document_type || 'Document') + ' · ' + formatEventDate(doc.created_at);
+      (doc.document_type || 'Document') + ' · ' + formatEventDate(doc.uploaded_at);
     document.getElementById('doc-viewer-img').src = signedUrl;
 
     // Download button
