@@ -30,15 +30,18 @@
     --warm-white: #FDFCFA;
     --text-primary: #2C2A26;
     --text-secondary: #6B6560;
-    --text-muted: #9E9A94;
+    --text-muted: #767068;
     --border: rgba(79,77,92,0.12);
     --border-medium: rgba(79,77,92,0.2);
     --amber: #C97B2C;
+    --amber-text: #A0621F;
     --amber-bg: #FDF5E8;
+    --moss-text: #4F7A68;
     --red: #C0392B;
     --blue: #3B6EA5;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
   body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--text-primary); min-height: 100vh; }
   .page-wrap { max-width: 768px; margin: 0 auto; background: var(--warm-white); min-height: 100vh; }
 
@@ -46,8 +49,8 @@
   #auth-screen { display: none; flex-direction: column; min-height: 100vh; background: var(--cream); }
   .auth-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 28px 0; }
   .auth-header-wordmark { width: 100px; display: block; }
-  .auth-early-badge { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; color: var(--moss); border: 1.5px solid var(--moss); border-radius: 6px; padding: 5px 12px; text-transform: uppercase; }
-  .auth-building-badge { display: flex; align-items: center; gap: 8px; padding: 16px 28px 0; font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--moss); }
+  .auth-early-badge { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; color: var(--moss-text); border: 1.5px solid var(--moss); border-radius: 6px; padding: 5px 12px; text-transform: uppercase; }
+  .auth-building-badge { display: flex; align-items: center; gap: 8px; padding: 16px 28px 0; font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--moss-text); }
   .auth-building-dot { width: 7px; height: 7px; border-radius: 50%; background: #47B08A; flex-shrink: 0; }
   .auth-headline { padding: 12px 28px 0; }
   .auth-headline h1 { font-family: 'DM Serif Display', serif; font-size: 34px; line-height: 1.15; font-weight: 400; color: #2C2A26; margin: 0; }
@@ -83,21 +86,21 @@
   .auth-gate-success-icon { width: 44px; height: 44px; border-radius: 50%; background: var(--mint); display: flex; align-items: center; justify-content: center; color: var(--moss); margin: 0 auto 12px; }
   .auth-gate-success-title { font-family: 'DM Serif Display', serif; font-size: 18px; margin-bottom: 6px; }
   .auth-gate-success-body { font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 12px; }
-  .auth-gate-link { font-size: 13px; color: var(--moss); text-decoration: none; font-weight: 500; }
+  .auth-gate-link { font-size: 13px; color: var(--moss-text); text-decoration: none; font-weight: 500; }
   .auth-gate-link:hover { text-decoration: underline; }
-  .auth-gate-back { background: none; border: none; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--moss); cursor: pointer; padding: 0; margin-top: 12px; }
+  .auth-gate-back { background: none; border: none; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--moss-text); cursor: pointer; padding: 0; margin-top: 12px; }
   .auth-gate-back:hover { text-decoration: underline; }
-  .auth-demo-link { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14px; color: var(--moss); cursor: pointer; background: transparent; border: 1.5px solid var(--moss); border-radius: 12px; font-family: 'DM Sans', sans-serif; font-weight: 500; padding: 11px 16px; transition: background 0.15s; flex: 1; }
+  .auth-demo-link { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14px; color: var(--moss-text); cursor: pointer; background: transparent; border: 1.5px solid var(--moss); border-radius: 12px; font-family: 'DM Sans', sans-serif; font-weight: 500; padding: 11px 16px; transition: background 0.15s; flex: 1; }
   .auth-demo-link:hover { background: var(--mint); }
   .auth-links-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 12px; }
   .auth-privacy { padding: 12px 0 0; text-align: center; }
-  .auth-privacy-toggle { background: none; border: none; font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--moss); cursor: pointer; padding: 0; display: inline-flex; align-items: center; gap: 3px; }
+  .auth-privacy-toggle { background: none; border: none; font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--moss-text); cursor: pointer; padding: 0; display: inline-flex; align-items: center; gap: 3px; }
   .auth-privacy-toggle:hover { text-decoration: underline; }
   .auth-privacy-detail { max-height: 0; overflow: hidden; transition: max-height 0.35s ease, opacity 0.35s ease; opacity: 0; }
   .auth-privacy-detail.open { max-height: 200px; opacity: 1; }
   .auth-privacy-detail p { font-size: 12px; color: var(--text-secondary); line-height: 1.65; margin-top: 10px; text-align: left; }
   .auth-privacy p { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
-  .auth-privacy strong { color: var(--moss); font-weight: 500; }
+  .auth-privacy strong { color: var(--moss-text); font-weight: 500; }
   @media (max-width: 340px) { .auth-signals { grid-template-columns: 1fr; } }
 
   /* ── LANDING ── */
@@ -140,7 +143,7 @@
 
   .privacy-footer { padding: 16px 20px; text-align: center; }
   .privacy-note { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
-  .privacy-note strong { color: var(--moss); font-weight: 500; }
+  .privacy-note strong { color: var(--moss-text); font-weight: 500; }
 
   /* ── NOTIFICATION BELL & PANEL ── */
   .notif-bell-wrap { position: relative; }
@@ -153,20 +156,20 @@
   @keyframes notif-slide-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
   .notif-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 52px 16px 12px; border-bottom: 1px solid var(--border); }
   .notif-panel-title { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; }
-  .notif-mark-read { background: none; border: none; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; color: var(--moss); cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: background 0.15s; }
+  .notif-mark-read { background: none; border: none; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; color: var(--moss-text); cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: background 0.15s; }
   .notif-mark-read:hover { background: var(--mint); }
   .notif-group-label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); font-weight: 500; padding: 12px 16px 6px; }
   .notif-item { display: flex; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border); transition: background 0.15s; }
   .notif-item.unread { background: var(--mint); }
   .notif-item-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .notif-item-icon.med { background: var(--amber-bg); color: var(--amber); }
+  .notif-item-icon.med { background: var(--amber-bg); color: var(--amber-text); }
   .notif-item-icon.appt { background: var(--mint); color: var(--moss); }
   .notif-item-body { flex: 1; min-width: 0; }
   .notif-item-title { font-size: 13px; font-weight: 500; line-height: 1.4; }
   .notif-item-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
   .notif-empty { text-align: center; padding: 48px 24px; color: var(--text-muted); font-size: 13px; line-height: 1.6; }
   .notif-empty-icon { display: flex; justify-content: center; margin-bottom: 12px; opacity: 0.3; }
-  .notif-close-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); display: flex; padding: 4px; border-radius: 6px; }
+  .notif-close-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 4px; border-radius: 6px; }
   .notif-close-btn:hover { color: var(--text-primary); }
 
   /* ── MEDICATION REMINDER SHEET ── */
@@ -199,7 +202,7 @@
   .app-wordmark path { fill: #3D6B58; }
   .header-meta { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
   .header-actions { display: flex; gap: 8px; }
-  .icon-btn { width: 34px; height: 34px; border-radius: 50%; background: var(--mint); display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; color: var(--moss); transition: background 0.15s; }
+  .icon-btn { min-width: 44px; min-height: 44px; border-radius: 50%; background: var(--mint); display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; color: var(--moss); transition: background 0.15s; }
   .icon-btn:hover { background: var(--mint-deep); }
 
   /* ── SETTINGS SHEET ── */
@@ -222,7 +225,7 @@
   .toggle::after { content: ''; position: absolute; width: 18px; height: 18px; border-radius: 50%; background: white; top: 3px; left: 3px; transition: transform 0.2s; }
   .toggle.on::after { transform: translateX(18px); }
   .settings-chevron { color: var(--text-muted); display: flex; }
-  .close-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); display: flex; padding: 4px; border-radius: 6px; }
+  .close-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 4px; border-radius: 6px; }
   .close-btn:hover { color: var(--text-primary); }
 
   .person-switcher { display: flex; gap: 8px; margin-bottom: 14px; overflow-x: auto; padding-bottom: 2px; }
@@ -256,7 +259,7 @@
   .person-card-name { font-weight: 500; font-size: 16px; }
   .person-card-rel { font-size: 12px; color: var(--text-muted); }
   .person-card-status { margin-left: auto; display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; }
-  .person-card-status.watching { color: var(--amber); }
+  .person-card-status.watching { color: var(--amber-text); }
   .person-card-status.stable { color: #47B08A; }
   .person-card-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
   .person-stat { background: var(--cream); border-radius: 8px; padding: 8px 10px; }
@@ -334,7 +337,7 @@
   .er-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: #dc2626; color: white; flex-shrink: 0; }
   .er-header-left { display: flex; align-items: center; gap: 10px; }
   .er-header-title { font-family: 'DM Sans', sans-serif; font-size: 16px; font-weight: 600; letter-spacing: 0.02em; }
-  .er-close-btn { background: rgba(255,255,255,0.2); border: none; color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s; flex-shrink: 0; }
+  .er-close-btn { background: rgba(255,255,255,0.2); border: none; color: white; min-width: 44px; min-height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s; flex-shrink: 0; }
   .er-close-btn:hover { background: rgba(255,255,255,0.35); }
   .er-patient-banner { padding: 16px 20px; background: #fef2f2; border-bottom: 2px solid #dc2626; flex-shrink: 0; }
   .er-patient-name { font-family: 'DM Serif Display', serif; font-size: 26px; font-weight: 400; color: #1a1a1a; line-height: 1.2; }
@@ -426,7 +429,7 @@
   .record-label { font-size: 14px; font-weight: 500; flex: 1; }
   .record-meta { font-size: 12px; color: var(--text-muted); }
   .record-badge { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 8px; }
-  .record-badge.amber { background: var(--amber-bg); color: var(--amber); }
+  .record-badge.amber { background: var(--amber-bg); color: var(--amber-text); }
   .record-badge.moss { background: var(--mint); color: var(--moss-dark); }
 
   /* remove confirm modal */
@@ -471,7 +474,7 @@
   .ask-input-bar { padding: 10px 16px 12px; border-top: 1px solid var(--border); display: flex; gap: 10px; align-items: flex-end; background: white; }
   .ask-input { flex: 1; border: 1.5px solid var(--border-medium); border-radius: 20px; padding: 10px 16px; font-size: 16px; font-family: 'DM Sans', sans-serif; color: var(--text-primary); background: white; resize: none; line-height: 1.4; max-height: 100px; overflow-y: auto; }
   .ask-input:focus { outline: none; border-color: var(--moss); }
-  .ask-send { width: 36px; height: 36px; border-radius: 50%; background: var(--moss); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0; transition: background 0.15s; }
+  .ask-send { min-width: 44px; min-height: 44px; border-radius: 50%; background: var(--moss); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0; transition: background 0.15s; }
   .ask-send:hover { background: var(--moss-dark); }
   .ask-send:disabled { background: var(--border-medium); cursor: default; }
   .ask-mic { width: 36px; height: 36px; border-radius: 50%; background: transparent; border: 1.5px solid var(--border-medium); cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text-muted); flex-shrink: 0; transition: all 0.2s; position: relative; }
@@ -498,11 +501,11 @@
 
   .alert-banner { margin: 12px 20px 0; background: var(--amber-bg); border: 1px solid rgba(201,123,44,0.25); border-radius: 10px; padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start; }
   .alert-icon { color: var(--amber); flex-shrink: 0; margin-top: 1px; display: flex; }
-  .alert-title { font-size: 13px; font-weight: 500; color: var(--amber); margin-bottom: 2px; }
+  .alert-title { font-size: 13px; font-weight: 500; color: var(--amber-text); margin-bottom: 2px; }
   .alert-body { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
 
   .quick-actions { display: flex; gap: 8px; margin: 12px 20px 0; }
-  .qa-btn { flex: 1; background: white; border: 1px solid var(--border); border-radius: 10px; padding: 10px 8px; font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500; color: var(--text-secondary); cursor: pointer; text-align: center; transition: all 0.15s; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .qa-btn { flex: 1; background: white; border: 1px solid var(--border); border-radius: 10px; padding: 10px 8px; min-height: 44px; font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500; color: var(--text-secondary); cursor: pointer; text-align: center; transition: all 0.15s; display: flex; flex-direction: column; align-items: center; gap: 5px; }
   .qa-btn:hover { border-color: var(--moss); color: var(--moss); background: var(--mint); }
   .qa-icon { color: var(--text-muted); display: flex; transition: color 0.15s; }
   .qa-btn:hover .qa-icon { color: var(--moss); }
@@ -529,7 +532,7 @@
   .tl-card-type-row { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
   .tl-card-type { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 500; }
   .tl-card-type.appt { color: var(--moss); }
-  .tl-card-type.med { color: var(--amber); }
+  .tl-card-type.med { color: var(--amber-text); }
   .tl-card-type.lab { color: var(--blue); }
   .tl-card-type.note { color: var(--text-muted); }
   .tl-card-type.alert { color: var(--red); }
@@ -553,7 +556,7 @@
 
   /* bottom nav */
   .bottom-nav { position: fixed; bottom: 0; width: 100%; max-width: 768px; background: white; border-top: 1px solid var(--border); display: flex; padding: 10px 0 20px; z-index: 20; left: 50%; transform: translateX(-50%); }
-  .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; font-size: 10px; color: var(--text-muted); padding: 4px 0; background: none; border: none; font-family: 'DM Sans', sans-serif; transition: color 0.15s; }
+  .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; font-size: 10px; color: var(--text-muted); padding: 8px 0; min-height: 44px; background: none; border: none; font-family: 'DM Sans', sans-serif; transition: color 0.15s; }
   .nav-item.active { color: var(--moss); }
   .nav-icon { display: flex; align-items: center; }
 
@@ -714,7 +717,7 @@
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* ── DEMO BADGE ── */
-  .demo-badge { background: var(--amber-bg); border: 1px solid rgba(201,123,44,0.3); color: var(--amber); font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 10px; }
+  .demo-badge { background: var(--amber-bg); border: 1px solid rgba(201,123,44,0.3); color: var(--amber-text); font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 10px; }
 
   /* ── DOCUMENT LIST ── */
   .doc-row { display: flex; align-items: center; gap: 12px; padding: 11px 14px; background: white; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 6px; cursor: pointer; transition: border-color 0.15s; }
@@ -724,7 +727,7 @@
   .doc-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .doc-meta { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
   .doc-status { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 8px; white-space: nowrap; flex-shrink: 0; }
-  .doc-status.analyzing { background: var(--amber-bg); color: var(--amber); animation: statusPulse 2s ease-in-out infinite; }
+  .doc-status.analyzing { background: var(--amber-bg); color: var(--amber-text); animation: statusPulse 2s ease-in-out infinite; }
   .doc-status.extracted { background: var(--mint); color: var(--moss-dark); }
   .doc-status.failed { background: #FEF0EE; color: var(--red); }
   @keyframes statusPulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
@@ -1047,6 +1050,7 @@
       <p class="auth-gate-body">Wellet is in private alpha right now. Drop your email below and we'll let you know when it's your turn.</p>
       <div id="auth-gate-form">
         <div class="auth-gate-input-wrap">
+          <label for="auth-gate-email" class="sr-only">Email address</label>
           <input type="email" id="auth-gate-email" class="auth-gate-input" placeholder="you@email.com" autocomplete="email">
         </div>
         <button class="btn-primary" onclick="submitWaitlistRequest()" id="auth-gate-btn">
@@ -1105,18 +1109,18 @@
 
   <div class="demo-preview">
     <p class="label">Live demo</p>
-    <div class="demo-toggle">
-      <button class="demo-tab active" onclick="switchDemo('dad',this)">Dad's care</button>
-      <button class="demo-tab" onclick="switchDemo('vet',this)">Veteran's care</button>
+    <div class="demo-toggle" role="tablist" aria-label="Care view">
+      <button class="demo-tab active" role="tab" aria-selected="true" aria-controls="demo-dad" id="demo-tab-dad" onclick="switchDemo('dad',this)">Dad's care</button>
+      <button class="demo-tab" role="tab" aria-selected="false" aria-controls="demo-vet" id="demo-tab-vet" onclick="switchDemo('vet',this)">Veteran's care</button>
     </div>
-    <div id="demo-dad" class="preview-card">
+    <div id="demo-dad" class="preview-card" role="tabpanel" aria-labelledby="demo-tab-dad">
       <div class="person-row">
         <div class="avatar">JB</div>
         <div>
           <div class="person-name">John Bell — Dad</div>
           <div class="person-meta">3 months of care history</div>
         </div>
-        <div class="status-dot"></div>
+        <div class="status-dot" aria-hidden="true"></div><span class="sr-only">Status: Stable</span>
       </div>
       <div class="preview-lines">
         <div class="preview-line">BP trending up since dose change</div>
@@ -1125,14 +1129,14 @@
         <div class="preview-line">Next visit: March 16th</div>
       </div>
     </div>
-    <div id="demo-vet" class="preview-card" style="display:none;">
+    <div id="demo-vet" class="preview-card" role="tabpanel" aria-labelledby="demo-tab-vet" style="display:none;">
       <div class="person-row">
         <div class="avatar" style="background: #4F7A68;">R</div>
         <div>
           <div class="person-name">Ray — husband and veteran</div>
           <div class="person-meta">Army, Gulf War · Care across two systems</div>
         </div>
-        <div class="status-dot"></div>
+        <div class="status-dot" aria-hidden="true"></div><span class="sr-only">Status: Stable</span>
       </div>
       <div class="preview-lines">
         <div class="preview-line">VA + Duke appointments in one place</div>
@@ -1186,23 +1190,23 @@
         </div>
       </div>
       <div class="header-actions" style="display:flex;align-items:center;gap:6px;">
-          <button class="icon-btn" id="demo-back-btn" onclick="showLanding()" title="Back to start" style="display:none;"><i data-lucide="arrow-left" style="width:16px;height:16px;"></i></button>
+          <button class="icon-btn" id="demo-back-btn" onclick="showLanding()" title="Back to start" aria-label="Back" style="display:none;"><i data-lucide="arrow-left" style="width:16px;height:16px;"></i></button>
           <div class="notif-bell-wrap">
-            <button class="icon-btn" id="notif-bell-btn" onclick="openNotifPanel()" title="Reminders"><i data-lucide="bell" style="width:16px;height:16px;"></i></button>
+            <button class="icon-btn" id="notif-bell-btn" onclick="openNotifPanel()" title="Reminders" aria-label="Notifications"><i data-lucide="bell" style="width:16px;height:16px;"></i></button>
             <span class="notif-bell-badge" id="notif-bell-badge" data-count="0"></span>
           </div>
-          <button class="icon-btn" id="header-feedback-btn" onclick="openFeedbackSheet()" title="Send feedback"><i data-lucide="message-square-heart" style="width:16px;height:16px;"></i></button>
-          <button class="icon-btn" onclick="openSettings()" title="Settings"><i data-lucide="settings" style="width:16px;height:16px;"></i></button>
+          <button class="icon-btn" id="header-feedback-btn" onclick="openFeedbackSheet()" title="Send feedback" aria-label="Send feedback"><i data-lucide="message-square-heart" style="width:16px;height:16px;"></i></button>
+          <button class="icon-btn" onclick="openSettings()" title="Settings" aria-label="Settings"><i data-lucide="settings" style="width:16px;height:16px;"></i></button>
       </div>
     </div>
-    <div class="person-switcher" id="header-person-switcher">
-      <button class="person-pill active" onclick="switchPerson(this,'dad')"><span class="pip"></span>Dad</button>
-      <button class="person-pill" onclick="switchPerson(this,'mom')"><span class="pip"></span>Mom</button>
+    <div class="person-switcher" id="header-person-switcher" role="tablist" aria-label="Person">
+      <button class="person-pill active" role="tab" aria-selected="true" onclick="switchPerson(this,'dad')"><span class="pip"></span>Dad</button>
+      <button class="person-pill" role="tab" aria-selected="false" onclick="switchPerson(this,'mom')"><span class="pip"></span>Mom</button>
     </div>
-    <div class="tab-bar" id="header-tab-bar">
-      <button class="tab active" onclick="switchTab(this,'update')">Update Me</button>
-      <button class="tab" onclick="switchTab(this,'timeline')">Timeline</button>
-      <button class="tab" onclick="switchTab(this,'patterns')">Patterns</button>
+    <div class="tab-bar" id="header-tab-bar" role="tablist" aria-label="Health view">
+      <button class="tab active" role="tab" aria-selected="true" aria-controls="tab-update" id="tab-btn-update" onclick="switchTab(this,'update')">Update Me</button>
+      <button class="tab" role="tab" aria-selected="false" aria-controls="tab-timeline" id="tab-btn-timeline" onclick="switchTab(this,'timeline')">Timeline</button>
+      <button class="tab" role="tab" aria-selected="false" aria-controls="tab-patterns" id="tab-btn-patterns" onclick="switchTab(this,'patterns')">Patterns</button>
     </div>
   </div>
 
@@ -1210,7 +1214,7 @@
     <div id="view-home" class="app-view active">
 
     <!-- UPDATE ME -->
-    <div id="tab-update" class="tab-pane active">
+    <div id="tab-update" class="tab-pane active" role="tabpanel" aria-labelledby="tab-btn-update">
       <div class="update-me-section">
         <div class="update-card">
           <div class="update-label">What's going on with Dad right now</div>
@@ -1235,7 +1239,7 @@
         <div id="recent-activity-list">
           <!-- populated by renderRecentActivity() -->
           <div class="tl-item">
-            <div class="tl-line-col"><div class="tl-dot appt"></div><div class="tl-connector"></div></div>
+            <div class="tl-line-col"><div class="tl-dot appt" aria-hidden="true"></div><div class="tl-connector"></div></div>
             <div class="tl-card moss-border">
               <div class="tl-card-type-row"><i data-lucide="calendar-check" style="width:11px;height:11px;color:var(--moss);"></i><span class="tl-card-type appt">Appointment</span></div>
               <div class="tl-card-title">Annual physical — Dr. Waite</div>
@@ -1244,7 +1248,7 @@
             </div>
           </div>
           <div class="tl-item">
-            <div class="tl-line-col"><div class="tl-dot med"></div><div class="tl-connector"></div></div>
+            <div class="tl-line-col"><div class="tl-dot med" aria-hidden="true"></div><div class="tl-connector"></div></div>
             <div class="tl-card amber-border">
               <div class="tl-card-type-row"><i data-lucide="pill" style="width:11px;height:11px;color:var(--amber);"></i><span class="tl-card-type med">Medication change</span></div>
               <div class="tl-card-title">Hydrochlorothiazide adjusted</div>
@@ -1253,7 +1257,7 @@
             </div>
           </div>
           <div class="tl-item">
-            <div class="tl-line-col"><div class="tl-dot alert"></div></div>
+            <div class="tl-line-col"><div class="tl-dot alert" aria-hidden="true"></div></div>
             <div class="tl-card red-border">
               <div class="tl-card-type-row"><i data-lucide="activity" style="width:11px;height:11px;color:var(--red);"></i><span class="tl-card-type alert">Pattern noticed</span></div>
               <div class="tl-card-title">BP elevated since dose change</div>
@@ -1266,11 +1270,11 @@
     </div>
 
     <!-- TIMELINE -->
-    <div id="tab-timeline" class="tab-pane">
+    <div id="tab-timeline" class="tab-pane" role="tabpanel" aria-labelledby="tab-btn-timeline">
       <div class="timeline-section" id="timeline-content">
         <div class="tl-month">March 2026</div>
         <div class="tl-item">
-          <div class="tl-line-col"><div class="tl-dot alert"></div><div class="tl-connector"></div></div>
+          <div class="tl-line-col"><div class="tl-dot alert" aria-hidden="true"></div><div class="tl-connector"></div></div>
           <div class="tl-card red-border">
             <div class="tl-card-type-row"><i data-lucide="activity" style="width:11px;height:11px;color:var(--red);"></i><span class="tl-card-type alert">Wellet noticed</span></div>
             <div class="tl-card-title">Blood pressure rising</div>
@@ -1279,7 +1283,7 @@
           </div>
         </div>
         <div class="tl-item">
-          <div class="tl-line-col"><div class="tl-dot appt"></div><div class="tl-connector"></div></div>
+          <div class="tl-line-col"><div class="tl-dot appt" aria-hidden="true"></div><div class="tl-connector"></div></div>
           <div class="tl-card moss-border">
             <div class="tl-card-type-row"><i data-lucide="calendar" style="width:11px;height:11px;color:var(--moss);"></i><span class="tl-card-type appt">Upcoming</span></div>
             <div class="tl-card-title">Primary care — Dr. Johnson</div>
@@ -1288,7 +1292,7 @@
           </div>
         </div>
         <div class="tl-item">
-          <div class="tl-line-col"><div class="tl-dot appt"></div><div class="tl-connector"></div></div>
+          <div class="tl-line-col"><div class="tl-dot appt" aria-hidden="true"></div><div class="tl-connector"></div></div>
           <div class="tl-card moss-border">
             <div class="tl-card-type-row"><i data-lucide="calendar-check" style="width:11px;height:11px;color:var(--moss);"></i><span class="tl-card-type appt">Appointment</span> <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div>
             <div class="tl-card-title">Office visit — Neurology</div>
@@ -1296,7 +1300,7 @@
           </div>
         </div>
         <div class="tl-item">
-          <div class="tl-line-col"><div class="tl-dot lab"></div><div class="tl-connector"></div></div>
+          <div class="tl-line-col"><div class="tl-dot lab" aria-hidden="true"></div><div class="tl-connector"></div></div>
           <div class="tl-card blue-border">
             <div class="tl-card-type-row"><i data-lucide="flask-conical" style="width:11px;height:11px;color:var(--blue);"></i><span class="tl-card-type lab">Lab result</span> <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div>
             <div class="tl-card-title">CBC — WBC 6.8, Hemoglobin 14.2</div>
@@ -1304,7 +1308,7 @@
           </div>
         </div>
         <div class="tl-item">
-          <div class="tl-line-col"><div class="tl-dot lab"></div><div class="tl-connector"></div></div>
+          <div class="tl-line-col"><div class="tl-dot lab" aria-hidden="true"></div><div class="tl-connector"></div></div>
           <div class="tl-card blue-border">
             <div class="tl-card-type-row"><i data-lucide="flask-conical" style="width:11px;height:11px;color:var(--blue);"></i><span class="tl-card-type lab">Lab result</span> <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div>
             <div class="tl-card-title">Metabolic panel — Glucose 98, Creatinine 1.0</div>
@@ -1313,7 +1317,7 @@
         </div>
         <div class="tl-month">February 2026</div>
         <div class="tl-item">
-          <div class="tl-line-col"><div class="tl-dot med"></div><div class="tl-connector"></div></div>
+          <div class="tl-line-col"><div class="tl-dot med" aria-hidden="true"></div><div class="tl-connector"></div></div>
           <div class="tl-card amber-border">
             <div class="tl-card-type-row"><i data-lucide="pill" style="width:11px;height:11px;color:var(--amber);"></i><span class="tl-card-type med">Medication</span></div>
             <div class="tl-card-title">Hydrochlorothiazide dose adjusted</div>
@@ -1322,7 +1326,7 @@
           </div>
         </div>
         <div class="tl-item">
-          <div class="tl-line-col"><div class="tl-dot lab"></div><div class="tl-connector"></div></div>
+          <div class="tl-line-col"><div class="tl-dot lab" aria-hidden="true"></div><div class="tl-connector"></div></div>
           <div class="tl-card blue-border">
             <div class="tl-card-type-row"><i data-lucide="flask-conical" style="width:11px;height:11px;color:var(--blue);"></i><span class="tl-card-type lab">Lab result</span></div>
             <div class="tl-card-title">CML BCR-ABL &lt;0.001</div>
@@ -1331,7 +1335,7 @@
           </div>
         </div>
         <div class="tl-item">
-          <div class="tl-line-col"><div class="tl-dot note"></div><div class="tl-connector"></div></div>
+          <div class="tl-line-col"><div class="tl-dot note" aria-hidden="true"></div><div class="tl-connector"></div></div>
           <div class="tl-card">
             <div class="tl-card-type-row"><i data-lucide="pencil-line" style="width:11px;height:11px;color:var(--text-muted);"></i><span class="tl-card-type note">Your note</span></div>
             <div class="tl-card-title">PT going well, some fatigue</div>
@@ -1341,7 +1345,7 @@
         </div>
         <div class="tl-month">January 2026</div>
         <div class="tl-item">
-          <div class="tl-line-col"><div class="tl-dot appt"></div><div class="tl-connector"></div></div>
+          <div class="tl-line-col"><div class="tl-dot appt" aria-hidden="true"></div><div class="tl-connector"></div></div>
           <div class="tl-card moss-border">
             <div class="tl-card-type-row"><i data-lucide="calendar-check" style="width:11px;height:11px;color:var(--moss);"></i><span class="tl-card-type appt">Appointment</span></div>
             <div class="tl-card-title">Annual physical — Dr. Waite</div>
@@ -1350,7 +1354,7 @@
           </div>
         </div>
         <div class="tl-item">
-          <div class="tl-line-col"><div class="tl-dot appt"></div><div class="tl-connector"></div></div>
+          <div class="tl-line-col"><div class="tl-dot appt" aria-hidden="true"></div><div class="tl-connector"></div></div>
           <div class="tl-card moss-border">
             <div class="tl-card-type-row"><i data-lucide="calendar-check" style="width:11px;height:11px;color:var(--moss);"></i><span class="tl-card-type appt">Appointment</span></div>
             <div class="tl-card-title">Oncology follow-up — Dr. Edwards</div>
@@ -1359,7 +1363,7 @@
           </div>
         </div>
         <div class="tl-item">
-          <div class="tl-line-col"><div class="tl-dot lab"></div></div>
+          <div class="tl-line-col"><div class="tl-dot lab" aria-hidden="true"></div></div>
           <div class="tl-card blue-border">
             <div class="tl-card-type-row"><i data-lucide="flask-conical" style="width:11px;height:11px;color:var(--blue);"></i><span class="tl-card-type lab">Labs</span></div>
             <div class="tl-card-title">Basic metabolic panel — all normal</div>
@@ -1371,7 +1375,7 @@
     </div>
 
     <!-- PATTERNS -->
-    <div id="tab-patterns" class="tab-pane">
+    <div id="tab-patterns" class="tab-pane" role="tabpanel" aria-labelledby="tab-btn-patterns">
       <div class="patterns-section">
         <p class="section-label">What Wellet has noticed</p>
         <div class="insight-card">
@@ -1479,7 +1483,7 @@
       </div>
       <div id="records-dad" class="records-section">
         <div class="ehr-status-bar">
-          <div class="ehr-status-left"><div class="ehr-status-dot"></div><strong>EHR Connected</strong> · Duke Health (Epic)</div>
+          <div class="ehr-status-left"><div class="ehr-status-dot" aria-hidden="true"></div><strong>EHR Connected</strong> · Duke Health (Epic)</div>
           <div class="ehr-status-right">
             <span style="font-size:11px;color:var(--text-muted);">Demo data</span>
             <button class="ehr-demo-tooltip ehr-refresh-btn" data-tooltip="In the real app, this connects to your provider's records" onclick="showToast('In the real app, this refreshes data from your provider')"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>
@@ -1742,8 +1746,9 @@
           <button class="ask-mic" id="ask-mic" onclick="toggleVoiceInput()" title="Voice input">
             <i data-lucide="mic" style="width:16px;height:16px;"></i>
           </button>
+          <label for="ask-input" class="sr-only">Ask about your loved one's health</label>
           <textarea class="ask-input" id="ask-input" placeholder="Ask about Dad's health…" rows="1" onkeydown="handleAskKey(event)" oninput="autoResize(this)"></textarea>
-          <button class="ask-send" id="ask-send" onclick="sendAskMessage()">
+          <button class="ask-send" id="ask-send" onclick="sendAskMessage()" aria-label="Send message">
             <i data-lucide="arrow-up" style="width:16px;height:16px;"></i>
           </button>
         </div>
@@ -1772,7 +1777,7 @@
   <!-- Step 1: Upload screen -->
   <div id="ob-upload-screen" style="display:flex;flex-direction:column;height:100%;">
     <div class="ob-upload-header">
-      <button class="ob-back" onclick="showLanding()"><i data-lucide="arrow-left" style="width:20px;height:20px;"></i></button>
+      <button class="ob-back" aria-label="Back" onclick="showLanding()"><i data-lucide="arrow-left" style="width:20px;height:20px;"></i></button>
       <svg class="ob-upload-wordmark" viewBox="0 0 465 66" xmlns="http://www.w3.org/2000/svg"><path d="M45.5,4c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83L.25,13.32h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z" fill="#3D6B58"/><path d="M67.97,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08s-1.4-1.71-1.4-2.99c0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M85.12,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M99.88,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M130.39,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08-.94-.72-1.4-1.71-1.4-2.99,0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M155.96,13.83h-4.14v-3.89l4.47-.43.94-6.77h4.21l-.47,6.77h7.06l-.29,4.32h-6.88l-.47,12.06c-.02,1.42.29,2.48.94,3.17.65.69,1.49,1.04,2.52,1.04,1.22,0,2.48-.47,3.78-1.4l1.4,3.56c-2.06,1.37-4.25,2.05-6.55,2.05-2.16,0-3.89-.69-5.18-2.07-1.3-1.38-1.91-3.35-1.84-5.9l.5-12.53Z" fill="#3D6B58"/></svg>
     </div>
     <div class="ob-upload-body">
@@ -1849,9 +1854,9 @@
     <div class="ob-name-body">
       <div class="ob-name-found" id="ob-name-found"></div>
       <div class="ob-name-form">
-        <label class="ob-name-label">What should we call you?</label>
+        <label class="ob-name-label" for="ob-your-name">What should we call you?</label>
         <input class="ob-name-input" id="ob-your-name" type="text" placeholder="Your first name" autocomplete="given-name">
-        <label class="ob-name-label" style="margin-top:16px;">Who is this health record for?</label>
+        <label class="ob-name-label" for="ob-person-name" style="margin-top:16px;">Who is this health record for?</label>
         <input class="ob-name-input" id="ob-person-name" type="text" placeholder="Their name (or yours if it's for you)" autocomplete="off">
         <button class="btn-primary ob-name-go" onclick="obFinishWithNames()"><i data-lucide="arrow-right" style="width:16px;height:16px;"></i> Open my Wellet</button>
       </div>
@@ -1861,7 +1866,7 @@
   <!-- Fallback: original chat (only shown via skip) -->
   <div id="ob-chat-screen" style="display:none;flex-direction:column;height:100%;">
     <div class="ob-header">
-      <button class="ob-back" onclick="obBackToUpload()"><i data-lucide="arrow-left" style="width:20px;height:20px;"></i></button>
+      <button class="ob-back" aria-label="Back" onclick="obBackToUpload()"><i data-lucide="arrow-left" style="width:20px;height:20px;"></i></button>
       <div>
         <div class="ob-title">Tell me about your situation</div>
         <div class="ob-subtitle">Ask Wellet</div>
@@ -1869,6 +1874,7 @@
     </div>
     <div class="ob-chat" id="ob-chat-area"></div>
     <div class="ob-input-row">
+      <label for="ob-input" class="sr-only">Type a message</label>
       <textarea class="ob-input" id="ob-input" rows="1" placeholder="Type a message…" disabled
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();obSend();}"></textarea>
       <button class="ob-send" id="ob-send-btn" onclick="obSend()" disabled>
@@ -1893,7 +1899,7 @@
         <i data-lucide="shield-alert" style="width:22px;height:22px;"></i>
         <span class="er-header-title">Emergency Summary</span>
       </div>
-      <button class="er-close-btn" onclick="closeSheet('emergency-overlay')">
+      <button class="er-close-btn" onclick="closeSheet('emergency-overlay')" aria-label="Close">
         <i data-lucide="x" style="width:22px;height:22px;"></i>
       </button>
     </div>
@@ -1944,7 +1950,7 @@
       <div id="er-ai-section">
         <div class="er-ai-header">
           <div class="er-ai-label"><i data-lucide="sparkles" style="width:13px;height:13px;"></i> AI Emergency Brief</div>
-          <button class="er-ai-refresh" onclick="fetchEmergencyBrief(true)" title="Regenerate brief">
+          <button class="er-ai-refresh" onclick="fetchEmergencyBrief(true)" title="Regenerate brief" aria-label="Regenerate emergency brief">
             <i data-lucide="refresh-cw" style="width:13px;height:13px;"></i>
           </button>
         </div>
@@ -1980,7 +1986,7 @@
   <div class="qa-sheet">
     <div class="qa-handle-row">
       <div class="qa-handle"></div>
-      <button class="close-btn" onclick="closeSheet('share-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+      <button class="close-btn" aria-label="Close" onclick="closeSheet('share-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
     <div class="qa-sheet-title">Share with family</div>
     <div class="qa-sheet-sub" id="share-sheet-sub">Send a summary of what's going on with Dad</div>
@@ -2039,7 +2045,7 @@
   <div class="qa-sheet">
     <div class="qa-handle-row">
       <div class="qa-handle"></div>
-      <button class="close-btn" onclick="closeSheet('export-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+      <button class="close-btn" aria-label="Close" onclick="closeSheet('export-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
     <div class="qa-sheet-title">Visit Summary</div>
     <div class="qa-sheet-sub" id="export-sheet-sub">Generate a printable PDF to bring to the next appointment</div>
@@ -2074,7 +2080,7 @@
   <div class="upload-sheet">
     <div class="upload-handle-row">
       <div class="upload-handle"></div>
-      <button class="close-btn" onclick="closeUpload()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+      <button class="close-btn" aria-label="Close" onclick="closeUpload()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
     <div class="upload-title">Add a document</div>
     <div class="upload-person">Adding to <strong id="upload-person-name"></strong></div>
@@ -2189,7 +2195,7 @@
   <div class="settings-sheet">
     <div class="settings-handle-row">
       <div class="settings-handle"></div>
-      <button class="close-btn" onclick="closeSettings()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+      <button class="close-btn" aria-label="Close" onclick="closeSettings()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
     <div class="settings-title">Settings</div>
 
@@ -2336,11 +2342,12 @@
   <div class="qa-sheet">
     <div class="qa-handle-row">
       <div class="qa-handle"></div>
-      <button class="close-btn" onclick="closeSheet('feedback-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+      <button class="close-btn" aria-label="Close" onclick="closeSheet('feedback-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
     <div class="qa-sheet-title">Send feedback</div>
     <div class="qa-sheet-sub">Your feedback goes directly to Betsy. Nothing is too small.</div>
     <div style="padding:0 20px 20px;">
+      <label for="feedback-text" class="sr-only">Your feedback</label>
       <textarea id="feedback-text" rows="5" placeholder="What's working? What's confusing? What do you wish Wellet could do?" style="width:100%;border:1.5px solid var(--border-medium);border-radius:12px;padding:12px 14px;font-size:15px;font-family:'DM Sans',sans-serif;color:var(--text-primary);background:white;resize:vertical;line-height:1.5;outline:none;"></textarea>
       <button class="btn-primary" style="width:100%;margin-top:12px;font-size:14px;padding:14px;" onclick="submitFeedback()">
         <i data-lucide="send" style="width:15px;height:15px;"></i> Send to Betsy
@@ -2380,20 +2387,20 @@
   <div class="qa-sheet">
     <div class="qa-handle-row">
       <div class="qa-handle"></div>
-      <button class="close-btn" onclick="closeSheet('contact-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+      <button class="close-btn" aria-label="Close" onclick="closeSheet('contact-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
     <div class="qa-sheet-title" id="contact-sheet-title">Edit contact</div>
     <div style="padding:0 20px 16px;display:flex;flex-direction:column;gap:10px;">
       <div>
-        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Name</div>
+        <label for="contact-name-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Name</label>
         <input class="input-field" id="contact-name-input" style="margin-top:0;" type="text" placeholder="Full name">
       </div>
       <div>
-        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Email</div>
+        <label for="contact-email-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Email</label>
         <input class="input-field" id="contact-email-input" style="margin-top:0;" type="email" placeholder="email@example.com">
       </div>
       <div>
-        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Phone (optional)</div>
+        <label for="contact-phone-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Phone (optional)</label>
         <input class="input-field" id="contact-phone-input" style="margin-top:0;" type="tel" placeholder="(000) 000-0000">
       </div>
       <div>
@@ -2423,7 +2430,7 @@
   <div class="qa-sheet">
     <div class="qa-handle-row">
       <div class="qa-handle"></div>
-      <button class="close-btn" onclick="closeSheet('extraction-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+      <button class="close-btn" aria-label="Close" onclick="closeSheet('extraction-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
     <div class="qa-sheet-title" id="ext-sheet-title">Extraction Results</div>
     <div class="qa-sheet-sub" id="ext-sheet-sub">Extracted from document</div>
@@ -2444,7 +2451,7 @@
   <div class="qa-sheet">
     <div class="qa-handle-row">
       <div class="qa-handle"></div>
-      <button class="close-btn" onclick="closeSheet('doc-viewer-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+      <button class="close-btn" aria-label="Close" onclick="closeSheet('doc-viewer-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
     <div class="qa-sheet-title" id="doc-viewer-title">Document</div>
     <div class="qa-sheet-sub" id="doc-viewer-sub"></div>
@@ -2469,40 +2476,40 @@
   <div class="profile-sheet">
     <div class="profile-handle-row">
       <div class="profile-handle"></div>
-      <button class="close-btn" onclick="closeSheet('profile-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+      <button class="close-btn" aria-label="Close" onclick="closeSheet('profile-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
     <div class="profile-title">Edit profile</div>
     <div class="profile-sub" id="profile-sheet-sub">Update care recipient information</div>
 
     <div class="profile-section-label">Basic information</div>
     <div class="profile-form-row">
-      <label class="profile-form-label">Name</label>
+      <label class="profile-form-label" for="profile-name-input">Name</label>
       <input class="input-field" id="profile-name-input" style="margin-top:0;" type="text" placeholder="Full name">
     </div>
     <div class="profile-form-row">
-      <label class="profile-form-label">Relationship</label>
+      <label class="profile-form-label" for="profile-relationship-input">Relationship</label>
       <input class="input-field" id="profile-relationship-input" style="margin-top:0;" type="text" placeholder="e.g. Dad, Mom, Partner">
     </div>
     <div class="profile-form-row">
-      <label class="profile-form-label">Date of birth</label>
+      <label class="profile-form-label" for="profile-dob-input">Date of birth</label>
       <input class="input-field" id="profile-dob-input" style="margin-top:0;" type="date">
     </div>
     <div class="profile-form-row">
-      <label class="profile-form-label">Phone</label>
+      <label class="profile-form-label" for="profile-phone-input">Phone</label>
       <input class="input-field" id="profile-phone-input" style="margin-top:0;" type="tel" placeholder="(000) 000-0000">
     </div>
 
     <div class="profile-section-label">Medical information</div>
     <div class="profile-form-row">
-      <label class="profile-form-label">Conditions (comma-separated)</label>
+      <label class="profile-form-label" for="profile-conditions-input">Conditions (comma-separated)</label>
       <textarea class="input-field" id="profile-conditions-input" style="margin-top:0;resize:none;" rows="2" placeholder="e.g. Hypertension, CML, Glaucoma"></textarea>
     </div>
     <div class="profile-form-row">
-      <label class="profile-form-label">Allergies</label>
+      <label class="profile-form-label" for="profile-allergies-input">Allergies</label>
       <textarea class="input-field" id="profile-allergies-input" style="margin-top:0;resize:none;" rows="2" placeholder="e.g. Penicillin (rash)"></textarea>
     </div>
     <div class="profile-form-row">
-      <label class="profile-form-label">Blood type</label>
+      <label class="profile-form-label" for="profile-blood-type-input">Blood type</label>
       <select class="input-field" id="profile-blood-type-input" style="margin-top:0;">
         <option value="">Unknown / not set</option>
         <option value="A+">A+</option>
@@ -2516,21 +2523,21 @@
       </select>
     </div>
     <div class="profile-form-row">
-      <label class="profile-form-label">Primary doctor</label>
+      <label class="profile-form-label" for="profile-doctor-input">Primary doctor</label>
       <input class="input-field" id="profile-doctor-input" style="margin-top:0;" type="text" placeholder="e.g. Dr. Johnson">
     </div>
 
     <div class="profile-section-label">Emergency contact</div>
     <div class="profile-form-row">
-      <label class="profile-form-label">Emergency contact name</label>
+      <label class="profile-form-label" for="profile-ec-name-input">Emergency contact name</label>
       <input class="input-field" id="profile-ec-name-input" style="margin-top:0;" type="text" placeholder="Full name">
     </div>
     <div class="profile-form-row">
-      <label class="profile-form-label">Emergency contact phone</label>
+      <label class="profile-form-label" for="profile-ec-phone-input">Emergency contact phone</label>
       <input class="input-field" id="profile-ec-phone-input" style="margin-top:0;" type="tel" placeholder="(000) 000-0000">
     </div>
     <div class="profile-form-row">
-      <label class="profile-form-label">Insurance info</label>
+      <label class="profile-form-label" for="profile-insurance-input">Insurance info</label>
       <input class="input-field" id="profile-insurance-input" style="margin-top:0;" type="text" placeholder="e.g. Blue Cross PPO #123456">
     </div>
 
@@ -2561,7 +2568,7 @@
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
         <button class="notif-mark-read" id="notif-mark-all-btn" onclick="markAllNotifRead()">Mark all read</button>
-        <button class="notif-close-btn" onclick="closeNotifPanel()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+        <button class="notif-close-btn" aria-label="Close" onclick="closeNotifPanel()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
       </div>
     </div>
     <div id="notif-list"></div>
@@ -2573,7 +2580,7 @@
   <div class="med-reminder-sheet">
     <div class="med-reminder-handle-row">
       <div class="med-reminder-handle"></div>
-      <button class="close-btn" onclick="closeMedReminder()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+      <button class="close-btn" aria-label="Close" onclick="closeMedReminder()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
     <div class="med-reminder-title" id="med-reminder-title">Set reminder</div>
     <div class="med-reminder-sub" id="med-reminder-sub">Choose when to be reminded</div>
@@ -2620,13 +2627,13 @@
   <div class="qa-sheet">
     <div class="qa-handle-row">
       <div class="qa-handle"></div>
-      <button class="close-btn" onclick="closeSheet('add-event-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+      <button class="close-btn" aria-label="Close" onclick="closeSheet('add-event-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
     <div class="qa-sheet-title">Add health event</div>
     <div class="qa-sheet-sub" id="add-event-person-label">Adding to your timeline</div>
     <div style="padding:0 20px 16px;display:flex;flex-direction:column;gap:12px;">
       <div>
-        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Type</div>
+        <label for="event-type-select" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Type</label>
         <select id="event-type-select" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;appearance:none;-webkit-appearance:none;">
           <option value="appointment">Appointment</option>
           <option value="medication">Medication change</option>
@@ -2636,15 +2643,15 @@
         </select>
       </div>
       <div>
-        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Date</div>
+        <label for="event-date-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Date</label>
         <input id="event-date-input" type="date" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
       </div>
       <div>
-        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Title</div>
+        <label for="event-title-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Title</label>
         <input id="event-title-input" type="text" placeholder="e.g. Primary care visit with Dr. Smith" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
       </div>
       <div>
-        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Notes (optional)</div>
+        <label for="event-notes-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Notes (optional)</label>
         <textarea id="event-notes-input" rows="3" placeholder="Any details worth remembering…" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;resize:none;line-height:1.5;"></textarea>
       </div>
     </div>
@@ -2662,25 +2669,25 @@
   <div class="qa-sheet">
     <div class="qa-handle-row">
       <div class="qa-handle"></div>
-      <button class="close-btn" onclick="closeSheet('add-med-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+      <button class="close-btn" aria-label="Close" onclick="closeSheet('add-med-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
     <div class="qa-sheet-title">Add medication</div>
     <div class="qa-sheet-sub" id="add-med-person-label">Adding to records</div>
     <div style="padding:0 20px 16px;display:flex;flex-direction:column;gap:12px;">
       <div>
-        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Medication name</div>
+        <label for="med-name-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Medication name</label>
         <input id="med-name-input" type="text" placeholder="e.g. Lisinopril 20mg" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
       </div>
       <div>
-        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Dose</div>
+        <label for="med-dose-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Dose</label>
         <input id="med-dose-input" type="text" placeholder="e.g. 20mg" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
       </div>
       <div>
-        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Frequency</div>
+        <label for="med-freq-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Frequency</label>
         <input id="med-freq-input" type="text" placeholder="e.g. Once daily" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
       </div>
       <div>
-        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Prescriber (optional)</div>
+        <label for="med-prescriber-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Prescriber (optional)</label>
         <input id="med-prescriber-input" type="text" placeholder="e.g. Dr. Johnson" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;">
@@ -2702,13 +2709,13 @@
   <div class="qa-sheet">
     <div class="qa-handle-row">
       <div class="qa-handle"></div>
-      <button class="close-btn" onclick="closeSheet('edit-event-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+      <button class="close-btn" aria-label="Close" onclick="closeSheet('edit-event-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
     <div class="qa-sheet-title">Edit health event</div>
     <div class="qa-sheet-sub" id="edit-event-person-label">Editing event</div>
     <div style="padding:0 20px 16px;display:flex;flex-direction:column;gap:12px;">
       <div>
-        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Type</div>
+        <label for="edit-event-type-select" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Type</label>
         <select id="edit-event-type-select" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;appearance:none;-webkit-appearance:none;">
           <option value="appointment">Appointment</option>
           <option value="medication">Medication change</option>
@@ -2718,15 +2725,15 @@
         </select>
       </div>
       <div>
-        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Date</div>
+        <label for="edit-event-date-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Date</label>
         <input id="edit-event-date-input" type="date" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
       </div>
       <div>
-        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Title</div>
+        <label for="edit-event-title-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Title</label>
         <input id="edit-event-title-input" type="text" placeholder="e.g. Primary care visit with Dr. Smith" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
       </div>
       <div>
-        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Notes (optional)</div>
+        <label for="edit-event-notes-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Notes (optional)</label>
         <textarea id="edit-event-notes-input" rows="3" placeholder="Any details worth remembering…" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;resize:none;line-height:1.5;"></textarea>
       </div>
     </div>
@@ -2750,25 +2757,25 @@
   <div class="qa-sheet">
     <div class="qa-handle-row">
       <div class="qa-handle"></div>
-      <button class="close-btn" onclick="closeSheet('edit-med-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+      <button class="close-btn" aria-label="Close" onclick="closeSheet('edit-med-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
     <div class="qa-sheet-title">Edit medication</div>
     <div class="qa-sheet-sub" id="edit-med-person-label">Editing medication</div>
     <div style="padding:0 20px 16px;display:flex;flex-direction:column;gap:12px;">
       <div>
-        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Medication name</div>
+        <label for="edit-med-name-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Medication name</label>
         <input id="edit-med-name-input" type="text" placeholder="e.g. Lisinopril 20mg" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
       </div>
       <div>
-        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Dose</div>
+        <label for="edit-med-dose-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Dose</label>
         <input id="edit-med-dose-input" type="text" placeholder="e.g. 20mg" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
       </div>
       <div>
-        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Frequency</div>
+        <label for="edit-med-freq-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Frequency</label>
         <input id="edit-med-freq-input" type="text" placeholder="e.g. Once daily" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
       </div>
       <div>
-        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;">Prescriber (optional)</div>
+        <label for="edit-med-prescriber-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Prescriber (optional)</label>
         <input id="edit-med-prescriber-input" type="text" placeholder="e.g. Dr. Johnson" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;">
@@ -2796,7 +2803,7 @@
   <div class="qa-sheet">
     <div class="qa-handle-row">
       <div class="qa-handle"></div>
-      <button class="close-btn" onclick="closeSheet('med-detail-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+      <button class="close-btn" aria-label="Close" onclick="closeSheet('med-detail-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
     <div style="padding:4px 20px 20px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
@@ -3302,7 +3309,7 @@ function renderUpdateMe() {
       var typeInfo = getEventTypeInfo(ev.event_type);
       var dateStr = formatEventDate(ev.event_date);
       timelineHTML += '<div class="tl-item">'
-        + '<div class="tl-line-col"><div class="tl-dot ' + typeInfo.dot + '"></div>' + (isLast ? '' : '<div class="tl-connector"></div>') + '</div>'
+        + '<div class="tl-line-col"><div class="tl-dot ' + typeInfo.dot + '" aria-hidden="true"></div>' + (isLast ? '' : '<div class="tl-connector"></div>') + '</div>'
         + '<div class="tl-card ' + typeInfo.border + '">'
         + '<div class="tl-card-type-row"><i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + typeInfo.color + ';"></i>'
         + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span></div>'
@@ -3441,7 +3448,7 @@ function renderTimeline() {
       var isEhr = ev.source === 'ehr';
       var clickAttr = isEhr ? '' : ' onclick="openEditEvent(\'' + ev.id + '\')"';
       html += '<div class="tl-item">'
-        + '<div class="tl-line-col"><div class="tl-dot ' + typeInfo.dot + '"></div>' + (isLast ? '' : '<div class="tl-connector"></div>') + '</div>'
+        + '<div class="tl-line-col"><div class="tl-dot ' + typeInfo.dot + '" aria-hidden="true"></div>' + (isLast ? '' : '<div class="tl-connector"></div>') + '</div>'
         + '<div class="tl-card ' + typeInfo.border + '"' + clickAttr + '>'
         + '<div class="tl-card-type-row"><i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + typeInfo.color + ';"></i>'
         + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span>'
@@ -4169,7 +4176,7 @@ function openAddEvent(personId) {
   document.getElementById('event-type-select').value = 'appointment';
   // Store personId for submission
   document.getElementById('add-event-overlay').dataset.personId = pid;
-  document.getElementById('add-event-overlay').classList.add('show');
+  openSheetAccessible('add-event-overlay');
   initIcons();
 }
 
@@ -4260,7 +4267,7 @@ function openMedDetail(medKey) {
       + '<div style="font-size:13px;color:var(--text-primary);line-height:1.4;">' + escHtml(med.notes) + '</div></div>';
   }
   document.getElementById('med-detail-body').innerHTML = rows;
-  document.getElementById('med-detail-overlay').classList.add('show');
+  openSheetAccessible('med-detail-overlay');
   initIcons();
 }
 
@@ -4274,7 +4281,7 @@ function openAddMed() {
   document.getElementById('med-prescriber-input').value = '';
   var toggle = document.getElementById('med-active-toggle');
   if (toggle) toggle.classList.add('on');
-  document.getElementById('add-med-overlay').classList.add('show');
+  openSheetAccessible('add-med-overlay');
   initIcons();
 }
 
@@ -4342,7 +4349,7 @@ function openEditEvent(eventId) {
   var deleteArea = document.getElementById('edit-event-delete-area');
   deleteArea.innerHTML = '<button class="btn-danger" id="edit-event-delete-btn" onclick="confirmDeleteEvent()">'
     + '<i data-lucide="trash-2" style="width:15px;height:15px;"></i> Delete event</button>';
-  document.getElementById('edit-event-overlay').classList.add('show');
+  openSheetAccessible('edit-event-overlay');
   initIcons();
 }
 
@@ -4428,7 +4435,7 @@ function openEditMed(medId) {
   var deleteArea = document.getElementById('edit-med-delete-area');
   deleteArea.innerHTML = '<button class="btn-danger" id="edit-med-delete-btn" onclick="confirmDeleteMed()">'
     + '<i data-lucide="trash-2" style="width:15px;height:15px;"></i> Delete medication</button>';
-  document.getElementById('edit-med-overlay').classList.add('show');
+  openSheetAccessible('edit-med-overlay');
   initIcons();
 }
 
@@ -5157,7 +5164,7 @@ function renderSignalsView() {
     var ev = data.timeline[tli];
     var hlClass = ev.highlight ? ' tl-event--highlight' : '';
     html += '<div class="tl-event' + hlClass + '">';
-    html += '<div class="tl-dot"></div>';
+    html += '<div class="tl-dot" aria-hidden="true"></div>';
     html += '<div class="tl-time">' + escHtml(ev.time) + '</div>';
     html += '<div class="tl-desc"><i data-lucide="' + escHtml(ev.icon) + '"></i>' + escHtml(ev.event);
     if (ev.note) html += ' <span style="color:var(--text-muted);font-size:11px;">(' + escHtml(ev.note) + ')</span>';
@@ -5479,7 +5486,7 @@ function updateSettingsEhr() {
   var ehrData = getEhrData(currentPersonId);
   if (isDemoMode && ehrData) {
     statusEl.innerHTML = '<div class="ehr-status-bar">'
-      + '<div class="ehr-status-left"><div class="ehr-status-dot"></div>Connected to ' + escHtml(ehrData.provider) + '</div>'
+      + '<div class="ehr-status-left"><div class="ehr-status-dot" aria-hidden="true"></div>Connected to ' + escHtml(ehrData.provider) + '</div>'
       + '<div class="ehr-status-right"><span style="font-size:11px;color:var(--text-muted);">Demo data</span></div>'
       + '</div>';
     if (labelEl) labelEl.textContent = 'Health Records Connected';
@@ -5487,7 +5494,7 @@ function updateSettingsEhr() {
   } else if (ehrData && ehrData.synced_at) {
     var syncedStr = formatEventDate(ehrData.synced_at);
     statusEl.innerHTML = '<div class="ehr-status-bar">'
-      + '<div class="ehr-status-left"><div class="ehr-status-dot"></div>Connected to ' + escHtml(ehrData.provider || 'EHR Provider') + '</div>'
+      + '<div class="ehr-status-left"><div class="ehr-status-dot" aria-hidden="true"></div>Connected to ' + escHtml(ehrData.provider || 'EHR Provider') + '</div>'
       + '<div class="ehr-status-right">'
       + '<span style="font-size:11px;color:var(--text-muted);">Synced ' + syncedStr + '</span>'
       + '<button class="ehr-refresh-btn" onclick="event.stopPropagation();refreshEhrData();" title="Refresh"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>'
@@ -5512,12 +5519,12 @@ function updateProfileEhr(personId) {
 
   if (isDemoMode && ehrData) {
     section.innerHTML = '<div class="ehr-status-bar">'
-      + '<div class="ehr-status-left"><div class="ehr-status-dot"></div>Connected to ' + escHtml(ehrData.provider) + '</div>'
+      + '<div class="ehr-status-left"><div class="ehr-status-dot" aria-hidden="true"></div>Connected to ' + escHtml(ehrData.provider) + '</div>'
       + '<div class="ehr-status-right"><span style="font-size:11px;color:var(--text-muted);">Demo</span></div>'
       + '</div>';
   } else if (ehrData && ehrData.synced_at) {
     section.innerHTML = '<div class="ehr-status-bar">'
-      + '<div class="ehr-status-left"><div class="ehr-status-dot"></div>Connected to ' + escHtml(ehrData.provider || 'EHR Provider') + '</div>'
+      + '<div class="ehr-status-left"><div class="ehr-status-dot" aria-hidden="true"></div>Connected to ' + escHtml(ehrData.provider || 'EHR Provider') + '</div>'
       + '<div class="ehr-status-right">'
       + '<button class="ehr-refresh-btn" onclick="event.stopPropagation();refreshEhrData();" title="Refresh"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>'
       + '</div></div>';
@@ -5546,7 +5553,7 @@ function buildEhrStatusBar(ehrData) {
   if (!ehrData || !ehrData.synced_at) return '';
   var syncedStr = formatEventDate(ehrData.synced_at);
   return '<div class="ehr-status-bar">'
-    + '<div class="ehr-status-left"><div class="ehr-status-dot"></div><strong>EHR Connected</strong> \u00B7 ' + escHtml(ehrData.provider || 'Provider') + '</div>'
+    + '<div class="ehr-status-left"><div class="ehr-status-dot" aria-hidden="true"></div><strong>EHR Connected</strong> \u00B7 ' + escHtml(ehrData.provider || 'Provider') + '</div>'
     + '<div class="ehr-status-right">'
     + '<span style="font-size:11px;color:var(--text-muted);">Synced ' + syncedStr + '</span>'
     + '<button class="ehr-refresh-btn" onclick="refreshEhrData()" title="Refresh data"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>'
@@ -5991,7 +5998,7 @@ function openEmergencySummary() {
     renderEmergencySummary();
     fetchEmergencyBrief(false);
   }
-  document.getElementById('emergency-overlay').classList.add('show');
+  openSheetAccessible('emergency-overlay');
   initIcons();
 }
 function openShareFamily() {
@@ -6017,7 +6024,7 @@ function openShareFamily() {
     previewEl.textContent = firstName + ' has ' + liveEvents.length + ' health event' + (liveEvents.length !== 1 ? 's' : '') + ' logged.';
   }
 
-  document.getElementById('share-overlay').classList.add('show');
+  openSheetAccessible('share-overlay');
   initIcons();
 }
 
@@ -6232,11 +6239,67 @@ function openExportVisit() {
   var actionsEl = document.getElementById('export-actions');
   if (loadingEl) loadingEl.style.display = 'none';
   if (actionsEl) actionsEl.style.display = 'block';
-  document.getElementById('export-overlay').classList.add('show');
+  openSheetAccessible('export-overlay');
   initIcons();
 }
+// ── FOCUS TRAP FOR BOTTOM SHEETS ──
+var _sheetTrigger = null;
+
+function openSheetAccessible(id, triggerEl) {
+  _sheetTrigger = triggerEl || document.activeElement;
+  var sheet = document.getElementById(id);
+  sheet.classList.add('show');
+  sheet.setAttribute('role', 'dialog');
+  sheet.setAttribute('aria-modal', 'true');
+  var heading = sheet.querySelector('h2, h3, .qa-sheet-title, .er-header-title, .settings-title');
+  if (heading) {
+    if (!heading.id) heading.id = id + '-title';
+    sheet.setAttribute('aria-labelledby', heading.id);
+  }
+  setTimeout(function() {
+    var first = sheet.querySelector('button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])');
+    if (first) first.focus();
+  }, 100);
+  sheet._trapHandler = function(e) {
+    if (e.key === 'Tab') {
+      var focusable = sheet.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])');
+      if (focusable.length === 0) return;
+      var first = focusable[0];
+      var last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault(); last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault(); first.focus();
+      }
+    }
+    if (e.key === 'Escape') {
+      closeSheetAccessible(id);
+    }
+  };
+  sheet.addEventListener('keydown', sheet._trapHandler);
+}
+
+function closeSheetAccessible(id) {
+  var sheet = document.getElementById(id);
+  sheet.classList.remove('show');
+  if (sheet._trapHandler) {
+    sheet.removeEventListener('keydown', sheet._trapHandler);
+    sheet._trapHandler = null;
+  }
+  if (_sheetTrigger) {
+    _sheetTrigger.focus();
+    _sheetTrigger = null;
+  }
+}
+
 function closeSheet(id) {
-  document.getElementById(id).classList.remove('show');
+  var sheet = document.getElementById(id);
+  sheet.classList.remove('show');
+  if (sheet._trapHandler) {
+    sheet.removeEventListener('keydown', sheet._trapHandler);
+    sheet._trapHandler = null;
+  }
+  if (_sheetTrigger) { _sheetTrigger.focus(); _sheetTrigger = null; }
 }
 function setFormat(btn) {
   btn.closest('.format-toggle').querySelectorAll('.format-btn').forEach(function(b){ b.classList.remove('active'); });
@@ -6288,11 +6351,11 @@ function openUpload(personName) {
   document.getElementById('upload-step2').style.display = 'none';
   document.getElementById('upload-step3').style.display = 'none';
   document.getElementById('upload-step4').style.display = 'none';
-  document.getElementById('upload-overlay').classList.add('show');
+  openSheetAccessible('upload-overlay');
   initIcons();
 }
 function closeUpload() {
-  document.getElementById('upload-overlay').classList.remove('show');
+  closeSheet('upload-overlay');
   // Reset file input so same file can be re-selected
   document.getElementById('upload-file-input').value = '';
   _uploadFile = null;
@@ -6534,13 +6597,14 @@ function openContactEdit(name, role, email, phone, notif) {
     if (el) el.classList.toggle('selected', r === role);
   });
   closeSettings();
-  document.getElementById('contact-overlay').classList.add('show');
+  openSheetAccessible('contact-overlay');
   initIcons();
 }
 
 function switchDemo(which, btn) {
-  document.querySelectorAll('.demo-tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('.demo-tab').forEach(function(t){ t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
   btn.classList.add('active');
+  btn.setAttribute('aria-selected', 'true');
   document.getElementById('demo-dad').style.display = which === 'dad' ? 'block' : 'none';
   document.getElementById('demo-vet').style.display = which === 'vet' ? 'block' : 'none';
 }
@@ -6618,7 +6682,7 @@ function openProfileEdit(personId) {
   document.getElementById('profile-insurance-input').value = person.insurance_info || '';
 
   updateProfileEhr(pid);
-  document.getElementById('profile-overlay').classList.add('show');
+  openSheetAccessible('profile-overlay');
   initIcons();
 }
 
@@ -7160,18 +7224,18 @@ function openSettings() {
   updateSettingsAccount();
   updateSettingsEhr();
   if (!isDemoMode) { renderCareCircle(); }
-  document.getElementById('settings-overlay').classList.add('show');
+  openSheetAccessible('settings-overlay');
   initIcons();
 }
 function closeSettings() {
-  document.getElementById('settings-overlay').classList.remove('show');
+  closeSheet('settings-overlay');
 }
 
 // ── FEEDBACK SHEET ─────────────────────────────────────────────────────────────
 function openFeedbackSheet() {
   closeSettings();
   document.getElementById('feedback-text').value = '';
-  document.getElementById('feedback-overlay').classList.add('show');
+  openSheetAccessible('feedback-overlay');
   initIcons();
 }
 
@@ -7201,7 +7265,7 @@ function showAlphaWelcome() {
   if (localStorage.getItem(key)) return;
   localStorage.setItem(key, 'true');
   setTimeout(function() {
-    document.getElementById('welcome-overlay').classList.add('show');
+    openSheetAccessible('welcome-overlay');
     initIcons();
   }, 600);
 }
@@ -7225,9 +7289,10 @@ async function trackActivation() {
 }
 
 function switchTab(el, id) {
-  document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('#header-tab-bar .tab').forEach(function(t){ t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
   document.querySelectorAll('.tab-pane').forEach(function(p){ p.classList.remove('active'); });
   el.classList.add('active');
+  el.setAttribute('aria-selected', 'true');
   document.getElementById('tab-'+id).classList.add('active');
 }
 
@@ -7250,8 +7315,9 @@ function switchNavTo(view) {
 }
 
 function switchPerson(el) {
-  document.querySelectorAll('.person-pill').forEach(function(p){ p.classList.remove('active'); });
+  document.querySelectorAll('.person-pill').forEach(function(p){ p.classList.remove('active'); p.setAttribute('aria-selected', 'false'); });
   el.classList.add('active');
+  el.setAttribute('aria-selected', 'true');
 }
 
 // ── UPLOAD-FIRST ONBOARDING FUNCTIONS ────────────────────────────────────────
@@ -8437,7 +8503,7 @@ var _lastReminderCheck = {};   // { "medId:08:00": timestamp } to avoid re-firin
 // ── NOTIFICATION PANEL ────────────────────────────────────────────────────
 function openNotifPanel() {
   renderNotifList();
-  document.getElementById('notif-overlay').classList.add('show');
+  openSheetAccessible('notif-overlay');
   initIcons();
   // Mark visible ones as seen
   _notifList.forEach(function(n) { n.seen = true; });
@@ -8447,7 +8513,7 @@ function openNotifPanel() {
 }
 
 function closeNotifPanel() {
-  document.getElementById('notif-overlay').classList.remove('show');
+  closeSheet('notif-overlay');
 }
 
 function markAllNotifRead() {
@@ -8570,12 +8636,12 @@ function openMedReminder(medId, medName, personName) {
     }
   });
 
-  document.getElementById('med-reminder-overlay').classList.add('show');
+  openSheetAccessible('med-reminder-overlay');
   initIcons();
 }
 
 function closeMedReminder() {
-  document.getElementById('med-reminder-overlay').classList.remove('show');
+  closeSheet('med-reminder-overlay');
 }
 
 function toggleReminderTime(el, time) {
