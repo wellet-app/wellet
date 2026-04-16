@@ -5753,9 +5753,18 @@ function renderAskView() {
   personBar.innerHTML = pillsHtml;
 
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
-  var firstName = person ? person.name.split(' ')[0] : 'them';
+  var firstName = person ? person.name.split(' ')[0] : 'your loved one';
   var inputEl = document.getElementById('ask-input');
-  if (inputEl) inputEl.placeholder = 'Ask about ' + firstName + '\u2019s health\u2026';
+  if (inputEl) inputEl.placeholder = 'Ask about ' + escHtml(firstName) + '\u2019s health\u2026';
+
+  // Update the welcome bubble with dynamic name
+  var chatArea = document.getElementById('chat-area');
+  if (chatArea) {
+    var firstBubble = chatArea.querySelector('.chat-group.from-wellet .chat-bubble.wellet');
+    if (firstBubble && firstBubble.textContent.indexOf('Ask me anything about') !== -1) {
+      firstBubble.textContent = 'Ask me anything about ' + firstName + '\u2019s health. I\u2019ll answer from what\u2019s in ' + firstName + '\u2019s records.';
+    }
+  }
 
   var chips = document.getElementById('suggestion-chips');
   if (chips) {
