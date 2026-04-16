@@ -1008,6 +1008,68 @@
   .signals-connect-title { font-family:'DM Serif Display',serif; font-size:16px; color:var(--text-primary); margin-bottom:4px; }
   .signals-connect-desc { font-size:13px; color:var(--text-secondary); line-height:1.4; margin-bottom:12px; }
   .signals-connect-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 20px; background:var(--moss); color:white; border:none; border-radius:10px; font-size:13px; font-weight:500; cursor:pointer; }
+
+  /* ── END-OF-CARE JOURNEY ──────────────────────────────────────────────────── */
+  .eoc-overlay { display:none; position:fixed; inset:0; background:rgba(44,42,38,0.5); z-index:150; align-items:flex-end; justify-content:center; }
+  .eoc-overlay.show { display:flex; }
+  .eoc-sheet { background:white; border-radius:20px 20px 0 0; width:100%; max-width:768px; max-height:90vh; overflow-y:auto; padding:0 0 36px; }
+  .eoc-handle-row { padding:16px 20px 4px; display:flex; align-items:center; justify-content:space-between; }
+  .eoc-handle { width:36px; height:4px; background:var(--border-medium); border-radius:2px; margin:0 auto; }
+  .eoc-step { display:none; padding:0 24px; }
+  .eoc-step.active { display:block; }
+  .eoc-icon-wrap { width:56px; height:56px; border-radius:50%; background:var(--mint); display:flex; align-items:center; justify-content:center; margin:16px auto 16px; color:var(--moss); }
+  .eoc-heading { font-family:'DM Serif Display',serif; font-size:22px; font-weight:400; text-align:center; margin-bottom:8px; color:var(--text-primary); }
+  .eoc-body { font-family:'DM Sans',sans-serif; font-size:14px; line-height:1.65; color:var(--text-secondary); text-align:center; margin-bottom:20px; }
+  .eoc-body-left { text-align:left; }
+  .eoc-option { display:flex; align-items:flex-start; gap:12px; padding:14px 16px; border:1.5px solid var(--border-medium); border-radius:14px; margin-bottom:10px; cursor:pointer; transition:border-color 0.15s, background 0.15s; background:white; }
+  .eoc-option:hover { border-color:var(--moss); background:var(--mint); }
+  .eoc-option.selected { border-color:var(--moss); background:var(--mint); }
+  .eoc-option-radio { width:20px; height:20px; border-radius:50%; border:2px solid var(--border-medium); flex-shrink:0; margin-top:1px; display:flex; align-items:center; justify-content:center; transition:border-color 0.15s; }
+  .eoc-option.selected .eoc-option-radio { border-color:var(--moss); }
+  .eoc-option.selected .eoc-option-radio::after { content:''; width:10px; height:10px; border-radius:50%; background:var(--moss); }
+  .eoc-option-text { flex:1; }
+  .eoc-option-title { font-size:14px; font-weight:500; color:var(--text-primary); margin-bottom:2px; }
+  .eoc-option-desc { font-size:12px; color:var(--text-muted); line-height:1.5; }
+  .eoc-btn-row { display:flex; gap:10px; margin-top:24px; padding-bottom:8px; }
+  .eoc-btn-primary { flex:1; padding:14px; background:var(--moss); color:white; border:none; border-radius:12px; font-size:14px; font-weight:500; font-family:'DM Sans',sans-serif; cursor:pointer; transition:background 0.15s; }
+  .eoc-btn-primary:hover { background:var(--moss-dark); }
+  .eoc-btn-primary:disabled { opacity:0.5; cursor:not-allowed; }
+  .eoc-btn-secondary { flex:1; padding:14px; background:white; color:var(--text-secondary); border:1.5px solid var(--border-medium); border-radius:12px; font-size:14px; font-weight:500; font-family:'DM Sans',sans-serif; cursor:pointer; transition:border-color 0.15s; }
+  .eoc-btn-secondary:hover { border-color:var(--moss); color:var(--moss); }
+  .eoc-textarea { width:100%; border:1.5px solid var(--border-medium); border-radius:12px; padding:12px 14px; font-size:13px; font-family:'DM Sans',sans-serif; color:var(--text-primary); resize:none; outline:none; transition:border-color 0.15s; min-height:80px; line-height:1.5; }
+  .eoc-textarea:focus { border-color:var(--moss); }
+  .eoc-textarea-label { font-size:12px; font-weight:500; color:var(--text-secondary); margin-bottom:6px; display:block; }
+  .eoc-divider { height:1px; background:var(--border); margin:20px 0; }
+  .eoc-progress { display:flex; gap:6px; justify-content:center; padding:8px 0 16px; }
+  .eoc-progress-dot { width:8px; height:8px; border-radius:50%; background:var(--border-medium); transition:background 0.2s; }
+  .eoc-progress-dot.active { background:var(--moss); }
+  .eoc-progress-dot.done { background:var(--mint-deep); }
+
+  /* Life Changes sheet */
+  .eoc-lc-overlay { display:none; position:fixed; inset:0; background:rgba(44,42,38,0.5); z-index:120; align-items:flex-end; justify-content:center; }
+  .eoc-lc-overlay.show { display:flex; }
+  .eoc-lc-sheet { background:white; border-radius:20px 20px 0 0; width:100%; max-width:768px; padding:0 0 36px; }
+  .eoc-lc-row { display:flex; align-items:center; gap:12px; padding:16px 20px; cursor:pointer; border-bottom:1px solid var(--border); transition:background 0.15s; }
+  .eoc-lc-row:hover { background:var(--cream); }
+  .eoc-lc-row:last-child { border-bottom:none; }
+  .eoc-lc-icon { width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .eoc-lc-label { font-size:14px; font-weight:500; color:var(--text-primary); }
+  .eoc-lc-sub { font-size:12px; color:var(--text-muted); margin-top:1px; }
+
+  /* Bereaved indicator */
+  .person-pill.bereaved { border-color:var(--border-medium); opacity:0.85; }
+  .person-pill.bereaved .eoc-heart { display:inline-block; width:10px; height:10px; color:var(--moss); opacity:0.6; margin-left:2px; }
+  .person-card-status.bereaved { color:var(--text-muted); background:var(--cream); }
+
+  /* Archived profiles in settings */
+  .eoc-archived-card { display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--border); }
+  .eoc-archived-card:last-child { border-bottom:none; }
+  .eoc-archived-avatar { width:36px; height:36px; border-radius:50%; background:var(--cream); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600; color:var(--text-muted); flex-shrink:0; }
+  .eoc-archived-info { flex:1; min-width:0; }
+  .eoc-archived-name { font-size:14px; font-weight:500; color:var(--text-primary); }
+  .eoc-archived-meta { font-size:12px; color:var(--text-muted); margin-top:1px; }
+  .eoc-restore-btn { background:var(--mint); color:var(--moss); border:none; border-radius:8px; padding:6px 14px; font-size:12px; font-weight:500; font-family:'DM Sans',sans-serif; cursor:pointer; transition:background 0.15s; white-space:nowrap; }
+  .eoc-restore-btn:hover { background:var(--mint-deep); }
 </style>
 </head>
 <body>
@@ -2485,6 +2547,11 @@
       </div>
     </div>
 
+    <div class="settings-section" id="settings-archived-section" style="margin-top:12px;display:none;">
+      <div class="settings-section-label">Archived Profiles</div>
+      <div id="settings-archived-list"></div>
+    </div>
+
     <div class="settings-section" style="margin-top:12px;">
       <div class="settings-section-label">Your plan</div>
       <div style="background:var(--mint);border-radius:12px;padding:14px 16px;margin-bottom:8px;">
@@ -2725,11 +2792,198 @@
       </div>
     </div>
 
+    <div class="eoc-divider" style="margin:16px 20px;"></div>
+    <div class="profile-section-label">Life Changes</div>
+    <div style="padding:0 20px;">
+      <div class="eoc-lc-row" style="padding:12px 0;border-radius:10px;" onclick="openLifeChanges()" id="profile-life-changes-row">
+        <div class="eoc-lc-icon" style="background:var(--cream);color:var(--text-muted);"><i data-lucide="heart" style="width:18px;height:18px;"></i></div>
+        <div style="flex:1;"><div class="eoc-lc-label">Report a life change</div><div class="eoc-lc-sub">Transition, facility move, or loss</div></div>
+        <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+      </div>
+    </div>
+
     <div style="padding:8px 20px 0;display:flex;flex-direction:column;gap:8px;">
       <button class="btn-primary" style="font-size:14px;padding:13px;" onclick="saveProfile()">
         <i data-lucide="check" style="width:15px;height:15px;"></i>
         Save profile
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- LIFE CHANGES SHEET -->
+<div class="eoc-lc-overlay" id="eoc-lc-overlay" onclick="if(event.target===this)closeLifeChanges()">
+  <div class="eoc-lc-sheet">
+    <div class="eoc-handle-row">
+      <div class="eoc-handle"></div>
+      <button class="close-btn" aria-label="Close" onclick="closeLifeChanges()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div style="font-family:'DM Serif Display',serif;font-size:20px;font-weight:400;padding:4px 20px 12px;">Life Changes</div>
+    <div style="font-size:13px;color:var(--text-muted);padding:0 20px 16px;line-height:1.5;">If something has changed, we\u2019re here to help you through it.</div>
+    <div id="eoc-lc-options"></div>
+  </div>
+</div>
+
+<!-- END-OF-CARE JOURNEY SHEET -->
+<div class="eoc-overlay" id="eoc-overlay" onclick="if(event.target===this)closeEocFlow()">
+  <div class="eoc-sheet">
+    <div class="eoc-handle-row">
+      <div class="eoc-handle"></div>
+      <button class="close-btn" aria-label="Close" onclick="closeEocFlow()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="eoc-progress" id="eoc-progress"></div>
+
+    <!-- Step 1: Acknowledgment -->
+    <div class="eoc-step active" id="eoc-step-1">
+      <div class="eoc-icon-wrap"><i data-lucide="heart" style="width:26px;height:26px;"></i></div>
+      <div class="eoc-heading" id="eoc-ack-heading"></div>
+      <div class="eoc-body" id="eoc-ack-body"></div>
+      <div class="eoc-btn-row">
+        <button class="eoc-btn-primary" onclick="eocGoTo(2)">Continue when ready</button>
+        <button class="eoc-btn-secondary" onclick="closeEocFlow()">Not now</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Archive & Export -->
+    <div class="eoc-step" id="eoc-step-2">
+      <div class="eoc-heading" id="eoc-archive-heading"></div>
+      <div class="eoc-body eoc-body-left" id="eoc-archive-body"></div>
+      <div id="eoc-archive-options">
+        <div class="eoc-option selected" onclick="eocSelectArchive(this,'pdf')">
+          <div class="eoc-option-radio"></div>
+          <div class="eoc-option-text">
+            <div class="eoc-option-title">Full PDF report</div>
+            <div class="eoc-option-desc">A complete summary with timeline, medications, appointments, and notes</div>
+          </div>
+        </div>
+        <div class="eoc-option" onclick="eocSelectArchive(this,'json')">
+          <div class="eoc-option-radio"></div>
+          <div class="eoc-option-text">
+            <div class="eoc-option-title">Data export (JSON)</div>
+            <div class="eoc-option-desc">Structured data you can keep or share with another provider</div>
+          </div>
+        </div>
+        <div class="eoc-option" onclick="eocSelectArchive(this,'both')">
+          <div class="eoc-option-radio"></div>
+          <div class="eoc-option-text">
+            <div class="eoc-option-title">Both</div>
+            <div class="eoc-option-desc">Download the PDF report and JSON data export</div>
+          </div>
+        </div>
+      </div>
+      <div class="eoc-btn-row">
+        <button class="eoc-btn-primary" id="eoc-download-btn" onclick="eocDownloadArchive()"><i data-lucide="download" style="width:15px;height:15px;display:inline-block;vertical-align:-2px;margin-right:4px;"></i> Download Archive</button>
+        <button class="eoc-btn-secondary" onclick="eocGoTo(3)">Skip this step</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Community Fund -->
+    <div class="eoc-step" id="eoc-step-3">
+      <div class="eoc-heading">Pay It Forward</div>
+      <div class="eoc-body eoc-body-left">Your remaining subscription time can help another caregiver who needs Wellet but can\u2019t afford it.</div>
+      <div id="eoc-fund-options">
+        <div class="eoc-option selected" onclick="eocSelectFund(this,'donate')">
+          <div class="eoc-option-radio"></div>
+          <div class="eoc-option-text">
+            <div class="eoc-option-title" id="eoc-fund-donate-label"></div>
+            <div class="eoc-option-desc">Help a fellow caregiver access Wellet</div>
+          </div>
+        </div>
+        <div class="eoc-option" onclick="eocSelectFund(this,'refund')">
+          <div class="eoc-option-radio"></div>
+          <div class="eoc-option-text">
+            <div class="eoc-option-title">I\u2019d like a prorated refund</div>
+            <div class="eoc-option-desc">We\u2019ll process it within 5\u20137 business days</div>
+          </div>
+        </div>
+        <div class="eoc-option" onclick="eocSelectFund(this,'keep')">
+          <div class="eoc-option-radio"></div>
+          <div class="eoc-option-text">
+            <div class="eoc-option-title">Keep my subscription active</div>
+            <div class="eoc-option-desc">Continue using Wellet for yourself or another loved one</div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:16px;">
+        <label class="eoc-textarea-label">Optional: Add a message for the next caregiver</label>
+        <textarea class="eoc-textarea" id="eoc-fund-message" placeholder="A message from a fellow caregiver\u2026" rows="3"></textarea>
+      </div>
+      <div class="eoc-btn-row">
+        <button class="eoc-btn-primary" onclick="eocSubmitFund()">Continue</button>
+        <button class="eoc-btn-secondary" onclick="eocGoTo(4)">Skip this step</button>
+      </div>
+    </div>
+
+    <!-- Step 4: Care Circle Notification -->
+    <div class="eoc-step" id="eoc-step-4">
+      <div class="eoc-heading" id="eoc-notify-heading"></div>
+      <div class="eoc-body eoc-body-left" id="eoc-notify-body"></div>
+      <div style="margin-bottom:16px;">
+        <label class="eoc-textarea-label">Message to Care Circle</label>
+        <textarea class="eoc-textarea" id="eoc-notify-message" rows="4"></textarea>
+      </div>
+      <div id="eoc-notify-options">
+        <div class="eoc-option selected" onclick="eocSelectNotify(this,'send')">
+          <div class="eoc-option-radio"></div>
+          <div class="eoc-option-text">
+            <div class="eoc-option-title">Send to Care Circle members</div>
+          </div>
+        </div>
+        <div class="eoc-option" onclick="eocSelectNotify(this,'skip')">
+          <div class="eoc-option-radio"></div>
+          <div class="eoc-option-text">
+            <div class="eoc-option-title">Skip \u2014 I\u2019ll reach out on my own</div>
+          </div>
+        </div>
+      </div>
+      <div class="eoc-btn-row">
+        <button class="eoc-btn-primary" onclick="eocSubmitNotify()">Continue</button>
+        <button class="eoc-btn-secondary" onclick="eocGoTo(5)">Skip</button>
+      </div>
+    </div>
+
+    <!-- Step 5: Account Closure -->
+    <div class="eoc-step" id="eoc-step-5">
+      <div class="eoc-heading" id="eoc-closure-heading"></div>
+      <div class="eoc-body eoc-body-left">Choose what happens next:</div>
+      <div id="eoc-closure-options">
+        <div class="eoc-option selected" onclick="eocSelectClosure(this,'archive')">
+          <div class="eoc-option-radio"></div>
+          <div class="eoc-option-text">
+            <div class="eoc-option-title" id="eoc-closure-archive-label"></div>
+            <div class="eoc-option-desc">Keep the data safe but hidden from your daily view. You can access it anytime from Settings.</div>
+          </div>
+        </div>
+        <div class="eoc-option" onclick="eocSelectClosure(this,'delete')">
+          <div class="eoc-option-radio"></div>
+          <div class="eoc-option-text">
+            <div class="eoc-option-title" id="eoc-closure-delete-label"></div>
+            <div class="eoc-option-desc">All data will be permanently removed after a 30-day grace period.</div>
+          </div>
+        </div>
+      </div>
+      <div id="eoc-closure-keep-wrap" style="display:none;">
+        <div class="eoc-option" onclick="eocSelectClosure(this,'keep-account')">
+          <div class="eoc-option-radio"></div>
+          <div class="eoc-option-text">
+            <div class="eoc-option-title">Keep my Wellet account for my own health tracking</div>
+          </div>
+        </div>
+      </div>
+      <div class="eoc-btn-row">
+        <button class="eoc-btn-primary" onclick="eocSubmitClosure()">Confirm</button>
+        <button class="eoc-btn-secondary" onclick="closeEocFlow()">Not now \u2014 I\u2019ll decide later</button>
+      </div>
+    </div>
+
+    <!-- Completion screen -->
+    <div class="eoc-step" id="eoc-step-done">
+      <div class="eoc-icon-wrap"><i data-lucide="check" style="width:26px;height:26px;"></i></div>
+      <div class="eoc-heading">Take care of yourself.</div>
+      <div class="eoc-body" id="eoc-done-body"></div>
+      <div class="eoc-btn-row" style="justify-content:center;">
+        <button class="eoc-btn-primary" style="max-width:240px;" onclick="eocFinish()">Return to Wellet</button>
+      </div>
     </div>
   </div>
 </div>
@@ -10509,6 +10763,710 @@ restoreDemoHTML = function() {
   if (isDemoMode) {
     setTimeout(function() { refreshDemoRecordBadges(); }, 50);
   }
+};
+
+// ── END-OF-CARE JOURNEY ─────────────────────────────────────────────────────
+var _bereavementDetected = {};  // { personId: true }
+var _eocPersonId = null;
+var _eocPersonName = '';
+var _eocStep = 1;
+var _eocArchiveChoice = 'pdf';
+var _eocFundChoice = 'donate';
+var _eocNotifyChoice = 'send';
+var _eocClosureChoice = 'archive';
+
+// ── BEREAVEMENT PHRASES ──────────────────────────────────────────────────
+var _bereavementPhrasesHigh = [
+  'passed away', 'passed on', 'died', 'death of', 'we lost him', 'we lost her',
+  'she\'s gone', 'he\'s gone', 'funeral', 'hospice says', 'no longer with us',
+  'rest in peace', 'in heaven now'
+];
+var _bereavementPhrasesUncertain = [
+  'dead', 'gone', 'lost'
+];
+
+function detectBereavement(text) {
+  var lower = text.toLowerCase();
+  for (var i = 0; i < _bereavementPhrasesHigh.length; i++) {
+    if (lower.indexOf(_bereavementPhrasesHigh[i]) !== -1) return 'high';
+  }
+  for (var j = 0; j < _bereavementPhrasesUncertain.length; j++) {
+    var phrase = _bereavementPhrasesUncertain[j];
+    var idx = lower.indexOf(phrase);
+    if (idx !== -1) {
+      var before = idx > 0 ? lower[idx - 1] : ' ';
+      var after = idx + phrase.length < lower.length ? lower[idx + phrase.length] : ' ';
+      if (/\W/.test(before) && /\W/.test(after)) {
+        // Exclude common non-bereavement uses
+        if (lower.indexOf('dead tired') !== -1 || lower.indexOf('deadline') !== -1 || lower.indexOf('dead end') !== -1) continue;
+        return 'uncertain';
+      }
+    }
+  }
+  return null;
+}
+
+// ── LIFE CHANGES ─────────────────────────────────────────────────────────
+function openLifeChanges() {
+  closeSheet('profile-overlay');
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var name = person ? person.name.split(' ')[0] : 'your loved one';
+  var container = document.getElementById('eoc-lc-options');
+  container.innerHTML =
+    '<div class="eoc-lc-row" onclick="startEocFlow(\'' + currentPersonId + '\')">'
+    + '<div class="eoc-lc-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="heart" style="width:18px;height:18px;"></i></div>'
+    + '<div style="flex:1;"><div class="eoc-lc-label">' + escHtml(name) + ' has passed away</div><div class="eoc-lc-sub">Begin the end-of-care journey</div></div>'
+    + '<div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>'
+    + '</div>'
+    + '<div class="eoc-lc-row" onclick="showToast(\'Coming soon — this feature is being built\')">'
+    + '<div class="eoc-lc-icon" style="background:var(--amber-bg);color:var(--amber);"><i data-lucide="building-2" style="width:18px;height:18px;"></i></div>'
+    + '<div style="flex:1;"><div class="eoc-lc-label">' + escHtml(name) + ' moved to a care facility</div><div class="eoc-lc-sub">Update care arrangements</div></div>'
+    + '<div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>'
+    + '</div>'
+    + '<div class="eoc-lc-row" onclick="showToast(\'Coming soon — this feature is being built\')">'
+    + '<div class="eoc-lc-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="arrow-right-left" style="width:18px;height:18px;"></i></div>'
+    + '<div style="flex:1;"><div class="eoc-lc-label">' + escHtml(name) + '\u2019s care has been transferred</div><div class="eoc-lc-sub">Hand off to another caregiver</div></div>'
+    + '<div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>'
+    + '</div>';
+  document.getElementById('eoc-lc-overlay').classList.add('show');
+  initIcons();
+}
+
+function closeLifeChanges() {
+  document.getElementById('eoc-lc-overlay').classList.remove('show');
+}
+
+// ── EOC FLOW ─────────────────────────────────────────────────────────────
+function startEocFlow(personId) {
+  closeLifeChanges();
+  var pid = personId || currentPersonId;
+  _eocPersonId = pid;
+  var person = currentPeople.find(function(p){ return p.id === pid; });
+  _eocPersonName = person ? person.name.split(' ')[0] : 'your loved one';
+  _eocStep = 1;
+  _eocArchiveChoice = 'pdf';
+  _eocFundChoice = 'donate';
+  _eocNotifyChoice = 'send';
+  _eocClosureChoice = 'archive';
+
+  // Set bereaved status
+  if (!isDemoMode && pid) {
+    db.from('people').update({
+      care_status: 'bereaved',
+      care_status_changed_at: new Date().toISOString()
+    }).eq('id', pid).then(function() {
+      var idx = currentPeople.findIndex(function(p){ return p.id === pid; });
+      if (idx >= 0) {
+        currentPeople[idx].care_status = 'bereaved';
+        currentPeople[idx].care_status_changed_at = new Date().toISOString();
+      }
+      renderPersonSwitcher();
+      renderPeopleView();
+    });
+  }
+  _bereavementDetected[pid] = true;
+
+  // Populate step 1
+  document.getElementById('eoc-ack-heading').textContent = _eocPersonName + '\u2019s story matters.';
+  document.getElementById('eoc-ack-body').innerHTML =
+    'The care you gave ' + escHtml(_eocPersonName) + ' \u2014 every appointment tracked, every medication managed, every late-night worry \u2014 that mattered. All of it.'
+    + '<br><br>There\u2019s no timeline here. You can come back to these options whenever you\u2019re ready \u2014 tomorrow, next week, or next month.';
+
+  // Populate step 2
+  document.getElementById('eoc-archive-heading').textContent = 'Preserve ' + _eocPersonName + '\u2019s Care History';
+  document.getElementById('eoc-archive-body').textContent = 'Everything you tracked for ' + _eocPersonName + ' can be saved as a personal archive.';
+
+  // Populate step 3
+  document.getElementById('eoc-fund-donate-label').textContent = 'Donate my remaining days to the Wellet Community Fund in ' + _eocPersonName + '\u2019s memory';
+
+  // Populate step 4
+  document.getElementById('eoc-notify-heading').textContent = 'Let ' + _eocPersonName + '\u2019s Care Circle Know';
+  document.getElementById('eoc-notify-body').textContent = 'Would you like to send a message to the people who helped care for ' + _eocPersonName + '?';
+  document.getElementById('eoc-notify-message').value =
+    'I wanted to let you know that ' + _eocPersonName + ' has passed away. Thank you for being part of ' + _eocPersonName + '\u2019s care team. Your support meant more than you know.';
+
+  // Populate step 5
+  document.getElementById('eoc-closure-heading').textContent = _eocPersonName + '\u2019s Profile';
+  document.getElementById('eoc-closure-archive-label').textContent = 'Archive ' + _eocPersonName + '\u2019s profile';
+  document.getElementById('eoc-closure-delete-label').textContent = 'Delete ' + _eocPersonName + '\u2019s profile';
+
+  // Show "keep account" option if last person
+  var activePeople = currentPeople.filter(function(p){ return !p.care_status || p.care_status === 'active'; });
+  var keepWrap = document.getElementById('eoc-closure-keep-wrap');
+  if (activePeople.length <= 1) {
+    keepWrap.style.display = 'block';
+  } else {
+    keepWrap.style.display = 'none';
+  }
+
+  eocGoTo(1);
+  document.getElementById('eoc-overlay').classList.add('show');
+  initIcons();
+}
+
+function closeEocFlow() {
+  document.getElementById('eoc-overlay').classList.remove('show');
+}
+
+function eocGoTo(step) {
+  _eocStep = step;
+  var steps = document.querySelectorAll('.eoc-step');
+  steps.forEach(function(s){ s.classList.remove('active'); });
+  var target = document.getElementById('eoc-step-' + step);
+  if (target) target.classList.add('active');
+
+  // Update progress dots
+  var totalSteps = 5;
+  var progress = document.getElementById('eoc-progress');
+  var dotsHtml = '';
+  for (var i = 1; i <= totalSteps; i++) {
+    var cls = 'eoc-progress-dot';
+    if (i === step) cls += ' active';
+    else if (i < step) cls += ' done';
+    dotsHtml += '<div class="' + cls + '"></div>';
+  }
+  progress.innerHTML = dotsHtml;
+  // Hide progress on done screen
+  progress.style.display = (step === 'done') ? 'none' : 'flex';
+
+  // Scroll sheet to top
+  var sheet = document.querySelector('.eoc-sheet');
+  if (sheet) sheet.scrollTop = 0;
+
+  initIcons();
+}
+
+// Selection helpers
+function eocSelectArchive(el, choice) {
+  _eocArchiveChoice = choice;
+  document.querySelectorAll('#eoc-archive-options .eoc-option').forEach(function(o){ o.classList.remove('selected'); });
+  el.classList.add('selected');
+}
+
+function eocSelectFund(el, choice) {
+  _eocFundChoice = choice;
+  document.querySelectorAll('#eoc-fund-options .eoc-option').forEach(function(o){ o.classList.remove('selected'); });
+  el.classList.add('selected');
+}
+
+function eocSelectNotify(el, choice) {
+  _eocNotifyChoice = choice;
+  document.querySelectorAll('#eoc-notify-options .eoc-option').forEach(function(o){ o.classList.remove('selected'); });
+  el.classList.add('selected');
+}
+
+function eocSelectClosure(el, choice) {
+  _eocClosureChoice = choice;
+  document.querySelectorAll('#eoc-closure-options .eoc-option, #eoc-closure-keep-wrap .eoc-option').forEach(function(o){ o.classList.remove('selected'); });
+  el.classList.add('selected');
+}
+
+// ── ARCHIVE DOWNLOAD ──────────────────────────────────────────────────────
+function eocDownloadArchive() {
+  var btn = document.getElementById('eoc-download-btn');
+  btn.disabled = true;
+  btn.textContent = 'Preparing\u2026';
+
+  // Load person data for archive if not current
+  (async function() {
+    try {
+      if (_eocPersonId !== currentPersonId) {
+        await loadPersonData(_eocPersonId);
+      }
+      if (_eocArchiveChoice === 'pdf' || _eocArchiveChoice === 'both') {
+        eocGeneratePdf();
+      }
+      if (_eocArchiveChoice === 'json' || _eocArchiveChoice === 'both') {
+        eocGenerateJson();
+      }
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="download" style="width:15px;height:15px;display:inline-block;vertical-align:-2px;margin-right:4px;"></i> Download Archive';
+      initIcons();
+      showToast('Archive downloaded');
+      setTimeout(function() { eocGoTo(3); }, 800);
+    } catch(e) {
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="download" style="width:15px;height:15px;display:inline-block;vertical-align:-2px;margin-right:4px;"></i> Download Archive';
+      initIcons();
+      showToast('Error creating archive');
+    }
+  })();
+}
+
+function eocGeneratePdf() {
+  var person = currentPeople.find(function(p){ return p.id === _eocPersonId; });
+  var name = person ? person.name : _eocPersonName;
+  var doc = new jspdf.jsPDF();
+  var y = 30;
+
+  // Cover page
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(24);
+  doc.setTextColor(96, 143, 124);
+  doc.text('Care Archive', 105, y, { align: 'center' });
+  y += 14;
+  doc.setFontSize(18);
+  doc.setTextColor(44, 42, 38);
+  doc.text(name, 105, y, { align: 'center' });
+  y += 10;
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(11);
+  doc.setTextColor(107, 101, 96);
+
+  var dateRange = '';
+  if (liveEvents.length > 0) {
+    var sorted = liveEvents.slice().sort(function(a,b){ return new Date(a.event_date) - new Date(b.event_date); });
+    var first = new Date(sorted[0].event_date).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    var last = new Date(sorted[sorted.length - 1].event_date).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    dateRange = first + ' \u2013 ' + last;
+  } else {
+    dateRange = 'No events recorded';
+  }
+  doc.text(dateRange, 105, y, { align: 'center' });
+  y += 8;
+  if (currentUser && currentUser.email) {
+    doc.text('Caregiver: ' + currentUser.email, 105, y, { align: 'center' });
+    y += 8;
+  }
+  y += 10;
+  doc.setDrawColor(96, 143, 124);
+  doc.line(40, y, 170, y);
+  y += 20;
+
+  // Health Events Timeline
+  if (liveEvents.length > 0) {
+    var eventItems = liveEvents.map(function(ev) {
+      var date = new Date(ev.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      return { label: date, value: (ev.title || '') + (ev.notes ? ' \u2014 ' + ev.notes : '') };
+    });
+    y = pdfAddSection(doc, 'Health Events Timeline', y, eventItems);
+  }
+
+  // Medications
+  if (liveMeds.length > 0) {
+    var medItems = liveMeds.map(function(med) {
+      var status = med.active !== false ? 'Active' : 'Discontinued';
+      return { label: med.name, value: (med.dose || '') + (med.frequency ? ' \u2014 ' + med.frequency : '') + ' (' + status + ')' };
+    });
+    y = pdfAddSection(doc, 'Medications', y, medItems);
+  }
+
+  // Care Circle Members
+  if (liveCareCircle.length > 0) {
+    var circleItems = liveCareCircle.map(function(m) {
+      return { label: m.member_name || 'Member', value: (m.role || 'Member') + (m.email ? ' \u2014 ' + m.email : '') };
+    });
+    y = pdfAddSection(doc, 'Care Circle', y, circleItems);
+  }
+
+  // Closing note
+  if (y > 260) { doc.addPage(); y = 25; }
+  y += 10;
+  doc.setFont('Helvetica', 'italic');
+  doc.setFontSize(10);
+  doc.setTextColor(107, 101, 96);
+  var closingDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  doc.text('This archive was created with Wellet on ' + closingDate + '.', 105, y, { align: 'center' });
+
+  pdfAddFooter(doc);
+  doc.save(name.replace(/\s+/g, '_') + '_Care_Archive.pdf');
+}
+
+function eocGenerateJson() {
+  var person = currentPeople.find(function(p){ return p.id === _eocPersonId; });
+  var exportData = {
+    person: {
+      name: person ? person.name : _eocPersonName,
+      relationship: person ? person.relationship : null,
+      date_of_birth: person ? person.date_of_birth : null,
+      conditions: person ? person.conditions : null,
+      allergies: person ? person.allergies : null,
+      blood_type: person ? person.blood_type : null,
+      primary_doctor: person ? person.primary_doctor : null,
+      emergency_contact_name: person ? person.emergency_contact_name : null,
+      emergency_contact_phone: person ? person.emergency_contact_phone : null,
+      insurance_info: person ? person.insurance_info : null
+    },
+    health_events: liveEvents.map(function(ev) {
+      return {
+        event_type: ev.event_type,
+        event_date: ev.event_date,
+        title: ev.title,
+        value: ev.value,
+        unit: ev.unit,
+        notes: ev.notes,
+        source: ev.source
+      };
+    }),
+    medications: liveMeds.map(function(med) {
+      return {
+        name: med.name,
+        dose: med.dose,
+        frequency: med.frequency,
+        prescriber: med.prescriber,
+        start_date: med.start_date,
+        end_date: med.end_date,
+        active: med.active
+      };
+    }),
+    care_circle: liveCareCircle.map(function(m) {
+      return {
+        member_name: m.member_name,
+        email: m.email,
+        phone: m.phone,
+        role: m.role
+      };
+    }),
+    documents: liveDocs.map(function(d) {
+      return {
+        filename: d.filename,
+        doc_type: d.doc_type,
+        uploaded_at: d.uploaded_at,
+        notes: d.notes
+      };
+    }),
+    exported_at: new Date().toISOString(),
+    exported_by: currentUser ? currentUser.email : 'unknown'
+  };
+
+  var blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = (person ? person.name.replace(/\s+/g, '_') : 'person') + '_Wellet_Export.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ── COMMUNITY FUND ────────────────────────────────────────────────────────
+function eocSubmitFund() {
+  if (_eocFundChoice === 'donate') {
+    var message = document.getElementById('eoc-fund-message').value.trim();
+    if (!isDemoMode && _eocPersonId) {
+      (async function() {
+        try {
+          var session = await db.auth.getSession();
+          var userId = session.data.session.user.id;
+          var person = currentPeople.find(function(p){ return p.id === _eocPersonId; });
+          await db.from('community_fund_pool').insert({
+            donor_id: userId,
+            care_recipient_name: person ? person.name : _eocPersonName,
+            days_donated: 30,
+            donor_note: message || null,
+            is_anonymous: false
+          });
+          showToast('Thank you \u2014 your donation will help another caregiver');
+        } catch(e) {
+          showToast('Donation recorded \u2014 thank you');
+        }
+      })();
+    } else {
+      showToast('Thank you \u2014 your donation will help another caregiver');
+    }
+  } else if (_eocFundChoice === 'refund') {
+    showToast('We\u2019ll process your refund within 5\u20137 business days');
+  }
+  eocGoTo(4);
+}
+
+// ── CARE CIRCLE NOTIFICATION ─────────────────────────────────────────────
+function eocSubmitNotify() {
+  if (_eocNotifyChoice === 'send') {
+    var message = document.getElementById('eoc-notify-message').value.trim();
+    // Store the message as care_status_note
+    if (!isDemoMode && _eocPersonId && message) {
+      db.from('people').update({ care_status_note: message }).eq('id', _eocPersonId);
+    }
+    var count = liveCareCircle.length;
+    if (count > 0) {
+      showToast('Messages will be sent to ' + count + ' Care Circle member' + (count !== 1 ? 's' : ''));
+    } else {
+      showToast('No Care Circle members to notify');
+    }
+  }
+  eocGoTo(5);
+}
+
+// ── ACCOUNT CLOSURE ──────────────────────────────────────────────────────
+function eocSubmitClosure() {
+  var person = currentPeople.find(function(p){ return p.id === _eocPersonId; });
+  var name = person ? person.name.split(' ')[0] : _eocPersonName;
+  var doneBody = '';
+
+  if (_eocClosureChoice === 'archive') {
+    if (!isDemoMode && _eocPersonId) {
+      db.from('people').update({
+        care_status: 'archived',
+        care_status_changed_at: new Date().toISOString()
+      }).eq('id', _eocPersonId).then(function() {
+        var idx = currentPeople.findIndex(function(p){ return p.id === _eocPersonId; });
+        if (idx >= 0) {
+          currentPeople[idx].care_status = 'archived';
+          currentPeople[idx].care_status_changed_at = new Date().toISOString();
+        }
+        renderPersonSwitcher();
+        renderPeopleView();
+        renderAskView();
+        renderArchivedProfiles();
+      });
+    }
+    doneBody = escHtml(name) + '\u2019s care history has been archived. You did something extraordinary.';
+  } else if (_eocClosureChoice === 'delete') {
+    var deleteDate = new Date();
+    deleteDate.setDate(deleteDate.getDate() + 30);
+    var deleteDateStr = deleteDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    if (!isDemoMode && _eocPersonId) {
+      db.from('people').update({
+        care_status: 'closed',
+        care_status_changed_at: new Date().toISOString()
+      }).eq('id', _eocPersonId).then(function() {
+        var idx = currentPeople.findIndex(function(p){ return p.id === _eocPersonId; });
+        if (idx >= 0) {
+          currentPeople[idx].care_status = 'closed';
+          currentPeople[idx].care_status_changed_at = new Date().toISOString();
+        }
+        renderPersonSwitcher();
+        renderPeopleView();
+        renderAskView();
+      });
+    }
+    doneBody = escHtml(name) + '\u2019s profile will be permanently deleted on ' + escHtml(deleteDateStr) + '. Contact us if you change your mind.<br><br>You did something extraordinary.';
+  } else {
+    // keep-account
+    doneBody = 'Your Wellet account remains active. ' + escHtml(name) + '\u2019s care history has been preserved. You did something extraordinary.';
+  }
+
+  document.getElementById('eoc-done-body').innerHTML = doneBody;
+  eocGoTo('done');
+  document.getElementById('eoc-progress').style.display = 'none';
+}
+
+function eocFinish() {
+  closeEocFlow();
+  // Switch to another active person if available
+  var activePeople = currentPeople.filter(function(p){
+    return !p.care_status || p.care_status === 'active';
+  });
+  if (activePeople.length > 0 && activePeople[0].id !== currentPersonId) {
+    (async function() {
+      await loadPersonData(activePeople[0].id);
+      renderPersonSwitcher();
+      renderUpdateMe();
+      renderTimeline();
+      renderPeopleView();
+      renderAskView();
+    })();
+  }
+}
+
+// ── ARCHIVED PROFILES ────────────────────────────────────────────────────
+function renderArchivedProfiles() {
+  var section = document.getElementById('settings-archived-section');
+  var list = document.getElementById('settings-archived-list');
+  if (!section || !list) return;
+
+  var archived = currentPeople.filter(function(p){ return p.care_status === 'archived'; });
+  if (archived.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = 'block';
+  var html = '';
+  archived.forEach(function(p) {
+    var initials = p.avatar_initials || p.name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2);
+    var archivedDate = p.care_status_changed_at
+      ? new Date(p.care_status_changed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : '';
+    html += '<div class="eoc-archived-card">'
+      + '<div class="eoc-archived-avatar">' + escHtml(initials) + '</div>'
+      + '<div class="eoc-archived-info">'
+      + '<div class="eoc-archived-name">' + escHtml(p.name) + '</div>'
+      + '<div class="eoc-archived-meta">Archived' + (archivedDate ? ' ' + archivedDate : '') + '</div>'
+      + '</div>'
+      + '<button class="eoc-restore-btn" onclick="restoreArchivedPerson(\'' + p.id + '\')">Restore</button>'
+      + '</div>';
+  });
+  list.innerHTML = html;
+}
+
+async function restoreArchivedPerson(personId) {
+  if (!isDemoMode) {
+    await db.from('people').update({
+      care_status: 'active',
+      care_status_changed_at: new Date().toISOString()
+    }).eq('id', personId);
+  }
+  var idx = currentPeople.findIndex(function(p){ return p.id === personId; });
+  if (idx >= 0) {
+    currentPeople[idx].care_status = 'active';
+    currentPeople[idx].care_status_changed_at = new Date().toISOString();
+  }
+  renderArchivedProfiles();
+  renderPersonSwitcher();
+  renderPeopleView();
+  renderAskView();
+  showToast('Profile restored');
+}
+
+// ── PATCH: PEOPLE SELECTOR FILTERING ─────────────────────────────────────
+// Override renderPersonSwitcher to hide archived/closed people
+var _origRenderPersonSwitcher = renderPersonSwitcher;
+renderPersonSwitcher = function() {
+  var switcher = document.getElementById('header-person-switcher');
+  if (!switcher) return;
+  var html = '';
+  currentPeople.forEach(function(p) {
+    var status = p.care_status || 'active';
+    if (status === 'archived' || status === 'closed') return;
+    var active = p.id === currentPersonId ? ' active' : '';
+    var bereaved = status === 'bereaved' ? ' bereaved' : '';
+    html += '<button class="person-pill' + active + bereaved + '" onclick="switchToRealPerson(\'' + p.id + '\',this)">'
+      + '<span class="pip"></span>' + escHtml(p.name.split(' ')[0])
+      + (status === 'bereaved' ? '<i data-lucide="heart" class="eoc-heart" style="width:10px;height:10px;display:inline-block;margin-left:3px;opacity:0.5;"></i>' : '')
+      + '</button>';
+  });
+  switcher.innerHTML = html;
+  initIcons();
+};
+
+// Override renderAskView to hide archived/closed in ask person bar
+var _origRenderAskView = renderAskView;
+renderAskView = function() {
+  if (isDemoMode) return;
+  var personBar = document.querySelector('#view-ask .ask-person-bar');
+  if (!personBar || !currentPeople.length) return;
+
+  var pillsHtml = '';
+  currentPeople.forEach(function(p) {
+    var status = p.care_status || 'active';
+    if (status === 'archived' || status === 'closed') return;
+    var active = p.id === currentPersonId ? ' active' : '';
+    pillsHtml += '<button class="ask-person-pill' + active + '" onclick="selectAskRealPerson(this,\'' + p.id + '\')">'
+      + '<span style="width:6px;height:6px;border-radius:50%;background:currentColor;opacity:0.7;display:inline-block;"></span>'
+      + escHtml(p.name.split(' ')[0]) + '</button>';
+  });
+  personBar.innerHTML = pillsHtml;
+
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var firstName = person ? person.name.split(' ')[0] : 'your loved one';
+  var inputEl = document.getElementById('ask-input');
+  if (inputEl) inputEl.placeholder = 'Ask about ' + escHtml(firstName) + '\u2019s health\u2026';
+
+  var chatArea = document.getElementById('chat-area');
+  if (chatArea) {
+    var firstBubble = chatArea.querySelector('.chat-group.from-wellet .chat-bubble.wellet');
+    if (firstBubble && firstBubble.textContent.indexOf('Ask me anything about') !== -1) {
+      firstBubble.textContent = 'Ask me anything about ' + firstName + '\u2019s health. I\u2019ll answer from what\u2019s in ' + firstName + '\u2019s records.';
+    }
+  }
+
+  var chips = document.getElementById('suggestion-chips');
+  if (chips) {
+    chips.innerHTML =
+      '<button class="chip" onclick="askQuestion(this.textContent)">What medications is ' + escHtml(firstName) + ' taking?</button>'
+      + '<button class="chip" onclick="askQuestion(this.textContent)">Summarize recent health events</button>'
+      + '<button class="chip" onclick="askQuestion(this.textContent)">Are there any patterns to watch?</button>'
+      + '<button class="chip" onclick="askQuestion(this.textContent)">What should I ask the doctor next visit?</button>';
+    chips.style.display = 'flex';
+  }
+};
+
+// Override renderPeopleView to show bereaved status and hide closed
+var _origRenderPeopleView = renderPeopleView;
+renderPeopleView = function() {
+  var view = document.getElementById('view-people');
+  if (!view) return;
+
+  var html = '<div class="view-header"><div class="view-title">People</div>'
+    + '<div class="view-subtitle">Everyone you\u2019re caring for</div></div>'
+    + '<div class="people-section">';
+
+  currentPeople.forEach(function(p) {
+    var status = p.care_status || 'active';
+    if (status === 'closed') return;
+    var initials = p.avatar_initials || p.name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2);
+    var statusClass = status === 'bereaved' ? 'bereaved' : (status === 'archived' ? 'bereaved' : 'stable');
+    var statusLabel = status === 'bereaved' ? '<i data-lucide="heart" style="width:13px;height:13px;"></i> In transition'
+      : status === 'archived' ? '<i data-lucide="archive" style="width:13px;height:13px;"></i> Archived'
+      : '<i data-lucide="check-circle" style="width:13px;height:13px;"></i> Active';
+
+    html += '<div class="person-card" id="pcard-' + p.id + '">'
+      + '<div class="person-card-top">'
+      + '<div class="person-card-avatar moss">' + escHtml(initials) + '</div>'
+      + '<div><div class="person-card-name">' + escHtml(p.name) + '</div>'
+      + '<div class="person-card-rel">' + escHtml(p.relationship || '') + '</div></div>'
+      + '<div class="person-card-status ' + statusClass + '">' + statusLabel + '</div>'
+      + '<button class="remove-btn" onclick="confirmRemovePerson(\'' + p.id + '\',\'' + p.name.replace(/'/g,"\\\\'") + '\')" title="Remove person">'
+      + '<i data-lucide="x" style="width:16px;height:16px;"></i></button>'
+      + '</div>'
+      + '<div class="person-card-action">'
+      + '<button class="card-action-btn" onclick="switchToRealPersonNav(\'' + p.id + '\')">Update Me</button>'
+      + '<button class="card-action-btn" onclick="openAddEvent(\'' + p.id + '\')">Add event</button>'
+      + '<button class="card-action-btn" onclick="openProfileEdit(\'' + p.id + '\')"><i data-lucide="pencil" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:3px;"></i>Edit profile</button>'
+      + '</div></div>';
+  });
+
+  html += '<button class="add-person-btn" onclick="showOnboarding()">'
+    + '<i data-lucide="plus" style="width:16px;height:16px;"></i>'
+    + ' Add another person</button>'
+    + '</div>';
+
+  view.innerHTML = html;
+  initIcons();
+};
+
+// ── PATCH: openSettings to render archived profiles ──────────────────────
+var _origOpenSettings = openSettings;
+openSettings = function() {
+  _origOpenSettings();
+  renderArchivedProfiles();
+};
+
+// ── PATCH: sendAskMessage for bereavement detection ──────────────────────
+var _origSendAskMessage = sendAskMessage;
+sendAskMessage = function() {
+  var input = document.getElementById('ask-input');
+  var text = input.value.trim();
+  if (!text) return;
+
+  // Get person name
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var firstName = person ? person.name.split(' ')[0] : 'your loved one';
+
+  // Check bereavement detection (only for real mode with a person)
+  if (!isDemoMode && currentPersonId) {
+    var detection = detectBereavement(text);
+    if (detection === 'high') {
+      input.value = ''; input.style.height = 'auto';
+      addUserMessage(text);
+      document.getElementById('suggestion-chips').style.display = 'none';
+      _bereavementDetected[currentPersonId] = true;
+      var compassionateMsg = 'I hear you. ' + escHtml(firstName) + ' was so fortunate to have you in their corner. '
+        + 'There\u2019s no rush for anything right now \u2014 whenever you\u2019re ready, you can find options in '
+        + escHtml(firstName) + '\u2019s profile under Life Changes.';
+      addWelletMessage(compassionateMsg);
+      return;
+    }
+    if (detection === 'uncertain') {
+      input.value = ''; input.style.height = 'auto';
+      addUserMessage(text);
+      document.getElementById('suggestion-chips').style.display = 'none';
+      addWelletMessage('I want to make sure I understand \u2014 has something happened with ' + escHtml(firstName) + '?');
+      return;
+    }
+
+    // If bereaved, add gentle context
+    if (_bereavementDetected[currentPersonId]) {
+      // Let it go through but the edge function should handle gently
+      // (we don't modify the message, just let it flow)
+    }
+  }
+
+  // Call original
+  _origSendAskMessage();
 };
 
 function handleName(val) { /* legacy stub */ }
