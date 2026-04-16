@@ -3263,6 +3263,9 @@ var currentPersonId = null; // selected person uuid
 var liveEvents = [];      // health_events fetched from DB
 var liveMeds = [];        // medications fetched from DB
 var liveDocs = [];        // documents fetched from DB
+var liveLabs = [];        // lab_results fetched from DB
+var liveVitals = [];      // vitals fetched from DB
+var liveAllergies = [];   // allergies fetched from DB
 var liveCareCircle = [];  // care_circle_members fetched from DB
 var summaryCache = {};    // { personId: summaryText } to avoid re-fetching
 var _cardToRemove = null;
@@ -3700,6 +3703,30 @@ async function loadPersonData(personId) {
     .order('uploaded_at', { ascending: false });
   liveDocs = docs || [];
 
+  // Load lab results
+  const { data: labs } = await db
+    .from('lab_results')
+    .select('*')
+    .eq('person_id', personId)
+    .order('effective_date', { ascending: false });
+  liveLabs = labs || [];
+
+  // Load vitals
+  const { data: vitals } = await db
+    .from('vitals')
+    .select('*')
+    .eq('person_id', personId)
+    .order('effective_date', { ascending: false });
+  liveVitals = vitals || [];
+
+  // Load allergies
+  const { data: allergies } = await db
+    .from('allergies')
+    .select('*')
+    .eq('person_id', personId)
+    .order('created_at', { ascending: false });
+  liveAllergies = allergies || [];
+
   // Load care circle members
   const { data: circle } = await db
     .from('care_circle_members')
@@ -4125,16 +4152,29 @@ function renderRecordsView() {
     html += '</div>';
   }
 
-  // EHR Allergies section
-  if (ehrAllergies.length > 0) {
+  // Allergies section (DB records + EHR cache)
+  var totalAllergies = liveAllergies.length + ehrAllergies.length;
+  if (totalAllergies > 0) {
     html += '<div class="record-group"><div class="record-group-header">'
-      + '<div class="record-group-title"><i data-lucide="alert-triangle" style="width:14px;height:14px;color:var(--red);"></i>Allergies ' + ehrBadgeHtml() + '</div>'
-      + '<span class="record-group-count">' + ehrAllergies.length + ' from EHR</span></div>';
+      + '<div class="record-group-title"><i data-lucide="alert-triangle" style="width:14px;height:14px;color:var(--red);"></i>Allergies</div>'
+      + '<span class="record-group-count">' + totalAllergies + ' tracked</span></div>';
+    liveAllergies.forEach(function(a) {
+      var srcBadge = a.source === 'ehr' ? ' ' + ehrBadgeHtml() : '';
+      html += '<div class="record-row">'
+        + '<div class="record-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="alert-triangle" style="width:15px;height:15px;"></i></div>'
+        + '<div style="flex:1;"><div class="record-label">' + escHtml(a.substance) + srcBadge + '</div>'
+        + '<div class="record-meta">' + (a.reaction ? escHtml(a.reaction) : '') + (a.severity ? ' \u00B7 ' + escHtml(a.severity) : '') + '</div></div>'
+        + (a.clinical_status === 'active' ? '<span class="record-badge amber">Active</span>' : '')
+        + '</div>';
+    });
     ehrAllergies.forEach(function(a) {
+      // Skip EHR cache entries that already exist in DB (by substance name)
+      var alreadyInDb = liveAllergies.some(function(dbA) { return dbA.substance && a.name && dbA.substance.toLowerCase() === a.name.toLowerCase(); });
+      if (alreadyInDb) return;
       var reactionStr = a.reactions && a.reactions.length > 0 ? a.reactions.join(', ') : '';
       html += '<div class="record-row">'
         + '<div class="record-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="alert-triangle" style="width:15px;height:15px;"></i></div>'
-        + '<div style="flex:1;"><div class="record-label">' + escHtml(a.name) + '</div>'
+        + '<div style="flex:1;"><div class="record-label">' + escHtml(a.name) + ' ' + ehrBadgeHtml() + '</div>'
         + '<div class="record-meta">' + (reactionStr ? escHtml(reactionStr) : '') + (a.severity ? ' \u00B7 ' + escHtml(a.severity) : '') + '</div></div>'
         + ehrProviderBadgeHtml(ehrProvider)
         + '</div>';
@@ -4168,12 +4208,28 @@ function renderRecordsView() {
     html += '</div>';
   }
 
-  // Lab results (manual + EHR)
-  var totalLabs = labEvents.length + ehrObs.length;
+  // Lab results (DB records + manual events + EHR cache)
+  var totalLabs = liveLabs.length + labEvents.length + ehrObs.length;
   if (totalLabs > 0) {
     html += '<div class="record-group"><div class="record-group-header">'
       + '<div class="record-group-title"><i data-lucide="flask-conical" style="width:14px;height:14px;color:var(--blue);"></i>Lab results</div>'
-      + '<span class="record-group-count">' + totalLabs + ' logged</span></div>';
+      + '<span class="record-group-count">' + totalLabs + ' results</span></div>';
+    liveLabs.slice(0, 10).forEach(function(lab) {
+      var valStr = lab.value ? escHtml(lab.value) + (lab.unit ? ' ' + escHtml(lab.unit) : '') : '';
+      var statusBadge = '';
+      if (lab.status === 'abnormal') statusBadge = '<span class="record-badge amber">Abnormal</span>';
+      else if (lab.status === 'critical') statusBadge = '<span class="record-badge" style="background:#FEF0EE;color:var(--red);">Critical</span>';
+      else if (lab.status === 'normal') statusBadge = '<span class="record-badge moss">Normal</span>';
+      var srcBadge = lab.source === 'ehr' ? ' ' + ehrBadgeHtml() : '';
+      html += '<div class="record-row"><div class="record-icon blue"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>'
+        + '<div style="flex:1;"><div class="record-label">' + escHtml(lab.test_name) + srcBadge + '</div>'
+        + '<div class="record-meta">' + formatEventDate(lab.effective_date)
+        + (valStr ? ' \u00B7 ' + valStr : '')
+        + (lab.reference_range ? ' (ref: ' + escHtml(lab.reference_range) + ')' : '')
+        + '</div></div>'
+        + statusBadge
+        + '</div>';
+    });
     labEvents.slice(0,3).forEach(function(ev) {
       html += '<div class="record-row" onclick="openEditEvent(\'' + ev.id + '\')"><div class="record-icon blue"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">' + escHtml(ev.title) + '</div>'
@@ -4186,6 +4242,41 @@ function renderRecordsView() {
         + '<div style="flex:1;"><div class="record-label">' + escHtml(obs.name) + ' ' + ehrBadgeHtml() + '</div>'
         + '<div class="record-meta">' + formatEventDate(obs.effective_date) + (valStr ? ' \u00B7 ' + escHtml(valStr) : '') + '</div></div>'
         + (obs.reference_range ? '<span class="record-badge moss" title="Ref: ' + escHtml(obs.reference_range) + '">Normal</span>' : ehrProviderBadgeHtml(ehrProvider))
+        + '</div>';
+    });
+    if (liveLabs.length > 10) {
+      html += '<div style="text-align:center;padding:8px;color:var(--text-secondary);font-size:12px;">'
+        + '+ ' + (liveLabs.length - 10) + ' more results</div>';
+    }
+    html += '</div>';
+  }
+
+  // Vitals section (DB records)
+  if (liveVitals.length > 0) {
+    // Show most recent reading for each vital type
+    var vitalsByType = {};
+    liveVitals.forEach(function(v) {
+      var vt = v.vital_type;
+      if (!vitalsByType[vt]) vitalsByType[vt] = [];
+      vitalsByType[vt].push(v);
+    });
+    var vitalTypes = Object.keys(vitalsByType);
+    html += '<div class="record-group"><div class="record-group-header">'
+      + '<div class="record-group-title"><i data-lucide="activity" style="width:14px;height:14px;color:var(--moss);"></i>Vitals</div>'
+      + '<span class="record-group-count">' + liveVitals.length + ' readings</span></div>';
+    vitalTypes.forEach(function(vt) {
+      var readings = vitalsByType[vt];
+      var latest = readings[0]; // Already sorted by effective_date desc
+      var valStr = escHtml(latest.value) + (latest.unit ? ' ' + escHtml(latest.unit) : '');
+      var trendHtml = '';
+      if (readings.length > 1) {
+        trendHtml = ' <span style="color:var(--text-muted);font-size:11px;">(' + readings.length + ' readings)</span>';
+      }
+      html += '<div class="record-row">'
+        + '<div class="record-icon moss"><i data-lucide="activity" style="width:15px;height:15px;"></i></div>'
+        + '<div style="flex:1;"><div class="record-label">' + escHtml(vt) + trendHtml + '</div>'
+        + '<div class="record-meta">' + escHtml(valStr) + ' \u00B7 ' + formatEventDate(latest.effective_date) + '</div></div>'
+        + (latest.source === 'ehr' ? ehrBadgeHtml() : '')
         + '</div>';
     });
     html += '</div>';
@@ -5146,27 +5237,62 @@ function showHealthImportSummary(summary) {
 
   document.getElementById('hi-summary-title').textContent = escHtml(name) + '\'s records are in Wellet';
 
-  var details = [];
+  var lines = [];
   if (summary) {
     if (summary.pdf_stored > 0) {
-      details.push('Found ' + summary.pdf_stored + ' PDF' + (summary.pdf_stored !== 1 ? 's' : ''));
+      lines.push('<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
+        + '<i data-lucide="check-circle" style="width:16px;height:16px;color:var(--moss);flex-shrink:0;"></i>'
+        + '<span>' + escHtml(summary.pdf_stored + ' PDF' + (summary.pdf_stored !== 1 ? 's' : '') + ' stored') + '</span></div>');
     }
-    if (summary.xml_count > 0) {
-      details.push(summary.xml_count + ' structured data file' + (summary.xml_count !== 1 ? 's' : '') + ' (will be parsed in a future update)');
+    if (summary.medications_found > 0) {
+      var medDetail = escHtml(summary.medications_found + ' medication' + (summary.medications_found !== 1 ? 's' : '') + ' extracted');
+      if (summary.medications_new > 0 && summary.medications_new < summary.medications_found) {
+        medDetail += ' (' + escHtml(String(summary.medications_new)) + ' new, ' + escHtml(String(summary.medications_found - summary.medications_new)) + ' already in Wellet)';
+      }
+      lines.push('<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
+        + '<i data-lucide="check-circle" style="width:16px;height:16px;color:var(--moss);flex-shrink:0;"></i>'
+        + '<span>' + medDetail + '</span></div>');
+    }
+    if (summary.allergies_found > 0) {
+      var allergyDetail = escHtml(summary.allergies_found + ' allerg' + (summary.allergies_found !== 1 ? 'ies' : 'y') + ' found');
+      if (summary.allergies_new > 0 && summary.allergies_new < summary.allergies_found) {
+        allergyDetail += ' (' + escHtml(String(summary.allergies_new)) + ' new)';
+      }
+      lines.push('<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
+        + '<i data-lucide="check-circle" style="width:16px;height:16px;color:var(--moss);flex-shrink:0;"></i>'
+        + '<span>' + allergyDetail + '</span></div>');
+    }
+    if (summary.lab_results_found > 0) {
+      lines.push('<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
+        + '<i data-lucide="check-circle" style="width:16px;height:16px;color:var(--moss);flex-shrink:0;"></i>'
+        + '<span>' + escHtml(String(summary.lab_results_found)) + ' lab result' + (summary.lab_results_found !== 1 ? 's' : '') + ' imported</span></div>');
+    }
+    if (summary.vitals_found > 0) {
+      lines.push('<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
+        + '<i data-lucide="check-circle" style="width:16px;height:16px;color:var(--moss);flex-shrink:0;"></i>'
+        + '<span>' + escHtml(String(summary.vitals_found)) + ' vital sign reading' + (summary.vitals_found !== 1 ? 's' : '') + '</span></div>');
+    }
+    if (summary.conditions_found > 0) {
+      lines.push('<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
+        + '<i data-lucide="check-circle" style="width:16px;height:16px;color:var(--moss);flex-shrink:0;"></i>'
+        + '<span>' + escHtml(String(summary.conditions_found)) + ' condition' + (summary.conditions_found !== 1 ? 's' : '') + ' added to timeline</span></div>');
     }
     if (summary.source_system && summary.source_system !== 'unknown') {
       var sourceNames = { mychart: 'Epic MyChart', cerner: 'Cerner', generic: 'health record' };
-      details.push('Detected source: ' + (sourceNames[summary.source_system] || summary.source_system));
+      lines.push('<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
+        + '<i data-lucide="hospital" style="width:16px;height:16px;color:var(--text-muted);flex-shrink:0;"></i>'
+        + '<span>Source: ' + escHtml(sourceNames[summary.source_system] || summary.source_system) + '</span></div>');
     }
   }
 
-  if (details.length === 0) {
-    details.push('Your file has been stored securely.');
+  if (lines.length === 0) {
+    lines.push('<div style="padding:4px 0;">' + escHtml('Your file has been stored securely.') + '</div>');
   }
 
-  details.push('Your documents are saved and Ask Wellet can answer questions about them.');
+  lines.push('<div style="padding:6px 0 0;color:var(--text-secondary);font-size:13px;">'
+    + escHtml('Your documents are saved and Ask Wellet can answer questions about them.') + '</div>');
 
-  document.getElementById('hi-summary-detail').innerHTML = details.map(function(d){ return escHtml(d); }).join('<br>');
+  document.getElementById('hi-summary-detail').innerHTML = lines.join('');
 
   var doneBtn = document.getElementById('hi-done-btn');
   doneBtn.onclick = function() {
