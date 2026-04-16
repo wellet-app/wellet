@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import JSZip from "https://esm.sh/jszip@3.10.1";
 import { parseCcdaXml } from "./ccda-parser.ts";
+import { parseAppleHealthXml } from "./apple-health-parser.ts";
 import { deduplicateRecords } from "./deduplicator.ts";
 
 Deno.serve(async (req) => {
@@ -98,11 +99,12 @@ Deno.serve(async (req) => {
       return json({ error: "Invalid ZIP file" }, 400);
     }
 
-    // Inventory: count PDFs, XMLs, detect IHE_XDM
+    // Inventory: count PDFs, XMLs, detect IHE_XDM and Apple Health
     const pdfFiles: { name: string; relativePath: string }[] = [];
     const xmlFiles: string[] = [];
     let hasIheXdm = false;
     let hasCcdaFolder = false;
+    let appleHealthXmlPath: string | null = null;
 
     zip.forEach((relativePath, zipEntry) => {
       if (zipEntry.dir) {
@@ -120,6 +122,10 @@ Deno.serve(async (req) => {
       }
       // Check file paths for IHE_XDM too
       if (lower.includes("ihe_xdm")) hasIheXdm = true;
+      // Detect Apple Health export.xml in root or apple_health_export/ folder
+      if (lower === "export.xml" || lower === "apple_health_export/export.xml") {
+        appleHealthXmlPath = relativePath;
+      }
     });
 
     // Detect source system
@@ -130,6 +136,25 @@ Deno.serve(async (req) => {
       sourceSystem = "cerner";
     } else if (xmlFiles.length > 0) {
       sourceSystem = "generic";
+    }
+
+    // Check if the detected XML is actually Apple Health
+    if (appleHealthXmlPath) {
+      try {
+        const ahPreview = await zip.file(appleHealthXmlPath)!.async("text");
+        const previewSlice = ahPreview.substring(0, 500);
+        if (
+          previewSlice.includes("<!DOCTYPE HealthData") ||
+          previewSlice.includes("<HealthData locale=") ||
+          previewSlice.includes("<HealthData")
+        ) {
+          sourceSystem = "apple_health";
+        } else {
+          appleHealthXmlPath = null; // Not actually Apple Health
+        }
+      } catch {
+        appleHealthXmlPath = null;
+      }
     }
 
     // For each PDF found: upload individually to documents bucket, create documents row
@@ -186,10 +211,42 @@ Deno.serve(async (req) => {
     const xmlParseErrors: { file: string; error: string }[] = [];
     let xmlParsed = 0;
 
+    // ── Apple Health XML parsing ───────────────────────────────────────────
+    let appleHealthStats = { vitals: 0, activities: 0, sleep: 0, workouts: 0 };
+    if (sourceSystem === "apple_health" && appleHealthXmlPath) {
+      try {
+        const ahContent = await zip.file(appleHealthXmlPath)!.async("text");
+        const ahResult = parseAppleHealthXml(ahContent);
+
+        parsedData.vitals.push(...ahResult.vitals);
+        parsedData.conditions.push(...ahResult.conditions);
+
+        for (const err of ahResult.errors) {
+          xmlParseErrors.push({ file: appleHealthXmlPath + " [" + err.section + "]", error: err.error });
+        }
+
+        // Tally Apple Health stats
+        appleHealthStats.vitals = ahResult.vitals.length;
+        appleHealthStats.activities = ahResult.conditions.filter(
+          (c) => (c as { event_type: string }).event_type === "activity" || (c as { event_type: string }).event_type === "activity_summary",
+        ).length;
+        appleHealthStats.sleep = ahResult.conditions.filter(
+          (c) => (c as { event_type: string }).event_type === "sleep",
+        ).length;
+        appleHealthStats.workouts = ahResult.conditions.filter(
+          (c) => (c as { event_type: string }).event_type === "workout",
+        ).length;
+        xmlParsed++;
+      } catch (e) {
+        xmlParseErrors.push({ file: appleHealthXmlPath, error: (e as Error).message });
+      }
+    }
+
+    // ── C-CDA XML parsing ─────────────────────────────────────────────────
     for (const xmlPath of xmlFiles) {
       try {
         const xmlContent = await zip.file(xmlPath)!.async("text");
-        // Skip non-CDA XMLs (manifest files, metadata, etc.)
+        // Skip non-CDA XMLs (manifest files, metadata, Apple Health export.xml)
         if (!xmlContent.includes("ClinicalDocument")) continue;
 
         const extracted = parseCcdaXml(xmlContent, xmlPath);
@@ -310,6 +367,12 @@ Deno.serve(async (req) => {
       vitals_new: deduped.vitals.length,
       conditions_found: parsedData.conditions.length,
       conditions_new: deduped.conditions.length,
+      ...(sourceSystem === "apple_health" ? {
+        apple_health_vitals: appleHealthStats.vitals,
+        apple_health_activities: appleHealthStats.activities,
+        apple_health_sleep: appleHealthStats.sleep,
+        apple_health_workouts: appleHealthStats.workouts,
+      } : {}),
     };
 
     const allErrors = [
