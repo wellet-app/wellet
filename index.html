@@ -2855,6 +2855,8 @@ async function checkInviteOnLoad() {
   var params = new URLSearchParams(window.location.search);
   var token = params.get('invite');
   if (!token) return false;
+  // Validate invite token format (UUID) to prevent injection
+  if (!/^[a-f0-9\-]{36}$/.test(token)) return false;
   _pendingInviteToken = token;
 
   try {
@@ -5325,8 +5327,17 @@ function startEhrConnect() {
       return;
     }
     if (data.authorize_url) {
-      // Redirect to 1upHealth system picker
-      window.location.href = data.authorize_url;
+      // Validate redirect URL to prevent open redirect
+      try {
+        var authUrl = new URL(data.authorize_url);
+        if (authUrl.hostname.endsWith('1up.health')) {
+          window.location.href = data.authorize_url;
+        } else {
+          showToast('Invalid authorize URL');
+        }
+      } catch(e) {
+        showToast('Invalid authorize URL');
+      }
     }
   }).catch(function(err) {
     _ehrConnecting = false;
@@ -5340,6 +5351,8 @@ function handleEhrCallback() {
   var params = new URLSearchParams(window.location.search);
   var code = params.get('code');
   if (!code) return;
+  // Validate OAuth code format (alphanumeric, hyphens, underscores)
+  if (!/^[a-zA-Z0-9\-_]{1,256}$/.test(code)) return;
 
   // Get the pending person_id
   var personId;
@@ -5418,7 +5431,7 @@ function fetchEhrData(personId) {
     return res.json();
   }).then(function(data) {
     if (!data || data.error) {
-      console.log('EHR fetch:', data ? data.error : 'no response');
+      // PHI log removed
       return;
     }
     saveEhrCache(personId, data);
@@ -6138,7 +6151,22 @@ async function createShareLink(action) {
       throw new Error(result.error || 'Failed to create share');
     }
 
-    _lastShareUrl = result.share_url;
+    // Validate share URL is relative or same-origin before using
+    var shareUrl = result.share_url || '';
+    if (shareUrl.startsWith('/') && !shareUrl.startsWith('//')) {
+      _lastShareUrl = shareUrl;
+    } else {
+      try {
+        var parsedShare = new URL(shareUrl, window.location.origin);
+        if (parsedShare.origin === window.location.origin) {
+          _lastShareUrl = shareUrl;
+        } else {
+          throw new Error('External share URL rejected');
+        }
+      } catch(e) {
+        throw new Error('Invalid share URL returned');
+      }
+    }
 
     // Also store in shares table directly as fallback
     // (edge function handles this, but track locally)
@@ -6529,7 +6557,7 @@ async function confirmUpload() {
       
       if (fnResponse.ok) {
         var fnResult = await fnResponse.json();
-        console.log('AI extraction result:', fnResult);
+        // PHI log removed
       } else {
         console.warn('Edge function returned:', fnResponse.status);
       }
@@ -7436,7 +7464,7 @@ async function obHandleFiles(input, type) {
       _obExtractedData = extractedData;
     }
   } catch(e) {
-    console.log('Extraction not available yet, skipping:', e.message);
+    // PHI log removed
   }
 
   // Short delay for the user to see upload completion, then proceed to name screen
@@ -7515,7 +7543,7 @@ async function obFinishWithNames() {
             extraction_status: 'pending'
           });
         } catch(e) {
-          console.log('Doc record insert skipped:', e.message);
+          // PHI log removed
         }
       }
     }
@@ -7532,7 +7560,7 @@ async function obFinishWithNames() {
               title: _obExtractedData.conditions[c],
               source: 'Onboarding upload'
             });
-          } catch(e) { console.log('Condition insert skipped:', e.message); }
+          } catch(e) { /* PHI log removed */ }
         }
       }
       if (_obExtractedData.medications) {
@@ -7545,7 +7573,7 @@ async function obFinishWithNames() {
               status: 'active',
               source: 'Onboarding upload'
             });
-          } catch(e) { console.log('Med insert skipped:', e.message); }
+          } catch(e) { /* PHI log removed */ }
         }
       }
     }
