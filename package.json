@@ -1,0 +1,20 @@
+{
+  "name": "wellet-c0db8561",
+  "version": "1.0.0",
+  "main": "guided-demo.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "npx playwright test",
+    "test:security": "npx playwright test tests/security/"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@supabase/supabase-js": "^2.103.3"
+  }
+}
