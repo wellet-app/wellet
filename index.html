@@ -560,6 +560,44 @@
   .nav-item.active { color: var(--moss); }
   .nav-icon { display: flex; align-items: center; }
 
+  /* ── RESOURCES VIEW ── */
+  .resources-view { padding: 20px; }
+  .resources-view-title { font-family: 'DM Serif Display', serif; font-size: 22px; font-weight: 400; margin-bottom: 4px; }
+  .resources-view-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.5; }
+  .resources-section { margin-bottom: 24px; }
+  .resources-section-title { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .resource-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; }
+  .resource-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .resource-card-name { font-size: 15px; font-weight: 500; color: var(--text-primary); flex: 1; }
+  .resource-card-bookmark { background: none; border: none; cursor: pointer; padding: 4px; color: var(--text-muted); display: flex; align-items: center; flex-shrink: 0; transition: color 0.15s; }
+  .resource-card-bookmark.saved { color: var(--moss); }
+  .resource-card-desc { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 10px; }
+  .resource-card-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .resource-tag { font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 8px; background: var(--mint); color: var(--moss-dark); }
+  .resource-tag.helpline { background: #EDE9FE; color: #6B21A8; }
+  .resource-tag.free { background: var(--amber-bg); color: var(--amber-text); }
+  .resource-card-actions { display: flex; gap: 8px; }
+  .resource-btn { font-size: 13px; font-weight: 500; padding: 8px 14px; border-radius: 10px; cursor: pointer; font-family: 'DM Sans', sans-serif; display: inline-flex; align-items: center; gap: 5px; transition: background 0.15s; text-decoration: none; }
+  .resource-btn-visit { background: var(--moss); color: white; border: none; }
+  .resource-btn-visit:hover { background: var(--moss-dark); }
+  .resource-btn-call { background: transparent; color: var(--moss); border: 1.5px solid var(--moss); }
+  .resource-btn-call:hover { background: var(--mint); }
+  .resources-empty { text-align: center; padding: 40px 20px; }
+  .resources-empty-icon { width: 52px; height: 52px; border-radius: 50%; background: var(--mint); display: flex; align-items: center; justify-content: center; color: var(--moss); margin: 0 auto 14px; }
+  .resources-empty-title { font-family: 'DM Serif Display', serif; font-size: 18px; margin-bottom: 6px; }
+  .resources-empty-body { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+
+  /* ── DIAGNOSIS TRIGGER CARD ── */
+  .dx-trigger-card { background: var(--mint); border: 1px solid var(--moss); border-radius: 12px; padding: 14px 16px; margin-top: 12px; }
+  .dx-trigger-text { font-size: 13px; color: var(--text-primary); line-height: 1.5; margin-bottom: 10px; }
+  .dx-trigger-text strong { font-weight: 500; }
+  .dx-trigger-actions { display: flex; gap: 8px; }
+  .dx-trigger-btn { font-size: 12px; font-weight: 500; padding: 7px 12px; border-radius: 8px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: background 0.15s; }
+  .dx-trigger-save { background: var(--moss); color: white; border: none; }
+  .dx-trigger-save:hover { background: var(--moss-dark); }
+  .dx-trigger-dismiss { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
+  .dx-trigger-dismiss:hover { background: var(--cream); }
+
   /* ── ONBOARDING CHAT ── */
   #onboarding { display: none; flex-direction: column; height: 100dvh; height: 100vh; overflow: hidden; }
   @supports (height: 100dvh) { #onboarding { height: 100dvh; } }
@@ -1725,6 +1763,11 @@
       <!-- Content rendered by renderSignalsView() -->
     </div>
 
+    <!-- RESOURCES VIEW -->
+    <div id="view-resources" class="app-view">
+      <!-- Content rendered by renderResourcesView() -->
+    </div>
+
     <!-- ASK WELLET VIEW -->
     <div id="view-ask" class="app-view">
       <div class="ask-view">
@@ -1776,6 +1819,7 @@
     <button class="nav-item" onclick="switchNavTo('people')"><span class="nav-icon"><i data-lucide="users" style="width:20px;height:20px;"></i></span>People</button>
     <button class="nav-item" onclick="switchNavTo('records')"><span class="nav-icon"><i data-lucide="folder-heart" style="width:20px;height:20px;"></i></span>Records</button>
     <button class="nav-item" onclick="switchNavTo('signals')"><span class="nav-icon"><i data-lucide="activity" style="width:20px;height:20px;"></i></span>Signals</button>
+    <button class="nav-item" onclick="switchNavTo('resources')"><span class="nav-icon"><i data-lucide="heart-handshake" style="width:20px;height:20px;"></i></span>Resources</button>
     <button class="nav-item" id="nav-ask" onclick="switchNavTo('ask')"><span class="nav-icon"><svg class="wellet-nav-icon" viewBox="0 138 50 42" xmlns="http://www.w3.org/2000/svg"><path d="M45.5,142c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83l.25-2.56h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z"/></svg></span>Ask Wellet</button>
   </div>
 </div>
@@ -7078,6 +7122,365 @@ async function fetchUpdateMeSummary(forceRefresh) {
   if (currentPersonId === pid) { renderUpdateMe(); }
 }
 
+// ── CAREGIVER RESOURCES ─────────────────────────────────────────────────────
+var _resourcesCache = [];
+var _savedResourceIds = {};
+var _resourcesLoaded = false;
+
+// Condition slug mapping: maps user-entered condition strings to resource slugs
+var CONDITION_SLUG_MAP = {
+  'alzheimer': 'alzheimers', 'alzheimers': 'alzheimers', "alzheimer's": 'alzheimers', "alzheimer's disease": 'alzheimers',
+  'dementia': 'dementia', 'lewy body': 'dementia', 'vascular dementia': 'dementia',
+  'parkinson': 'parkinsons', 'parkinsons': 'parkinsons', "parkinson's": 'parkinsons', "parkinson's disease": 'parkinsons',
+  'cancer': 'cancer', 'lymphoma': 'cancer', 'leukemia': 'cancer', 'cml': 'cancer', 'aml': 'cancer', 'melanoma': 'cancer', 'lung cancer': 'cancer', 'breast cancer': 'cancer', 'prostate cancer': 'cancer', 'colon cancer': 'cancer',
+  'stroke': 'stroke',
+  'als': 'als', 'amyotrophic lateral sclerosis': 'als',
+  'heart disease': 'heart_disease', 'heart failure': 'heart_disease', 'chf': 'heart_disease', 'congestive heart failure': 'heart_disease', 'coronary artery disease': 'heart_disease', 'atrial fibrillation': 'heart_disease', 'afib': 'heart_disease',
+  'diabetes': 'diabetes', 'type 1 diabetes': 'diabetes', 'type 2 diabetes': 'diabetes',
+  'depression': 'mental_health', 'anxiety': 'mental_health', 'bipolar': 'mental_health', 'schizophrenia': 'mental_health', 'ptsd': 'mental_health', 'mental health': 'mental_health',
+  'ms': 'ms', 'multiple sclerosis': 'ms',
+  'kidney disease': 'kidney', 'kidney': 'kidney', 'ckd': 'kidney', 'chronic kidney disease': 'kidney', 'renal failure': 'kidney',
+  'copd': 'lung', 'lung disease': 'lung', 'pulmonary fibrosis': 'lung', 'emphysema': 'lung'
+};
+
+function conditionToSlugs(condStr) {
+  if (!condStr) return [];
+  var slugs = {};
+  var parts = condStr.split(',').map(function(c){ return c.trim().toLowerCase(); }).filter(Boolean);
+  for (var i = 0; i < parts.length; i++) {
+    var slug = CONDITION_SLUG_MAP[parts[i]];
+    if (slug) { slugs[slug] = true; }
+    // Also try partial matching
+    if (!slug) {
+      var keys = Object.keys(CONDITION_SLUG_MAP);
+      for (var k = 0; k < keys.length; k++) {
+        if (parts[i].indexOf(keys[k]) >= 0 || keys[k].indexOf(parts[i]) >= 0) {
+          slugs[CONDITION_SLUG_MAP[keys[k]]] = true;
+          break;
+        }
+      }
+    }
+  }
+  return Object.keys(slugs);
+}
+
+async function loadResources() {
+  if (_resourcesLoaded && _resourcesCache.length > 0) return;
+  var { data, error } = await db.from('caregiver_resources').select('*').eq('vetted', true).order('name');
+  if (error) { console.error('Error loading resources:', error); return; }
+  _resourcesCache = data || [];
+  _resourcesLoaded = true;
+}
+
+async function loadSavedResources() {
+  if (!currentUser) return;
+  var { data, error } = await db.from('user_saved_resources').select('*').eq('user_id', currentUser.id);
+  if (error) { console.error('Error loading saved resources:', error); return; }
+  _savedResourceIds = {};
+  (data || []).forEach(function(s) {
+    if (!s.dismissed) { _savedResourceIds[s.resource_id] = s; }
+  });
+}
+
+function getResourceTags(resource) {
+  var tags = [];
+  if (resource.has_support_groups) tags.push({ label: 'Support Groups', cls: '' });
+  if (resource.phone) tags.push({ label: '24/7 Helpline', cls: 'helpline' });
+  if (resource.is_free) tags.push({ label: 'Free', cls: 'free' });
+  if (resource.has_zip_search) tags.push({ label: 'Local Search', cls: '' });
+  if ((resource.categories || []).indexOf('financial-aid') >= 0) tags.push({ label: 'Financial Aid', cls: 'free' });
+  if ((resource.categories || []).indexOf('counseling') >= 0) tags.push({ label: 'Counseling', cls: '' });
+  if ((resource.categories || []).indexOf('respite') >= 0) tags.push({ label: 'Respite Care', cls: '' });
+  // Limit to 3 tags
+  return tags.slice(0, 3);
+}
+
+function renderResourceCard(resource, isSaved) {
+  var tags = getResourceTags(resource);
+  var tagsHtml = '';
+  for (var t = 0; t < tags.length; t++) {
+    tagsHtml += '<span class="resource-tag ' + tags[t].cls + '">' + escHtml(tags[t].label) + '</span>';
+  }
+
+  var bookmarkIcon = isSaved ? 'bookmark-check' : 'bookmark';
+  var bookmarkClass = isSaved ? 'resource-card-bookmark saved' : 'resource-card-bookmark';
+
+  var html = '<div class="resource-card" data-resource-id="' + resource.id + '">'
+    + '<div class="resource-card-header">'
+    + '<div class="resource-card-name">' + escHtml(resource.name) + '</div>'
+    + '<button class="' + bookmarkClass + '" onclick="toggleResourceBookmark(\'' + resource.id + '\')" title="' + (isSaved ? 'Remove bookmark' : 'Save for later') + '">'
+    + '<i data-lucide="' + bookmarkIcon + '" style="width:18px;height:18px;"></i>'
+    + '</button>'
+    + '</div>'
+    + '<div class="resource-card-desc">' + escHtml(resource.description) + '</div>'
+    + '<div class="resource-card-tags">' + tagsHtml + '</div>'
+    + '<div class="resource-card-actions">'
+    + '<a class="resource-btn resource-btn-visit" href="' + escHtml(resource.url) + '" target="_blank" rel="noopener noreferrer">'
+    + '<i data-lucide="external-link" style="width:14px;height:14px;"></i> Visit'
+    + '</a>';
+  if (resource.phone) {
+    html += '<a class="resource-btn resource-btn-call" href="tel:' + escHtml(resource.phone.replace(/[^0-9+]/g, '')) + '">'
+      + '<i data-lucide="phone" style="width:14px;height:14px;"></i> ' + escHtml(resource.phone)
+      + '</a>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+async function renderResourcesView() {
+  var el = document.getElementById('view-resources');
+  if (!el) return;
+
+  // Show loading state
+  el.innerHTML = '<div class="resources-view" style="text-align:center;padding:60px 20px;">'
+    + '<div style="color:var(--text-muted);font-size:13px;">Loading resources\u2026</div></div>';
+
+  await loadResources();
+  if (!isDemoMode) { await loadSavedResources(); }
+
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var personName = person ? person.name.split(' ')[0] : 'your loved one';
+  var personConditions = person ? person.conditions : '';
+  var slugs = conditionToSlugs(personConditions);
+
+  // Categorize resources
+  var saved = [];
+  var recommended = [];
+  var general = [];
+
+  for (var i = 0; i < _resourcesCache.length; i++) {
+    var r = _resourcesCache[i];
+    var isSaved = !!_savedResourceIds[r.id];
+
+    if (isSaved) {
+      saved.push(r);
+      continue;
+    }
+
+    // Check if resource matches any of the person's conditions
+    var isMatch = false;
+    if (slugs.length > 0 && r.conditions) {
+      for (var s = 0; s < slugs.length; s++) {
+        if (r.conditions.indexOf(slugs[s]) >= 0 && r.conditions.indexOf('general') < 0 && r.conditions.indexOf('bereavement') < 0) {
+          isMatch = true;
+          break;
+        }
+      }
+    }
+
+    if (isMatch) {
+      recommended.push(r);
+    } else if (r.conditions && r.conditions.indexOf('general') >= 0) {
+      general.push(r);
+    }
+  }
+
+  var html = '<div class="resources-view">';
+  html += '<div class="resources-view-title">Resources</div>';
+  html += '<div class="resources-view-sub">Vetted organizations that support caregivers like you. Bookmark any to save for later.</div>';
+
+  // Saved section
+  if (saved.length > 0) {
+    html += '<div class="resources-section">';
+    html += '<div class="resources-section-title"><i data-lucide="bookmark" style="width:13px;height:13px;"></i> Saved</div>';
+    for (var si = 0; si < saved.length; si++) {
+      html += renderResourceCard(saved[si], true);
+    }
+    html += '</div>';
+  }
+
+  // Recommended section
+  if (recommended.length > 0) {
+    html += '<div class="resources-section">';
+    html += '<div class="resources-section-title"><i data-lucide="sparkles" style="width:13px;height:13px;"></i> Recommended for ' + escHtml(personName) + '</div>';
+    for (var ri = 0; ri < recommended.length; ri++) {
+      html += renderResourceCard(recommended[ri], false);
+    }
+    html += '</div>';
+  }
+
+  // General section
+  if (general.length > 0) {
+    html += '<div class="resources-section">';
+    html += '<div class="resources-section-title"><i data-lucide="heart-handshake" style="width:13px;height:13px;"></i> General caregiving</div>';
+    for (var gi = 0; gi < general.length; gi++) {
+      html += renderResourceCard(general[gi], false);
+    }
+    html += '</div>';
+  }
+
+  // Empty state
+  if (saved.length === 0 && recommended.length === 0 && general.length === 0) {
+    html += '<div class="resources-empty">'
+      + '<div class="resources-empty-icon"><i data-lucide="heart-handshake" style="width:24px;height:24px;"></i></div>'
+      + '<div class="resources-empty-title">Resources coming soon</div>'
+      + '<div class="resources-empty-body">We\u2019re building a curated list of support organizations for caregivers. Check back soon.</div>'
+      + '</div>';
+  }
+
+  html += '</div>';
+  el.innerHTML = html;
+  initIcons();
+}
+
+async function toggleResourceBookmark(resourceId) {
+  if (!currentUser) { showToast('Sign in to save resources'); return; }
+
+  var existing = _savedResourceIds[resourceId];
+  if (existing) {
+    // Remove bookmark
+    var { error } = await db.from('user_saved_resources').delete().eq('id', existing.id);
+    if (error) { showToast('Error removing bookmark'); return; }
+    delete _savedResourceIds[resourceId];
+    showToast('Bookmark removed');
+  } else {
+    // Add bookmark
+    var row = {
+      user_id: currentUser.id,
+      resource_id: resourceId,
+      care_recipient_id: currentPersonId || null,
+      source_trigger: 'resources_tab'
+    };
+    var { data, error } = await db.from('user_saved_resources').insert(row).select().single();
+    if (error) { showToast('Error saving bookmark'); return; }
+    _savedResourceIds[resourceId] = data;
+    showToast('Saved for later');
+  }
+
+  // Re-render to move card between sections
+  renderResourcesView();
+}
+
+// ── DIAGNOSIS ENTRY TRIGGER ─────────────────────────────────────────────────
+var _previousConditions = '';
+
+function captureConditionsBefore() {
+  var input = document.getElementById('profile-conditions-input');
+  _previousConditions = input ? input.value.trim() : '';
+}
+
+async function checkConditionTrigger() {
+  var input = document.getElementById('profile-conditions-input');
+  var newVal = input ? input.value.trim() : '';
+  if (!newVal || newVal === _previousConditions) return;
+
+  // Find newly added conditions
+  var oldParts = _previousConditions ? _previousConditions.split(',').map(function(c){ return c.trim().toLowerCase(); }).filter(Boolean) : [];
+  var newParts = newVal.split(',').map(function(c){ return c.trim().toLowerCase(); }).filter(Boolean);
+  var added = [];
+  for (var i = 0; i < newParts.length; i++) {
+    if (oldParts.indexOf(newParts[i]) < 0) { added.push(newParts[i]); }
+  }
+  if (added.length === 0) return;
+
+  // Load resources if needed
+  await loadResources();
+
+  // Find matching resources for new conditions
+  var matches = [];
+  for (var a = 0; a < added.length; a++) {
+    var slug = CONDITION_SLUG_MAP[added[a]];
+    if (!slug) {
+      // Try partial match
+      var keys = Object.keys(CONDITION_SLUG_MAP);
+      for (var k = 0; k < keys.length; k++) {
+        if (added[a].indexOf(keys[k]) >= 0 || keys[k].indexOf(added[a]) >= 0) {
+          slug = CONDITION_SLUG_MAP[keys[k]];
+          break;
+        }
+      }
+    }
+    if (!slug) continue;
+
+    for (var ri = 0; ri < _resourcesCache.length; ri++) {
+      var r = _resourcesCache[ri];
+      if (r.conditions && r.conditions.indexOf(slug) >= 0 && r.conditions.indexOf('general') < 0) {
+        matches.push({ resource: r, condition: added[a] });
+      }
+    }
+  }
+
+  // Limit to 2 suggestions
+  matches = matches.slice(0, 2);
+  if (matches.length === 0) return;
+
+  var person = currentPeople.find(function(p){ return p.id === _profileEditPersonId; });
+  var personName = person ? person.name.split(' ')[0] : 'your loved one';
+
+  // Show trigger card after the profile save toast
+  setTimeout(function() {
+    showDxTriggerToast(matches, personName);
+  }, 600);
+}
+
+function showDxTriggerToast(matches, personName) {
+  // Remove any existing trigger
+  var existing = document.getElementById('dx-trigger-container');
+  if (existing) existing.remove();
+
+  var container = document.createElement('div');
+  container.id = 'dx-trigger-container';
+  container.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:736px;z-index:100;';
+
+  var html = '';
+  for (var i = 0; i < matches.length; i++) {
+    var m = matches[i];
+    var offering = '';
+    if (m.resource.has_support_groups) offering = 'support groups';
+    else if (m.resource.phone) offering = 'a helpline';
+    else offering = 'caregiver resources';
+
+    html += '<div class="dx-trigger-card" data-resource-id="' + m.resource.id + '">'
+      + '<div class="dx-trigger-text">You added <strong>' + escHtml(m.condition) + '</strong> to ' + escHtml(personName) + '\u2019s profile. '
+      + 'The <strong>' + escHtml(m.resource.name) + '</strong> has ' + escHtml(offering) + ' \u2014 want me to save this for later?</div>'
+      + '<div class="dx-trigger-actions">'
+      + '<button class="dx-trigger-btn dx-trigger-save" onclick="saveDxResource(\'' + m.resource.id + '\', this)">Save for later</button>'
+      + '<button class="dx-trigger-btn dx-trigger-dismiss" onclick="dismissDxTrigger(this)">Not now</button>'
+      + '</div></div>';
+  }
+
+  container.innerHTML = html;
+  document.body.appendChild(container);
+  initIcons();
+
+  // Auto-dismiss after 15 seconds
+  setTimeout(function() {
+    var el = document.getElementById('dx-trigger-container');
+    if (el) { el.style.transition = 'opacity 0.3s'; el.style.opacity = '0'; setTimeout(function(){ if (el.parentNode) el.remove(); }, 300); }
+  }, 15000);
+}
+
+async function saveDxResource(resourceId, btn) {
+  if (!currentUser) { showToast('Sign in to save resources'); return; }
+
+  var row = {
+    user_id: currentUser.id,
+    resource_id: resourceId,
+    care_recipient_id: currentPersonId || null,
+    source_trigger: 'diagnosis_entry'
+  };
+  var { error } = await db.from('user_saved_resources').upsert(row, { onConflict: 'user_id,resource_id' });
+  if (error) { showToast('Error saving resource'); return; }
+
+  // Update local cache
+  _savedResourceIds[resourceId] = row;
+
+  // Remove this card
+  var card = btn.closest('.dx-trigger-card');
+  if (card) { card.style.transition = 'opacity 0.2s'; card.style.opacity = '0'; setTimeout(function(){ card.remove(); cleanupDxContainer(); }, 200); }
+  showToast('Saved for later');
+}
+
+function dismissDxTrigger(btn) {
+  var card = btn.closest('.dx-trigger-card');
+  if (card) { card.style.transition = 'opacity 0.2s'; card.style.opacity = '0'; setTimeout(function(){ card.remove(); cleanupDxContainer(); }, 200); }
+}
+
+function cleanupDxContainer() {
+  var container = document.getElementById('dx-trigger-container');
+  if (container && container.children.length === 0) { container.remove(); }
+}
+
 // ── PROFILE EDITING (Feature 3) ─────────────────────────────────────────────
 var _profileEditPersonId = null;
 
@@ -7101,6 +7504,7 @@ function openProfileEdit(personId) {
   document.getElementById('profile-insurance-input').value = person.insurance_info || '';
 
   updateProfileEhr(pid);
+  captureConditionsBefore();
   openSheetAccessible('profile-overlay');
   initIcons();
 }
@@ -7150,6 +7554,8 @@ async function saveProfile() {
   renderPersonSwitcher();
   renderPeopleView();
   renderUpdateMe();
+  // Check if new conditions were added and show resource suggestions
+  checkConditionTrigger();
 }
 
 // ── EMERGENCY SUMMARY (Feature 3 - dynamic) ────────────────────────────
@@ -7719,12 +8125,13 @@ function switchNavTo(view) {
   document.querySelectorAll('.app-view').forEach(function(v){ v.classList.remove('active'); });
   document.getElementById('view-' + view).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
-  var navMap = { home: 0, people: 1, records: 2, signals: 3, ask: 4 };
+  var navMap = { home: 0, people: 1, records: 2, signals: 3, resources: 4, ask: 5 };
   document.querySelectorAll('.nav-item')[navMap[view]].classList.add('active');
   var isHome = view === 'home';
   document.getElementById('header-person-switcher').style.display = isHome ? 'flex' : 'none';
   document.getElementById('header-tab-bar').style.display = isHome ? 'flex' : 'none';
   if (view === 'signals') { renderSignalsView(); }
+  if (view === 'resources') { renderResourcesView(); }
   if (view === 'ask' && !isDemoMode) { renderAskView(); }
   // Let guided demo handle its own scrolling; otherwise scroll to top
   if (new URLSearchParams(window.location.search).get('demo') !== 'guided') {
