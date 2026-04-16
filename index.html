@@ -4276,9 +4276,115 @@ function renderRecordsView() {
         + '<div class="record-icon moss"><i data-lucide="activity" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">' + escHtml(vt) + trendHtml + '</div>'
         + '<div class="record-meta">' + escHtml(valStr) + ' \u00B7 ' + formatEventDate(latest.effective_date) + '</div></div>'
-        + (latest.source === 'ehr' ? ehrBadgeHtml() : '')
+        + appleHealthBadgeHtml(latest.source)
         + '</div>';
     });
+    html += '</div>';
+  }
+
+  // Activity section (Apple Health daily steps, distance, calories — last 30 days)
+  var activityEvents = liveEvents.filter(function(e) { return e.event_type === 'activity' && e.source === 'apple_health'; });
+  if (activityEvents.length > 0) {
+    var actCutoff = new Date();
+    actCutoff.setDate(actCutoff.getDate() - 30);
+    var recentActivity = activityEvents.filter(function(e) { return new Date(e.event_date) >= actCutoff; });
+    var actByDate = {};
+    recentActivity.forEach(function(e) {
+      var day = e.event_date ? e.event_date.substring(0, 10) : '';
+      if (!actByDate[day]) actByDate[day] = [];
+      actByDate[day].push(e);
+    });
+    var actDays = Object.keys(actByDate).sort().reverse().slice(0, 30);
+    if (actDays.length > 0) {
+      html += '<div class="record-group"><div class="record-group-header">'
+        + '<div class="record-group-title"><i data-lucide="footprints" style="width:14px;height:14px;color:var(--blue);"></i>Activity</div>'
+        + '<span class="record-group-count">Last ' + actDays.length + ' days</span></div>';
+      actDays.slice(0, 14).forEach(function(day) {
+        var entries = actByDate[day];
+        var parts = [];
+        entries.forEach(function(e) { parts.push(escHtml(e.title)); });
+        html += '<div class="record-row">'
+          + '<div class="record-icon blue"><i data-lucide="footprints" style="width:15px;height:15px;"></i></div>'
+          + '<div style="flex:1;"><div class="record-label">' + formatEventDate(day + 'T00:00:00Z') + '</div>'
+          + '<div class="record-meta">' + parts.join(' \u00B7 ') + '</div></div>'
+          + appleHealthBadgeHtml('apple_health')
+          + '</div>';
+      });
+      if (actDays.length > 14) {
+        html += '<div style="text-align:center;padding:8px;color:var(--text-secondary);font-size:12px;">'
+          + '+ ' + (actDays.length - 14) + ' more days</div>';
+      }
+      html += '</div>';
+    }
+  }
+
+  // Activity Summary section (Apple Health rings — shown if no granular activity data)
+  var summaryEvents = liveEvents.filter(function(e) { return e.event_type === 'activity_summary' && e.source === 'apple_health'; });
+  if (summaryEvents.length > 0 && activityEvents.length === 0) {
+    var recentSummaries = summaryEvents.slice(0, 14);
+    html += '<div class="record-group"><div class="record-group-header">'
+      + '<div class="record-group-title"><i data-lucide="target" style="width:14px;height:14px;color:var(--blue);"></i>Activity Rings</div>'
+      + '<span class="record-group-count">' + summaryEvents.length + ' days</span></div>';
+    recentSummaries.forEach(function(e) {
+      html += '<div class="record-row">'
+        + '<div class="record-icon blue"><i data-lucide="target" style="width:15px;height:15px;"></i></div>'
+        + '<div style="flex:1;"><div class="record-label">' + formatEventDate(e.event_date) + '</div>'
+        + '<div class="record-meta">' + escHtml(e.title) + '</div></div>'
+        + appleHealthBadgeHtml('apple_health')
+        + '</div>';
+    });
+    html += '</div>';
+  }
+
+  // Sleep section (Apple Health sleep analysis)
+  var sleepEvents = liveEvents.filter(function(e) { return e.event_type === 'sleep' && e.source === 'apple_health'; });
+  if (sleepEvents.length > 0) {
+    var sleepByNight = {};
+    sleepEvents.forEach(function(e) {
+      var night = e.event_date ? e.event_date.substring(0, 10) : '';
+      if (!sleepByNight[night]) sleepByNight[night] = [];
+      sleepByNight[night].push(e);
+    });
+    var sleepNights = Object.keys(sleepByNight).sort().reverse().slice(0, 14);
+    html += '<div class="record-group"><div class="record-group-header">'
+      + '<div class="record-group-title"><i data-lucide="moon" style="width:14px;height:14px;color:var(--text-secondary);"></i>Sleep</div>'
+      + '<span class="record-group-count">' + sleepNights.length + ' nights</span></div>';
+    sleepNights.forEach(function(night) {
+      var sessions = sleepByNight[night];
+      var parts = [];
+      sessions.forEach(function(s) { parts.push(escHtml(s.title)); });
+      html += '<div class="record-row">'
+        + '<div class="record-icon" style="background:var(--cream);color:var(--text-secondary);"><i data-lucide="moon" style="width:15px;height:15px;"></i></div>'
+        + '<div style="flex:1;"><div class="record-label">' + formatEventDate(night + 'T00:00:00Z') + '</div>'
+        + '<div class="record-meta">' + parts.join(' \u00B7 ') + '</div></div>'
+        + appleHealthBadgeHtml('apple_health')
+        + '</div>';
+    });
+    if (Object.keys(sleepByNight).length > 14) {
+      html += '<div style="text-align:center;padding:8px;color:var(--text-secondary);font-size:12px;">'
+        + '+ more sleep data available</div>';
+    }
+    html += '</div>';
+  }
+
+  // Workouts section (Apple Health workouts)
+  var workoutEvents = liveEvents.filter(function(e) { return e.event_type === 'workout' && e.source === 'apple_health'; });
+  if (workoutEvents.length > 0) {
+    html += '<div class="record-group"><div class="record-group-header">'
+      + '<div class="record-group-title"><i data-lucide="dumbbell" style="width:14px;height:14px;color:var(--moss);"></i>Workouts</div>'
+      + '<span class="record-group-count">' + workoutEvents.length + ' sessions</span></div>';
+    workoutEvents.slice(0, 20).forEach(function(w) {
+      html += '<div class="record-row">'
+        + '<div class="record-icon moss"><i data-lucide="dumbbell" style="width:15px;height:15px;"></i></div>'
+        + '<div style="flex:1;"><div class="record-label">' + escHtml(w.title) + '</div>'
+        + '<div class="record-meta">' + formatEventDate(w.event_date) + '</div></div>'
+        + appleHealthBadgeHtml('apple_health')
+        + '</div>';
+    });
+    if (workoutEvents.length > 20) {
+      html += '<div style="text-align:center;padding:8px;color:var(--text-secondary);font-size:12px;">'
+        + '+ ' + (workoutEvents.length - 20) + ' more workouts</div>';
+    }
     html += '</div>';
   }
 
@@ -6739,6 +6845,14 @@ function ehrBadgeHtml(provider) {
 
 function ehrProviderBadgeHtml(provider) {
   return '<span class="ehr-provider-badge">From ' + escHtml(provider || 'EHR') + '</span>';
+}
+
+function appleHealthBadgeHtml(source) {
+  if (source === 'apple_health') {
+    return '<span class="ehr-badge" style="background:#E8F5E9;color:#2E7D32;"><i data-lucide="watch" style="width:10px;height:10px;"></i>Apple Health</span>';
+  }
+  if (source === 'ehr') return ehrBadgeHtml();
+  return '';
 }
 
 // Build EHR status bar for Records view
