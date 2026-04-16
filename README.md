@@ -10,30 +10,9 @@
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Client (mywellet.com)                     │
-│              Vanilla JS · Single index.html · 11K lines          │
-│         DM Serif Display + DM Sans · Brand #608F7C               │
-└──────────┬──────────────┬──────────────┬───────────────┬─────────┘
-           │              │              │               │
-     Supabase Auth   Supabase DB   Supabase Storage   Edge Functions
-           │              │              │               │
-┌──────────┴──────────────┴──────────────┴───────────────┴─────────┐
-│                    Supabase (PostgreSQL + RLS)                     │
-│                                                                   │
-│  people · health_events · medications · vitals · lab_results      │
-│  allergies · documents · terra_connections · update_me_summaries  │
-│  care_circle · shares · waitlist · community_fund_pool            │
-└──────────────────────────┬────────────────────────────────────────┘
-                           │
-         ┌─────────────────┼─────────────────┐
-         │                 │                 │
-    Terra API        Health Exports      AI (OpenAI)
-  (wearables)      (C-CDA · Apple       (summaries ·
-                    Health XML)        emergency plans ·
-                                      visit questions)
-```
+![Wellet Architecture](architecture.png)
+
+Three data pipelines converge on a unified caregiver dashboard, all backed by Supabase with row-level security:
 
 ## Data Pipeline
 
