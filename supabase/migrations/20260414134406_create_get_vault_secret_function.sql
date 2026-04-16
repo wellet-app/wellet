@@ -1,0 +1,1 @@
+CREATE OR REPLACE FUNCTION public.get_vault_secret(secret_name text) RETURNS text LANGUAGE plpgsql SECURITY DEFINER AS $$ DECLARE decrypted text; BEGIN SELECT decrypted_secret INTO decrypted FROM vault.decrypted_secrets WHERE name = secret_name LIMIT 1; RETURN decrypted; END; $$;
