@@ -2075,7 +2075,7 @@
 </div>
 
 <!-- UPLOAD SHEET -->
-<input type="file" id="upload-file-input" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.txt" style="display:none;" onchange="handleFileSelected(this)">
+<input type="file" id="upload-file-input" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.txt,.m4a,.mp3,.wav,.ogg,.webm,audio/mp4,audio/mpeg,audio/wav,audio/ogg,audio/webm" style="display:none;" onchange="handleFileSelected(this)">
 <div class="upload-overlay" id="upload-overlay">
   <div class="upload-sheet">
     <div class="upload-handle-row">
@@ -2089,7 +2089,7 @@
       <div class="upload-drop" onclick="triggerFileUpload()">
         <div class="upload-drop-icon"><i data-lucide="upload-cloud" style="width:32px;height:32px;"></i></div>
         <div class="upload-drop-label">Tap to upload a file</div>
-        <div class="upload-drop-sub">PDF, JPG, or PNG · up to 25MB</div>
+        <div class="upload-drop-sub">PDF, JPG, PNG, or audio · up to 25MB</div>
       </div>
 
       <div class="upload-divider"><span>or choose a type</span></div>
@@ -2100,6 +2100,13 @@
           <div>
             <div class="upload-option-label">Visit summary</div>
             <div class="upload-option-sub">After-visit notes from a provider</div>
+          </div>
+        </div>
+        <div class="upload-option" onclick="triggerFileUpload('Doctor visit recording')">
+          <div class="upload-option-icon"><i data-lucide="mic" style="width:17px;height:17px;"></i></div>
+          <div>
+            <div class="upload-option-label">Doctor visit recording</div>
+            <div class="upload-option-sub">Audio from an appointment</div>
           </div>
         </div>
         <div class="upload-option" onclick="triggerFileUpload('Lab results')">
@@ -2435,6 +2442,15 @@
     <div class="qa-sheet-title" id="ext-sheet-title">Extraction Results</div>
     <div class="qa-sheet-sub" id="ext-sheet-sub">Extracted from document</div>
     <div class="ext-summary" id="ext-summary"></div>
+    <div class="ext-transcript" id="ext-transcript" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:0 20px 8px;">
+        <div style="font-size:13px;font-weight:600;color:var(--text-primary);">Transcript</div>
+        <button class="ext-add-btn" id="ext-play-btn" onclick="playTranscriptAudio()">
+          <i data-lucide="play" style="width:12px;height:12px;"></i> Play
+        </button>
+      </div>
+      <div id="ext-transcript-text" style="margin:0 20px 14px;background:white;border:1px solid var(--border);border-radius:12px;padding:14px 16px;font-size:13px;line-height:1.65;color:var(--text-secondary);max-height:200px;overflow-y:auto;"></div>
+    </div>
     <div class="ext-items" id="ext-items-list"></div>
     <div class="ext-actions" id="ext-actions">
       <button class="btn-primary" style="font-size:14px;padding:13px;" id="ext-add-all-btn" onclick="addAllExtractedFromOverlay()">
@@ -3182,6 +3198,7 @@ async function handleLogout() {
   liveDocs = [];
   liveCareCircle = [];
   summaryCache = {};
+  if (_audioPlayer) { _audioPlayer.pause(); _audioPlayer = null; }
   closeSettings();
   showAuthScreen();
   showToast('Signed out');
@@ -3741,19 +3758,39 @@ function renderRecordsView() {
     html += '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">No documents uploaded yet.</div>';
   } else {
     liveDocs.forEach(function(doc) {
-      var iconName = getDocTypeIcon(doc.document_type);
+      var docIsAudio = isAudioFile(doc.file_name);
+      var iconName = docIsAudio ? 'mic' : getDocTypeIcon(doc.document_type);
       var statusClass = getDocStatusClass(doc.extraction_status);
-      var statusLabel = getDocStatusLabel(doc.extraction_status);
+      var statusLabel = docIsAudio && doc.extraction_status === 'pending' ? 'Transcribing\u2026' : getDocStatusLabel(doc.extraction_status);
       var dateStr = relativeTime(doc.created_at);
       var clickable = doc.extraction_status === 'completed' ? ' onclick="showExtractionResults(\'' + doc.id + '\')"' : '';
       html += '<div class="doc-row"' + clickable + '>'
         + '<div class="doc-icon"><i data-lucide="' + iconName + '" style="width:15px;height:15px;"></i></div>'
         + '<div class="doc-info"><div class="doc-name">' + escHtml(doc.file_name) + '</div>'
-        + '<div class="doc-meta">' + escHtml(doc.document_type || 'Document') + ' \u00B7 ' + dateStr + '</div></div>'
+        + '<div class="doc-meta">' + escHtml(doc.document_type || 'Document') + ' \u00B7 ' + dateStr + '</div>';
+
+      // Show transcript snippet for audio documents
+      if (docIsAudio && doc.extracted_events) {
+        var ext = doc.extracted_events;
+        if (typeof ext === 'string') { try { ext = JSON.parse(ext); } catch(e) { ext = null; } }
+        if (ext && ext.transcript) {
+          var snippet = ext.transcript.length > 200 ? ext.transcript.substring(0, 200) + '\u2026' : ext.transcript;
+          html += '<div style="font-size:12px;color:var(--text-muted);margin-top:4px;line-height:1.5;font-style:italic;">' + escHtml(snippet) + '</div>';
+        }
+      }
+
+      html += '</div>'
         + '<span class="doc-status ' + statusClass + '">' + statusLabel + '</span>'
-        + '<div class="doc-actions">'
-        + '<button class="doc-action-btn" title="View" onclick="event.stopPropagation();viewDocument(\'' + doc.id + '\')"><i data-lucide="eye" style="width:14px;height:14px;"></i></button>'
-        + '<button class="doc-action-btn" title="Download" onclick="event.stopPropagation();downloadDocument(\'' + doc.id + '\')"><i data-lucide="download" style="width:14px;height:14px;"></i></button>'
+        + '<div class="doc-actions">';
+
+      // Audio playback button for audio files
+      if (docIsAudio) {
+        html += '<button class="doc-action-btn" title="Play" onclick="event.stopPropagation();playAudioDocument(\'' + doc.id + '\')"><i data-lucide="play" style="width:14px;height:14px;"></i></button>';
+      } else {
+        html += '<button class="doc-action-btn" title="View" onclick="event.stopPropagation();viewDocument(\'' + doc.id + '\')"><i data-lucide="eye" style="width:14px;height:14px;"></i></button>';
+      }
+
+      html += '<button class="doc-action-btn" title="Download" onclick="event.stopPropagation();downloadDocument(\'' + doc.id + '\')"><i data-lucide="download" style="width:14px;height:14px;"></i></button>'
         + '</div>'
         + '</div>';
     });
@@ -3784,6 +3821,7 @@ async function switchRecordsToRealPerson(personId, el) {
 function getDocTypeIcon(type) {
   var map = {
     'Visit summary': 'clipboard-list',
+    'Doctor visit recording': 'mic',
     'Lab results': 'flask-conical',
     'Prescription': 'pill',
     'Imaging': 'scan',
@@ -3836,6 +3874,11 @@ function isPdfFile(fileName) {
   return getFileExtension(fileName) === 'pdf';
 }
 
+function isAudioFile(fileName) {
+  var ext = getFileExtension(fileName);
+  return ['m4a','mp3','wav','ogg','webm'].indexOf(ext) !== -1;
+}
+
 async function viewDocument(docId) {
   var doc = liveDocs.find(function(d) { return d.id === docId; });
   if (!doc) return;
@@ -3847,7 +3890,13 @@ async function viewDocument(docId) {
   }
   var signedUrl = result.data.signedUrl;
 
-  if (isImageFile(doc.file_name)) {
+  if (isAudioFile(doc.file_name)) {
+    // Audio files: play and show extraction results if available
+    playAudioDocument(docId);
+    if (doc.extraction_status === 'completed') {
+      showExtractionResults(docId);
+    }
+  } else if (isImageFile(doc.file_name)) {
     // Show in image viewer overlay
     document.getElementById('doc-viewer-title').textContent = doc.file_name;
     document.getElementById('doc-viewer-sub').textContent =
@@ -3901,6 +3950,65 @@ function triggerDownload(url, fileName) {
   document.body.removeChild(a);
 }
 
+var _audioPlayer = null;
+
+async function playAudioDocument(docId) {
+  var doc = liveDocs.find(function(d) { return d.id === docId; });
+  if (!doc) return;
+
+  // Stop if already playing this doc
+  if (_audioPlayer && _audioPlayer._docId === docId) {
+    _audioPlayer.pause();
+    _audioPlayer = null;
+    return;
+  }
+  // Stop any previous playback
+  if (_audioPlayer) { _audioPlayer.pause(); _audioPlayer = null; }
+
+  var result = await db.storage.from('documents').createSignedUrl(doc.storage_path, 3600);
+  if (!result.data || !result.data.signedUrl) {
+    showToast('Could not load audio');
+    return;
+  }
+
+  _audioPlayer = new Audio(result.data.signedUrl);
+  _audioPlayer._docId = docId;
+  _audioPlayer.play().catch(function() { showToast('Could not play audio'); });
+  _audioPlayer.onended = function() { _audioPlayer = null; };
+}
+
+async function playTranscriptAudio() {
+  if (!_currentExtDoc) return;
+  var btn = document.getElementById('ext-play-btn');
+
+  // Toggle playback
+  if (_audioPlayer && _audioPlayer._docId === _currentExtDoc.id) {
+    _audioPlayer.pause();
+    _audioPlayer = null;
+    btn.innerHTML = '<i data-lucide="play" style="width:12px;height:12px;"></i> Play';
+    initIcons();
+    return;
+  }
+  if (_audioPlayer) { _audioPlayer.pause(); _audioPlayer = null; }
+
+  var result = await db.storage.from('documents').createSignedUrl(_currentExtDoc.storage_path, 3600);
+  if (!result.data || !result.data.signedUrl) {
+    showToast('Could not load audio');
+    return;
+  }
+
+  _audioPlayer = new Audio(result.data.signedUrl);
+  _audioPlayer._docId = _currentExtDoc.id;
+  btn.innerHTML = '<i data-lucide="square" style="width:12px;height:12px;"></i> Stop';
+  initIcons();
+  _audioPlayer.play().catch(function() { showToast('Could not play audio'); });
+  _audioPlayer.onended = function() {
+    _audioPlayer = null;
+    btn.innerHTML = '<i data-lucide="play" style="width:12px;height:12px;"></i> Play';
+    initIcons();
+  };
+}
+
 var _currentExtDoc = null; // document being viewed in extraction overlay
 var _currentExtItems = []; // extracted items array
 var _addedExtItems = {};   // track which items have been added { index: true }
@@ -3923,8 +4031,9 @@ function showExtractionResults(docId) {
   _currentExtItems = extracted.items || [];
 
   // Set header
+  var isAudio = isAudioFile(doc.file_name);
   document.getElementById('ext-sheet-title').textContent = doc.document_type || 'Document';
-  document.getElementById('ext-sheet-sub').textContent = 'Extracted from ' + escHtml(doc.file_name);
+  document.getElementById('ext-sheet-sub').textContent = (isAudio ? 'Transcribed from ' : 'Extracted from ') + escHtml(doc.file_name);
 
   // Set summary
   var summaryEl = document.getElementById('ext-summary');
@@ -3933,6 +4042,15 @@ function showExtractionResults(docId) {
     summaryEl.style.display = 'block';
   } else {
     summaryEl.style.display = 'none';
+  }
+
+  // Show transcript section for audio files
+  var transcriptEl = document.getElementById('ext-transcript');
+  if (isAudio && extracted.transcript) {
+    document.getElementById('ext-transcript-text').textContent = extracted.transcript;
+    transcriptEl.style.display = 'block';
+  } else {
+    transcriptEl.style.display = 'none';
   }
 
   // Render items
@@ -4104,17 +4222,19 @@ async function addAllExtractedFromOverlay() {
 var _pollTimer = null;
 var _pollAttempts = 0;
 
-function pollExtractionStatus(docId) {
+function pollExtractionStatus(docId, isAudio) {
   _pollAttempts = 0;
   if (_pollTimer) clearInterval(_pollTimer);
+  var maxAttempts = isAudio ? 20 : 10;
 
   var statusEl = document.getElementById('upload-ext-status');
-  statusEl.innerHTML = '<div class="upload-ext-pulse"><i data-lucide="loader" style="width:14px;height:14px;animation:spin 1.2s linear infinite;"></i> Analyzing your document\u2026</div>';
+  statusEl.innerHTML = '<div class="upload-ext-pulse"><i data-lucide="loader" style="width:14px;height:14px;animation:spin 1.2s linear infinite;"></i> '
+    + (isAudio ? 'Transcribing your recording\u2026' : 'Analyzing your document\u2026') + '</div>';
   initIcons();
 
   _pollTimer = setInterval(async function() {
     _pollAttempts++;
-    if (_pollAttempts > 10) {
+    if (_pollAttempts > maxAttempts) {
       clearInterval(_pollTimer);
       _pollTimer = null;
       statusEl.innerHTML = '<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Analysis is taking longer than expected. Check back in Records.</div>';
@@ -6406,16 +6526,30 @@ function triggerFileUpload(type) {
 function handleFileSelected(input) {
   if (!input.files || !input.files[0]) return;
   _uploadFile = input.files[0];
-  
+
+  // Auto-select Doctor visit recording when audio file is picked
+  if (isAudioFile(_uploadFile.name)) {
+    _uploadDocType = 'Doctor visit recording';
+  }
+
   // Show step 2 with real file info
   document.getElementById('upload-file-name').textContent = _uploadFile.name;
   var sizeMB = (_uploadFile.size / (1024 * 1024)).toFixed(1);
   document.getElementById('upload-file-size').textContent = sizeMB + ' MB';
-  document.getElementById('upload-file-meta').textContent = 'Ready to save \u00b7 Wellet will read and summarize this';
-  
+
+  var isAudio = isAudioFile(_uploadFile.name);
+  var fileIcon = document.querySelector('#upload-step2 .upload-file-icon');
+  if (isAudio) {
+    fileIcon.innerHTML = '<i data-lucide="mic" style="width:22px;height:22px;"></i>';
+    document.getElementById('upload-file-meta').textContent = 'Ready to save \u00b7 Wellet will transcribe and extract health data';
+  } else {
+    fileIcon.innerHTML = '<i data-lucide="file-check" style="width:22px;height:22px;"></i>';
+    document.getElementById('upload-file-meta').textContent = 'Ready to save \u00b7 Wellet will read and summarize this';
+  }
+
   document.getElementById('upload-step1').style.display = 'none';
   document.getElementById('upload-step2').style.display = 'block';
-  
+
   // Auto-select tag based on document type
   document.querySelectorAll('#upload-step2 .upload-tag').forEach(function(t){ t.classList.remove('selected'); });
   var tagMap = {
@@ -6433,6 +6567,7 @@ function handleFileSelected(input) {
 function simulateDemoUpload(type) {
   var names = {
     'Visit summary': 'visit_summary_mar2026.pdf',
+    'Doctor visit recording': 'dr_appointment_apr2026.m4a',
     'Lab results': 'lab_results_feb28.pdf',
     'Prescription': 'rx_hydrochlorothiazide.pdf',
     'Imaging': 'mri_report_feb27.pdf',
@@ -6484,11 +6619,13 @@ async function confirmUpload() {
     tags.push(t.textContent);
   });
 
+  var isAudio = isAudioFile(file.name);
+
   // Show uploading state
   document.getElementById('upload-step2').style.display = 'none';
   document.getElementById('upload-step3').style.display = 'block';
   document.getElementById('upload-progress-bar').style.width = '10%';
-  document.getElementById('upload-progress-title').textContent = 'Uploading document...';
+  document.getElementById('upload-progress-title').textContent = isAudio ? 'Uploading recording...' : 'Uploading document...';
   document.getElementById('upload-progress-sub').textContent = 'Storing ' + file.name;
   initIcons();
 
@@ -6498,18 +6635,18 @@ async function confirmUpload() {
     var timestamp = Date.now();
     var safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     var storagePath = userId + '/' + timestamp + '_' + safeName;
-    
+
     document.getElementById('upload-progress-bar').style.width = '25%';
-    
+
     var uploadResult = await db.storage.from('documents').upload(storagePath, file, {
       cacheControl: '3600',
       upsert: false
     });
-    
+
     if (uploadResult.error) {
       throw new Error('Storage upload failed: ' + uploadResult.error.message);
     }
-    
+
     document.getElementById('upload-progress-bar').style.width = '50%';
     document.getElementById('upload-progress-title').textContent = 'Saving record...';
     document.getElementById('upload-progress-sub').textContent = 'Creating document entry';
@@ -6522,42 +6659,48 @@ async function confirmUpload() {
       document_type: docType,
       extraction_status: 'pending'
     }).select().single();
-    
+
     if (insertResult.error) {
       throw new Error('Document record failed: ' + insertResult.error.message);
     }
-    
+
     var docRecord = insertResult.data;
     document.getElementById('upload-progress-bar').style.width = '75%';
-    document.getElementById('upload-progress-title').textContent = 'Analyzing document...';
-    document.getElementById('upload-progress-sub').textContent = 'Wellet is reading your document';
 
-    // 3. Call Edge Function for AI extraction
+    if (isAudio) {
+      document.getElementById('upload-progress-title').textContent = 'Transcribing your recording...';
+      document.getElementById('upload-progress-sub').textContent = 'This may take a minute for longer recordings';
+    } else {
+      document.getElementById('upload-progress-title').textContent = 'Analyzing document...';
+      document.getElementById('upload-progress-sub').textContent = 'Wellet is reading your document';
+    }
+
+    // 3. Call Edge Function for AI extraction/transcription
+    var edgeFnUrl = isAudio
+      ? 'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/transcribe-audio'
+      : 'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/parse-document';
+
     try {
       var session = await db.auth.getSession();
       var token = session.data.session.access_token;
-      
-      var fnResponse = await fetch(
-        'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/parse-document',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token,
-            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU'
-          },
-          body: JSON.stringify({
-            document_id: docRecord.id,
-            file_name: file.name,
-            document_type: docType,
-            storage_path: storagePath
-          })
-        }
-      );
-      
+
+      var fnResponse = await fetch(edgeFnUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token,
+          'apikey': SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({
+          document_id: docRecord.id,
+          file_name: file.name,
+          document_type: docType,
+          storage_path: storagePath
+        })
+      });
+
       if (fnResponse.ok) {
         var fnResult = await fnResponse.json();
-        // PHI log removed
       } else {
         console.warn('Edge function returned:', fnResponse.status);
       }
@@ -6567,21 +6710,25 @@ async function confirmUpload() {
     }
 
     document.getElementById('upload-progress-bar').style.width = '100%';
-    
+
     // 4. Show success state + start extraction polling
     setTimeout(function() {
       document.getElementById('upload-step3').style.display = 'none';
       document.getElementById('upload-step4').style.display = 'block';
       // Reset step4 to default state
-      document.getElementById('upload-done-icon').innerHTML = '<i data-lucide="check-circle" style="width:24px;height:24px;color:var(--moss);"></i>';
-      document.getElementById('upload-done-title').textContent = 'Document saved';
-      document.getElementById('upload-done-sub').textContent = 'Wellet is reading your document and will extract health information automatically.';
+      document.getElementById('upload-done-icon').innerHTML = isAudio
+        ? '<i data-lucide="mic" style="width:24px;height:24px;color:var(--moss);"></i>'
+        : '<i data-lucide="check-circle" style="width:24px;height:24px;color:var(--moss);"></i>';
+      document.getElementById('upload-done-title').textContent = isAudio ? 'Recording saved' : 'Document saved';
+      document.getElementById('upload-done-sub').textContent = isAudio
+        ? 'Wellet is transcribing your recording and will extract health data automatically.'
+        : 'Wellet is reading your document and will extract health information automatically.';
       var doneBtn = document.getElementById('upload-done-btn');
       doneBtn.textContent = 'Done';
       doneBtn.onclick = function() { closeUpload(); };
       initIcons();
-      // Start polling for extraction status
-      pollExtractionStatus(docRecord.id);
+      // Start polling for extraction status (audio gets more attempts since transcription takes longer)
+      pollExtractionStatus(docRecord.id, isAudio);
     }, 500);
 
     showToast('Document saved to records');
