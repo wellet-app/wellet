@@ -2238,6 +2238,26 @@
       <i data-lucide="loader" style="width:18px;height:18px;animation:spin 1.2s linear infinite;color:var(--moss);"></i>
       <div style="font-size:13px;color:var(--text-muted);margin-top:8px;">Creating share link&hellip;</div>
     </div>
+
+    <!-- Share history link -->
+    <div style="padding:12px 20px 16px;text-align:center;">
+      <button onclick="closeSheet('share-overlay');openShareHistory()" style="font-size:13px;color:var(--moss);font-weight:500;background:none;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;display:inline-flex;align-items:center;gap:5px;"><i data-lucide="clock" style="width:13px;height:13px;"></i> View share history</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHARE HISTORY SHEET -->
+<div class="qa-overlay" id="share-history-overlay">
+  <div class="qa-sheet" style="max-height:75vh;">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" aria-label="Close" onclick="closeSheet('share-history-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title">Share history</div>
+    <div class="qa-sheet-sub">Links you've shared</div>
+    <div id="share-history-list" style="padding:0 20px 20px;overflow-y:auto;max-height:50vh;">
+      <div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:13px;">Loading&hellip;</div>
+    </div>
   </div>
 </div>
 
@@ -2598,6 +2618,24 @@
     <div class="settings-section" id="settings-archived-section" style="margin-top:12px;display:none;">
       <div class="settings-section-label">Archived Profiles</div>
       <div id="settings-archived-list"></div>
+    </div>
+
+    <div class="settings-section" style="margin-top:12px;">
+      <div class="settings-section-label">Your Data</div>
+      <div class="settings-row" style="cursor:pointer;" onclick="exportAllData('json')">
+        <div class="settings-row-left">
+          <div class="settings-row-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="download" style="width:15px;height:15px;"></i></div>
+          <div><div class="settings-row-label">Export all data</div><div class="settings-row-meta">Download everything as JSON</div></div>
+        </div>
+        <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+      </div>
+      <div class="settings-row" style="cursor:pointer;" onclick="exportAllData('csv')">
+        <div class="settings-row-left">
+          <div class="settings-row-icon" style="background:#FDF5E8;color:var(--amber);"><i data-lucide="file-spreadsheet" style="width:15px;height:15px;"></i></div>
+          <div><div class="settings-row-label">Export as spreadsheets</div><div class="settings-row-meta">CSV files in a ZIP archive</div></div>
+        </div>
+        <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+      </div>
     </div>
 
     <div class="settings-section" style="margin-top:12px;">
@@ -3920,7 +3958,8 @@ function renderUpdateMe() {
       + '<button class="update-summary-refresh" onclick="fetchUpdateMeSummary(true)" title="Refresh summary"><i data-lucide="refresh-cw" style="width:13px;height:13px;"></i></button>'
       + '</div>'
       + '<p class="update-summary-text" id="update-summary-text">' + escHtml(summaryCache[currentPersonId]) + '</p>'
-      + '</div>';
+      + '</div>'
+      + '<button onclick="openShareFamily()" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px 16px;margin-top:10px;background:white;border:1.5px solid var(--moss);border-radius:10px;color:var(--moss);font-family:\'DM Sans\',sans-serif;font-size:13px;font-weight:500;cursor:pointer;"><i data-lucide="share-2" style="width:15px;height:15px;"></i> Share this update</button>';
   } else {
     // Not yet fetched — show loading placeholder and trigger fetch
     summarySection = '<div class="update-summary-card" id="update-summary-loading-card">'
@@ -8005,19 +8044,81 @@ function copyShareLink() {
   }
 }
 
-function openShareEmail(url) {
+async function openShareEmail(url) {
   var firstName = getPersonFirstName();
-  var subject = encodeURIComponent('Health update for ' + firstName + ' — from Wellet');
-  var body = encodeURIComponent('Hi,\n\nHere\u2019s a health summary for ' + firstName + ':\n\n' + url + '\n\nThis link will expire in 7 days.\n\nSent from Wellet \u2014 mywellet.com');
+  var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var fullName = isDemoMode ? 'John Bell' : (person ? person.name : firstName);
+
   // Gather selected recipients
   var recipients = [];
   var cbs = document.querySelectorAll('.share-recipient-cb:checked');
   cbs.forEach(function(cb) {
-    if (cb.value) recipients.push(cb.value);
+    if (cb.value) recipients.push({ email: cb.value, name: cb.getAttribute('data-name') || '' });
   });
-  var to = recipients.join(',');
-  window.location.href = 'mailto:' + to + '?subject=' + subject + '&body=' + body;
-  showToast('Opened in Mail');
+
+  // Demo mode or no recipients: fall back to mailto
+  if (isDemoMode || recipients.length === 0) {
+    var subject = encodeURIComponent('Health update for ' + firstName + ' \u2014 from Wellet');
+    var body = encodeURIComponent('Hi,\n\nHere\u2019s a health summary for ' + firstName + ':\n\n' + url + '\n\nThis link will expire in 7 days.\n\nSent from Wellet \u2014 mywellet.com');
+    var to = recipients.map(function(r){ return r.email; }).join(',');
+    window.location.href = 'mailto:' + to + '?subject=' + subject + '&body=' + body;
+    showToast('Opened in Mail');
+    return;
+  }
+
+  // Show loading on the email option
+  var emailOpt = document.querySelector('#share-options .share-option:nth-child(2)');
+  var origHtml = emailOpt ? emailOpt.innerHTML : '';
+  if (emailOpt) {
+    emailOpt.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:4px 0;"><i data-lucide="loader" style="width:17px;height:17px;animation:spin 1.2s linear infinite;color:var(--amber);"></i><span style="font-size:14px;color:var(--text-secondary);">Sending emails\u2026</span></div>';
+    initIcons();
+  }
+
+  try {
+    var payload = gatherSharePayload();
+    var session = await db.auth.getSession();
+    var token = session.data.session ? session.data.session.access_token : '';
+    var senderName = currentUser && currentUser.email ? currentUser.email.split('@')[0] : 'A Wellet user';
+
+    var resp = await fetch(SUPABASE_URL + '/functions/v1/send-share-email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({
+        to: recipients,
+        person_name: fullName,
+        sender_name: senderName,
+        share_url: url,
+        summary_text: payload.summary_text,
+        include_meds: payload.include_meds,
+        medications: payload.medications
+      })
+    });
+
+    var result = await resp.json();
+
+    if (emailOpt) emailOpt.innerHTML = origHtml;
+    initIcons();
+
+    if (!resp.ok || result.error) {
+      throw new Error(result.error || 'Failed to send email');
+    }
+
+    showToast('Email sent to ' + recipients.length + ' recipient' + (recipients.length !== 1 ? 's' : ''));
+  } catch (err) {
+    console.error('Email send error:', err);
+    if (emailOpt) emailOpt.innerHTML = origHtml;
+    initIcons();
+    // Fallback to mailto
+    var subject = encodeURIComponent('Health update for ' + firstName + ' \u2014 from Wellet');
+    var body = encodeURIComponent('Hi,\n\nHere\u2019s a health summary for ' + firstName + ':\n\n' + url + '\n\nThis link will expire in 7 days.\n\nSent from Wellet \u2014 mywellet.com');
+    var to = recipients.map(function(r){ return r.email; }).join(',');
+    window.location.href = 'mailto:' + to + '?subject=' + subject + '&body=' + body;
+    showToast('Opened in Mail (fallback)');
+  }
 }
 function openExportVisit() {
   var firstName = getPersonFirstName();
@@ -12384,6 +12485,240 @@ async function disconnectTerra(connectionId) {
   } catch (e) {
     console.error('Disconnect Terra error:', e);
   }
+}
+
+// ── SHARE HISTORY ────────────────────────────────────────────────────────────
+async function openShareHistory() {
+  var listEl = document.getElementById('share-history-list');
+  listEl.innerHTML = '<div style="text-align:center;padding:24px 0;"><i data-lucide="loader" style="width:16px;height:16px;animation:spin 1.2s linear infinite;color:var(--moss);"></i></div>';
+  openSheetAccessible('share-history-overlay');
+  initIcons();
+
+  if (isDemoMode) {
+    var now = new Date();
+    var demoShares = [
+      { token: 'demo1', person_name: 'John Bell', created_at: new Date(now - 2 * 86400000).toISOString(), expires_at: new Date(now + 5 * 86400000).toISOString() },
+      { token: 'demo2', person_name: 'John Bell', created_at: new Date(now - 10 * 86400000).toISOString(), expires_at: new Date(now - 3 * 86400000).toISOString() }
+    ];
+    renderShareHistory(demoShares);
+    return;
+  }
+
+  try {
+    var { data, error } = await db.from('shares')
+      .select('id, token, person_name, created_at, expires_at')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (error) throw error;
+    renderShareHistory(data || []);
+  } catch (err) {
+    console.error('Share history error:', err);
+    listEl.innerHTML = '<div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:13px;">Could not load share history.</div>';
+  }
+}
+
+function renderShareHistory(shares) {
+  var listEl = document.getElementById('share-history-list');
+  if (!shares || shares.length === 0) {
+    listEl.innerHTML = '<div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:13px;font-style:italic;">No shares yet. Share a health update to see it here.</div>';
+    return;
+  }
+
+  var now = new Date();
+  var html = '';
+  shares.forEach(function(s) {
+    var created = new Date(s.created_at);
+    var expires = new Date(s.expires_at);
+    var isExpired = expires < now;
+    var dateStr = created.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    var shareUrl = window.location.origin + window.location.pathname.replace('index.html', '') + 'share.html?token=' + s.token;
+
+    html += '<div style="border-bottom:1px solid var(--border-light);padding:14px 0;" id="share-row-' + escHtml(s.id || s.token) + '">'
+      + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-size:14px;font-weight:500;color:var(--text-primary);margin-bottom:2px;">' + escHtml(s.person_name) + '</div>'
+      + '<div style="font-size:12px;color:var(--text-muted);">Shared ' + dateStr + '</div>'
+      + '</div>'
+      + '<div style="display:flex;align-items:center;gap:8px;">'
+      + (isExpired
+        ? '<span style="font-size:11px;color:var(--text-muted);background:var(--bg-secondary);padding:2px 8px;border-radius:10px;">Expired</span>'
+        : '<span style="font-size:11px;color:var(--moss);background:var(--mint);padding:2px 8px;border-radius:10px;display:inline-flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;background:var(--moss);border-radius:50%;display:inline-block;"></span> Active</span>')
+      + '</div>'
+      + '</div>'
+      + '<div style="display:flex;gap:8px;margin-top:8px;">'
+      + (isExpired ? '' : '<button onclick="copyHistoryLink(\'' + escHtml(shareUrl) + '\')" style="font-size:12px;color:var(--moss);background:var(--mint);border:none;border-radius:6px;padding:5px 10px;cursor:pointer;font-family:\'DM Sans\',sans-serif;font-weight:500;">Copy link</button>')
+      + (isExpired ? '' : '<button onclick="revokeShare(\'' + escHtml(s.id || s.token) + '\',\'' + escHtml(s.token) + '\')" style="font-size:12px;color:var(--red);background:#FEF0EE;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;font-family:\'DM Sans\',sans-serif;font-weight:500;">Revoke</button>')
+      + '</div>'
+      + '</div>';
+  });
+  listEl.innerHTML = html;
+}
+
+function copyHistoryLink(url) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(function() {
+      showToast('Link copied to clipboard');
+    });
+  }
+}
+
+async function revokeShare(id, token) {
+  if (isDemoMode) {
+    var row = document.getElementById('share-row-' + id);
+    if (row) row.style.opacity = '0.4';
+    showToast('Share link revoked');
+    return;
+  }
+
+  try {
+    var { error } = await db.from('shares').delete().eq('token', token);
+    if (error) throw error;
+    var row = document.getElementById('share-row-' + id);
+    if (row) row.style.opacity = '0.4';
+    showToast('Share link revoked');
+    // Reload after brief delay
+    setTimeout(function() { openShareHistory(); }, 800);
+  } catch (err) {
+    console.error('Revoke error:', err);
+    showToast('Could not revoke share');
+  }
+}
+
+// ── FULL DATA EXPORT ─────────────────────────────────────────────────────────
+async function exportAllData(format) {
+  showToast('Preparing export\u2026');
+
+  try {
+    var people = [];
+    var healthEvents = [];
+    var medications = [];
+    var careCircle = [];
+    var documents = [];
+    var shares = [];
+
+    if (isDemoMode) {
+      people = [{ name: 'John Bell', relationship: 'Father', conditions: 'CML, Hypertension' }];
+      healthEvents = liveEvents.length > 0 ? liveEvents : [{ title: 'Demo event', event_type: 'note', event_date: new Date().toISOString() }];
+      medications = liveMeds.length > 0 ? liveMeds : [{ name: 'Lisinopril', dose: '20mg', frequency: 'daily', active: true }];
+      careCircle = liveCareCircle;
+      documents = liveDocs;
+    } else {
+      // Fetch all data from Supabase
+      var pRes = await db.from('people').select('*').eq('user_id', currentUser.id);
+      people = (pRes.data || []).map(function(p) {
+        return {
+          name: p.name,
+          relationship: p.relationship,
+          date_of_birth: p.date_of_birth,
+          conditions: p.conditions,
+          allergies: p.allergies,
+          blood_type: p.blood_type,
+          primary_doctor: p.primary_doctor,
+          emergency_contact_name: p.emergency_contact_name,
+          emergency_contact_phone: p.emergency_contact_phone,
+          insurance_info: p.insurance_info
+        };
+      });
+
+      var personIds = (pRes.data || []).map(function(p) { return p.id; });
+
+      if (personIds.length > 0) {
+        var evRes = await db.from('health_events').select('event_type, event_date, title, value, unit, notes, source').in('person_id', personIds);
+        healthEvents = evRes.data || [];
+
+        var medRes = await db.from('medications').select('name, dose, frequency, prescriber, start_date, end_date, active').in('person_id', personIds);
+        medications = medRes.data || [];
+
+        var ccRes = await db.from('care_circle_members').select('member_name, email, phone, role').in('person_id', personIds);
+        careCircle = ccRes.data || [];
+
+        var docRes = await db.from('documents').select('filename, doc_type, uploaded_at, extraction_status, notes').in('person_id', personIds);
+        documents = docRes.data || [];
+
+        var shRes = await db.from('shares').select('token, person_name, created_at, expires_at').eq('user_id', currentUser.id);
+        shares = shRes.data || [];
+      }
+    }
+
+    var exportData = {
+      exported_at: new Date().toISOString(),
+      account_email: currentUser ? currentUser.email : 'demo@example.com',
+      people: people,
+      health_events: healthEvents,
+      medications: medications,
+      care_circle: careCircle,
+      documents: documents,
+      shares: shares
+    };
+
+    var dateStr = new Date().toISOString().slice(0, 10);
+
+    if (format === 'csv') {
+      exportDataAsCsv(exportData, dateStr);
+    } else {
+      exportDataAsJson(exportData, dateStr);
+    }
+  } catch (err) {
+    console.error('Export error:', err);
+    showToast('Export failed. Please try again.');
+  }
+}
+
+function exportDataAsJson(data, dateStr) {
+  var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'wellet-data-export-' + dateStr + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('JSON export downloaded');
+}
+
+function exportDataAsCsv(data, dateStr) {
+  var zip = new JSZip();
+
+  // Helper: array of objects to CSV string
+  function toCsv(arr) {
+    if (!arr || arr.length === 0) return '';
+    var keys = Object.keys(arr[0]);
+    var header = keys.map(function(k) { return '"' + String(k).replace(/"/g, '""') + '"'; }).join(',');
+    var rows = arr.map(function(row) {
+      return keys.map(function(k) {
+        var val = row[k];
+        if (val === null || val === undefined) return '';
+        if (typeof val === 'object') val = JSON.stringify(val);
+        return '"' + String(val).replace(/"/g, '""') + '"';
+      }).join(',');
+    });
+    return header + '\n' + rows.join('\n');
+  }
+
+  if (data.people && data.people.length > 0) zip.file('people.csv', toCsv(data.people));
+  if (data.health_events && data.health_events.length > 0) zip.file('health_events.csv', toCsv(data.health_events));
+  if (data.medications && data.medications.length > 0) zip.file('medications.csv', toCsv(data.medications));
+  if (data.care_circle && data.care_circle.length > 0) zip.file('care_circle.csv', toCsv(data.care_circle));
+  if (data.documents && data.documents.length > 0) zip.file('documents.csv', toCsv(data.documents));
+  if (data.shares && data.shares.length > 0) zip.file('shares.csv', toCsv(data.shares));
+
+  // Also include JSON for completeness
+  zip.file('export-metadata.json', JSON.stringify({ exported_at: data.exported_at, account_email: data.account_email }, null, 2));
+
+  zip.generateAsync({ type: 'blob' }).then(function(blob) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'wellet-data-export-' + dateStr + '.zip';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('CSV export downloaded');
+  });
 }
 </script>
 <script src="/guided-demo.js"></script>
