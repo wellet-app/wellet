@@ -9294,16 +9294,17 @@ async function saveContact() {
   if (_editingContactId) {
     var res = await db.from('care_circle_members').update({
       member_name: name, email: email || null, phone: phone || null, role: role
-    }).eq('id', _editingContactId);
+    }).eq('id', _editingContactId).select();
     error = res.error;
   } else {
     var res = await db.from('care_circle_members').insert({
       person_id: currentPersonId,
+      user_id: currentUser.id,
       member_name: name,
       email: email || null,
       phone: phone || null,
       role: role
-    });
+    }).select();
     error = res.error;
   }
 
@@ -9364,21 +9365,46 @@ function openFeedbackSheet() {
 async function submitFeedback() {
   var text = document.getElementById('feedback-text').value.trim();
   if (!text) { showToast('Please enter your feedback'); return; }
-  if (currentUser) {
-    // Save to Supabase feedback table
-    const { error } = await db.from('feedback').insert({
-      user_id: currentUser.id,
-      email: currentUser.email,
-      message: text,
-      page: document.querySelector('.app-view.active')?.id || 'unknown'
+
+  var btn = document.querySelector('#feedback-overlay .btn-primary');
+  btn.disabled = true;
+  btn.textContent = 'Sending\u2026';
+
+  try {
+    var session = await db.auth.getSession();
+    var token = session.data.session ? session.data.session.access_token : '';
+    var page = document.querySelector('.app-view.active');
+    var pageName = page ? page.id : 'unknown';
+
+    var res = await fetch(SUPABASE_URL + '/functions/v1/send-feedback', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ message: text, page: pageName })
     });
-    if (error) console.error('Feedback save error:', error);
+
+    if (!res.ok) throw new Error('Send failed');
+  } catch (err) {
+    console.error('Feedback error:', err);
+    // Fallback: save directly to table
+    if (currentUser) {
+      await db.from('feedback').insert({
+        user_id: currentUser.id,
+        email: currentUser.email,
+        message: text,
+        page: 'unknown'
+      });
+    }
   }
-  // Also open email as backup
-  var mailto = 'mailto:betsy.eble@gmail.com?subject=' + encodeURIComponent('Wellet Alpha Feedback') + '&body=' + encodeURIComponent(text);
-  window.open(mailto, '_blank');
+
+  btn.disabled = false;
+  btn.innerHTML = '<i data-lucide="send" style="width:15px;height:15px;"></i> Send to Betsy';
+  initIcons();
   closeSheet('feedback-overlay');
-  showToast('Thank you — your feedback means everything');
+  showToast('Thank you \u2014 your feedback means everything');
 }
 
 // ── ALPHA WELCOME ─────────────────────────────────────────────────────────────
