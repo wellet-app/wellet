@@ -9271,9 +9271,9 @@ async function saveContact() {
   var name = document.getElementById('contact-name-input').value.trim();
   var email = document.getElementById('contact-email-input').value.trim();
   var phone = document.getElementById('contact-phone-input').value.trim();
-  var role = 'Secondary';
-  ['Primary','Secondary','Emergency'].forEach(function(r) {
-    var el = document.getElementById('role-' + r.toLowerCase());
+  var role = 'secondary';
+  ['primary','secondary','emergency'].forEach(function(r) {
+    var el = document.getElementById('role-' + r);
     if (el && el.classList.contains('selected')) role = r;
   });
 
