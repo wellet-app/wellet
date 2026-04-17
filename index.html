@@ -886,7 +886,8 @@
   .ehr-status-left { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--moss-dark); }
   .ehr-status-dot { width:7px; height:7px; border-radius:50%; background:#47B08A; flex-shrink:0; }
   .ehr-status-right { display:flex; align-items:center; gap:8px; }
-  .ehr-refresh-btn { background:none; border:none; color:var(--moss); cursor:pointer; padding:4px; border-radius:6px; display:flex; align-items:center; justify-content:center; transition:background 0.15s; }
+  .ehr-refresh-btn { background:none; border:none; color:var(--moss); cursor:pointer; padding:8px; border-radius:6px; display:flex; align-items:center; justify-content:center; transition:background 0.15s; -webkit-tap-highlight-color:transparent; min-width:36px; min-height:36px; position:relative; z-index:2; }
+  .ehr-refresh-btn svg, .ehr-refresh-btn i { pointer-events:none; }
   .ehr-refresh-btn:hover { background:rgba(45,106,79,0.1); }
   .ehr-privacy-notice { background:var(--cream); border-radius:10px; padding:12px 14px; margin:12px 0; font-size:12px; color:var(--text-secondary); line-height:1.6; display:flex; gap:8px; align-items:flex-start; }
   .ehr-privacy-notice i { flex-shrink:0; color:var(--moss); margin-top:1px; }
@@ -6922,16 +6923,18 @@ function refreshEhrData() {
 
 // Disconnect EHR
 function disconnectEhr() {
-  if (isDemoMode) return;
+  console.log('[EHR] disconnectEhr called, isDemoMode:', isDemoMode, 'currentPersonId:', currentPersonId);
+  if (isDemoMode) { showToast('Demo mode — disconnect not available'); return; }
   var personId = currentPersonId;
-  if (!personId) return;
+  if (!personId) { showToast('No person selected'); return; }
   if (!confirm('Disconnect health records? Cached data on this device will be removed.')) return;
 
+  showToast('Disconnecting...');
   clearEhrCache(personId);
 
   db.auth.getSession().then(function(sessionRes) {
     var session = sessionRes.data.session;
-    if (!session) return;
+    if (!session) { showToast('Not signed in'); return; }
     return fetch(SUPABASE_URL + '/functions/v1/epic-auth', {
       method: 'POST',
       headers: {
@@ -6941,13 +6944,15 @@ function disconnectEhr() {
       },
       body: JSON.stringify({ action: 'disconnect', person_id: personId })
     });
-  }).then(function() {
+  }).then(function(resp) {
+    console.log('[EHR] disconnect response:', resp && resp.status);
     showToast('Health records disconnected');
     renderRecordsView();
     renderTimeline();
     updateSettingsEhr();
   }).catch(function(err) {
     console.error('EHR disconnect error:', err);
+    showToast('Disconnect failed — check console');
   });
 }
 
@@ -6972,8 +6977,8 @@ function updateSettingsEhr() {
       + '<div class="ehr-status-left"><div class="ehr-status-dot" aria-hidden="true"></div>Connected to ' + escHtml(ehrData.provider || 'EHR Provider') + '</div>'
       + '<div class="ehr-status-right">'
       + '<span style="font-size:11px;color:var(--text-muted);">Synced ' + syncedStr + '</span>'
-      + '<button class="ehr-refresh-btn" onclick="event.stopPropagation();refreshEhrData();" title="Refresh"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>'
-      + '<button class="ehr-refresh-btn" onclick="event.stopPropagation();disconnectEhr();" title="Disconnect" style="color:var(--red);"><i data-lucide="unplug" style="width:14px;height:14px;"></i></button>'
+      + '<button type="button" class="ehr-refresh-btn" onclick="event.stopPropagation();refreshEhrData();" title="Refresh"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>'
+      + '<button type="button" class="ehr-refresh-btn" onclick="event.stopPropagation();disconnectEhr();" title="Disconnect" style="color:var(--red);"><i data-lucide="unplug" style="width:14px;height:14px;"></i></button>'
       + '</div></div>';
     if (labelEl) labelEl.textContent = 'Manage Health Records';
     if (metaEl) metaEl.textContent = 'Connected to ' + (ehrData.provider || 'EHR Provider');
