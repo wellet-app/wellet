@@ -6796,8 +6796,8 @@ function handleEhrCallback() {
       }
       try { localStorage.removeItem('wellet_ehr_pending_person'); } catch(e) {}
       showToast('Health records connected! Fetching data\u2026');
-      // Fetch EHR data now
-      fetchEhrData(personId);
+      // Fetch EHR data and navigate to Records view when done
+      fetchEhrData(personId, true);
     }).catch(function(err) {
       console.error('EHR callback error:', err);
       showToast('EHR connection failed');
@@ -6817,7 +6817,7 @@ function handleEpicCallback() {
 }
 
 // Fetch EHR data from the edge function
-function fetchEhrData(personId) {
+function fetchEhrData(personId, navigateToRecords) {
   if (isDemoMode || !currentUser || !personId) return;
 
   db.auth.getSession().then(function(sessionRes) {
@@ -6846,6 +6846,10 @@ function fetchEhrData(personId) {
     if (personId === currentPersonId) {
       renderRecordsView();
       renderTimeline();
+    }
+    // Navigate to Records view after initial EHR connection
+    if (navigateToRecords) {
+      switchNavTo('records');
     }
   }).catch(function(err) {
     console.error('EHR fetch error:', err);
