@@ -6978,15 +6978,24 @@ function updateSettingsEhr() {
       + '<div class="ehr-status-right">'
       + '<span style="font-size:11px;color:var(--text-muted);">Synced ' + syncedStr + '</span>'
       + '<button type="button" class="ehr-refresh-btn" onclick="event.stopPropagation();refreshEhrData();" title="Refresh"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>'
-      + '<button type="button" class="ehr-refresh-btn" onclick="event.stopPropagation();disconnectEhr();" title="Disconnect" style="color:var(--red);"><i data-lucide="unplug" style="width:14px;height:14px;"></i></button>'
-      + '</div></div>';
+      + '</div></div>'
+      + '<div style="display:flex;gap:8px;margin-top:8px;">'
+      + '<button type="button" onclick="refreshEhrData()" style="flex:1;padding:10px;font-size:13px;font-family:\'DM Sans\',sans-serif;font-weight:500;background:var(--mint);color:var(--moss);border:none;border-radius:8px;cursor:pointer;"><i data-lucide="refresh-cw" style="width:13px;height:13px;vertical-align:-2px;"></i> Refresh data</button>'
+      + '<button type="button" onclick="disconnectEhr()" style="flex:1;padding:10px;font-size:13px;font-family:\'DM Sans\',sans-serif;font-weight:500;background:#FEF0EE;color:var(--red);border:none;border-radius:8px;cursor:pointer;"><i data-lucide="unplug" style="width:13px;height:13px;vertical-align:-2px;"></i> Disconnect</button>'
+      + '</div>';
     if (labelEl) labelEl.textContent = 'Manage Health Records';
     if (metaEl) metaEl.textContent = 'Connected to ' + (ehrData.provider || 'EHR Provider');
+    // Hide the connect row since we're showing disconnect controls
+    var connectRow = labelEl ? labelEl.closest('.settings-row') : null;
+    if (connectRow) connectRow.style.display = 'none';
     initIcons();
   } else {
     statusEl.innerHTML = '';
     if (labelEl) labelEl.textContent = 'Connect Health Records';
     if (metaEl) metaEl.textContent = 'Import data from your provider (Epic, Cerner, etc.)';
+    // Re-show the connect row if it was hidden
+    var connectRow = labelEl ? labelEl.closest('.settings-row') : null;
+    if (connectRow) connectRow.style.display = '';
   }
 }
 
