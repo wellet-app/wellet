@@ -6947,9 +6947,15 @@ function disconnectEhr() {
   }).then(function(resp) {
     console.log('[EHR] disconnect response:', resp && resp.status);
     showToast('Health records disconnected');
+    // Clear any remaining in-memory data
+    liveMeds = liveMeds.filter(function(m) { return m.source !== 'ehr'; });
+    liveAllergies = liveAllergies.filter(function(a) { return a.source !== 'ehr'; });
+    liveLabs = liveLabs.filter(function(l) { return l.source !== 'ehr'; });
     renderRecordsView();
     renderTimeline();
     updateSettingsEhr();
+    updateProfileEhr(personId);
+    initIcons();
   }).catch(function(err) {
     console.error('EHR disconnect error:', err);
     showToast('Disconnect failed — check console');
