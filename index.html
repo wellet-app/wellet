@@ -3888,11 +3888,29 @@ function renderUpdateMe() {
     + '<p class="update-summary-text" style="color:var(--text-secondary);font-style:italic;">As you add documents, appointments, and medications, Wellet will build a personalized summary here.</p>'
     + '</div>';
 
-  if (liveEvents.length === 0) {
-    // Empty state: upload CTA first, then single consolidated summary placeholder
+  // Check if user has completed document extractions (even without promoted events)
+  var hasCompletedDocs = liveDocs.some(function(d){ return d.extraction_status === 'completed' && d.extracted_events; });
+
+  if (liveEvents.length === 0 && !hasCompletedDocs) {
+    // Truly empty: upload CTA + static placeholder
     pane.innerHTML = '<div class="update-me-section">'
       + emptyActions
       + emptyPlaceholder
+      + '</div>'
+      + '<div class="quick-actions">'
+      + '<button class="qa-btn" onclick="openAddEvent()"><span class="qa-icon"><i data-lucide="plus-circle" style="width:18px;height:18px;"></i></span>Add event</button>'
+      + '<button class="qa-btn" onclick="openEmergencySummary()"><span class="qa-icon"><i data-lucide="file-heart" style="width:18px;height:18px;"></i></span>Emergency summary</button>'
+      + '<button class="qa-btn" onclick="openShareFamily()"><span class="qa-icon"><i data-lucide="share-2" style="width:18px;height:18px;"></i></span>Share with family</button>'
+      + '</div>'
+      + '<div class="timeline-section" style="margin-top:16px;">'
+      + '<p class="section-label">Recent activity</p>'
+      + timelineHTML
+      + '</div>';
+  } else if (liveEvents.length === 0 && hasCompletedDocs) {
+    // Has document data but no promoted events yet: show real summary + upload CTA
+    pane.innerHTML = '<div class="update-me-section">'
+      + summarySection
+      + emptyActions
       + '</div>'
       + '<div class="quick-actions">'
       + '<button class="qa-btn" onclick="openAddEvent()"><span class="qa-icon"><i data-lucide="plus-circle" style="width:18px;height:18px;"></i></span>Add event</button>'
