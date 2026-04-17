@@ -687,6 +687,52 @@
   .ob-name-go { margin-top: 24px; padding: 15px; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; }
   .back-btn { background: none; border: none; cursor: pointer; padding: 0; color: var(--text-secondary); display: flex; align-items: center; }
 
+  /* ── Progress steps indicator ── */
+  .ob-progress { display: flex; gap: 8px; justify-content: center; padding: 12px 0 0; }
+  .ob-progress-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-medium); transition: all 0.3s; }
+  .ob-progress-dot.active { background: var(--moss); width: 24px; border-radius: 4px; }
+  .ob-progress-dot.done { background: var(--moss); }
+
+  /* ── Extraction reveal animation ── */
+  .ob-extract-results { margin-top: 20px; width: 100%; max-width: 320px; text-align: left; }
+  .ob-extract-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: white; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 6px; font-size: 13px; color: var(--text-primary); opacity: 0; transform: translateY(8px); transition: opacity 0.35s ease, transform 0.35s ease; }
+  .ob-extract-item.revealed { opacity: 1; transform: translateY(0); }
+  .ob-extract-item-icon { width: 28px; height: 28px; border-radius: 8px; background: var(--mint); display: flex; align-items: center; justify-content: center; color: var(--moss); flex-shrink: 0; }
+  .ob-extract-item-text { flex: 1; min-width: 0; }
+  .ob-extract-item-label { font-size: 11px; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+  .ob-extract-item-value { font-size: 14px; font-weight: 500; color: var(--text-primary); }
+  .ob-extract-check { color: var(--moss); flex-shrink: 0; }
+  .ob-encourage { font-size: 12px; color: var(--text-muted); margin-top: 8px; font-style: italic; transition: opacity 0.3s; }
+
+  /* ── Name confirmation card ── */
+  .ob-name-confirm-card { padding: 16px; background: var(--mint); border-radius: 14px; margin-bottom: 16px; }
+  .ob-name-confirm-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .ob-name-confirm-row:last-child { margin-bottom: 0; }
+  .ob-name-confirm-icon { color: var(--moss); flex-shrink: 0; }
+  .ob-name-confirm-text { flex: 1; font-size: 15px; font-weight: 500; color: var(--text-primary); }
+  .ob-name-confirm-sub { font-size: 12px; font-weight: 400; color: var(--text-muted); }
+  .ob-name-confirm-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .ob-name-confirm-btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
+  .ob-name-confirm-btn.primary { background: var(--moss); color: white; border: none; }
+  .ob-name-confirm-btn.primary:hover { background: var(--moss-dark); }
+  .ob-name-confirm-btn.secondary { background: white; color: var(--text-secondary); border: 1.5px solid var(--border-medium); }
+  .ob-name-confirm-btn.secondary:hover { border-color: var(--moss); color: var(--moss); }
+
+  /* ── Extraction summary card ── */
+  .ob-summary-card { padding: 16px; background: white; border: 1.5px solid var(--border); border-radius: 14px; margin-top: 16px; }
+  .ob-summary-title { font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-bottom: 10px; }
+  .ob-summary-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 14px; color: var(--text-primary); }
+  .ob-summary-row-icon { color: var(--moss); flex-shrink: 0; }
+  .ob-summary-details { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .ob-summary-detail-item { font-size: 13px; color: var(--text-secondary); padding: 3px 0 3px 28px; line-height: 1.4; }
+  .ob-summary-toggle { background: none; border: none; font-size: 12px; color: var(--moss); cursor: pointer; padding: 6px 0 0 28px; font-family: 'DM Sans', sans-serif; font-weight: 500; }
+  .ob-summary-toggle:hover { text-decoration: underline; }
+
+  /* ── Photo thumbnail ── */
+  .ob-photo-thumb { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border); }
+  .ob-blurry-warning { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #FFF8E7; border: 1px solid #F0D68A; border-radius: 10px; margin-top: 8px; font-size: 13px; color: var(--text-secondary); }
+  .ob-blurry-warning-icon { color: #D4A012; flex-shrink: 0; }
+
   /* Tour overlay */
   .tour-overlay { position: fixed; inset: 0; z-index: 9999; pointer-events: none; }
   .tour-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.45); pointer-events: auto; }
@@ -1936,6 +1982,7 @@
       <button class="ob-back" aria-label="Back" onclick="showLanding()"><i data-lucide="arrow-left" style="width:20px;height:20px;"></i></button>
       <svg class="ob-upload-wordmark" viewBox="0 0 465 66" xmlns="http://www.w3.org/2000/svg"><path d="M45.5,4c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83L.25,13.32h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z" fill="#3D6B58"/><path d="M67.97,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08s-1.4-1.71-1.4-2.99c0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M85.12,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M99.88,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M130.39,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08-.94-.72-1.4-1.71-1.4-2.99,0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M155.96,13.83h-4.14v-3.89l4.47-.43.94-6.77h4.21l-.47,6.77h7.06l-.29,4.32h-6.88l-.47,12.06c-.02,1.42.29,2.48.94,3.17.65.69,1.49,1.04,2.52,1.04,1.22,0,2.48-.47,3.78-1.4l1.4,3.56c-2.06,1.37-4.25,2.05-6.55,2.05-2.16,0-3.89-.69-5.18-2.07-1.3-1.38-1.91-3.35-1.84-5.9l.5-12.53Z" fill="#3D6B58"/></svg>
     </div>
+    <div class="ob-progress" id="ob-progress-upload"><div class="ob-progress-dot active"></div><div class="ob-progress-dot"></div><div class="ob-progress-dot"></div></div>
     <div class="ob-upload-body">
       <div class="ob-upload-hero">
         <div class="ob-upload-hero-icon"><i data-lucide="heart-handshake" style="width:36px;height:36px;color:var(--moss);"></i></div>
@@ -1983,7 +2030,10 @@
         </button>
       </div>
 
-      <button class="ob-upload-skip" onclick="obSkipToChat()">I don't have anything yet — let me type it in</button>
+      <div style="text-align:center;padding:16px 0 0;">
+        <button class="ob-upload-skip" onclick="obSkipToChat()" style="padding:8px 0 4px;">I'd rather tell Wellet myself</button>
+        <div style="font-size:12px;color:var(--text-muted);line-height:1.5;max-width:280px;margin:4px auto 0;">No documents handy? No problem — you can share in your own words.</div>
+      </div>
     </div>
   </div>
 
@@ -1993,11 +2043,29 @@
       <div style="width:20px;"></div>
       <svg class="ob-upload-wordmark" viewBox="0 0 465 66" xmlns="http://www.w3.org/2000/svg"><path d="M45.5,4c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83L.25,13.32h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z" fill="#3D6B58"/><path d="M67.97,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08s-1.4-1.71-1.4-2.99c0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M85.12,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M99.88,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M130.39,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08-.94-.72-1.4-1.71-1.4-2.99,0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M155.96,13.83h-4.14v-3.89l4.47-.43.94-6.77h4.21l-.47,6.77h7.06l-.29,4.32h-6.88l-.47,12.06c-.02,1.42.29,2.48.94,3.17.65.69,1.49,1.04,2.52,1.04,1.22,0,2.48-.47,3.78-1.4l1.4,3.56c-2.06,1.37-4.25,2.05-6.55,2.05-2.16,0-3.89-.69-5.18-2.07-1.3-1.38-1.91-3.35-1.84-5.9l.5-12.53Z" fill="#3D6B58"/></svg>
     </div>
+    <div class="ob-progress" id="ob-progress-processing"><div class="ob-progress-dot done"></div><div class="ob-progress-dot active"></div><div class="ob-progress-dot"></div></div>
     <div class="ob-processing-body">
-      <div class="ob-processing-spinner"><div class="ob-spinner"></div></div>
+      <div class="ob-processing-spinner" id="ob-processing-spinner"><div class="ob-spinner"></div></div>
       <div class="ob-processing-label" id="ob-processing-label">Wellet is reading your documents...</div>
       <div class="ob-processing-sub" id="ob-processing-sub">This usually takes about 30 seconds. We'll organize everything we find.</div>
       <div class="ob-processing-files" id="ob-processing-files"></div>
+      <div class="ob-extract-results" id="ob-extract-results" style="display:none;"></div>
+      <div class="ob-encourage" id="ob-encourage" style="display:none;"></div>
+      <div id="ob-add-more" style="display:none;">
+        <button class="ob-upload-card" onclick="obAddMorePhoto()" style="margin-top:8px;">
+          <div class="ob-upload-card-icon"><i data-lucide="camera" style="width:22px;height:22px;"></i></div>
+          <div class="ob-upload-card-text">
+            <div class="ob-upload-card-label">Take another photo</div>
+          </div>
+        </button>
+        <button class="ob-upload-card" onclick="obAddMoreFile()" style="margin-top:8px;">
+          <div class="ob-upload-card-icon"><i data-lucide="upload" style="width:22px;height:22px;"></i></div>
+          <div class="ob-upload-card-text">
+            <div class="ob-upload-card-label">Upload another document</div>
+          </div>
+        </button>
+      </div>
+      <button id="ob-continue-btn" class="btn-primary" onclick="obContinueFromProcessing()" style="display:none; margin-top:20px; width:100%;">Continue</button>
     </div>
   </div>
 
@@ -2007,15 +2075,19 @@
       <div style="width:20px;"></div>
       <svg class="ob-upload-wordmark" viewBox="0 0 465 66" xmlns="http://www.w3.org/2000/svg"><path d="M45.5,4c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83L.25,13.32h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z" fill="#3D6B58"/><path d="M67.97,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08s-1.4-1.71-1.4-2.99c0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M85.12,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M99.88,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M130.39,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08-.94-.72-1.4-1.71-1.4-2.99,0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M155.96,13.83h-4.14v-3.89l4.47-.43.94-6.77h4.21l-.47,6.77h7.06l-.29,4.32h-6.88l-.47,12.06c-.02,1.42.29,2.48.94,3.17.65.69,1.49,1.04,2.52,1.04,1.22,0,2.48-.47,3.78-1.4l1.4,3.56c-2.06,1.37-4.25,2.05-6.55,2.05-2.16,0-3.89-.69-5.18-2.07-1.3-1.38-1.91-3.35-1.84-5.9l.5-12.53Z" fill="#3D6B58"/></svg>
     </div>
-    <div class="ob-name-body">
+    <div class="ob-progress" id="ob-progress-name"><div class="ob-progress-dot done"></div><div class="ob-progress-dot done"></div><div class="ob-progress-dot active"></div></div>
+    <div class="ob-name-body" style="overflow-y:auto;">
       <div class="ob-name-found" id="ob-name-found"></div>
-      <div class="ob-name-form">
+      <div id="ob-name-person-confirm" style="display:none;"></div>
+      <div id="ob-name-your-confirm" style="display:none;"></div>
+      <div class="ob-name-form" id="ob-name-form">
         <label class="ob-name-label" for="ob-your-name">What should we call you?</label>
         <input class="ob-name-input" id="ob-your-name" type="text" placeholder="Your first name" autocomplete="given-name">
         <label class="ob-name-label" for="ob-person-name" style="margin-top:16px;">Who is this health record for?</label>
         <input class="ob-name-input" id="ob-person-name" type="text" placeholder="Their name (or yours if it's for you)" autocomplete="off">
-        <button class="btn-primary ob-name-go" onclick="obFinishWithNames()"><i data-lucide="arrow-right" style="width:16px;height:16px;"></i> Open my Wellet</button>
       </div>
+      <div id="ob-extract-summary" style="display:none;"></div>
+      <button class="btn-primary ob-name-go" onclick="obFinishWithNames()" id="ob-name-go-btn" style="margin-top:24px;padding:15px;font-size:15px;display:flex;align-items:center;justify-content:center;gap:8px;width:100%;"><i data-lucide="arrow-right" style="width:16px;height:16px;"></i> Open my Wellet</button>
     </div>
   </div>
 
@@ -2025,6 +2097,7 @@
       <div style="width:20px;"></div>
       <svg class="ob-upload-wordmark" viewBox="0 0 465 66" xmlns="http://www.w3.org/2000/svg"><path d="M45.5,4c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83L.25,13.32h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z" fill="#3D6B58"/><path d="M67.97,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08s-1.4-1.71-1.4-2.99c0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M85.12,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M99.88,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M130.39,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08-.94-.72-1.4-1.71-1.4-2.99,0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M155.96,13.83h-4.14v-3.89l4.47-.43.94-6.77h4.21l-.47,6.77h7.06l-.29,4.32h-6.88l-.47,12.06c-.02,1.42.29,2.48.94,3.17.65.69,1.49,1.04,2.52,1.04,1.22,0,2.48-.47,3.78-1.4l1.4,3.56c-2.06,1.37-4.25,2.05-6.55,2.05-2.16,0-3.89-.69-5.18-2.07-1.3-1.38-1.91-3.35-1.84-5.9l.5-12.53Z" fill="#3D6B58"/></svg>
     </div>
+    <div class="ob-progress" id="ob-progress-health"><div class="ob-progress-dot done"></div><div class="ob-progress-dot done"></div><div class="ob-progress-dot active"></div></div>
     <div class="ob-upload-body" style="justify-content:center;text-align:center;padding:0 24px;">
       <div style="width:64px;height:64px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
         <i data-lucide="file-heart" style="width:28px;height:28px;color:var(--moss);"></i>
@@ -2081,6 +2154,8 @@
   <input type="file" id="ob-file-ehr" accept=".zip" style="display:none;" onchange="obHandleFiles(this,'ehr')">
   <input type="file" id="ob-file-photo" accept="image/*" capture="environment" style="display:none;" onchange="obHandleFiles(this,'photo')">
   <input type="file" id="ob-file-doc" accept=".pdf,.jpg,.jpeg,.png,.heic,.doc,.docx" multiple style="display:none;" onchange="obHandleFiles(this,'doc')">
+  <input type="file" id="ob-addmore-photo" accept="image/*" capture="environment" style="display:none;" onchange="obHandleAddMore(this,'photo')">
+  <input type="file" id="ob-addmore-doc" accept=".pdf,.jpg,.jpeg,.png,.heic,.doc,.docx" multiple style="display:none;" onchange="obHandleAddMore(this,'doc')">
 </div>
 
 
@@ -6262,6 +6337,22 @@ function showOnboarding() {
   _obUploadedFiles = [];
   _obUploadPaths = [];
   _obExtractedData = null;
+  _obFromEhr = false;
+  _obEhrPending = null;
+  // Reset processing screen state
+  document.getElementById('ob-extract-results').innerHTML = '';
+  document.getElementById('ob-extract-results').style.display = 'none';
+  document.getElementById('ob-add-more').style.display = 'none';
+  document.getElementById('ob-continue-btn').style.display = 'none';
+  document.getElementById('ob-processing-spinner').style.display = 'block';
+  document.getElementById('ob-encourage').style.display = 'none';
+  // Reset name screen state
+  document.getElementById('ob-name-person-confirm').style.display = 'none';
+  document.getElementById('ob-name-your-confirm').style.display = 'none';
+  document.getElementById('ob-name-form').style.display = 'flex';
+  document.getElementById('ob-extract-summary').style.display = 'none';
+  document.getElementById('ob-your-name').value = '';
+  document.getElementById('ob-person-name').value = '';
   window.scrollTo(0, 0);
   initIcons();
 }
@@ -6930,6 +7021,13 @@ function selectHospital(idx) {
   if (!list || !list._filtered || !list._filtered[idx]) return;
   var h = list._filtered[idx];
   closeSheet('hospital-picker-overlay');
+  // If during onboarding (no person yet), store hospital choice and go to name screen
+  if (_obFromEhr && !currentPersonId) {
+    _obEhrPending = { fhirBaseUrl: h.fhirBaseUrl, name: h.name };
+    try { localStorage.setItem('wellet_ob_ehr_hospital', JSON.stringify(_obEhrPending)); } catch(e) {}
+    obShowNameScreen(null);
+    return;
+  }
   beginEhrOAuth(h.fhirBaseUrl, h.name, false);
 }
 
@@ -6992,6 +7090,14 @@ function _hospitalPickerInputHandler() {
 function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox) {
   if (_ehrConnecting) return;
   var personId = currentPersonId;
+  if (!personId && _obFromEhr) {
+    // Onboarding: no person yet — store choice and go to name screen
+    closeSheet('hospital-picker-overlay');
+    _obEhrPending = { fhirBaseUrl: fhirBaseUrl, name: hospitalName || (isSandbox ? 'Epic Sandbox' : null), sandbox: !!isSandbox };
+    try { localStorage.setItem('wellet_ob_ehr_hospital', JSON.stringify(_obEhrPending)); } catch(e) {}
+    obShowNameScreen(null);
+    return;
+  }
   if (!personId) {
     showToast('Please select a person first');
     return;
@@ -7109,8 +7215,16 @@ function handleEhrCallback() {
         return;
       }
       try { localStorage.removeItem('wellet_ehr_pending_person'); } catch(e) {}
+      // Check if returning from onboarding EHR connect
+      var fromOnboarding = false;
+      try { fromOnboarding = localStorage.getItem('wellet_ob_ehr_return') === 'true'; localStorage.removeItem('wellet_ob_ehr_return'); } catch(e) {}
+      if (fromOnboarding) {
+        showToast('Health records connected!');
+        fetchEhrData(personId, false);
+        showOwnWellet();
+        return;
+      }
       showToast('Health records connected! Fetching data\u2026');
-      // Fetch EHR data and navigate to Records view when done
       fetchEhrData(personId, true);
     }).catch(function(err) {
       console.error('EHR callback error:', err);
@@ -9783,20 +9897,53 @@ function switchPerson(el) {
 var _obUploadedFiles = [];
 var _obExtractedData = null;
 var _obUploadPaths = [];
+var _obFromEhr = false;
+var _obEhrPending = null;
 
 function obUploadEhrZip() { document.getElementById('ob-file-ehr').click(); }
 function obUploadPhoto() { document.getElementById('ob-file-photo').click(); }
 function obUploadFile() { document.getElementById('ob-file-doc').click(); }
 
 function obConnectEhr() {
-  // Use the existing EHR connect flow (gated for alpha)
-  startEhrConnect();
+  if (isDemoMode) {
+    showToast('In the real app, this connects to your provider\u2019s records');
+    return;
+  }
+  if (!currentUser) {
+    showToast('Please sign in first');
+    return;
+  }
+  _obFromEhr = true;
+  try { localStorage.setItem('wellet_ob_ehr_return', 'true'); } catch(e) {}
+  openSheetAccessible('hospital-picker-overlay');
+  initIcons();
+  var input = document.getElementById('hospital-picker-input');
+  if (input) {
+    input.value = '';
+    input.removeEventListener('input', _hospitalPickerInputHandler);
+    input.addEventListener('input', _hospitalPickerInputHandler);
+  }
+  var list = document.getElementById('hospital-picker-list');
+  if (list) list.innerHTML = '<li class="hospital-picker-loading">Loading hospitals\u2026</li>';
+  loadEpicEndpoints(function(endpoints) {
+    renderHospitalList(endpoints.slice(0, 50));
+  });
 }
 
 function obSkipToChat() {
-  // Fall back to the chat-based onboarding
   obShowScreen('ob-chat-screen');
-  obInit();
+  obState = { step: 0, situation: null, userName: null, personName: null };
+  var chat = document.getElementById('ob-chat-area');
+  chat.innerHTML = '';
+  chat.scrollTop = 0;
+  document.getElementById('ob-input').value = '';
+  document.getElementById('ob-input').disabled = true;
+  document.getElementById('ob-send-btn').disabled = true;
+  window.scrollTo(0, 0);
+  document.getElementById('onboarding').scrollTop = 0;
+  setTimeout(function() {
+    obTypeThen("No worries \u2014 we can do this together. I'll ask a few questions and set everything up for you.", obShowSituationChips, 900);
+  }, 400);
 }
 
 function obBackToUpload() {
@@ -9817,10 +9964,8 @@ async function obHandleFiles(input, type) {
   var files = Array.from(input.files);
   _obUploadedFiles = _obUploadedFiles.concat(files);
 
-  // Show processing screen
   obShowScreen('ob-processing-screen');
 
-  // Update label based on type
   var label = document.getElementById('ob-processing-label');
   if (type === 'ehr') {
     label.textContent = 'Wellet is reading your health records...';
@@ -9830,25 +9975,59 @@ async function obHandleFiles(input, type) {
     label.textContent = 'Wellet is reading your documents...';
   }
 
-  // Show file list in processing screen
   var filesEl = document.getElementById('ob-processing-files');
   filesEl.innerHTML = '';
-  _obUploadedFiles.forEach(function(f) {
+  _obUploadedFiles.forEach(function(f, idx) {
+    var isPhoto = f.type && f.type.indexOf('image') === 0;
     var fileDiv = document.createElement('div');
     fileDiv.className = 'ob-proc-file';
-    fileDiv.innerHTML = '<div class="ob-proc-file-icon"><i data-lucide="file" style="width:16px;height:16px;"></i></div>'
+    fileDiv.id = 'ob-proc-file-' + idx;
+    var iconHtml = '<div class="ob-proc-file-icon"><i data-lucide="file" style="width:16px;height:16px;"></i></div>';
+    if (isPhoto) {
+      iconHtml = '<img class="ob-photo-thumb" id="ob-thumb-' + idx + '" src="" alt="preview">';
+      try {
+        var reader = new FileReader();
+        reader.onload = (function(thumbIdx) { return function(e) {
+          var thumb = document.getElementById('ob-thumb-' + thumbIdx);
+          if (thumb) thumb.src = e.target.result;
+        }; })(idx);
+        reader.readAsDataURL(f);
+      } catch(e) {}
+    }
+    fileDiv.innerHTML = iconHtml
       + '<div class="ob-proc-file-name">' + escHtml(f.name) + '</div>'
       + '<div class="ob-proc-file-status">Uploading...</div>';
     filesEl.appendChild(fileDiv);
+
+    if (isPhoto && f.size < 100000) {
+      var warn = document.createElement('div');
+      warn.className = 'ob-blurry-warning';
+      warn.innerHTML = '<div class="ob-blurry-warning-icon"><i data-lucide="alert-triangle" style="width:16px;height:16px;"></i></div>'
+        + '<div>This image might be hard to read. Want to try again?</div>';
+      filesEl.appendChild(warn);
+    }
   });
   initIcons();
 
-  // Upload each file to Supabase Storage
+  // Hide extract results, add-more, and continue from any previous run
+  document.getElementById('ob-extract-results').style.display = 'none';
+  document.getElementById('ob-extract-results').innerHTML = '';
+  document.getElementById('ob-add-more').style.display = 'none';
+  document.getElementById('ob-continue-btn').style.display = 'none';
+  document.getElementById('ob-processing-spinner').style.display = 'block';
+  document.getElementById('ob-encourage').style.display = 'none';
+
   if (!currentUser) {
-    // If somehow not logged in, skip to name screen
     obShowNameScreen(null);
     return;
   }
+
+  // Start encouragement timer for slow extractions
+  var encourageTimer = setTimeout(function() {
+    var enc = document.getElementById('ob-encourage');
+    enc.textContent = 'Almost there \u2014 health records have a lot of detail';
+    enc.style.display = 'block';
+  }, 5000);
 
   var uploadedPaths = [];
   for (var i = 0; i < files.length; i++) {
@@ -9859,26 +10038,22 @@ async function obHandleFiles(input, type) {
       var result = await db.storage.from('documents').upload(storagePath, file, { upsert: true });
       if (result.error) {
         console.error('Upload error:', result.error);
-        // Update file status to error
         var statusEls = filesEl.querySelectorAll('.ob-proc-file-status');
-        if (statusEls[i]) { statusEls[i].textContent = 'Error'; statusEls[i].style.color = 'var(--red)'; }
+        if (statusEls[_obUploadedFiles.length - files.length + i]) { statusEls[_obUploadedFiles.length - files.length + i].textContent = 'Error'; statusEls[_obUploadedFiles.length - files.length + i].style.color = 'var(--red)'; }
       } else {
         uploadedPaths.push(storagePath);
         _obUploadPaths.push(storagePath);
-        // Update file status to done
         var statusEls2 = filesEl.querySelectorAll('.ob-proc-file-status');
-        if (statusEls2[i]) { statusEls2[i].textContent = 'Uploaded'; statusEls2[i].style.color = 'var(--moss)'; }
+        if (statusEls2[_obUploadedFiles.length - files.length + i]) { statusEls2[_obUploadedFiles.length - files.length + i].textContent = 'Uploaded'; statusEls2[_obUploadedFiles.length - files.length + i].style.color = 'var(--moss)'; }
       }
     } catch(e) {
       console.error('Upload exception:', e);
     }
   }
 
-  // Update processing label
   label.textContent = 'Organizing what we found...';
   document.getElementById('ob-processing-sub').textContent = 'Wellet is extracting names, medications, conditions, and dates.';
 
-  // Try to extract data via edge function (if it exists)
   var extractedData = null;
   try {
     var extractRes = await fetch(SUPABASE_URL + '/functions/v1/extract-onboarding-v2', {
@@ -9898,13 +10073,136 @@ async function obHandleFiles(input, type) {
     // PHI log removed
   }
 
-  // Short delay for the user to see upload completion, then proceed to name screen
-  setTimeout(function() {
-    obShowNameScreen(extractedData);
-  }, 1200);
+  clearTimeout(encourageTimer);
+  document.getElementById('ob-encourage').style.display = 'none';
+  document.getElementById('ob-processing-spinner').style.display = 'none';
+  label.textContent = 'Here\u2019s what Wellet found';
+  document.getElementById('ob-processing-sub').textContent = '';
 
-  // Reset file inputs
+  // Show live extraction reveal
+  obRevealExtraction(extractedData);
+
   input.value = '';
+}
+
+function obRevealExtraction(data) {
+  var container = document.getElementById('ob-extract-results');
+  container.innerHTML = '';
+  container.style.display = 'block';
+
+  var items = [];
+  if (data && data.patient_name) {
+    items.push({ icon: 'user', label: 'Name', value: data.patient_name });
+  }
+  if (data && data.conditions && data.conditions.length) {
+    for (var c = 0; c < data.conditions.length; c++) {
+      items.push({ icon: 'stethoscope', label: 'Condition', value: data.conditions[c] });
+    }
+  }
+  if (data && data.medications && data.medications.length) {
+    for (var m = 0; m < data.medications.length; m++) {
+      var medName = data.medications[m].name || data.medications[m];
+      items.push({ icon: 'pill', label: 'Medication', value: medName });
+    }
+  }
+  if (data && data.allergies && data.allergies.length) {
+    for (var a = 0; a < data.allergies.length; a++) {
+      items.push({ icon: 'alert-circle', label: 'Allergy', value: data.allergies[a] });
+    }
+  }
+
+  if (items.length === 0) {
+    items.push({ icon: 'file-check', label: 'Uploaded', value: _obUploadedFiles.length + ' file' + (_obUploadedFiles.length > 1 ? 's' : '') + ' received' });
+  }
+
+  items.forEach(function(item) {
+    var el = document.createElement('div');
+    el.className = 'ob-extract-item';
+    el.innerHTML = '<div class="ob-extract-item-icon"><i data-lucide="' + item.icon + '" style="width:16px;height:16px;"></i></div>'
+      + '<div class="ob-extract-item-text"><div class="ob-extract-item-label">' + escHtml(item.label) + '</div><div class="ob-extract-item-value">' + escHtml(item.value) + '</div></div>'
+      + '<div class="ob-extract-check"><i data-lucide="check-circle" style="width:16px;height:16px;"></i></div>';
+    container.appendChild(el);
+  });
+  initIcons();
+
+  // Stagger reveal with 200ms between items
+  var revealItems = container.querySelectorAll('.ob-extract-item');
+  revealItems.forEach(function(el, idx) {
+    setTimeout(function() { el.classList.add('revealed'); }, 200 * (idx + 1));
+  });
+
+  // Show add-more and continue after reveal finishes
+  var totalDelay = 200 * (items.length + 1) + 300;
+  setTimeout(function() {
+    document.getElementById('ob-add-more').style.display = 'block';
+    document.getElementById('ob-continue-btn').style.display = 'block';
+    initIcons();
+  }, totalDelay);
+}
+
+function obAddMorePhoto() {
+  document.getElementById('ob-addmore-photo').click();
+}
+function obAddMoreFile() {
+  document.getElementById('ob-addmore-doc').click();
+}
+
+async function obHandleAddMore(input, type) {
+  if (!input.files || input.files.length === 0) return;
+  var files = Array.from(input.files);
+  _obUploadedFiles = _obUploadedFiles.concat(files);
+
+  var filesEl = document.getElementById('ob-processing-files');
+  files.forEach(function(f) {
+    var isPhoto = f.type && f.type.indexOf('image') === 0;
+    var fileDiv = document.createElement('div');
+    fileDiv.className = 'ob-proc-file';
+    var iconHtml = '<div class="ob-proc-file-icon"><i data-lucide="file" style="width:16px;height:16px;"></i></div>';
+    if (isPhoto) {
+      var thumbId = 'ob-thumb-add-' + Date.now();
+      iconHtml = '<img class="ob-photo-thumb" id="' + thumbId + '" src="" alt="preview">';
+      try {
+        var reader = new FileReader();
+        reader.onload = (function(tid) { return function(e) {
+          var t = document.getElementById(tid);
+          if (t) t.src = e.target.result;
+        }; })(thumbId);
+        reader.readAsDataURL(f);
+      } catch(e) {}
+    }
+    fileDiv.innerHTML = iconHtml
+      + '<div class="ob-proc-file-name">' + escHtml(f.name) + '</div>'
+      + '<div class="ob-proc-file-status">Uploading...</div>';
+    filesEl.appendChild(fileDiv);
+  });
+  initIcons();
+
+  if (!currentUser) { input.value = ''; return; }
+
+  for (var i = 0; i < files.length; i++) {
+    var file = files[i];
+    var ext = file.name.split('.').pop().toLowerCase();
+    var storagePath = currentUser.id + '/onboarding/' + Date.now() + '_' + i + '.' + ext;
+    try {
+      var result = await db.storage.from('documents').upload(storagePath, file, { upsert: true });
+      if (!result.error) {
+        _obUploadPaths.push(storagePath);
+      }
+      var allStatus = filesEl.querySelectorAll('.ob-proc-file-status');
+      var lastIdx = allStatus.length - files.length + i;
+      if (allStatus[lastIdx]) {
+        allStatus[lastIdx].textContent = result.error ? 'Error' : 'Uploaded';
+        allStatus[lastIdx].style.color = result.error ? 'var(--red)' : 'var(--moss)';
+      }
+    } catch(e) {
+      console.error('Upload exception:', e);
+    }
+  }
+  input.value = '';
+}
+
+function obContinueFromProcessing() {
+  obShowNameScreen(_obExtractedData);
 }
 
 function obShowNameScreen(extractedData) {
@@ -9913,38 +10211,162 @@ function obShowNameScreen(extractedData) {
   var foundEl = document.getElementById('ob-name-found');
   var personInput = document.getElementById('ob-person-name');
   var yourNameInput = document.getElementById('ob-your-name');
+  var personConfirm = document.getElementById('ob-name-person-confirm');
+  var yourConfirm = document.getElementById('ob-name-your-confirm');
+  var nameForm = document.getElementById('ob-name-form');
+  var summaryEl = document.getElementById('ob-extract-summary');
 
-  if (extractedData && extractedData.patient_name) {
-    // We found a name in the documents — pre-fill and show confirmation
-    personInput.value = extractedData.patient_name;
-    var foundItems = [];
-    if (extractedData.patient_name) foundItems.push('<strong>' + escHtml(extractedData.patient_name) + '</strong>');
-    if (extractedData.conditions && extractedData.conditions.length) foundItems.push(extractedData.conditions.length + ' condition' + (extractedData.conditions.length > 1 ? 's' : ''));
-    if (extractedData.medications && extractedData.medications.length) foundItems.push(extractedData.medications.length + ' medication' + (extractedData.medications.length > 1 ? 's' : ''));
-    if (extractedData.doc_count) foundItems.push(extractedData.doc_count + ' document' + (extractedData.doc_count > 1 ? 's' : ''));
-
-    foundEl.innerHTML = '<div class="ob-name-found-card">'
-      + '<div class="found-icon"><i data-lucide="check-circle" style="width:18px;height:18px;"></i></div>'
-      + '<div class="found-text">Wellet found ' + foundItems.join(', ') + ' in your upload. We\'ve set things up — just confirm the names below.</div>'
-      + '</div>';
-  } else {
-    // No extraction or extraction didn't find a name — show simpler message
-    var fileCount = _obUploadedFiles.length;
-    foundEl.innerHTML = '<div class="ob-name-found-card">'
-      + '<div class="found-icon"><i data-lucide="check-circle" style="width:18px;height:18px;"></i></div>'
-      + '<div class="found-text">' + fileCount + ' file' + (fileCount > 1 ? 's' : '') + ' uploaded. Wellet will process ' + (fileCount > 1 ? 'them' : 'it') + ' once your account is set up.</div>'
-      + '</div>';
+  // Guess user's first name from email
+  var emailName = '';
+  if (currentUser && currentUser.email) {
+    emailName = currentUser.email.split('@')[0].split('.')[0];
+    emailName = emailName.charAt(0).toUpperCase() + emailName.slice(1).toLowerCase();
   }
 
-  // Pre-fill user email-based first name guess
-  if (currentUser && currentUser.email) {
-    var emailName = currentUser.email.split('@')[0].split('.')[0];
-    emailName = emailName.charAt(0).toUpperCase() + emailName.slice(1).toLowerCase();
-    if (!yourNameInput.value) yourNameInput.value = emailName;
+  var hasPatientName = extractedData && extractedData.patient_name;
+  var hasData = extractedData && (hasPatientName || (extractedData.conditions && extractedData.conditions.length) || (extractedData.medications && extractedData.medications.length));
+
+  if (hasPatientName) {
+    personInput.value = extractedData.patient_name;
+    foundEl.innerHTML = '';
+
+    // Person name confirmation card
+    personConfirm.style.display = 'block';
+    personConfirm.innerHTML = '<div class="ob-name-confirm-card">'
+      + '<div class="ob-name-confirm-row">'
+      + '<div class="ob-name-confirm-icon"><i data-lucide="check-circle" style="width:20px;height:20px;"></i></div>'
+      + '<div><div class="ob-name-confirm-text">Wellet found: ' + escHtml(extractedData.patient_name) + '</div>'
+      + '<div class="ob-name-confirm-sub">Health record for this person</div></div>'
+      + '</div>'
+      + '<div class="ob-name-confirm-actions">'
+      + '<button class="ob-name-confirm-btn primary" onclick="obConfirmPersonName(true)">This is correct</button>'
+      + '<button class="ob-name-confirm-btn secondary" onclick="obConfirmPersonName(false)">Edit name</button>'
+      + '</div>'
+      + '</div>';
+
+    // Your name confirmation
+    if (emailName) {
+      yourNameInput.value = emailName;
+      yourConfirm.style.display = 'block';
+      yourConfirm.innerHTML = '<div class="ob-name-confirm-card" style="background:white;border:1.5px solid var(--border);">'
+        + '<div class="ob-name-confirm-row">'
+        + '<div class="ob-name-confirm-icon"><i data-lucide="user" style="width:20px;height:20px;"></i></div>'
+        + '<div><div class="ob-name-confirm-text">You: ' + escHtml(emailName) + '</div>'
+        + '<div class="ob-name-confirm-sub">From ' + escHtml(currentUser.email) + '</div></div>'
+        + '</div>'
+        + '<div class="ob-name-confirm-actions">'
+        + '<button class="ob-name-confirm-btn primary" onclick="obConfirmYourName(true)">This is correct</button>'
+        + '<button class="ob-name-confirm-btn secondary" onclick="obConfirmYourName(false)">Change</button>'
+        + '</div>'
+        + '</div>';
+      nameForm.style.display = 'none';
+    } else {
+      yourConfirm.style.display = 'none';
+      nameForm.style.display = 'flex';
+      nameForm.querySelector('[for="ob-person-name"]').style.display = 'none';
+      personInput.style.display = 'none';
+    }
+  } else {
+    personConfirm.style.display = 'none';
+    yourConfirm.style.display = 'none';
+    nameForm.style.display = 'flex';
+    nameForm.querySelector('[for="ob-person-name"]').style.display = '';
+    personInput.style.display = '';
+    if (!yourNameInput.value && emailName) yourNameInput.value = emailName;
+
+    var fileCount = _obUploadedFiles.length;
+    if (fileCount > 0) {
+      foundEl.innerHTML = '<div class="ob-name-found-card">'
+        + '<div class="found-icon"><i data-lucide="check-circle" style="width:18px;height:18px;"></i></div>'
+        + '<div class="found-text">' + fileCount + ' file' + (fileCount > 1 ? 's' : '') + ' uploaded. Wellet will process ' + (fileCount > 1 ? 'them' : 'it') + ' once your account is set up.</div>'
+        + '</div>';
+    } else {
+      foundEl.innerHTML = '';
+    }
+  }
+
+  // Show extraction summary card
+  if (hasData) {
+    var condCount = (extractedData.conditions && extractedData.conditions.length) || 0;
+    var medCount = (extractedData.medications && extractedData.medications.length) || 0;
+    var docCount = extractedData.doc_count || _obUploadedFiles.length;
+    var allergyCount = (extractedData.allergies && extractedData.allergies.length) || 0;
+
+    var html = '<div class="ob-summary-card">'
+      + '<div class="ob-summary-title">What Wellet found in your uploads</div>';
+    if (condCount > 0) {
+      html += '<div class="ob-summary-row"><div class="ob-summary-row-icon"><i data-lucide="stethoscope" style="width:16px;height:16px;"></i></div>' + condCount + ' condition' + (condCount > 1 ? 's' : '') + '</div>';
+      html += '<div class="ob-summary-details" id="ob-summary-conditions" style="display:none;">';
+      for (var c = 0; c < extractedData.conditions.length; c++) {
+        html += '<div class="ob-summary-detail-item">' + escHtml(extractedData.conditions[c]) + '</div>';
+      }
+      html += '</div>';
+      html += '<button class="ob-summary-toggle" onclick="obToggleSummary(\'ob-summary-conditions\', this)">Show details</button>';
+    }
+    if (medCount > 0) {
+      html += '<div class="ob-summary-row"><div class="ob-summary-row-icon"><i data-lucide="pill" style="width:16px;height:16px;"></i></div>' + medCount + ' medication' + (medCount > 1 ? 's' : '') + '</div>';
+      html += '<div class="ob-summary-details" id="ob-summary-meds" style="display:none;">';
+      for (var m = 0; m < extractedData.medications.length; m++) {
+        var mn = extractedData.medications[m].name || extractedData.medications[m];
+        html += '<div class="ob-summary-detail-item">' + escHtml(mn) + '</div>';
+      }
+      html += '</div>';
+      html += '<button class="ob-summary-toggle" onclick="obToggleSummary(\'ob-summary-meds\', this)">Show details</button>';
+    }
+    if (allergyCount > 0) {
+      html += '<div class="ob-summary-row"><div class="ob-summary-row-icon"><i data-lucide="alert-circle" style="width:16px;height:16px;"></i></div>' + allergyCount + ' allerg' + (allergyCount > 1 ? 'ies' : 'y') + '</div>';
+    }
+    html += '<div class="ob-summary-row"><div class="ob-summary-row-icon"><i data-lucide="file-text" style="width:16px;height:16px;"></i></div>' + docCount + ' document' + (docCount > 1 ? 's' : '') + ' processed</div>';
+    html += '</div>';
+    summaryEl.innerHTML = html;
+    summaryEl.style.display = 'block';
+  } else {
+    summaryEl.style.display = 'none';
+    summaryEl.innerHTML = '';
   }
 
   initIcons();
-  yourNameInput.focus();
+  if (nameForm.style.display !== 'none') yourNameInput.focus();
+}
+
+function obToggleSummary(id, btn) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var show = el.style.display === 'none';
+  el.style.display = show ? 'block' : 'none';
+  btn.textContent = show ? 'Hide details' : 'Show details';
+}
+
+function obConfirmPersonName(confirmed) {
+  if (confirmed) {
+    document.getElementById('ob-name-person-confirm').querySelector('.ob-name-confirm-card').style.opacity = '0.6';
+    document.getElementById('ob-name-person-confirm').querySelector('.ob-name-confirm-card').style.pointerEvents = 'none';
+    var check = document.getElementById('ob-name-person-confirm').querySelector('.ob-name-confirm-actions');
+    check.innerHTML = '<span style="color:var(--moss);font-size:13px;font-weight:500;display:flex;align-items:center;gap:4px;"><i data-lucide="check" style="width:14px;height:14px;"></i> Confirmed</span>';
+    document.getElementById('ob-name-person-confirm').querySelector('.ob-name-confirm-card').style.opacity = '1';
+    initIcons();
+  } else {
+    document.getElementById('ob-name-person-confirm').style.display = 'none';
+    var nameForm = document.getElementById('ob-name-form');
+    nameForm.style.display = 'flex';
+    nameForm.querySelector('[for="ob-person-name"]').style.display = '';
+    document.getElementById('ob-person-name').style.display = '';
+    document.getElementById('ob-person-name').focus();
+  }
+}
+
+function obConfirmYourName(confirmed) {
+  if (confirmed) {
+    var card = document.getElementById('ob-name-your-confirm').querySelector('.ob-name-confirm-card');
+    var actions = document.getElementById('ob-name-your-confirm').querySelector('.ob-name-confirm-actions');
+    actions.innerHTML = '<span style="color:var(--moss);font-size:13px;font-weight:500;display:flex;align-items:center;gap:4px;"><i data-lucide="check" style="width:14px;height:14px;"></i> Confirmed</span>';
+    initIcons();
+  } else {
+    document.getElementById('ob-name-your-confirm').style.display = 'none';
+    var nameForm = document.getElementById('ob-name-form');
+    nameForm.style.display = 'flex';
+    document.getElementById('ob-your-name').focus();
+  }
 }
 
 async function obFinishWithNames() {
@@ -10008,6 +10430,16 @@ async function obFinishWithNames() {
         }
       }
     }
+  }
+
+  // If EHR connect was pending from onboarding, trigger it now that person exists
+  if (_obEhrPending && person && person.id) {
+    currentPersonId = person.id;
+    _obFromEhr = false;
+    beginEhrOAuth(_obEhrPending.fhirBaseUrl, _obEhrPending.name, !!_obEhrPending.sandbox);
+    _obEhrPending = null;
+    try { localStorage.removeItem('wellet_ob_ehr_hospital'); } catch(e) {}
+    return;
   }
 
   // Show health records import step instead of going straight to app
