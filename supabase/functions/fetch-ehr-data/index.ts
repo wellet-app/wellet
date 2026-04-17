@@ -53,7 +53,8 @@ async function fetchFhirResource(
     const bundle = await res.json();
     if (bundle.entry) {
       for (const e of bundle.entry) {
-        if (e.resource) entries.push(e.resource);
+        // Skip OperationOutcome entries (Epic returns these as warnings)
+        if (e.resource && e.resource.resourceType !== 'OperationOutcome') entries.push(e.resource);
       }
     }
 
@@ -89,18 +90,23 @@ function mapConditions(resources: unknown[]) {
 
 function mapMedications(resources: unknown[]) {
   return (resources as Record<string, unknown>[]).map((r) => {
+    // Epic uses medicationReference (with display) instead of medicationCodeableConcept
     const medCode = (r.medicationCodeableConcept as Record<string, unknown>) || {};
+    const medRef = (r.medicationReference as Record<string, unknown>) || {};
     const coding = (medCode.coding as Record<string, unknown>[]) || [];
     const firstCoding = coding[0] || {};
-    const dosage = (r.dosage as Record<string, unknown>[]) || [];
+    const dosage = (r.dosageInstruction as Record<string, unknown>[]) || (r.dosage as Record<string, unknown>[]) || [];
     const firstDosage = dosage[0] || {};
     const timing = (firstDosage.timing as Record<string, unknown>) || {};
     const repeat = (timing.repeat as Record<string, unknown>) || {};
 
+    // Try medicationCodeableConcept.text, then medicationReference.display, then coding.display
+    const medName = medCode.text || (medRef.display as string) || firstCoding.display || 'Unknown medication';
+
     return {
       type: 'medication',
       source: 'ehr',
-      name: medCode.text || firstCoding.display || 'Unknown medication',
+      name: medName,
       code: firstCoding.code || '',
       status: r.status || '',
       dosage: (firstDosage.text as string) || '',
