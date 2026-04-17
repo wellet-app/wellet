@@ -2182,6 +2182,13 @@
       <button id="share-toggle-meds" class="toggle on" onclick="this.classList.toggle('on')"></button>
     </div>
 
+    <!-- Send to care circle members -->
+    <div id="share-recipients" style="padding:0 20px 16px;display:none;">
+      <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);font-weight:500;margin-bottom:8px;">Send to</div>
+      <div id="share-recipients-list"></div>
+      <button onclick="openAddContactFromShare()" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--moss);font-weight:500;background:none;border:none;cursor:pointer;padding:8px 0;font-family:'DM Sans',sans-serif;"><i data-lucide="plus" style="width:14px;height:14px;"></i> Add family member</button>
+    </div>
+
     <!-- Share link result area (hidden initially) -->
     <div id="share-link-result" style="display:none;padding:0 20px;margin-bottom:16px;">
       <div style="background:var(--mint);border:1px solid var(--moss);border-radius:12px;padding:14px 16px;">
@@ -3875,7 +3882,7 @@ function renderUpdateMe() {
       + '<span class="update-summary-label">Wellet summary</span>'
       + '<button class="update-summary-refresh" onclick="fetchUpdateMeSummary(true)" title="Refresh summary"><i data-lucide="refresh-cw" style="width:13px;height:13px;"></i></button>'
       + '</div>'
-      + '<p class="update-summary-text" id="update-summary-text">' + summaryCache[currentPersonId] + '</p>'
+      + '<p class="update-summary-text" id="update-summary-text">' + escHtml(summaryCache[currentPersonId]) + '</p>'
       + '</div>';
   } else {
     // Not yet fetched — show loading placeholder and trigger fetch
@@ -7587,8 +7594,36 @@ function openShareFamily() {
     previewEl.textContent = firstName + ' has ' + liveEvents.length + ' health event' + (liveEvents.length !== 1 ? 's' : '') + ' logged.';
   }
 
+  // Populate care circle recipients
+  var recipientsDiv = document.getElementById('share-recipients');
+  var recipientsList = document.getElementById('share-recipients-list');
+  if (!isDemoMode && liveCareCircle && liveCareCircle.length > 0) {
+    recipientsDiv.style.display = '';
+    var rhtml = '';
+    liveCareCircle.forEach(function(m) {
+      var hasEmail = m.email ? true : false;
+      rhtml += '<label style="display:flex;align-items:center;gap:10px;padding:8px 0;cursor:' + (hasEmail ? 'pointer' : 'default') + ';opacity:' + (hasEmail ? '1' : '0.5') + ';">'
+        + '<input type="checkbox" class="share-recipient-cb" value="' + escHtml(m.email || '') + '" data-name="' + escHtml(m.member_name) + '"' + (hasEmail ? ' checked' : ' disabled') + ' style="width:18px;height:18px;accent-color:var(--moss);">'
+        + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-size:14px;font-weight:500;color:var(--text-primary);">' + escHtml(m.member_name) + '</div>'
+        + '<div style="font-size:12px;color:var(--text-muted);">' + (hasEmail ? escHtml(m.email) : 'No email added') + '</div>'
+        + '</div>'
+        + '<div style="font-size:11px;color:var(--text-muted);text-transform:capitalize;">' + escHtml(m.role) + '</div>'
+        + '</label>';
+    });
+    recipientsList.innerHTML = rhtml;
+  } else {
+    recipientsDiv.style.display = '';
+    recipientsList.innerHTML = '<div style="font-size:13px;color:var(--text-muted);padding:4px 0;">No family members added yet.</div>';
+  }
+
   openSheetAccessible('share-overlay');
   initIcons();
+}
+
+function openAddContactFromShare() {
+  closeSheet('share-overlay');
+  openContactEdit(null);
 }
 
 var _lastShareUrl = '';
@@ -7807,7 +7842,14 @@ function openShareEmail(url) {
   var firstName = getPersonFirstName();
   var subject = encodeURIComponent('Health update for ' + firstName + ' — from Wellet');
   var body = encodeURIComponent('Hi,\n\nHere\u2019s a health summary for ' + firstName + ':\n\n' + url + '\n\nThis link will expire in 7 days.\n\nSent from Wellet \u2014 mywellet.com');
-  window.location.href = 'mailto:?subject=' + subject + '&body=' + body;
+  // Gather selected recipients
+  var recipients = [];
+  var cbs = document.querySelectorAll('.share-recipient-cb:checked');
+  cbs.forEach(function(cb) {
+    if (cb.value) recipients.push(cb.value);
+  });
+  var to = recipients.join(',');
+  window.location.href = 'mailto:' + to + '?subject=' + subject + '&body=' + body;
   showToast('Opened in Mail');
 }
 function openExportVisit() {
@@ -8397,7 +8439,7 @@ async function fetchUpdateMeSummary(forceRefresh) {
         summaryCache[pid] = 'empty';
       } else {
         // Store as escaped HTML (summary may contain markdown-style bold)
-        summaryCache[pid] = escHtml(data.summary);
+        summaryCache[pid] = data.summary;
       }
     } else {
       summaryCache[pid] = 'empty';
