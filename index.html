@@ -6469,7 +6469,9 @@ async function renderSignalsView() {
     var activeConns = conns.filter(function(c){ return c.status === 'active'; });
 
     if (activeConns.length > 0) {
+      var sigFirstName = getPersonFirstName();
       var ch = '<div class="signals-view">';
+      ch += '<p class="section-label">' + escHtml(sigFirstName) + '\u2019s Signals</p>';
       ch += '<div class="terra-devices-section">';
       ch += '<div class="terra-devices-title">Connected Devices</div>';
       for (var ci = 0; ci < activeConns.length; ci++) {
@@ -6492,7 +6494,9 @@ async function renderSignalsView() {
       ch += '</div></div>';
       el.innerHTML = ch;
     } else {
+      var sigFirstName = getPersonFirstName();
       el.innerHTML = '<div class="signals-view">'
+        + '<p class="section-label">' + escHtml(sigFirstName) + '\u2019s Signals</p>'
         + '<div class="signals-connect">'
         + '<div class="signals-connect-card">'
         + '<div class="signals-connect-icon"><i data-lucide="watch"></i></div>'
