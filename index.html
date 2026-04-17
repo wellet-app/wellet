@@ -11948,9 +11948,14 @@ window.addEventListener('message', function(event) {
 
 async function openTerraConnect() {
   if (!currentPersonId) { showToast('Select a person first', 'error'); return; }
-  var token = (await db.auth.getSession()).data.session.access_token;
 
   try {
+    var sessionRes = await db.auth.getSession();
+    var session = sessionRes.data.session;
+    if (!session) { showToast('Please sign in first', 'error'); return; }
+    var token = session.access_token;
+
+    showToast('Starting wearable connection\u2026');
     var res = await fetch(SUPABASE_URL + '/functions/v1/terra-auth', {
       method: 'POST',
       headers: {
@@ -11962,19 +11967,27 @@ async function openTerraConnect() {
     });
 
     if (!res.ok) {
-      var err = await res.json();
-      showToast(err.error || 'Failed to start wearable connection', 'error');
+      var errBody = await res.json().catch(function() { return {}; });
+      console.error('[Terra] generate failed:', res.status, errBody);
+      showToast(errBody.error || 'Failed to start wearable connection (' + res.status + ')', 'error');
       return;
     }
 
     var data = await res.json();
+    console.log('[Terra] generate response:', data);
     if (data.widget_url) {
       _terraPopup = window.open(data.widget_url, 'terra_connect', 'width=500,height=700,scrollbars=yes');
-      showToast('Complete the connection in the popup window', 'info');
+      if (!_terraPopup || _terraPopup.closed) {
+        showToast('Popup blocked \u2014 please allow popups for mywellet.com', 'error');
+      } else {
+        showToast('Complete the connection in the popup window', 'info');
+      }
+    } else {
+      showToast('No widget URL returned \u2014 check Terra config', 'error');
     }
   } catch (e) {
-    console.error('Terra connect error:', e);
-    showToast('Failed to connect wearable', 'error');
+    console.error('[Terra] connect error:', e);
+    showToast('Failed to connect wearable: ' + (e.message || ''), 'error');
   }
 }
 
