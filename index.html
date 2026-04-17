@@ -3277,7 +3277,15 @@
 const SUPABASE_URL = 'https://nrpdhxygzyfmyljzfexv.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU';
 const { createClient } = supabase;
-const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storageKey: 'sb-wellet-auth',
+    storage: window.localStorage
+  }
+});
 
 // ── GLOBAL STATE ─────────────────────────────────────────────────────────────
 var isDemoMode = false;
@@ -3466,21 +3474,30 @@ async function initApp() {
   }
   // Handle auth state changes (magic link callback)
   db.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN' && session) {
-      // Verify allowlist on sign-in too
-      var allowed = await checkAlphaAllowlist(session.user.email);
-      if (!allowed) {
-        await db.auth.signOut();
-        showAuthScreen();
-        showToast('Your email is not on the alpha list');
+    if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && session) {
+      // Skip re-init if we already loaded this user (avoids double-load on startup)
+      if (currentUser && currentUser.id === session.user.id && event !== 'SIGNED_IN') {
+        resetInactivityTimer();
         return;
+      }
+      // Verify allowlist on fresh sign-in
+      if (event === 'SIGNED_IN') {
+        var allowed = await checkAlphaAllowlist(session.user.email);
+        if (!allowed) {
+          await db.auth.signOut();
+          showAuthScreen();
+          showToast('Your email is not on the alpha list');
+          return;
+        }
       }
       currentUser = session.user;
       resetInactivityTimer();
-      await loadUserData();
-      // Auto-accept invite if pending
-      if (_pendingInviteToken && _inviteData) {
-        await acceptInvite();
+      // Only load data if not already loaded by initApp
+      if (event === 'SIGNED_IN') {
+        await loadUserData();
+        if (_pendingInviteToken && _inviteData) {
+          await acceptInvite();
+        }
       }
     } else if (event === 'SIGNED_OUT') {
       currentUser = null;
