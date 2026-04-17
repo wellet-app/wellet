@@ -898,6 +898,23 @@
   .ehr-demo-tooltip:hover::after { content:attr(data-tooltip); position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%); background:var(--text-primary); color:white; font-size:11px; padding:6px 10px; border-radius:8px; white-space:nowrap; z-index:10; pointer-events:none; }
   .ehr-demo-tooltip:hover::before { content:''; position:absolute; bottom:calc(100% + 2px); left:50%; transform:translateX(-50%); border:4px solid transparent; border-top-color:var(--text-primary); z-index:10; }
 
+  /* ── HOSPITAL PICKER ── */
+  .hospital-picker-search { width:100%; padding:12px 14px 12px 40px; border:1.5px solid var(--border-medium); border-radius:12px; font-size:15px; font-family:'DM Sans',sans-serif; background:var(--warm-white); color:var(--text-primary); outline:none; transition:border-color 0.15s; box-sizing:border-box; }
+  .hospital-picker-search:focus { border-color:var(--moss); }
+  .hospital-picker-search-wrap { position:relative; padding:0 20px 12px; }
+  .hospital-picker-search-wrap i { position:absolute; left:34px; top:12px; color:var(--text-muted); width:16px; height:16px; pointer-events:none; }
+  .hospital-picker-list { list-style:none; margin:0; padding:0 20px 16px; max-height:52vh; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  .hospital-picker-item { padding:14px 12px; border-bottom:1px solid var(--border); cursor:pointer; transition:background 0.12s; border-radius:8px; }
+  .hospital-picker-item:hover { background:var(--mint); }
+  .hospital-picker-item:last-child { border-bottom:none; }
+  .hospital-picker-name { font-size:14px; font-weight:500; color:var(--text-primary); line-height:1.4; }
+  .hospital-picker-loc { font-size:12px; color:var(--text-muted); margin-top:2px; }
+  .hospital-picker-empty { text-align:center; padding:32px 16px; color:var(--text-muted); font-size:13px; line-height:1.5; }
+  .hospital-picker-loading { text-align:center; padding:32px 16px; color:var(--text-muted); font-size:13px; }
+  .hospital-picker-sandbox { text-align:center; padding:12px 20px 4px; }
+  .hospital-picker-sandbox a { font-size:12px; color:var(--text-muted); cursor:pointer; text-decoration:underline; }
+  .hospital-picker-sandbox a:hover { color:var(--moss); }
+
   /* ── CARESIGNALS ──────────────────────────────────────────────────────────── */
   .signals-view { padding:20px 16px 100px 16px; }
   .signals-section { margin-bottom:28px; }
@@ -3275,6 +3292,26 @@
       </div>
       <div id="med-detail-body" style="display:flex;flex-direction:column;gap:14px;"></div>
     </div>
+  </div>
+</div>
+
+<!-- HOSPITAL PICKER SHEET -->
+<div class="qa-overlay" id="hospital-picker-overlay">
+  <div class="qa-sheet">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" aria-label="Close" onclick="closeSheet('hospital-picker-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title">Connect Health Records</div>
+    <div class="qa-sheet-sub">Search for your hospital or health system</div>
+    <div class="hospital-picker-search-wrap">
+      <i data-lucide="search" style="width:16px;height:16px;"></i>
+      <input type="text" class="hospital-picker-search" id="hospital-picker-input" placeholder="Search hospitals..." autocomplete="off" />
+    </div>
+    <ul class="hospital-picker-list" id="hospital-picker-list">
+      <li class="hospital-picker-loading">Loading hospitals...</li>
+    </ul>
+    <div class="hospital-picker-sandbox"><a onclick="beginEhrOAuth(null, null, true)">Use Epic sandbox (testing)</a></div>
   </div>
 </div>
 
@@ -6768,18 +6805,153 @@ function getEhrData(personId) {
   return ehrCache[personId] || loadEhrCache(personId);
 }
 
-// Start the EHR connection OAuth flow (Epic SMART on FHIR)
+// ── Hospital picker state ──
+var _epicEndpoints = null;
+var _epicEndpointsCachedAt = 0;
+var _hospitalPickerDebounce = null;
+
+// Load Epic endpoint list from open.epic.com (cached 24h in localStorage)
+function loadEpicEndpoints(cb) {
+  var CACHE_KEY = 'wellet_epic_endpoints';
+  var CACHE_TS_KEY = 'wellet_epic_endpoints_ts';
+  var CACHE_TTL = 24 * 60 * 60 * 1000;
+
+  // Check in-memory cache first
+  if (_epicEndpoints && (Date.now() - _epicEndpointsCachedAt < CACHE_TTL)) {
+    cb(_epicEndpoints);
+    return;
+  }
+
+  // Check localStorage cache
+  try {
+    var ts = parseInt(localStorage.getItem(CACHE_TS_KEY) || '0', 10);
+    if (Date.now() - ts < CACHE_TTL) {
+      var cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        _epicEndpoints = JSON.parse(cached);
+        _epicEndpointsCachedAt = ts;
+        cb(_epicEndpoints);
+        return;
+      }
+    }
+  } catch(e) {}
+
+  // Fetch from Epic
+  fetch('https://open.epic.com/MyApps/EndpointsJson')
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      var endpoints = (data.Entries || data).map(function(e) {
+        return {
+          name: e.OrganizationName || e.Name || '',
+          fhirBaseUrl: e.FHIRPatientFacingURI || e.BaseURL || e.FHIRBaseUrl || '',
+          city: e.City || '',
+          state: e.State || ''
+        };
+      }).filter(function(e) { return e.name && e.fhirBaseUrl; });
+
+      _epicEndpoints = endpoints;
+      _epicEndpointsCachedAt = Date.now();
+
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify(endpoints));
+        localStorage.setItem(CACHE_TS_KEY, String(Date.now()));
+      } catch(e) {}
+
+      cb(endpoints);
+    }).catch(function(err) {
+      console.error('Failed to load Epic endpoints:', err);
+      cb([]);
+    });
+}
+
+function renderHospitalList(filtered) {
+  var list = document.getElementById('hospital-picker-list');
+  if (!list) return;
+  if (!filtered || filtered.length === 0) {
+    list.innerHTML = '<li class="hospital-picker-empty">No hospitals found. Try a different search term.</li>';
+    return;
+  }
+  var shown = filtered.slice(0, 50);
+  var html = '';
+  for (var i = 0; i < shown.length; i++) {
+    var h = shown[i];
+    var loc = [h.city, h.state].filter(Boolean).join(', ');
+    html += '<li class="hospital-picker-item" onclick="selectHospital(' + i + ')">'
+      + '<div class="hospital-picker-name">' + escHtml(h.name) + '</div>'
+      + (loc ? '<div class="hospital-picker-loc">' + escHtml(loc) + '</div>' : '')
+      + '</li>';
+  }
+  list.innerHTML = html;
+  // Store filtered list for selection
+  list._filtered = shown;
+}
+
+function selectHospital(idx) {
+  var list = document.getElementById('hospital-picker-list');
+  if (!list || !list._filtered || !list._filtered[idx]) return;
+  var h = list._filtered[idx];
+  closeSheet('hospital-picker-overlay');
+  beginEhrOAuth(h.fhirBaseUrl, h.name, false);
+}
+
+function filterHospitals(query) {
+  if (!_epicEndpoints) return [];
+  if (!query) return _epicEndpoints.slice(0, 50);
+  var q = query.toLowerCase();
+  return _epicEndpoints.filter(function(e) {
+    return e.name.toLowerCase().indexOf(q) !== -1
+      || (e.city && e.city.toLowerCase().indexOf(q) !== -1)
+      || (e.state && e.state.toLowerCase().indexOf(q) !== -1);
+  });
+}
+
+// Open the hospital picker overlay
 function startEhrConnect() {
   if (isDemoMode) {
     showToast('In the real app, this connects to your provider\u2019s records');
     return;
   }
-
-  if (_ehrConnecting) return;
   if (!currentUser) {
     showToast('Please sign in first');
     return;
   }
+  if (!currentPersonId) {
+    showToast('Please select a person first');
+    return;
+  }
+
+  openSheetAccessible('hospital-picker-overlay');
+  initIcons();
+
+  var input = document.getElementById('hospital-picker-input');
+  if (input) {
+    input.value = '';
+    input.removeEventListener('input', _hospitalPickerInputHandler);
+    input.addEventListener('input', _hospitalPickerInputHandler);
+  }
+
+  // Load endpoints and render initial list
+  var list = document.getElementById('hospital-picker-list');
+  if (list) list.innerHTML = '<li class="hospital-picker-loading">Loading hospitals\u2026</li>';
+
+  loadEpicEndpoints(function(endpoints) {
+    renderHospitalList(endpoints.slice(0, 50));
+  });
+}
+
+function _hospitalPickerInputHandler() {
+  clearTimeout(_hospitalPickerDebounce);
+  _hospitalPickerDebounce = setTimeout(function() {
+    var input = document.getElementById('hospital-picker-input');
+    var query = input ? input.value.trim() : '';
+    var filtered = filterHospitals(query);
+    renderHospitalList(filtered);
+  }, 200);
+}
+
+// Begin the actual OAuth redirect for a selected hospital (or sandbox)
+function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox) {
+  if (_ehrConnecting) return;
   var personId = currentPersonId;
   if (!personId) {
     showToast('Please select a person first');
@@ -6789,29 +6961,24 @@ function startEhrConnect() {
   _ehrConnecting = true;
   _ehrPendingPersonId = personId;
 
-  // Store the person_id so we can use it when the callback returns
   try { localStorage.setItem('wellet_ehr_pending_person', personId); } catch(e) {}
 
-  // Show privacy notice
-  var confirmed = confirm(
-    'Connect Health Records\n\n'
-    + 'Your health records are encrypted and protected with row-level security. Wellet processes the data to show you what matters \u2014 you own it and control who sees it.\n\n'
-    + 'You\u2019ll be redirected to Epic MyChart to sign in and authorize access.'
-  );
-  if (!confirmed) {
-    _ehrConnecting = false;
-    return;
-  }
+  var label = isSandbox ? 'Epic Sandbox' : (hospitalName || 'your hospital');
+  showToast('Connecting to ' + label + '\u2026');
 
-  showToast('Connecting to Epic MyChart\u2026');
-
-  // Call the epic-auth edge function to get the authorize URL
   db.auth.getSession().then(function(sessionRes) {
     var session = sessionRes.data.session;
     if (!session) {
       showToast('Session expired. Please sign in again.');
       _ehrConnecting = false;
       return;
+    }
+    var payload = { action: 'start', person_id: personId };
+    if (isSandbox) {
+      payload.sandbox = true;
+    } else if (fhirBaseUrl) {
+      payload.fhirBaseUrl = fhirBaseUrl;
+      if (hospitalName) payload.hospitalName = hospitalName;
     }
     return fetch(SUPABASE_URL + '/functions/v1/epic-auth', {
       method: 'POST',
@@ -6820,7 +6987,7 @@ function startEhrConnect() {
         'Content-Type': 'application/json',
         'apikey': SUPABASE_ANON_KEY
       },
-      body: JSON.stringify({ action: 'start', person_id: personId })
+      body: JSON.stringify(payload)
     });
   }).then(function(res) {
     if (!res) return;
@@ -6833,10 +7000,10 @@ function startEhrConnect() {
       return;
     }
     if (data.authorize_url) {
-      // Validate redirect URL to prevent open redirect
+      // Validate redirect URL — must be HTTPS (production hospitals have diverse hostnames)
       try {
         var authUrl = new URL(data.authorize_url);
-        if (authUrl.hostname.endsWith('epic.com')) {
+        if (authUrl.protocol === 'https:') {
           window.location.href = data.authorize_url;
         } else {
           showToast('Invalid authorize URL');
