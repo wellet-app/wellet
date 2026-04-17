@@ -1159,165 +1159,6 @@
   .eoc-archived-meta { font-size:12px; color:var(--text-muted); margin-top:1px; }
   .eoc-restore-btn { background:var(--mint); color:var(--moss); border:none; border-radius:8px; padding:6px 14px; font-size:12px; font-weight:500; font-family:'DM Sans',sans-serif; cursor:pointer; transition:background 0.15s; white-space:nowrap; }
   .eoc-restore-btn:hover { background:var(--mint-deep); }
-
-  .signals-waiting { display:flex; flex-direction:column; align-items:center; gap:8px; padding:32px 20px; text-align:center; color:var(--text-muted); }
-  .signals-waiting-text { font-size:14px; font-weight:500; color:var(--text-secondary); }
-  .signals-waiting-sub { font-size:12px; color:var(--text-muted); }
-
-
-  /* ── GLOBAL SEARCH OVERLAY ── */
-  .search-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.55); z-index: 200; align-items: flex-start; justify-content: center; padding-top: 0; }
-  .search-overlay.show { display: flex; }
-  .search-sheet { background: white; width: 100%; max-width: 768px; min-height: 100%; max-height: 100%; overflow-y: auto; display: flex; flex-direction: column; }
-  .search-header { padding: 16px 16px 12px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: white; z-index: 10; }
-  .search-input-wrap { flex: 1; display: flex; align-items: center; gap: 10px; background: var(--cream); border-radius: 12px; padding: 10px 14px; border: 1.5px solid transparent; transition: border-color 0.15s; }
-  .search-input-wrap:focus-within { border-color: var(--moss); background: white; }
-  .search-input-icon { color: var(--text-muted); flex-shrink: 0; }
-  .search-input { flex: 1; border: none; background: transparent; font-size: 16px; font-family: 'DM Sans', sans-serif; color: var(--text-primary); outline: none; }
-  .search-input::placeholder { color: var(--text-muted); }
-  .search-cancel-btn { background: none; border: none; font-size: 14px; font-family: 'DM Sans', sans-serif; color: var(--moss); font-weight: 500; cursor: pointer; padding: 8px 4px; white-space: nowrap; }
-  .search-cancel-btn:hover { color: var(--text-primary); }
-  .search-body { flex: 1; padding: 0 0 40px; }
-  .search-section-header { padding: 16px 16px 6px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); font-weight: 600; }
-  .search-result-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; cursor: pointer; border-bottom: 1px solid var(--border); transition: background 0.12s; }
-  .search-result-item:last-child { border-bottom: none; }
-  .search-result-item:hover, .search-result-item:active { background: var(--cream); }
-  .search-result-icon { width: 36px; height: 36px; border-radius: 10px; background: var(--mint); display: flex; align-items: center; justify-content: center; color: var(--moss); flex-shrink: 0; }
-  .search-result-icon.icon-med { background: #FFF8E1; color: #F9A825; }
-  .search-result-icon.icon-event { background: #E8F5E9; color: #4CAF50; }
-  .search-result-icon.icon-doc { background: #E3F2FD; color: #1976D2; }
-  .search-result-icon.icon-vital { background: #FCE4EC; color: #C2185B; }
-  .search-result-icon.icon-allergy { background: #FBE9E7; color: #E64A19; }
-  .search-result-text { flex: 1; min-width: 0; }
-  .search-result-title { font-size: 14px; font-weight: 500; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .search-result-sub { font-size: 12px; color: var(--text-muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .search-result-chevron { color: var(--border-medium); flex-shrink: 0; }
-  .search-empty { padding: 48px 20px; text-align: center; }
-  .search-empty-icon { width: 52px; height: 52px; border-radius: 50%; background: var(--cream); display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; color: var(--text-muted); }
-  .search-empty-title { font-size: 16px; font-weight: 500; color: var(--text-primary); margin-bottom: 6px; }
-  .search-empty-sub { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
-  .search-recents { padding: 16px 0 0; }
-  .search-recents-header { padding: 0 16px 8px; display: flex; align-items: center; justify-content: space-between; }
-  .search-recents-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); font-weight: 600; }
-  .search-recents-clear { background: none; border: none; font-size: 12px; color: var(--moss); font-family: 'DM Sans', sans-serif; cursor: pointer; padding: 0; }
-  .search-recents-clear:hover { text-decoration: underline; }
-  .search-recent-item { display: flex; align-items: center; gap: 12px; padding: 10px 16px; cursor: pointer; }
-  .search-recent-item:hover { background: var(--cream); }
-  .search-recent-icon { color: var(--text-muted); flex-shrink: 0; }
-  .search-recent-text { font-size: 14px; color: var(--text-secondary); flex: 1; }
-  .search-loading { padding: 32px 20px; text-align: center; color: var(--text-muted); font-size: 14px; }
-
-  .lang-pill-row { display: flex; gap: 8px; padding: 8px 0 4px; }
-  .lang-pill-btn { flex: 1; padding: 8px 12px; border-radius: 20px; border: 1.5px solid var(--border-medium); background: white; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; color: var(--text-muted); cursor: pointer; transition: all 0.15s; }
-  .lang-pill-btn.active { background: var(--moss); border-color: var(--moss); color: white; }
-  .lang-pill-btn:hover:not(.active) { border-color: var(--moss); color: var(--moss); }
-
-
-  /* ── VISIT PREP ────────────────────────────────────────────────────────── */
-  .visit-prep-card {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 16px;
-    background: var(--mint);
-    border-radius: 14px;
-    cursor: pointer;
-    margin: 12px 0;
-    border: none;
-    width: 100%;
-    font-family: 'DM Sans', sans-serif;
-    text-align: left;
-    transition: background 0.15s;
-  }
-  .visit-prep-card:hover { background: var(--mint-deep); }
-  .visit-prep-card.resume-card { background: #EEF5F0; border: 1.5px solid var(--moss); }
-  .visit-prep-card.resume-card:hover { background: #E4EEE8; }
-  .visit-prep-icon {
-    width: 40px;
-    height: 40px;
-    background: var(--moss);
-    color: white;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-  .visit-prep-icon.resume { background: var(--moss-dark); }
-  .visit-prep-content { flex: 1; min-width: 0; }
-  .visit-prep-title { font-size: 15px; font-weight: 600; color: var(--text-primary); }
-  .visit-prep-desc { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
-
-  /* Visit prep overlay */
-  .vp-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 110; align-items: flex-end; justify-content: center; }
-  .vp-overlay.show { display: flex; }
-  .vp-sheet { background: white; border-radius: 20px 20px 0 0; width: 100%; max-width: 768px; max-height: 90vh; overflow-y: auto; padding-bottom: 36px; }
-  .vp-handle-row { padding: 16px 20px 0; display: flex; align-items: flex-start; justify-content: space-between; }
-  .vp-handle { width: 36px; height: 4px; background: var(--border-medium); border-radius: 2px; margin-top: 4px; }
-  .vp-step { display: none; padding: 0 20px; }
-  .vp-step.active { display: block; }
-  .vp-title { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; padding: 12px 20px 4px; }
-  .vp-sub { font-size: 13px; color: var(--text-muted); padding: 0 20px 16px; }
-
-  /* Visit type cards */
-  .visit-type-grid { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
-  .visit-type-card {
-    padding: 14px 16px;
-    border: 1.5px solid var(--border-medium);
-    border-radius: 12px;
-    cursor: pointer;
-    transition: all 0.15s;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: white;
-  }
-  .visit-type-card:hover, .visit-type-card.selected {
-    border-color: var(--moss);
-    background: var(--mint);
-  }
-  .visit-type-icon { width: 32px; height: 32px; border-radius: 8px; background: var(--mint); display: flex; align-items: center; justify-content: center; color: var(--moss); flex-shrink: 0; }
-  .visit-type-card.selected .visit-type-icon { background: var(--moss); color: white; }
-  .visit-type-label { font-size: 14px; font-weight: 500; color: var(--text-primary); }
-  .visit-type-sub { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
-
-  /* Step 2 context */
-  .vp-textarea { width: 100%; border: 1.5px solid var(--border-medium); border-radius: 12px; padding: 12px 14px; font-size: 13px; font-family: 'DM Sans', sans-serif; color: var(--text-primary); resize: none; outline: none; transition: border-color 0.15s; min-height: 90px; line-height: 1.55; box-sizing: border-box; }
-  .vp-textarea:focus { border-color: var(--moss); }
-  .vp-generate-btn { width: 100%; margin-top: 14px; padding: 14px; background: var(--moss); color: white; border: none; border-radius: 12px; font-size: 14px; font-weight: 500; font-family: 'DM Sans', sans-serif; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.15s; }
-  .vp-generate-btn:hover { background: var(--moss-dark); }
-  .vp-back-link { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: var(--moss); font-weight: 500; background: none; border: none; cursor: pointer; padding: 0; font-family: 'DM Sans', sans-serif; margin-bottom: 14px; }
-
-  /* Step 3 loading */
-  .vp-loading-wrap { padding: 40px 20px; text-align: center; }
-  .vp-loading-dots { display: flex; justify-content: center; gap: 8px; margin-bottom: 20px; }
-  .vp-loading-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--moss); opacity: 0.3; animation: vpDotPulse 1.4s ease-in-out infinite; }
-  .vp-loading-dot:nth-child(2) { animation-delay: 0.2s; }
-  .vp-loading-dot:nth-child(3) { animation-delay: 0.4s; }
-  @keyframes vpDotPulse { 0%, 80%, 100% { opacity: 0.3; transform: scale(0.85); } 40% { opacity: 1; transform: scale(1); } }
-  .vp-loading-text { font-size: 15px; font-weight: 500; color: var(--text-primary); margin-bottom: 6px; }
-  .vp-loading-sub { font-size: 13px; color: var(--text-muted); }
-
-  /* Step 4 questions */
-  .vp-questions-list { margin-bottom: 20px; }
-  .vp-question-group-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); font-weight: 500; margin: 16px 0 8px; }
-  .vp-question-item { display: flex; align-items: flex-start; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border); }
-  .vp-question-item:last-child { border-bottom: none; }
-  .vp-question-cb { width: 20px; height: 20px; border: 2px solid var(--border-medium); border-radius: 5px; flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; margin-top: 1px; appearance: none; -webkit-appearance: none; background: white; }
-  .vp-question-cb:checked { background: var(--moss); border-color: var(--moss); }
-  .vp-question-cb:checked::after { content: ''; display: block; width: 5px; height: 9px; border: 2px solid white; border-top: none; border-left: none; transform: rotate(45deg) translate(-1px, -1px); }
-  .vp-question-text { font-size: 14px; color: var(--text-primary); line-height: 1.55; flex: 1; cursor: pointer; }
-  .vp-question-text.checked { color: var(--text-muted); text-decoration: line-through; }
-
-  /* Step 5 actions */
-  .vp-action-btn { width: 100%; padding: 13px 16px; border-radius: 12px; font-size: 14px; font-weight: 500; font-family: 'DM Sans', sans-serif; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.15s; margin-bottom: 10px; }
-  .vp-action-btn.primary { background: var(--moss); color: white; border: none; }
-  .vp-action-btn.primary:hover { background: var(--moss-dark); }
-  .vp-action-btn.secondary { background: white; color: var(--moss); border: 1.5px solid var(--moss); }
-  .vp-action-btn.secondary:hover { background: var(--mint); }
-  .vp-action-btn.tertiary { background: white; color: var(--text-secondary); border: 1.5px solid var(--border-medium); }
-  .vp-action-btn.tertiary:hover { border-color: var(--moss); color: var(--moss); }
-  .vp-saved-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--moss); font-weight: 500; background: var(--mint); padding: 4px 10px; border-radius: 20px; margin-bottom: 12px; }
 </style>
 </head>
 <body>
@@ -1548,7 +1389,6 @@
       </div>
       <div class="header-actions" style="display:flex;align-items:center;gap:6px;">
           <button class="icon-btn" id="demo-back-btn" onclick="showLanding()" title="Back to start" aria-label="Back" style="display:none;"><i data-lucide="arrow-left" style="width:16px;height:16px;"></i></button>
-          <button class="icon-btn" onclick="openSearch()" title="Search" aria-label="Search"><i data-lucide="search" style="width:16px;height:16px;"></i></button>
           <div class="notif-bell-wrap">
             <button class="icon-btn" id="notif-bell-btn" onclick="openNotifPanel()" title="Reminders" aria-label="Notifications"><i data-lucide="bell" style="width:16px;height:16px;"></i></button>
             <span class="notif-bell-badge" id="notif-bell-badge" data-count="0"></span>
@@ -1735,7 +1575,7 @@
     <!-- PATTERNS -->
     <div id="tab-patterns" class="tab-pane" role="tabpanel" aria-labelledby="tab-btn-patterns">
       <div class="patterns-section">
-        <p class="section-label" data-i18n="patterns.noticed">What Wellet has noticed</p>
+        <p class="section-label">What Wellet has noticed</p>
         <div class="insight-card">
           <div class="insight-row"><div class="insight-count">7</div><div><div class="insight-label">Blood pressure readings this month</div></div></div>
           <div class="insight-sub">Readings have been consistently higher since February 18 — the same day Hydrochlorothiazide was adjusted. This may be expected during medication titration.</div>
@@ -2328,7 +2168,7 @@
     <div class="er-header">
       <div class="er-header-left">
         <i data-lucide="shield-alert" style="width:22px;height:22px;"></i>
-        <span class="er-header-title" data-i18n="emergency.title">Emergency Summary</span>
+        <span class="er-header-title">Emergency Summary</span>
       </div>
       <button class="er-close-btn" onclick="closeSheet('emergency-overlay')" aria-label="Close">
         <i data-lucide="x" style="width:22px;height:22px;"></i>
@@ -2458,11 +2298,11 @@
     <div class="share-options" id="share-options">
       <div class="share-option" onclick="createShareLink('copy')">
         <div class="share-option-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="link" style="width:17px;height:17px;"></i></div>
-        <div><div class="share-option-label" data-i18n="share.copyLink">Copy link</div><div class="share-option-sub">Anyone with the link can view for 7 days</div></div>
+        <div><div class="share-option-label">Copy link</div><div class="share-option-sub">Anyone with the link can view for 7 days</div></div>
       </div>
       <div class="share-option" onclick="createShareLink('email')">
         <div class="share-option-icon" style="background:#FDF5E8;color:var(--amber);"><i data-lucide="mail" style="width:17px;height:17px;"></i></div>
-        <div><div class="share-option-label" data-i18n="share.sendEmail">Send via email</div><div class="share-option-sub">Opens a pre-filled email with the link</div></div>
+        <div><div class="share-option-label">Send via email</div><div class="share-option-sub">Opens a pre-filled email with the link</div></div>
       </div>
       <div class="share-option" onclick="downloadSharePDF()">
         <div class="share-option-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="file-text" style="width:17px;height:17px;"></i></div>
@@ -2638,7 +2478,7 @@
           <div id="upload-progress-bar" style="height:100%;background:var(--moss);border-radius:6px;width:0%;transition:width 0.3s ease;"></div>
         </div>
         <div id="upload-time-estimate" style="margin-top:10px;font-size:12px;color:var(--text-muted);min-height:18px;"></div>
-        <button id="upload-cancel-btn" onclick="cancelActiveUpload()" style="margin-top:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;padding:8px 16px;" data-i18n="common.cancel">Cancel</button>
+        <button id="upload-cancel-btn" onclick="cancelActiveUpload()" style="margin-top:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;padding:8px 16px;">Cancel</button>
       </div>
     </div>
 
@@ -2730,86 +2570,77 @@
       <div class="settings-handle"></div>
       <button class="close-btn" aria-label="Close" onclick="closeSettings()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
-    <div class="settings-title" id="settings-title-el">Settings</div>
+    <div class="settings-title">Settings</div>
 
     <!-- Account section (shown when logged in) -->
     <div class="settings-section" id="settings-account-section" style="display:none;">
-      <div class="settings-section-label" data-i18n="settings.account">Account</div>
+      <div class="settings-section-label">Account</div>
       <div class="settings-row">
         <div class="settings-row-left">
           <div class="settings-row-icon"><i data-lucide="user" style="width:15px;height:15px;"></i></div>
-          <div><div class="settings-row-label" id="settings-user-email" data-i18n="settings.signedIn">Signed in</div><div class="settings-row-meta" data-i18n="settings.magicLink">Magic link authentication</div></div>
+          <div><div class="settings-row-label" id="settings-user-email">Signed in</div><div class="settings-row-meta">Magic link authentication</div></div>
         </div>
       </div>
       <div class="settings-row" style="cursor:pointer;" onclick="handleLogout()">
         <div class="settings-row-left">
           <div class="settings-row-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="log-out" style="width:15px;height:15px;"></i></div>
-          <div><div class="settings-row-label" style="color:var(--red);" data-i18n="settings.signOut">Sign out</div><div class="settings-row-meta" data-i18n="settings.signOutMeta">Return to login screen</div></div>
+          <div><div class="settings-row-label" style="color:var(--red);">Sign out</div><div class="settings-row-meta">Return to login screen</div></div>
         </div>
-    <!-- Language section -->
-    <div class="settings-section" id="settings-language-section">
-      <div class="settings-section-label" data-i18n="settings.language">Language</div>
-      <div class="lang-pill-row">
-        <button class="lang-pill-btn active" data-lang="en" onclick="setLanguage('en')">English</button>
-        <button class="lang-pill-btn" data-lang="es" onclick="setLanguage('es')">Español</button>
-      </div>
-    </div>
-
         <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
       </div>
     </div>
 
     <div class="settings-section" id="settings-feedback-section">
-      <div class="settings-section-label" data-i18n="settings.alpha">Alpha</div>
+      <div class="settings-section-label">Alpha</div>
       <div class="settings-row" style="cursor:pointer;" onclick="openFeedbackSheet()">
         <div class="settings-row-left">
           <div class="settings-row-icon" style="background:#E8F5E9;color:#4CAF50;"><i data-lucide="message-square-heart" style="width:15px;height:15px;"></i></div>
-          <div><div class="settings-row-label" data-i18n="settings.sendFeedback">Send feedback</div><div class="settings-row-meta" data-i18n="settings.sendFeedbackMeta">Help shape Wellet — tell me what works and what doesn't</div></div>
+          <div><div class="settings-row-label">Send feedback</div><div class="settings-row-meta">Help shape Wellet — tell me what works and what doesn't</div></div>
         </div>
         <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
       </div>
       <div class="settings-row">
         <div class="settings-row-left">
           <div class="settings-row-icon" style="background:#FFF8E1;color:#F9A825;"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>
-          <div><div class="settings-row-label" data-i18n="settings.alphaTester">Alpha tester</div><div class="settings-row-meta" data-i18n="settings.alphaTesterMeta">You're one of Wellet's first users</div></div>
+          <div><div class="settings-row-label">Alpha tester</div><div class="settings-row-meta">You're one of Wellet's first users</div></div>
         </div>
       </div>
     </div>
 
     <div class="settings-section">
-      <div class="settings-section-label" data-i18n="settings.notifications">Notifications</div>
+      <div class="settings-section-label">Notifications</div>
       <div class="settings-row">
         <div class="settings-row-left">
           <div class="settings-row-icon"><i data-lucide="bell" style="width:15px;height:15px;"></i></div>
-          <div><div class="settings-row-label" data-i18n="settings.weeklyDigest">Weekly digest</div><div class="settings-row-meta" data-i18n="settings.weeklyDigestMeta">Every Sunday at 5 PM</div></div>
+          <div><div class="settings-row-label">Weekly digest</div><div class="settings-row-meta">Every Sunday at 5 PM</div></div>
         </div>
         <button class="toggle on" id="toggle-weekly-digest" onclick="toggleNotifPref(this,'weekly_digest')"></button>
       </div>
       <div class="settings-row">
         <div class="settings-row-left">
           <div class="settings-row-icon"><i data-lucide="mail" style="width:15px;height:15px;"></i></div>
-          <div><div class="settings-row-label" data-i18n="settings.newMessages">New messages</div><div class="settings-row-meta" data-i18n="settings.newMessagesMeta">From care team portals</div></div>
+          <div><div class="settings-row-label">New messages</div><div class="settings-row-meta">From care team portals</div></div>
         </div>
         <button class="toggle on" id="toggle-care-circle-emails" onclick="toggleNotifPref(this,'care_circle_emails')"></button>
       </div>
       <div class="settings-row">
         <div class="settings-row-left">
           <div class="settings-row-icon"><i data-lucide="activity" style="width:15px;height:15px;"></i></div>
-          <div><div class="settings-row-label" data-i18n="settings.patternChanges">Pattern changes</div><div class="settings-row-meta" data-i18n="settings.patternChangesMeta">When Wellet notices something</div></div>
+          <div><div class="settings-row-label">Pattern changes</div><div class="settings-row-meta">When Wellet notices something</div></div>
         </div>
         <button class="toggle on" id="toggle-pattern-alerts" onclick="toggleNotifPref(this,'pattern_alerts')"></button>
       </div>
       <div class="settings-row">
         <div class="settings-row-left">
           <div class="settings-row-icon"><i data-lucide="mail-check" style="width:15px;height:15px;"></i></div>
-          <div><div class="settings-row-label" data-i18n="settings.emailReminders">Email me reminders</div><div class="settings-row-meta" data-i18n="settings.emailRemindersMeta">Medication &amp; appointment emails</div></div>
+          <div><div class="settings-row-label">Email me reminders</div><div class="settings-row-meta">Medication &amp; appointment emails</div></div>
         </div>
         <button class="toggle" id="toggle-email-reminders" onclick="toggleNotifPref(this,'email_reminders')"></button>
       </div>
       <div class="settings-row">
         <div class="settings-row-left">
           <div class="settings-row-icon"><i data-lucide="moon" style="width:15px;height:15px;"></i></div>
-          <div><div class="settings-row-label" data-i18n="settings.quietHours">Quiet hours</div><div class="settings-row-meta" data-i18n="settings.quietHoursMeta">Silence notifications during set times</div></div>
+          <div><div class="settings-row-label">Quiet hours</div><div class="settings-row-meta">Silence notifications during set times</div></div>
         </div>
         <button class="toggle" id="toggle-quiet-hours" onclick="toggleNotifPref(this,'quiet_hours_enabled')"></button>
       </div>
@@ -2824,25 +2655,25 @@
     </div>
 
     <div class="settings-section" style="margin-top:12px;">
-      <div class="settings-section-label" data-i18n="settings.privacy">Privacy &amp; Security</div>
+      <div class="settings-section-label">Privacy &amp; Security</div>
       <div class="settings-row">
         <div class="settings-row-left">
           <div class="settings-row-icon"><i data-lucide="lock" style="width:15px;height:15px;"></i></div>
-          <div><div class="settings-row-label" data-i18n="settings.appLock">App lock</div><div class="settings-row-meta" data-i18n="settings.appLockMeta">Face ID / passcode on open</div></div>
+          <div><div class="settings-row-label">App lock</div><div class="settings-row-meta">Face ID / passcode on open</div></div>
         </div>
         <button class="toggle on" onclick="this.classList.toggle('on')"></button>
       </div>
             <div class="settings-row">
         <div class="settings-row-left">
           <div class="settings-row-icon"><i data-lucide="shield" style="width:15px;height:15px;"></i></div>
-          <div><div class="settings-row-label" data-i18n="settings.exportControl">Export control</div><div class="settings-row-meta" data-i18n="settings.exportControlMeta">Confirm before sharing data</div></div>
+          <div><div class="settings-row-label">Export control</div><div class="settings-row-meta">Confirm before sharing data</div></div>
         </div>
         <button class="toggle on" onclick="this.classList.toggle('on')"></button>
       </div>
     </div>
 
     <div class="settings-section" style="margin-top:12px;">
-      <div class="settings-section-label" data-i18n="settings.careCircle">Family &amp; care circle</div>
+      <div class="settings-section-label">Family &amp; care circle</div>
       <div id="care-circle-list">
         <!-- populated by renderCareCircle() -->
         <div class="contact-card">
@@ -2862,14 +2693,14 @@
     </div>
 
     <div class="settings-section" style="margin-top:12px;">
-      <div class="settings-section-label" data-i18n="settings.healthRecords">Health Records</div>
+      <div class="settings-section-label">Health Records</div>
       <div style="padding:0 0 4px;">
-        <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px;" data-i18n="settings.healthRecordsMeta">Connect your EHR to import medical data — medications, conditions, lab results, and more.</div>
+        <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px;">Connect your EHR to import medical data — medications, conditions, lab results, and more.</div>
         <div id="settings-ehr-status"></div>
         <div class="settings-row" style="cursor:pointer;" onclick="startEhrConnect()">
           <div class="settings-row-left">
             <div class="settings-row-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="hospital" style="width:15px;height:15px;"></i></div>
-            <div><div class="settings-row-label" id="settings-ehr-label" data-i18n="settings.connectHealthRecords">Connect Health Records</div><div class="settings-row-meta" id="settings-ehr-meta" data-i18n="settings.connectHealthRecordsMeta">Import data from your provider (Epic, Cerner, etc.)</div></div>
+            <div><div class="settings-row-label" id="settings-ehr-label">Connect Health Records</div><div class="settings-row-meta" id="settings-ehr-meta">Import data from your provider (Epic, Cerner, etc.)</div></div>
           </div>
           <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
         </div>
@@ -2877,37 +2708,37 @@
       <div class="settings-row">
         <div class="settings-row-left">
           <div class="settings-row-icon"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>
-          <div><div class="settings-row-label" data-i18n="settings.appleHealth">Apple Health</div><div class="settings-row-meta" data-i18n="settings.appleHealthMeta">Synced · Last updated 2 hrs ago</div></div>
+          <div><div class="settings-row-label">Apple Health</div><div class="settings-row-meta">Synced · Last updated 2 hrs ago</div></div>
         </div>
         <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
       </div>
     </div>
 
     <div class="settings-section" id="settings-archived-section" style="margin-top:12px;display:none;">
-      <div class="settings-section-label" data-i18n="settings.archivedProfiles">Archived Profiles</div>
+      <div class="settings-section-label">Archived Profiles</div>
       <div id="settings-archived-list"></div>
     </div>
 
     <div class="settings-section" style="margin-top:12px;">
-      <div class="settings-section-label" data-i18n="settings.yourData">Your Data</div>
+      <div class="settings-section-label">Your Data</div>
       <div class="settings-row" style="cursor:pointer;" onclick="exportAllData('json')">
         <div class="settings-row-left">
           <div class="settings-row-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="download" style="width:15px;height:15px;"></i></div>
-          <div><div class="settings-row-label" data-i18n="settings.exportAll">Export all data</div><div class="settings-row-meta" data-i18n="settings.exportAllMeta">Download everything as JSON</div></div>
+          <div><div class="settings-row-label">Export all data</div><div class="settings-row-meta">Download everything as JSON</div></div>
         </div>
         <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
       </div>
       <div class="settings-row" style="cursor:pointer;" onclick="exportAllData('csv')">
         <div class="settings-row-left">
           <div class="settings-row-icon" style="background:#FDF5E8;color:var(--amber);"><i data-lucide="file-spreadsheet" style="width:15px;height:15px;"></i></div>
-          <div><div class="settings-row-label" data-i18n="settings.exportSpreadsheets">Export as spreadsheets</div><div class="settings-row-meta" data-i18n="settings.exportSpreadsheetsMeta">CSV files in a ZIP archive</div></div>
+          <div><div class="settings-row-label">Export as spreadsheets</div><div class="settings-row-meta">CSV files in a ZIP archive</div></div>
         </div>
         <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
       </div>
     </div>
 
     <div class="settings-section" style="margin-top:12px;">
-      <div class="settings-section-label" data-i18n="settings.yourPlan">Your plan</div>
+      <div class="settings-section-label">Your plan</div>
       <div style="background:var(--mint);border-radius:12px;padding:14px 16px;margin-bottom:8px;">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
           <div class="settings-row-icon" style="width:26px;height:26px;background:var(--moss);color:white;border-radius:7px;"><i data-lucide="heart" style="width:13px;height:13px;"></i></div>
@@ -3347,10 +3178,10 @@
   <div class="notif-panel">
     <div class="notif-panel-header">
       <div style="display:flex;align-items:center;gap:10px;">
-        <div class="notif-panel-title" id="notif-panel-title">Notifications</div>
+        <div class="notif-panel-title">Notifications</div>
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
-        <button class="notif-mark-read" id="notif-mark-all-btn" onclick="markAllNotifRead()" data-i18n="notif.markAllRead">Mark all read</button>
+        <button class="notif-mark-read" id="notif-mark-all-btn" onclick="markAllNotifRead()">Mark all read</button>
         <button class="notif-close-btn" aria-label="Close" onclick="closeNotifPanel()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
       </div>
     </div>
@@ -3401,7 +3232,7 @@
       <i data-lucide="trash-2" style="width:16px;height:16px;"></i>
       Remove person
     </button>
-    <button class="btn-cancel" onclick="closeModal()" data-i18n="common.cancel">Cancel</button>
+    <button class="btn-cancel" onclick="closeModal()">Cancel</button>
   </div>
 </div>
 
@@ -3659,33 +3490,7 @@ var _editingMedId = null;     // medications id being edited
 
 // ── ICON INIT ────────────────────────────────────────────────────────────────
 function initIcons() { if (window.lucide) lucide.createIcons(); }
-window.addEventListener('load', function() {
-  initIcons();
-  initVoiceInput();
-  // Apply saved language: update nav labels, tab labels, lang picker buttons
-  document.documentElement.lang = currentLang;
-  var navBtns = document.querySelectorAll('.nav-item');
-  var navKeys = ['nav.home', 'nav.people', 'nav.records', 'nav.signals', 'nav.resources', 'nav.ask'];
-  for (var _ni = 0; _ni < navBtns.length; _ni++) {
-    if (navKeys[_ni]) {
-      var _tn = navBtns[_ni].lastChild;
-      if (_tn && _tn.nodeType === 3) _tn.textContent = t(navKeys[_ni]);
-    }
-  }
-  var tabBtns = document.querySelectorAll('.tab[id^="tab-btn-"]');
-  var tabKeys = ['tab.update', 'tab.timeline', 'tab.patterns'];
-  for (var _ti = 0; _ti < tabBtns.length; _ti++) {
-    if (tabKeys[_ti]) tabBtns[_ti].textContent = t(tabKeys[_ti]);
-  }
-  // Set active lang pill
-  var langPills = document.querySelectorAll('.lang-pill-btn');
-  for (var _li = 0; _li < langPills.length; _li++) {
-    if (langPills[_li].dataset.lang === currentLang) langPills[_li].classList.add('active');
-    else langPills[_li].classList.remove('active');
-  }
-  // Apply i18n to all data-i18n elements
-  applyI18n();
-});
+window.addEventListener('load', function() { initIcons(); initVoiceInput(); });
 
 // ── CARE CIRCLE INVITE ACCEPTANCE ─────────────────────────────────────────
 var _pendingInviteToken = null;
@@ -4253,14 +4058,14 @@ function renderUpdateMe() {
       + '</div>'
       + '<p class="update-summary-text" id="update-summary-text">' + escHtml(summaryCache[currentPersonId]) + '</p>'
       + '</div>'
-      + '<button onclick="openShareFamily()" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px 16px;margin-top:10px;background:white;border:1.5px solid var(--moss);border-radius:10px;color:var(--moss);font-family:\'DM Sans\',sans-serif;font-size:13px;font-weight:500;cursor:pointer;"><i data-lucide="share-2" style="width:15px;height:15px;"></i> ' + t('update.shareThis') + '</button>';
+      + '<button onclick="openShareFamily()" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px 16px;margin-top:10px;background:white;border:1.5px solid var(--moss);border-radius:10px;color:var(--moss);font-family:\'DM Sans\',sans-serif;font-size:13px;font-weight:500;cursor:pointer;"><i data-lucide="share-2" style="width:15px;height:15px;"></i> Share this update</button>';
   } else {
     // Not yet fetched — show loading placeholder and trigger fetch
     summarySection = '<div class="update-summary-card" id="update-summary-loading-card">'
       + '<div class="update-summary-header">'
       + '<span class="update-summary-label">Wellet summary</span>'
       + '</div>'
-      + '<div class="update-summary-loading"><i data-lucide="loader" style="width:13px;height:13px;animation:spin 1.2s linear infinite;"></i> ' + t('update.generating') + '</div>'
+      + '<div class="update-summary-loading"><i data-lucide="loader" style="width:13px;height:13px;animation:spin 1.2s linear infinite;"></i> Wellet is thinking\u2026</div>'
       + '</div>';
     fetchUpdateMeSummary(false);
   }
@@ -4271,7 +4076,7 @@ function renderUpdateMe() {
     + '<div style="font-size:13px;color:var(--text-secondary);line-height:1.5;max-width:300px;margin:0 auto;">Upload a document or connect to health records \u2014 Wellet will read, organize, and remember everything.</div>'
     + '</div>'
     + '<div style="display:flex;flex-direction:column;gap:10px;margin:20px 0 16px;">'
-    + '<button class="btn-primary" style="width:100%;padding:14px;font-size:14px;gap:8px;display:flex;align-items:center;justify-content:center;" onclick="openUpload(\'' + escHtml(name) + '\')"><i data-lucide="upload" style="width:18px;height:18px;"></i> ' + t('update.uploadPrompt') + '</button>'
+    + '<button class="btn-primary" style="width:100%;padding:14px;font-size:14px;gap:8px;display:flex;align-items:center;justify-content:center;" onclick="openUpload(\'' + escHtml(name) + '\')"><i data-lucide="upload" style="width:18px;height:18px;"></i> Upload a document</button>'
     + '<button style="width:100%;padding:14px;font-size:14px;gap:8px;display:flex;align-items:center;justify-content:center;background:white;border:1.5px solid var(--moss);border-radius:12px;color:var(--moss);font-family:\'DM Sans\',sans-serif;font-weight:500;cursor:pointer;" onclick="startEhrConnect()"><i data-lucide="link" style="width:18px;height:18px;"></i> Connect health records</button>'
     + '</div>';
 
@@ -4285,52 +4090,19 @@ function renderUpdateMe() {
   // Check if user has completed document extractions (even without promoted events)
   var hasCompletedDocs = liveDocs.some(function(d){ return d.extraction_status === 'completed' && d.extracted_events; });
 
-  // Build visit prep card (resume if saved prep exists, otherwise fresh)
-  var savedPrep = currentPersonId ? JSON.parse(localStorage.getItem('wellet_visit_prep_' + currentPersonId) || 'null') : null;
-  var visitPrepCardHtml = '';
-  if (savedPrep && savedPrep.questions && savedPrep.questions.length > 0) {
-    var savedDate = savedPrep.savedAt ? new Date(savedPrep.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
-    visitPrepCardHtml = '<button class="visit-prep-card resume-card" onclick="openVisitPrep(true)">'
-      + '<div class="visit-prep-icon resume"><i data-lucide="clipboard-list" style="width:18px;height:18px;"></i></div>'
-      + '<div class="visit-prep-content">'
-      + '<div class="visit-prep-title">Resume Visit Prep</div>'
-      + '<div class="visit-prep-desc">' + escHtml(savedPrep.visitType || 'Saved prep') + (savedDate ? ' · Saved ' + savedDate : '') + '</div>'
-      + '</div>'
-      + '<i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);"></i>'
-      + '</button>';
-    visitPrepCardHtml += '<button class="visit-prep-card" onclick="openVisitPrep(false)" style="margin-top:-4px;">'
-      + '<div class="visit-prep-icon"><i data-lucide="plus" style="width:18px;height:18px;"></i></div>'
-      + '<div class="visit-prep-content">'
-      + '<div class="visit-prep-title">Start New Visit Prep</div>'
-      + '<div class="visit-prep-desc">Generate fresh questions for an upcoming appointment.</div>'
-      + '</div>'
-      + '<i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);"></i>'
-      + '</button>';
-  } else {
-    visitPrepCardHtml = '<button class="visit-prep-card" onclick="openVisitPrep(false)">'
-      + '<div class="visit-prep-icon"><i data-lucide="clipboard-list" style="width:18px;height:18px;"></i></div>'
-      + '<div class="visit-prep-content">'
-      + '<div class="visit-prep-title">Prepare for a Visit</div>'
-      + '<div class="visit-prep-desc">Get personalized questions and a summary to bring to the doctor.</div>'
-      + '</div>'
-      + '<i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);"></i>'
-      + '</button>';
-  }
-
   if (liveEvents.length === 0 && !hasCompletedDocs) {
     // Truly empty: upload CTA + static placeholder
     pane.innerHTML = '<div class="update-me-section">'
       + emptyActions
       + emptyPlaceholder
       + '</div>'
-      + visitPrepCardHtml
       + '<div class="quick-actions">'
       + '<button class="qa-btn" onclick="openAddEvent()"><span class="qa-icon"><i data-lucide="plus-circle" style="width:18px;height:18px;"></i></span>Add event</button>'
       + '<button class="qa-btn" onclick="openEmergencySummary()"><span class="qa-icon"><i data-lucide="file-heart" style="width:18px;height:18px;"></i></span>Emergency summary</button>'
       + '<button class="qa-btn" onclick="openShareFamily()"><span class="qa-icon"><i data-lucide="share-2" style="width:18px;height:18px;"></i></span>Share with family</button>'
       + '</div>'
       + '<div class="timeline-section" style="margin-top:16px;">'
-      + '<p class="section-label">' + t('update.recentActivity') + '</p>'
+      + '<p class="section-label">Recent activity</p>'
       + timelineHTML
       + '</div>';
   } else if (liveEvents.length === 0 && hasCompletedDocs) {
@@ -4339,14 +4111,13 @@ function renderUpdateMe() {
       + summarySection
       + emptyActions
       + '</div>'
-      + visitPrepCardHtml
       + '<div class="quick-actions">'
       + '<button class="qa-btn" onclick="openAddEvent()"><span class="qa-icon"><i data-lucide="plus-circle" style="width:18px;height:18px;"></i></span>Add event</button>'
       + '<button class="qa-btn" onclick="openEmergencySummary()"><span class="qa-icon"><i data-lucide="file-heart" style="width:18px;height:18px;"></i></span>Emergency summary</button>'
       + '<button class="qa-btn" onclick="openShareFamily()"><span class="qa-icon"><i data-lucide="share-2" style="width:18px;height:18px;"></i></span>Share with family</button>'
       + '</div>'
       + '<div class="timeline-section" style="margin-top:16px;">'
-      + '<p class="section-label">' + t('update.recentActivity') + '</p>'
+      + '<p class="section-label">Recent activity</p>'
       + timelineHTML
       + '</div>';
   } else {
@@ -4361,14 +4132,13 @@ function renderUpdateMe() {
         + (liveMeds.filter(function(m){ return m.active; }).length > 0 ? 'Currently on <strong>' + liveMeds.filter(function(m){ return m.active; }).length + ' active medication' + (liveMeds.filter(function(m){ return m.active; }).length !== 1 ? 's' : '') + '</strong>.' : '') + '</p>'
       + '<div class="update-meta">' + liveEvents.length + ' health event' + (liveEvents.length !== 1 ? 's' : '') + ' logged</div>'
       + '</div></div>'
-      + visitPrepCardHtml
       + '<div class="quick-actions">'
       + '<button class="qa-btn" onclick="openAddEvent()"><span class="qa-icon"><i data-lucide="plus-circle" style="width:18px;height:18px;"></i></span>Add event</button>'
       + '<button class="qa-btn" onclick="openEmergencySummary()"><span class="qa-icon"><i data-lucide="file-heart" style="width:18px;height:18px;"></i></span>Emergency summary</button>'
       + '<button class="qa-btn" onclick="openShareFamily()"><span class="qa-icon"><i data-lucide="share-2" style="width:18px;height:18px;"></i></span>Share with family</button>'
       + '</div>'
       + '<div class="timeline-section" style="margin-top:16px;">'
-      + '<p class="section-label">' + t('update.recentActivity') + '</p>'
+      + '<p class="section-label">Recent activity</p>'
       + timelineHTML
       + '</div>';
   }
@@ -4589,7 +4359,7 @@ function renderPeopleView() {
       + '<i data-lucide="x" style="width:16px;height:16px;"></i></button>'
       + '</div>'
       + '<div class="person-card-action">'
-      + '<button class="card-action-btn" onclick="switchToRealPersonNav(\'' + p.id + '\')">' + t('tab.update') + '</button>'
+      + '<button class="card-action-btn" onclick="switchToRealPersonNav(\'' + p.id + '\')">Update Me</button>'
       + '<button class="card-action-btn" onclick="openAddEvent(\'' + p.id + '\')">Add event</button>'
       + '<button class="card-action-btn" onclick="openProfileEdit(\'' + p.id + '\')"><i data-lucide="pencil" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:3px;"></i>Edit profile</button>'
       + '</div></div>';
@@ -4597,7 +4367,7 @@ function renderPeopleView() {
 
   html += '<button class="add-person-btn" onclick="showOnboarding()">'
     + '<i data-lucide="plus" style="width:16px;height:16px;"></i>'
-    + ' ' + t('people.addPerson') + '</button>'
+    + ' Add another person</button>'
     + '</div>';
 
   view.innerHTML = html;
@@ -4687,7 +4457,7 @@ function renderRecordsView() {
   var totalMeds = activeMeds.length + ehrMeds.length;
   html += '<div class="record-group">'
     + '<div class="record-group-header">'
-    + '<div class="record-group-title"><i data-lucide="pill" style="width:14px;height:14px;color:var(--amber);"></i>' + t('records.medications') + '</div>'
+    + '<div class="record-group-title"><i data-lucide="pill" style="width:14px;height:14px;color:var(--amber);"></i>Medications</div>'
     + '<span class="record-group-count">' + totalMeds + ' active</span>'
     + '</div>';
 
@@ -4729,7 +4499,7 @@ function renderRecordsView() {
   // EHR Conditions section
   if (ehrConditions.length > 0) {
     html += '<div class="record-group"><div class="record-group-header">'
-      + '<div class="record-group-title"><i data-lucide="stethoscope" style="width:14px;height:14px;color:var(--moss);"></i>' + t('records.conditions') + ' ' + ehrBadgeHtml() + '</div>'
+      + '<div class="record-group-title"><i data-lucide="stethoscope" style="width:14px;height:14px;color:var(--moss);"></i>Conditions ' + ehrBadgeHtml() + '</div>'
       + '<span class="record-group-count">' + ehrConditions.length + ' from EHR</span></div>';
     ehrConditions.forEach(function(c, idx) {
       var detailId = 'ehr-cond-' + idx;
@@ -4754,7 +4524,7 @@ function renderRecordsView() {
   var totalAllergies = liveAllergies.length + ehrAllergies.length;
   if (totalAllergies > 0) {
     html += '<div class="record-group"><div class="record-group-header">'
-      + '<div class="record-group-title"><i data-lucide="alert-triangle" style="width:14px;height:14px;color:var(--red);"></i>' + t('records.allergies') + '</div>'
+      + '<div class="record-group-title"><i data-lucide="alert-triangle" style="width:14px;height:14px;color:var(--red);"></i>Allergies</div>'
       + '<span class="record-group-count">' + totalAllergies + ' tracked</span></div>';
     liveAllergies.forEach(function(a) {
       var srcBadge = a.source === 'ehr' ? ' ' + ehrBadgeHtml() : '';
@@ -5508,7 +5278,7 @@ function renderExtractedItems() {
         + '<input class="ext-edit-input" id="ext-edit-detail-' + idx + '" value="' + escHtml(item.detail || '') + '" placeholder="Detail" style="margin-top:6px;">'
         + '<div class="ext-edit-row">'
         + '<button class="ext-save-btn" onclick="saveExtractedEdit(' + idx + ')">Save</button>'
-        + '<button class="ext-cancel-btn" onclick="cancelExtractedEdit()">' + t('common.cancel') + '</button>'
+        + '<button class="ext-cancel-btn" onclick="cancelExtractedEdit()">Cancel</button>'
         + '</div></div>';
     } else {
       html += '<div class="ext-item-body">'
@@ -6373,8 +6143,8 @@ function confirmDeleteEvent() {
   var deleteArea = document.getElementById('edit-event-delete-area');
   deleteArea.innerHTML = '<div style="font-size:13px;color:var(--red);font-weight:500;text-align:center;margin-bottom:4px;">Delete this event? This cannot be undone.</div>'
     + '<div class="delete-confirm-row">'
-    + '<button class="btn-cancel-sm" onclick="cancelDeleteEvent()">' + t('common.cancel') + '</button>'
-    + '<button class="btn-delete-sm" onclick="deleteEvent()">' + t('common.delete') + '</button>'
+    + '<button class="btn-cancel-sm" onclick="cancelDeleteEvent()">Cancel</button>'
+    + '<button class="btn-delete-sm" onclick="deleteEvent()">Delete</button>'
     + '</div>';
 }
 
@@ -6461,8 +6231,8 @@ function confirmDeleteMed() {
   var deleteArea = document.getElementById('edit-med-delete-area');
   deleteArea.innerHTML = '<div style="font-size:13px;color:var(--red);font-weight:500;text-align:center;margin-bottom:4px;">Delete this medication? This cannot be undone.</div>'
     + '<div class="delete-confirm-row">'
-    + '<button class="btn-cancel-sm" onclick="cancelDeleteMed()">' + t('common.cancel') + '</button>'
-    + '<button class="btn-delete-sm" onclick="deleteMed()">' + t('common.delete') + '</button>'
+    + '<button class="btn-cancel-sm" onclick="cancelDeleteMed()">Cancel</button>'
+    + '<button class="btn-delete-sm" onclick="deleteMed()">Delete</button>'
     + '</div>';
 }
 
@@ -6494,7 +6264,7 @@ function renderPatterns() {
   // No events — friendly empty state
   if (liveEvents.length === 0 && liveMeds.length === 0) {
     pane.innerHTML = '<div class="patterns-section">'
-      + '<p class="section-label">' + t('patterns.noticed') + '</p>'
+      + '<p class="section-label">What Wellet has noticed</p>'
       + '<div style="text-align:center;padding:48px 24px;">'
       + '<div style="font-size:32px;margin-bottom:12px;opacity:0.3;"><i data-lucide="bar-chart-3" style="width:32px;height:32px;"></i></div>'
       + '<div style="font-size:14px;color:var(--text-muted);line-height:1.6;">Add health events to see patterns emerge here.</div>'
@@ -6503,7 +6273,7 @@ function renderPatterns() {
     return;
   }
 
-  var html = '<div class="patterns-section"><p class="section-label" data-i18n="patterns.noticed">What Wellet has noticed</p>';
+  var html = '<div class="patterns-section"><p class="section-label">What Wellet has noticed</p>';
 
   // 1. Event Type Breakdown
   var typeCounts = { appointment: 0, medication: 0, lab_result: 0, note: 0, pattern: 0 };
@@ -7007,169 +6777,28 @@ async function renderSignalsView() {
 
     if (activeConns.length > 0) {
       var sigFirstName = getPersonFirstName();
-
-      // Build device cards HTML (always shown at top)
-      var chDevices = '<div class="terra-devices-section">';
-      chDevices += '<div class="terra-devices-title">Connected Devices</div>';
+      var ch = '<div class="signals-view">';
+      ch += '<p class="section-label">' + escHtml(sigFirstName) + '\u2019s Signals</p>';
+      ch += '<div class="terra-devices-section">';
+      ch += '<div class="terra-devices-title">Connected Devices</div>';
       for (var ci = 0; ci < activeConns.length; ci++) {
         var conn = activeConns[ci];
         var providerName = conn.provider ? conn.provider.charAt(0).toUpperCase() + conn.provider.slice(1).toLowerCase() : 'Unknown';
         var statusDotClass = conn.status === 'active' ? 'terra-status-dot--active' : 'terra-status-dot--inactive';
         var connDate = conn.connected_at ? new Date(conn.connected_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
         var lastData = conn.last_data_at ? 'Last data: ' + new Date(conn.last_data_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' at ' + new Date(conn.last_data_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : 'No data yet';
-        chDevices += '<div class="terra-device-card">';
-        chDevices += '<div class="terra-device-icon"><i data-lucide="watch"></i></div>';
-        chDevices += '<div class="terra-device-info">';
-        chDevices += '<div class="terra-device-name"><span class="terra-status-dot ' + statusDotClass + '"></span> ' + escHtml(providerName) + '</div>';
-        chDevices += '<div class="terra-device-meta">' + escHtml(lastData);
-        if (connDate) chDevices += ' \u00b7 Connected ' + escHtml(connDate);
-        chDevices += '</div></div>';
-        chDevices += '<button class="terra-disconnect-btn" onclick="disconnectTerra(\'' + conn.id + '\')">Disconnect</button>';
-        chDevices += '</div>';
-      }
-      chDevices += '<button class="terra-add-btn" onclick="openTerraConnect()"><i data-lucide="plus" style="width:14px;height:14px;"></i> Connect another device</button>';
-      chDevices += '</div>';
-
-      // Fetch real Terra data
-      var terraData = null;
-      try {
-        terraData = await loadTerraData(currentPersonId);
-      } catch(e) {
-        console.error('[Signals] loadTerraData error:', e);
-      }
-
-      var hasData = terraData && (terraData.vitals.length > 0 || terraData.events.length > 0);
-      var ch = '<div class="signals-view">';
-      ch += '<p class="section-label">' + escHtml(sigFirstName) + '\u2019s Signals</p>';
-      ch += chDevices;
-
-      if (!hasData) {
-        // Connected but no data yet
-        var waitingDevice = activeConns[0].provider ? activeConns[0].provider.charAt(0).toUpperCase() + activeConns[0].provider.slice(1).toLowerCase() : 'device';
-        ch += '<div class="signals-waiting">';
-        ch += '<i data-lucide="loader" style="width:18px;height:18px;animation:spin 1s linear infinite;"></i>';
-        ch += '<div class="signals-waiting-text">Waiting for first sync from ' + escHtml(waitingDevice) + '\u2026</div>';
-        ch += '<div class="signals-waiting-sub">Data will appear here once your device syncs.</div>';
+        ch += '<div class="terra-device-card">';
+        ch += '<div class="terra-device-icon"><i data-lucide="watch"></i></div>';
+        ch += '<div class="terra-device-info">';
+        ch += '<div class="terra-device-name"><span class="terra-status-dot ' + statusDotClass + '"></span> ' + escHtml(providerName) + '</div>';
+        ch += '<div class="terra-device-meta">' + escHtml(lastData);
+        if (connDate) ch += ' \u00b7 Connected ' + escHtml(connDate);
+        ch += '</div></div>';
+        ch += '<button class="terra-disconnect-btn" onclick="disconnectTerra(\'' + conn.id + '\')">Disconnect</button>';
         ch += '</div>';
-      } else {
-        // Build real wearable dashboard
-        var rw = buildRealSignalsData(terraData.vitals, terraData.events, activeConns);
-        var rNow = new Date();
-        var rMonths = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-        var rDays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-        var rDateStr = rDays[rNow.getDay()] + ', ' + rMonths[rNow.getMonth()] + ' ' + rNow.getDate();
-
-        // ── Medications Section (real data from liveMeds) ──
-        var rActiveMeds = liveMeds.filter(function(m) { return m.active; });
-        if (rActiveMeds.length > 0) {
-          ch += '<div class="signals-section">';
-          ch += '<div class="signals-section-title">Today\u2019s Medications</div>';
-          ch += '<div class="signals-section-sub">' + escHtml(rDateStr) + '</div>';
-          ch += '<div class="signals-card">';
-          for (var rmi = 0; rmi < rActiveMeds.length; rmi++) {
-            var rMed = rActiveMeds[rmi];
-            var rRem = _medReminders[rMed.id];
-            var rTimes = (rRem && rRem.active && rRem.times && rRem.times.length > 0) ? rRem.times : [];
-            ch += '<div class="med-item">';
-            ch += '<div class="med-icon-wrap"><i data-lucide="pill"></i></div>';
-            ch += '<div class="med-info">';
-            ch += '<div class="med-name">' + escHtml(rMed.name || '') + '</div>';
-            var rDoseFreq = [rMed.dose, rMed.frequency].filter(Boolean).join(' \u00b7 ');
-            if (rDoseFreq) ch += '<div class="med-dose">' + escHtml(rDoseFreq) + '</div>';
-            if (rTimes.length > 0) {
-              ch += '<div class="med-times">';
-              for (var rti = 0; rti < rTimes.length; rti++) {
-                var rStatus = getMedStatus(rTimes[rti], rNow, -1);
-                var rBadgeClass = 'med-badge med-badge--' + rStatus;
-                var rStatusIcon = '';
-                var rStatusLabel = '';
-                if (rStatus === 'taken') { rStatusIcon = '\u2705'; rStatusLabel = 'Taken'; }
-                else if (rStatus === 'missed') { rStatusIcon = '\u26a0\ufe0f'; rStatusLabel = 'Missed'; }
-                else if (rStatus === 'due') { rStatusIcon = '\ud83d\udd14'; rStatusLabel = 'Due now'; }
-                else { rStatusIcon = '\u23f0'; rStatusLabel = 'Upcoming'; }
-                ch += '<span class="' + rBadgeClass + '">' + rStatusIcon + ' ' + formatTime12(rTimes[rti]) + ' \u00b7 ' + rStatusLabel + '</span>';
-              }
-              ch += '</div>';
-            }
-            ch += '</div></div>';
-          }
-          ch += '</div></div>';
-        }
-
-        // ── Wearable Data Section ──
-        ch += '<div class="signals-section">';
-        ch += '<div class="signals-section-title">' + escHtml(rw.device) + ' \u00b7 ' + escHtml(rw.personName);
-        if (rw.lastSync) ch += '<span class="wearable-sync">' + escHtml(rw.lastSync) + '</span>';
-        ch += '</div>';
-        ch += '<div class="signals-section-sub">Live wearable data</div>';
-        ch += '<div class="wearable-grid">';
-
-        // Heart rate card
-        if (rw.heartRate) {
-          ch += '<div class="wearable-card">';
-          ch += '<div class="signals-label">' + t('signals.heartRate') + '</div>';
-          ch += '<div class="signals-metric">' + rw.heartRate.current + ' <span style="font-size:14px;font-weight:400;color:var(--text-secondary);">bpm</span></div>';
-          if (rw.heartRate.trend && rw.heartRate.trend.length >= 2) {
-            ch += '<div class="wearable-sparkline">' + buildSparkline(rw.heartRate.trend, 120, 28, 'var(--red)') + '</div>';
-          }
-          ch += '<div class="signals-metric-sm">' + rw.heartRate.min + '\u2013' + rw.heartRate.max + ' range</div>';
-          if (rw.heartRate.resting) ch += '<div class="signals-metric-sm">Resting: ' + rw.heartRate.resting + ' bpm</div>';
-          ch += '</div>';
-        }
-
-        // Steps card
-        if (rw.steps) {
-          var rStepsPct = Math.round(rw.steps.today / rw.steps.goal * 100);
-          ch += '<div class="wearable-card">';
-          ch += '<div class="signals-label">' + t('signals.steps') + '</div>';
-          ch += '<div class="signals-metric">' + rw.steps.today.toLocaleString() + '</div>';
-          ch += '<div class="progress-ring-wrap">';
-          ch += buildProgressRing(rStepsPct, 40, 'var(--moss)');
-          ch += '<div class="progress-ring-label">' + rStepsPct + '% of goal</div>';
-          ch += '</div>';
-          if (rw.calories) ch += '<div class="signals-metric-sm">' + rw.calories.toLocaleString() + ' active cal</div>';
-          if (rw.distance) ch += '<div class="signals-metric-sm">' + rw.distance + ' mi</div>';
-          ch += '</div>';
-        }
-
-        // Sleep card
-        if (rw.sleep) {
-          var rSleepH = Math.floor(rw.sleep.total / 60);
-          var rSleepM = rw.sleep.total % 60;
-          ch += '<div class="wearable-card">';
-          ch += '<div class="signals-label">' + t('signals.sleep') + '</div>';
-          ch += '<div class="signals-metric">' + rSleepH + 'h ' + rSleepM + 'm</div>';
-          ch += buildSleepBar(rw.sleep);
-          if (rw.sleep.bedTime || rw.sleep.wakeTime) {
-            ch += '<div class="signals-metric-sm">' + escHtml(rw.sleep.bedTime) + (rw.sleep.wakeTime ? ' \u2013 ' + escHtml(rw.sleep.wakeTime) : '') + '</div>';
-          }
-          ch += '</div>';
-        }
-
-        // SpO2 card
-        if (rw.spo2) {
-          ch += '<div class="wearable-card">';
-          ch += '<div class="signals-label">' + t('signals.bloodOxygen') + '</div>';
-          ch += '<div class="signals-metric">' + rw.spo2.current + '<span style="font-size:14px;font-weight:400;">%</span></div>';
-          ch += '<div style="display:flex;align-items:center;gap:4px;margin-top:4px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--moss);display:inline-block;"></span>';
-          ch += '<span class="signals-metric-sm">' + rw.spo2.min + '\u2013' + rw.spo2.max + '% range</span></div>';
-          ch += '</div>';
-        }
-
-        // HRV card
-        if (rw.hrv) {
-          ch += '<div class="wearable-card">';
-          ch += '<div class="signals-label">HRV</div>';
-          ch += '<div class="signals-metric">' + rw.hrv.current + ' <span style="font-size:14px;font-weight:400;color:var(--text-secondary);">' + escHtml(rw.hrv.unit) + '</span></div>';
-          ch += '<div class="signals-metric-sm">Heart rate variability</div>';
-          ch += '</div>';
-        }
-
-        ch += '</div>'; // close wearable-grid
-        ch += '</div>'; // close signals-section
       }
-
-      ch += '</div>'; // close signals-view
+      ch += '<button class="terra-add-btn" onclick="openTerraConnect()"><i data-lucide="plus" style="width:14px;height:14px;"></i> Connect another device</button>';
+      ch += '</div></div>';
       el.innerHTML = ch;
     } else {
       var sigFirstName = getPersonFirstName();
@@ -7178,7 +6807,7 @@ async function renderSignalsView() {
         + '<div class="signals-connect">'
         + '<div class="signals-connect-card">'
         + '<div class="signals-connect-icon"><i data-lucide="watch"></i></div>'
-        + '<div class="signals-connect-title">' + t('signals.connectWearable') + '</div>'
+        + '<div class="signals-connect-title">Connect a Wearable</div>'
         + '<div class="signals-connect-desc">Stream heart rate, sleep, steps, and workouts automatically from your loved one\u2019s device.</div>'
         + '<button class="signals-connect-btn" onclick="openTerraConnect()"><i data-lucide="link" style="width:14px;height:14px;"></i> Connect</button>'
         + '</div>'
@@ -7282,7 +6911,7 @@ async function renderSignalsView() {
 
   // Heart rate card
   html += '<div class="wearable-card">';
-  html += '<div class="signals-label">' + t('signals.heartRate') + '</div>';
+  html += '<div class="signals-label">Heart Rate</div>';
   html += '<div class="signals-metric">' + w.heartRate.current + ' <span style="font-size:14px;font-weight:400;color:var(--text-secondary);">bpm</span></div>';
   html += '<div class="wearable-sparkline">' + buildSparkline(w.heartRate.trend, 120, 28, 'var(--red)') + '</div>';
   html += '<div class="signals-metric-sm">' + w.heartRate.min + '\u2013' + w.heartRate.max + ' today</div>';
@@ -7291,7 +6920,7 @@ async function renderSignalsView() {
   // Steps card
   var stepsPct = Math.round(w.steps.today / w.steps.goal * 100);
   html += '<div class="wearable-card">';
-  html += '<div class="signals-label">' + t('signals.steps') + '</div>';
+  html += '<div class="signals-label">Steps</div>';
   html += '<div class="signals-metric">' + w.steps.today.toLocaleString() + '</div>';
   html += '<div class="progress-ring-wrap">';
   html += buildProgressRing(stepsPct, 40, 'var(--moss)');
@@ -7303,7 +6932,7 @@ async function renderSignalsView() {
   var sleepH = Math.floor(w.sleep.total / 60);
   var sleepM = w.sleep.total % 60;
   html += '<div class="wearable-card">';
-  html += '<div class="signals-label">' + t('signals.sleep') + '</div>';
+  html += '<div class="signals-label">Sleep</div>';
   html += '<div class="signals-metric">' + sleepH + 'h ' + sleepM + 'm</div>';
   html += buildSleepBar(w.sleep);
   html += '<div class="signals-metric-sm">' + escHtml(w.sleep.bedTime) + ' \u2013 ' + escHtml(w.sleep.wakeTime) + '</div>';
@@ -7311,7 +6940,7 @@ async function renderSignalsView() {
 
   // Blood oxygen card
   html += '<div class="wearable-card">';
-  html += '<div class="signals-label">' + t('signals.bloodOxygen') + '</div>';
+  html += '<div class="signals-label">Blood Oxygen</div>';
   html += '<div class="signals-metric">' + w.spo2.current + '<span style="font-size:14px;font-weight:400;">%</span></div>';
   html += '<div style="display:flex;align-items:center;gap:4px;margin-top:4px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--moss);display:inline-block;"></span><span class="signals-metric-sm">' + w.spo2.min + '\u2013' + w.spo2.max + '% range</span></div>';
   html += '</div>';
@@ -12172,7 +11801,7 @@ function renderNotifList() {
   if (_notifList.length === 0) {
     container.innerHTML = '<div class="notif-empty">'
       + '<div class="notif-empty-icon"><i data-lucide="bell-off" style="width:32px;height:32px;"></i></div>'
-      + t('notif.noNotifications') + '<br>Set medication reminders in Records.'
+      + 'No notifications right now.<br>Set medication reminders in Records.'
       + '</div>';
     document.getElementById('notif-mark-all-btn').style.display = 'none';
     initIcons();
@@ -13416,7 +13045,7 @@ renderPeopleView = function() {
       + '<i data-lucide="x" style="width:16px;height:16px;"></i></button>'
       + '</div>'
       + '<div class="person-card-action">'
-      + '<button class="card-action-btn" onclick="switchToRealPersonNav(\'' + p.id + '\')">' + t('tab.update') + '</button>'
+      + '<button class="card-action-btn" onclick="switchToRealPersonNav(\'' + p.id + '\')">Update Me</button>'
       + '<button class="card-action-btn" onclick="openAddEvent(\'' + p.id + '\')">Add event</button>'
       + '<button class="card-action-btn" onclick="openProfileEdit(\'' + p.id + '\')"><i data-lucide="pencil" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:3px;"></i>Edit profile</button>'
       + '</div></div>';
@@ -13424,7 +13053,7 @@ renderPeopleView = function() {
 
   html += '<button class="add-person-btn" onclick="showOnboarding()">'
     + '<i data-lucide="plus" style="width:16px;height:16px;"></i>'
-    + ' ' + t('people.addPerson') + '</button>'
+    + ' Add another person</button>'
     + '</div>';
 
   view.innerHTML = html;
@@ -13901,1369 +13530,7 @@ function exportDataAsCsv(data, dateStr) {
     showToast('CSV export downloaded');
   });
 }
-
-
-// ── TERRA DATA LOADER ───────────────────────────────────────────────────────
-async function loadTerraData(personId) {
-  var session = (await db.auth.getSession()).data.session;
-  if (!session) return null;
-
-  var today = new Date();
-  var weekAgo = new Date(today);
-  weekAgo.setDate(weekAgo.getDate() - 7);
-  var weekAgoStr = weekAgo.toISOString();
-
-  var vitalsRes = await db.from('vitals')
-    .select('*')
-    .eq('person_id', personId)
-    .eq('source', 'terra')
-    .gte('effective_date', weekAgoStr)
-    .order('effective_date', { ascending: false });
-
-  var eventsRes = await db.from('health_events')
-    .select('*')
-    .eq('person_id', personId)
-    .eq('source', 'terra')
-    .gte('event_date', weekAgoStr)
-    .order('event_date', { ascending: false });
-
-  var vitals = vitalsRes.data || [];
-  var events = eventsRes.data || [];
-  return { vitals: vitals, events: events };
-}
-
-// ── BUILD REAL SIGNALS DATA ───────────────────────────────────────────────────
-function buildRealSignalsData(vitals, events, connections) {
-  // Helpers to extract numbers from event notes
-  function parseEventNum(note, prefix) {
-    if (!note) return null;
-    var lower = note.toLowerCase();
-    var idx = lower.indexOf(prefix.toLowerCase());
-    if (idx === -1) return null;
-    var sub = note.slice(idx + prefix.length);
-    var m = sub.match(/([\d.]+)/);
-    return m ? parseFloat(m[1]) : null;
-  }
-
-  // Device name from first connection
-  var deviceName = 'Wearable';
-  if (connections && connections.length > 0) {
-    var p = connections[0].provider || '';
-    deviceName = p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
-  }
-
-  // Last sync time
-  var lastSync = '';
-  if (connections && connections.length > 0 && connections[0].last_data_at) {
-    var syncMs = Date.now() - new Date(connections[0].last_data_at).getTime();
-    var syncMin = Math.floor(syncMs / 60000);
-    if (syncMin < 60) lastSync = syncMin + ' min ago';
-    else if (syncMin < 1440) lastSync = Math.floor(syncMin / 60) + 'h ago';
-    else lastSync = Math.floor(syncMin / 1440) + 'd ago';
-  }
-
-  // Heart rate vitals (loinc 8867-4)
-  var hrVitals = vitals.filter(function(v) { return v.loinc_code === '8867-4' || v.name === 'Heart Rate'; });
-  var restingVitals = vitals.filter(function(v) { return v.loinc_code === '40443-4' || v.name === 'Resting Heart Rate'; });
-  var hrvVitals = vitals.filter(function(v) { return v.name && v.name.toLowerCase().indexOf('hrv') !== -1; });
-  var spo2Vitals = vitals.filter(function(v) { return v.name && v.name.toLowerCase().indexOf('spo2') !== -1 || v.name === 'SpO2'; });
-
-  var currentHR = hrVitals.length > 0 ? Math.round(parseFloat(hrVitals[0].value)) : null;
-  var hrTrend = hrVitals.slice(0, 12).map(function(v) { return Math.round(parseFloat(v.value) || 0); }).reverse();
-  if (hrTrend.length < 2) hrTrend = null;
-
-  var hrMin = null, hrMax = null;
-  if (hrVitals.length > 0) {
-    var hrValues = hrVitals.map(function(v) { return parseFloat(v.value); });
-    hrMin = Math.round(Math.min.apply(null, hrValues));
-    hrMax = Math.round(Math.max.apply(null, hrValues));
-  }
-
-  var restingHR = restingVitals.length > 0 ? Math.round(parseFloat(restingVitals[0].value)) : null;
-  var hrv = hrvVitals.length > 0 ? Math.round(parseFloat(hrvVitals[0].value)) : null;
-  var spo2 = spo2Vitals.length > 0 ? Math.round(parseFloat(spo2Vitals[0].value)) : null;
-  var spo2Min = null, spo2Max = null;
-  if (spo2Vitals.length > 0) {
-    var spo2Values = spo2Vitals.map(function(v) { return parseFloat(v.value); });
-    spo2Min = Math.round(Math.min.apply(null, spo2Values));
-    spo2Max = Math.round(Math.max.apply(null, spo2Values));
-  }
-
-  // Today's activity events
-  var todayStr = new Date().toISOString().slice(0, 10);
-  var todayEvents = events.filter(function(ev) {
-    return ev.event_date && ev.event_date.slice(0, 10) === todayStr;
-  });
-  var activityEvents = todayEvents.filter(function(ev) { return ev.event_type === 'activity'; });
-
-  var steps = null, distance = null, calories = null;
-  for (var ai = 0; ai < activityEvents.length; ai++) {
-    var note = activityEvents[ai].notes || activityEvents[ai].description || '';
-    var s = parseEventNum(note, 'Steps:');
-    if (s !== null) steps = Math.round(s);
-    var d = parseEventNum(note, 'Distance:');
-    if (d !== null) distance = d;
-    var c = parseEventNum(note, 'Active Calories:');
-    if (c !== null) calories = Math.round(c);
-  }
-
-  // Sleep — most recent sleep event
-  var sleepEvents = events.filter(function(ev) { return ev.event_type === 'sleep'; });
-  var sleepObj = null;
-  if (sleepEvents.length > 0) {
-    var totalMins = null, deepMins = 0, coreMins = 0, remMins = 0, awakeMins = 0;
-    var bedTime = '', wakeTime = '';
-    for (var si2 = 0; si2 < sleepEvents.length; si2++) {
-      var sev = sleepEvents[si2];
-      var snote = sev.notes || sev.description || '';
-      // Total sleep: "Sleep (7h 12m)"
-      var totMatch = snote.match(/Sleep\s*\((\d+)h\s*(\d+)m\)/i);
-      if (totMatch) { totalMins = parseInt(totMatch[1], 10) * 60 + parseInt(totMatch[2], 10); }
-      var totMatchH = snote.match(/Sleep\s*\((\d+)h\)/i);
-      if (!totMatch && totMatchH) { totalMins = parseInt(totMatchH[1], 10) * 60; }
-      // Deep
-      var deepMatch = snote.match(/Deep[\s\w]*:\s*(\d+)h?\s*(\d+)?m?/i);
-      if (deepMatch) { deepMins = parseInt(deepMatch[1], 10) * (deepMatch[0].indexOf('h') !== -1 ? 60 : 1) + (parseInt(deepMatch[2], 10) || 0); }
-      // REM
-      var remMatch = snote.match(/REM[\s\w]*:\s*(\d+)h?\s*(\d+)?m?/i);
-      if (remMatch) { remMins = parseInt(remMatch[1], 10) * (remMatch[0].indexOf('h') !== -1 ? 60 : 1) + (parseInt(remMatch[2], 10) || 0); }
-      // Awake
-      var awakeMatch = snote.match(/Awake[\s\w]*:\s*(\d+)h?\s*(\d+)?m?/i);
-      if (awakeMatch) { awakeMins = parseInt(awakeMatch[1], 10) * (awakeMatch[0].indexOf('h') !== -1 ? 60 : 1) + (parseInt(awakeMatch[2], 10) || 0); }
-      // Bed/wake times from event timestamps
-      if (!bedTime && sev.event_date) {
-        var evD = new Date(sev.event_date);
-        var endD = sev.end_date ? new Date(sev.end_date) : null;
-        if (!isNaN(evD.getTime())) {
-          var bh = evD.getHours(), bm = evD.getMinutes();
-          var bampm = bh >= 12 ? 'PM' : 'AM';
-          var bh12 = bh % 12 || 12;
-          bedTime = bh12 + ':' + (bm < 10 ? '0' : '') + bm + ' ' + bampm;
-        }
-        if (endD && !isNaN(endD.getTime())) {
-          var wh = endD.getHours(), wm = endD.getMinutes();
-          var wampm = wh >= 12 ? 'PM' : 'AM';
-          var wh12 = wh % 12 || 12;
-          wakeTime = wh12 + ':' + (wm < 10 ? '0' : '') + wm + ' ' + wampm;
-        }
-      }
-    }
-    if (totalMins !== null) {
-      coreMins = Math.max(0, totalMins - deepMins - remMins - awakeMins);
-      sleepObj = {
-        total: totalMins,
-        deep: deepMins,
-        core: coreMins,
-        rem: remMins,
-        awake: awakeMins,
-        bedTime: bedTime || '',
-        wakeTime: wakeTime || ''
-      };
-    }
-  }
-
-  return {
-    device: deviceName,
-    personName: getPersonFirstName(),
-    lastSync: lastSync,
-    heartRate: currentHR !== null ? {
-      current: currentHR,
-      min: hrMin || currentHR,
-      max: hrMax || currentHR,
-      resting: restingHR || currentHR,
-      trend: hrTrend || [currentHR]
-    } : null,
-    steps: steps !== null ? { today: steps, goal: 6000 } : null,
-    sleep: sleepObj,
-    spo2: spo2 !== null ? { current: spo2, min: spo2Min || spo2, max: spo2Max || spo2 } : null,
-    hrv: hrv !== null ? { current: hrv, unit: 'ms' } : null,
-    distance: distance,
-    calories: calories
-  };
-}
-
-// ── RENDER SIGNALS VIEW ──────────────────────────────────────────────────────
-
-
-// ── GLOBAL SEARCH ──────────────────────────────────────────────────────────────
-
-var _searchDebounceTimer = null;
-var _searchActive = false;
-
-function openSearch() {
-  var overlay = document.getElementById('search-overlay');
-  overlay.classList.add('show');
-  overlay.setAttribute('role', 'dialog');
-  overlay.setAttribute('aria-modal', 'true');
-  overlay.setAttribute('aria-label', 'Search');
-  _searchActive = true;
-  var inp = document.getElementById('search-input');
-  inp.value = '';
-  document.getElementById('search-body').innerHTML = '<div class="search-recents" id="search-recents"></div>';
-  renderSearchRecents();
-  setTimeout(function() { inp.focus(); }, 80);
-  overlay.addEventListener('keydown', function handler(e) {
-    if (e.key === 'Escape') {
-      closeSearch();
-      overlay.removeEventListener('keydown', handler);
-    }
-  });
-  initIcons();
-}
-
-function closeSearch() {
-  var overlay = document.getElementById('search-overlay');
-  overlay.classList.remove('show');
-  _searchActive = false;
-  if (_searchDebounceTimer) { clearTimeout(_searchDebounceTimer); _searchDebounceTimer = null; }
-}
-
-function onSearchInput(val) {
-  if (_searchDebounceTimer) clearTimeout(_searchDebounceTimer);
-  var q = val.trim();
-  if (q.length < 2) {
-    var body = document.getElementById('search-body');
-    body.innerHTML = '<div class="search-recents" id="search-recents"></div>';
-    renderSearchRecents();
-    initIcons();
-    return;
-  }
-  document.getElementById('search-body').innerHTML = '<div class="search-loading">Searching…</div>';
-  _searchDebounceTimer = setTimeout(function() {
-    runSearch(q);
-  }, 300);
-}
-
-function runSearch(q) {
-  performSearch(q).then(function(results) {
-    saveSearchRecent(q);
-    renderSearchResults(results, q);
-    initIcons();
-  }).catch(function(err) {
-    console.error('Search error:', err);
-    document.getElementById('search-body').innerHTML = '<div class="search-empty"><div class="search-empty-title">Search failed</div><div class="search-empty-sub">Please try again.</div></div>';
-  });
-}
-
-async function performSearch(query) {
-  var q = query.toLowerCase().trim();
-  if (!q || q.length < 2) return [];
-
-  var results = [];
-
-  // 1. People
-  if (typeof currentPeople !== 'undefined' && currentPeople) {
-    currentPeople.forEach(function(p) {
-      if (!p) return;
-      var name = p.name || '';
-      var conditions = p.conditions || '';
-      if (name.toLowerCase().indexOf(q) >= 0 || conditions.toLowerCase().indexOf(q) >= 0) {
-        results.push({ type: 'person', title: name, subtitle: conditions || 'Person', id: p.id, icon: 'user' });
-      }
-    });
-  }
-
-  // 2. Medications
-  if (typeof currentMeds !== 'undefined' && currentMeds) {
-    currentMeds.forEach(function(m) {
-      if (!m) return;
-      var name = m.name || '';
-      var dosage = m.dosage || '';
-      if (name.toLowerCase().indexOf(q) >= 0 || dosage.toLowerCase().indexOf(q) >= 0) {
-        results.push({ type: 'medication', title: name, subtitle: dosage || 'Medication', id: m.id, icon: 'pill' });
-      }
-    });
-  }
-
-  // 3. Allergies
-  if (typeof currentAllergies !== 'undefined' && currentAllergies) {
-    currentAllergies.forEach(function(a) {
-      if (!a) return;
-      var name = a.substance || a.name || '';
-      if (name.toLowerCase().indexOf(q) >= 0) {
-        results.push({ type: 'allergy', title: name, subtitle: a.reaction || 'Allergy', id: a.id, icon: 'alert-triangle' });
-      }
-    });
-  }
-
-  // 4. Health events (Supabase)
-  try {
-    if (typeof db !== 'undefined' && typeof currentPersonId !== 'undefined' && currentPersonId) {
-      var eventsRes = await db.from('health_events')
-        .select('id, title, event_date, event_type')
-        .eq('person_id', currentPersonId)
-        .ilike('title', '%' + q + '%')
-        .order('event_date', { ascending: false })
-        .limit(10);
-      if (eventsRes.data) {
-        eventsRes.data.forEach(function(ev) {
-          var dateStr = ev.event_date ? ev.event_date.substring(0, 10) : '';
-          results.push({ type: 'event', title: ev.title || 'Health Event', subtitle: (ev.event_type ? ev.event_type + (dateStr ? ' · ' + dateStr : '') : dateStr) || '', id: ev.id, icon: 'calendar' });
-        });
-      }
-    }
-  } catch(e) { console.warn('Events search error', e); }
-
-  // 5. Documents (Supabase)
-  try {
-    if (typeof db !== 'undefined' && typeof currentPersonId !== 'undefined' && currentPersonId) {
-      var docsRes = await db.from('documents')
-        .select('id, file_name, document_type, created_at')
-        .eq('person_id', currentPersonId)
-        .ilike('file_name', '%' + q + '%')
-        .order('created_at', { ascending: false })
-        .limit(10);
-      if (docsRes.data) {
-        docsRes.data.forEach(function(doc) {
-          var dateStr = doc.created_at ? doc.created_at.substring(0, 10) : '';
-          results.push({ type: 'document', title: doc.file_name || 'Document', subtitle: (doc.document_type ? doc.document_type + (dateStr ? ' · ' + dateStr : '') : dateStr) || '', id: doc.id, icon: 'file-text' });
-        });
-      }
-    }
-  } catch(e) { console.warn('Documents search error', e); }
-
-  // 6. Vitals (Supabase)
-  try {
-    if (typeof db !== 'undefined' && typeof currentPersonId !== 'undefined' && currentPersonId) {
-      var vitalsRes = await db.from('vitals')
-        .select('id, vital_type, value, unit, effective_date')
-        .eq('person_id', currentPersonId)
-        .ilike('vital_type', '%' + q + '%')
-        .order('effective_date', { ascending: false })
-        .limit(10);
-      if (vitalsRes.data) {
-        vitalsRes.data.forEach(function(v) {
-          var valStr = (v.value ? String(v.value) : '') + (v.unit ? ' ' + v.unit : '');
-          var dateStr = v.effective_date ? v.effective_date.substring(0, 10) : '';
-          results.push({ type: 'vital', title: v.vital_type || 'Vital', subtitle: (valStr + (dateStr ? ' · ' + dateStr : '')).trim() || '', id: v.id, icon: 'activity' });
-        });
-      }
-    }
-  } catch(e) { console.warn('Vitals search error', e); }
-
-  return results;
-}
-
-function renderSearchResults(results, query) {
-  var body = document.getElementById('search-body');
-  if (!results || results.length === 0) {
-    body.innerHTML = '<div class="search-empty">'
-      + '<div class="search-empty-icon"><i data-lucide="search-x" style="width:24px;height:24px;"></i></div>'
-      + '<div class="search-empty-title">No results for “' + escHtml(query) + '”</div>'
-      + '<div class="search-empty-sub">Try a different search term or check spelling.</div>'
-      + '</div>';
-    return;
-  }
-
-  // Group by type
-  var groups = {};
-  var groupOrder = ['person', 'medication', 'allergy', 'event', 'vital', 'document'];
-  var groupLabels = { person: 'People', medication: 'Medications', allergy: 'Allergies', event: 'Health Events', vital: 'Vitals', document: 'Documents' };
-  var groupIconClasses = { person: '', medication: 'icon-med', allergy: 'icon-allergy', event: 'icon-event', vital: 'icon-vital', document: 'icon-doc' };
-
-  results.forEach(function(r) {
-    if (!groups[r.type]) groups[r.type] = [];
-    groups[r.type].push(r);
-  });
-
-  var html = '';
-  groupOrder.forEach(function(type) {
-    if (!groups[type] || groups[type].length === 0) return;
-    html += '<div class="search-section-header">' + escHtml(groupLabels[type] || type) + '</div>';
-    html += '<div class="search-results-group">';
-    groups[type].forEach(function(r) {
-      var iconClass = groupIconClasses[r.type] || '';
-      html += '<div class="search-result-item" onclick="navigateToResult(' + JSON.stringify(r).replace(/</g,'\u003c').replace(/>/g,'\u003e').replace(/&/g,'\u0026') + ')">'
-        + '<div class="search-result-icon ' + iconClass + '">'
-        + '<i data-lucide="' + escHtml(r.icon || 'circle') + '" style="width:16px;height:16px;"></i>'
-        + '</div>'
-        + '<div class="search-result-text">'
-        + '<div class="search-result-title">' + escHtml(r.title) + '</div>'
-        + (r.subtitle ? '<div class="search-result-sub">' + escHtml(r.subtitle) + '</div>' : '')
-        + '</div>'
-        + '<div class="search-result-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>'
-        + '</div>';
-    });
-    html += '</div>';
-  });
-
-  body.innerHTML = html;
-}
-
-function navigateToResult(result) {
-  closeSearch();
-  if (result.type === 'person') {
-    switchNavTo('people');
-  } else if (result.type === 'medication') {
-    switchNavTo('home');
-    var timelineBtn = document.getElementById('tab-btn-timeline');
-    if (timelineBtn) switchTab(timelineBtn, 'timeline');
-  } else if (result.type === 'event') {
-    switchNavTo('home');
-    var timelineBtn = document.getElementById('tab-btn-timeline');
-    if (timelineBtn) switchTab(timelineBtn, 'timeline');
-  } else if (result.type === 'vital') {
-    switchNavTo('home');
-    var timelineBtn = document.getElementById('tab-btn-timeline');
-    if (timelineBtn) switchTab(timelineBtn, 'timeline');
-  } else if (result.type === 'document') {
-    switchNavTo('records');
-  } else if (result.type === 'allergy') {
-    switchNavTo('people');
-  }
-}
-
-// ── RECENT SEARCHES ────────────────────────────────────────────────────────────
-
-function getSearchRecents() {
-  try {
-    var stored = localStorage.getItem('wellet_search_recents');
-    return stored ? JSON.parse(stored) : [];
-  } catch(e) { return []; }
-}
-
-function saveSearchRecent(q) {
-  if (!q || q.length < 2) return;
-  try {
-    var recents = getSearchRecents();
-    recents = recents.filter(function(r) { return r !== q; });
-    recents.unshift(q);
-    if (recents.length > 5) recents = recents.slice(0, 5);
-    localStorage.setItem('wellet_search_recents', JSON.stringify(recents));
-  } catch(e) {}
-}
-
-function clearSearchRecents() {
-  try { localStorage.removeItem('wellet_search_recents'); } catch(e) {}
-  var body = document.getElementById('search-body');
-  if (body) {
-    body.innerHTML = '<div class="search-recents" id="search-recents"></div>';
-    renderSearchRecents();
-  }
-}
-
-function renderSearchRecents() {
-  var container = document.getElementById('search-recents');
-  if (!container) return;
-  var recents = getSearchRecents();
-  if (!recents || recents.length === 0) {
-    container.innerHTML = '<div class="search-empty" style="padding-top:60px;">'
-      + '<div class="search-empty-icon"><i data-lucide="search" style="width:24px;height:24px;"></i></div>'
-      + '<div class="search-empty-title">Search everything</div>'
-      + '<div class="search-empty-sub">Find people, medications, health events, documents, and vitals.</div>'
-      + '</div>';
-    initIcons();
-    return;
-  }
-  var html = '<div class="search-recents-header">'
-    + '<span class="search-recents-label">Recent</span>'
-    + '<button class="search-recents-clear" onclick="clearSearchRecents()">Clear</button>'
-    + '</div>';
-  recents.forEach(function(r) {
-    html += '<div class="search-recent-item" onclick="fillSearchAndRun(' + JSON.stringify(r).replace(/</g,'\u003c').replace(/>/g,'\u003e').replace(/&/g,'\u0026') + ')">'
-      + '<span class="search-recent-icon"><i data-lucide="clock" style="width:15px;height:15px;"></i></span>'
-      + '<span class="search-recent-text">' + escHtml(r) + '</span>'
-      + '<span class="search-recent-icon"><i data-lucide="arrow-up-left" style="width:14px;height:14px;"></i></span>'
-      + '</div>';
-  });
-  container.innerHTML = html;
-  initIcons();
-}
-
-function fillSearchAndRun(q) {
-  var inp = document.getElementById('search-input');
-  if (inp) { inp.value = q; inp.focus(); }
-  document.getElementById('search-body').innerHTML = '<div class="search-loading">Searching…</div>';
-  performSearch(q).then(function(results) {
-    saveSearchRecent(q);
-    renderSearchResults(results, q);
-    initIcons();
-  });
-}
-
-
-
-// ── i18n TRANSLATIONS ────────────────────────────────────────────────────────
-var TRANSLATIONS = {
-  en: {
-    // Nav
-    'nav.home': 'Home',
-    'nav.people': 'People',
-    'nav.records': 'Records',
-    'nav.signals': 'Signals',
-    'nav.resources': 'Resources',
-    'nav.ask': 'Ask Wellet',
-
-    // Home tabs
-    'tab.update': 'Update Me',
-    'tab.timeline': 'Timeline',
-    'tab.patterns': 'Patterns',
-
-    // Common
-    'common.save': 'Save',
-    'common.cancel': 'Cancel',
-    'common.delete': 'Delete',
-    'common.edit': 'Edit',
-    'common.close': 'Close',
-    'common.loading': 'Loading…',
-    'common.noData': 'No data yet',
-    'common.search': 'Search',
-    'common.upload': 'Upload',
-    'common.add': 'Add',
-    'common.done': 'Done',
-    'common.back': 'Back',
-    'common.next': 'Next',
-    'common.confirm': 'Confirm',
-    'common.remove': 'Remove',
-
-    // Settings
-    'settings.title': 'Settings',
-    'settings.account': 'Account',
-    'settings.language': 'Language',
-    'settings.languageEnglish': 'English',
-    'settings.languageSpanish': 'Espa\u00F1ol',
-    'settings.alpha': 'Alpha',
-    'settings.sendFeedback': 'Send feedback',
-    'settings.sendFeedbackMeta': 'Help shape Wellet \u2014 tell me what works and what doesn\u2019t',
-    'settings.alphaTester': 'Alpha tester',
-    'settings.alphaTesterMeta': 'You\u2019re one of Wellet\u2019s first users',
-    'settings.notifications': 'Notifications',
-    'settings.weeklyDigest': 'Weekly digest',
-    'settings.weeklyDigestMeta': 'Every Sunday at 5 PM',
-    'settings.newMessages': 'New messages',
-    'settings.newMessagesMeta': 'From care team portals',
-    'settings.patternChanges': 'Pattern changes',
-    'settings.patternChangesMeta': 'When Wellet notices something',
-    'settings.emailReminders': 'Email me reminders',
-    'settings.emailRemindersMeta': 'Medication & appointment emails',
-    'settings.quietHours': 'Quiet hours',
-    'settings.quietHoursMeta': 'Silence notifications during set times',
-    'settings.privacy': 'Privacy & Security',
-    'settings.appLock': 'App lock',
-    'settings.appLockMeta': 'Face ID / passcode on open',
-    'settings.exportControl': 'Export control',
-    'settings.exportControlMeta': 'Confirm before sharing data',
-    'settings.careCircle': 'Family & care circle',
-    'settings.addFamilyMember': 'Add family member',
-    'settings.healthRecords': 'Health Records',
-    'settings.healthRecordsMeta': 'Connect your EHR to import medical data \u2014 medications, conditions, lab results, and more.',
-    'settings.connectHealthRecords': 'Connect Health Records',
-    'settings.connectHealthRecordsMeta': 'Import data from your provider (Epic, Cerner, etc.)',
-    'settings.appleHealth': 'Apple Health',
-    'settings.appleHealthMeta': 'Synced \u00B7 Last updated 2 hrs ago',
-    'settings.archivedProfiles': 'Archived Profiles',
-    'settings.yourData': 'Your Data',
-    'settings.exportAll': 'Export all data',
-    'settings.exportAllMeta': 'Download everything as JSON',
-    'settings.exportSpreadsheets': 'Export as spreadsheets',
-    'settings.exportSpreadsheetsMeta': 'CSV files in a ZIP archive',
-    'settings.yourPlan': 'Your plan',
-    'settings.signOut': 'Sign out',
-    'settings.signOutMeta': 'Return to login screen',
-    'settings.signedIn': 'Signed in',
-    'settings.magicLink': 'Magic link authentication',
-
-    // Update Me
-    'update.generating': 'Generating your update\u2026',
-    'update.lastUpdated': 'Last updated',
-    'update.shareThis': 'Share this update',
-    'update.recentActivity': 'Recent activity',
-    'update.noActivity': 'No activity logged yet.',
-    'update.uploadPrompt': 'Upload a document',
-
-    // People
-    'people.careCircle': 'Care Circle',
-    'people.addPerson': 'Add a person',
-    'people.invite': 'Invite to care circle',
-    'people.noPeople': 'No people added yet.',
-
-    // Records
-    'records.upload': 'Upload',
-    'records.photoCapture': 'Take a photo',
-    'records.documents': 'Documents',
-    'records.medications': 'Medications',
-    'records.conditions': 'Conditions',
-    'records.allergies': 'Allergies',
-    'records.labs': 'Labs',
-    'records.vitals': 'Vitals',
-    'records.noRecords': 'No records yet.',
-    'records.addMed': 'Add medication',
-    'records.addCondition': 'Add condition',
-    'records.addAllergy': 'Add allergy',
-
-    // Signals
-    'signals.connected': 'Connected Devices',
-    'signals.connectWearable': 'Connect a Wearable',
-    'signals.heartRate': 'Heart Rate',
-    'signals.steps': 'Steps',
-    'signals.sleep': 'Sleep',
-    'signals.bloodOxygen': 'Blood Oxygen',
-    'signals.noSignals': 'No signals data yet.',
-    'signals.today': 'Today',
-    'signals.week': 'This week',
-
-    // Resources
-    'resources.title': 'Resources',
-    'resources.noResources': 'No resources yet.',
-    'resources.caregiverGuides': 'Caregiver Guides',
-    'resources.localServices': 'Local Services',
-
-    // Ask Wellet
-    'ask.placeholder': 'Ask about health\u2026',
-    'ask.thinking': 'Thinking\u2026',
-    'ask.noHistory': 'No conversation yet.',
-    'ask.startPrompt': 'Ask Wellet anything about your loved one\u2019s health.',
-
-    // Notifications
-    'notif.title': 'Notifications',
-    'notif.markAllRead': 'Mark all read',
-    'notif.noNotifications': 'No notifications',
-
-    // Onboarding
-    'onboard.welcome': 'Welcome to Wellet',
-    'onboard.uploadFirst': 'Start by uploading a health document',
-    'onboard.skipToChat': 'I\u2019d rather tell Wellet myself',
-
-    // Sharing
-    'share.title': 'Share Health Summary',
-    'share.copyLink': 'Copy link',
-    'share.sendEmail': 'Send via email',
-    'share.history': 'Share History',
-
-    // Visit Prep
-    'visit.title': 'Visit Prep',
-    'visit.generating': 'Generating questions for your visit\u2026',
-    'visit.download': 'Download Visit Summary',
-
-    // Emergency
-    'emergency.title': 'Emergency Summary',
-    'emergency.download': 'Download PDF',
-
-    // Patterns
-    'patterns.noticed': 'What Wellet has noticed',
-    'patterns.noPatterns': 'No patterns detected yet.'
-  },
-  es: {
-    // Nav
-    'nav.home': 'Inicio',
-    'nav.people': 'Personas',
-    'nav.records': 'Registros',
-    'nav.signals': 'Se\u00F1ales',
-    'nav.resources': 'Recursos',
-    'nav.ask': 'Preguntar',
-
-    // Home tabs
-    'tab.update': 'Resumen',
-    'tab.timeline': 'Cronolog\u00EDa',
-    'tab.patterns': 'Patrones',
-
-    // Common
-    'common.save': 'Guardar',
-    'common.cancel': 'Cancelar',
-    'common.delete': 'Eliminar',
-    'common.edit': 'Editar',
-    'common.close': 'Cerrar',
-    'common.loading': 'Cargando\u2026',
-    'common.noData': 'Sin datos a\u00FAn',
-    'common.search': 'Buscar',
-    'common.upload': 'Subir',
-    'common.add': 'Agregar',
-    'common.done': 'Listo',
-    'common.back': 'Volver',
-    'common.next': 'Siguiente',
-    'common.confirm': 'Confirmar',
-    'common.remove': 'Quitar',
-
-    // Settings
-    'settings.title': 'Configuraci\u00F3n',
-    'settings.account': 'Cuenta',
-    'settings.language': 'Idioma',
-    'settings.languageEnglish': 'English',
-    'settings.languageSpanish': 'Espa\u00F1ol',
-    'settings.alpha': 'Alpha',
-    'settings.sendFeedback': 'Enviar comentarios',
-    'settings.sendFeedbackMeta': 'Ayuda a mejorar Wellet \u2014 d\u00EDme qu\u00E9 funciona y qu\u00E9 no',
-    'settings.alphaTester': 'Tester alfa',
-    'settings.alphaTesterMeta': 'Eres uno de los primeros usuarios de Wellet',
-    'settings.notifications': 'Notificaciones',
-    'settings.weeklyDigest': 'Resumen semanal',
-    'settings.weeklyDigestMeta': 'Todos los domingos a las 5 PM',
-    'settings.newMessages': 'Nuevos mensajes',
-    'settings.newMessagesMeta': 'De los portales del equipo de salud',
-    'settings.patternChanges': 'Cambios de patrones',
-    'settings.patternChangesMeta': 'Cuando Wellet nota algo',
-    'settings.emailReminders': 'Recordatorios por correo',
-    'settings.emailRemindersMeta': 'Correos de medicamentos y citas',
-    'settings.quietHours': 'Horas de silencio',
-    'settings.quietHoursMeta': 'Silenciar notificaciones en horarios establecidos',
-    'settings.privacy': 'Privacidad y Seguridad',
-    'settings.appLock': 'Bloqueo de app',
-    'settings.appLockMeta': 'Face ID / c\u00F3digo al abrir',
-    'settings.exportControl': 'Control de exportaci\u00F3n',
-    'settings.exportControlMeta': 'Confirmar antes de compartir datos',
-    'settings.careCircle': 'Familia y c\u00EDrculo de cuidado',
-    'settings.addFamilyMember': 'Agregar familiar',
-    'settings.healthRecords': 'Registros de Salud',
-    'settings.healthRecordsMeta': 'Conecta tu EHR para importar datos m\u00E9dicos \u2014 medicamentos, condiciones, resultados de laboratorio y m\u00E1s.',
-    'settings.connectHealthRecords': 'Conectar Registros de Salud',
-    'settings.connectHealthRecordsMeta': 'Importar datos de tu proveedor (Epic, Cerner, etc.)',
-    'settings.appleHealth': 'Apple Health',
-    'settings.appleHealthMeta': 'Sincronizado \u00B7 \u00DAltima actualizaci\u00F3n hace 2 hrs',
-    'settings.archivedProfiles': 'Perfiles Archivados',
-    'settings.yourData': 'Tus Datos',
-    'settings.exportAll': 'Exportar todos los datos',
-    'settings.exportAllMeta': 'Descargar todo en formato JSON',
-    'settings.exportSpreadsheets': 'Exportar como hojas de c\u00E1lculo',
-    'settings.exportSpreadsheetsMeta': 'Archivos CSV en un ZIP',
-    'settings.yourPlan': 'Tu plan',
-    'settings.signOut': 'Cerrar sesi\u00F3n',
-    'settings.signOutMeta': 'Volver a la pantalla de inicio',
-    'settings.signedIn': 'Sesi\u00F3n iniciada',
-    'settings.magicLink': 'Autenticaci\u00F3n por enlace m\u00E1gico',
-
-    // Update Me
-    'update.generating': 'Generando tu resumen\u2026',
-    'update.lastUpdated': '\u00DAltima actualizaci\u00F3n',
-    'update.shareThis': 'Compartir este resumen',
-    'update.recentActivity': 'Actividad reciente',
-    'update.noActivity': 'A\u00FAn no hay actividad registrada.',
-    'update.uploadPrompt': 'Subir un documento',
-
-    // People
-    'people.careCircle': 'C\u00EDrculo de Cuidado',
-    'people.addPerson': 'Agregar una persona',
-    'people.invite': 'Invitar al c\u00EDrculo de cuidado',
-    'people.noPeople': 'A\u00FAn no hay personas.',
-
-    // Records
-    'records.upload': 'Subir',
-    'records.photoCapture': 'Tomar una foto',
-    'records.documents': 'Documentos',
-    'records.medications': 'Medicamentos',
-    'records.conditions': 'Condiciones',
-    'records.allergies': 'Alergias',
-    'records.labs': 'Laboratorio',
-    'records.vitals': 'Signos Vitales',
-    'records.noRecords': 'A\u00FAn no hay registros.',
-    'records.addMed': 'Agregar medicamento',
-    'records.addCondition': 'Agregar condici\u00F3n',
-    'records.addAllergy': 'Agregar alergia',
-
-    // Signals
-    'signals.connected': 'Dispositivos Conectados',
-    'signals.connectWearable': 'Conectar un Wearable',
-    'signals.heartRate': 'Frecuencia Card\u00EDaca',
-    'signals.steps': 'Pasos',
-    'signals.sleep': 'Sue\u00F1o',
-    'signals.bloodOxygen': 'Ox\u00EDgeno en Sangre',
-    'signals.noSignals': 'A\u00FAn no hay datos de se\u00F1ales.',
-    'signals.today': 'Hoy',
-    'signals.week': 'Esta semana',
-
-    // Resources
-    'resources.title': 'Recursos',
-    'resources.noResources': 'A\u00FAn no hay recursos.',
-    'resources.caregiverGuides': 'Gu\u00EDas para cuidadores',
-    'resources.localServices': 'Servicios locales',
-
-    // Ask Wellet
-    'ask.placeholder': 'Pregunta sobre salud\u2026',
-    'ask.thinking': 'Pensando\u2026',
-    'ask.noHistory': 'A\u00FAn no hay conversaci\u00F3n.',
-    'ask.startPrompt': 'Pregunta a Wellet cualquier cosa sobre la salud de tu ser querido.',
-
-    // Notifications
-    'notif.title': 'Notificaciones',
-    'notif.markAllRead': 'Marcar todo le\u00EDdo',
-    'notif.noNotifications': 'Sin notificaciones',
-
-    // Onboarding
-    'onboard.welcome': 'Bienvenido a Wellet',
-    'onboard.uploadFirst': 'Comienza subiendo un documento de salud',
-    'onboard.skipToChat': 'Prefiero decirle a Wellet yo mismo',
-
-    // Sharing
-    'share.title': 'Compartir Resumen de Salud',
-    'share.copyLink': 'Copiar enlace',
-    'share.sendEmail': 'Enviar por correo',
-    'share.history': 'Historial de compartidos',
-
-    // Visit Prep
-    'visit.title': 'Preparaci\u00F3n para Visita',
-    'visit.generating': 'Generando preguntas para tu visita\u2026',
-    'visit.download': 'Descargar Resumen de Visita',
-
-    // Emergency
-    'emergency.title': 'Resumen de Emergencia',
-    'emergency.download': 'Descargar PDF',
-
-    // Patterns
-    'patterns.noticed': 'Lo que Wellet ha notado',
-    'patterns.noPatterns': 'A\u00FAn no se detectan patrones.'
-  }
-};
-
-var currentLang = localStorage.getItem('wellet_lang') || 'en';
-
-function t(key) {
-  var dict = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
-  return dict[key] || TRANSLATIONS.en[key] || key;
-}
-
-// Apply translations to all data-i18n elements in the DOM
-function applyI18n() {
-  var els = document.querySelectorAll('[data-i18n]');
-  for (var i = 0; i < els.length; i++) {
-    var key = els[i].getAttribute('data-i18n');
-    if (key) els[i].textContent = t(key);
-  }
-  // Settings title has its own id
-  var settingsTitle = document.getElementById('settings-title-el');
-  if (settingsTitle) settingsTitle.textContent = t('settings.title');
-  // Notif panel title
-  var notifTitle = document.getElementById('notif-panel-title');
-  if (notifTitle) notifTitle.textContent = t('notif.title');
-  // Mark all read button
-  var markAllBtn = document.getElementById('notif-mark-all-btn');
-  if (markAllBtn) markAllBtn.textContent = t('notif.markAllRead');
-}
-
-function setLanguage(lang) {
-  currentLang = lang;
-  localStorage.setItem('wellet_lang', lang);
-  document.documentElement.lang = lang;
-  applyI18n();
-  refreshCurrentView();
-  // Update language picker buttons active state
-  var btns = document.querySelectorAll('.lang-pill-btn');
-  for (var i = 0; i < btns.length; i++) {
-    if (btns[i].dataset.lang === lang) {
-      btns[i].classList.add('active');
-    } else {
-      btns[i].classList.remove('active');
-    }
-  }
-}
-
-function refreshCurrentView() {
-  // Update bottom nav labels
-  var navBtns = document.querySelectorAll('.nav-item');
-  var navKeys = ['nav.home', 'nav.people', 'nav.records', 'nav.signals', 'nav.resources', 'nav.ask'];
-  for (var ni = 0; ni < navBtns.length; ni++) {
-    if (navKeys[ni]) {
-      var textNode = navBtns[ni].lastChild;
-      if (textNode && textNode.nodeType === 3) textNode.textContent = t(navKeys[ni]);
-    }
-  }
-
-  // Update tab labels
-  var tabBtns = document.querySelectorAll('.tab[id^="tab-btn-"]');
-  var tabKeys = ['tab.update', 'tab.timeline', 'tab.patterns'];
-  for (var ti = 0; ti < tabBtns.length; ti++) {
-    if (tabKeys[ti]) tabBtns[ti].textContent = t(tabKeys[ti]);
-  }
-
-  // Update notification panel title
-  var notifTitle = document.getElementById('notif-panel-title');
-  if (notifTitle) notifTitle.textContent = t('notif.title');
-
-  // Re-render active view
-  var activeView = document.querySelector('.app-view.active');
-  if (activeView) {
-    var viewId = activeView.id;
-    if (viewId === 'view-home') renderUpdateMe();
-    else if (viewId === 'view-people') renderPeopleView();
-    else if (viewId === 'view-records') renderRecordsView();
-    else if (viewId === 'view-signals') renderSignalsView();
-    else if (viewId === 'view-resources') renderResourcesView();
-    else if (viewId === 'view-ask') renderAskView();
-  }
-}
-
-
-
-// ── VISIT PREP FLOW ─────────────────────────────────────────────────────────
-var _vpVisitType = '';         // selected visit type label
-var _vpContext = '';           // optional context text
-var _vpQuestions = [];         // array of question strings (or grouped objects)
-var _vpCheckedState = {};      // { questionIndex: bool }
-var _vpCurrentStep = 1;
-var _vpIsSaved = false;
-
-function openVisitPrep(resume) {
-  var overlay = document.getElementById('visit-prep-overlay');
-  if (!overlay) return;
-
-  // Reset state for new prep
-  _vpIsSaved = false;
-  _vpVisitType = '';
-  _vpContext = '';
-  _vpCurrentStep = 1;
-
-  var savedBadge = document.getElementById('vp-saved-badge');
-  if (savedBadge) savedBadge.style.display = 'none';
-  var saveBtn = document.getElementById('vp-save-btn');
-  if (saveBtn) { saveBtn.innerHTML = '<i data-lucide="bookmark" style="width:16px;height:16px;"></i> Save for Later'; }
-
-  if (resume && currentPersonId) {
-    // Load saved prep and go to results step
-    var saved = JSON.parse(localStorage.getItem('wellet_visit_prep_' + currentPersonId) || 'null');
-    if (saved && saved.questions && saved.questions.length > 0) {
-      _vpVisitType = saved.visitType || '';
-      _vpContext = saved.context || '';
-      _vpQuestions = saved.questions;
-      _vpCheckedState = saved.checkedState || {};
-      _vpIsSaved = true;
-      vpGoStep(4);
-      vpRenderQuestions();
-      // Show saved badge
-      if (savedBadge) savedBadge.style.display = 'block';
-      if (saveBtn) { saveBtn.innerHTML = '<i data-lucide="bookmark-check" style="width:16px;height:16px;"></i> Saved'; }
-      overlay.classList.add('show');
-      initIcons();
-      return;
-    }
-  }
-
-  // Fresh start: reset step 1 selections
-  _vpQuestions = [];
-  _vpCheckedState = {};
-  var contextInput = document.getElementById('vp-context-input');
-  if (contextInput) contextInput.value = '';
-  // Clear any selected visit type cards
-  var cards = overlay.querySelectorAll('.visit-type-card');
-  for (var i = 0; i < cards.length; i++) { cards[i].classList.remove('selected'); }
-  vpGoStep(1);
-  overlay.classList.add('show');
-  initIcons();
-}
-
-function closeVisitPrep() {
-  var overlay = document.getElementById('visit-prep-overlay');
-  if (overlay) overlay.classList.remove('show');
-}
-
-function vpGoStep(stepNum) {
-  _vpCurrentStep = stepNum;
-  var steps = document.querySelectorAll('.vp-step');
-  for (var i = 0; i < steps.length; i++) { steps[i].classList.remove('active'); }
-  var target = document.getElementById('vp-step-' + stepNum);
-  if (target) target.classList.add('active');
-  // Scroll sheet to top
-  var sheet = document.querySelector('.vp-sheet');
-  if (sheet) sheet.scrollTop = 0;
-  initIcons();
-}
-
-function vpSelectType(visitType, cardEl) {
-  _vpVisitType = visitType;
-  // Update sub text in step 2
-  var sub = document.getElementById('vp-step2-sub');
-  if (sub) sub.textContent = visitType + ' — add anything specific you want to ask about (optional)';
-  // Move to step 2
-  vpGoStep(2);
-}
-
-async function vpGenerateQuestions() {
-  _vpContext = (document.getElementById('vp-context-input') || {}).value || '';
-  // Show loading step
-  var firstName = getPersonFirstName();
-  var loadingText = document.getElementById('vp-loading-text');
-  if (loadingText) loadingText.textContent = 'Wellet is reviewing ' + firstName + '\u2019s records and preparing questions\u2026';
-  vpGoStep(3);
-
-  try {
-    var questions = [];
-    if (isDemoMode) {
-      // Demo: wait briefly then return demo questions
-      await new Promise(function(resolve) { setTimeout(resolve, 1800); });
-      questions = [
-        'Blood pressure has been running higher — should we adjust the current medication dosage?',
-        'Are there any new treatment options to consider given the current regimen?',
-        'What dietary changes or additional monitoring should we do to slow disease progression?',
-        'How are current medications interacting with each other, and what side effects should we watch for?',
-        'Are there any upcoming screenings or preventive care visits we should schedule?'
-      ];
-    } else {
-      var session = await db.auth.getSession();
-      var token = session.data.session ? session.data.session.access_token : '';
-      if (!token) throw new Error('Not authenticated');
-      var res = await fetch(SUPABASE_URL + '/functions/v1/generate-visit-questions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + token,
-          'apikey': SUPABASE_ANON_KEY
-        },
-        body: JSON.stringify({
-          person_id: currentPersonId,
-          visit_type: _vpVisitType,
-          context: _vpContext
-        })
-      });
-      if (res.ok) {
-        var data = await res.json();
-        if (data.questions && data.questions.length > 0) {
-          questions = data.questions;
-        }
-      }
-      if (questions.length === 0) {
-        questions = [
-          'What is your assessment of the current health status based on recent records?',
-          'Are there any medication adjustments you would recommend?',
-          'What follow-up tests or screenings should we schedule?',
-          'Are there any lifestyle changes that could improve outcomes?',
-          'When should our next appointment be?'
-        ];
-      }
-    }
-
-    _vpQuestions = questions;
-    _vpCheckedState = {};
-    // Restore saved checkbox state if available
-    if (currentPersonId) {
-      var saved = JSON.parse(localStorage.getItem('wellet_visit_prep_' + currentPersonId) || 'null');
-      if (saved && saved.checkedState) { _vpCheckedState = saved.checkedState; }
-    }
-
-    vpRenderQuestions();
-    var resultsSub = document.getElementById('vp-results-sub');
-    if (resultsSub && _vpVisitType) resultsSub.textContent = _vpVisitType + ' — check off each question as you go';
-    vpGoStep(4);
-    initIcons();
-  } catch (err) {
-    console.error('Visit prep error:', err);
-    showToast('Something went wrong. Please try again.');
-    vpGoStep(2);
-  }
-}
-
-function vpRenderQuestions() {
-  var container = document.getElementById('vp-questions-list');
-  if (!container) return;
-  var html = '';
-
-  if (_vpQuestions.length === 0) {
-    html = '<div style="padding:20px 0;text-align:center;color:var(--text-muted);font-size:13px;">No questions generated. Try adding more context.</div>';
-    container.innerHTML = html;
-    return;
-  }
-
-  // Check if questions are grouped objects {category, questions:[]} or flat strings
-  var isGrouped = _vpQuestions.length > 0 && typeof _vpQuestions[0] === 'object' && _vpQuestions[0].category;
-
-  if (isGrouped) {
-    var qIdx = 0;
-    for (var g = 0; g < _vpQuestions.length; g++) {
-      var group = _vpQuestions[g];
-      html += '<div class="vp-question-group-label">' + escHtml(group.category || '') + '</div>';
-      var groupQs = group.questions || [];
-      for (var qi = 0; qi < groupQs.length; qi++) {
-        var q = groupQs[qi];
-        var checked = _vpCheckedState[qIdx] ? ' checked' : '';
-        var textClass = _vpCheckedState[qIdx] ? ' class="vp-question-text checked"' : ' class="vp-question-text"';
-        html += '<div class="vp-question-item">'
-          + '<input type="checkbox" class="vp-question-cb" data-qidx="' + qIdx + '"' + checked + ' onchange="vpToggleCheck(this)">'
-          + '<span' + textClass + ' onclick="vpToggleCheckByIdx(' + qIdx + ')">' + escHtml(q) + '</span>'
-          + '</div>';
-        qIdx++;
-      }
-    }
-  } else {
-    for (var i = 0; i < _vpQuestions.length; i++) {
-      var qText = typeof _vpQuestions[i] === 'string' ? _vpQuestions[i] : (_vpQuestions[i].text || '');
-      var isChecked = _vpCheckedState[i] ? true : false;
-      var cbChecked = isChecked ? ' checked' : '';
-      var spanClass = isChecked ? ' class="vp-question-text checked"' : ' class="vp-question-text"';
-      html += '<div class="vp-question-item">'
-        + '<input type="checkbox" class="vp-question-cb" data-qidx="' + i + '"' + cbChecked + ' onchange="vpToggleCheck(this)">'
-        + '<span' + spanClass + ' onclick="vpToggleCheckByIdx(' + i + ')">' + escHtml(qText) + '</span>'
-        + '</div>';
-    }
-  }
-
-  container.innerHTML = html;
-}
-
-function vpToggleCheck(cbEl) {
-  var idx = parseInt(cbEl.getAttribute('data-qidx'), 10);
-  _vpCheckedState[idx] = cbEl.checked;
-  // Update the text appearance
-  var textEl = cbEl.parentElement.querySelector('.vp-question-text');
-  if (textEl) {
-    if (cbEl.checked) { textEl.classList.add('checked'); } else { textEl.classList.remove('checked'); }
-  }
-  // Auto-save checked state if already saved
-  if (_vpIsSaved && currentPersonId) {
-    var saved = JSON.parse(localStorage.getItem('wellet_visit_prep_' + currentPersonId) || 'null');
-    if (saved) { saved.checkedState = _vpCheckedState; localStorage.setItem('wellet_visit_prep_' + currentPersonId, JSON.stringify(saved)); }
-  }
-}
-
-function vpToggleCheckByIdx(idx) {
-  var cb = document.querySelector('.vp-question-cb[data-qidx="' + idx + '"]');
-  if (cb) { cb.checked = !cb.checked; vpToggleCheck(cb); }
-}
-
-function vpGetFlatQuestions() {
-  // Returns flat array of question strings regardless of grouping
-  var flat = [];
-  if (_vpQuestions.length === 0) return flat;
-  var isGrouped = typeof _vpQuestions[0] === 'object' && _vpQuestions[0].category;
-  if (isGrouped) {
-    for (var g = 0; g < _vpQuestions.length; g++) {
-      var qs = _vpQuestions[g].questions || [];
-      for (var qi = 0; qi < qs.length; qi++) { flat.push(qs[qi]); }
-    }
-  } else {
-    for (var i = 0; i < _vpQuestions.length; i++) {
-      flat.push(typeof _vpQuestions[i] === 'string' ? _vpQuestions[i] : (_vpQuestions[i].text || ''));
-    }
-  }
-  return flat;
-}
-
-async function vpDownloadPDF() {
-  try {
-    var firstName = getPersonFirstName();
-    var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
-    var fullName = isDemoMode ? 'Patient' : (person ? person.name : 'Patient');
-
-    // Gather medications
-    var medications = [];
-    if (isDemoMode) {
-      medications = [{ name: 'See medical records', dose: '', frequency: '' }];
-    } else {
-      medications = liveMeds.filter(function(m){ return m.active; }).map(function(m) {
-        return { name: m.name, dose: m.dose || '', frequency: m.frequency || '' };
-      });
-    }
-
-    // Gather recent events (last 90 days)
-    var ninetyDaysAgo = new Date();
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-    var recentEvents = [];
-    if (!isDemoMode) {
-      recentEvents = liveEvents.filter(function(e) {
-        return new Date(e.event_date) >= ninetyDaysAgo;
-      }).map(function(e) {
-        return {
-          date: new Date(e.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-          title: e.title || '',
-          notes: e.notes || e.description || ''
-        };
-      });
-    }
-
-    // Patterns
-    var patterns = [];
-    var alertBanner = document.querySelector('.alert-banner');
-    if (alertBanner && !isDemoMode) {
-      var alertTitle = alertBanner.querySelector('.alert-title');
-      var alertBody = alertBanner.querySelector('.alert-body');
-      if (alertTitle && alertTitle.textContent) {
-        var patternText = alertTitle.textContent;
-        if (alertBody && alertBody.textContent) patternText += ' — ' + alertBody.textContent;
-        patterns.push(patternText);
-      }
-    }
-
-    // Emergency contact
-    var emergencyContact = '';
-    if (!isDemoMode && person) {
-      if (person.emergency_contact_name) {
-        emergencyContact = person.emergency_contact_name;
-        if (person.emergency_contact_phone) emergencyContact += ' · ' + person.emergency_contact_phone;
-      } else if (liveCareCircle.length > 0) {
-        var primary = liveCareCircle.find(function(c){ return c.role === 'Primary'; }) || liveCareCircle[0];
-        emergencyContact = primary.member_name;
-        if (primary.phone) emergencyContact += ' · ' + primary.phone;
-        if (primary.role) emergencyContact += ' · ' + primary.role;
-      }
-    }
-
-    var flatQuestions = vpGetFlatQuestions();
-    var doc = buildVisitSummaryPDF(fullName, firstName, medications, recentEvents, patterns, emergencyContact, flatQuestions);
-    var today = new Date();
-    var yyyy = today.getFullYear();
-    var mm = String(today.getMonth() + 1).padStart(2, '0');
-    var dd = String(today.getDate()).padStart(2, '0');
-    var filename = fullName.replace(/\s+/g, '-') + '-Visit-Summary-' + yyyy + '-' + mm + '-' + dd + '.pdf';
-    doc.save(filename);
-    showToast('Visit Summary downloaded');
-  } catch (err) {
-    console.error('Visit prep PDF error:', err);
-    showToast('Could not generate PDF — please try again');
-  }
-}
-
-function vpShareWithCareCircle() {
-  // Build a share message from the questions
-  var flatQuestions = vpGetFlatQuestions();
-  var firstName = getPersonFirstName();
-  var shareText = 'Preparing for ' + (firstName ? firstName + '\u2019s' : 'upcoming') + ' ' + (_vpVisitType || 'doctor visit') + '. Questions to discuss:\n\n';
-  for (var i = 0; i < flatQuestions.length && i < 5; i++) {
-    shareText += (i + 1) + '. ' + flatQuestions[i] + '\n';
-  }
-  // Close visit prep and open share overlay
-  closeVisitPrep();
-  // Set share preview text if element exists
-  var previewEl = document.getElementById('share-preview-text');
-  if (previewEl) previewEl.textContent = shareText;
-  // Open share overlay
-  openShareFamily();
-}
-
-function vpSaveForLater() {
-  if (!currentPersonId) { showToast('No person selected'); return; }
-  var flatQuestions = vpGetFlatQuestions();
-  if (flatQuestions.length === 0) { showToast('No questions to save'); return; }
-
-  var saveData = {
-    visitType: _vpVisitType,
-    context: _vpContext,
-    questions: _vpQuestions,
-    checkedState: _vpCheckedState,
-    savedAt: new Date().toISOString()
-  };
-  localStorage.setItem('wellet_visit_prep_' + currentPersonId, JSON.stringify(saveData));
-  _vpIsSaved = true;
-
-  // Update UI
-  var savedBadge = document.getElementById('vp-saved-badge');
-  if (savedBadge) savedBadge.style.display = 'block';
-  var saveBtn = document.getElementById('vp-save-btn');
-  if (saveBtn) {
-    saveBtn.innerHTML = '<i data-lucide="bookmark-check" style="width:16px;height:16px;"></i> Saved';
-    initIcons();
-  }
-  showToast('Visit prep saved — find it on Update Me');
-  // Refresh Update Me card in the background
-  renderUpdateMe();
-}
-
 </script>
 <script src="/guided-demo.js"></script>
-<!-- GLOBAL SEARCH OVERLAY -->
-<div class="search-overlay" id="search-overlay">
-  <div class="search-sheet">
-    <div class="search-header">
-      <div class="search-input-wrap">
-        <span class="search-input-icon"><i data-lucide="search" style="width:16px;height:16px;"></i></span>
-        <input class="search-input" id="search-input" type="search" placeholder="Search people, meds, events..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="onSearchInput(this.value)" />
-      </div>
-      <button class="search-cancel-btn" onclick="closeSearch()">Cancel</button>
-    </div>
-    <div class="search-body" id="search-body">
-      <div class="search-recents" id="search-recents">
-        <!-- Recent searches rendered by JS -->
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- VISIT PREP SHEET -->
-<div class="vp-overlay" id="visit-prep-overlay" onclick="if(event.target===this)closeVisitPrep()">
-  <div class="vp-sheet" role="dialog" aria-modal="true" aria-labelledby="vp-sheet-title">
-    <div class="vp-handle-row">
-      <div class="vp-handle"></div>
-      <button class="close-btn" aria-label="Close visit prep" onclick="closeVisitPrep()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
-    </div>
-
-    <!-- Step 1: Select visit type -->
-    <div class="vp-step active" id="vp-step-1">
-      <div class="vp-title" id="vp-sheet-title">Prepare for a Visit</div>
-      <div class="vp-sub">What kind of appointment is this?</div>
-      <div class="visit-type-grid">
-        <div class="visit-type-card" onclick="vpSelectType('Routine Check-up', this)">
-          <div class="visit-type-icon"><i data-lucide="heart-pulse" style="width:16px;height:16px;"></i></div>
-          <div>
-            <div class="visit-type-label">Routine Check-up</div>
-            <div class="visit-type-sub">Annual or periodic wellness visit</div>
-          </div>
-        </div>
-        <div class="visit-type-card" onclick="vpSelectType('Follow-up Visit', this)">
-          <div class="visit-type-icon"><i data-lucide="calendar-check" style="width:16px;height:16px;"></i></div>
-          <div>
-            <div class="visit-type-label">Follow-up Visit</div>
-            <div class="visit-type-sub">Checking in on a known condition or treatment</div>
-          </div>
-        </div>
-        <div class="visit-type-card" onclick="vpSelectType('Specialist Visit', this)">
-          <div class="visit-type-icon"><i data-lucide="stethoscope" style="width:16px;height:16px;"></i></div>
-          <div>
-            <div class="visit-type-label">Specialist Visit</div>
-            <div class="visit-type-sub">Cardiology, oncology, neurology, etc.</div>
-          </div>
-        </div>
-        <div class="visit-type-card" onclick="vpSelectType('Urgent / New Concern', this)">
-          <div class="visit-type-icon"><i data-lucide="triangle-alert" style="width:16px;height:16px;"></i></div>
-          <div>
-            <div class="visit-type-label">Urgent / New Concern</div>
-            <div class="visit-type-sub">A new symptom or issue that needs attention</div>
-          </div>
-        </div>
-        <div class="visit-type-card" onclick="vpSelectType('Lab Review', this)">
-          <div class="visit-type-icon"><i data-lucide="flask-conical" style="width:16px;height:16px;"></i></div>
-          <div>
-            <div class="visit-type-label">Lab Review</div>
-            <div class="visit-type-sub">Going over recent test results</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Step 2: Optional context -->
-    <div class="vp-step" id="vp-step-2">
-      <div class="vp-title">Anything specific?</div>
-      <div class="vp-sub" id="vp-step2-sub">Optional — add context to get more targeted questions</div>
-      <button class="vp-back-link" onclick="vpGoStep(1)"><i data-lucide="arrow-left" style="width:14px;height:14px;"></i> Back</button>
-      <div style="margin-bottom:6px;font-size:12px;font-weight:500;color:var(--text-secondary);">What would you like to ask about?</div>
-      <textarea class="vp-textarea" id="vp-context-input" placeholder="e.g. She's been more tired than usual, or I want to ask about switching medications" rows="4"></textarea>
-      <button class="vp-generate-btn" onclick="vpGenerateQuestions()">
-        <i data-lucide="sparkles" style="width:16px;height:16px;"></i>
-        Generate Questions
-      </button>
-    </div>
-
-    <!-- Step 3: Loading -->
-    <div class="vp-step" id="vp-step-3">
-      <div class="vp-loading-wrap">
-        <div class="vp-loading-dots">
-          <div class="vp-loading-dot"></div>
-          <div class="vp-loading-dot"></div>
-          <div class="vp-loading-dot"></div>
-        </div>
-        <div class="vp-loading-text" id="vp-loading-text">Reviewing records and preparing questions&hellip;</div>
-        <div class="vp-loading-sub">This usually takes about 10 seconds</div>
-      </div>
-    </div>
-
-    <!-- Step 4 + 5: Results and actions -->
-    <div class="vp-step" id="vp-step-4">
-      <div class="vp-title">Questions for the Doctor</div>
-      <div class="vp-sub" id="vp-results-sub">Check off each question as you go</div>
-      <div id="vp-questions-list" class="vp-questions-list"></div>
-      <div style="border-top:1px solid var(--border);padding-top:20px;margin-top:4px;">
-        <div id="vp-saved-badge" style="display:none;">
-          <div class="vp-saved-badge"><i data-lucide="bookmark-check" style="width:13px;height:13px;"></i> Saved for later</div>
-        </div>
-        <button class="vp-action-btn primary" onclick="vpDownloadPDF()">
-          <i data-lucide="download" style="width:16px;height:16px;"></i>
-          Download Visit Summary PDF
-        </button>
-        <button class="vp-action-btn secondary" onclick="vpShareWithCareCircle()">
-          <i data-lucide="share-2" style="width:16px;height:16px;"></i>
-          Share with Care Circle
-        </button>
-        <button class="vp-action-btn tertiary" id="vp-save-btn" onclick="vpSaveForLater()">
-          <i data-lucide="bookmark" style="width:16px;height:16px;"></i>
-          Save for Later
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
 </body>
 </html>
