@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your Data — Wellet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --moss: #608F7C;
+    --moss-dark: #3D6B58;
+    --mint: #E8F0EB;
+    --cream: #FAF9F7;
+    --text-primary: #1a1a1a;
+    --text-secondary: #555;
+    --text-muted: #888;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--cream);
+    color: var(--text-primary);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page-header {
+    background: white;
+    border-bottom: 1px solid #e8e5e0;
+    padding: 16px 24px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .page-header a {
+    color: var(--moss-dark);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .page-header a:hover { text-decoration: underline; }
+  .page-header svg { width: 16px; height: 16px; }
+  .page-container {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+  h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 32px;
+    font-weight: 400;
+    margin-bottom: 12px;
+  }
+  .subtitle {
+    font-size: 17px;
+    color: var(--text-secondary);
+    margin-bottom: 48px;
+    max-width: 56ch;
+    line-height: 1.7;
+  }
+  .data-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .data-card {
+    background: white;
+    border: 1px solid #e8e5e0;
+    border-radius: 16px;
+    padding: 28px 28px 24px;
+    display: grid;
+    grid-template-columns: 52px 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  .data-icon {
+    width: 52px;
+    height: 52px;
+    background: var(--mint);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--moss);
+    flex-shrink: 0;
+  }
+  .data-card h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 20px;
+    font-weight: 400;
+    margin-bottom: 6px;
+  }
+  .data-card p {
+    font-size: 15px;
+    color: var(--text-secondary);
+    line-height: 1.65;
+  }
+  .data-card .detail {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #f0ede8;
+  }
+
+  .what-we-access {
+    background: white;
+    border: 1px solid #e8e5e0;
+    border-radius: 16px;
+    padding: 28px;
+    margin-top: 40px;
+  }
+  .what-we-access h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 20px;
+    font-weight: 400;
+    margin-bottom: 16px;
+  }
+  .access-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .access-table th {
+    text-align: left;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    padding: 8px 0;
+    border-bottom: 2px solid #e8e5e0;
+  }
+  .access-table td {
+    font-size: 14px;
+    color: var(--text-secondary);
+    padding: 10px 0;
+    border-bottom: 1px solid #f0ede8;
+    vertical-align: top;
+  }
+  .access-table td:first-child {
+    font-weight: 500;
+    color: var(--text-primary);
+    padding-right: 16px;
+    white-space: nowrap;
+  }
+  .badge-read {
+    display: inline-block;
+    background: var(--mint);
+    color: var(--moss-dark);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .contact-card {
+    background: var(--mint);
+    border-radius: 16px;
+    padding: 28px;
+    text-align: center;
+    margin-top: 40px;
+  }
+  .contact-card h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 20px;
+    font-weight: 400;
+    margin-bottom: 8px;
+  }
+  .contact-card p {
+    font-size: 15px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+  }
+  .contact-card a.email {
+    color: var(--moss-dark);
+    font-weight: 500;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .page-links {
+    text-align: center;
+    margin-top: 32px;
+    font-size: 14px;
+  }
+  .page-links a {
+    color: var(--moss-dark);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .page-links .divider {
+    color: var(--text-muted);
+    margin: 0 8px;
+  }
+
+  @media (max-width: 600px) {
+    h1 { font-size: 26px; }
+    .page-container { padding: 32px 16px 60px; }
+    .data-card { grid-template-columns: 1fr; gap: 12px; }
+    .data-icon { width: 44px; height: 44px; }
+    .data-card { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+<header class="page-header">
+  <a href="/">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+    Back to Wellet
+  </a>
+</header>
+<main class="page-container">
+  <h1>Your data. Your rules.</h1>
+  <p class="subtitle">Wellet connects to your patient portal through SMART on FHIR — the same secure standard hospitals use. Here's exactly how your data is handled.</p>
+
+  <div class="data-grid">
+    <div class="data-card">
+      <div class="data-icon">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      </div>
+      <div>
+        <h2>Read-only access</h2>
+        <p>Wellet reads health records from MyChart and other patient portals. We never write data back to your EHR. Your provider's records are never modified.</p>
+        <p class="detail">When you connect a patient portal, your family member authorizes the connection directly through their hospital's login. Wellet receives a read-only token. We cannot place orders, modify records, or take any action inside the EHR.</p>
+      </div>
+    </div>
+
+    <div class="data-card">
+      <div class="data-icon">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </div>
+      <div>
+        <h2>Encrypted and isolated</h2>
+        <p>Every account is encrypted at rest (AES-256) and in transit (TLS). Row-level security means the database itself enforces that only you can access your data — not even Wellet staff can see it.</p>
+        <p class="detail">Infrastructure hosted on Supabase (AWS). All 18+ database tables have row-level security policies. Documents stored in private, user-scoped storage buckets. Authentication via magic link — no passwords stored.</p>
+      </div>
+    </div>
+
+    <div class="data-card">
+      <div class="data-icon">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </div>
+      <div>
+        <h2>You control who sees it</h2>
+        <p>Invite family members to your care circle — or don't. Revoke access instantly. Export or delete everything at any time. There is no lock-in.</p>
+        <p class="detail">Care circle members see only the records you choose to share. You can remove anyone at any time. Full data export is available as PDF and structured JSON. Account deletion permanently removes all data after a 30-day grace period.</p>
+      </div>
+    </div>
+
+    <div class="data-card">
+      <div class="data-icon">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <div>
+        <h2>No selling. No ads. Ever.</h2>
+        <p>We don't sell your data, use tracking pixels, or work with data brokers. AI features process your data in real time and return insights — nothing is stored for training.</p>
+        <p class="detail">Ask Wellet and Update Me send relevant health context to AI providers for processing. Responses are returned to you and stored in your account. AI providers do not retain or train on your data under their API terms.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="what-we-access">
+    <h2>What Wellet accesses</h2>
+    <table class="access-table">
+      <thead>
+        <tr>
+          <th>Data Type</th>
+          <th>Access</th>
+          <th>Source</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Medications</td>
+          <td><span class="badge-read">Read</span></td>
+          <td>Patient portal, uploaded documents, manual entry</td>
+        </tr>
+        <tr>
+          <td>Conditions</td>
+          <td><span class="badge-read">Read</span></td>
+          <td>Patient portal, uploaded documents, manual entry</td>
+        </tr>
+        <tr>
+          <td>Allergies</td>
+          <td><span class="badge-read">Read</span></td>
+          <td>Patient portal, uploaded documents, manual entry</td>
+        </tr>
+        <tr>
+          <td>Lab results</td>
+          <td><span class="badge-read">Read</span></td>
+          <td>Patient portal, uploaded documents</td>
+        </tr>
+        <tr>
+          <td>Vitals</td>
+          <td><span class="badge-read">Read</span></td>
+          <td>Patient portal, wearables, manual entry</td>
+        </tr>
+        <tr>
+          <td>Immunizations</td>
+          <td><span class="badge-read">Read</span></td>
+          <td>Patient portal</td>
+        </tr>
+        <tr>
+          <td>Care team</td>
+          <td><span class="badge-read">Read</span></td>
+          <td>Patient portal, manual entry</td>
+        </tr>
+        <tr>
+          <td>Documents</td>
+          <td><span class="badge-read">Read</span></td>
+          <td>Uploaded by you (PDFs, photos, recordings)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="contact-card">
+    <h2>Questions about your data?</h2>
+    <p>We're a small team and we take this seriously. Reach out anytime.</p>
+    <a href="mailto:privacy@getwellet.com" class="email">privacy@getwellet.com</a>
+  </div>
+
+  <div class="page-links">
+    <a href="/how-it-works">How It Works</a>
+    <span class="divider">·</span>
+    <a href="/privacy">Privacy Policy</a>
+    <span class="divider">·</span>
+    <a href="/terms">Terms of Service</a>
+  </div>
+</main>
+</body>
+</html>

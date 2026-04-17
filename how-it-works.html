@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How It Works — Wellet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --moss: #608F7C;
+    --moss-dark: #3D6B58;
+    --mint: #E8F0EB;
+    --cream: #FAF9F7;
+    --text-primary: #1a1a1a;
+    --text-secondary: #555;
+    --text-muted: #888;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--cream);
+    color: var(--text-primary);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page-header {
+    background: white;
+    border-bottom: 1px solid #e8e5e0;
+    padding: 16px 24px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .page-header a {
+    color: var(--moss-dark);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .page-header a:hover { text-decoration: underline; }
+  .page-header svg { width: 16px; height: 16px; }
+  .page-container {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+  h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 32px;
+    font-weight: 400;
+    margin-bottom: 12px;
+    color: var(--text-primary);
+  }
+  .subtitle {
+    font-size: 17px;
+    color: var(--text-secondary);
+    margin-bottom: 48px;
+    max-width: 56ch;
+    line-height: 1.7;
+  }
+  .steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .step {
+    display: grid;
+    grid-template-columns: 56px 1fr;
+    gap: 20px;
+    padding-bottom: 40px;
+    position: relative;
+  }
+  .step:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 27px;
+    top: 56px;
+    bottom: 0;
+    width: 2px;
+    background: var(--mint);
+  }
+  .step-num {
+    width: 56px;
+    height: 56px;
+    background: var(--moss);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  .step-content { padding-top: 4px; }
+  .step-content h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px;
+    font-weight: 400;
+    margin-bottom: 8px;
+  }
+  .step-content p {
+    font-size: 15px;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+  }
+  .step-detail {
+    background: white;
+    border: 1px solid #e8e5e0;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-top: 12px;
+  }
+  .step-detail ul {
+    list-style: none;
+    padding: 0;
+  }
+  .step-detail li {
+    font-size: 14px;
+    color: var(--text-secondary);
+    padding: 6px 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .step-detail li::before {
+    content: '✓';
+    color: var(--moss);
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .cta-section {
+    background: white;
+    border: 1px solid #e8e5e0;
+    border-radius: 16px;
+    padding: 32px;
+    text-align: center;
+    margin-top: 48px;
+  }
+  .cta-section h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px;
+    font-weight: 400;
+    margin-bottom: 8px;
+  }
+  .cta-section p {
+    font-size: 15px;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+  }
+  .cta-btn {
+    display: inline-block;
+    background: var(--moss);
+    color: white;
+    padding: 12px 32px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 15px;
+    transition: background 0.2s;
+  }
+  .cta-btn:hover { background: var(--moss-dark); }
+  .page-links {
+    text-align: center;
+    margin-top: 32px;
+    font-size: 14px;
+  }
+  .page-links a {
+    color: var(--moss-dark);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .page-links .divider {
+    color: var(--text-muted);
+    margin: 0 8px;
+  }
+  @media (max-width: 600px) {
+    h1 { font-size: 26px; }
+    .page-container { padding: 32px 16px 60px; }
+    .step { grid-template-columns: 44px 1fr; gap: 14px; }
+    .step-num { width: 44px; height: 44px; font-size: 18px; }
+    .step:not(:last-child)::before { left: 21px; top: 44px; }
+  }
+</style>
+</head>
+<body>
+<header class="page-header">
+  <a href="/">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+    Back to Wellet
+  </a>
+</header>
+<main class="page-container">
+  <h1>How Wellet works</h1>
+  <p class="subtitle">Wellet turns scattered health records into one clear picture — so you can stop being the memory and start being the advocate.</p>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <h2>Upload what you have</h2>
+        <p>Drop in a discharge summary, lab result, medication list, or insurance card. Take a photo of a prescription bottle. Wellet reads it, extracts the details, and adds them to your loved one's health timeline.</p>
+        <div class="step-detail">
+          <ul>
+            <li>PDFs, photos, and documents — parsed automatically by AI</li>
+            <li>Voice recordings from doctor visits — transcribed and summarized</li>
+            <li>MyChart health record exports (ZIP files) — imported in seconds</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <h2>Connect their patient portal</h2>
+        <p>Link your family member's MyChart or other patient portal through SMART on FHIR — the same secure standard hospitals use. Wellet reads medications, conditions, allergies, and lab results directly. Read-only. Your provider's records are never modified.</p>
+        <div class="step-detail">
+          <ul>
+            <li>Works with Epic MyChart and other FHIR-enabled portals</li>
+            <li>Read-only access — Wellet never writes to the EHR</li>
+            <li>Your family member authorizes the connection directly</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <h2>Ask questions, get answers</h2>
+        <p>Ask Wellet anything about your loved one's health in plain language. "What medications is Mom taking for her heart?" "When was her last CBC?" Wellet answers from the records you've uploaded — no more digging through binders.</p>
+        <div class="step-detail">
+          <ul>
+            <li>Answers grounded in your family member's actual records</li>
+            <li>Prepare questions before doctor visits</li>
+            <li>Understand what lab results mean in context</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <h2>Stay updated without the phone tag</h2>
+        <p>Update Me gives you a plain-language health summary whenever you need one — what changed, what to watch, what to ask the doctor. Share it with your care circle so everyone sees the same picture.</p>
+        <div class="step-detail">
+          <ul>
+            <li>AI health summaries tailored to your family member</li>
+            <li>Share summaries with siblings and other caregivers</li>
+            <li>Pattern detection — spot trends before they become emergencies</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cta-section">
+    <h2>Built for the person holding someone else's chart</h2>
+    <p>Every health tool points at "me." Caregiving points outward. Wellet is the first health platform designed for family caregivers.</p>
+    <a href="https://getwellet.com#top" class="cta-btn">Get early access</a>
+  </div>
+
+  <div class="page-links">
+    <a href="/your-data">Your Data</a>
+    <span class="divider">·</span>
+    <a href="/privacy">Privacy Policy</a>
+    <span class="divider">·</span>
+    <a href="/terms">Terms of Service</a>
+  </div>
+</main>
+</body>
+</html>

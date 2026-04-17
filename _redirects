@@ -2,6 +2,8 @@
 # Required for Epic SMART on FHIR OAuth callback at /epic-callback
 /epic-callback    /index.html    200
 /share.html       /share.html    200
-/privacy          /privacy.html  200
-/terms            /terms.html    200
-/*                /index.html    200
+/privacy          /privacy.html      200
+/terms            /terms.html        200
+/how-it-works     /how-it-works.html 200
+/your-data        /your-data.html    200
+/*                /index.html        200
