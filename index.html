@@ -6410,6 +6410,7 @@ function formatTime12(timeStr) {
 async function renderSignalsView() {
   var el = document.getElementById('view-signals');
   if (!el) return;
+  console.log('[Signals] renderSignalsView called, isDemoMode:', isDemoMode, 'currentPersonId:', currentPersonId);
 
   var data = isDemoMode ? DEMO_CARESIGNALS : null;
 
@@ -6420,8 +6421,16 @@ async function renderSignalsView() {
 
     var conns = [];
     if (currentPersonId) {
-      try { conns = await loadTerraConnections(currentPersonId); } catch(e) { conns = []; }
+      try {
+        // Race against a 8-second timeout so the spinner doesn't hang forever
+        var timeoutPromise = new Promise(function(resolve) { setTimeout(function() { resolve([]); }, 8000); });
+        conns = await Promise.race([loadTerraConnections(currentPersonId), timeoutPromise]);
+      } catch(e) {
+        console.error('Signals load error:', e);
+        conns = [];
+      }
     }
+    console.log('[Signals] connections loaded:', conns.length, conns);
     var activeConns = conns.filter(function(c){ return c.status === 'active'; });
 
     if (activeConns.length > 0) {
@@ -8470,13 +8479,22 @@ function renderResourceCard(resource, isSaved) {
 async function renderResourcesView() {
   var el = document.getElementById('view-resources');
   if (!el) return;
+  console.log('[Resources] renderResourcesView called, isDemoMode:', isDemoMode, 'currentUser:', !!currentUser);
 
   // Show loading state
   el.innerHTML = '<div class="resources-view" style="text-align:center;padding:60px 20px;">'
     + '<div style="color:var(--text-muted);font-size:13px;">Loading resources\u2026</div></div>';
 
-  await loadResources();
-  if (!isDemoMode) { await loadSavedResources(); }
+  try {
+    await loadResources();
+    console.log('[Resources] loaded, cache size:', _resourcesCache.length);
+    if (!isDemoMode) { await loadSavedResources(); }
+  } catch(e) {
+    console.error('Resources load error:', e);
+    el.innerHTML = '<div class="resources-view" style="text-align:center;padding:60px 20px;">'
+      + '<div style="color:var(--text-muted);font-size:13px;">Could not load resources. Pull down to retry.</div></div>';
+    return;
+  }
 
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
   var personName = person ? person.name.split(' ')[0] : 'your loved one';
