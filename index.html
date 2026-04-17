@@ -6748,9 +6748,9 @@ function startEhrConnect() {
 function handleEhrCallback() {
   var params = new URLSearchParams(window.location.search);
   var code = params.get('code');
-  if (!code) return;
-  // Validate OAuth code format (alphanumeric, hyphens, underscores, dots, periods)
-  if (!/^[a-zA-Z0-9\-_.]{1,512}$/.test(code)) return;
+  if (!code) { console.log('EHR callback: no code param'); return; }
+  // Validate OAuth code format (allow base64 and common auth code chars)
+  if (!/^[a-zA-Z0-9\-_.+=\/]{1,2048}$/.test(code)) { console.warn('EHR callback: code failed validation', code.substring(0, 40)); return; }
   var state = params.get('state') || '';
 
   // Get the pending person_id
