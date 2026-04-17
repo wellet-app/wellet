@@ -165,6 +165,8 @@
   .notif-item-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .notif-item-icon.med { background: var(--amber-bg); color: var(--amber-text); }
   .notif-item-icon.appt { background: var(--mint); color: var(--moss); }
+  .notif-item-icon.pattern { background: #FEF0EE; color: var(--red); }
+  .notif-item-icon.system { background: var(--border); color: var(--text-secondary); }
   .notif-item-body { flex: 1; min-width: 0; }
   .notif-item-title { font-size: 13px; font-weight: 500; line-height: 1.4; }
   .notif-item-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
@@ -2612,21 +2614,43 @@
           <div class="settings-row-icon"><i data-lucide="bell" style="width:15px;height:15px;"></i></div>
           <div><div class="settings-row-label">Weekly digest</div><div class="settings-row-meta">Every Sunday at 5 PM</div></div>
         </div>
-        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+        <button class="toggle on" id="toggle-weekly-digest" onclick="toggleNotifPref(this,'weekly_digest')"></button>
       </div>
       <div class="settings-row">
         <div class="settings-row-left">
           <div class="settings-row-icon"><i data-lucide="mail" style="width:15px;height:15px;"></i></div>
           <div><div class="settings-row-label">New messages</div><div class="settings-row-meta">From care team portals</div></div>
         </div>
-        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+        <button class="toggle on" id="toggle-care-circle-emails" onclick="toggleNotifPref(this,'care_circle_emails')"></button>
       </div>
       <div class="settings-row">
         <div class="settings-row-left">
           <div class="settings-row-icon"><i data-lucide="activity" style="width:15px;height:15px;"></i></div>
           <div><div class="settings-row-label">Pattern changes</div><div class="settings-row-meta">When Wellet notices something</div></div>
         </div>
-        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+        <button class="toggle on" id="toggle-pattern-alerts" onclick="toggleNotifPref(this,'pattern_alerts')"></button>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-left">
+          <div class="settings-row-icon"><i data-lucide="mail-check" style="width:15px;height:15px;"></i></div>
+          <div><div class="settings-row-label">Email me reminders</div><div class="settings-row-meta">Medication &amp; appointment emails</div></div>
+        </div>
+        <button class="toggle" id="toggle-email-reminders" onclick="toggleNotifPref(this,'email_reminders')"></button>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-left">
+          <div class="settings-row-icon"><i data-lucide="moon" style="width:15px;height:15px;"></i></div>
+          <div><div class="settings-row-label">Quiet hours</div><div class="settings-row-meta">Silence notifications during set times</div></div>
+        </div>
+        <button class="toggle" id="toggle-quiet-hours" onclick="toggleNotifPref(this,'quiet_hours_enabled')"></button>
+      </div>
+      <div class="settings-row" id="quiet-hours-times" style="display:none;padding:4px 16px 8px;">
+        <div style="display:flex;align-items:center;gap:8px;width:100%;">
+          <label style="font-size:12px;color:var(--text-secondary);width:36px;">From</label>
+          <input type="time" id="quiet-hours-start" value="22:00" onchange="saveQuietHoursTimes()" style="font-family:'DM Sans',sans-serif;font-size:13px;border:1px solid var(--border);border-radius:8px;padding:6px 10px;flex:1;color:var(--text-primary);">
+          <label style="font-size:12px;color:var(--text-secondary);width:20px;text-align:center;">to</label>
+          <input type="time" id="quiet-hours-end" value="07:00" onchange="saveQuietHoursTimes()" style="font-family:'DM Sans',sans-serif;font-size:13px;border:1px solid var(--border);border-radius:8px;padding:6px 10px;flex:1;color:var(--text-primary);">
+        </div>
       </div>
     </div>
 
@@ -3154,7 +3178,7 @@
   <div class="notif-panel">
     <div class="notif-panel-header">
       <div style="display:flex;align-items:center;gap:10px;">
-        <div class="notif-panel-title">Reminders</div>
+        <div class="notif-panel-title">Notifications</div>
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
         <button class="notif-mark-read" id="notif-mark-all-btn" onclick="markAllNotifRead()">Mark all read</button>
@@ -4098,8 +4122,10 @@ function renderUpdateMe() {
       + '</div>';
   } else {
     // Populated state: show both summary card and status card
+    var alertBannerHtml = buildPatternAlertBanner(name);
     pane.innerHTML = '<div class="update-me-section">'
       + summarySection
+      + alertBannerHtml
       + '<div class="update-card">'
       + '<div class="update-label">What\u2019s going on with ' + escHtml(name) + ' right now</div>'
       + '<p class="update-text">' + escHtml(name) + ' has <strong>' + liveEvents.length + ' health event' + (liveEvents.length !== 1 ? 's' : '') + '</strong> logged. '
@@ -4117,6 +4143,113 @@ function renderUpdateMe() {
       + '</div>';
   }
   initIcons();
+}
+
+// ── PATTERN ALERT DETECTION & BANNER ─────────────────────────────────────
+function buildPatternAlertBanner(personName) {
+  if (isDemoMode) return ''; // Demo has its own static banner
+  var alerts = detectPatternAlerts(personName);
+  if (alerts.length === 0) return '';
+  var html = '';
+  alerts.forEach(function(alert) {
+    html += '<div class="alert-banner">'
+      + '<div class="alert-icon"><i data-lucide="triangle-alert" style="width:16px;height:16px;"></i></div>'
+      + '<div>'
+      + '<div class="alert-title">' + escHtml(alert.title) + '</div>'
+      + '<div class="alert-body">' + escHtml(alert.body) + '</div>'
+      + '</div></div>';
+    // Fire pattern alert notification (once per person per alert key)
+    firePatternAlertNotif(alert, personName);
+  });
+  return html;
+}
+
+function detectPatternAlerts(personName) {
+  var alerts = [];
+  if (!liveEvents || liveEvents.length < 3) return alerts;
+
+  // Detect pattern events logged in the last 14 days
+  var fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+  var recentPatterns = liveEvents.filter(function(ev) {
+    return ev.event_type === 'pattern' && new Date(ev.event_date) >= fourteenDaysAgo;
+  });
+  recentPatterns.forEach(function(ev) {
+    alerts.push({
+      key: 'event:' + ev.id,
+      title: ev.title || 'Pattern noticed',
+      body: ev.notes || 'Wellet noticed something in the recent health data.'
+    });
+  });
+
+  // Detect vitals patterns (e.g., rising BP)
+  if (liveVitals && liveVitals.length >= 3) {
+    var recentBP = liveVitals.filter(function(v) {
+      return v.vital_type === 'blood_pressure' && new Date(v.effective_date) >= fourteenDaysAgo;
+    });
+    if (recentBP.length >= 3) {
+      var highCount = recentBP.filter(function(v) {
+        var systolic = v.value_numeric || (v.value_text ? parseInt(v.value_text) : 0);
+        return systolic >= 140;
+      }).length;
+      if (highCount >= 2) {
+        alerts.push({
+          key: 'bp:high:' + new Date().toDateString(),
+          title: 'Blood pressure pattern noticed',
+          body: 'Multiple readings above 140 systolic in the last two weeks. Consider discussing with the care team.'
+        });
+      }
+    }
+  }
+
+  // Detect medication changes cluster
+  var recentMedChanges = liveEvents.filter(function(ev) {
+    return ev.event_type === 'medication' && new Date(ev.event_date) >= fourteenDaysAgo;
+  });
+  if (recentMedChanges.length >= 3) {
+    alerts.push({
+      key: 'medchanges:' + new Date().toDateString(),
+      title: 'Multiple medication changes',
+      body: recentMedChanges.length + ' medication changes in the last two weeks. Wellet is tracking how these are going.'
+    });
+  }
+
+  return alerts;
+}
+
+async function firePatternAlertNotif(alert, personName) {
+  var alertKey = currentPersonId + ':' + alert.key;
+  if (_patternAlertsSent[alertKey]) return;
+  _patternAlertsSent[alertKey] = true;
+
+  // Insert persistent notification
+  var notif = await insertNotification('pattern_alert', alert.title, alert.body, currentPersonId);
+
+  // Add to in-memory list
+  if (notif) {
+    _notifList.unshift({
+      id: 'db:' + notif.id,
+      type: 'pattern',
+      title: alert.title,
+      body: alert.body,
+      time: notif.created_at,
+      personName: personName || '',
+      seen: false
+    });
+    updateNotifBadge();
+  }
+
+  // Send email to care circle if care_circle_emails enabled
+  if (_notifPrefs && _notifPrefs.care_circle_emails && liveCareCircle && liveCareCircle.length > 0) {
+    liveCareCircle.forEach(function(member) {
+      if (member.email) {
+        sendNotificationEmail('pattern_alert', member.email, member.member_name, personName || '', {
+          title: alert.title,
+          body: alert.body,
+          time: new Date().toISOString()
+        });
+      }
+    });
+  }
 }
 
 // ── RENDER TIMELINE ───────────────────────────────────────────────────────────
@@ -11423,7 +11556,7 @@ async function generateVisitExport() {
 
 
 // ── NOTIFICATION LAYER ─────────────────────────────────────────────────────
-var _notifList = [];           // [{id, type:'med'|'appt', title, body, time, personName, seen:bool}]
+var _notifList = [];           // [{id, type:'med'|'appt'|'pattern'|'system', title, body, time, personName, seen:bool}]
 var _medReminders = {};        // { medicationId: { times:[], active:true } }  (in-memory for demo, or from DB)
 var _reminderMedId = null;     // currently-editing medication id in reminder sheet
 var _reminderMedName = '';     // name of med being edited
@@ -11433,6 +11566,9 @@ var _notifPermission = localStorage.getItem('wellet_notif_perm') || 'default';
 var _seenNotifIds = JSON.parse(localStorage.getItem('wellet_seen_notifs') || '[]');
 var _reminderCheckTimer = null;
 var _lastReminderCheck = {};   // { "medId:08:00": timestamp } to avoid re-firing within same minute
+var _notifPrefs = null;        // notification_preferences row from DB
+var _persistentNotifs = [];    // notifications from DB (pattern_alert, care_circle, system)
+var _patternAlertsSent = {};   // { "personId:alertKey": true } to avoid duplicate pattern alerts
 
 // ── NOTIFICATION PANEL ────────────────────────────────────────────────────
 function openNotifPanel() {
@@ -11441,8 +11577,9 @@ function openNotifPanel() {
   initIcons();
   // Mark visible ones as seen
   _notifList.forEach(function(n) { n.seen = true; });
-  _seenNotifIds = _notifList.map(function(n) { return n.id; });
+  _seenNotifIds = _notifList.filter(function(n) { return !n.id.startsWith('db:'); }).map(function(n) { return n.id; });
   localStorage.setItem('wellet_seen_notifs', JSON.stringify(_seenNotifIds));
+  markPersistentNotifsRead();
   updateNotifBadge();
 }
 
@@ -11452,10 +11589,201 @@ function closeNotifPanel() {
 
 function markAllNotifRead() {
   _notifList.forEach(function(n) { n.seen = true; });
-  _seenNotifIds = _notifList.map(function(n) { return n.id; });
+  _seenNotifIds = _notifList.filter(function(n) { return !n.id.startsWith('db:'); }).map(function(n) { return n.id; });
   localStorage.setItem('wellet_seen_notifs', JSON.stringify(_seenNotifIds));
+  markPersistentNotifsRead();
   updateNotifBadge();
   renderNotifList();
+}
+
+// ── NOTIFICATION PREFERENCES ─────────────────────────────────────────────
+async function loadNotifPrefs() {
+  if (isDemoMode || !currentUser) return;
+  var { data, error } = await db
+    .from('notification_preferences')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .limit(1);
+
+  if (error) { console.warn('notif_prefs load error:', error.message); return; }
+
+  if (!data || data.length === 0) {
+    // Create default prefs on first load
+    var { data: inserted, error: insertErr } = await db
+      .from('notification_preferences')
+      .upsert({ user_id: currentUser.id }, { onConflict: 'user_id' })
+      .select()
+      .single();
+    if (insertErr) { console.warn('notif_prefs insert error:', insertErr.message); return; }
+    _notifPrefs = inserted;
+  } else {
+    _notifPrefs = data[0];
+  }
+  applyNotifPrefsToUI();
+}
+
+function applyNotifPrefsToUI() {
+  if (!_notifPrefs) return;
+  var map = {
+    'toggle-weekly-digest': 'weekly_digest',
+    'toggle-care-circle-emails': 'care_circle_emails',
+    'toggle-pattern-alerts': 'pattern_alerts',
+    'toggle-email-reminders': 'email_reminders',
+    'toggle-quiet-hours': 'quiet_hours_enabled'
+  };
+  Object.keys(map).forEach(function(elId) {
+    var el = document.getElementById(elId);
+    if (!el) return;
+    if (_notifPrefs[map[elId]]) {
+      el.classList.add('on');
+    } else {
+      el.classList.remove('on');
+    }
+  });
+  // Quiet hours time pickers
+  var timesRow = document.getElementById('quiet-hours-times');
+  if (timesRow) {
+    timesRow.style.display = _notifPrefs.quiet_hours_enabled ? '' : 'none';
+  }
+  var startEl = document.getElementById('quiet-hours-start');
+  var endEl = document.getElementById('quiet-hours-end');
+  if (startEl && _notifPrefs.quiet_hours_start) startEl.value = _notifPrefs.quiet_hours_start.substring(0, 5);
+  if (endEl && _notifPrefs.quiet_hours_end) endEl.value = _notifPrefs.quiet_hours_end.substring(0, 5);
+}
+
+async function toggleNotifPref(btn, field) {
+  btn.classList.toggle('on');
+  var isOn = btn.classList.contains('on');
+
+  // Show/hide quiet hours time pickers
+  if (field === 'quiet_hours_enabled') {
+    var timesRow = document.getElementById('quiet-hours-times');
+    if (timesRow) timesRow.style.display = isOn ? '' : 'none';
+  }
+
+  if (_notifPrefs) _notifPrefs[field] = isOn;
+
+  if (!isDemoMode && currentUser) {
+    var update = { updated_at: new Date().toISOString() };
+    update[field] = isOn;
+    await db
+      .from('notification_preferences')
+      .update(update)
+      .eq('user_id', currentUser.id);
+  }
+}
+
+async function saveQuietHoursTimes() {
+  var startEl = document.getElementById('quiet-hours-start');
+  var endEl = document.getElementById('quiet-hours-end');
+  if (!startEl || !endEl) return;
+  var start = startEl.value;
+  var end = endEl.value;
+  if (_notifPrefs) {
+    _notifPrefs.quiet_hours_start = start;
+    _notifPrefs.quiet_hours_end = end;
+  }
+  if (!isDemoMode && currentUser) {
+    await db
+      .from('notification_preferences')
+      .update({
+        quiet_hours_start: start,
+        quiet_hours_end: end,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', currentUser.id);
+  }
+}
+
+function isQuietHoursActive() {
+  if (!_notifPrefs || !_notifPrefs.quiet_hours_enabled) return false;
+  var now = new Date();
+  var nowMinutes = now.getHours() * 60 + now.getMinutes();
+  var startParts = (_notifPrefs.quiet_hours_start || '22:00').split(':');
+  var endParts = (_notifPrefs.quiet_hours_end || '07:00').split(':');
+  var startMinutes = parseInt(startParts[0], 10) * 60 + parseInt(startParts[1], 10);
+  var endMinutes = parseInt(endParts[0], 10) * 60 + parseInt(endParts[1], 10);
+
+  if (startMinutes <= endMinutes) {
+    // Same-day range (e.g., 09:00 - 17:00)
+    return nowMinutes >= startMinutes && nowMinutes < endMinutes;
+  } else {
+    // Overnight range (e.g., 22:00 - 07:00)
+    return nowMinutes >= startMinutes || nowMinutes < endMinutes;
+  }
+}
+
+// ── PERSISTENT NOTIFICATIONS (from DB) ───────────────────────────────────
+async function loadPersistentNotifs() {
+  if (isDemoMode || !currentUser) return;
+  var sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  var { data, error } = await db
+    .from('notifications')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .gte('created_at', sevenDaysAgo)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  if (error) { console.warn('notifications load error:', error.message); return; }
+  _persistentNotifs = data || [];
+}
+
+async function insertNotification(type, title, body, personId) {
+  if (isDemoMode || !currentUser) return null;
+  var { data, error } = await db
+    .from('notifications')
+    .insert({
+      user_id: currentUser.id,
+      person_id: personId || null,
+      type: type,
+      title: title,
+      body: body || null
+    })
+    .select()
+    .single();
+  if (error) { console.warn('notification insert error:', error.message); return null; }
+  if (data) _persistentNotifs.unshift(data);
+  return data;
+}
+
+async function markPersistentNotifsRead() {
+  if (isDemoMode || !currentUser) return;
+  var unread = _persistentNotifs.filter(function(n) { return !n.read; });
+  if (unread.length === 0) return;
+  var ids = unread.map(function(n) { return n.id; });
+  await db
+    .from('notifications')
+    .update({ read: true })
+    .in('id', ids);
+  unread.forEach(function(n) { n.read = true; });
+}
+
+// ── SEND NOTIFICATION EMAIL ──────────────────────────────────────────────
+async function sendNotificationEmail(type, recipientEmail, recipientName, personName, details) {
+  if (isDemoMode || !currentUser) return;
+  try {
+    var session = await db.auth.getSession();
+    var token = session.data.session ? session.data.session.access_token : null;
+    if (!token) return;
+    await fetch(SUPABASE_URL + '/functions/v1/send-notification-email', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({
+        type: type,
+        recipient_email: recipientEmail,
+        recipient_name: recipientName,
+        person_name: personName,
+        details: details
+      })
+    });
+  } catch (e) {
+    console.warn('send email error:', e.message);
+  }
 }
 
 function updateNotifBadge() {
@@ -11473,7 +11801,7 @@ function renderNotifList() {
   if (_notifList.length === 0) {
     container.innerHTML = '<div class="notif-empty">'
       + '<div class="notif-empty-icon"><i data-lucide="bell-off" style="width:32px;height:32px;"></i></div>'
-      + 'No reminders right now.<br>Set medication reminders in Records.'
+      + 'No notifications right now.<br>Set medication reminders in Records.'
       + '</div>';
     document.getElementById('notif-mark-all-btn').style.display = 'none';
     initIcons();
@@ -11519,8 +11847,11 @@ function renderNotifList() {
 }
 
 function renderNotifItem(n) {
-  var iconClass = n.type === 'med' ? 'med' : 'appt';
-  var iconName = n.type === 'med' ? 'pill' : 'calendar-check';
+  var iconClass, iconName;
+  if (n.type === 'med') { iconClass = 'med'; iconName = 'pill'; }
+  else if (n.type === 'appt') { iconClass = 'appt'; iconName = 'calendar-check'; }
+  else if (n.type === 'pattern') { iconClass = 'pattern'; iconName = 'activity'; }
+  else { iconClass = 'system'; iconName = 'info'; }
   var unread = n.seen ? '' : ' unread';
   var timeStr = formatNotifTime(n.time);
   return '<div class="notif-item' + unread + '">'
@@ -11763,6 +12094,21 @@ function buildNotifList() {
     }
   });
 
+  // 3. Persistent notifications from DB (pattern_alert, care_circle, system)
+  _persistentNotifs.forEach(function(pn) {
+    var typeMap = { 'pattern_alert': 'pattern', 'care_circle': 'system', 'system': 'system', 'med_reminder': 'med', 'appointment': 'appt' };
+    var person = pn.person_id ? currentPeople.find(function(p) { return p.id === pn.person_id; }) : null;
+    _notifList.push({
+      id: 'db:' + pn.id,
+      type: typeMap[pn.type] || 'system',
+      title: pn.title,
+      body: pn.body || '',
+      time: pn.created_at,
+      personName: person ? person.name.split(' ')[0] : '',
+      seen: pn.read
+    });
+  });
+
   // Sort by time
   _notifList.sort(function(a, b) { return new Date(a.time) - new Date(b.time); });
 
@@ -11828,6 +12174,7 @@ function checkRemindersNow() {
   var nowH = String(now.getHours()).padStart(2, '0');
   var nowM = String(now.getMinutes()).padStart(2, '0');
   var nowTime = nowH + ':' + nowM;
+  var quiet = isQuietHoursActive();
 
   Object.keys(_medReminders).forEach(function(medId) {
     var rem = _medReminders[medId];
@@ -11843,15 +12190,16 @@ function checkRemindersNow() {
         var title = (rem.personName || 'Your loved one') + '\u2019s ' + (rem.medName || 'medication');
         var body = 'Time to take ' + (rem.medName || 'medication');
 
-        // Fire browser notification if permitted (not in demo)
-        if (!isDemoMode && 'Notification' in window && Notification.permission === 'granted') {
-          try { new Notification(title, { body: body, icon: '/favicon.svg' }); } catch(e) {}
+        if (!quiet) {
+          // Fire browser notification if permitted (not in demo)
+          if (!isDemoMode && 'Notification' in window && Notification.permission === 'granted') {
+            try { new Notification(title, { body: body, icon: '/favicon.svg' }); } catch(e) {}
+          }
+          // In-app toast
+          showToast('\ud83d\udc8a ' + title + ' \u2014 time to take');
         }
 
-        // In-app toast
-        showToast('\ud83d\udc8a ' + title + ' \u2014 time to take');
-
-        // Add to notif list
+        // Add to notif list (always, even during quiet hours)
         var id = 'med:' + medId + ':' + timeStr + ':' + now.toDateString();
         var alreadyIn = _notifList.find(function(n) { return n.id === id; });
         if (!alreadyIn) {
@@ -11866,6 +12214,15 @@ function checkRemindersNow() {
           });
         }
         updateNotifBadge();
+
+        // Send email reminder if enabled
+        if (_notifPrefs && _notifPrefs.email_reminders && currentUser && currentUser.email) {
+          sendNotificationEmail('med_reminder', currentUser.email, '', rem.personName || '', {
+            title: title,
+            body: body,
+            time: timeStr
+          });
+        }
       }
     });
   });
@@ -11875,6 +12232,7 @@ function checkRemindersNow() {
 }
 
 function checkAppointmentReminders(now) {
+  var quiet = isQuietHoursActive();
   var appointments = isDemoMode ? getDemoAppointments() : liveEvents.filter(function(e) {
     return e.event_type === 'appointment' && new Date(e.event_date) > now;
   }).map(function(e) {
@@ -11892,10 +12250,20 @@ function checkAppointmentReminders(now) {
       if (!_lastReminderCheck[key]) {
         _lastReminderCheck[key] = now.getTime();
         var title = appt.personName + '\u2019s ' + appt.title + ' is in 1 hour';
-        if (!isDemoMode && 'Notification' in window && Notification.permission === 'granted') {
-          try { new Notification(title, { icon: '/favicon.svg' }); } catch(e) {}
+        if (!quiet) {
+          if (!isDemoMode && 'Notification' in window && Notification.permission === 'granted') {
+            try { new Notification(title, { icon: '/favicon.svg' }); } catch(e) {}
+          }
+          showToast('\ud83d\udcc5 ' + title);
         }
-        showToast('\ud83d\udcc5 ' + title);
+        // Send email if enabled
+        if (_notifPrefs && _notifPrefs.email_reminders && currentUser && currentUser.email) {
+          sendNotificationEmail('appointment', currentUser.email, '', appt.personName, {
+            title: appt.title,
+            body: title,
+            time: apptDate.toISOString()
+          });
+        }
       }
     }
 
@@ -11905,10 +12273,20 @@ function checkAppointmentReminders(now) {
       if (!_lastReminderCheck[key2]) {
         _lastReminderCheck[key2] = now.getTime();
         var title2 = 'Tomorrow: ' + appt.personName + ' has ' + appt.title;
-        if (!isDemoMode && 'Notification' in window && Notification.permission === 'granted') {
-          try { new Notification(title2, { icon: '/favicon.svg' }); } catch(e) {}
+        if (!quiet) {
+          if (!isDemoMode && 'Notification' in window && Notification.permission === 'granted') {
+            try { new Notification(title2, { icon: '/favicon.svg' }); } catch(e) {}
+          }
+          showToast('\ud83d\udcc5 ' + title2);
         }
-        showToast('\ud83d\udcc5 ' + title2);
+        // Send email if enabled
+        if (_notifPrefs && _notifPrefs.email_reminders && currentUser && currentUser.email) {
+          sendNotificationEmail('appointment', currentUser.email, '', appt.personName, {
+            title: appt.title,
+            body: title2,
+            time: apptDate.toISOString()
+          });
+        }
       }
     }
   });
@@ -12014,7 +12392,7 @@ enterDemoMode = function() {
 var _origShowAuthenticatedApp = showAuthenticatedApp;
 showAuthenticatedApp = function() {
   _origShowAuthenticatedApp();
-  loadRemindersFromDB().then(function() {
+  Promise.all([loadRemindersFromDB(), loadNotifPrefs(), loadPersistentNotifs()]).then(function() {
     buildNotifList();
     startReminderCheck();
   });
