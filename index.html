@@ -6302,26 +6302,15 @@ async function addExtractedItem(idx) {
   if (item.type === 'medication') {
     var parts = (item.detail || '').match(/(\d+\s*mg|\d+\s*mcg)/i);
     var dose = parts ? parts[1] : null;
-    var { error } = await db.from('medications').insert({
-      person_id: currentPersonId,
-      name: item.title,
-      dose: dose,
-      frequency: null,
-      prescriber: null,
-      active: true,
-      source: 'extraction'
-    });
-    if (error) { showToast('Error adding: ' + error.message); return; }
+    var extMed = { name: item.title, dose: dose, frequency: null, prescriber: null, active: true, source: 'extraction' };
+    var extMedDedup = await findDuplicateMedication(currentPersonId, extMed);
+    var extMedResult = await reconcileMedication(currentPersonId, extMed, extMedDedup);
+    if (!extMedResult && extMedDedup.action !== 'skip') { showToast('Error adding medication'); return; }
   } else {
-    var { error } = await db.from('health_events').insert({
-      person_id: currentPersonId,
-      event_type: item.type || 'note',
-      event_date: (item.date || today) + 'T00:00:00Z',
-      title: item.title,
-      notes: item.detail || null,
-      source: 'extraction'
-    });
-    if (error) { showToast('Error adding: ' + error.message); return; }
+    var extEvent = { event_type: item.type || 'note', event_date: (item.date || today) + 'T00:00:00Z', title: item.title, notes: item.detail || null, source: 'extraction' };
+    var extEvDedup = await findDuplicateHealthEvent(currentPersonId, extEvent);
+    var extEvResult = await reconcileHealthEvent(currentPersonId, extEvent, extEvDedup);
+    if (!extEvResult && extEvDedup.action !== 'skip') { showToast('Error adding event'); return; }
   }
 
   _addedExtItems[idx] = true;
@@ -6348,43 +6337,25 @@ async function addAllExtractedFromOverlay() {
   btn.textContent = 'Adding\u2026';
 
   var today = new Date().toISOString().split('T')[0];
-  var eventsToInsert = [];
-  var medsToInsert = [];
+  var bulkSkipped = 0;
 
-  _currentExtItems.forEach(function(item, idx) {
-    if (_addedExtItems[idx]) return;
-    if (item.type === 'medication') {
-      var parts = (item.detail || '').match(/(\d+\s*mg|\d+\s*mcg)/i);
-      var dose = parts ? parts[1] : null;
-      medsToInsert.push({
-        person_id: currentPersonId,
-        name: item.title,
-        dose: dose,
-        frequency: null,
-        prescriber: null,
-        active: true,
-        source: 'extraction'
-      });
+  for (var bi = 0; bi < _currentExtItems.length; bi++) {
+    if (_addedExtItems[bi]) continue;
+    var bItem = _currentExtItems[bi];
+    if (bItem.type === 'medication') {
+      var bParts = (bItem.detail || '').match(/(\d+\s*mg|\d+\s*mcg)/i);
+      var bDose = bParts ? bParts[1] : null;
+      var bMed = { name: bItem.title, dose: bDose, frequency: null, prescriber: null, active: true, source: 'extraction' };
+      var bMedDedup = await findDuplicateMedication(currentPersonId, bMed);
+      await reconcileMedication(currentPersonId, bMed, bMedDedup);
+      if (bMedDedup.action === 'skip') bulkSkipped++;
     } else {
-      eventsToInsert.push({
-        person_id: currentPersonId,
-        event_type: item.type || 'note',
-        event_date: (item.date || today) + 'T00:00:00Z',
-        title: item.title,
-        notes: item.detail || null,
-        source: 'extraction'
-      });
+      var bEv = { event_type: bItem.type || 'note', event_date: (bItem.date || today) + 'T00:00:00Z', title: bItem.title, notes: bItem.detail || null, source: 'extraction' };
+      var bEvDedup = await findDuplicateHealthEvent(currentPersonId, bEv);
+      await reconcileHealthEvent(currentPersonId, bEv, bEvDedup);
+      if (bEvDedup.action === 'skip') bulkSkipped++;
     }
-    _addedExtItems[idx] = true;
-  });
-
-  if (eventsToInsert.length > 0) {
-    var { error: evErr } = await db.from('health_events').insert(eventsToInsert);
-    if (evErr) { console.error('Bulk event insert error:', evErr); }
-  }
-  if (medsToInsert.length > 0) {
-    var { error: medErr } = await db.from('medications').insert(medsToInsert);
-    if (medErr) { console.error('Bulk med insert error:', medErr); }
+    _addedExtItems[bi] = true;
   }
 
   renderExtractedItems();
@@ -6393,7 +6364,11 @@ async function addAllExtractedFromOverlay() {
   btn.style.color = 'var(--moss)';
   initIcons();
 
-  showToast('All items added to records');
+  if (bulkSkipped > 0) {
+    showToast('Items added (' + bulkSkipped + ' duplicate' + (bulkSkipped !== 1 ? 's' : '') + ' skipped)');
+  } else {
+    showToast('All items added to records');
+  }
 
   // Reload data in background
   await loadPersonData(currentPersonId);
@@ -6916,26 +6891,34 @@ async function submitHealthEvent() {
   btn.disabled = true;
   btn.textContent = 'Saving…';
 
-  const { data, error } = await db.from('health_events').insert({
-    person_id: personId,
+  var newEvent = {
     event_type: type,
     event_date: date + 'T00:00:00Z',
     title: title,
     notes: notes || null,
     source: 'manual'
-  }).select().single();
+  };
+
+  var dedup = await findDuplicateHealthEvent(personId, newEvent);
+  var result = await reconcileHealthEvent(personId, newEvent, dedup);
 
   btn.disabled = false;
   btn.innerHTML = '<i data-lucide="check" style="width:15px;height:15px;"></i> Save event';
   initIcons();
 
-  if (error) {
-    showToast('Error saving: ' + error.message);
+  if (!result && dedup.action !== 'skip') {
+    showToast('Error saving event');
     return;
   }
 
   closeSheet('add-event-overlay');
-  showToast('Event saved to timeline');
+  if (dedup.action === 'skip') {
+    showToast('Already in records — no duplicate added');
+  } else if (dedup.action === 'update') {
+    showToast('Existing record updated');
+  } else {
+    showToast('Event saved to timeline');
+  }
 
   // Reload data and re-render
   await loadPersonData(personId);
@@ -7026,27 +7009,35 @@ async function submitMedication() {
   btn.disabled = true;
   btn.textContent = 'Saving…';
 
-  const { data, error } = await db.from('medications').insert({
-    person_id: currentPersonId,
+  var newMed = {
     name: name,
     dose: dose || null,
     frequency: freq || null,
     prescriber: prescriber || null,
     active: active,
     source: 'manual'
-  }).select().single();
+  };
+
+  var medDedup = await findDuplicateMedication(currentPersonId, newMed);
+  var medResult = await reconcileMedication(currentPersonId, newMed, medDedup);
 
   btn.disabled = false;
   btn.innerHTML = '<i data-lucide="check" style="width:15px;height:15px;"></i> Save medication';
   initIcons();
 
-  if (error) {
-    showToast('Error saving: ' + error.message);
+  if (!medResult && medDedup.action !== 'skip') {
+    showToast('Error saving medication');
     return;
   }
 
   closeSheet('add-med-overlay');
-  showToast('Medication saved to records');
+  if (medDedup.action === 'skip') {
+    showToast('Already in records — no duplicate added');
+  } else if (medDedup.action === 'update') {
+    showToast('Existing medication updated');
+  } else {
+    showToast('Medication saved to records');
+  }
 
   await loadPersonData(currentPersonId);
   renderRecordsView();
@@ -7550,6 +7541,401 @@ function formatEventDate(dateStr) {
 function escHtml(t) {
   if (!t) return '';
   return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ── RECONCILIATION: DEDUP ON SAVE ─────────────────────────────────────────────
+// Source priority: higher number = more authoritative
+var _SOURCE_PRIORITY = { manual: 1, extraction: 2, 'Onboarding upload': 2, upload: 2, apple_health: 3, terra: 3, ehr: 4 };
+
+function _normStr(s) {
+  return (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+function _dateOnly(isoStr) {
+  if (!isoStr) return '';
+  return String(isoStr).substring(0, 10);
+}
+
+function _sourcePriority(src) {
+  return _SOURCE_PRIORITY[_normStr(src)] || 1;
+}
+
+// Common short-form aliases for diagnoses (conservative list)
+var _DIAGNOSIS_ALIASES = {
+  't2dm': 'type 2 diabetes mellitus',
+  'type 2 diabetes': 'type 2 diabetes mellitus',
+  'diabetes mellitus type 2': 'type 2 diabetes mellitus',
+  'dm2': 'type 2 diabetes mellitus',
+  't1dm': 'type 1 diabetes mellitus',
+  'type 1 diabetes': 'type 1 diabetes mellitus',
+  'diabetes mellitus type 1': 'type 1 diabetes mellitus',
+  'htn': 'essential hypertension',
+  'hypertension': 'essential hypertension',
+  'chf': 'congestive heart failure',
+  'copd': 'chronic obstructive pulmonary disease',
+  'ckd': 'chronic kidney disease',
+  'afib': 'atrial fibrillation',
+  'a-fib': 'atrial fibrillation',
+  'cad': 'coronary artery disease',
+  'mi': 'myocardial infarction',
+  'cva': 'cerebrovascular accident',
+  'tia': 'transient ischemic attack',
+  'gerd': 'gastroesophageal reflux disease',
+  'uti': 'urinary tract infection',
+  'bph': 'benign prostatic hyperplasia',
+  'ra': 'rheumatoid arthritis',
+  'oa': 'osteoarthritis',
+  'dvt': 'deep vein thrombosis',
+  'pe': 'pulmonary embolism'
+};
+
+function _normDiagnosis(name) {
+  var n = _normStr(name);
+  return _DIAGNOSIS_ALIASES[n] || n;
+}
+
+// Check if two diagnosis names are likely the same condition
+function _diagnosisMatch(a, b) {
+  var na = _normDiagnosis(a);
+  var nb = _normDiagnosis(b);
+  if (na === nb) return true;
+  // Check if one contains the other (e.g. "hypertension" vs "essential hypertension")
+  if (na.length > 3 && nb.length > 3) {
+    if (na.indexOf(nb) !== -1 || nb.indexOf(na) !== -1) return true;
+  }
+  return false;
+}
+
+// Check if two medication names are likely the same drug
+function _medNameMatch(a, b) {
+  var na = _normStr(a);
+  var nb = _normStr(b);
+  if (na === nb) return true;
+  // Strip dosage info for comparison (e.g. "Lisinopril 20mg" -> "lisinopril")
+  var nameOnlyA = na.replace(/\s*\d+\s*(mg|mcg|ml|iu|units?|%)\b.*/i, '').trim();
+  var nameOnlyB = nb.replace(/\s*\d+\s*(mg|mcg|ml|iu|units?|%)\b.*/i, '').trim();
+  if (nameOnlyA && nameOnlyB && nameOnlyA === nameOnlyB) return true;
+  return false;
+}
+
+// Extract dosage from a string (returns lowercase trimmed dosage or null)
+function _extractDose(str) {
+  if (!str) return null;
+  var m = String(str).match(/(\d+(?:\.\d+)?)\s*(mg|mcg|ml|iu|units?|%)/i);
+  return m ? m[0].toLowerCase().trim() : null;
+}
+
+/**
+ * findDuplicates — query existing records for a person and find near-matches.
+ * Returns { action: 'insert' | 'skip' | 'update', existing: row|null, note: string }
+ *
+ * For health_events: checks health_events table
+ * For medications: checks medications table
+ */
+async function findDuplicateHealthEvent(personId, newEvent) {
+  if (!personId || !newEvent || !newEvent.title) return { action: 'insert', existing: null, note: '' };
+
+  var evType = _normStr(newEvent.event_type || 'note');
+
+  // Conditions / diagnoses: match on normalized name
+  if (evType === 'condition' || evType === 'diagnosis') {
+    var { data: existing } = await db.from('health_events')
+      .select('id, title, notes, source, event_date, event_type')
+      .eq('person_id', personId)
+      .in('event_type', ['condition', 'diagnosis']);
+
+    if (existing && existing.length > 0) {
+      for (var i = 0; i < existing.length; i++) {
+        if (_diagnosisMatch(existing[i].title, newEvent.title)) {
+          // Same condition already exists — skip, but merge extra detail if incoming has more info
+          var incomingPriority = _sourcePriority(newEvent.source);
+          var existingPriority = _sourcePriority(existing[i].source);
+          if (incomingPriority > existingPriority && newEvent.notes && !existing[i].notes) {
+            return {
+              action: 'update',
+              existing: existing[i],
+              note: 'Merged additional detail from ' + (newEvent.source || 'unknown') + ' source'
+            };
+          }
+          return {
+            action: 'skip',
+            existing: existing[i],
+            note: 'Duplicate condition: "' + newEvent.title + '" matches existing "' + existing[i].title + '"'
+          };
+        }
+      }
+    }
+    return { action: 'insert', existing: null, note: '' };
+  }
+
+  // Labs: match on title + same day
+  if (evType === 'lab' || evType === 'lab_result') {
+    var newDate = _dateOnly(newEvent.event_date);
+    var { data: existingLabs } = await db.from('health_events')
+      .select('id, title, notes, source, event_date, value, unit, event_type')
+      .eq('person_id', personId)
+      .in('event_type', ['lab', 'lab_result']);
+
+    if (existingLabs && existingLabs.length > 0) {
+      for (var j = 0; j < existingLabs.length; j++) {
+        if (_normStr(existingLabs[j].title) === _normStr(newEvent.title) && _dateOnly(existingLabs[j].event_date) === newDate) {
+          // Same lab on same day
+          var labInPriority = _sourcePriority(newEvent.source);
+          var labExPriority = _sourcePriority(existingLabs[j].source);
+          if (labInPriority > labExPriority) {
+            return {
+              action: 'update',
+              existing: existingLabs[j],
+              note: 'Updated lab value from higher-priority source (' + (newEvent.source || 'unknown') + ')'
+            };
+          }
+          return {
+            action: 'skip',
+            existing: existingLabs[j],
+            note: 'Duplicate lab: "' + newEvent.title + '" on ' + newDate
+          };
+        }
+      }
+    }
+    return { action: 'insert', existing: null, note: '' };
+  }
+
+  // Appointments: match on same day + similar title/provider
+  if (evType === 'appointment') {
+    var apptDate = _dateOnly(newEvent.event_date);
+    var { data: existingAppts } = await db.from('health_events')
+      .select('id, title, notes, source, event_date, event_type')
+      .eq('person_id', personId)
+      .eq('event_type', 'appointment');
+
+    if (existingAppts && existingAppts.length > 0) {
+      for (var k = 0; k < existingAppts.length; k++) {
+        if (_dateOnly(existingAppts[k].event_date) === apptDate) {
+          // Same day — check if title/provider is similar
+          var nA = _normStr(existingAppts[k].title);
+          var nB = _normStr(newEvent.title);
+          if (nA === nB || nA.indexOf(nB) !== -1 || nB.indexOf(nA) !== -1) {
+            return {
+              action: 'skip',
+              existing: existingAppts[k],
+              note: 'Duplicate appointment on ' + apptDate + ': "' + newEvent.title + '"'
+            };
+          }
+        }
+      }
+    }
+    return { action: 'insert', existing: null, note: '' };
+  }
+
+  // Vitals / Activity / Sleep / Workouts: match on event_type + same day
+  if (evType === 'vital' || evType === 'activity' || evType === 'sleep' || evType === 'workout' || evType === 'activity_summary') {
+    var vDate = _dateOnly(newEvent.event_date);
+    var { data: existingVitals } = await db.from('health_events')
+      .select('id, title, notes, source, event_date, event_type')
+      .eq('person_id', personId)
+      .eq('event_type', evType);
+
+    if (existingVitals && existingVitals.length > 0) {
+      for (var v = 0; v < existingVitals.length; v++) {
+        if (_dateOnly(existingVitals[v].event_date) === vDate && _normStr(existingVitals[v].title) === _normStr(newEvent.title)) {
+          var vInPriority = _sourcePriority(newEvent.source);
+          var vExPriority = _sourcePriority(existingVitals[v].source);
+          if (vInPriority > vExPriority) {
+            return {
+              action: 'update',
+              existing: existingVitals[v],
+              note: 'Merged ' + evType + ' data from ' + (newEvent.source || 'unknown') + ' for ' + vDate
+            };
+          }
+          return {
+            action: 'skip',
+            existing: existingVitals[v],
+            note: 'Duplicate ' + evType + ' on ' + vDate + ': "' + newEvent.title + '"'
+          };
+        }
+      }
+    }
+    return { action: 'insert', existing: null, note: '' };
+  }
+
+  // Notes and other types: match on exact title + same day (conservative)
+  var noteDate = _dateOnly(newEvent.event_date);
+  var { data: existingNotes } = await db.from('health_events')
+    .select('id, title, notes, source, event_date, event_type')
+    .eq('person_id', personId)
+    .eq('event_type', evType);
+
+  if (existingNotes && existingNotes.length > 0) {
+    for (var n = 0; n < existingNotes.length; n++) {
+      if (_normStr(existingNotes[n].title) === _normStr(newEvent.title) && _dateOnly(existingNotes[n].event_date) === noteDate) {
+        return {
+          action: 'skip',
+          existing: existingNotes[n],
+          note: 'Duplicate ' + evType + ': "' + newEvent.title + '" on ' + noteDate
+        };
+      }
+    }
+  }
+
+  return { action: 'insert', existing: null, note: '' };
+}
+
+/**
+ * findDuplicateMedication — check if a medication already exists for this person.
+ * Returns { action: 'insert' | 'skip' | 'update', existing: row|null, note: string }
+ */
+async function findDuplicateMedication(personId, newMed) {
+  if (!personId || !newMed || !newMed.name) return { action: 'insert', existing: null, note: '' };
+
+  var { data: existingMeds } = await db.from('medications')
+    .select('id, name, dose, frequency, prescriber, source, active')
+    .eq('person_id', personId);
+
+  if (!existingMeds || existingMeds.length === 0) return { action: 'insert', existing: null, note: '' };
+
+  for (var i = 0; i < existingMeds.length; i++) {
+    if (_medNameMatch(existingMeds[i].name, newMed.name)) {
+      // Same medication found
+      var incomingPriority = _sourcePriority(newMed.source);
+      var existingPriority = _sourcePriority(existingMeds[i].source);
+
+      // Check if dosage differs
+      var existingDose = _extractDose(existingMeds[i].dose);
+      var incomingDose = _extractDose(newMed.dose);
+
+      if (incomingDose && existingDose && incomingDose !== existingDose) {
+        // Dosage differs — be conservative. Only update if incoming source is more authoritative.
+        // Note: We do NOT silently merge dosage differences unless the incoming source is strictly
+        // more authoritative. The user said "dosing errors are a line" — so when in doubt, keep both.
+        if (incomingPriority > existingPriority) {
+          return {
+            action: 'update',
+            existing: existingMeds[i],
+            note: 'Dose updated from ' + (existingDose || 'unspecified') + ' to ' + incomingDose + ' (source: ' + (newMed.source || 'unknown') + ', higher priority than ' + (existingMeds[i].source || 'unknown') + ')'
+          };
+        }
+        // Same or lower priority with different dose — keep both (conservative)
+        return { action: 'insert', existing: null, note: '' };
+      }
+
+      // Same med, same or no dose info — skip the duplicate
+      return {
+        action: 'skip',
+        existing: existingMeds[i],
+        note: 'Duplicate medication: "' + newMed.name + '" already exists'
+      };
+    }
+  }
+
+  return { action: 'insert', existing: null, note: '' };
+}
+
+/**
+ * reconcileHealthEvent — given a dedup result, perform the appropriate action.
+ * Returns the inserted/updated row data, or null if skipped.
+ */
+async function reconcileHealthEvent(personId, newEvent, dedupResult) {
+  if (dedupResult.action === 'skip') {
+    console.log('[Reconcile] Skipping health event:', dedupResult.note);
+    return null;
+  }
+
+  if (dedupResult.action === 'update' && dedupResult.existing) {
+    // Build update payload — merge notes with reconciliation info
+    var updatePayload = {};
+    var reconNote = '[Reconciled ' + new Date().toISOString() + '] ' + dedupResult.note;
+    var existingNotes = dedupResult.existing.notes || '';
+    updatePayload.notes = existingNotes ? existingNotes + '\n' + reconNote : reconNote;
+
+    // Merge in any new values from the incoming event
+    if (newEvent.notes && !existingNotes) updatePayload.notes = newEvent.notes + '\n' + reconNote;
+    if (newEvent.value !== undefined && newEvent.value !== null) updatePayload.value = newEvent.value;
+    if (newEvent.value2 !== undefined && newEvent.value2 !== null) updatePayload.value2 = newEvent.value2;
+    if (newEvent.unit) updatePayload.unit = newEvent.unit;
+    updatePayload.source = newEvent.source || dedupResult.existing.source;
+
+    var { data, error } = await db.from('health_events')
+      .update(updatePayload)
+      .eq('id', dedupResult.existing.id)
+      .select().single();
+
+    if (error) {
+      console.error('[Reconcile] Update error:', error);
+      return null;
+    }
+    console.log('[Reconcile] Updated health event:', dedupResult.note);
+    return data;
+  }
+
+  // action === 'insert' — normal insert
+  var { data: insertData, error: insertError } = await db.from('health_events')
+    .insert({
+      person_id: personId,
+      event_type: newEvent.event_type || 'note',
+      event_date: newEvent.event_date,
+      title: newEvent.title,
+      notes: newEvent.notes || null,
+      value: newEvent.value || null,
+      value2: newEvent.value2 || null,
+      unit: newEvent.unit || null,
+      source: newEvent.source || 'manual',
+      ehr_system: newEvent.ehr_system || null
+    }).select().single();
+
+  if (insertError) {
+    console.error('[Reconcile] Insert error:', insertError);
+    return null;
+  }
+  return insertData;
+}
+
+/**
+ * reconcileMedication — given a dedup result, perform the appropriate action.
+ * Returns the inserted/updated row data, or null if skipped.
+ */
+async function reconcileMedication(personId, newMed, dedupResult) {
+  if (dedupResult.action === 'skip') {
+    console.log('[Reconcile] Skipping medication:', dedupResult.note);
+    return null;
+  }
+
+  if (dedupResult.action === 'update' && dedupResult.existing) {
+    var medUpdate = {};
+    if (newMed.dose) medUpdate.dose = newMed.dose;
+    if (newMed.frequency) medUpdate.frequency = newMed.frequency;
+    if (newMed.prescriber) medUpdate.prescriber = newMed.prescriber;
+    medUpdate.source = newMed.source || dedupResult.existing.source;
+
+    var { data, error } = await db.from('medications')
+      .update(medUpdate)
+      .eq('id', dedupResult.existing.id)
+      .select().single();
+
+    if (error) {
+      console.error('[Reconcile] Medication update error:', error);
+      return null;
+    }
+    console.log('[Reconcile] Updated medication:', dedupResult.note);
+    return data;
+  }
+
+  // action === 'insert' — normal insert
+  var { data: insertData, error: insertError } = await db.from('medications')
+    .insert({
+      person_id: personId,
+      name: newMed.name,
+      dose: newMed.dose || null,
+      frequency: newMed.frequency || null,
+      prescriber: newMed.prescriber || null,
+      active: newMed.active !== undefined ? newMed.active : true,
+      source: newMed.source || 'manual'
+    }).select().single();
+
+  if (insertError) {
+    console.error('[Reconcile] Medication insert error:', insertError);
+    return null;
+  }
+  return insertData;
 }
 
 // ── EHR INTEGRATION (Epic SMART on FHIR) ────────────────────────────────────
@@ -11808,31 +12194,24 @@ async function obFinishWithNames() {
       }
     }
 
-    // If extraction found conditions/meds, save them as health events
+    // If extraction found conditions/meds, save them via reconciliation
     if (person && _obExtractedData) {
       if (_obExtractedData.conditions) {
         for (var c = 0; c < _obExtractedData.conditions.length; c++) {
           try {
-            await db.from('health_events').insert({
-              person_id: person.id,
-              user_id: currentUser.id,
-              event_type: 'condition',
-              title: _obExtractedData.conditions[c],
-              source: 'Onboarding upload'
-            });
+            var obCondEvent = { event_type: 'condition', event_date: new Date().toISOString(), title: _obExtractedData.conditions[c], source: 'Onboarding upload' };
+            var obCondDedup = await findDuplicateHealthEvent(person.id, obCondEvent);
+            await reconcileHealthEvent(person.id, obCondEvent, obCondDedup);
           } catch(e) { /* PHI log removed */ }
         }
       }
       if (_obExtractedData.medications) {
         for (var m = 0; m < _obExtractedData.medications.length; m++) {
           try {
-            await db.from('medications').insert({
-              person_id: person.id,
-              user_id: currentUser.id,
-              name: _obExtractedData.medications[m].name || _obExtractedData.medications[m],
-              status: 'active',
-              source: 'Onboarding upload'
-            });
+            var obMedName = _obExtractedData.medications[m].name || _obExtractedData.medications[m];
+            var obMed = { name: obMedName, active: true, source: 'Onboarding upload' };
+            var obMedDedup = await findDuplicateMedication(person.id, obMed);
+            await reconcileMedication(person.id, obMed, obMedDedup);
           } catch(e) { /* PHI log removed */ }
         }
       }
