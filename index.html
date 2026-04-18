@@ -16,7 +16,7 @@
 <meta name="theme-color" content="#608F7C">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300;1,9..144,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="/lucide.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
@@ -40,6 +40,7 @@
     --moss-text: #4F7A68;
     --red: #C0392B;
     --blue: #3B6EA5;
+    --font-display: 'Fraunces', serif;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
@@ -207,6 +208,8 @@
   .header-actions { display: flex; gap: 8px; }
   .icon-btn { min-width: 44px; min-height: 44px; border-radius: 50%; background: var(--mint); display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; color: var(--moss); transition: background 0.15s; }
   .icon-btn:hover { background: var(--mint-deep); }
+  .er-quick-btn { background: #FEF0EE; color: #C0392B; }
+  .er-quick-btn:hover { background: #fde0de; }
 
   /* ── SETTINGS SHEET ── */
   .settings-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-end; justify-content: center; }
@@ -248,7 +251,9 @@
   .app-view { display: none; }
   .app-view.active { display: block; }
   #view-ask.active { display: flex; flex-direction: column; height: calc(100vh - 130px - 70px); }
-  .view-header { padding: 20px 20px 4px; }
+  .view-header { padding: 20px 20px 4px; display:flex; align-items:center; gap:10px; }
+  .view-back-btn { background: var(--mint); border: none; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--moss); flex-shrink: 0; }
+  .view-back-btn:hover { background: var(--mint-deep); }
   .view-title { font-family: 'DM Serif Display', serif; font-size: 22px; font-weight: 400; margin-bottom: 4px; }
   .view-subtitle { font-size: 13px; color: var(--text-muted); }
 
@@ -295,6 +300,8 @@
   .upload-options { padding: 0 20px; display: flex; flex-direction: column; gap: 8px; }
   .upload-option { display: flex; align-items: center; gap: 12px; padding: 13px 14px; background: white; border: 1px solid var(--border); border-radius: 12px; cursor: pointer; transition: all 0.15s; }
   .upload-option:hover { border-color: var(--moss); background: var(--mint); }
+  .upload-option--record { border-color:rgba(192,57,43,0.2); background:#FEFAF9; }
+  .upload-option--record:hover { border-color:#C0392B; background:#FEF0EE; }
   .upload-option-icon { width: 34px; height: 34px; border-radius: 9px; background: var(--mint); display: flex; align-items: center; justify-content: center; color: var(--moss); flex-shrink: 0; }
   .upload-option:hover .upload-option-icon { background: var(--mint-deep); }
   .upload-option-label { font-size: 14px; font-weight: 500; }
@@ -312,6 +319,14 @@
   .upload-tags { display: flex; flex-wrap: wrap; gap: 6px; }
   .upload-tag { padding: 5px 12px; border-radius: 16px; border: 1.5px solid var(--border-medium); font-size: 12px; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; background: white; font-family: 'DM Sans', sans-serif; }
   .upload-tag.selected { background: var(--moss); border-color: var(--moss); color: white; }
+  .upload-extracted { margin-bottom:16px; }
+  .upload-extracted-label { font-size:11px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-muted); margin-bottom:10px; }
+  .extracted-item { display:flex; align-items:flex-start; gap:8px; font-size:13px; color:var(--text-secondary); padding:7px 0; border-bottom:1px solid var(--border); line-height:1.4; }
+  .extracted-item:last-child { border-bottom:none; }
+  .extracted-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; margin-top:4px; }
+  .extracted-dot--amber { background:var(--amber); }
+  .extracted-dot--green { background:#47B08A; }
+  .extracted-dot--blue  { background:var(--blue); }
 
   /* ── QUICK ACTION SHEETS (shared base) ── */
   .qa-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-end; justify-content: center; }
@@ -343,7 +358,7 @@
   .er-close-btn { background: rgba(255,255,255,0.2); border: none; color: white; min-width: 44px; min-height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s; flex-shrink: 0; }
   .er-close-btn:hover { background: rgba(255,255,255,0.35); }
   .er-patient-banner { padding: 16px 20px; background: #fef2f2; border-bottom: 2px solid #dc2626; flex-shrink: 0; }
-  .er-patient-name { font-family: 'DM Serif Display', serif; font-size: 26px; font-weight: 400; color: #1a1a1a; line-height: 1.2; }
+  .er-patient-name { font-family: 'DM Serif Display', serif; font-size: 26px; font-weight: 400; color: #1a1a1a; line-height: 1.2; font-family: var(--font-display); font-variation-settings: 'opsz' 72; }
   .er-patient-dob { font-family: 'DM Sans', sans-serif; font-size: 15px; color: #6b6560; margin-top: 4px; }
   .er-body { flex: 1; padding: 0; background: white; overflow-y: auto; }
   .er-body .emrg-section { margin: 0; padding: 14px 20px; border-bottom: 1px solid rgba(79,77,92,0.1); }
@@ -501,6 +516,12 @@
   .update-text strong { font-weight: 500; }
   .update-meta { font-size: 11px; color: var(--text-muted); margin-top: 10px; display: flex; align-items: center; gap: 6px; }
   .update-meta a { color: var(--moss); font-weight: 500; text-decoration: none; cursor: pointer; }
+
+  .visit-prep-card { display:flex; align-items:center; gap:12px; margin:12px 20px 0; padding:13px 14px; background:var(--amber-bg); border:1px solid rgba(201,123,44,0.2); border-radius:12px; }
+  .visit-prep-icon { width:32px; height:32px; border-radius:8px; background:rgba(201,123,44,0.15); display:flex; align-items:center; justify-content:center; color:var(--amber); flex-shrink:0; }
+  .visit-prep-title { font-size:13px; font-weight:600; color:var(--text-primary); }
+  .visit-prep-sub { font-size:11px; color:var(--amber-text); margin-top:2px; line-height:1.4; }
+  .visit-prep-btn { margin-left:auto; flex-shrink:0; background:var(--amber); color:white; border:none; border-radius:8px; padding:7px 12px; font-size:12px; font-weight:600; font-family:'DM Sans',sans-serif; cursor:pointer; }
 
   .alert-banner { margin: 12px 20px 0; background: var(--amber-bg); border: 1px solid rgba(201,123,44,0.25); border-radius: 10px; padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start; }
   .alert-icon { color: var(--amber); flex-shrink: 0; margin-top: 1px; display: flex; }
@@ -735,7 +756,22 @@
   .ob-blurry-warning { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #FFF8E7; border: 1px solid #F0D68A; border-radius: 10px; margin-top: 8px; font-size: 13px; color: var(--text-secondary); }
   .ob-blurry-warning-icon { color: #D4A012; flex-shrink: 0; }
 
+  /* ── P7: FRAUNCES TYPOGRAPHY CARRY-THROUGH ── */
+  /* Note: getwellet.com marketing site Fraunces update assumed shipped per brief instructions */
+  .auth-headline h1       { font-family: var(--font-display); font-variation-settings: 'opsz' 72; }
+  .auth-headline h1 em    { font-family: var(--font-display); font-style: italic; color: var(--moss); font-variation-settings: 'opsz' 72; }
+  .view-title             { font-family: var(--font-display); font-variation-settings: 'opsz' 36; }
+  .notif-panel-title      { font-family: var(--font-display); font-variation-settings: 'opsz' 36; }
+  .settings-title         { font-family: var(--font-display); font-variation-settings: 'opsz' 36; }
+  .upload-title           { font-family: var(--font-display); font-variation-settings: 'opsz' 36; }
+  .qa-sheet-title         { font-family: var(--font-display); font-variation-settings: 'opsz' 36; }
+  .hero-band h1           { font-family: var(--font-display); font-variation-settings: 'opsz' 72; }
+
   /* Tour overlay */
+  .onboard-tooltip { position:fixed; background:var(--text-primary); color:white; padding:10px 16px; border-radius:10px; font-size:13px; font-weight:500; line-height:1.4; max-width:220px; z-index:9999; pointer-events:none; animation:fadeUp 0.3s ease both; transform:translateX(-50%); }
+  .onboard-tooltip::after { content:''; position:absolute; bottom:-7px; left:50%; transform:translateX(-50%); border:7px solid transparent; border-bottom:none; border-top-color:var(--text-primary); }
+  @keyframes fadeUp { from { opacity:0; transform:translateX(-50%) translateY(8px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+
   .tour-overlay { position: fixed; inset: 0; z-index: 9999; pointer-events: none; }
   .tour-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.45); pointer-events: auto; }
   .tour-tooltip { position: absolute; background: white; border-radius: 14px; padding: 16px 18px; max-width: 280px; box-shadow: 0 8px 32px rgba(0,0,0,0.18); pointer-events: auto; z-index: 10000; font-family: 'DM Sans', sans-serif; }
@@ -1493,7 +1529,12 @@
       <p>Wellet is built on a <strong>privacy-first architecture</strong>. Your health information is encrypted and isolated with row-level security — no other user or even Wellet staff can access it. AI features process your data in real time and return insights without storing or training on anything. You own your data, you control who sees it, and you can export or delete it anytime.</p>
     </div>
   </div>
-</div>
+  <div style="text-align:center; padding: 12px 28px 0;">
+    <button onclick="openEmergencySummary()" style="background:none;border:none;font-size:12px;color:var(--text-muted);font-family:var(--font-body);cursor:pointer;display:inline-flex;align-items:center;gap:5px;padding:8px;">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      Emergency summary
+    </button>
+  </div>
 </div>
 
 <!-- EXPLAINER VIDEO -->
@@ -1609,6 +1650,11 @@
             <button class="icon-btn" id="notif-bell-btn" onclick="openNotifPanel()" title="Reminders" aria-label="Notifications"><i data-lucide="bell" style="width:16px;height:16px;"></i></button>
             <span class="notif-bell-badge" id="notif-bell-badge" data-count="0"></span>
           </div>
+          <button class="icon-btn er-quick-btn" onclick="openEmergencySummary()" aria-label="Emergency summary" title="ER Summary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+            </svg>
+          </button>
           <button class="icon-btn" id="header-feedback-btn" onclick="openFeedbackSheet()" title="Send feedback" aria-label="Send feedback"><i data-lucide="message-square-heart" style="width:16px;height:16px;"></i></button>
           <button class="icon-btn" onclick="openSettings()" title="Settings" aria-label="Settings"><i data-lucide="settings" style="width:16px;height:16px;"></i></button>
       </div>
@@ -1618,9 +1664,9 @@
       <button class="person-pill" role="tab" aria-selected="false" onclick="switchPerson(this,'mom')"><span class="pip"></span>Mom</button>
     </div>
     <div class="tab-bar" id="header-tab-bar" role="tablist" aria-label="Health view">
-      <button class="tab active" role="tab" aria-selected="true" aria-controls="tab-update" id="tab-btn-update" onclick="switchTab(this,'update')">Update Me</button>
-      <button class="tab" role="tab" aria-selected="false" aria-controls="tab-timeline" id="tab-btn-timeline" onclick="switchTab(this,'timeline')">Timeline</button>
-      <button class="tab" role="tab" aria-selected="false" aria-controls="tab-patterns" id="tab-btn-patterns" onclick="switchTab(this,'patterns')">Patterns</button>
+      <button class="tab active" role="tab" aria-selected="true" aria-controls="tab-update" id="tab-btn-update" onclick="switchTab(this,'update')">Summary</button>
+      <button class="tab" role="tab" aria-selected="false" aria-controls="tab-timeline" id="tab-btn-timeline" onclick="switchTab(this,'timeline')">History</button>
+      <button class="tab" role="tab" aria-selected="false" aria-controls="tab-patterns" id="tab-btn-patterns" onclick="switchTab(this,'patterns')">Trends</button>
     </div>
   </div>
 
@@ -1635,6 +1681,16 @@
           <p class="update-text">Dad is <strong>2 months post-op</strong> from his second peroneal knee release and attending PT twice weekly for leg rehab. His oncology CML test came back <strong>&lt;0.001</strong> — continued improvement. Blood pressure has been <strong>running higher this week</strong> (avg 142/89) since his Hydrochlorothiazide dose adjusted in February, something Dr. Johnson is watching closely. Next visit is <strong>March 16th</strong> with Primary Care.</p>
           <div class="update-meta">Generated from 47 health events · <a>Ask a follow-up</a></div>
         </div>
+      </div>
+      <div class="visit-prep-card" id="visit-prep-card">
+        <div class="visit-prep-icon">
+          <i data-lucide="calendar-check" style="width:16px;height:16px;"></i>
+        </div>
+        <div>
+          <div class="visit-prep-title">Prepare for visit</div>
+          <div class="visit-prep-sub">AI questions based on recent health changes</div>
+        </div>
+        <button class="visit-prep-btn" onclick="generateVisitQuestions()">Generate →</button>
       </div>
       <div class="alert-banner">
         <div class="alert-icon"><i data-lucide="triangle-alert" style="width:16px;height:16px;"></i></div>
@@ -2174,6 +2230,110 @@
       </div>
     </div><!-- end view-ask -->
 
+    <!-- SETTINGS FULL-PAGE VIEW (P4) -->
+    <div id="view-settings" class="app-view settings-view">
+      <div class="view-header">
+        <button class="view-back-btn" onclick="switchNavTo('home')" aria-label="Back">
+          <i data-lucide="arrow-left" style="width:18px;height:18px;"></i>
+        </button>
+        <div class="view-title">Settings</div>
+      </div>
+      <div class="view-content" id="view-settings-content" style="padding:0 0 40px;overflow-y:auto;">
+        <!-- Account -->
+        <div class="settings-section" id="sv-account-section" style="display:none;">
+          <div class="settings-section-label">Account</div>
+          <div class="settings-row">
+            <div class="settings-row-left">
+              <div class="settings-row-icon"><i data-lucide="user" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label" id="sv-user-email">Signed in</div><div class="settings-row-meta">Magic link authentication</div></div>
+            </div>
+          </div>
+          <div class="settings-row" style="cursor:pointer;" onclick="handleLogout()">
+            <div class="settings-row-left">
+              <div class="settings-row-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="log-out" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label" style="color:var(--red);">Sign out</div><div class="settings-row-meta">Return to login screen</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+          </div>
+        </div>
+        <!-- Care Circle -->
+        <div class="settings-section" style="margin-top:12px;">
+          <div class="settings-section-label">Care Circle</div>
+          <div id="sv-care-circle-list">
+            <div class="contact-card">
+              <div class="contact-avatar">SB</div>
+              <div style="flex:1;"><div class="contact-name">Sarah Bell</div><div class="contact-meta">sarah@email.com</div></div>
+              <span class="contact-role primary">Primary</span>
+            </div>
+          </div>
+          <button class="add-contact-btn" onclick="openContactEdit(null)">
+            <i data-lucide="user-plus" style="width:15px;height:15px;"></i> Invite family member
+          </button>
+        </div>
+        <!-- Connected Sources -->
+        <div class="settings-section" style="margin-top:12px;">
+          <div class="settings-section-label">Connected Sources</div>
+          <div id="sv-ehr-status"></div>
+          <div class="settings-row" style="cursor:pointer;" onclick="startEhrConnect()">
+            <div class="settings-row-left">
+              <div class="settings-row-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="hospital" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label" id="sv-ehr-label">Connect Health Records</div><div class="settings-row-meta" id="sv-ehr-meta">Epic, Cerner, MyChart — read-only</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-row-left">
+              <div class="settings-row-icon"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Apple Health</div><div class="settings-row-meta">Wearables &amp; sensors</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+          </div>
+        </div>
+        <!-- Privacy & Data -->
+        <div class="settings-section" style="margin-top:12px;">
+          <div class="settings-section-label">Privacy &amp; Data</div>
+          <div class="settings-row" style="cursor:pointer;" onclick="exportAllData('json')">
+            <div class="settings-row-left">
+              <div class="settings-row-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="download" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Export all data</div><div class="settings-row-meta">Download everything as JSON</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+          </div>
+          <div class="settings-row" style="cursor:pointer;" onclick="window.open('https://mywellet.com/privacy','_blank')">
+            <div class="settings-row-left">
+              <div class="settings-row-icon"><i data-lucide="shield" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Privacy policy</div><div class="settings-row-meta">How your data is protected</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+          </div>
+          <div class="settings-row" style="cursor:pointer;" onclick="window.open('https://mywellet.com/terms','_blank')">
+            <div class="settings-row-left">
+              <div class="settings-row-icon"><i data-lucide="file-text" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Terms of service</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+          </div>
+        </div>
+        <!-- App -->
+        <div class="settings-section" style="margin-top:12px;">
+          <div class="settings-section-label">App</div>
+          <div class="settings-row" style="cursor:pointer;" onclick="openFeedbackSheet()">
+            <div class="settings-row-left">
+              <div class="settings-row-icon" style="background:#E8F5E9;color:#4CAF50;"><i data-lucide="message-square-heart" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Send feedback</div><div class="settings-row-meta">Help shape Wellet</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-row-left">
+              <div class="settings-row-icon"><i data-lucide="info" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">About Wellet</div><div class="settings-row-meta">v1.0 · Private by design</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div><!-- end view-settings -->
+
   </div><!-- end app-body -->
 
   <!-- FAB for adding events -->
@@ -2184,8 +2344,8 @@
   <div class="bottom-nav">
     <button class="nav-item active" onclick="switchNavTo('home')"><span class="nav-icon"><i data-lucide="house" style="width:20px;height:20px;"></i></span>Home</button>
     <button class="nav-item" onclick="switchNavTo('people')"><span class="nav-icon"><i data-lucide="users" style="width:20px;height:20px;"></i></span>People</button>
-    <button class="nav-item" onclick="switchNavTo('records')"><span class="nav-icon"><i data-lucide="folder-heart" style="width:20px;height:20px;"></i></span>Records</button>
-    <button class="nav-item" onclick="switchNavTo('signals')"><span class="nav-icon"><i data-lucide="activity" style="width:20px;height:20px;"></i></span>Signals</button>
+    <button class="nav-item" onclick="switchNavTo('records')"><span class="nav-icon"><i data-lucide="folder-heart" style="width:20px;height:20px;"></i></span>Documents</button>
+    <button class="nav-item" onclick="switchNavTo('signals')"><span class="nav-icon"><i data-lucide="activity" style="width:20px;height:20px;"></i></span>CareSignals</button>
     <button class="nav-item" onclick="switchNavTo('resources')"><span class="nav-icon"><i data-lucide="heart-handshake" style="width:20px;height:20px;"></i></span>Resources</button>
     <button class="nav-item" id="nav-ask" onclick="switchNavTo('ask')"><span class="nav-icon"><svg class="wellet-nav-icon" viewBox="0 138 50 42" xmlns="http://www.w3.org/2000/svg"><path d="M45.5,142c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83l.25-2.56h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z"/></svg></span>Ask Wellet</button>
   </div>
@@ -2609,6 +2769,15 @@
       <div class="upload-divider"><span>or choose a type</span></div>
 
       <div class="upload-options">
+        <div class="upload-option upload-option--record" onclick="startVoiceRecording()">
+          <div class="upload-option-icon" style="background:#FEF0EE;color:#C0392B;">
+            <i data-lucide="mic" style="width:16px;height:16px;"></i>
+          </div>
+          <div>
+            <div class="upload-option-label">Record doctor visit</div>
+            <div class="upload-option-sub">Tap to record · Wellet transcribes automatically</div>
+          </div>
+        </div>
         <div class="upload-option" onclick="triggerFileUpload('Visit summary')">
           <div class="upload-option-icon"><i data-lucide="clipboard-list" style="width:17px;height:17px;"></i></div>
           <div>
@@ -2699,14 +2868,25 @@
     </div>
 
     <div id="upload-step4" style="display:none;">
-      <div style="padding:24px 20px;text-align:center;">
-        <div id="upload-done-icon" style="width:52px;height:52px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
-          <i data-lucide="check-circle" style="width:24px;height:24px;color:var(--moss);"></i>
+      <div style="padding:20px 20px 8px;">
+        <!-- Hidden compat elements referenced by existing JS -->
+        <div id="upload-done-icon" style="display:none;"></div>
+        <div id="upload-done-title" style="display:none;"></div>
+        <!-- Visible file card -->
+        <div class="upload-file-card" style="margin-bottom:16px;">
+          <div class="upload-file-icon" id="upload-done-file-icon"><i data-lucide="check-circle" style="width:22px;height:22px;color:var(--moss);"></i></div>
+          <div>
+            <div class="upload-file-name" id="upload-done-file-name">Document saved</div>
+            <div class="upload-file-meta" style="font-size:12px;color:var(--moss-dark);">Added to your timeline</div>
+          </div>
         </div>
-        <div id="upload-done-title" style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:6px;">Document saved</div>
-        <div id="upload-done-sub" style="font-size:13px;color:var(--text-secondary);line-height:1.6;">Wellet is reading your document and will extract health information automatically.</div>
+        <div class="upload-extracted" id="upload-extracted-section" style="display:none;">
+          <div class="upload-extracted-label">What Wellet found</div>
+          <div class="upload-extracted-items" id="extracted-items"></div>
+        </div>
+        <div id="upload-done-sub" style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">Wellet is reading your document and will extract health information automatically.</div>
         <div class="upload-ext-status" id="upload-ext-status"></div>
-        <button class="btn-primary" style="font-size:14px;padding:13px;margin-top:16px;" id="upload-done-btn" onclick="closeUpload()">Done</button>
+        <button class="btn-primary" style="font-size:14px;padding:13px;margin-top:8px;" id="upload-done-btn" onclick="closeUpload(); switchNavTo('home');">View in timeline →</button>
       </div>
     </div>
 
@@ -3010,6 +3190,31 @@
       <div style="font-family:'DM Serif Display',serif;font-size:22px;font-weight:400;margin-bottom:4px;">Choose your plan</div>
       <div style="font-size:13px;color:var(--text-secondary);margin-bottom:20px;">All plans include a 14-day free trial.</div>
       <div id="pricing-cards-container"></div>
+    </div>
+  </div>
+</div>
+
+<!-- VOICE RECORD SHEET -->
+<div class="qa-overlay" id="voice-record-overlay" onclick="if(event.target===this)stopVoiceRecording()">
+  <div class="qa-sheet" style="padding-bottom:40px;">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" aria-label="Close" onclick="stopVoiceRecording()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title">Record doctor visit</div>
+    <div class="qa-sheet-sub">Tap record, then speak naturally. Wellet will transcribe and summarize.</div>
+    <div style="text-align:center; padding:32px 20px 24px;">
+      <div id="voice-record-timer" style="font-size:40px;font-family:'DM Serif Display',serif;color:var(--text-primary);margin-bottom:24px;">0:00</div>
+      <button id="voice-record-btn" onclick="toggleVoiceRecording()" style="width:80px;height:80px;border-radius:50%;background:#C0392B;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:0 4px 20px rgba(192,57,43,0.35);transition:all 0.2s;">
+        <i data-lucide="mic" style="width:32px;height:32px;color:white;"></i>
+      </button>
+      <div id="voice-record-status" style="font-size:13px;color:var(--text-muted);">Tap to start recording</div>
+    </div>
+    <div style="padding:0 20px;">
+      <button id="voice-stop-btn" onclick="finishVoiceRecording()" style="display:none;width:100%;" class="btn-primary">Stop &amp; transcribe</button>
+    </div>
+    <div id="voice-processing" style="display:none;text-align:center;padding:20px;">
+      <div style="font-size:13px;color:var(--text-muted);">Transcribing your recording…</div>
     </div>
   </div>
 </div>
@@ -4646,6 +4851,8 @@ function showAuthenticatedApp() {
   // Alpha: show welcome on first login, track activation
   showAlphaWelcome();
   trackActivation();
+  // First-run onboarding tooltips (P2D)
+  setTimeout(maybeShowOnboardTooltips, 2000);
 }
 
 // ── PERSON SWITCHER ───────────────────────────────────────────────────────────
@@ -6158,6 +6365,30 @@ async function addAllExtractedFromOverlay() {
 var _pollTimer = null;
 var _pollAttempts = 0;
 
+// ── P3: POST-UPLOAD EXTRACTION SUMMARY ───────────────────────────────────────────────
+function renderUploadExtractedSummary(items) {
+  // items shape: [{type, text, color}, ...] or [{type, title, detail}, ...]
+  var section = document.getElementById('upload-extracted-section');
+  var container = document.getElementById('extracted-items');
+  if (!section || !container) return;
+  if (!items || items.length === 0) { section.style.display = 'none'; return; }
+  // Show demo items if extraction returns generic structure
+  var colorMap = { medication: 'amber', appointment: 'green', lab_result: 'blue', condition: 'amber', alert: 'amber' };
+  var html = '';
+  // Limit to first 5 items
+  var shown = items.slice(0, 5);
+  shown.forEach(function(item) {
+    var col = item.color || colorMap[item.type] || 'green';
+    var text = item.text || (item.title + (item.detail ? ' — ' + item.detail : ''));
+    html += '<div class="extracted-item"><span class="extracted-dot extracted-dot--' + escHtml(col) + '"></span><span>' + escHtml(text) + '</span></div>';
+  });
+  container.innerHTML = html;
+  section.style.display = 'block';
+  // Also update the done subtitle
+  var subEl = document.getElementById('upload-done-sub');
+  if (subEl) subEl.style.display = 'none';
+}
+
 function pollExtractionStatus(docId, isAudio) {
   _pollAttempts = 0;
   if (_pollTimer) clearInterval(_pollTimer);
@@ -6214,16 +6445,20 @@ function pollExtractionStatus(docId, isAudio) {
       document.getElementById('upload-done-sub').textContent = 'Wellet extracted health information from your document.';
 
       if (itemCount > 0) {
-        statusEl.innerHTML = '<div class="upload-ext-found"><i data-lucide="check-circle" style="width:16px;height:16px;color:var(--moss);"></i> Found ' + itemCount + ' item' + (itemCount !== 1 ? 's' : '') + '</div>';
+        // P3: Render extracted summary in upload-step4
+        renderUploadExtractedSummary(extracted.items || []);
+        statusEl.innerHTML = '';
         var doneBtn = document.getElementById('upload-done-btn');
         doneBtn.textContent = '';
-        doneBtn.innerHTML = '<i data-lucide="eye" style="width:15px;height:15px;"></i> Review findings';
+        doneBtn.innerHTML = 'View in timeline →';
         doneBtn.onclick = function() {
           closeUpload();
+          switchNavTo('home');
           // Update liveDocs with the fresh doc
           var existingIdx = liveDocs.findIndex(function(d) { return d.id === doc.id; });
           if (existingIdx >= 0) { liveDocs[existingIdx] = doc; } else { liveDocs.unshift(doc); }
-          showExtractionResults(doc.id);
+          // Show extraction review sheet after navigation
+          setTimeout(function() { showExtractionResults(doc.id); }, 300);
         };
       } else {
         statusEl.innerHTML = '<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">No items were found to extract.</div>';
@@ -10736,15 +10971,138 @@ async function removeContact() {
 }
 
 function openSettings() {
+  // P4: Navigate to full-page settings view
   updateSettingsAccount();
   updateSettingsEhr();
   if (!isDemoMode) { renderCareCircle(); }
   renderSettingsPlanCard();
-  openSheetAccessible('settings-overlay');
+  switchNavTo('settings');
   initIcons();
 }
 function closeSettings() {
+  // Kept for backward compat (closes legacy bottom sheet overlay if open)
   closeSheet('settings-overlay');
+  switchNavTo('home');
+}
+
+function updateSettingsViewAccount() {
+  // Sync account section in the full-page settings view
+  var section = document.getElementById('sv-account-section');
+  var emailEl = document.getElementById('sv-user-email');
+  if (currentUser) {
+    if (section) section.style.display = 'block';
+    if (emailEl) emailEl.textContent = currentUser.email || 'Signed in';
+  } else {
+    if (section) section.style.display = 'none';
+  }
+}
+
+// ── VISIT PREP (P1B) ──────────────────────────────────────────────────────────
+function generateVisitQuestions() {
+  // Stub: shows coming-soon toast while edge function is wired up.
+  // Real impl: POST to https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/generate-visit-questions
+  // and render results in a .qa-sheet bottom sheet matching the existing sheet pattern.
+  if (isDemoMode) {
+    showToast('In the real app, Wellet generates targeted questions based on recent changes');
+    return;
+  }
+  showToast('Visit questions coming soon — generating from your recent health changes');
+}
+
+// ── VOICE RECORDING (P1C) ─────────────────────────────────────────────────────
+var _vrMediaRecorder = null;
+var _vrChunks = [];
+var _vrTimerInterval = null;
+var _vrSeconds = 0;
+var _vrIsRecording = false;
+
+function startVoiceRecording() {
+  closeUpload();
+  openSheetAccessible('voice-record-overlay');
+  initIcons();
+  _vrSeconds = 0;
+  _vrIsRecording = false;
+  _vrChunks = [];
+  var timerEl = document.getElementById('voice-record-timer');
+  var statusEl = document.getElementById('voice-record-status');
+  var stopBtn = document.getElementById('voice-stop-btn');
+  if (timerEl) timerEl.textContent = '0:00';
+  if (statusEl) statusEl.textContent = 'Tap to start recording';
+  if (stopBtn) stopBtn.style.display = 'none';
+}
+
+function stopVoiceRecording() {
+  if (_vrMediaRecorder && _vrMediaRecorder.state !== 'inactive') {
+    _vrMediaRecorder.stop();
+  }
+  if (_vrTimerInterval) { clearInterval(_vrTimerInterval); _vrTimerInterval = null; }
+  _vrIsRecording = false;
+  closeSheet('voice-record-overlay');
+}
+
+function toggleVoiceRecording() {
+  if (_vrIsRecording) {
+    finishVoiceRecording();
+  } else {
+    _startMediaRecording();
+  }
+}
+
+function _startMediaRecording() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showToast('Microphone not available on this device');
+    return;
+  }
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+    _vrChunks = [];
+    _vrSeconds = 0;
+    _vrIsRecording = true;
+    var statusEl = document.getElementById('voice-record-status');
+    var stopBtn = document.getElementById('voice-stop-btn');
+    var timerEl = document.getElementById('voice-record-timer');
+    var recordBtn = document.getElementById('voice-record-btn');
+    if (statusEl) statusEl.textContent = 'Recording…';
+    if (stopBtn) stopBtn.style.display = 'block';
+    if (recordBtn) recordBtn.style.background = '#922B21';
+    _vrTimerInterval = setInterval(function() {
+      _vrSeconds++;
+      var m = Math.floor(_vrSeconds / 60);
+      var s = _vrSeconds % 60;
+      if (timerEl) timerEl.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+    }, 1000);
+    _vrMediaRecorder = new MediaRecorder(stream);
+    _vrMediaRecorder.ondataavailable = function(e) { if (e.data.size > 0) _vrChunks.push(e.data); };
+    _vrMediaRecorder.onstop = function() {
+      stream.getTracks().forEach(function(t) { t.stop(); });
+      _uploadVoiceRecording();
+    };
+    _vrMediaRecorder.start();
+  }).catch(function(err) {
+    showToast('Could not access microphone: ' + err.message);
+  });
+}
+
+function finishVoiceRecording() {
+  if (_vrTimerInterval) { clearInterval(_vrTimerInterval); _vrTimerInterval = null; }
+  _vrIsRecording = false;
+  var processingEl = document.getElementById('voice-processing');
+  var stopBtn = document.getElementById('voice-stop-btn');
+  if (processingEl) processingEl.style.display = 'block';
+  if (stopBtn) stopBtn.style.display = 'none';
+  if (_vrMediaRecorder && _vrMediaRecorder.state !== 'inactive') {
+    _vrMediaRecorder.stop();
+  } else {
+    _uploadVoiceRecording();
+  }
+}
+
+async function _uploadVoiceRecording() {
+  // TODO: Wire real upload to transcribe-audio edge function at
+  // https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/transcribe-audio
+  // then insert transcript into the timeline.
+  await new Promise(function(r) { setTimeout(r, 1200); });
+  closeSheet('voice-record-overlay');
+  showToast('Recording saved — transcription coming soon');
 }
 
 // ── FEEDBACK SHEET ─────────────────────────────────────────────────────────────
@@ -10839,16 +11197,22 @@ function switchTab(el, id) {
 
 function switchNavTo(view) {
   document.querySelectorAll('.app-view').forEach(function(v){ v.classList.remove('active'); });
-  document.getElementById('view-' + view).classList.add('active');
+  var viewEl = document.getElementById('view-' + view);
+  if (!viewEl) { console.warn('switchNavTo: no view for', view); return; }
+  viewEl.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
+  // Settings is not in the nav bar — don't try to activate a nav item for it
   var navMap = { home: 0, people: 1, records: 2, signals: 3, resources: 4, ask: 5 };
-  document.querySelectorAll('.nav-item')[navMap[view]].classList.add('active');
+  if (navMap[view] !== undefined) {
+    document.querySelectorAll('.nav-item')[navMap[view]].classList.add('active');
+  }
   var isHome = view === 'home';
   document.getElementById('header-person-switcher').style.display = isHome ? 'flex' : 'none';
   document.getElementById('header-tab-bar').style.display = isHome ? 'flex' : 'none';
   if (view === 'signals') { renderSignalsView(); }
   if (view === 'resources') { renderResourcesView(); }
   if (view === 'ask' && !isDemoMode) { renderAskView(); }
+  if (view === 'settings') { updateSettingsViewAccount(); }
   // Let guided demo handle its own scrolling; otherwise scroll to top
   if (new URLSearchParams(window.location.search).get('demo') !== 'guided') {
     window.scrollTo(0, 0);
@@ -15605,6 +15969,62 @@ function vpSaveForLater() {
   showToast('Visit prep saved — find it on Update Me');
   // Refresh Update Me card in the background
   renderUpdateMe();
+}
+
+// ── FIRST-RUN ONBOARDING TOOLTIPS (P2D) ───────────────────────────────────────
+var _onboardTooltips = [
+  { target: '#tab-btn-update', text: 'Summary is your home base — plain-English updates on what’s changed.' },
+  { target: '#nav-ask', text: 'Ask Wellet anything about the health history you’ve captured.' },
+  { target: '.nav-item:nth-child(4)', text: 'CareSignals watches wearables, labs, and patterns for you.' }
+];
+var _onboardStep = 0;
+var _onboardEl = null;
+
+function _showOnboardTooltip(idx) {
+  _removeOnboardTooltip();
+  if (idx >= _onboardTooltips.length) {
+    try { localStorage.setItem('wellet_onboarded', 'true'); } catch(e) {}
+    return;
+  }
+  var cfg = _onboardTooltips[idx];
+  var anchor = document.querySelector(cfg.target);
+  if (!anchor) { _showOnboardTooltip(idx + 1); return; }
+  var rect = anchor.getBoundingClientRect();
+  var tip = document.createElement('div');
+  tip.className = 'onboard-tooltip';
+  tip.textContent = cfg.text;
+  tip.style.left = (rect.left + rect.width / 2) + 'px';
+  tip.style.top = (rect.top - 54) + 'px';
+  document.body.appendChild(tip);
+  _onboardEl = tip;
+}
+
+function _removeOnboardTooltip() {
+  if (_onboardEl) { _onboardEl.remove(); _onboardEl = null; }
+}
+
+function _advanceOnboard() {
+  _onboardStep++;
+  if (_onboardStep < _onboardTooltips.length) {
+    _showOnboardTooltip(_onboardStep);
+  } else {
+    _removeOnboardTooltip();
+    try { localStorage.setItem('wellet_onboarded', 'true'); } catch(e) {}
+    document.removeEventListener('click', _advanceOnboard);
+  }
+}
+
+function maybeShowOnboardTooltips() {
+  try {
+    if (localStorage.getItem('wellet_onboarded') === 'true') return;
+  } catch(e) { return; }
+  if (isDemoMode) return;
+  if (document.getElementById('auth-screen') && document.getElementById('auth-screen').style.display !== 'none') return;
+  _onboardStep = 0;
+  setTimeout(function() {
+    _showOnboardTooltip(0);
+    document.addEventListener('click', _advanceOnboard);
+  }, 1200);
 }
 
 </script>

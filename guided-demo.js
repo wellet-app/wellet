@@ -147,6 +147,19 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
         sendAskMessage();
       }
     },
+    // 10.5 — ER summary one-tap demo
+    {
+      audio: '10b-emergency.mp3',
+      caption: 'And if you ever need it \u2014 one tap gets you the ER summary. Everything a doctor needs to treat the person you care for, in seconds.',
+      duration: 7000,
+      action: function() {
+        gdClearHighlight();
+        openEmergencySummary();
+        setTimeout(function() {
+          closeSheet('emergency-overlay');
+        }, 5000);
+      }
+    },
     // 11 — Closing with end card
     {
       audio: '11-closing.mp3',
@@ -158,6 +171,46 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
       }
     }
   ];
+
+  // ── DEMO RESPONSE INJECTION (5A) ───────────────────────────────────────────────────────────────────────
+  function gdInjectDemoResponse(text) {
+    // Simulate typing delay then call addWelletMessage
+    setTimeout(function() {
+      if (typeof removeTyping === 'function') {
+        // Try to remove any active typing indicator
+        var typingEls = document.querySelectorAll('.typing-indicator');
+        typingEls.forEach(function(el) { el.remove(); });
+      }
+      if (typeof addWelletMessage === 'function') {
+        addWelletMessage(text);
+      }
+    }, 1200);
+  }
+
+  // Patch sendAskMessage to inject canned response in guided demo
+  var _gd_origSendAskMessage = typeof sendAskMessage !== 'undefined' ? sendAskMessage : null;
+  if (typeof sendAskMessage !== 'undefined') {
+    var _gd_wrappedSendAsk = sendAskMessage;
+    sendAskMessage = function() {
+      if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
+        gdInjectDemoResponse(
+          "Yes \u2014 and the trend is encouraging. Since the lisinopril increase on March 18, " +
+          "Dad\u2019s average systolic has dropped from 148 to 132 over 18 days. His Oura readings " +
+          "show resting HR also down 6 bpm. Two readings last week were still above 140, both " +
+          "on days with poor sleep. Worth mentioning to Dr. Chen on Thursday."
+        );
+        // Still call original to show user message in chat
+        var input = document.getElementById('ask-input');
+        var text = input ? input.value.trim() : '';
+        if (text && typeof addUserMessage === 'function') {
+          if (input) input.value = '';
+          addUserMessage(text);
+        }
+        return;
+      }
+      _gd_wrappedSendAsk.apply(this, arguments);
+    };
+  }
 
   // ── INJECT UI ──
   function gdInjectUI() {
