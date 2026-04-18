@@ -19,7 +19,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300;1,9..144,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="/lucide.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   :root {
@@ -4164,35 +4164,41 @@ async function initApp() {
   }
   // Handle auth state changes (magic link callback)
   db.auth.onAuthStateChange(async (event, session) => {
-    if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && session) {
-      // Skip re-init if we already loaded this user (avoids double-load on startup)
-      if (currentUser && currentUser.id === session.user.id && event !== 'SIGNED_IN') {
-        resetInactivityTimer();
-        return;
-      }
-      // Verify allowlist on fresh sign-in
-      if (event === 'SIGNED_IN') {
-        var allowed = await checkAlphaAllowlist(session.user.email);
-        if (!allowed) {
-          await db.auth.signOut();
-          showAuthScreen();
-          showToast('Your email is not on the alpha list');
+    try {
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && session) {
+        // Skip re-init if we already loaded this user (avoids double-load on startup)
+        if (currentUser && currentUser.id === session.user.id && event !== 'SIGNED_IN') {
+          resetInactivityTimer();
           return;
         }
-      }
-      currentUser = session.user;
-      resetInactivityTimer();
-      // Only load data if not already loaded by initApp
-      if (event === 'SIGNED_IN') {
-        await loadUserData();
-        if (_pendingInviteToken && _inviteData) {
-          await acceptInvite();
+        // Verify allowlist on fresh sign-in
+        if (event === 'SIGNED_IN') {
+          var allowed = await checkAlphaAllowlist(session.user.email);
+          if (!allowed) {
+            await db.auth.signOut();
+            showAuthScreen();
+            showToast('Your email is not on the alpha list');
+            return;
+          }
         }
+        currentUser = session.user;
+        resetInactivityTimer();
+        // Only load data if not already loaded by initApp
+        if (event === 'SIGNED_IN') {
+          await loadUserData();
+          if (_pendingInviteToken && _inviteData) {
+            await acceptInvite();
+          }
+        }
+      } else if (event === 'SIGNED_OUT') {
+        currentUser = null;
+        if (_inactivityTimer) clearTimeout(_inactivityTimer);
+        showAuthScreen();
       }
-    } else if (event === 'SIGNED_OUT') {
-      currentUser = null;
-      if (_inactivityTimer) clearTimeout(_inactivityTimer);
+    } catch (authErr) {
+      console.error('onAuthStateChange error:', authErr);
       showAuthScreen();
+      showToast('Something went wrong — please sign in again');
     }
   });
   // Check for EHR OAuth callback code in URL
@@ -4744,21 +4750,28 @@ function resetInactivityTimer() {
 
 // ── LOAD USER DATA ────────────────────────────────────────────────────────────
 async function loadUserData() {
-  const { data: people, error } = await db
-    .from('people')
-    .select('*')
-    .order('sort_order', { ascending: true });
-  if (error) { console.error('Error loading people:', error); }
-  currentPeople = people || [];
+  try {
+    const { data: people, error } = await db
+      .from('people')
+      .select('*')
+      .order('sort_order', { ascending: true });
+    if (error) { console.error('Error loading people:', error); }
+    currentPeople = people || [];
 
-  if (currentPeople.length === 0) {
-    // New user — start onboarding
-    showOnboarding();
-  } else {
-    // Returning user — show app with real data
-    currentPersonId = currentPeople[0].id;
-    await loadPersonData(currentPersonId);
-    showAuthenticatedApp();
+    if (currentPeople.length === 0) {
+      // New user — start onboarding
+      showOnboarding();
+    } else {
+      // Returning user — show app with real data
+      currentPersonId = currentPeople[0].id;
+      await loadPersonData(currentPersonId);
+      showAuthenticatedApp();
+    }
+  } catch (loadErr) {
+    console.error('loadUserData error:', loadErr);
+    // Don't leave a blank screen — show auth as fallback
+    showAuthScreen();
+    showToast('Could not load your data \u2014 please try again');
   }
 }
 
