@@ -250,7 +250,9 @@
   .app-view { display: none; }
   .app-view.active { display: block; }
   #view-ask.active { display: flex; flex-direction: column; height: calc(100vh - 130px - 70px); }
-  .view-header { padding: 20px 20px 4px; }
+  .view-header { padding: 20px 20px 4px; display:flex; align-items:center; gap:10px; }
+  .view-back-btn { background: var(--mint); border: none; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--moss); flex-shrink: 0; }
+  .view-back-btn:hover { background: var(--mint-deep); }
   .view-title { font-family: 'DM Serif Display', serif; font-size: 22px; font-weight: 400; margin-bottom: 4px; }
   .view-subtitle { font-size: 13px; color: var(--text-muted); }
 
@@ -2215,6 +2217,110 @@
         </div>
       </div>
     </div><!-- end view-ask -->
+
+    <!-- SETTINGS FULL-PAGE VIEW (P4) -->
+    <div id="view-settings" class="app-view settings-view">
+      <div class="view-header">
+        <button class="view-back-btn" onclick="switchNavTo('home')" aria-label="Back">
+          <i data-lucide="arrow-left" style="width:18px;height:18px;"></i>
+        </button>
+        <div class="view-title">Settings</div>
+      </div>
+      <div class="view-content" id="view-settings-content" style="padding:0 0 40px;overflow-y:auto;">
+        <!-- Account -->
+        <div class="settings-section" id="sv-account-section" style="display:none;">
+          <div class="settings-section-label">Account</div>
+          <div class="settings-row">
+            <div class="settings-row-left">
+              <div class="settings-row-icon"><i data-lucide="user" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label" id="sv-user-email">Signed in</div><div class="settings-row-meta">Magic link authentication</div></div>
+            </div>
+          </div>
+          <div class="settings-row" style="cursor:pointer;" onclick="handleLogout()">
+            <div class="settings-row-left">
+              <div class="settings-row-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="log-out" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label" style="color:var(--red);">Sign out</div><div class="settings-row-meta">Return to login screen</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+          </div>
+        </div>
+        <!-- Care Circle -->
+        <div class="settings-section" style="margin-top:12px;">
+          <div class="settings-section-label">Care Circle</div>
+          <div id="sv-care-circle-list">
+            <div class="contact-card">
+              <div class="contact-avatar">SB</div>
+              <div style="flex:1;"><div class="contact-name">Sarah Bell</div><div class="contact-meta">sarah@email.com</div></div>
+              <span class="contact-role primary">Primary</span>
+            </div>
+          </div>
+          <button class="add-contact-btn" onclick="openContactEdit(null)">
+            <i data-lucide="user-plus" style="width:15px;height:15px;"></i> Invite family member
+          </button>
+        </div>
+        <!-- Connected Sources -->
+        <div class="settings-section" style="margin-top:12px;">
+          <div class="settings-section-label">Connected Sources</div>
+          <div id="sv-ehr-status"></div>
+          <div class="settings-row" style="cursor:pointer;" onclick="startEhrConnect()">
+            <div class="settings-row-left">
+              <div class="settings-row-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="hospital" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label" id="sv-ehr-label">Connect Health Records</div><div class="settings-row-meta" id="sv-ehr-meta">Epic, Cerner, MyChart — read-only</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-row-left">
+              <div class="settings-row-icon"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Apple Health</div><div class="settings-row-meta">Wearables &amp; sensors</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+          </div>
+        </div>
+        <!-- Privacy & Data -->
+        <div class="settings-section" style="margin-top:12px;">
+          <div class="settings-section-label">Privacy &amp; Data</div>
+          <div class="settings-row" style="cursor:pointer;" onclick="exportAllData('json')">
+            <div class="settings-row-left">
+              <div class="settings-row-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="download" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Export all data</div><div class="settings-row-meta">Download everything as JSON</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+          </div>
+          <div class="settings-row" style="cursor:pointer;" onclick="window.open('https://mywellet.com/privacy','_blank')">
+            <div class="settings-row-left">
+              <div class="settings-row-icon"><i data-lucide="shield" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Privacy policy</div><div class="settings-row-meta">How your data is protected</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+          </div>
+          <div class="settings-row" style="cursor:pointer;" onclick="window.open('https://mywellet.com/terms','_blank')">
+            <div class="settings-row-left">
+              <div class="settings-row-icon"><i data-lucide="file-text" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Terms of service</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+          </div>
+        </div>
+        <!-- App -->
+        <div class="settings-section" style="margin-top:12px;">
+          <div class="settings-section-label">App</div>
+          <div class="settings-row" style="cursor:pointer;" onclick="openFeedbackSheet()">
+            <div class="settings-row-left">
+              <div class="settings-row-icon" style="background:#E8F5E9;color:#4CAF50;"><i data-lucide="message-square-heart" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Send feedback</div><div class="settings-row-meta">Help shape Wellet</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-row-left">
+              <div class="settings-row-icon"><i data-lucide="info" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">About Wellet</div><div class="settings-row-meta">v1.0 · Private by design</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div><!-- end view-settings -->
 
   </div><!-- end app-body -->
 
@@ -10853,15 +10959,30 @@ async function removeContact() {
 }
 
 function openSettings() {
+  // P4: Navigate to full-page settings view
   updateSettingsAccount();
   updateSettingsEhr();
   if (!isDemoMode) { renderCareCircle(); }
   renderSettingsPlanCard();
-  openSheetAccessible('settings-overlay');
+  switchNavTo('settings');
   initIcons();
 }
 function closeSettings() {
+  // Kept for backward compat (closes legacy bottom sheet overlay if open)
   closeSheet('settings-overlay');
+  switchNavTo('home');
+}
+
+function updateSettingsViewAccount() {
+  // Sync account section in the full-page settings view
+  var section = document.getElementById('sv-account-section');
+  var emailEl = document.getElementById('sv-user-email');
+  if (currentUser) {
+    if (section) section.style.display = 'block';
+    if (emailEl) emailEl.textContent = currentUser.email || 'Signed in';
+  } else {
+    if (section) section.style.display = 'none';
+  }
 }
 
 // ── VISIT PREP (P1B) ──────────────────────────────────────────────────────────
@@ -11064,16 +11185,22 @@ function switchTab(el, id) {
 
 function switchNavTo(view) {
   document.querySelectorAll('.app-view').forEach(function(v){ v.classList.remove('active'); });
-  document.getElementById('view-' + view).classList.add('active');
+  var viewEl = document.getElementById('view-' + view);
+  if (!viewEl) { console.warn('switchNavTo: no view for', view); return; }
+  viewEl.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
+  // Settings is not in the nav bar — don't try to activate a nav item for it
   var navMap = { home: 0, people: 1, records: 2, signals: 3, resources: 4, ask: 5 };
-  document.querySelectorAll('.nav-item')[navMap[view]].classList.add('active');
+  if (navMap[view] !== undefined) {
+    document.querySelectorAll('.nav-item')[navMap[view]].classList.add('active');
+  }
   var isHome = view === 'home';
   document.getElementById('header-person-switcher').style.display = isHome ? 'flex' : 'none';
   document.getElementById('header-tab-bar').style.display = isHome ? 'flex' : 'none';
   if (view === 'signals') { renderSignalsView(); }
   if (view === 'resources') { renderResourcesView(); }
   if (view === 'ask' && !isDemoMode) { renderAskView(); }
+  if (view === 'settings') { updateSettingsViewAccount(); }
   // Let guided demo handle its own scrolling; otherwise scroll to top
   if (new URLSearchParams(window.location.search).get('demo') !== 'guided') {
     window.scrollTo(0, 0);
