@@ -199,7 +199,7 @@
   #app { display: none; flex-direction: column; min-height: 100vh; }
   .app-header { background: white; border-bottom: 1px solid var(--border); padding: 40px 20px 0; position: sticky; top: 0; z-index: 10; }
   html { scroll-padding-top: 160px; }
-  .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; position: relative; }
   .app-logo-row { display: flex; align-items: center; gap: 10px; }
   .app-icon { width: 30px; height: 30px; border-radius: 7px; overflow: hidden; flex-shrink: 0; }
   .app-wordmark { height: 24px; display: block; }
@@ -208,8 +208,21 @@
   .header-actions { display: flex; gap: 8px; }
   .icon-btn { min-width: 44px; min-height: 44px; border-radius: 50%; background: var(--mint); display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; color: var(--moss); transition: background 0.15s; }
   .icon-btn:hover { background: var(--mint-deep); }
-  .er-quick-btn { background: #FEF0EE; color: #C0392B; }
-  .er-quick-btn:hover { background: #fde0de; }
+
+  /* ── HEADER DROPDOWN MENU ── */
+  .header-menu { display:none; position:absolute; top:100%; right:16px; min-width:200px; background:white; border-radius:14px; box-shadow:0 8px 32px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.08); z-index:90; padding:6px 0; overflow:hidden; animation:menuFadeIn 0.15s ease; }
+  .header-menu.open { display:block; }
+  @keyframes menuFadeIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+  .header-menu-item { display:flex; align-items:center; gap:12px; width:100%; padding:12px 16px; border:none; background:none; font-family:'DM Sans',sans-serif; font-size:14px; font-weight:500; color:var(--text-primary); cursor:pointer; transition:background 0.12s; text-align:left; }
+  .header-menu-item:hover { background:var(--mint); }
+  .header-menu-item:active { background:var(--mint-deep); }
+  .header-menu-item--er { color:#C0392B; }
+  .header-menu-item--er:hover { background:#FEF0EE; }
+  .header-menu-icon { width:32px; height:32px; border-radius:8px; background:var(--mint); display:flex; align-items:center; justify-content:center; color:var(--moss); flex-shrink:0; }
+  .header-menu-icon--er { background:#FEF0EE; color:#C0392B; }
+  .header-menu-divider { height:1px; background:var(--border); margin:4px 16px; }
+  .header-menu-backdrop { display:none; position:fixed; inset:0; z-index:89; }
+  .header-menu-backdrop.open { display:block; }
 
   /* ── SETTINGS SHEET ── */
   .settings-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-end; justify-content: center; }
@@ -1646,18 +1659,31 @@
       </div>
       <div class="header-actions" style="display:flex;align-items:center;gap:6px;">
           <button class="icon-btn" id="demo-back-btn" onclick="showLanding()" title="Back to start" aria-label="Back" style="display:none;"><i data-lucide="arrow-left" style="width:16px;height:16px;"></i></button>
-          <button class="icon-btn" onclick="openSearch()" title="Search" aria-label="Search"><i data-lucide="search" style="width:16px;height:16px;"></i></button>
           <div class="notif-bell-wrap">
             <button class="icon-btn" id="notif-bell-btn" onclick="openNotifPanel()" title="Reminders" aria-label="Notifications"><i data-lucide="bell" style="width:16px;height:16px;"></i></button>
             <span class="notif-bell-badge" id="notif-bell-badge" data-count="0"></span>
           </div>
-          <button class="icon-btn er-quick-btn" onclick="openEmergencySummary()" aria-label="Emergency summary" title="ER Summary">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-            </svg>
-          </button>
-          <button class="icon-btn" id="header-feedback-btn" onclick="openFeedbackSheet()" title="Send feedback" aria-label="Send feedback"><i data-lucide="message-square-heart" style="width:16px;height:16px;"></i></button>
-          <button class="icon-btn" onclick="openSettings()" title="Settings" aria-label="Settings"><i data-lucide="settings" style="width:16px;height:16px;"></i></button>
+          <button class="icon-btn" id="header-menu-btn" onclick="toggleHeaderMenu()" title="Menu" aria-label="Menu" aria-expanded="false"><i data-lucide="ellipsis-vertical" style="width:16px;height:16px;"></i></button>
+      </div>
+      <!-- Header dropdown menu -->
+      <div class="header-menu" id="header-menu">
+        <button class="header-menu-item header-menu-item--er" onclick="closeHeaderMenu();openEmergencySummary()">
+          <span class="header-menu-icon header-menu-icon--er"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
+          <span>ER Summary</span>
+        </button>
+        <div class="header-menu-divider"></div>
+        <button class="header-menu-item" onclick="closeHeaderMenu();openSearch()">
+          <span class="header-menu-icon"><i data-lucide="search" style="width:16px;height:16px;"></i></span>
+          <span>Search</span>
+        </button>
+        <button class="header-menu-item" onclick="closeHeaderMenu();openFeedbackSheet()">
+          <span class="header-menu-icon"><i data-lucide="message-square-heart" style="width:16px;height:16px;"></i></span>
+          <span>Send feedback</span>
+        </button>
+        <button class="header-menu-item" onclick="closeHeaderMenu();openSettings()">
+          <span class="header-menu-icon"><i data-lucide="settings" style="width:16px;height:16px;"></i></span>
+          <span>Settings</span>
+        </button>
       </div>
     </div>
     <div class="person-switcher" id="header-person-switcher" role="tablist" aria-label="Person">
@@ -10982,6 +11008,40 @@ async function removeContact() {
   var { data: circle } = await db.from('care_circle_members').select('*').eq('person_id', currentPersonId).order('created_at', { ascending: true });
   liveCareCircle = circle || [];
   renderCareCircle();
+}
+
+// ── HEADER MENU ──────────────────────────────────────────────────────────────
+function toggleHeaderMenu() {
+  var menu = document.getElementById('header-menu');
+  var btn = document.getElementById('header-menu-btn');
+  var isOpen = menu.classList.contains('open');
+  if (isOpen) {
+    closeHeaderMenu();
+  } else {
+    menu.classList.add('open');
+    btn.setAttribute('aria-expanded', 'true');
+    initIcons();
+    // Close on outside click
+    setTimeout(function() {
+      document.addEventListener('click', _headerMenuOutsideClick);
+    }, 0);
+  }
+}
+
+function closeHeaderMenu() {
+  var menu = document.getElementById('header-menu');
+  var btn = document.getElementById('header-menu-btn');
+  if (menu) menu.classList.remove('open');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+  document.removeEventListener('click', _headerMenuOutsideClick);
+}
+
+function _headerMenuOutsideClick(e) {
+  var menu = document.getElementById('header-menu');
+  var btn = document.getElementById('header-menu-btn');
+  if (menu && !menu.contains(e.target) && btn && !btn.contains(e.target)) {
+    closeHeaderMenu();
+  }
 }
 
 function openSettings() {
