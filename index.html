@@ -316,6 +316,14 @@
   .upload-tags { display: flex; flex-wrap: wrap; gap: 6px; }
   .upload-tag { padding: 5px 12px; border-radius: 16px; border: 1.5px solid var(--border-medium); font-size: 12px; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; background: white; font-family: 'DM Sans', sans-serif; }
   .upload-tag.selected { background: var(--moss); border-color: var(--moss); color: white; }
+  .upload-extracted { margin-bottom:16px; }
+  .upload-extracted-label { font-size:11px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-muted); margin-bottom:10px; }
+  .extracted-item { display:flex; align-items:flex-start; gap:8px; font-size:13px; color:var(--text-secondary); padding:7px 0; border-bottom:1px solid var(--border); line-height:1.4; }
+  .extracted-item:last-child { border-bottom:none; }
+  .extracted-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; margin-top:4px; }
+  .extracted-dot--amber { background:var(--amber); }
+  .extracted-dot--green { background:#47B08A; }
+  .extracted-dot--blue  { background:var(--blue); }
 
   /* ── QUICK ACTION SHEETS (shared base) ── */
   .qa-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-end; justify-content: center; }
@@ -2742,14 +2750,25 @@
     </div>
 
     <div id="upload-step4" style="display:none;">
-      <div style="padding:24px 20px;text-align:center;">
-        <div id="upload-done-icon" style="width:52px;height:52px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
-          <i data-lucide="check-circle" style="width:24px;height:24px;color:var(--moss);"></i>
+      <div style="padding:20px 20px 8px;">
+        <!-- Hidden compat elements referenced by existing JS -->
+        <div id="upload-done-icon" style="display:none;"></div>
+        <div id="upload-done-title" style="display:none;"></div>
+        <!-- Visible file card -->
+        <div class="upload-file-card" style="margin-bottom:16px;">
+          <div class="upload-file-icon" id="upload-done-file-icon"><i data-lucide="check-circle" style="width:22px;height:22px;color:var(--moss);"></i></div>
+          <div>
+            <div class="upload-file-name" id="upload-done-file-name">Document saved</div>
+            <div class="upload-file-meta" style="font-size:12px;color:var(--moss-dark);">Added to your timeline</div>
+          </div>
         </div>
-        <div id="upload-done-title" style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:6px;">Document saved</div>
-        <div id="upload-done-sub" style="font-size:13px;color:var(--text-secondary);line-height:1.6;">Wellet is reading your document and will extract health information automatically.</div>
+        <div class="upload-extracted" id="upload-extracted-section" style="display:none;">
+          <div class="upload-extracted-label">What Wellet found</div>
+          <div class="upload-extracted-items" id="extracted-items"></div>
+        </div>
+        <div id="upload-done-sub" style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">Wellet is reading your document and will extract health information automatically.</div>
         <div class="upload-ext-status" id="upload-ext-status"></div>
-        <button class="btn-primary" style="font-size:14px;padding:13px;margin-top:16px;" id="upload-done-btn" onclick="closeUpload()">Done</button>
+        <button class="btn-primary" style="font-size:14px;padding:13px;margin-top:8px;" id="upload-done-btn" onclick="closeUpload(); switchNavTo('home');">View in timeline →</button>
       </div>
     </div>
 
@@ -6228,6 +6247,30 @@ async function addAllExtractedFromOverlay() {
 var _pollTimer = null;
 var _pollAttempts = 0;
 
+// ── P3: POST-UPLOAD EXTRACTION SUMMARY ───────────────────────────────────────────────
+function renderUploadExtractedSummary(items) {
+  // items shape: [{type, text, color}, ...] or [{type, title, detail}, ...]
+  var section = document.getElementById('upload-extracted-section');
+  var container = document.getElementById('extracted-items');
+  if (!section || !container) return;
+  if (!items || items.length === 0) { section.style.display = 'none'; return; }
+  // Show demo items if extraction returns generic structure
+  var colorMap = { medication: 'amber', appointment: 'green', lab_result: 'blue', condition: 'amber', alert: 'amber' };
+  var html = '';
+  // Limit to first 5 items
+  var shown = items.slice(0, 5);
+  shown.forEach(function(item) {
+    var col = item.color || colorMap[item.type] || 'green';
+    var text = item.text || (item.title + (item.detail ? ' — ' + item.detail : ''));
+    html += '<div class="extracted-item"><span class="extracted-dot extracted-dot--' + escHtml(col) + '"></span><span>' + escHtml(text) + '</span></div>';
+  });
+  container.innerHTML = html;
+  section.style.display = 'block';
+  // Also update the done subtitle
+  var subEl = document.getElementById('upload-done-sub');
+  if (subEl) subEl.style.display = 'none';
+}
+
 function pollExtractionStatus(docId, isAudio) {
   _pollAttempts = 0;
   if (_pollTimer) clearInterval(_pollTimer);
@@ -6284,16 +6327,20 @@ function pollExtractionStatus(docId, isAudio) {
       document.getElementById('upload-done-sub').textContent = 'Wellet extracted health information from your document.';
 
       if (itemCount > 0) {
-        statusEl.innerHTML = '<div class="upload-ext-found"><i data-lucide="check-circle" style="width:16px;height:16px;color:var(--moss);"></i> Found ' + itemCount + ' item' + (itemCount !== 1 ? 's' : '') + '</div>';
+        // P3: Render extracted summary in upload-step4
+        renderUploadExtractedSummary(extracted.items || []);
+        statusEl.innerHTML = '';
         var doneBtn = document.getElementById('upload-done-btn');
         doneBtn.textContent = '';
-        doneBtn.innerHTML = '<i data-lucide="eye" style="width:15px;height:15px;"></i> Review findings';
+        doneBtn.innerHTML = 'View in timeline →';
         doneBtn.onclick = function() {
           closeUpload();
+          switchNavTo('home');
           // Update liveDocs with the fresh doc
           var existingIdx = liveDocs.findIndex(function(d) { return d.id === doc.id; });
           if (existingIdx >= 0) { liveDocs[existingIdx] = doc; } else { liveDocs.unshift(doc); }
-          showExtractionResults(doc.id);
+          // Show extraction review sheet after navigation
+          setTimeout(function() { showExtractionResults(doc.id); }, 300);
         };
       } else {
         statusEl.innerHTML = '<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">No items were found to extract.</div>';
