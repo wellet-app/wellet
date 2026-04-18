@@ -207,6 +207,8 @@
   .header-actions { display: flex; gap: 8px; }
   .icon-btn { min-width: 44px; min-height: 44px; border-radius: 50%; background: var(--mint); display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; color: var(--moss); transition: background 0.15s; }
   .icon-btn:hover { background: var(--mint-deep); }
+  .er-quick-btn { background: #FEF0EE; color: #C0392B; }
+  .er-quick-btn:hover { background: #fde0de; }
 
   /* ── SETTINGS SHEET ── */
   .settings-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-end; justify-content: center; }
@@ -295,6 +297,8 @@
   .upload-options { padding: 0 20px; display: flex; flex-direction: column; gap: 8px; }
   .upload-option { display: flex; align-items: center; gap: 12px; padding: 13px 14px; background: white; border: 1px solid var(--border); border-radius: 12px; cursor: pointer; transition: all 0.15s; }
   .upload-option:hover { border-color: var(--moss); background: var(--mint); }
+  .upload-option--record { border-color:rgba(192,57,43,0.2); background:#FEFAF9; }
+  .upload-option--record:hover { border-color:#C0392B; background:#FEF0EE; }
   .upload-option-icon { width: 34px; height: 34px; border-radius: 9px; background: var(--mint); display: flex; align-items: center; justify-content: center; color: var(--moss); flex-shrink: 0; }
   .upload-option:hover .upload-option-icon { background: var(--mint-deep); }
   .upload-option-label { font-size: 14px; font-weight: 500; }
@@ -501,6 +505,12 @@
   .update-text strong { font-weight: 500; }
   .update-meta { font-size: 11px; color: var(--text-muted); margin-top: 10px; display: flex; align-items: center; gap: 6px; }
   .update-meta a { color: var(--moss); font-weight: 500; text-decoration: none; cursor: pointer; }
+
+  .visit-prep-card { display:flex; align-items:center; gap:12px; margin:12px 20px 0; padding:13px 14px; background:var(--amber-bg); border:1px solid rgba(201,123,44,0.2); border-radius:12px; }
+  .visit-prep-icon { width:32px; height:32px; border-radius:8px; background:rgba(201,123,44,0.15); display:flex; align-items:center; justify-content:center; color:var(--amber); flex-shrink:0; }
+  .visit-prep-title { font-size:13px; font-weight:600; color:var(--text-primary); }
+  .visit-prep-sub { font-size:11px; color:var(--amber-text); margin-top:2px; line-height:1.4; }
+  .visit-prep-btn { margin-left:auto; flex-shrink:0; background:var(--amber); color:white; border:none; border-radius:8px; padding:7px 12px; font-size:12px; font-weight:600; font-family:'DM Sans',sans-serif; cursor:pointer; }
 
   .alert-banner { margin: 12px 20px 0; background: var(--amber-bg); border: 1px solid rgba(201,123,44,0.25); border-radius: 10px; padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start; }
   .alert-icon { color: var(--amber); flex-shrink: 0; margin-top: 1px; display: flex; }
@@ -1493,7 +1503,12 @@
       <p>Wellet is built on a <strong>privacy-first architecture</strong>. Your health information is encrypted and isolated with row-level security — no other user or even Wellet staff can access it. AI features process your data in real time and return insights without storing or training on anything. You own your data, you control who sees it, and you can export or delete it anytime.</p>
     </div>
   </div>
-</div>
+  <div style="text-align:center; padding: 12px 28px 0;">
+    <button onclick="openEmergencySummary()" style="background:none;border:none;font-size:12px;color:var(--text-muted);font-family:var(--font-body);cursor:pointer;display:inline-flex;align-items:center;gap:5px;padding:8px;">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      Emergency summary
+    </button>
+  </div>
 </div>
 
 <!-- EXPLAINER VIDEO -->
@@ -1609,6 +1624,11 @@
             <button class="icon-btn" id="notif-bell-btn" onclick="openNotifPanel()" title="Reminders" aria-label="Notifications"><i data-lucide="bell" style="width:16px;height:16px;"></i></button>
             <span class="notif-bell-badge" id="notif-bell-badge" data-count="0"></span>
           </div>
+          <button class="icon-btn er-quick-btn" onclick="openEmergencySummary()" aria-label="Emergency summary" title="ER Summary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+            </svg>
+          </button>
           <button class="icon-btn" id="header-feedback-btn" onclick="openFeedbackSheet()" title="Send feedback" aria-label="Send feedback"><i data-lucide="message-square-heart" style="width:16px;height:16px;"></i></button>
           <button class="icon-btn" onclick="openSettings()" title="Settings" aria-label="Settings"><i data-lucide="settings" style="width:16px;height:16px;"></i></button>
       </div>
@@ -1635,6 +1655,16 @@
           <p class="update-text">Dad is <strong>2 months post-op</strong> from his second peroneal knee release and attending PT twice weekly for leg rehab. His oncology CML test came back <strong>&lt;0.001</strong> — continued improvement. Blood pressure has been <strong>running higher this week</strong> (avg 142/89) since his Hydrochlorothiazide dose adjusted in February, something Dr. Johnson is watching closely. Next visit is <strong>March 16th</strong> with Primary Care.</p>
           <div class="update-meta">Generated from 47 health events · <a>Ask a follow-up</a></div>
         </div>
+      </div>
+      <div class="visit-prep-card" id="visit-prep-card">
+        <div class="visit-prep-icon">
+          <i data-lucide="calendar-check" style="width:16px;height:16px;"></i>
+        </div>
+        <div>
+          <div class="visit-prep-title">Prepare for visit</div>
+          <div class="visit-prep-sub">AI questions based on recent health changes</div>
+        </div>
+        <button class="visit-prep-btn" onclick="generateVisitQuestions()">Generate →</button>
       </div>
       <div class="alert-banner">
         <div class="alert-icon"><i data-lucide="triangle-alert" style="width:16px;height:16px;"></i></div>
@@ -2609,6 +2639,15 @@
       <div class="upload-divider"><span>or choose a type</span></div>
 
       <div class="upload-options">
+        <div class="upload-option upload-option--record" onclick="startVoiceRecording()">
+          <div class="upload-option-icon" style="background:#FEF0EE;color:#C0392B;">
+            <i data-lucide="mic" style="width:16px;height:16px;"></i>
+          </div>
+          <div>
+            <div class="upload-option-label">Record doctor visit</div>
+            <div class="upload-option-sub">Tap to record · Wellet transcribes automatically</div>
+          </div>
+        </div>
         <div class="upload-option" onclick="triggerFileUpload('Visit summary')">
           <div class="upload-option-icon"><i data-lucide="clipboard-list" style="width:17px;height:17px;"></i></div>
           <div>
@@ -3010,6 +3049,31 @@
       <div style="font-family:'DM Serif Display',serif;font-size:22px;font-weight:400;margin-bottom:4px;">Choose your plan</div>
       <div style="font-size:13px;color:var(--text-secondary);margin-bottom:20px;">All plans include a 14-day free trial.</div>
       <div id="pricing-cards-container"></div>
+    </div>
+  </div>
+</div>
+
+<!-- VOICE RECORD SHEET -->
+<div class="qa-overlay" id="voice-record-overlay" onclick="if(event.target===this)stopVoiceRecording()">
+  <div class="qa-sheet" style="padding-bottom:40px;">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" aria-label="Close" onclick="stopVoiceRecording()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title">Record doctor visit</div>
+    <div class="qa-sheet-sub">Tap record, then speak naturally. Wellet will transcribe and summarize.</div>
+    <div style="text-align:center; padding:32px 20px 24px;">
+      <div id="voice-record-timer" style="font-size:40px;font-family:'DM Serif Display',serif;color:var(--text-primary);margin-bottom:24px;">0:00</div>
+      <button id="voice-record-btn" onclick="toggleVoiceRecording()" style="width:80px;height:80px;border-radius:50%;background:#C0392B;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:0 4px 20px rgba(192,57,43,0.35);transition:all 0.2s;">
+        <i data-lucide="mic" style="width:32px;height:32px;color:white;"></i>
+      </button>
+      <div id="voice-record-status" style="font-size:13px;color:var(--text-muted);">Tap to start recording</div>
+    </div>
+    <div style="padding:0 20px;">
+      <button id="voice-stop-btn" onclick="finishVoiceRecording()" style="display:none;width:100%;" class="btn-primary">Stop &amp; transcribe</button>
+    </div>
+    <div id="voice-processing" style="display:none;text-align:center;padding:20px;">
+      <div style="font-size:13px;color:var(--text-muted);">Transcribing your recording…</div>
     </div>
   </div>
 </div>
@@ -10745,6 +10809,114 @@ function openSettings() {
 }
 function closeSettings() {
   closeSheet('settings-overlay');
+}
+
+// ── VISIT PREP (P1B) ──────────────────────────────────────────────────────────
+function generateVisitQuestions() {
+  // Stub: shows coming-soon toast while edge function is wired up.
+  // Real impl: POST to https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/generate-visit-questions
+  // and render results in a .qa-sheet bottom sheet matching the existing sheet pattern.
+  if (isDemoMode) {
+    showToast('In the real app, Wellet generates targeted questions based on recent changes');
+    return;
+  }
+  showToast('Visit questions coming soon — generating from your recent health changes');
+}
+
+// ── VOICE RECORDING (P1C) ─────────────────────────────────────────────────────
+var _vrMediaRecorder = null;
+var _vrChunks = [];
+var _vrTimerInterval = null;
+var _vrSeconds = 0;
+var _vrIsRecording = false;
+
+function startVoiceRecording() {
+  closeUpload();
+  openSheetAccessible('voice-record-overlay');
+  initIcons();
+  _vrSeconds = 0;
+  _vrIsRecording = false;
+  _vrChunks = [];
+  var timerEl = document.getElementById('voice-record-timer');
+  var statusEl = document.getElementById('voice-record-status');
+  var stopBtn = document.getElementById('voice-stop-btn');
+  if (timerEl) timerEl.textContent = '0:00';
+  if (statusEl) statusEl.textContent = 'Tap to start recording';
+  if (stopBtn) stopBtn.style.display = 'none';
+}
+
+function stopVoiceRecording() {
+  if (_vrMediaRecorder && _vrMediaRecorder.state !== 'inactive') {
+    _vrMediaRecorder.stop();
+  }
+  if (_vrTimerInterval) { clearInterval(_vrTimerInterval); _vrTimerInterval = null; }
+  _vrIsRecording = false;
+  closeSheet('voice-record-overlay');
+}
+
+function toggleVoiceRecording() {
+  if (_vrIsRecording) {
+    finishVoiceRecording();
+  } else {
+    _startMediaRecording();
+  }
+}
+
+function _startMediaRecording() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showToast('Microphone not available on this device');
+    return;
+  }
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+    _vrChunks = [];
+    _vrSeconds = 0;
+    _vrIsRecording = true;
+    var statusEl = document.getElementById('voice-record-status');
+    var stopBtn = document.getElementById('voice-stop-btn');
+    var timerEl = document.getElementById('voice-record-timer');
+    var recordBtn = document.getElementById('voice-record-btn');
+    if (statusEl) statusEl.textContent = 'Recording…';
+    if (stopBtn) stopBtn.style.display = 'block';
+    if (recordBtn) recordBtn.style.background = '#922B21';
+    _vrTimerInterval = setInterval(function() {
+      _vrSeconds++;
+      var m = Math.floor(_vrSeconds / 60);
+      var s = _vrSeconds % 60;
+      if (timerEl) timerEl.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+    }, 1000);
+    _vrMediaRecorder = new MediaRecorder(stream);
+    _vrMediaRecorder.ondataavailable = function(e) { if (e.data.size > 0) _vrChunks.push(e.data); };
+    _vrMediaRecorder.onstop = function() {
+      stream.getTracks().forEach(function(t) { t.stop(); });
+      _uploadVoiceRecording();
+    };
+    _vrMediaRecorder.start();
+  }).catch(function(err) {
+    showToast('Could not access microphone: ' + err.message);
+  });
+}
+
+function finishVoiceRecording() {
+  if (_vrTimerInterval) { clearInterval(_vrTimerInterval); _vrTimerInterval = null; }
+  _vrIsRecording = false;
+  var processingEl = document.getElementById('voice-processing');
+  var stopBtn = document.getElementById('voice-stop-btn');
+  if (processingEl) processingEl.style.display = 'block';
+  if (stopBtn) stopBtn.style.display = 'none';
+  if (_vrMediaRecorder && _vrMediaRecorder.state !== 'inactive') {
+    _vrMediaRecorder.stop();
+  } else {
+    _uploadVoiceRecording();
+  }
+}
+
+async function _uploadVoiceRecording() {
+  // TODO: Wire real upload to transcribe-audio edge function at
+  // https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/transcribe-audio
+  // then insert transcript into the timeline.
+  await new Promise(function(r) { setTimeout(r, 1200); });
+  closeSheet('voice-record-overlay');
+  showToast('Recording saved — transcription coming soon');
 }
 
 // ── FEEDBACK SHEET ─────────────────────────────────────────────────────────────
