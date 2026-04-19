@@ -8628,8 +8628,15 @@ function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox) {
   var label = isSandbox ? 'Epic Sandbox' : (hospitalName || 'your hospital');
   showToast('Connecting to ' + label + '\u2026');
 
-  db.auth.getSession().then(function(sessionRes) {
-    var session = sessionRes.data.session;
+  // Force a token refresh to avoid stale JWT race condition
+  db.auth.refreshSession().then(function(refreshRes) {
+    var session = refreshRes.data.session;
+    if (!session) {
+      // Fallback to getSession if refresh fails
+      return db.auth.getSession().then(function(s) { return s.data.session; });
+    }
+    return session;
+  }).then(function(session) {
     if (!session) {
       showToast('Session expired. Please sign in again.');
       _ehrConnecting = false;
