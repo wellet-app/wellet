@@ -672,6 +672,26 @@
   .ob-cta-ghost { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: transparent; color: var(--moss); border: 1.5px solid var(--moss); border-radius: 12px; padding: 12px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500; cursor: pointer; transition: background 0.15s; margin-top: 8px; }
   .ob-cta-ghost:hover { background: var(--mint); }
 
+  /* ── CHAT INLINE EXTRACTION CARD ── */
+  .ob-extract-card { background: white; border: 1.5px solid var(--border); border-radius: 14px; padding: 14px 16px; margin: 6px 0 2px; max-width: 300px; }
+  .ob-extract-card-title { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .ob-extract-card-row { font-size: 13px; color: var(--text-primary); line-height: 1.5; padding: 3px 0; }
+  .ob-extract-card-row strong { font-weight: 600; color: var(--text-secondary); font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; }
+  .ob-extract-card-actions { display: flex; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+  .ob-extract-card-btn { padding: 8px 16px; border-radius: 10px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
+  .ob-extract-card-btn.primary { background: var(--moss); color: white; border: none; flex: 1; }
+  .ob-extract-card-btn.primary:hover { background: var(--moss-dark); }
+  .ob-extract-card-btn.secondary { background: white; color: var(--text-secondary); border: 1.5px solid var(--border-medium); }
+  .ob-extract-card-btn.secondary:hover { border-color: var(--moss); color: var(--moss); }
+  .ob-extract-card-edit { padding: 8px 0 0; }
+  .ob-extract-card-edit-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 13px; }
+  .ob-extract-card-edit-item input[type="checkbox"] { accent-color: var(--moss); }
+  .ob-extract-card-edit-item input[type="text"] { flex: 1; border: 1px solid var(--border-medium); border-radius: 8px; padding: 6px 10px; font-size: 13px; font-family: 'DM Sans', sans-serif; }
+  .ob-connect-chips { display: flex; flex-wrap: wrap; gap: 7px; padding: 2px 0 4px; max-width: 340px; }
+  .ob-connect-chip { background: white; border: 1.5px solid var(--border-medium); border-radius: 20px; padding: 8px 14px; font-size: 13px; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; font-family: 'DM Sans', sans-serif; line-height: 1.3; }
+  .ob-connect-chip:hover { border-color: var(--moss); color: var(--moss); background: var(--mint); }
+  .ob-connect-chip:disabled, .ob-connect-chip.used { pointer-events: none; opacity: 0.4; }
+
   /* ── UPLOAD-FIRST ONBOARDING ── */
   .ob-upload-header { display: flex; align-items: center; gap: 12px; padding: 40px 20px 14px; flex-shrink: 0; }
   .ob-upload-wordmark { height: 22px; width: auto; }
@@ -2379,169 +2399,14 @@
 </div>
 
 
-<!-- ONBOARDING: UPLOAD-FIRST -->
+<!-- ONBOARDING: CHAT-FIRST -->
 <div id="onboarding">
-  <!-- Step 1: Upload screen -->
-  <div id="ob-upload-screen" style="display:flex;flex-direction:column;height:100%;">
-    <div class="ob-upload-header">
-      <button class="ob-back" aria-label="Back" onclick="showLanding()"><i data-lucide="arrow-left" style="width:20px;height:20px;"></i></button>
-      <svg class="ob-upload-wordmark" viewBox="0 0 465 66" xmlns="http://www.w3.org/2000/svg"><path d="M45.5,4c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83L.25,13.32h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z" fill="#3D6B58"/><path d="M67.97,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08s-1.4-1.71-1.4-2.99c0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M85.12,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M99.88,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M130.39,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08-.94-.72-1.4-1.71-1.4-2.99,0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M155.96,13.83h-4.14v-3.89l4.47-.43.94-6.77h4.21l-.47,6.77h7.06l-.29,4.32h-6.88l-.47,12.06c-.02,1.42.29,2.48.94,3.17.65.69,1.49,1.04,2.52,1.04,1.22,0,2.48-.47,3.78-1.4l1.4,3.56c-2.06,1.37-4.25,2.05-6.55,2.05-2.16,0-3.89-.69-5.18-2.07-1.3-1.38-1.91-3.35-1.84-5.9l.5-12.53Z" fill="#3D6B58"/></svg>
-    </div>
-    <div class="ob-progress" id="ob-progress-upload"><div class="ob-progress-dot active"></div><div class="ob-progress-dot"></div><div class="ob-progress-dot"></div></div>
-    <div class="ob-upload-body">
-      <div class="ob-upload-hero">
-        <div class="ob-upload-hero-icon"><i data-lucide="heart-handshake" style="width:36px;height:36px;color:var(--moss);"></i></div>
-        <h1 class="ob-upload-title">Give Wellet something to work with</h1>
-        <p class="ob-upload-desc">Upload health records, snap a photo of a prescription, or connect to a patient portal. Wellet will read and organize everything — so you never have to type it in.</p>
-      </div>
-
-      <div class="ob-upload-options">
-        <button class="ob-upload-card" onclick="obUploadEhrZip()">
-          <div class="ob-upload-card-icon"><i data-lucide="file-archive" style="width:22px;height:22px;"></i></div>
-          <div class="ob-upload-card-text">
-            <div class="ob-upload-card-label">Upload EHR export (zip)</div>
-            <div class="ob-upload-card-sub">MyChart, patient portal downloads</div>
-          </div>
-          <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);flex-shrink:0;"></i>
-        </button>
-
-        <button class="ob-upload-card" onclick="obUploadPhoto()">
-          <div class="ob-upload-card-icon"><i data-lucide="camera" style="width:22px;height:22px;"></i></div>
-          <div class="ob-upload-card-text">
-            <div class="ob-upload-card-label">Take a photo</div>
-            <div class="ob-upload-card-sub">Medication bottles, discharge papers, lab printouts</div>
-          </div>
-          <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);flex-shrink:0;"></i>
-        </button>
-
-        <button class="ob-upload-card" onclick="obUploadFile()">
-          <div class="ob-upload-card-icon"><i data-lucide="upload" style="width:22px;height:22px;"></i></div>
-          <div class="ob-upload-card-text">
-            <div class="ob-upload-card-label">Upload a document</div>
-            <div class="ob-upload-card-sub">PDF, images — visit summaries, lab results, anything</div>
-          </div>
-          <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);flex-shrink:0;"></i>
-        </button>
-
-        <div class="ob-upload-divider"><span>or</span></div>
-
-        <button class="ob-upload-card ob-upload-card-outline" onclick="obConnectEhr()">
-          <div class="ob-upload-card-icon" style="background:white;border:1.5px solid var(--border-medium);"><i data-lucide="link" style="width:22px;height:22px;"></i></div>
-          <div class="ob-upload-card-text">
-            <div class="ob-upload-card-label">Connect health records</div>
-            <div class="ob-upload-card-sub">Link a patient portal directly</div>
-          </div>
-          <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);flex-shrink:0;"></i>
-        </button>
-      </div>
-
-      <div style="text-align:center;padding:16px 0 0;">
-        <button class="ob-upload-skip" onclick="obSkipToChat()" style="padding:8px 0 4px;">I'd rather tell Wellet myself</button>
-        <div style="font-size:12px;color:var(--text-muted);line-height:1.5;max-width:280px;margin:4px auto 0;">No documents handy? No problem — you can share in your own words.</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Step 2: Processing screen (shown after upload) -->
-  <div id="ob-processing-screen" style="display:none;flex-direction:column;height:100%;">
-    <div class="ob-upload-header">
-      <div style="width:20px;"></div>
-      <svg class="ob-upload-wordmark" viewBox="0 0 465 66" xmlns="http://www.w3.org/2000/svg"><path d="M45.5,4c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83L.25,13.32h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z" fill="#3D6B58"/><path d="M67.97,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08s-1.4-1.71-1.4-2.99c0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M85.12,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M99.88,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M130.39,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08-.94-.72-1.4-1.71-1.4-2.99,0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M155.96,13.83h-4.14v-3.89l4.47-.43.94-6.77h4.21l-.47,6.77h7.06l-.29,4.32h-6.88l-.47,12.06c-.02,1.42.29,2.48.94,3.17.65.69,1.49,1.04,2.52,1.04,1.22,0,2.48-.47,3.78-1.4l1.4,3.56c-2.06,1.37-4.25,2.05-6.55,2.05-2.16,0-3.89-.69-5.18-2.07-1.3-1.38-1.91-3.35-1.84-5.9l.5-12.53Z" fill="#3D6B58"/></svg>
-    </div>
-    <div class="ob-progress" id="ob-progress-processing"><div class="ob-progress-dot done"></div><div class="ob-progress-dot active"></div><div class="ob-progress-dot"></div></div>
-    <div class="ob-processing-body">
-      <div class="ob-processing-spinner" id="ob-processing-spinner"><div class="ob-spinner"></div></div>
-      <div class="ob-processing-label" id="ob-processing-label">Wellet is reading your documents...</div>
-      <div class="ob-processing-sub" id="ob-processing-sub">This usually takes about 30 seconds. We'll organize everything we find.</div>
-      <div class="ob-processing-files" id="ob-processing-files"></div>
-      <div class="ob-extract-results" id="ob-extract-results" style="display:none;"></div>
-      <div class="ob-encourage" id="ob-encourage" style="display:none;"></div>
-      <div id="ob-add-more" style="display:none;">
-        <button class="ob-upload-card" onclick="obAddMorePhoto()" style="margin-top:8px;">
-          <div class="ob-upload-card-icon"><i data-lucide="camera" style="width:22px;height:22px;"></i></div>
-          <div class="ob-upload-card-text">
-            <div class="ob-upload-card-label">Take another photo</div>
-          </div>
-        </button>
-        <button class="ob-upload-card" onclick="obAddMoreFile()" style="margin-top:8px;">
-          <div class="ob-upload-card-icon"><i data-lucide="upload" style="width:22px;height:22px;"></i></div>
-          <div class="ob-upload-card-text">
-            <div class="ob-upload-card-label">Upload another document</div>
-          </div>
-        </button>
-      </div>
-      <button id="ob-continue-btn" class="btn-primary" onclick="obContinueFromProcessing()" style="display:none; margin-top:20px; width:100%;">Continue</button>
-    </div>
-  </div>
-
-  <!-- Step 3: Quick name confirm (shown after extraction) -->
-  <div id="ob-name-screen" style="display:none;flex-direction:column;height:100%;">
-    <div class="ob-upload-header">
-      <div style="width:20px;"></div>
-      <svg class="ob-upload-wordmark" viewBox="0 0 465 66" xmlns="http://www.w3.org/2000/svg"><path d="M45.5,4c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83L.25,13.32h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z" fill="#3D6B58"/><path d="M67.97,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08s-1.4-1.71-1.4-2.99c0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M85.12,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M99.88,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M130.39,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08-.94-.72-1.4-1.71-1.4-2.99,0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M155.96,13.83h-4.14v-3.89l4.47-.43.94-6.77h4.21l-.47,6.77h7.06l-.29,4.32h-6.88l-.47,12.06c-.02,1.42.29,2.48.94,3.17.65.69,1.49,1.04,2.52,1.04,1.22,0,2.48-.47,3.78-1.4l1.4,3.56c-2.06,1.37-4.25,2.05-6.55,2.05-2.16,0-3.89-.69-5.18-2.07-1.3-1.38-1.91-3.35-1.84-5.9l.5-12.53Z" fill="#3D6B58"/></svg>
-    </div>
-    <div class="ob-progress" id="ob-progress-name"><div class="ob-progress-dot done"></div><div class="ob-progress-dot done"></div><div class="ob-progress-dot active"></div></div>
-    <div class="ob-name-body" style="overflow-y:auto;">
-      <div class="ob-name-found" id="ob-name-found"></div>
-      <div id="ob-name-person-confirm" style="display:none;"></div>
-      <div id="ob-name-your-confirm" style="display:none;"></div>
-      <div class="ob-name-form" id="ob-name-form">
-        <label class="ob-name-label" for="ob-your-name">What should we call you?</label>
-        <input class="ob-name-input" id="ob-your-name" type="text" placeholder="Your first name" autocomplete="given-name">
-        <label class="ob-name-label" for="ob-person-name" style="margin-top:16px;">Who is this health record for?</label>
-        <input class="ob-name-input" id="ob-person-name" type="text" placeholder="Their name (or yours if it's for you)" autocomplete="off">
-      </div>
-      <div id="ob-extract-summary" style="display:none;"></div>
-      <button class="btn-primary ob-name-go" onclick="obFinishWithNames()" id="ob-name-go-btn" style="margin-top:24px;padding:15px;font-size:15px;display:flex;align-items:center;justify-content:center;gap:8px;width:100%;"><i data-lucide="arrow-right" style="width:16px;height:16px;"></i> Open my Wellet</button>
-    </div>
-  </div>
-
-  <!-- Step 4: Health records import prompt (shown after person is created) -->
-  <div id="ob-health-records-screen" style="display:none;flex-direction:column;height:100%;">
-    <div class="ob-upload-header">
-      <div style="width:20px;"></div>
-      <svg class="ob-upload-wordmark" viewBox="0 0 465 66" xmlns="http://www.w3.org/2000/svg"><path d="M45.5,4c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83L.25,13.32h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z" fill="#3D6B58"/><path d="M67.97,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08s-1.4-1.71-1.4-2.99c0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M85.12,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M99.88,0h5.36l-.11,39.52h-5.36l.11-39.52Z" fill="#3D6B58"/><path d="M130.39,24.59c-.04,1.97-.69,3.56-1.96,4.79-1.27,1.22-2.83,1.84-4.68,1.84-1.3,0-2.41-.36-3.35-1.08-.94-.72-1.4-1.71-1.4-2.99,0-2.06.93-3.54,2.79-4.43,1.86-.89,4.76-1.49,8.68-1.8l-.07,3.67Zm7.67.51c0-3.79-.87-6.65-2.61-8.57-1.74-1.92-4.32-2.88-7.74-2.88-3.55,0-7.08,1.27-10.58,3.82l1.37,2.63c2.78-1.63,5.28-2.45,7.52-2.45,1.49,0,2.64.54,3.46,1.62.82,1.08,1.22,2.65,1.22,4.72v.72c-5.56.34-9.64,1.24-12.24,2.7-2.6,1.46-3.89,3.7-3.89,6.73,0,2.33.65,4.13,1.94,5.4,1.3,1.27,3.08,1.91,5.36,1.91,3.05,0,5.79-1.48,8.24-4.43.41,1.3,1.06,2.36,1.94,3.17.89.82,2.03,1.26,3.42,1.26,1.73,0,3.56-.81,5.47-2.41l-.94-2.2c-1.08.77-1.91,1.15-2.48,1.15-1.06,0-1.59-1.01-1.59-3.02l.14-9.86Z" fill="#3D6B58"/><path d="M155.96,13.83h-4.14v-3.89l4.47-.43.94-6.77h4.21l-.47,6.77h7.06l-.29,4.32h-6.88l-.47,12.06c-.02,1.42.29,2.48.94,3.17.65.69,1.49,1.04,2.52,1.04,1.22,0,2.48-.47,3.78-1.4l1.4,3.56c-2.06,1.37-4.25,2.05-6.55,2.05-2.16,0-3.89-.69-5.18-2.07-1.3-1.38-1.91-3.35-1.84-5.9l.5-12.53Z" fill="#3D6B58"/></svg>
-    </div>
-    <div class="ob-progress" id="ob-progress-health"><div class="ob-progress-dot done"></div><div class="ob-progress-dot done"></div><div class="ob-progress-dot active"></div></div>
-    <div class="ob-upload-body" style="justify-content:center;text-align:center;padding:0 24px;">
-      <div style="width:64px;height:64px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
-        <i data-lucide="file-heart" style="width:28px;height:28px;color:var(--moss);"></i>
-      </div>
-      <h1 class="ob-upload-title" id="ob-hr-title">Do you have health records to import?</h1>
-      <p class="ob-upload-desc" id="ob-hr-desc" style="margin-bottom:28px;">If you have a health record export (ZIP file from MyChart or another patient portal), Wellet can import everything at once.</p>
-
-      <div style="display:flex;flex-direction:column;gap:10px;max-width:340px;margin:0 auto;width:100%;">
-        <button class="ob-upload-card" onclick="obStartHealthImport()" style="text-align:left;">
-          <div class="ob-upload-card-icon"><i data-lucide="file-archive" style="width:22px;height:22px;"></i></div>
-          <div class="ob-upload-card-text">
-            <div class="ob-upload-card-label">I have a file to upload</div>
-            <div class="ob-upload-card-sub">ZIP or PDF from a patient portal</div>
-          </div>
-          <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);flex-shrink:0;"></i>
-        </button>
-
-        <button class="ob-upload-card" onclick="obSkipHealthImport('manual')" style="text-align:left;">
-          <div class="ob-upload-card-icon"><i data-lucide="pencil-line" style="width:22px;height:22px;"></i></div>
-          <div class="ob-upload-card-text">
-            <div class="ob-upload-card-label">I'll enter it manually</div>
-            <div class="ob-upload-card-sub">Add medications, conditions, and more by hand</div>
-          </div>
-          <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);flex-shrink:0;"></i>
-        </button>
-
-        <button class="ob-upload-skip" onclick="obSkipHealthImport('skip')" style="margin-top:8px;">Skip for now</button>
-      </div>
-    </div>
-    <input type="file" id="ob-health-file-input" accept=".zip,.pdf,application/zip,application/pdf" style="display:none;" onchange="obHealthFileSelected(this)">
-  </div>
-
-  <!-- Fallback: original chat (only shown via skip) -->
-  <div id="ob-chat-screen" style="display:none;flex-direction:column;height:100%;">
+  <div id="ob-chat-screen" style="display:flex;flex-direction:column;height:100%;">
     <div class="ob-header">
-      <button class="ob-back" aria-label="Back" onclick="obBackToUpload()"><i data-lucide="arrow-left" style="width:20px;height:20px;"></i></button>
+      <div style="width:20px;"></div>
       <div>
-        <div class="ob-title">Tell me about your situation</div>
-        <div class="ob-subtitle">Ask Wellet</div>
+        <div class="ob-title">Wellet</div>
+        <div class="ob-subtitle">Your health companion</div>
       </div>
     </div>
     <div class="ob-chat" id="ob-chat-area"></div>
@@ -2556,11 +2421,10 @@
   </div>
 
   <!-- Hidden file inputs for onboarding uploads -->
-  <input type="file" id="ob-file-ehr" accept=".zip" style="display:none;" onchange="obHandleFiles(this,'ehr')">
-  <input type="file" id="ob-file-photo" accept="image/*" capture="environment" style="display:none;" onchange="obHandleFiles(this,'photo')">
-  <input type="file" id="ob-file-doc" accept=".pdf,.jpg,.jpeg,.png,.heic,.doc,.docx" multiple style="display:none;" onchange="obHandleFiles(this,'doc')">
-  <input type="file" id="ob-addmore-photo" accept="image/*" capture="environment" style="display:none;" onchange="obHandleAddMore(this,'photo')">
-  <input type="file" id="ob-addmore-doc" accept=".pdf,.jpg,.jpeg,.png,.heic,.doc,.docx" multiple style="display:none;" onchange="obHandleAddMore(this,'doc')">
+  <input type="file" id="ob-file-ehr" accept=".zip" style="display:none;" onchange="obChatHandleFiles(this,'ehr')">
+  <input type="file" id="ob-file-photo" accept="image/*" capture="environment" style="display:none;" onchange="obChatHandleFiles(this,'photo')">
+  <input type="file" id="ob-file-doc" accept=".pdf,.jpg,.jpeg,.png,.heic,.doc,.docx" multiple style="display:none;" onchange="obChatHandleFiles(this,'doc')">
+  <input type="file" id="ob-file-camera" accept="image/*" capture="environment" style="display:none;" onchange="obChatHandleFiles(this,'photo')">
 </div>
 
 
@@ -7421,33 +7285,54 @@ function showOnboarding() {
   document.getElementById('landing').style.display = 'none';
   document.getElementById('app').style.display = 'none';
   document.getElementById('onboarding').style.display = 'flex';
-  // Show upload-first screen (default), hide others
-  document.getElementById('ob-upload-screen').style.display = 'flex';
-  document.getElementById('ob-processing-screen').style.display = 'none';
-  document.getElementById('ob-name-screen').style.display = 'none';
-  document.getElementById('ob-chat-screen').style.display = 'none';
-  document.getElementById('ob-health-records-screen').style.display = 'none';
-  _obUploadedFiles = [];
-  _obUploadPaths = [];
-  _obExtractedData = null;
-  _obFromEhr = false;
-  _obEhrPending = null;
-  // Reset processing screen state
-  document.getElementById('ob-extract-results').innerHTML = '';
-  document.getElementById('ob-extract-results').style.display = 'none';
-  document.getElementById('ob-add-more').style.display = 'none';
-  document.getElementById('ob-continue-btn').style.display = 'none';
-  document.getElementById('ob-processing-spinner').style.display = 'block';
-  document.getElementById('ob-encourage').style.display = 'none';
-  // Reset name screen state
-  document.getElementById('ob-name-person-confirm').style.display = 'none';
-  document.getElementById('ob-name-your-confirm').style.display = 'none';
-  document.getElementById('ob-name-form').style.display = 'flex';
-  document.getElementById('ob-extract-summary').style.display = 'none';
-  document.getElementById('ob-your-name').value = '';
-  document.getElementById('ob-person-name').value = '';
+  document.getElementById('ob-chat-screen').style.display = 'flex';
+  // Clear any old wizard localStorage
+  try { localStorage.removeItem('wellet_ob_ehr_return'); } catch(e) {}
   window.scrollTo(0, 0);
   initIcons();
+  // Start chat onboarding (or resume if state exists)
+  var hasState = obLoadChatState();
+  if (hasState && obChat.phase !== 'welcome' && obChat.phase !== 'done') {
+    obResumeChat();
+  } else {
+    obInit();
+  }
+}
+
+function obResumeChat() {
+  // Resume from saved state — show condensed history then current phase
+  var chat = document.getElementById('ob-chat-area');
+  chat.innerHTML = '';
+  // Replay key context
+  if (obChat.userName) {
+    obAddBubble('wellet', 'Welcome back, ' + escHtml(obChat.userName) + '! Let\u2019s pick up where we left off.');
+  }
+  // Sync obState for savePersonToSupabase compatibility
+  obState.userName = obChat.userName;
+  obState.personName = obChat.personName;
+  var relMap = { aging_parent: 'parent', partner: 'partner', child: 'child', self: 'self', other: 'other' };
+  obState.situation = relMap[obChat.situation] || obChat.situation;
+
+  if (obChat.phase === 'name') {
+    obTypeThen('What\u2019s your name?', function(){
+      document.getElementById('ob-input').disabled = false;
+      document.getElementById('ob-send-btn').disabled = false;
+      document.getElementById('ob-input').placeholder = 'Your first name\u2026';
+      document.getElementById('ob-input').focus();
+    }, 600);
+  } else if (obChat.phase === 'person_name') {
+    obTypeThen('And what should I call the person you\u2019re caring for?', function(){
+      document.getElementById('ob-input').disabled = false;
+      document.getElementById('ob-send-btn').disabled = false;
+      document.getElementById('ob-input').placeholder = 'Their name\u2026';
+      document.getElementById('ob-input').focus();
+    }, 600);
+  } else if (obChat.phase === 'connect' || obChat.phase === 'freetext') {
+    var personName = obChat.personName || 'your loved one';
+    obTypeThen('What would you like to add to ' + escHtml(personName) + '\u2019s record?', obShowConnectChips, 600);
+  } else if (obChat.phase === 'wrapup') {
+    obShowTourOffer();
+  }
 }
 
 // ── DEMO HTML SNAPSHOTS ───────────────────────────────────────────────────────
@@ -8720,11 +8605,14 @@ function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox) {
   if (_ehrConnecting) return;
   var personId = currentPersonId;
   if (!personId && _obFromEhr) {
-    // Onboarding: no person yet — store choice and go to name screen
+    // Onboarding: no person yet — store choice; chat flow will create person first
     closeSheet('hospital-picker-overlay');
     _obEhrPending = { fhirBaseUrl: fhirBaseUrl, name: hospitalName || (isSandbox ? 'Epic Sandbox' : null), sandbox: !!isSandbox };
     try { localStorage.setItem('wellet_ob_ehr_hospital', JSON.stringify(_obEhrPending)); } catch(e) {}
-    obShowNameScreen(null);
+    // In chat-first flow, inform user we need to finish names first
+    if (obChat && obChat.phase === 'connect') {
+      obAddBubble('wellet', 'I\u2019ll connect to the portal once we\u2019re set up. Let me finish getting things ready.');
+    }
     return;
   }
   if (!personId) {
@@ -8850,6 +8738,12 @@ function handleEhrCallback() {
       if (fromOnboarding) {
         showToast('Health records connected!');
         fetchEhrData(personId, false);
+        // If chat onboarding is active, notify it instead of jumping to app
+        if (obChat && obChat.phase === 'connect') {
+          var hospital = data.hospital_name || data.provider || 'your hospital';
+          obOnEhrConnected(hospital);
+          return;
+        }
         showOwnWellet();
         return;
       }
@@ -11686,13 +11580,14 @@ function switchPerson(el) {
   el.setAttribute('aria-selected', 'true');
 }
 
-// ── UPLOAD-FIRST ONBOARDING FUNCTIONS ────────────────────────────────────────
+// ── CHAT-FIRST ONBOARDING ENGINE ─────────────────────────────────────────────
 var _obUploadedFiles = [];
 var _obExtractedData = null;
 var _obUploadPaths = [];
 var _obFromEhr = false;
 var _obEhrPending = null;
 
+// Legacy stubs for any external references
 function obUploadEhrZip() { document.getElementById('ob-file-ehr').click(); }
 function obUploadPhoto() { document.getElementById('ob-file-photo').click(); }
 function obUploadFile() { document.getElementById('ob-file-doc').click(); }
@@ -11723,104 +11618,103 @@ function obConnectEhr() {
   });
 }
 
+// ── CHAT ONBOARDING STATE ────────────────────────────────────────────────────
+var obChat = {
+  userName: null,
+  personName: null,
+  situation: null,
+  ehrConnected: false,
+  ehrHospital: null,
+  docsUploaded: 0,
+  photosUploaded: 0,
+  deviceConnected: false,
+  deviceProvider: null,
+  freeTextGiven: false,
+  extractedItems: [],
+  phase: 'welcome'
+};
+
+var _obChatSituations = [
+  { id: 'aging_parent', label: 'An aging parent' },
+  { id: 'partner',      label: 'My partner or spouse' },
+  { id: 'child',        label: 'My child' },
+  { id: 'self',         label: 'Myself' },
+  { id: 'other',        label: 'Someone else' }
+];
+
+var _obChatConnectOptions = [
+  { id: 'ehr',      label: 'I have a MyChart login' },
+  { id: 'docs',     label: 'I have documents to upload' },
+  { id: 'photo',    label: 'I can take a photo' },
+  { id: 'device',   label: 'I have a health device' },
+  { id: 'freetext', label: 'I\u2019ll just tell you' },
+  { id: 'explore',  label: 'Let me explore first' }
+];
+
+function obSaveChatState() {
+  try { localStorage.setItem('wellet_ob_chat', JSON.stringify(obChat)); } catch(e) {}
+}
+
+function obLoadChatState() {
+  try {
+    var saved = localStorage.getItem('wellet_ob_chat');
+    if (saved) {
+      var parsed = JSON.parse(saved);
+      for (var key in parsed) { if (obChat.hasOwnProperty(key)) obChat[key] = parsed[key]; }
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
+function obClearChatState() {
+  obChat = { userName: null, personName: null, situation: null, ehrConnected: false, ehrHospital: null, docsUploaded: 0, photosUploaded: 0, deviceConnected: false, deviceProvider: null, freeTextGiven: false, extractedItems: [], phase: 'welcome' };
+  try { localStorage.removeItem('wellet_ob_chat'); } catch(e) {}
+}
+
 function obSkipToChat() {
-  obShowScreen('ob-chat-screen');
-  obState = { step: 0, situation: null, userName: null, personName: null };
-  var chat = document.getElementById('ob-chat-area');
-  chat.innerHTML = '';
-  chat.scrollTop = 0;
-  document.getElementById('ob-input').value = '';
-  document.getElementById('ob-input').disabled = true;
-  document.getElementById('ob-send-btn').disabled = true;
-  window.scrollTo(0, 0);
-  document.getElementById('onboarding').scrollTop = 0;
-  setTimeout(function() {
-    obTypeThen("No worries \u2014 we can do this together. I'll ask a few questions and set everything up for you.", obShowSituationChips, 900);
-  }, 400);
+  // Legacy stub — chat is now the primary flow
+  obInit();
 }
 
 function obBackToUpload() {
-  obShowScreen('ob-upload-screen');
+  // Legacy stub — no upload screen to go back to
 }
 
 function obShowScreen(screenId) {
-  ['ob-upload-screen','ob-processing-screen','ob-name-screen','ob-chat-screen','ob-health-records-screen'].forEach(function(id) {
-    document.getElementById(id).style.display = 'none';
-  });
-  document.getElementById(screenId).style.display = 'flex';
+  // Simplified — only chat screen exists now
+  document.getElementById('ob-chat-screen').style.display = 'flex';
   window.scrollTo(0, 0);
   initIcons();
 }
 
-async function obHandleFiles(input, type) {
+// Chat-first file handler — uploads and extracts inline within chat
+async function obChatHandleFiles(input, type) {
   if (!input.files || input.files.length === 0) return;
   var files = Array.from(input.files);
   _obUploadedFiles = _obUploadedFiles.concat(files);
+  var fileCount = files.length;
 
-  obShowScreen('ob-processing-screen');
-
-  var label = document.getElementById('ob-processing-label');
-  if (type === 'ehr') {
-    label.textContent = 'Wellet is reading your health records...';
-  } else if (type === 'photo') {
-    label.textContent = 'Wellet is reading your photo...';
+  if (type === 'photo') {
+    obChat.photosUploaded += fileCount;
   } else {
-    label.textContent = 'Wellet is reading your documents...';
+    obChat.docsUploaded += fileCount;
   }
+  obSaveChatState();
 
-  var filesEl = document.getElementById('ob-processing-files');
-  filesEl.innerHTML = '';
-  _obUploadedFiles.forEach(function(f, idx) {
-    var isPhoto = f.type && f.type.indexOf('image') === 0;
-    var fileDiv = document.createElement('div');
-    fileDiv.className = 'ob-proc-file';
-    fileDiv.id = 'ob-proc-file-' + idx;
-    var iconHtml = '<div class="ob-proc-file-icon"><i data-lucide="file" style="width:16px;height:16px;"></i></div>';
-    if (isPhoto) {
-      iconHtml = '<img class="ob-photo-thumb" id="ob-thumb-' + idx + '" src="" alt="preview">';
-      try {
-        var reader = new FileReader();
-        reader.onload = (function(thumbIdx) { return function(e) {
-          var thumb = document.getElementById('ob-thumb-' + thumbIdx);
-          if (thumb) thumb.src = e.target.result;
-        }; })(idx);
-        reader.readAsDataURL(f);
-      } catch(e) {}
-    }
-    fileDiv.innerHTML = iconHtml
-      + '<div class="ob-proc-file-name">' + escHtml(f.name) + '</div>'
-      + '<div class="ob-proc-file-status">Uploading...</div>';
-    filesEl.appendChild(fileDiv);
-
-    if (isPhoto && f.size < 100000) {
-      var warn = document.createElement('div');
-      warn.className = 'ob-blurry-warning';
-      warn.innerHTML = '<div class="ob-blurry-warning-icon"><i data-lucide="alert-triangle" style="width:16px;height:16px;"></i></div>'
-        + '<div>This image might be hard to read. Want to try again?</div>';
-      filesEl.appendChild(warn);
-    }
-  });
-  initIcons();
-
-  // Hide extract results, add-more, and continue from any previous run
-  document.getElementById('ob-extract-results').style.display = 'none';
-  document.getElementById('ob-extract-results').innerHTML = '';
-  document.getElementById('ob-add-more').style.display = 'none';
-  document.getElementById('ob-continue-btn').style.display = 'none';
-  document.getElementById('ob-processing-spinner').style.display = 'block';
-  document.getElementById('ob-encourage').style.display = 'none';
+  var readingMsg = type === 'photo'
+    ? 'Reading your photo\u2026'
+    : 'Got it \u2014 reading ' + fileCount + ' document' + (fileCount > 1 ? 's' : '') + '\u2026';
+  obTypeThen(readingMsg, null, 500);
 
   if (!currentUser) {
-    obShowNameScreen(null);
+    setTimeout(function() {
+      obAddBubble('wellet', 'I\u2019ll process these once you\u2019re signed in. Let\u2019s keep going.');
+      obShowConnectChips();
+    }, 800);
+    input.value = '';
     return;
   }
-
-  // Start encouragement timer for slow extractions
-  var encourageTimer = setTimeout(function() {
-    var enc = document.getElementById('ob-encourage');
-    enc.textContent = 'Almost there \u2014 health records have a lot of detail';
-    enc.style.display = 'block';
-  }, 5000);
 
   var uploadedPaths = [];
   for (var i = 0; i < files.length; i++) {
@@ -11829,23 +11723,14 @@ async function obHandleFiles(input, type) {
     var storagePath = currentUser.id + '/onboarding/' + Date.now() + '_' + i + '.' + ext;
     try {
       var result = await db.storage.from('documents').upload(storagePath, file, { upsert: true });
-      if (result.error) {
-        console.error('Upload error:', result.error);
-        var statusEls = filesEl.querySelectorAll('.ob-proc-file-status');
-        if (statusEls[_obUploadedFiles.length - files.length + i]) { statusEls[_obUploadedFiles.length - files.length + i].textContent = 'Error'; statusEls[_obUploadedFiles.length - files.length + i].style.color = 'var(--red)'; }
-      } else {
+      if (!result.error) {
         uploadedPaths.push(storagePath);
         _obUploadPaths.push(storagePath);
-        var statusEls2 = filesEl.querySelectorAll('.ob-proc-file-status');
-        if (statusEls2[_obUploadedFiles.length - files.length + i]) { statusEls2[_obUploadedFiles.length - files.length + i].textContent = 'Uploaded'; statusEls2[_obUploadedFiles.length - files.length + i].style.color = 'var(--moss)'; }
       }
     } catch(e) {
       console.error('Upload exception:', e);
     }
   }
-
-  label.textContent = 'Organizing what we found...';
-  document.getElementById('ob-processing-sub').textContent = 'Wellet is extracting names, medications, conditions, and dates.';
 
   var extractedData = null;
   try {
@@ -11866,262 +11751,32 @@ async function obHandleFiles(input, type) {
     // PHI log removed
   }
 
-  clearTimeout(encourageTimer);
-  document.getElementById('ob-encourage').style.display = 'none';
-  document.getElementById('ob-processing-spinner').style.display = 'none';
-  label.textContent = 'Here\u2019s what Wellet found';
-  document.getElementById('ob-processing-sub').textContent = '';
+  // Save extracted health events progressively
+  if (extractedData && currentPersonId) {
+    await obSaveExtractedData(extractedData);
+  }
 
-  // Show live extraction reveal
-  obRevealExtraction(extractedData);
+  // Show inline extraction card
+  var sourceLabel = type === 'photo' ? 'your photo' : 'your documents';
+  obShowExtractionCard(extractedData, sourceLabel);
 
   input.value = '';
 }
 
-function obRevealExtraction(data) {
-  var container = document.getElementById('ob-extract-results');
-  container.innerHTML = '';
-  container.style.display = 'block';
-
-  var items = [];
-  if (data && data.patient_name) {
-    items.push({ icon: 'user', label: 'Name', value: data.patient_name });
-  }
-  if (data && data.conditions && data.conditions.length) {
-    for (var c = 0; c < data.conditions.length; c++) {
-      items.push({ icon: 'stethoscope', label: 'Condition', value: data.conditions[c] });
-    }
-  }
-  if (data && data.medications && data.medications.length) {
-    for (var m = 0; m < data.medications.length; m++) {
-      var medName = data.medications[m].name || data.medications[m];
-      items.push({ icon: 'pill', label: 'Medication', value: medName });
-    }
-  }
-  if (data && data.allergies && data.allergies.length) {
-    for (var a = 0; a < data.allergies.length; a++) {
-      items.push({ icon: 'alert-circle', label: 'Allergy', value: data.allergies[a] });
-    }
-  }
-
-  if (items.length === 0) {
-    items.push({ icon: 'file-check', label: 'Uploaded', value: _obUploadedFiles.length + ' file' + (_obUploadedFiles.length > 1 ? 's' : '') + ' received' });
-  }
-
-  items.forEach(function(item) {
-    var el = document.createElement('div');
-    el.className = 'ob-extract-item';
-    el.innerHTML = '<div class="ob-extract-item-icon"><i data-lucide="' + item.icon + '" style="width:16px;height:16px;"></i></div>'
-      + '<div class="ob-extract-item-text"><div class="ob-extract-item-label">' + escHtml(item.label) + '</div><div class="ob-extract-item-value">' + escHtml(item.value) + '</div></div>'
-      + '<div class="ob-extract-check"><i data-lucide="check-circle" style="width:16px;height:16px;"></i></div>';
-    container.appendChild(el);
-  });
-  initIcons();
-
-  // Stagger reveal with 200ms between items
-  var revealItems = container.querySelectorAll('.ob-extract-item');
-  revealItems.forEach(function(el, idx) {
-    setTimeout(function() { el.classList.add('revealed'); }, 200 * (idx + 1));
-  });
-
-  // Show add-more and continue after reveal finishes
-  var totalDelay = 200 * (items.length + 1) + 300;
-  setTimeout(function() {
-    document.getElementById('ob-add-more').style.display = 'block';
-    document.getElementById('ob-continue-btn').style.display = 'block';
-    initIcons();
-  }, totalDelay);
+// Legacy handler kept for add-more inputs
+async function obHandleFiles(input, type) {
+  obChatHandleFiles(input, type);
 }
 
-function obAddMorePhoto() {
-  document.getElementById('ob-addmore-photo').click();
-}
-function obAddMoreFile() {
-  document.getElementById('ob-addmore-doc').click();
-}
-
-async function obHandleAddMore(input, type) {
-  if (!input.files || input.files.length === 0) return;
-  var files = Array.from(input.files);
-  _obUploadedFiles = _obUploadedFiles.concat(files);
-
-  var filesEl = document.getElementById('ob-processing-files');
-  files.forEach(function(f) {
-    var isPhoto = f.type && f.type.indexOf('image') === 0;
-    var fileDiv = document.createElement('div');
-    fileDiv.className = 'ob-proc-file';
-    var iconHtml = '<div class="ob-proc-file-icon"><i data-lucide="file" style="width:16px;height:16px;"></i></div>';
-    if (isPhoto) {
-      var thumbId = 'ob-thumb-add-' + Date.now();
-      iconHtml = '<img class="ob-photo-thumb" id="' + thumbId + '" src="" alt="preview">';
-      try {
-        var reader = new FileReader();
-        reader.onload = (function(tid) { return function(e) {
-          var t = document.getElementById(tid);
-          if (t) t.src = e.target.result;
-        }; })(thumbId);
-        reader.readAsDataURL(f);
-      } catch(e) {}
-    }
-    fileDiv.innerHTML = iconHtml
-      + '<div class="ob-proc-file-name">' + escHtml(f.name) + '</div>'
-      + '<div class="ob-proc-file-status">Uploading...</div>';
-    filesEl.appendChild(fileDiv);
-  });
-  initIcons();
-
-  if (!currentUser) { input.value = ''; return; }
-
-  for (var i = 0; i < files.length; i++) {
-    var file = files[i];
-    var ext = file.name.split('.').pop().toLowerCase();
-    var storagePath = currentUser.id + '/onboarding/' + Date.now() + '_' + i + '.' + ext;
-    try {
-      var result = await db.storage.from('documents').upload(storagePath, file, { upsert: true });
-      if (!result.error) {
-        _obUploadPaths.push(storagePath);
-      }
-      var allStatus = filesEl.querySelectorAll('.ob-proc-file-status');
-      var lastIdx = allStatus.length - files.length + i;
-      if (allStatus[lastIdx]) {
-        allStatus[lastIdx].textContent = result.error ? 'Error' : 'Uploaded';
-        allStatus[lastIdx].style.color = result.error ? 'var(--red)' : 'var(--moss)';
-      }
-    } catch(e) {
-      console.error('Upload exception:', e);
-    }
-  }
-  input.value = '';
-}
-
-function obContinueFromProcessing() {
-  obShowNameScreen(_obExtractedData);
-}
-
-function obShowNameScreen(extractedData) {
-  obShowScreen('ob-name-screen');
-
-  var foundEl = document.getElementById('ob-name-found');
-  var personInput = document.getElementById('ob-person-name');
-  var yourNameInput = document.getElementById('ob-your-name');
-  var personConfirm = document.getElementById('ob-name-person-confirm');
-  var yourConfirm = document.getElementById('ob-name-your-confirm');
-  var nameForm = document.getElementById('ob-name-form');
-  var summaryEl = document.getElementById('ob-extract-summary');
-
-  // Guess user's first name from email
-  var emailName = '';
-  if (currentUser && currentUser.email) {
-    emailName = currentUser.email.split('@')[0].split('.')[0];
-    emailName = emailName.charAt(0).toUpperCase() + emailName.slice(1).toLowerCase();
-  }
-
-  var hasPatientName = extractedData && extractedData.patient_name;
-  var hasData = extractedData && (hasPatientName || (extractedData.conditions && extractedData.conditions.length) || (extractedData.medications && extractedData.medications.length));
-
-  if (hasPatientName) {
-    personInput.value = extractedData.patient_name;
-    foundEl.innerHTML = '';
-
-    // Person name confirmation card
-    personConfirm.style.display = 'block';
-    personConfirm.innerHTML = '<div class="ob-name-confirm-card">'
-      + '<div class="ob-name-confirm-row">'
-      + '<div class="ob-name-confirm-icon"><i data-lucide="check-circle" style="width:20px;height:20px;"></i></div>'
-      + '<div><div class="ob-name-confirm-text">Wellet found: ' + escHtml(extractedData.patient_name) + '</div>'
-      + '<div class="ob-name-confirm-sub">Health record for this person</div></div>'
-      + '</div>'
-      + '<div class="ob-name-confirm-actions">'
-      + '<button class="ob-name-confirm-btn primary" onclick="obConfirmPersonName(true)">This is correct</button>'
-      + '<button class="ob-name-confirm-btn secondary" onclick="obConfirmPersonName(false)">Edit name</button>'
-      + '</div>'
-      + '</div>';
-
-    // Your name confirmation
-    if (emailName) {
-      yourNameInput.value = emailName;
-      yourConfirm.style.display = 'block';
-      yourConfirm.innerHTML = '<div class="ob-name-confirm-card" style="background:white;border:1.5px solid var(--border);">'
-        + '<div class="ob-name-confirm-row">'
-        + '<div class="ob-name-confirm-icon"><i data-lucide="user" style="width:20px;height:20px;"></i></div>'
-        + '<div><div class="ob-name-confirm-text">You: ' + escHtml(emailName) + '</div>'
-        + '<div class="ob-name-confirm-sub">From ' + escHtml(currentUser.email) + '</div></div>'
-        + '</div>'
-        + '<div class="ob-name-confirm-actions">'
-        + '<button class="ob-name-confirm-btn primary" onclick="obConfirmYourName(true)">This is correct</button>'
-        + '<button class="ob-name-confirm-btn secondary" onclick="obConfirmYourName(false)">Change</button>'
-        + '</div>'
-        + '</div>';
-      nameForm.style.display = 'none';
-    } else {
-      yourConfirm.style.display = 'none';
-      nameForm.style.display = 'flex';
-      nameForm.querySelector('[for="ob-person-name"]').style.display = 'none';
-      personInput.style.display = 'none';
-    }
-  } else {
-    personConfirm.style.display = 'none';
-    yourConfirm.style.display = 'none';
-    nameForm.style.display = 'flex';
-    nameForm.querySelector('[for="ob-person-name"]').style.display = '';
-    personInput.style.display = '';
-    if (!yourNameInput.value && emailName) yourNameInput.value = emailName;
-
-    var fileCount = _obUploadedFiles.length;
-    if (fileCount > 0) {
-      foundEl.innerHTML = '<div class="ob-name-found-card">'
-        + '<div class="found-icon"><i data-lucide="check-circle" style="width:18px;height:18px;"></i></div>'
-        + '<div class="found-text">' + fileCount + ' file' + (fileCount > 1 ? 's' : '') + ' uploaded. Wellet will process ' + (fileCount > 1 ? 'them' : 'it') + ' once your account is set up.</div>'
-        + '</div>';
-    } else {
-      foundEl.innerHTML = '';
-    }
-  }
-
-  // Show extraction summary card
-  if (hasData) {
-    var condCount = (extractedData.conditions && extractedData.conditions.length) || 0;
-    var medCount = (extractedData.medications && extractedData.medications.length) || 0;
-    var docCount = extractedData.doc_count || _obUploadedFiles.length;
-    var allergyCount = (extractedData.allergies && extractedData.allergies.length) || 0;
-
-    var html = '<div class="ob-summary-card">'
-      + '<div class="ob-summary-title">What Wellet found in your uploads</div>';
-    if (condCount > 0) {
-      html += '<div class="ob-summary-row"><div class="ob-summary-row-icon"><i data-lucide="stethoscope" style="width:16px;height:16px;"></i></div>' + condCount + ' condition' + (condCount > 1 ? 's' : '') + '</div>';
-      html += '<div class="ob-summary-details" id="ob-summary-conditions" style="display:none;">';
-      for (var c = 0; c < extractedData.conditions.length; c++) {
-        html += '<div class="ob-summary-detail-item">' + escHtml(extractedData.conditions[c]) + '</div>';
-      }
-      html += '</div>';
-      html += '<button class="ob-summary-toggle" onclick="obToggleSummary(\'ob-summary-conditions\', this)">Show details</button>';
-    }
-    if (medCount > 0) {
-      html += '<div class="ob-summary-row"><div class="ob-summary-row-icon"><i data-lucide="pill" style="width:16px;height:16px;"></i></div>' + medCount + ' medication' + (medCount > 1 ? 's' : '') + '</div>';
-      html += '<div class="ob-summary-details" id="ob-summary-meds" style="display:none;">';
-      for (var m = 0; m < extractedData.medications.length; m++) {
-        var mn = extractedData.medications[m].name || extractedData.medications[m];
-        html += '<div class="ob-summary-detail-item">' + escHtml(mn) + '</div>';
-      }
-      html += '</div>';
-      html += '<button class="ob-summary-toggle" onclick="obToggleSummary(\'ob-summary-meds\', this)">Show details</button>';
-    }
-    if (allergyCount > 0) {
-      html += '<div class="ob-summary-row"><div class="ob-summary-row-icon"><i data-lucide="alert-circle" style="width:16px;height:16px;"></i></div>' + allergyCount + ' allerg' + (allergyCount > 1 ? 'ies' : 'y') + '</div>';
-    }
-    html += '<div class="ob-summary-row"><div class="ob-summary-row-icon"><i data-lucide="file-text" style="width:16px;height:16px;"></i></div>' + docCount + ' document' + (docCount > 1 ? 's' : '') + ' processed</div>';
-    html += '</div>';
-    summaryEl.innerHTML = html;
-    summaryEl.style.display = 'block';
-  } else {
-    summaryEl.style.display = 'none';
-    summaryEl.innerHTML = '';
-  }
-
-  initIcons();
-  if (nameForm.style.display !== 'none') yourNameInput.focus();
-}
-
+// Legacy stubs for wizard functions that no longer exist
+function obRevealExtraction(data) { obShowExtractionCard(data, 'your uploads'); }
+function obAddMorePhoto() { document.getElementById('ob-file-photo').click(); }
+function obAddMoreFile() { document.getElementById('ob-file-doc').click(); }
+async function obHandleAddMore(input, type) { obChatHandleFiles(input, type); }
+function obContinueFromProcessing() { obShowConnectChips(); }
+function obShowNameScreen() { /* no-op in chat-first flow */ }
+function obConfirmPersonName() { /* no-op */ }
+// Legacy stubs for wizard functions
 function obToggleSummary(id, btn) {
   var el = document.getElementById(id);
   if (!el) return;
@@ -12130,184 +11785,23 @@ function obToggleSummary(id, btn) {
   btn.textContent = show ? 'Hide details' : 'Show details';
 }
 
-function obConfirmPersonName(confirmed) {
-  if (confirmed) {
-    document.getElementById('ob-name-person-confirm').querySelector('.ob-name-confirm-card').style.opacity = '0.6';
-    document.getElementById('ob-name-person-confirm').querySelector('.ob-name-confirm-card').style.pointerEvents = 'none';
-    var check = document.getElementById('ob-name-person-confirm').querySelector('.ob-name-confirm-actions');
-    check.innerHTML = '<span style="color:var(--moss);font-size:13px;font-weight:500;display:flex;align-items:center;gap:4px;"><i data-lucide="check" style="width:14px;height:14px;"></i> Confirmed</span>';
-    document.getElementById('ob-name-person-confirm').querySelector('.ob-name-confirm-card').style.opacity = '1';
-    initIcons();
-  } else {
-    document.getElementById('ob-name-person-confirm').style.display = 'none';
-    var nameForm = document.getElementById('ob-name-form');
-    nameForm.style.display = 'flex';
-    nameForm.querySelector('[for="ob-person-name"]').style.display = '';
-    document.getElementById('ob-person-name').style.display = '';
-    document.getElementById('ob-person-name').focus();
-  }
-}
+async function obFinishWithNames() { /* Legacy — handled by chat flow now */ }
+function obShowHealthRecordsStep() { /* Legacy */ }
+function obStartHealthImport() { /* Legacy */ }
+function obHealthFileSelected() { /* Legacy */ }
+function obSkipHealthImport() { showOwnWellet(); }
 
-function obConfirmYourName(confirmed) {
-  if (confirmed) {
-    var card = document.getElementById('ob-name-your-confirm').querySelector('.ob-name-confirm-card');
-    var actions = document.getElementById('ob-name-your-confirm').querySelector('.ob-name-confirm-actions');
-    actions.innerHTML = '<span style="color:var(--moss);font-size:13px;font-weight:500;display:flex;align-items:center;gap:4px;"><i data-lucide="check" style="width:14px;height:14px;"></i> Confirmed</span>';
-    initIcons();
-  } else {
-    document.getElementById('ob-name-your-confirm').style.display = 'none';
-    var nameForm = document.getElementById('ob-name-form');
-    nameForm.style.display = 'flex';
-    document.getElementById('ob-your-name').focus();
-  }
-}
-
-async function obFinishWithNames() {
-  var yourName = document.getElementById('ob-your-name').value.trim() || 'you';
-  var personName = document.getElementById('ob-person-name').value.trim() || 'My loved one';
-
-  // Set obState so savePersonToSupabase works
-  obState.userName = yourName;
-  obState.personName = personName;
-  obState.situation = 'parent'; // default relationship
-
-  // Save to Supabase
-  if (currentUser) {
-    var person = await savePersonToSupabase();
-
-    // If we have uploaded files, associate them with the person via documents table
-    if (person && _obUploadPaths.length > 0) {
-      for (var i = 0; i < _obUploadPaths.length; i++) {
-        var fname = _obUploadedFiles[i] ? _obUploadedFiles[i].name : 'document';
-        try {
-          await db.from('documents').insert({
-            person_id: person.id,
-            user_id: currentUser.id,
-            file_name: fname,
-            storage_path: _obUploadPaths[i],
-            document_type: 'Onboarding upload',
-            extraction_status: 'pending'
-          });
-        } catch(e) {
-          // PHI log removed
-        }
-      }
-    }
-
-    // If extraction found conditions/meds, save them via reconciliation
-    if (person && _obExtractedData) {
-      if (_obExtractedData.conditions) {
-        for (var c = 0; c < _obExtractedData.conditions.length; c++) {
-          try {
-            var obCondEvent = { event_type: 'condition', event_date: new Date().toISOString(), title: _obExtractedData.conditions[c], source: 'Onboarding upload' };
-            var obCondDedup = await findDuplicateHealthEvent(person.id, obCondEvent);
-            await reconcileHealthEvent(person.id, obCondEvent, obCondDedup);
-          } catch(e) { /* PHI log removed */ }
-        }
-      }
-      if (_obExtractedData.medications) {
-        for (var m = 0; m < _obExtractedData.medications.length; m++) {
-          try {
-            var obMedName = _obExtractedData.medications[m].name || _obExtractedData.medications[m];
-            var obMed = { name: obMedName, active: true, source: 'Onboarding upload' };
-            var obMedDedup = await findDuplicateMedication(person.id, obMed);
-            await reconcileMedication(person.id, obMed, obMedDedup);
-          } catch(e) { /* PHI log removed */ }
-        }
-      }
-    }
-  }
-
-  // If EHR connect was pending from onboarding, trigger it now that person exists
-  if (_obEhrPending && person && person.id) {
-    currentPersonId = person.id;
-    _obFromEhr = false;
-    beginEhrOAuth(_obEhrPending.fhirBaseUrl, _obEhrPending.name, !!_obEhrPending.sandbox);
-    _obEhrPending = null;
-    try { localStorage.removeItem('wellet_ob_ehr_hospital'); } catch(e) {}
-    return;
-  }
-
-  // Show health records import step instead of going straight to app
-  obShowHealthRecordsStep();
-}
-
-function obShowHealthRecordsStep() {
-  var personName = obState.personName || 'your loved one';
-  var firstName = personName.split(' ')[0];
-  document.getElementById('ob-hr-title').textContent = 'Do you have ' + escHtml(firstName) + '\'s health records?';
-  document.getElementById('ob-hr-desc').textContent = 'If you have a health record export (ZIP file from MyChart or another patient portal), Wellet can import everything at once.';
-  obShowScreen('ob-health-records-screen');
-}
-
-function obStartHealthImport() {
-  document.getElementById('ob-health-file-input').click();
-}
-
-function obHealthFileSelected(input) {
-  if (!input.files || !input.files[0]) return;
-  var file = input.files[0];
-  input.value = '';
-
-  if (isZipFile(file.name) || isPdfFile(file.name)) {
-    // Open the health import flow with a callback that finishes onboarding
-    openHealthImport(file, function() {
-      showOwnWellet();
-    });
-  } else {
-    showToast('Please select a ZIP or PDF file');
-  }
-}
-
-function obSkipHealthImport(choice) {
-  if (choice === 'manual') {
-    // Go straight to app — they'll enter data manually
-    showOwnWellet();
-  } else {
-    // Skip — go to app with empty state
-    showOwnWellet();
-  }
-}
-
-// ── ORIGINAL CHAT-BASED ONBOARDING ENGINE ────────────────────────────────────
+// ── UNIFIED CHAT ONBOARDING ENGINE ───────────────────────────────────────────
+// obState kept for compatibility with savePersonToSupabase
 var obState = { step: 0, situation: null, userName: null, personName: null };
 
-var obSituations = [
-  { id:'parent',    icon:'heart', label:'A parent or family member with a health condition' },
-  { id:'diagnosis', icon:'stethoscope', label:'Someone who was just diagnosed with something serious' },
-  { id:'family',    icon:'users', label:'I\'m coordinating care across my family' },
-  { id:'other',     icon:'message-circle', label:'Something else' },
-];
-
-var obFlows = {
-  parent:    {
-    q1: 'I\'m here to help. What\'s your name, and whose care are you managing?',
-    q2: function(n,p){ return 'Got it — '+n+', caring for '+p+'. What\'s going on with their health right now? You can share as much or as little as you know.'; },
-    q3: function(p){ return 'I\'ve noted that. Do you know what medications '+p+' is currently taking? Even just the ones you remember are helpful.'; },
-    confirm: function(n,p){ return 'That\'s enough to start — we can fill in the rest later. I\'ve got '+p+' set up for you, '+n+'.'; }
-  },
-  diagnosis: {
-    q1: 'I\'m here. What\'s your name, and who was diagnosed?',
-    q2: function(n,p){ return 'Got it — '+n+', and '+p+'. You don\'t have to have all the answers right now. What do you know about the diagnosis so far?'; },
-    q3: function(p){ return 'I\'ve noted that. Who is '+p+'\'s main doctor or care team right now?'; },
-    confirm: function(n,p){ return 'That\'s enough to start. I\'ve set up '+p+'\'s record, '+n+'. We can fill in more as things become clearer.'; }
-  },
-  family: {
-    q1: 'I can help with that. What\'s your name, and who are you coordinating care for?',
-    q2: function(n,p){ return 'Keeping everyone informed is exhausting. I\'ll help with that. What\'s going on with '+p+'\'s health right now?'; },
-    q3: function(p){ return 'I\'ve noted that. Who else is involved in '+p+'\'s care — other family members, doctors, anyone you\'re coordinating with?'; },
-    confirm: function(n,p){ return 'Got it. I\'ve set up '+p+'\'s record, '+n+', and noted the people involved. You\'re building a care network — that\'s a big deal.'; }
-  },
-  other: {
-    q1: 'I\'m here. Tell me a bit about your situation — whatever feels right to share.',
-    q2: function(n){ return 'Got it, '+n+'. What\'s the most important thing for me to know right now?'; },
-    q3: function(n){ return 'I\'ve noted that. Is there someone specific whose care you\'re managing, or is this more about your own health?'; },
-    confirm: function(n){ return 'That\'s enough to start. Your Wellet is set up, '+n+'. I\'ll adapt as we go.'; }
-  }
-};
-
 function obInit() {
-  obState = { step: 0, situation: null, userName: null, personName: null };
+  obClearChatState();
+  _obUploadedFiles = [];
+  _obUploadPaths = [];
+  _obExtractedData = null;
+  _obFromEhr = false;
+  _obEhrPending = null;
   var chat = document.getElementById('ob-chat-area');
   chat.innerHTML = '';
   chat.scrollTop = 0;
@@ -12316,7 +11810,11 @@ function obInit() {
   document.getElementById('ob-send-btn').disabled = true;
   window.scrollTo(0, 0);
   document.getElementById('onboarding').scrollTop = 0;
-  setTimeout(function() { obTypeThen("Hi. I\'m going to ask you a few things so I can set up your Wellet around your situation. You can tell me as much or as little as you want — we can always add more later.", obShowSituationChips, 900); }, 400);
+  obChat.phase = 'welcome';
+  obSaveChatState();
+  setTimeout(function() {
+    obTypeThen('Hi \u2014 I\u2019m Wellet. I help you keep track of your loved one\u2019s health so you can stop being the memory. Who are you here for?', obShowSituationChips, 900);
+  }, 400);
 }
 
 function obTypeThen(text, callback, delay) {
@@ -12327,7 +11825,7 @@ function obTypeThen(text, callback, delay) {
   chat.appendChild(typingGroup);
   obScroll();
   setTimeout(function() {
-    chat.removeChild(typingGroup);
+    if (typingGroup.parentNode) chat.removeChild(typingGroup);
     obAddBubble('wellet', text);
     if (callback) setTimeout(callback, 120);
   }, delay || 700);
@@ -12338,7 +11836,7 @@ function obAddBubble(from, html, isHTML) {
   var group = document.createElement('div');
   group.className = 'ob-msg-group from-' + from;
   var sender = from === 'wellet' ? '<div class="ob-sender">Wellet</div>' : '';
-  var content = isHTML ? html : html.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  var content = isHTML ? html : escHtml(html);
   group.innerHTML = sender + '<div class="ob-bubble ' + from + '">' + content + '</div>';
   chat.appendChild(group);
   obScroll();
@@ -12349,9 +11847,9 @@ function obShowSituationChips() {
   var group = document.createElement('div');
   group.className = 'ob-msg-group from-wellet';
   group.id = 'ob-situation-group';
-  var chipsHTML = '<div class="ob-sender">Wellet</div><div class="ob-bubble wellet">Who are you here for?</div><div class="ob-chips" id="ob-situation-chips">';
-  obSituations.forEach(function(s) {
-    chipsHTML += '<button class="ob-chip" onclick="obSelectSituation(\'' + s.id + '\',this)"><i data-lucide="' + s.icon + '" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:4px;"></i>' + s.label + '</button>';
+  var chipsHTML = '<div class="ob-chips" id="ob-situation-chips">';
+  _obChatSituations.forEach(function(s) {
+    chipsHTML += '<button class="ob-chip" onclick="obSelectSituation(\'' + s.id + '\',this)">' + escHtml(s.label) + '</button>';
   });
   chipsHTML += '</div>';
   group.innerHTML = chipsHTML;
@@ -12365,14 +11863,21 @@ function obSelectSituation(id, btn) {
   btn.classList.remove('used'); btn.style.opacity='1'; btn.style.borderColor='var(--moss)'; btn.style.background='var(--mint)'; btn.style.color='var(--moss)';
   var label = btn.textContent.trim();
   setTimeout(function(){ obAddBubble('user', label); }, 150);
-  obState.situation = id;
-  obState.step = 1;
-  var flow = obFlows[id];
-  setTimeout(function(){ obTypeThen(flow.q1, function(){
-    document.getElementById('ob-input').disabled = false;
-    document.getElementById('ob-send-btn').disabled = false;
-    document.getElementById('ob-input').focus();
-  }, 800); }, 400);
+  obChat.situation = id;
+  obChat.phase = 'name';
+  obSaveChatState();
+  // Map situation to relationship for savePersonToSupabase
+  var relMap = { aging_parent: 'parent', partner: 'partner', child: 'child', self: 'self', other: 'other' };
+  obState.situation = relMap[id] || id;
+
+  setTimeout(function(){
+    obTypeThen('Got it. What\u2019s your name?', function(){
+      document.getElementById('ob-input').disabled = false;
+      document.getElementById('ob-send-btn').disabled = false;
+      document.getElementById('ob-input').placeholder = 'Your first name\u2026';
+      document.getElementById('ob-input').focus();
+    }, 800);
+  }, 400);
 }
 
 function obSend() {
@@ -12384,67 +11889,390 @@ function obSend() {
   obAddBubble('user', val);
   input.disabled = true;
   document.getElementById('ob-send-btn').disabled = true;
-  var flow = obFlows[obState.situation];
-  var step = obState.step;
 
-  if (step === 1) {
-    var parts = val.split(/[\s,]+/);
-    obState.userName = parts[0] || 'you';
-    var selfModes = ['other'];
-    if (selfModes.indexOf(obState.situation) > -1) {
-      obState.personName = obState.userName;
-      obState.step = 2;
-      obTypeThen(flow.q2(obState.userName), function(){
-        document.getElementById('ob-input').disabled = false;
-        document.getElementById('ob-send-btn').disabled = false;
-        document.getElementById('ob-input').focus();
-      }, 850);
+  var phase = obChat.phase;
+
+  if (phase === 'name') {
+    // User typed their name
+    obChat.userName = val;
+    obState.userName = val;
+    obSaveChatState();
+
+    if (obChat.situation === 'self') {
+      // Skip asking for loved one's name — use their name for both
+      obChat.personName = val;
+      obState.personName = val;
+      obChat.phase = 'connect';
+      obSaveChatState();
+      obCreatePerson();
+      setTimeout(function(){
+        obTypeThen('Nice to meet you, ' + escHtml(val) + '. Let\u2019s get your health into one place. What do you have handy right now? You can always come back and add more later.', obShowConnectChips, 850);
+      }, 300);
     } else {
-      var personMatch = val.match(/(?:for|caring for|my|his|her|their)\s+([A-Z][a-z]+)/);
-      if (personMatch) { obState.personName = personMatch[1]; }
-      else if (parts.length >= 2) { obState.personName = parts[parts.length-1]; }
-      else { obState.personName = 'them'; }
-      obState.step = 2;
-      obTypeThen(flow.q2(obState.userName, obState.personName), function(){
-        document.getElementById('ob-input').disabled = false;
-        document.getElementById('ob-send-btn').disabled = false;
-        document.getElementById('ob-input').focus();
-      }, 850);
+      obChat.phase = 'person_name';
+      obSaveChatState();
+      setTimeout(function(){
+        obTypeThen('Nice to meet you, ' + escHtml(val) + '. And what should I call the person you\u2019re caring for?', function(){
+          document.getElementById('ob-input').disabled = false;
+          document.getElementById('ob-send-btn').disabled = false;
+          document.getElementById('ob-input').placeholder = 'Their name\u2026';
+          document.getElementById('ob-input').focus();
+        }, 850);
+      }, 300);
     }
-  } else if (step === 2) {
-    obState.step = 3;
-    var q3 = obFlows[obState.situation].q3;
-    var selfModes2 = ['other'];
-    var msg = (selfModes2.indexOf(obState.situation) > -1) ? q3(obState.userName) : q3(obState.personName);
-    obTypeThen(msg, function(){
+  } else if (phase === 'person_name') {
+    // User typed loved one's name
+    obChat.personName = val;
+    obState.personName = val;
+    obChat.phase = 'connect';
+    obSaveChatState();
+    obCreatePerson();
+    setTimeout(function(){
+      obTypeThen('Okay ' + escHtml(obChat.userName) + ' \u2014 let\u2019s get ' + escHtml(val) + '\u2019s health into one place. What do you have handy right now? You can always come back and add more later.', obShowConnectChips, 850);
+    }, 300);
+  } else if (phase === 'freetext') {
+    // User is typing free-text health info
+    obChat.freeTextGiven = true;
+    obSaveChatState();
+    setTimeout(function(){
+      obTypeThen('Got it \u2014 I\u2019ve noted that down. That\u2019s a great start.', function(){
+        // Save free text as a health event
+        obSaveFreeText(val);
+        setTimeout(function(){
+          obTypeThen('Want to add anything else?', obShowConnectChips, 600);
+        }, 300);
+      }, 800);
+    }, 300);
+  } else {
+    // Fallback — any text in connect phase, treat as free text
+    obChat.freeTextGiven = true;
+    obSaveChatState();
+    obSaveFreeText(val);
+    setTimeout(function(){
+      obTypeThen('Got it, I\u2019ve noted that. Anything else you\u2019d like to connect?', obShowConnectChips, 700);
+    }, 300);
+  }
+}
+
+async function obCreatePerson() {
+  if (!currentUser) return;
+  var person = await savePersonToSupabase();
+  if (person) {
+    currentPersonId = person.id;
+  }
+}
+
+async function obSaveFreeText(text) {
+  if (!currentUser || !currentPersonId) return;
+  try {
+    var evt = { event_type: 'note', event_date: new Date().toISOString(), title: 'Onboarding note', notes: text, source: 'manual' };
+    var dup = await findDuplicateHealthEvent(currentPersonId, evt);
+    await reconcileHealthEvent(currentPersonId, evt, dup);
+  } catch(e) { /* PHI log removed */ }
+}
+
+async function obSaveExtractedData(data) {
+  if (!currentUser || !currentPersonId || !data) return;
+  if (data.conditions) {
+    for (var c = 0; c < data.conditions.length; c++) {
+      try {
+        var evt = { event_type: 'condition', event_date: new Date().toISOString(), title: data.conditions[c], source: 'Onboarding upload' };
+        var dup = await findDuplicateHealthEvent(currentPersonId, evt);
+        await reconcileHealthEvent(currentPersonId, evt, dup);
+      } catch(e) { /* PHI log removed */ }
+    }
+  }
+  if (data.medications) {
+    for (var m = 0; m < data.medications.length; m++) {
+      try {
+        var medName = data.medications[m].name || data.medications[m];
+        var med = { name: medName, active: true, source: 'Onboarding upload' };
+        var medDup = await findDuplicateMedication(currentPersonId, med);
+        await reconcileMedication(currentPersonId, med, medDup);
+      } catch(e) { /* PHI log removed */ }
+    }
+  }
+  // Associate uploaded files with person
+  if (_obUploadPaths.length > 0) {
+    for (var i = 0; i < _obUploadPaths.length; i++) {
+      var fname = _obUploadedFiles[i] ? _obUploadedFiles[i].name : 'document';
+      try {
+        await db.from('documents').insert({
+          person_id: currentPersonId,
+          user_id: currentUser.id,
+          file_name: fname,
+          storage_path: _obUploadPaths[i],
+          document_type: 'Onboarding upload',
+          extraction_status: 'pending'
+        });
+      } catch(e) { /* PHI log removed */ }
+    }
+  }
+}
+
+function obShowConnectChips() {
+  var chat = document.getElementById('ob-chat-area');
+  var group = document.createElement('div');
+  group.className = 'ob-msg-group from-wellet';
+  var chipCount = 0;
+  var chipsHTML = '<div class="ob-connect-chips" id="ob-connect-chips">';
+  _obChatConnectOptions.forEach(function(opt) {
+    // Skip already-completed options (except freetext which is always available)
+    var skip = false;
+    if (opt.id === 'ehr' && obChat.ehrConnected) skip = true;
+    if (opt.id === 'device' && obChat.deviceConnected) skip = true;
+    if (skip) return;
+    chipsHTML += '<button class="ob-connect-chip" onclick="obSelectConnect(\'' + opt.id + '\',this)">' + escHtml(opt.label) + '</button>';
+    chipCount++;
+  });
+  // If user has completed at least one action, add a "That's everything" option
+  if (obHasCompletedAction()) {
+    chipsHTML += '<button class="ob-connect-chip" onclick="obSelectConnect(\'done\',this)" style="border-color:var(--moss);color:var(--moss);">That\u2019s everything</button>';
+  }
+  chipsHTML += '</div>';
+  group.innerHTML = chipsHTML;
+  chat.appendChild(group);
+  initIcons();
+  obScroll();
+  document.getElementById('ob-input').disabled = true;
+  document.getElementById('ob-send-btn').disabled = true;
+}
+
+function obSelectConnect(id, btn) {
+  // Disable all chips in this group
+  var chipGroup = btn.closest('.ob-connect-chips');
+  if (chipGroup) {
+    chipGroup.querySelectorAll('.ob-connect-chip').forEach(function(c){ c.disabled = true; c.classList.add('used'); });
+  }
+  btn.classList.remove('used'); btn.style.opacity='1'; btn.style.borderColor='var(--moss)'; btn.style.background='var(--mint)'; btn.style.color='var(--moss)';
+  var label = btn.textContent.trim();
+  setTimeout(function(){ obAddBubble('user', label); }, 150);
+
+  if (id === 'ehr') {
+    obStartEhrConnect();
+  } else if (id === 'docs') {
+    obStartDocUpload();
+  } else if (id === 'photo') {
+    obStartPhotoCapture();
+  } else if (id === 'device') {
+    obStartDeviceConnect();
+  } else if (id === 'freetext') {
+    obStartFreeText();
+  } else if (id === 'explore') {
+    obStartExplore();
+  } else if (id === 'done') {
+    obChat.phase = 'wrapup';
+    obSaveChatState();
+    setTimeout(obShowTourOffer, 400);
+  }
+}
+
+function obStartEhrConnect() {
+  var personName = obChat.personName || 'your loved one';
+  setTimeout(function(){
+    obTypeThen('Great \u2014 I can connect directly to ' + escHtml(personName) + '\u2019s patient portal. This pulls in lab results, visit notes, medications, and more.', function(){
+      // Trigger existing EHR connect flow
+      obConnectEhr();
+    }, 800);
+  }, 400);
+}
+
+function obStartDocUpload() {
+  setTimeout(function(){
+    document.getElementById('ob-file-doc').click();
+  }, 400);
+}
+
+function obStartPhotoCapture() {
+  setTimeout(function(){
+    document.getElementById('ob-file-camera').click();
+  }, 400);
+}
+
+function obStartDeviceConnect() {
+  var personName = obChat.personName || 'your loved one';
+  setTimeout(function(){
+    obTypeThen('I can connect to fitness trackers, smartwatches, and other health devices to pull in vitals, activity, and sleep data.', function(){
+      if (!currentPersonId) {
+        obAddBubble('wellet', 'I\u2019ll set this up once your account is ready. Let\u2019s keep going.');
+        setTimeout(obShowConnectChips, 600);
+        return;
+      }
+      openTerraConnect();
+    }, 800);
+  }, 400);
+}
+
+function obStartFreeText() {
+  var personName = obChat.personName || 'your loved one';
+  obChat.phase = 'freetext';
+  obSaveChatState();
+  setTimeout(function(){
+    obTypeThen('No problem. Tell me what\u2019s going on with ' + escHtml(personName) + ' \u2014 conditions, medications, recent visits, anything that\u2019s top of mind. I\u2019ll organize it.', function(){
       document.getElementById('ob-input').disabled = false;
       document.getElementById('ob-send-btn').disabled = false;
+      document.getElementById('ob-input').placeholder = 'Tell me about their health\u2026';
       document.getElementById('ob-input').focus();
-    }, 850);
-  } else if (step === 3) {
-    obState.step = 4;
-    var selfModes3 = ['other'];
-    var confirm = (selfModes3.indexOf(obState.situation) > -1)
-      ? obFlows[obState.situation].confirm(obState.userName)
-      : obFlows[obState.situation].confirm(obState.userName, obState.personName);
-    obTypeThen(confirm, function(){
-      setTimeout(obShowTourOffer, 300);
-    }, 900);
-  } else {
-    obTypeThen("Got it. Your Wellet is ready — and I\'m here whenever you need me.", null, 600);
+    }, 800);
+  }, 400);
+}
+
+function obStartExplore() {
+  setTimeout(function(){
+    obTypeThen('No problem \u2014 your Wellet is ready. I\u2019m here whenever you want to add records, connect a portal, or just ask a question.', function(){
+      obChat.phase = 'done';
+      obSaveChatState();
+      var chat = document.getElementById('ob-chat-area');
+      var wrap = document.createElement('div');
+      wrap.className = 'ob-cta-wrap';
+      wrap.innerHTML = '<button class="ob-cta" onclick="obFinishAndOpen()"><i data-lucide="arrow-right" style="width:16px;height:16px;"></i>&nbsp; Open my Wellet</button>';
+      chat.appendChild(wrap);
+      obScroll();
+      initIcons();
+    }, 800);
+  }, 400);
+}
+
+function obShowExtractionCard(data, sourceLabel) {
+  var chat = document.getElementById('ob-chat-area');
+  var conditions = (data && data.conditions) || [];
+  var medications = (data && data.medications) || [];
+  var allergies = (data && data.allergies) || [];
+  var labs = (data && data.labs) || [];
+  var appointments = (data && data.appointments) || [];
+
+  var hasItems = conditions.length || medications.length || allergies.length || labs.length || appointments.length;
+  if (!hasItems) {
+    obTypeThen('I received your files but couldn\u2019t find specific health details to extract. No worries \u2014 they\u2019re saved and I\u2019ll keep trying.', function(){
+      setTimeout(function(){ obTypeThen('Want to add anything else?', obShowConnectChips, 600); }, 300);
+    }, 700);
+    return;
   }
+
+  // Accumulate items into obChat state
+  conditions.forEach(function(c) { obChat.extractedItems.push({ type: 'condition', value: c }); });
+  medications.forEach(function(m) {
+    var name = m.name || m;
+    obChat.extractedItems.push({ type: 'medication', value: name });
+  });
+  allergies.forEach(function(a) { obChat.extractedItems.push({ type: 'allergy', value: a }); });
+  obSaveChatState();
+
+  var cardId = 'ob-extract-card-' + Date.now();
+  var html = '<div class="ob-extract-card" id="' + cardId + '">'
+    + '<div class="ob-extract-card-title"><i data-lucide="clipboard-list" style="width:14px;height:14px;"></i> Found in ' + escHtml(sourceLabel) + '</div>';
+  if (conditions.length) {
+    html += '<div class="ob-extract-card-row"><strong>Conditions:</strong> ' + conditions.map(function(c){ return escHtml(c); }).join(', ') + '</div>';
+  }
+  if (medications.length) {
+    html += '<div class="ob-extract-card-row"><strong>Medications:</strong> ' + medications.map(function(m){ var n = m.name || m; return escHtml(n); }).join(', ') + '</div>';
+  }
+  if (allergies.length) {
+    html += '<div class="ob-extract-card-row"><strong>Allergies:</strong> ' + allergies.map(function(a){ return escHtml(a); }).join(', ') + '</div>';
+  }
+  if (labs.length) {
+    html += '<div class="ob-extract-card-row"><strong>Labs:</strong> ' + labs.map(function(l){ return escHtml(typeof l === 'string' ? l : l.name || JSON.stringify(l)); }).join(', ') + '</div>';
+  }
+  if (appointments.length) {
+    html += '<div class="ob-extract-card-row"><strong>Appointments:</strong> ' + appointments.map(function(a){ return escHtml(typeof a === 'string' ? a : a.title || JSON.stringify(a)); }).join(', ') + '</div>';
+  }
+  html += '<div class="ob-extract-card-actions">'
+    + '<button class="ob-extract-card-btn secondary" onclick="obEditExtraction(\'' + cardId + '\')">Edit</button>'
+    + '<button class="ob-extract-card-btn primary" onclick="obConfirmExtraction(\'' + cardId + '\')">Looks good</button>'
+    + '</div></div>';
+
+  // Show celebration message with inline card
+  var totalItems = conditions.length + medications.length + allergies.length;
+  var celebMsg = 'Here\u2019s what I found:';
+
+  var group = document.createElement('div');
+  group.className = 'ob-msg-group from-wellet';
+  group.innerHTML = '<div class="ob-sender">Wellet</div><div class="ob-bubble wellet">' + celebMsg + '</div>' + html;
+  chat.appendChild(group);
+  initIcons();
+  obScroll();
+}
+
+function obConfirmExtraction(cardId) {
+  var card = document.getElementById(cardId);
+  if (!card) return;
+  var actions = card.querySelector('.ob-extract-card-actions');
+  if (actions) {
+    actions.innerHTML = '<span style="color:var(--moss);font-size:13px;font-weight:500;display:flex;align-items:center;gap:4px;"><i data-lucide="check" style="width:14px;height:14px;"></i> Saved</span>';
+    initIcons();
+  }
+  setTimeout(function(){
+    obTypeThen('Anything else you\u2019d like to connect?', obShowConnectChips, 600);
+  }, 400);
+}
+
+function obEditExtraction(cardId) {
+  var card = document.getElementById(cardId);
+  if (!card) return;
+  var rows = card.querySelectorAll('.ob-extract-card-row');
+  var editHtml = '<div class="ob-extract-card-edit">';
+  var items = obChat.extractedItems;
+  for (var i = 0; i < items.length; i++) {
+    editHtml += '<div class="ob-extract-card-edit-item">'
+      + '<input type="checkbox" checked data-idx="' + i + '">'
+      + '<input type="text" value="' + escHtml(items[i].value) + '" data-idx="' + i + '">'
+      + '<span style="font-size:11px;color:var(--text-muted);">' + escHtml(items[i].type) + '</span>'
+      + '</div>';
+  }
+  editHtml += '</div>';
+  var actions = card.querySelector('.ob-extract-card-actions');
+  if (actions) {
+    actions.innerHTML = '<button class="ob-extract-card-btn primary" onclick="obSaveEditedExtraction(\'' + cardId + '\')">Save changes</button>';
+  }
+  // Insert edit form before actions
+  rows.forEach(function(r){ r.style.display = 'none'; });
+  var editDiv = document.createElement('div');
+  editDiv.innerHTML = editHtml;
+  card.insertBefore(editDiv.firstChild, actions);
+}
+
+function obSaveEditedExtraction(cardId) {
+  var card = document.getElementById(cardId);
+  if (!card) return;
+  var editItems = card.querySelectorAll('.ob-extract-card-edit-item');
+  var keptItems = [];
+  editItems.forEach(function(item) {
+    var cb = item.querySelector('input[type="checkbox"]');
+    var txt = item.querySelector('input[type="text"]');
+    var idx = parseInt(cb.dataset.idx);
+    if (cb.checked && obChat.extractedItems[idx]) {
+      obChat.extractedItems[idx].value = txt.value;
+      keptItems.push(obChat.extractedItems[idx]);
+    }
+  });
+  obChat.extractedItems = keptItems;
+  obSaveChatState();
+
+  var actions = card.querySelector('.ob-extract-card-actions');
+  if (actions) {
+    actions.innerHTML = '<span style="color:var(--moss);font-size:13px;font-weight:500;display:flex;align-items:center;gap:4px;"><i data-lucide="check" style="width:14px;height:14px;"></i> Saved</span>';
+    initIcons();
+  }
+  setTimeout(function(){
+    obTypeThen('Got it \u2014 updated. Anything else you\u2019d like to connect?', obShowConnectChips, 600);
+  }, 400);
+}
+
+function obHasCompletedAction() {
+  return obChat.ehrConnected || obChat.docsUploaded > 0 || obChat.photosUploaded > 0 || obChat.deviceConnected || obChat.freeTextGiven;
 }
 
 function obShowTourOffer() {
   var chat = document.getElementById('ob-chat-area');
   var group = document.createElement('div');
   group.className = 'ob-msg-group from-wellet';
-  var personLabel = obState.personName && obState.personName !== obState.userName ? obState.personName + '\'s Wellet' : 'your Wellet';
+  var personName = obChat.personName || 'your loved one';
+  var userName = obChat.userName || 'there';
   group.innerHTML = '<div class="ob-sender">Wellet</div>'
-    + '<div class="ob-bubble wellet">I\'ve set up ' + personLabel + ' with everything you\'ve shared. Would you like me to show you around?</div>'
+    + '<div class="ob-bubble wellet">You\u2019re all set, ' + escHtml(userName) + '. I\u2019ve organized everything into ' + escHtml(personName) + '\u2019s record. A few things you can do from here:</div>'
     + '<div class="ob-chips" style="margin-top:6px;">'
-    + '<button class="ob-chip" onclick="obTourYes()" style="border-color:var(--moss);color:var(--moss);">✓&nbsp; Yes, show me around</button>'
-    + '<button class="ob-chip" onclick="obTourNo()">I\'ll explore on my own</button>'
+    + '<button class="ob-chip" onclick="obTourYes()" style="border-color:var(--moss);color:var(--moss);">Show me around</button>'
+    + '<button class="ob-chip" onclick="obTourNo()">Open my Wellet</button>'
     + '</div>';
   chat.appendChild(group);
   obScroll();
@@ -12454,12 +12282,12 @@ function obShowTourOffer() {
 
 function obTourYes() {
   document.querySelectorAll('#ob-chat-area .ob-chips:last-of-type .ob-chip').forEach(function(c){ c.disabled=true; c.classList.add('used'); });
-  obAddBubble('user', 'Yes, show me around');
+  obAddBubble('user', 'Show me around');
   setTimeout(function(){
-    obTypeThen('Great — let me show you around. It only takes a minute.', function(){
-      setTimeout(async function(){
-        // Save to Supabase if logged in
-        if (currentUser) { await savePersonToSupabase(); }
+    obTypeThen('Great \u2014 let me show you around. It only takes a minute.', function(){
+      setTimeout(function(){
+        obChat.phase = 'done';
+        obSaveChatState();
         showOwnWellet();
         startTour();
       }, 600);
@@ -12469,9 +12297,9 @@ function obTourYes() {
 
 function obTourNo() {
   document.querySelectorAll('#ob-chat-area .ob-chips:last-of-type .ob-chip').forEach(function(c){ c.disabled=true; c.classList.add('used'); });
-  obAddBubble('user', "I\'ll explore on my own");
+  obAddBubble('user', 'Open my Wellet');
   setTimeout(function(){
-    obTypeThen('Your Wellet is ready — and I\'m here whenever you need me.', function(){
+    obTypeThen('Your Wellet is ready \u2014 and I\u2019m here whenever you need me.', function(){
       obShowAppCTA();
     }, 700);
   }, 200);
@@ -12488,8 +12316,35 @@ function obShowAppCTA() {
 }
 
 async function obFinishAndOpen() {
-  if (currentUser) { await savePersonToSupabase(); }
+  obChat.phase = 'done';
+  obSaveChatState();
   showOwnWellet();
+}
+
+// Called when EHR connect completes during onboarding
+function obOnEhrConnected(hospitalName) {
+  obChat.ehrConnected = true;
+  obChat.ehrHospital = hospitalName || 'your hospital';
+  obSaveChatState();
+  var personName = obChat.personName || 'your loved one';
+  obTypeThen('Connected! I can see ' + escHtml(personName) + '\u2019s records from ' + escHtml(obChat.ehrHospital) + '. I\u2019ll organize everything.', function(){
+    setTimeout(function(){
+      obTypeThen('Anything else you\u2019d like to connect?', obShowConnectChips, 600);
+    }, 400);
+  }, 800);
+}
+
+// Called when Terra device connect completes during onboarding
+function obOnDeviceConnected(provider) {
+  obChat.deviceConnected = true;
+  obChat.deviceProvider = provider || 'your device';
+  obSaveChatState();
+  var personName = obChat.personName || 'your loved one';
+  obTypeThen('Connected to ' + escHtml(obChat.deviceProvider) + '. I\u2019ll start pulling in ' + escHtml(personName) + '\u2019s health data.', function(){
+    setTimeout(function(){
+      obTypeThen('Anything else you\u2019d like to connect?', obShowConnectChips, 600);
+    }, 400);
+  }, 800);
 }
 
 function obScroll() {
@@ -14779,8 +14634,16 @@ window.addEventListener('message', function(event) {
     showToast('Wearable connected successfully', 'success');
     // Refresh signals view if on that tab
     if (typeof renderSignalsView === 'function') { try { renderSignalsView(); } catch(e){} }
+    // Notify chat onboarding if active
+    if (obChat && obChat.phase === 'connect') {
+      obOnDeviceConnected(event.data.provider || 'your device');
+    }
   } else if (event.data.type === 'terra_auth_failure') {
     showToast('Wearable connection was cancelled', 'error');
+    // If in onboarding, re-show connect chips
+    if (obChat && obChat.phase === 'connect') {
+      obTypeThen('No worries \u2014 we can try again later, or you can connect a different way.', obShowConnectChips, 700);
+    }
   }
 });
 
