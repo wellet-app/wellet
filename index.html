@@ -8481,7 +8481,7 @@ function loadEpicEndpoints(cb) {
   } catch(e) {}
 
   // Fetch from Epic
-  fetch('https://open.epic.com/MyApps/EndpointsJson')
+  fetch('https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/epic-endpoints')
     .then(function(res) { return res.json(); })
     .then(function(data) {
       var endpoints = (data.Entries || data).map(function(e) {
