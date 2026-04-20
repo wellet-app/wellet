@@ -7313,6 +7313,10 @@ function obResumeChat() {
   obState.personName = obChat.personName;
   var relMap = { aging_parent: 'parent', partner: 'partner', child: 'child', self: 'self', other: 'other' };
   obState.situation = relMap[obChat.situation] || obChat.situation;
+  // Restore currentPersonId if person was created in this onboarding session
+  if (obChat.personId) {
+    currentPersonId = obChat.personId;
+  }
 
   if (obChat.phase === 'name') {
     obTypeThen('What\u2019s your name?', function(){
@@ -11622,6 +11626,10 @@ function obConnectEhr() {
     showToast('Please sign in first');
     return;
   }
+  if (!currentPersonId) {
+    showToast('Setting up your profile\u2026 please try again in a moment.');
+    return;
+  }
   _obFromEhr = true;
   try { localStorage.setItem('wellet_ob_ehr_return', 'true'); } catch(e) {}
   openSheetAccessible('hospital-picker-overlay');
@@ -11823,6 +11831,8 @@ function obInit() {
   _obExtractedData = null;
   _obFromEhr = false;
   _obEhrPending = null;
+  // Clear currentPersonId so add-person flow doesn't leak the previous person
+  currentPersonId = null;
   var chat = document.getElementById('ob-chat-area');
   chat.innerHTML = '';
   chat.scrollTop = 0;
@@ -11901,7 +11911,7 @@ function obSelectSituation(id, btn) {
   }, 400);
 }
 
-function obSend() {
+async function obSend() {
   var input = document.getElementById('ob-input');
   var val = input.value.trim();
   if (!val) return;
@@ -11925,7 +11935,8 @@ function obSend() {
       obState.personName = val;
       obChat.phase = 'connect';
       obSaveChatState();
-      obCreatePerson();
+      // Await person creation before showing connect chips
+      await obCreatePerson();
       setTimeout(function(){
         obTypeThen('Nice to meet you, ' + escHtml(val) + '. Let\u2019s get your health into one place. What do you have handy right now? You can always come back and add more later.', obShowConnectChips, 850);
       }, 300);
@@ -11947,7 +11958,8 @@ function obSend() {
     obState.personName = val;
     obChat.phase = 'connect';
     obSaveChatState();
-    obCreatePerson();
+    // Await person creation before showing connect chips
+    await obCreatePerson();
     setTimeout(function(){
       obTypeThen('Okay ' + escHtml(obChat.userName) + ' \u2014 let\u2019s get ' + escHtml(val) + '\u2019s health into one place. What do you have handy right now? You can always come back and add more later.', obShowConnectChips, 850);
     }, 300);
@@ -11977,9 +11989,20 @@ function obSend() {
 
 async function obCreatePerson() {
   if (!currentUser) return;
-  var person = await savePersonToSupabase();
-  if (person) {
-    currentPersonId = person.id;
+  try {
+    var person = await savePersonToSupabase();
+    if (person) {
+      currentPersonId = person.id;
+      // Store in obChat so it survives page reloads
+      obChat.personId = person.id;
+      obSaveChatState();
+    } else {
+      console.error('obCreatePerson: savePersonToSupabase returned null');
+      showToast('Could not create person record. Please try again.');
+    }
+  } catch(e) {
+    console.error('obCreatePerson error:', e);
+    showToast('Could not create person record. Please try again.');
   }
 }
 
