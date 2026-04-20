@@ -28,6 +28,7 @@
     --mint: #DCE9E2;
     --mint-deep: #C5D9CE;
     --cream: #F7F5F0;
+    --person-bg: #F7F5F0;
     --warm-white: #FDFCFA;
     --text-primary: #2C2A26;
     --text-secondary: #6B6560;
@@ -44,8 +45,8 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-  body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--text-primary); min-height: 100vh; }
-  .page-wrap { max-width: 768px; margin: 0 auto; background: var(--warm-white); min-height: 100vh; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--person-bg); color: var(--text-primary); min-height: 100vh; transition: background 0.4s ease; }
+  .page-wrap { max-width: 768px; margin: 0 auto; background: var(--person-bg); min-height: 100vh; transition: background 0.4s ease; }
 
   /* ── AUTH SCREEN ── */
   #auth-screen { display: none; flex-direction: column; min-height: 100vh; background: var(--cream); }
@@ -3827,6 +3828,17 @@ const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 var isDemoMode = false;
 var currentUser = null;
 var currentPeople = [];   // [{id, name, relationship, avatar_initials}]
+
+// Subtle per-person background tints (barely perceptible, subliminal context)
+var _personBgPalette = ['#F7F5F0', '#F0F5F2', '#F3F0F6', '#F0F3F7', '#F7F2F0'];
+function applyPersonBg(personId) {
+  var idx = 0;
+  for (var i = 0; i < currentPeople.length; i++) {
+    if (currentPeople[i].id === personId) { idx = i; break; }
+  }
+  var bg = _personBgPalette[idx % _personBgPalette.length];
+  document.documentElement.style.setProperty('--person-bg', bg);
+}
 var currentPersonId = null; // selected person uuid
 var liveEvents = [];      // health_events fetched from DB
 var liveMeds = [];        // medications fetched from DB
@@ -4655,6 +4667,7 @@ async function loadUserData() {
     } else {
       // Returning user — show app with real data
       currentPersonId = currentPeople[0].id;
+      applyPersonBg(currentPersonId);
       await loadPersonData(currentPersonId);
       showAuthenticatedApp();
     }
@@ -4775,6 +4788,7 @@ function renderPersonSwitcher() {
 async function switchToRealPerson(personId, el) {
   document.querySelectorAll('.person-pill').forEach(function(p){ p.classList.remove('active'); });
   el.classList.add('active');
+  applyPersonBg(personId);
   await loadPersonData(personId);
   renderUpdateMe();
   renderTimeline();
@@ -7230,6 +7244,7 @@ function updateSettingsAccount() {
 
 // ── SCREEN TRANSITIONS ────────────────────────────────────────────────────────
 function showAuthScreen() {
+  document.documentElement.style.setProperty('--person-bg', '#F7F5F0');
   document.getElementById('loading-screen').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'flex';
   document.getElementById('landing').style.display = 'none';
@@ -11594,9 +11609,13 @@ function switchNavTo(view) {
 }
 
 function switchPerson(el) {
-  document.querySelectorAll('.person-pill').forEach(function(p){ p.classList.remove('active'); p.setAttribute('aria-selected', 'false'); });
+  var pills = document.querySelectorAll('.person-pill');
+  var idx = 0;
+  pills.forEach(function(p, i){ p.classList.remove('active'); p.setAttribute('aria-selected', 'false'); if (p === el) idx = i; });
   el.classList.add('active');
   el.setAttribute('aria-selected', 'true');
+  var bg = _personBgPalette[idx % _personBgPalette.length];
+  document.documentElement.style.setProperty('--person-bg', bg);
 }
 
 // ── CHAT-FIRST ONBOARDING ENGINE ─────────────────────────────────────────────
