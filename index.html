@@ -3793,7 +3793,7 @@
   <div class="qa-sheet">
     <div class="qa-handle-row">
       <div class="qa-handle"></div>
-      <button class="close-btn" aria-label="Close" onclick="closeSheet('hospital-picker-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+      <button class="close-btn" aria-label="Close" onclick="closeSheet('hospital-picker-overlay'); _ehrConnecting = false;"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
     <div class="qa-sheet-title">Connect Health Records</div>
     <div class="qa-sheet-sub">Search for your hospital or health system</div>
@@ -7828,6 +7828,19 @@ async function reconcileMedication(personId, newMed, dedupResult) {
 var ehrCache = {}; // { personId: { data: {...}, synced_at: '...' } }
 var _ehrConnecting = false;
 var _ehrPendingPersonId = null;
+
+// Reset EHR connecting state on back-button/page restore (bfcache)
+window.addEventListener('pageshow', function(e) {
+  if (e.persisted || performance.getEntriesByType('navigation')[0]?.type === 'back_forward') {
+    _ehrConnecting = false;
+    _ehrPendingPersonId = null;
+    // Close hospital picker if it was open
+    var picker = document.getElementById('hospital-picker-overlay');
+    if (picker && picker.classList.contains('open')) {
+      closeSheet('hospital-picker-overlay');
+    }
+  }
+});
 
 // Demo EHR data for Dad
 var DEMO_EHR_DATA = {
