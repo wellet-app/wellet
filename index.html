@@ -1443,10 +1443,103 @@
   .plan-card-meta { font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 10px; }
   .plan-card-action { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 500; color: var(--moss-text); background: none; border: none; font-family: 'DM Sans', sans-serif; cursor: pointer; padding: 0; }
   .plan-card-action:hover { text-decoration: underline; }
+
+  /* ── OFFLINE BANNER ── */
+  .offline-banner {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 500;
+    background: #C97B2C; color: white; text-align: center;
+    font-size: 13px; font-weight: 500; font-family: 'DM Sans', sans-serif;
+    padding: 6px 16px; display: none; align-items: center; justify-content: center; gap: 8px;
+    transition: transform 0.3s ease;
+  }
+  .offline-banner.visible { display: flex; }
+  .offline-banner i { width: 14px; height: 14px; }
+  .back-online-toast {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 500;
+    background: var(--moss); color: white; text-align: center;
+    font-size: 13px; font-weight: 500; font-family: 'DM Sans', sans-serif;
+    padding: 6px 16px; display: flex; align-items: center; justify-content: center; gap: 8px;
+    animation: slideDown 0.3s ease, fadeOut 0.4s ease 2s forwards;
+  }
+  @keyframes slideDown { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+  @keyframes fadeOut { to { opacity: 0; } }
+
+  /* ── SKELETON LOADING ── */
+  @keyframes shimmer {
+    0% { background-position: -400px 0; }
+    100% { background-position: 400px 0; }
+  }
+  .skeleton {
+    background: linear-gradient(90deg, var(--mint) 25%, var(--cream) 50%, var(--mint) 75%);
+    background-size: 800px 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+    border-radius: 12px;
+  }
+  .skeleton-card {
+    height: 72px; border-radius: 16px; margin-bottom: 10px;
+    background: linear-gradient(90deg, var(--mint) 25%, var(--cream) 50%, var(--mint) 75%);
+    background-size: 800px 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+  .skeleton-line {
+    height: 14px; border-radius: 7px; margin-bottom: 8px;
+    background: linear-gradient(90deg, var(--mint) 25%, var(--cream) 50%, var(--mint) 75%);
+    background-size: 800px 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+  .skeleton-line.short { width: 60%; }
+  .skeleton-line.medium { width: 80%; }
+  .skeleton-circle {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: linear-gradient(90deg, var(--mint) 25%, var(--cream) 50%, var(--mint) 75%);
+    background-size: 800px 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  .skeleton-wrap { padding: 16px; }
+
+  /* Pull-to-refresh indicator */
+  .pull-refresh-indicator {
+    text-align: center;
+    padding: 0;
+    color: var(--moss);
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    transition: opacity 0.2s, max-height 0.3s ease;
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+  }
+  .pull-refresh-indicator.visible {
+    max-height: 60px;
+    opacity: 1;
+    padding: 12px;
+  }
+  .pull-refresh-indicator.refreshing .pull-refresh-spinner {
+    display: inline-block;
+    animation: ptr-spin 0.8s linear infinite;
+  }
+  .pull-refresh-spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes ptr-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
 </style>
 </head>
 <body>
 <div class="page-wrap">
+
+<!-- OFFLINE BANNER -->
+<div id="offline-banner" class="offline-banner">
+  <i data-lucide="wifi-off"></i>
+  <span>You're offline — some features may be limited</span>
+</div>
 
 <!-- LOADING SCREEN -->
 <div id="loading-screen">
@@ -1721,8 +1814,15 @@
   <div class="app-body">
     <div id="view-home" class="app-view active">
 
+    <!-- PULL TO REFRESH INDICATOR -->
+    <div id="pull-refresh-indicator" class="pull-refresh-indicator">
+      <svg class="pull-refresh-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+      <span class="pull-refresh-text">Pull to refresh</span>
+    </div>
+
     <!-- UPDATE ME -->
     <div id="tab-update" class="tab-pane active" role="tabpanel" aria-labelledby="tab-btn-update">
+      <div id="demo-home-dad">
       <div class="update-me-section">
         <div class="update-card">
           <div class="update-label">What's going on with Dad right now</div>
@@ -1738,7 +1838,7 @@
           <div class="visit-prep-title">Prepare for visit</div>
           <div class="visit-prep-sub">AI questions based on recent health changes</div>
         </div>
-        <button class="visit-prep-btn" onclick="generateVisitQuestions()">Generate →</button>
+        <button class="visit-prep-btn" onclick="openVisitPrep(false)">Prepare →</button>
       </div>
       <div class="alert-banner">
         <div class="alert-icon"><i data-lucide="triangle-alert" style="width:16px;height:16px;"></i></div>
@@ -1750,7 +1850,7 @@
       <div class="quick-actions">
         <button class="qa-btn" onclick="openEmergencySummary()"><span class="qa-icon"><i data-lucide="file-heart" style="width:18px;height:18px;"></i></span>Emergency summary</button>
         <button class="qa-btn" onclick="openShareFamily()"><span class="qa-icon"><i data-lucide="share-2" style="width:18px;height:18px;"></i></span>Share with family</button>
-        <button class="qa-btn" onclick="openExportVisit()"><span class="qa-icon"><i data-lucide="chart-line" style="width:18px;height:18px;"></i></span>Export for visit</button>
+        <button class="qa-btn" onclick="openExportVisit()"><span class="qa-icon"><i data-lucide="file-text" style="width:18px;height:18px;"></i></span>Export for visit</button>
       </div>
       <div class="timeline-section" style="margin-top:16px;">
         <p class="section-label">Recent activity</p>
@@ -1785,6 +1885,63 @@
           </div>
         </div>
       </div>
+      </div><!-- end demo-home-dad -->
+      <div id="demo-home-mom" style="display:none;">
+      <div class="update-me-section">
+        <div class="update-card">
+          <div class="update-label">What's going on with Mom right now</div>
+          <p class="update-text">Mom has been managing her <strong>Type 2 diabetes</strong> well — her last A1C was <strong>6.8%</strong>, down from 7.1% in October. She started a <strong>new walking routine</strong> three weeks ago and has been consistent. Her rheumatologist adjusted her <strong>Methotrexate</strong> last month for her RA, and she’s reporting less joint stiffness in the mornings. Next visit is <strong>April 2nd</strong> with Endocrinology.</p>
+          <div class="update-meta">Generated from 31 health events · <a>Ask a follow-up</a></div>
+        </div>
+      </div>
+      <div class="visit-prep-card">
+        <div class="visit-prep-icon">
+          <i data-lucide="calendar-check" style="width:16px;height:16px;"></i>
+        </div>
+        <div>
+          <div class="visit-prep-title">Prepare for visit</div>
+          <div class="visit-prep-sub">AI questions based on recent health changes</div>
+        </div>
+        <button class="visit-prep-btn" onclick="openVisitPrep(false)">Prepare →</button>
+      </div>
+      <div class="quick-actions">
+        <button class="qa-btn" onclick="openEmergencySummary()"><span class="qa-icon"><i data-lucide="file-heart" style="width:18px;height:18px;"></i></span>Emergency summary</button>
+        <button class="qa-btn" onclick="openShareFamily()"><span class="qa-icon"><i data-lucide="share-2" style="width:18px;height:18px;"></i></span>Share with family</button>
+        <button class="qa-btn" onclick="openExportVisit()"><span class="qa-icon"><i data-lucide="file-text" style="width:18px;height:18px;"></i></span>Export for visit</button>
+      </div>
+      <div class="timeline-section" style="margin-top:16px;">
+        <p class="section-label">Recent activity</p>
+        <div>
+          <div class="tl-item">
+            <div class="tl-line-col"><div class="tl-dot appt" aria-hidden="true"></div><div class="tl-connector"></div></div>
+            <div class="tl-card moss-border">
+              <div class="tl-card-type-row"><i data-lucide="calendar-check" style="width:11px;height:11px;color:var(--moss);"></i><span class="tl-card-type appt">Appointment</span></div>
+              <div class="tl-card-title">Rheumatology follow-up — Dr. Park</div>
+              <div class="tl-card-body">Methotrexate dose adjusted. Morning stiffness improving. Continue current regimen.</div>
+              <div class="tl-card-date">February 28, 2026</div>
+            </div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-line-col"><div class="tl-dot med" aria-hidden="true"></div><div class="tl-connector"></div></div>
+            <div class="tl-card amber-border">
+              <div class="tl-card-type-row"><i data-lucide="pill" style="width:11px;height:11px;color:var(--amber);"></i><span class="tl-card-type med">Medication change</span></div>
+              <div class="tl-card-title">Methotrexate adjusted</div>
+              <div class="tl-card-body">Reduced from 15mg to 12.5mg weekly per Dr. Park.</div>
+              <div class="tl-card-date">February 28, 2026</div>
+            </div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-line-col"><div class="tl-dot lab" aria-hidden="true"></div></div>
+            <div class="tl-card blue-border">
+              <div class="tl-card-type-row"><i data-lucide="flask-conical" style="width:11px;height:11px;color:var(--blue);"></i><span class="tl-card-type lab">Lab result</span></div>
+              <div class="tl-card-title">A1C — 6.8%</div>
+              <div class="tl-card-body">Down from 7.1% in October. Endocrinologist pleased with progress.</div>
+              <div class="tl-card-date">February 15, 2026</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      </div><!-- end demo-home-mom -->
     </div>
 
     <!-- TIMELINE -->
@@ -4789,7 +4946,9 @@ async function switchToRealPerson(personId, el) {
   document.querySelectorAll('.person-pill').forEach(function(p){ p.classList.remove('active'); });
   el.classList.add('active');
   applyPersonBg(personId);
+  showSkeletons();
   await loadPersonData(personId);
+  hideSkeletons();
   renderUpdateMe();
   renderTimeline();
   renderPatterns();
@@ -5029,7 +5188,7 @@ function detectPatternAlerts(personName) {
     alerts.push({
       key: 'medchanges:' + new Date().toDateString(),
       title: 'Multiple medication changes',
-      body: recentMedChanges.length + ' medication changes in the last two weeks. Wellet is tracking how these are going.'
+      body: recentMedChanges.length + ' medication changes in the last two weeks. Wellet is following how these are going.'
     });
   }
 
@@ -5206,6 +5365,7 @@ function confirmRemovePerson(personId, personName) {
   _cardToRemoveId = personId;
   document.getElementById('modal-person-name').textContent = personName;
   document.getElementById('remove-modal').classList.add('show');
+  history.pushState({ type: 'modal' }, '');
   initIcons();
 }
 
@@ -5785,6 +5945,7 @@ function relativeTime(dateStr) {
   var now = Date.now();
   var then = new Date(dateStr).getTime();
   var diff = now - then;
+  if (diff < 0) return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   var mins = Math.floor(diff / 60000);
   if (mins < 1) return 'Just now';
   if (mins < 60) return mins + ' min ago';
@@ -5793,7 +5954,13 @@ function relativeTime(dateStr) {
   var days = Math.floor(hours / 24);
   if (days === 1) return 'Yesterday';
   if (days < 7) return days + ' days ago';
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  var weeks = Math.floor(days / 7);
+  if (weeks === 1) return '1 week ago';
+  if (weeks < 5) return weeks + ' weeks ago';
+  var months = Math.floor(days / 30);
+  if (months === 1) return '1 month ago';
+  if (months < 12) return months + ' months ago';
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 // ── DOCUMENT VIEWER / DOWNLOAD ──────────────────────────────────────────────
@@ -6995,16 +7162,37 @@ function cancelDeleteEvent() {
 }
 
 async function deleteEvent() {
-  var { error } = await db.from('health_events').delete().eq('id', _editingEventId);
-  if (error) { showToast('Error deleting: ' + error.message); return; }
-
+  var eventId = _editingEventId;
+  // Remove from local arrays immediately for responsive UI
+  var removed = liveEvents.find(function(e){ return e.id === eventId; });
+  liveEvents = liveEvents.filter(function(e){ return e.id !== eventId; });
   closeSheet('edit-event-overlay');
-  showToast('Event deleted');
-  await loadPersonData(currentPersonId);
   renderUpdateMe();
   renderTimeline();
   renderRecordsView();
   renderPatterns();
+
+  // Delayed delete with undo
+  if (_undoTimer) clearTimeout(_undoTimer);
+  _undoTimer = setTimeout(async function() {
+    var { error } = await db.from('health_events').delete().eq('id', eventId);
+    if (error) {
+      showToast('Error deleting: ' + error.message);
+      if (removed) liveEvents.push(removed);
+      renderTimeline();
+    }
+    _undoTimer = null;
+  }, 5000);
+  showToast('Event deleted', { duration: 5000, undo: function() {
+    clearTimeout(_undoTimer);
+    _undoTimer = null;
+    if (removed) liveEvents.push(removed);
+    renderUpdateMe();
+    renderTimeline();
+    renderRecordsView();
+    renderPatterns();
+    showToast('Event restored');
+  }});
 }
 
 // ── EDIT/DELETE MEDICATION ───────────────────────────────────────────────────
@@ -7083,15 +7271,33 @@ function cancelDeleteMed() {
 }
 
 async function deleteMed() {
-  var { error } = await db.from('medications').delete().eq('id', _editingMedId);
-  if (error) { showToast('Error deleting: ' + error.message); return; }
-
+  var medId = _editingMedId;
+  var removed = liveMeds.find(function(m){ return m.id === medId; });
+  liveMeds = liveMeds.filter(function(m){ return m.id !== medId; });
   closeSheet('edit-med-overlay');
-  showToast('Medication deleted');
-  await loadPersonData(currentPersonId);
   renderRecordsView();
   renderUpdateMe();
   renderPatterns();
+
+  if (_undoTimer) clearTimeout(_undoTimer);
+  _undoTimer = setTimeout(async function() {
+    var { error } = await db.from('medications').delete().eq('id', medId);
+    if (error) {
+      showToast('Error deleting: ' + error.message);
+      if (removed) liveMeds.push(removed);
+      renderRecordsView();
+    }
+    _undoTimer = null;
+  }, 5000);
+  showToast('Medication deleted', { duration: 5000, undo: function() {
+    clearTimeout(_undoTimer);
+    _undoTimer = null;
+    if (removed) liveMeds.push(removed);
+    renderRecordsView();
+    renderUpdateMe();
+    renderPatterns();
+    showToast('Medication restored');
+  }});
 }
 
 // ── RENDER PATTERNS (dynamic for authenticated users) ────────────────────────
@@ -7189,7 +7395,7 @@ function renderPatterns() {
   if (recentMedChanges > 0) narrativeParts.push(recentMedChanges + ' medication change' + (recentMedChanges > 1 ? 's' : '') + ' this month');
   if (recentLabs > 0) narrativeParts.push(recentLabs + ' lab result' + (recentLabs > 1 ? 's' : '') + ' recorded recently');
   if (recentNotes > 0) narrativeParts.push(recentNotes + ' caregiver note' + (recentNotes > 1 ? 's' : '') + ' logged');
-  if (activeMedCount > 0) narrativeParts.push(activeMedCount + ' active medication' + (activeMedCount > 1 ? 's' : '') + ' being tracked');
+  if (activeMedCount > 0) narrativeParts.push(activeMedCount + ' active medication' + (activeMedCount > 1 ? 's' : '') + ' in the picture');
   if (narrativeParts.length === 0) narrativeParts.push('Events are being recorded \u2014 patterns will become clearer over time');
 
   var narrative = narrativeParts.join('. ') + '.';
@@ -7304,6 +7510,7 @@ function showOnboarding() {
   document.getElementById('ob-chat-screen').style.display = 'flex';
   // Clear any old wizard localStorage
   try { localStorage.removeItem('wellet_ob_ehr_return'); } catch(e) {}
+  history.pushState({ type: 'onboarding' }, '');
   window.scrollTo(0, 0);
   initIcons();
   // Start chat onboarding (or resume if state exists)
@@ -7440,6 +7647,11 @@ function getEventTypeInfo(type) {
 function formatEventDate(dateStr) {
   if (!dateStr) return '';
   var d = new Date(dateStr);
+  var diff = Date.now() - d.getTime();
+  var days = Math.floor(diff / 86400000);
+  // Recent events get relative time
+  if (diff >= 0 && days < 30) return relativeTime(dateStr);
+  // Older events get absolute date
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
@@ -7930,7 +8142,7 @@ var DEMO_CARESIGNALS = {
       sources: ['Bedroom sensor', 'Fridge sensor', 'Apple Watch'] },
     { title: 'Medication adherence improving', accent: 'moss', icon: 'trending-up',
       body: 'Missed doses decreased from 4 last week to 1 this week. The medicine cabinet sensor confirms morning doses are being taken within the 8:00\u20138:30 AM window.',
-      sources: ['Medicine cabinet', 'Medication tracker'] },
+      sources: ['Medicine cabinet', 'Medication log'] },
     { title: 'Afternoon activity has decreased', accent: 'amber', icon: 'alert-triangle',
       body: 'Hallway motion events between 1\u20134 PM dropped 35% compared to last week. This may reflect increased fatigue or a change in routine worth mentioning at the next visit.',
       sources: ['Hallway sensor', 'Apple Watch'] },
@@ -9433,6 +9645,7 @@ function confirmRemove(name, btn) {
   _cardToRemoveId = null;
   document.getElementById('modal-person-name').textContent = name;
   document.getElementById('remove-modal').classList.add('show');
+  history.pushState({ type: 'modal' }, '');
   initIcons();
 }
 
@@ -9812,6 +10025,8 @@ function openSheetAccessible(id, triggerEl) {
   sheet.classList.add('show');
   sheet.setAttribute('role', 'dialog');
   sheet.setAttribute('aria-modal', 'true');
+  // Push history state for back button support
+  history.pushState({ type: 'sheet', id: id }, '');
   var heading = sheet.querySelector('h2, h3, .qa-sheet-title, .er-header-title, .settings-title');
   if (heading) {
     if (!heading.id) heading.id = id + '-title';
@@ -9866,13 +10081,25 @@ function setFormat(btn) {
   btn.closest('.format-toggle').querySelectorAll('.format-btn').forEach(function(b){ b.classList.remove('active'); });
   btn.classList.add('active');
 }
-function showToast(msg) {
+function showToast(msg, opts) {
   var toast = document.createElement('div');
-  toast.textContent = msg;
-  toast.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#2C2A26;color:white;padding:10px 18px;border-radius:20px;font-size:13px;font-family:DM Sans,sans-serif;z-index:300;opacity:1;transition:opacity 0.4s;white-space:nowrap;';
+  toast.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#2C2A26;color:white;padding:10px 18px;border-radius:20px;font-size:13px;font-family:DM Sans,sans-serif;z-index:300;opacity:1;transition:opacity 0.4s;display:flex;align-items:center;gap:10px;max-width:90vw;';
+  var span = document.createElement('span');
+  span.textContent = msg;
+  toast.appendChild(span);
+  if (opts && opts.undo) {
+    var undoBtn = document.createElement('button');
+    undoBtn.textContent = 'Undo';
+    undoBtn.style.cssText = 'background:none;border:none;color:var(--mint);font-weight:600;font-size:13px;cursor:pointer;font-family:DM Sans,sans-serif;padding:0;white-space:nowrap;';
+    undoBtn.onclick = function() { opts.undo(); toast.remove(); };
+    toast.appendChild(undoBtn);
+  }
   document.body.appendChild(toast);
-  setTimeout(function() { toast.style.opacity='0'; setTimeout(function() { toast.remove(); }, 400); }, 2000);
+  var dur = (opts && opts.duration) || 2000;
+  setTimeout(function() { toast.style.opacity='0'; setTimeout(function() { toast.remove(); }, 400); }, dur);
+  return toast;
 }
+var _undoTimer = null;
 
 // ── ALPHA FEATURE NOTICE ─────────────────────────────────────────────────
 function showAlphaFeatureNotice(featureName, message) {
@@ -11583,7 +11810,7 @@ function switchTab(el, id) {
   document.getElementById('tab-'+id).classList.add('active');
 }
 
-function switchNavTo(view) {
+function switchNavTo(view, skipPush) {
   document.querySelectorAll('.app-view').forEach(function(v){ v.classList.remove('active'); });
   var viewEl = document.getElementById('view-' + view);
   if (!viewEl) { console.warn('switchNavTo: no view for', view); return; }
@@ -11601,6 +11828,11 @@ function switchNavTo(view) {
   if (view === 'resources') { renderResourcesView(); }
   if (view === 'ask' && !isDemoMode) { renderAskView(); }
   if (view === 'settings') { updateSettingsViewAccount(); }
+  // Push history state for back button support
+  if (!skipPush && view !== _currentNavView) {
+    history.pushState({ type: 'tab', view: view }, '');
+  }
+  _currentNavView = view;
   // Let guided demo handle its own scrolling; otherwise scroll to top
   if (new URLSearchParams(window.location.search).get('demo') !== 'guided') {
     window.scrollTo(0, 0);
@@ -11608,7 +11840,7 @@ function switchNavTo(view) {
   initIcons();
 }
 
-function switchPerson(el) {
+function switchPerson(el, personKey) {
   var pills = document.querySelectorAll('.person-pill');
   var idx = 0;
   pills.forEach(function(p, i){ p.classList.remove('active'); p.setAttribute('aria-selected', 'false'); if (p === el) idx = i; });
@@ -11616,6 +11848,16 @@ function switchPerson(el) {
   el.setAttribute('aria-selected', 'true');
   var bg = _personBgPalette[idx % _personBgPalette.length];
   document.documentElement.style.setProperty('--person-bg', bg);
+  // Toggle demo home content
+  if (isDemoMode) {
+    var dadBlock = document.getElementById('demo-home-dad');
+    var momBlock = document.getElementById('demo-home-mom');
+    if (dadBlock && momBlock) {
+      dadBlock.style.display = personKey === 'mom' ? 'none' : 'block';
+      momBlock.style.display = personKey === 'mom' ? 'block' : 'none';
+      initIcons();
+    }
+  }
 }
 
 // ── CHAT-FIRST ONBOARDING ENGINE ─────────────────────────────────────────────
@@ -12149,7 +12391,7 @@ function obStartPhotoCapture() {
 function obStartDeviceConnect() {
   var personName = obChat.personName || 'your loved one';
   setTimeout(function(){
-    obTypeThen('I can connect to fitness trackers, smartwatches, and other health devices to pull in vitals, activity, and sleep data.', function(){
+    obTypeThen('I can connect to wearables, smartwatches, and other health devices to pull in vitals, activity, and sleep data.', function(){
       if (!currentPersonId) {
         obAddBubble('wellet', 'I\u2019ll set this up once your account is ready. Let\u2019s keep going.');
         setTimeout(obShowConnectChips, 600);
@@ -14076,12 +14318,12 @@ function startEocFlow(personId) {
   // Populate step 1
   document.getElementById('eoc-ack-heading').textContent = _eocPersonName + '\u2019s story matters.';
   document.getElementById('eoc-ack-body').innerHTML =
-    'The care you gave ' + escHtml(_eocPersonName) + ' \u2014 every appointment tracked, every medication managed, every late-night worry \u2014 that mattered. All of it.'
+    'The care you gave ' + escHtml(_eocPersonName) + ' \u2014 every appointment noted, every medication managed, every late-night worry \u2014 that mattered. All of it.'
     + '<br><br>There\u2019s no timeline here. You can come back to these options whenever you\u2019re ready \u2014 tomorrow, next week, or next month.';
 
   // Populate step 2
   document.getElementById('eoc-archive-heading').textContent = 'Preserve ' + _eocPersonName + '\u2019s Care History';
-  document.getElementById('eoc-archive-body').textContent = 'Everything you tracked for ' + _eocPersonName + ' can be saved as a personal archive.';
+  document.getElementById('eoc-archive-body').textContent = 'Everything you gathered for ' + _eocPersonName + ' can be saved as a personal archive.';
 
   // Populate step 3
   document.getElementById('eoc-fund-donate-label').textContent = 'Donate my remaining days to the Wellet Community Fund in ' + _eocPersonName + '\u2019s memory';
@@ -15307,6 +15549,7 @@ function openSearch() {
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
   overlay.setAttribute('aria-label', 'Search');
+  history.pushState({ type: 'sheet', id: 'search-overlay' }, '');
   _searchActive = true;
   var inp = document.getElementById('search-input');
   inp.value = '';
@@ -15362,6 +15605,53 @@ async function performSearch(query) {
 
   var results = [];
 
+  // Demo mode: search demo data
+  if (isDemoMode) {
+    // Demo people
+    var demoPeople = [
+      { name: 'John Bell', subtitle: 'Dad, 71 · CML, Hypertension, Knee rehab', icon: 'user' },
+      { name: 'Mary Bell', subtitle: 'Mom, 68 · Type 2 Diabetes, Rheumatoid Arthritis', icon: 'user' }
+    ];
+    demoPeople.forEach(function(p) {
+      if (p.name.toLowerCase().indexOf(q) >= 0 || p.subtitle.toLowerCase().indexOf(q) >= 0) {
+        results.push({ type: 'person', title: p.name, subtitle: p.subtitle, icon: p.icon });
+      }
+    });
+    // Demo meds from _demoMedDetails
+    if (typeof _demoMedDetails !== 'undefined') {
+      Object.keys(_demoMedDetails).forEach(function(key) {
+        var m = _demoMedDetails[key];
+        if (key.toLowerCase().indexOf(q) >= 0 || (m.generic && m.generic.toLowerCase().indexOf(q) >= 0)) {
+          results.push({ type: 'medication', title: key, subtitle: m.dosage || 'Medication', icon: 'pill' });
+        }
+      });
+    }
+    // Demo events
+    var demoEvents = [
+      { title: 'Annual physical \u2014 Dr. Waite', type: 'Appointment', date: 'Jan 12' },
+      { title: 'Hydrochlorothiazide adjusted', type: 'Medication change', date: 'Feb 18' },
+      { title: 'BP elevated since dose change', type: 'Pattern noticed', date: 'This week' },
+      { title: 'Rheumatology follow-up \u2014 Dr. Park', type: 'Appointment', date: 'Feb 28' },
+      { title: 'Methotrexate adjusted', type: 'Medication change', date: 'Feb 28' },
+      { title: 'A1C \u2014 6.8%', type: 'Lab result', date: 'Feb 15' }
+    ];
+    demoEvents.forEach(function(ev) {
+      if (ev.title.toLowerCase().indexOf(q) >= 0 || ev.type.toLowerCase().indexOf(q) >= 0) {
+        results.push({ type: 'event', title: ev.title, subtitle: ev.type + ' \u00b7 ' + ev.date, icon: 'calendar' });
+      }
+    });
+    // Demo allergies
+    var demoAllergies = [
+      { name: 'Sulfonamide Antibiotics', reaction: 'Rash, hives (Duke Health)' }
+    ];
+    demoAllergies.forEach(function(a) {
+      if (a.name.toLowerCase().indexOf(q) >= 0 || a.reaction.toLowerCase().indexOf(q) >= 0) {
+        results.push({ type: 'allergy', title: a.name, subtitle: a.reaction, icon: 'alert-triangle' });
+      }
+    });
+    return results;
+  }
+
   // 1. People
   if (typeof currentPeople !== 'undefined' && currentPeople) {
     currentPeople.forEach(function(p) {
@@ -15375,8 +15665,8 @@ async function performSearch(query) {
   }
 
   // 2. Medications
-  if (typeof currentMeds !== 'undefined' && currentMeds) {
-    currentMeds.forEach(function(m) {
+  if (typeof liveMeds !== 'undefined' && liveMeds) {
+    liveMeds.forEach(function(m) {
       if (!m) return;
       var name = m.name || '';
       var dosage = m.dosage || '';
@@ -15387,8 +15677,8 @@ async function performSearch(query) {
   }
 
   // 3. Allergies
-  if (typeof currentAllergies !== 'undefined' && currentAllergies) {
-    currentAllergies.forEach(function(a) {
+  if (typeof liveAllergies !== 'undefined' && liveAllergies) {
+    liveAllergies.forEach(function(a) {
       if (!a) return;
       var name = a.substance || a.name || '';
       if (name.toLowerCase().indexOf(q) >= 0) {
@@ -16407,6 +16697,181 @@ function maybeShowOnboardTooltips() {
     _showOnboardTooltip(0);
     document.addEventListener('click', _advanceOnboard);
   }, 1200);
+}
+
+// ── BROWSER BACK BUTTON SUPPORT (pushState / popstate) ────────────────────────
+var _navHistoryActive = true;
+var _currentNavView = 'home';
+
+// Set initial state so first back press has somewhere to go
+history.replaceState({ type: 'tab', view: 'home' }, '');
+
+window.addEventListener('popstate', function(e) {
+  var state = e.state;
+  if (!state) {
+    switchNavTo('home', true);
+    return;
+  }
+  if (state.type === 'sheet') {
+    var sheetEl = document.getElementById(state.id);
+    if (sheetEl && sheetEl.classList.contains('show')) {
+      if (state.id === 'search-overlay') {
+        closeSearch();
+      } else {
+        closeSheetAccessible(state.id);
+      }
+    }
+  } else if (state.type === 'modal') {
+    closeModal();
+  } else if (state.type === 'tab') {
+    switchNavTo(state.view, true);
+  } else if (state.type === 'onboarding') {
+    var appEl = document.getElementById('app');
+    if (appEl && appEl.style.display !== 'none') {
+      document.getElementById('onboarding').style.display = 'none';
+    }
+  }
+});
+
+// ── PULL-TO-REFRESH ON HOME TAB ────────────────────────────────────────────
+var _ptrStartY = 0;
+var _ptrActive = false;
+var _ptrRefreshing = false;
+var _ptrThreshold = 60;
+
+document.addEventListener('touchstart', function(e) {
+  if (_ptrRefreshing) return;
+  var homeView = document.getElementById('view-home');
+  if (!homeView || !homeView.classList.contains('active')) return;
+  if (window.scrollY > 0) return;
+  _ptrStartY = e.touches[0].clientY;
+  _ptrActive = true;
+}, { passive: true });
+
+document.addEventListener('touchmove', function(e) {
+  if (!_ptrActive || _ptrRefreshing) return;
+  if (window.scrollY > 0) { _ptrActive = false; return; }
+  var delta = e.touches[0].clientY - _ptrStartY;
+  if (delta < 0) return;
+  var indicator = document.getElementById('pull-refresh-indicator');
+  if (!indicator) return;
+  if (delta > 10) {
+    indicator.classList.add('visible');
+    var text = indicator.querySelector('.pull-refresh-text');
+    if (delta >= _ptrThreshold) {
+      if (text) text.textContent = 'Release to refresh';
+    } else {
+      if (text) text.textContent = 'Pull to refresh';
+    }
+  }
+}, { passive: true });
+
+document.addEventListener('touchend', function() {
+  if (!_ptrActive || _ptrRefreshing) return;
+  _ptrActive = false;
+  var indicator = document.getElementById('pull-refresh-indicator');
+  if (!indicator) return;
+  if (!indicator.classList.contains('visible')) return;
+  var text = indicator.querySelector('.pull-refresh-text');
+  if (text && text.textContent === 'Release to refresh') {
+    _ptrRefreshing = true;
+    indicator.classList.add('refreshing');
+    if (text) text.textContent = 'Refreshing\u2026';
+    var doRefresh = function() {
+      if (currentPersonId && !isDemoMode) {
+        loadPersonData(currentPersonId).then(function() {
+          renderUpdateMe();
+          renderTimeline();
+          renderPatterns();
+          initIcons();
+          _ptrFinish();
+        }).catch(function() { _ptrFinish(); });
+      } else if (isDemoMode) {
+        renderUpdateMe();
+        renderTimeline();
+        renderPatterns();
+        initIcons();
+        setTimeout(_ptrFinish, 600);
+      } else {
+        _ptrFinish();
+      }
+    };
+    doRefresh();
+  } else {
+    indicator.classList.remove('visible');
+  }
+}, { passive: true });
+
+function _ptrFinish() {
+  _ptrRefreshing = false;
+  var indicator = document.getElementById('pull-refresh-indicator');
+  if (!indicator) return;
+  var text = indicator.querySelector('.pull-refresh-text');
+  indicator.classList.remove('refreshing');
+  if (text) text.textContent = 'Updated just now';
+  var meta = document.getElementById('header-meta-text');
+  if (meta) meta.textContent = 'Updated just now';
+  setTimeout(function() { indicator.classList.remove('visible'); }, 1200);
+}
+
+// ── OFFLINE BANNER + GRACEFUL DEGRADATION ───────────────────────────────
+var _wasOffline = !navigator.onLine;
+
+function updateOfflineBanner() {
+  var banner = document.getElementById('offline-banner');
+  if (!banner) return;
+  if (!navigator.onLine) {
+    banner.classList.add('visible');
+    _wasOffline = true;
+    initIcons();
+  } else {
+    banner.classList.remove('visible');
+    if (_wasOffline) {
+      _wasOffline = false;
+      // Show "back online" confirmation
+      var toast = document.createElement('div');
+      toast.className = 'back-online-toast';
+      toast.innerHTML = '<i data-lucide="wifi" style="width:14px;height:14px;"></i> Back online';
+      document.body.appendChild(toast);
+      initIcons();
+      setTimeout(function() { toast.remove(); }, 2800);
+    }
+  }
+}
+
+window.addEventListener('online', updateOfflineBanner);
+window.addEventListener('offline', updateOfflineBanner);
+// Check on load
+if (!navigator.onLine) updateOfflineBanner();
+
+// ── SKELETON LOADING STATES ──────────────────────────────────────────────
+function showSkeletons() {
+  var pane = document.getElementById('tab-update');
+  if (!pane) return;
+  // Save existing content reference for restore
+  pane.setAttribute('data-skeleton-active', 'true');
+  var skHtml = '<div class="skeleton-wrap">';
+  // Mimic update card
+  skHtml += '<div class="skeleton-card" style="height:100px;"></div>';
+  // Mimic alert card
+  skHtml += '<div class="skeleton-card" style="height:64px;"></div>';
+  // Mimic quick actions row
+  skHtml += '<div style="display:flex;gap:10px;margin-bottom:14px;">';
+  skHtml += '<div class="skeleton" style="height:36px;flex:1;"></div>';
+  skHtml += '<div class="skeleton" style="height:36px;flex:1;"></div>';
+  skHtml += '<div class="skeleton" style="height:36px;flex:1;"></div>';
+  skHtml += '</div>';
+  // Mimic timeline cards
+  skHtml += '<div class="skeleton-card"></div>';
+  skHtml += '<div class="skeleton-card"></div>';
+  skHtml += '<div class="skeleton-card"></div>';
+  skHtml += '</div>';
+  pane.innerHTML = skHtml;
+}
+
+function hideSkeletons() {
+  var pane = document.getElementById('tab-update');
+  if (pane) pane.removeAttribute('data-skeleton-active');
 }
 
 </script>
