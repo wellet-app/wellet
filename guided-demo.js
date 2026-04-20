@@ -151,13 +151,13 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
     {
       audio: '10b-emergency.mp3',
       caption: 'And if you ever need it \u2014 one tap gets you the ER summary. Everything a doctor needs to treat the person you care for, in seconds.',
-      duration: 7000,
+      duration: 9000,
       action: function() {
         gdClearHighlight();
         openEmergencySummary();
         setTimeout(function() {
           closeSheet('emergency-overlay');
-        }, 5000);
+        }, 8000);
       }
     },
     // 11 — Closing with end card
