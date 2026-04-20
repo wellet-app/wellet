@@ -4668,13 +4668,9 @@ document.addEventListener('keydown', function(e) {
 
 async function checkAlphaAllowlist(email) {
   var normalized = email.toLowerCase().trim();
-  var { data, error } = await db
-    .from('alpha_allowlist')
-    .select('id')
-    .eq('email', normalized)
-    .maybeSingle();
+  var { data, error } = await db.rpc('check_alpha_allowlist', { check_email: normalized });
   if (error) { console.error('Allowlist check error:', error); return false; }
-  return !!data;
+  return data === true;
 }
 
 async function sendMagicLink() {
@@ -4782,7 +4778,7 @@ function clearPhiFromStorage() {
     var keysToRemove = [];
     for (var i = 0; i < localStorage.length; i++) {
       var k = localStorage.key(i);
-      if (k && (k.indexOf('wellet_ehr_') === 0 || k.indexOf('wellet_er_brief_') === 0)) {
+      if (k && (k.indexOf('wellet_ehr_') === 0 || k.indexOf('wellet_er_brief_') === 0 || k.indexOf('wellet_visit_prep_') === 0 || k === 'wellet_ob_chat')) {
         keysToRemove.push(k);
       }
     }

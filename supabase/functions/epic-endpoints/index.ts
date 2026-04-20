@@ -1,14 +1,11 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey, x-client-info",
-};
+Deno.serve(async (req) => {
+  const cors = getCorsHeaders(req);
+  cors["Access-Control-Allow-Methods"] = "GET, OPTIONS";
 
-serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: CORS_HEADERS });
+    return new Response(null, { headers: cors });
   }
 
   try {
@@ -17,7 +14,7 @@ serve(async (req) => {
 
     return new Response(JSON.stringify(data), {
       headers: {
-        ...CORS_HEADERS,
+        ...cors,
         "Content-Type": "application/json",
         "Cache-Control": "public, max-age=86400",
       },
@@ -25,7 +22,7 @@ serve(async (req) => {
   } catch (err) {
     return new Response(JSON.stringify({ error: "Failed to fetch Epic endpoints" }), {
       status: 502,
-      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      headers: { ...cors, "Content-Type": "application/json" },
     });
   }
 });

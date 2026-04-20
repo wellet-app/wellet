@@ -292,7 +292,12 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'Token expired. Please reconnect to Epic MyChart.' }, 401);
     }
 
-    const accessToken = conn.access_token;
+    // Decrypt the stored access token
+    const encKey = Deno.env.get('EHR_ENCRYPTION_KEY') || '';
+    const { data: decAccessToken } = await admin.rpc('decrypt_ehr_token', {
+      encrypted_token: conn.access_token, enc_key: encKey,
+    });
+    const accessToken = decAccessToken || conn.access_token;
     const fhirBaseUrl = conn.fhir_base_url || 'https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4';
     const patientId = conn.patient_id;
 

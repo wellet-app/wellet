@@ -261,7 +261,7 @@ Deno.serve(async (req) => {
       }
 
       // Verify state parameter for CSRF protection
-      if (callbackState && conn.state && callbackState !== conn.state) {
+      if (conn.state && callbackState !== conn.state) {
         return jsonResponse({ error: 'State mismatch — possible CSRF attack' }, 400);
       }
 
@@ -300,16 +300,27 @@ Deno.serve(async (req) => {
       // Epic returns: access_token, token_type, expires_in, scope, patient (FHIR patient ID)
       const expiresAt = new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString();
 
+      // Encrypt tokens before storing
+      const encKey = Deno.env.get('EHR_ENCRYPTION_KEY') || '';
+      const { data: encAccessToken } = await admin.rpc('encrypt_ehr_token', {
+        plain_token: tokenData.access_token, enc_key: encKey,
+      });
+      const { data: encRefreshToken } = tokenData.refresh_token
+        ? await admin.rpc('encrypt_ehr_token', {
+            plain_token: tokenData.refresh_token, enc_key: encKey,
+          })
+        : { data: null };
+
       // Build connected_provider label
       const hospitalLabel = conn.hospital_name
         ? `${conn.hospital_name} (Epic)`
         : 'Epic MyChart';
 
-      // Store tokens and patient context
+      // Store encrypted tokens and patient context
       const { error: updateError } = await admin.from('ehr_connections')
         .update({
-          access_token: tokenData.access_token,
-          refresh_token: tokenData.refresh_token || null,
+          access_token: encAccessToken,
+          refresh_token: encRefreshToken,
           token_expires_at: expiresAt,
           patient_id: tokenData.patient || null,
           connected_provider: hospitalLabel,

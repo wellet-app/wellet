@@ -3,6 +3,9 @@ const ALLOWED_ORIGINS = [
   "https://www.mywellet.com",
   "https://getwellet.com",
   "https://www.getwellet.com",
+  "http://localhost:3000",
+  "http://localhost:5500",
+  "http://127.0.0.1:5500",
 ];
 
 export function getCorsHeaders(req: Request): Record<string, string> {
