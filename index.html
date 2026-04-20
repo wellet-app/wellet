@@ -53,13 +53,11 @@
   .auth-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 28px 0; }
   .auth-header-wordmark { width: 100px; display: block; }
   .auth-early-badge { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; color: var(--moss-text); border: 1.5px solid var(--moss); border-radius: 6px; padding: 5px 12px; text-transform: uppercase; }
-  .auth-building-badge { display: flex; align-items: center; gap: 8px; padding: 16px 28px 0; font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--moss-text); }
-  .auth-building-dot { width: 7px; height: 7px; border-radius: 50%; background: #47B08A; flex-shrink: 0; }
   .auth-headline { padding: 12px 28px 0; }
   .auth-headline h1 { font-family: 'DM Serif Display', serif; font-size: 34px; line-height: 1.15; font-weight: 400; color: #2C2A26; margin: 0; }
   .auth-headline h1 em { font-family: 'DM Serif Display', serif; font-style: italic; color: #4A7A66; }
   .auth-description { padding: 10px 28px 0; font-size: 14px; line-height: 1.5; color: #5A5A5A; font-weight: 300; }
-  .auth-signals { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 14px 28px 0; }
+  .auth-signals { display: grid; grid-template-columns: 1fr; gap: 10px; padding: 14px 28px 0; }
   .auth-signal-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
   .auth-signal-label { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 5px; }
   .auth-signal-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
@@ -104,6 +102,12 @@
   .auth-privacy-detail p { font-size: 12px; color: var(--text-secondary); line-height: 1.65; margin-top: 10px; text-align: left; }
   .auth-privacy p { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
   .auth-privacy strong { color: var(--moss-text); font-weight: 500; }
+  .auth-signal-card--clickable { cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
+  .auth-signal-card--clickable:hover { border-color: var(--moss); box-shadow: 0 2px 8px rgba(96,143,124,0.12); }
+  .auth-signal-try { display: block; font-size: 12px; font-weight: 500; color: var(--moss-text); margin-top: 6px; }
+  .auth-signin-toggle { text-align: center; margin-top: 14px; }
+  .auth-signin-link { background: none; border: none; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--moss-text); cursor: pointer; padding: 0; }
+  .auth-signin-link:hover { text-decoration: underline; }
   @media (max-width: 340px) { .auth-signals { grid-template-columns: 1fr; } }
 
   /* ── LANDING ── */
@@ -957,9 +961,8 @@
   /* ── RESPONSIVE: TABLET & DESKTOP ── */
   .auth-body { max-width: 420px; }
   @media (min-width: 480px) {
-    #auth-screen { justify-content: center; max-width: 600px; margin: 0 auto; }
+    #auth-screen { justify-content: center; max-width: 640px; margin: 0 auto; }
     .auth-header { padding: 16px 40px 0; }
-    .auth-building-badge { padding: 14px 40px 0; }
     .auth-headline { padding: 10px 40px 0; }
     .auth-headline h1 { font-size: 32px; }
     .auth-description { padding: 10px 40px 0; font-size: 14px; line-height: 1.55; }
@@ -974,7 +977,6 @@
   }
   @media (min-width: 480px) and (min-height: 800px) {
     .auth-headline h1 { font-size: 36px; }
-    .auth-building-badge { padding-top: 20px; }
     .auth-headline { padding-top: 14px; }
     .auth-description { padding-top: 14px; font-size: 15px; }
     .auth-signals { padding-top: 20px; }
@@ -1594,44 +1596,36 @@
     </svg>
     <span class="auth-early-badge">EARLY ACCESS</span>
   </div>
-  <div class="auth-building-badge">
-    <span class="auth-building-dot"></span>
-    NOW BUILDING · SPRING 2026
-  </div>
   <div class="auth-headline">
     <h1>Stop wondering<br>if Mom is okay.<br><em>Wellet remembers,<br>so you don't have to.</em></h1>
   </div>
   <p class="auth-description">An AI care companion that reads your loved one's records, notices patterns, and tells you what's changing before it becomes a crisis.</p>
   <div class="auth-signals">
-    <div class="auth-signal-card">
+    <div class="auth-signal-card auth-signal-card--clickable" onclick="enterDemoMode()" role="button" tabindex="0">
       <div class="auth-signal-label"><span class="auth-signal-dot auth-signal-dot--green"></span> TODAY</div>
-      <p class="auth-signal-text"><strong>Dad took his medications</strong> this morning. BP has been higher since his dose changed June 18.</p>
-    </div>
-    <div class="auth-signal-card">
-      <div class="auth-signal-label"><span class="auth-signal-dot auth-signal-dot--amber"></span> WORTH WATCHING</div>
-      <p class="auth-signal-text"><strong>Mom's sleep has been fragmented</strong> four nights. Next appointment is August 4 — worth mentioning.</p>
+      <p class="auth-signal-text"><strong>Mom took her medications</strong> this morning. Her blood pressure has been trending higher since the dose change on June 18 — worth mentioning at her August 4 appointment.</p>
+      <span class="auth-signal-try">Try the demo &rarr;</span>
     </div>
   </div>
   <div class="auth-body">
     <div id="auth-form-state">
-      <div class="auth-title">Sign in to Wellet</div>
-      <p class="auth-subtitle">Enter your email and we'll send a magic link. No password needed.</p>
-      <div class="auth-input-wrap">
-        <label class="auth-input-label" for="auth-email">Email address</label>
-        <input type="email" id="auth-email" class="auth-input" placeholder="you@email.com" autocomplete="email">
-      </div>
-      <button class="btn-primary" onclick="sendMagicLink()" id="auth-send-btn">
-        Send magic link <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>
+      <button class="btn-primary" onclick="window.location.search='?demo=guided'">
+        See how Wellet works <i data-lucide="play" style="width:16px;height:16px;"></i>
       </button>
-      <p style="font-size:12px;color:var(--text-muted);margin-top:10px;line-height:1.5;">Already signed up? Your session may have expired — just enter the same email to get a fresh link.</p>
-      <div class="auth-links-row">
-        <button class="auth-demo-link" onclick="window.location.search='?demo=guided'" style="background:var(--moss);color:white;border-color:var(--moss);">
-          <i data-lucide="play" style="width:14px;height:14px;"></i>
-          Watch the guided demo
-        </button>
-        <button class="auth-demo-link" onclick="enterDemoMode()">
-          <i data-lucide="compass" style="width:14px;height:14px;"></i>
-          Explore on your own
+      <button class="auth-demo-link" style="width:100%;margin-top:10px;" onclick="enterDemoMode()">
+        <i data-lucide="compass" style="width:14px;height:14px;"></i>
+        Explore on your own
+      </button>
+      <div class="auth-signin-toggle">
+        <button class="auth-signin-link" onclick="document.getElementById('auth-signin-fields').style.display='block';this.style.display='none';">Already have an account? Sign in</button>
+      </div>
+      <div id="auth-signin-fields" style="display:none;">
+        <div class="auth-input-wrap">
+          <label class="auth-input-label" for="auth-email">Email address</label>
+          <input type="email" id="auth-email" class="auth-input" placeholder="you@email.com" autocomplete="email">
+        </div>
+        <button class="btn-primary" onclick="sendMagicLink()" id="auth-send-btn">
+          Send magic link <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>
         </button>
       </div>
     </div>
