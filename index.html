@@ -1593,9 +1593,38 @@
   </div>
 
   <div class="auth-headline">
-    <h1>The Notes app. The group text. The 11pm pharmacy call.<br><em>You're already a caregiver.</em></h1>
+    <h1 id="hero-headline">The Notes app. The group text. The 11pm pharmacy call.<br><em>You're already a caregiver.</em></h1>
   </div>
-  <p class="auth-description">You've been holding all of it. Wellet reads the records, notices the patterns, and remembers what you can't. So you can stop being the memory.</p>
+  <p class="auth-description" id="hero-subtitle">You've been holding all of it. Wellet reads the records, notices the patterns, and remembers what you can't. So you can stop being the memory.</p>
+  <script>
+  (function(){
+    var heroes = [
+      {
+        h: 'The Notes app. The group text. The 11pm pharmacy call.<br><em>You\'re already a caregiver.</em>',
+        p: 'You\'ve been holding all of it. Wellet reads the records, notices the patterns, and remembers what you can\'t. So you can stop being the memory.'
+      },
+      {
+        h: 'You\'re holding it all <em>together.</em> We built something to help.',
+        p: 'Wellet notices changes in your loved one\'s health \u2014 medication timing, lab trends, appointments \u2014 so you don\'t have to remember everything yourself. Built by a caregiver. Free to start.'
+      },
+      {
+        h: 'Scattered health records. Missed medication changes. Sound <em>familiar?</em>',
+        p: 'Wellet pulls your family member\'s health records into one place and watches for the changes that matter \u2014 so nothing slips through the cracks. No shame. Just clarity.'
+      },
+      {
+        h: 'One place for your family\'s health. <em>Finally.</em>',
+        p: 'Upload health records. See what matters. Get gentle nudges before appointments. Wellet was built by a caregiver who needed it \u2014 for caregivers who need it now.'
+      },
+      {
+        h: 'Caring for someone with dementia means <em>remembering</em> everything they can\'t.',
+        p: 'Wellet stays on top of medications, lab results, and appointment prep \u2014 so you can focus on being present. Not another app to learn. Just upload their health records and let Wellet follow along.'
+      }
+    ];
+    var pick = heroes[Math.floor(Math.random() * heroes.length)];
+    document.getElementById('hero-headline').innerHTML = pick.h;
+    document.getElementById('hero-subtitle').textContent = pick.p;
+  })();
+  </script>
   <div class="auth-signals" style="grid-template-columns:1fr;">
     <div class="auth-signal-card" onclick="window.location.search='?demo=guided'" style="cursor:pointer;transition:box-shadow 0.15s;">
       <div class="auth-signal-label"><span class="auth-signal-dot auth-signal-dot--green"></span> TODAY</div>
