@@ -1631,10 +1631,12 @@
       <div class="auth-sent-icon"><i data-lucide="mail-check" style="width:24px;height:24px;"></i></div>
       <div class="auth-sent-title">Check your email</div>
       <p class="auth-sent-body">We sent a magic link to <strong id="auth-sent-email"></strong>. Click it to open your Wellet — no password needed.</p>
-      <button class="auth-demo-link" style="margin-top:12px;" onclick="enterDemoMode()">
-        <i data-lucide="play" style="width:14px;height:14px;"></i>
-        Try the demo while you wait
-      </button>
+      <div style="display:flex;justify-content:center;margin-top:12px;">
+        <button class="auth-demo-link" onclick="enterDemoMode()">
+          <i data-lucide="play" style="width:14px;height:14px;"></i>
+          Try the demo while you wait
+        </button>
+      </div>
     </div>
     <div id="auth-gate-state" class="auth-gate">
       <div class="auth-gate-icon"><i data-lucide="lock" style="width:24px;height:24px;"></i></div>
@@ -1671,12 +1673,6 @@
     <div id="auth-privacy-detail" class="auth-privacy-detail">
       <p>Wellet is built on a <strong>privacy-first architecture</strong>. Your health information is encrypted and isolated with row-level security — no other user or even Wellet staff can access it. AI features process your data in real time and return insights without storing or training on anything. You own your data, you control who sees it, and you can export or delete it anytime.</p>
     </div>
-  </div>
-  <div style="text-align:center; padding: 12px 28px 0;">
-    <button onclick="openEmergencySummary()" style="background:none;border:none;font-size:12px;color:var(--text-muted);font-family:var(--font-body);cursor:pointer;display:inline-flex;align-items:center;gap:5px;padding:8px;">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-      Emergency summary
-    </button>
   </div>
 </div><!-- end auth-body -->
 </div><!-- end auth-screen -->
