@@ -1530,6 +1530,31 @@
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
   }
+
+  /* ── Satisfaction Pulse Toast ── */
+  .wellet-pulse-toast {
+    position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+    background: var(--card-bg, #fff); border: 1px solid var(--border, #e0e0e0);
+    border-radius: 16px; padding: 12px 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+    z-index: 10000; display: flex; align-items: center; gap: 10px;
+    animation: pulse-in 0.3s ease; font-family: 'DM Sans', sans-serif;
+    max-width: 320px;
+  }
+  .pulse-q { font-size: 13px; color: var(--text-secondary, #555); white-space: nowrap; }
+  .pulse-btns { display: flex; gap: 6px; }
+  .pulse-btns button {
+    background: none; border: 1px solid var(--border, #e0e0e0); border-radius: 10px;
+    padding: 6px 10px; font-size: 18px; cursor: pointer; transition: all 0.15s;
+  }
+  .pulse-btns button:hover { background: var(--bg-hover, #f5f5f5); transform: scale(1.15); }
+  .pulse-dismiss {
+    background: none; border: none; color: var(--text-tertiary, #aaa);
+    font-size: 14px; cursor: pointer; padding: 2px 4px; margin-left: -4px;
+  }
+  @keyframes pulse-in {
+    from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
 </style>
 </head>
 <body>
@@ -16869,6 +16894,261 @@ function hideSkeletons() {
   var pane = document.getElementById('tab-update');
   if (pane) pane.removeAttribute('data-skeleton-active');
 }
+
+// ── ANONYMOUS BEHAVIORAL ANALYTICS ───────────────────────────────────────────
+// Zero PHI. No names, no health data, no IPs, no fingerprints.
+// Captures: navigation flows, feature usage, timing, satisfaction pulses,
+//           language, device type, screen size, timezone region.
+
+var _wa = (function() {
+  var sessionId = '';
+  var queue = [];
+  var flushTimer = null;
+  var sessionStart = Date.now();
+  var lastNav = '';
+  var rageClicks = { count: 0, ts: 0, el: '' };
+  var meta = {}; // device/language metadata set once per session
+
+  function init() {
+    sessionId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36);
+    lastNav = 'home';
+    // Collect deidentified metadata once
+    var lang = (navigator.language || 'en').substring(0, 2).toLowerCase();
+    var w = window.innerWidth || 0;
+    var deviceType = w < 768 ? 'mobile' : w < 1024 ? 'tablet' : 'desktop';
+    var screenBucket = w < 768 ? 'small' : w < 1024 ? 'medium' : 'large';
+    // Coarse timezone region (continent only)
+    var tzRegion = 'Unknown';
+    try {
+      var tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      if (tz.indexOf('America') === 0) tzRegion = 'Americas';
+      else if (tz.indexOf('Europe') === 0) tzRegion = 'Europe';
+      else if (tz.indexOf('Asia') === 0) tzRegion = 'Asia';
+      else if (tz.indexOf('Africa') === 0) tzRegion = 'Africa';
+      else if (tz.indexOf('Australia') === 0 || tz.indexOf('Pacific') === 0) tzRegion = 'Oceania';
+    } catch(e) {}
+    meta = { browser_lang: lang, device_type: deviceType, screen_bucket: screenBucket, timezone_region: tzRegion };
+    // Flush on page unload
+    window.addEventListener('beforeunload', flush);
+    flushTimer = setInterval(flush, 30000);
+    document.addEventListener('click', detectRageClick, true);
+    document.addEventListener('visibilitychange', function() {
+      if (document.hidden) {
+        track('session', 'background', { duration_s: Math.round((Date.now() - sessionStart) / 1000) });
+        flush();
+      }
+    });
+    track('session', 'start', {});
+  }
+
+  function track(type, name, data) {
+    if (isDemoMode) return;
+    var evt = {
+      session_id: sessionId,
+      event_type: type,
+      event_name: name,
+      event_data: data || {},
+      person_count: (typeof currentPeople !== 'undefined' && currentPeople) ? currentPeople.length : 0,
+      created_at: new Date().toISOString(),
+      browser_lang: meta.browser_lang || null,
+      device_type: meta.device_type || null,
+      screen_bucket: meta.screen_bucket || null,
+      timezone_region: meta.timezone_region || null
+    };
+    queue.push(evt);
+    if (queue.length >= 20) flush();
+  }
+
+  function flush() {
+    if (queue.length === 0) return;
+    var batch = queue.splice(0, queue.length);
+    if (typeof db !== 'undefined' && db.auth) {
+      db.auth.getSession().then(function(res) {
+        var s = res.data.session;
+        if (!s) return;
+        var uid = s.user.id;
+        var rows = batch.map(function(e) { e.user_id = uid; return e; });
+        db.from('anon_sessions').insert(rows).then(function() {}).catch(function() {});
+      }).catch(function() {});
+    }
+  }
+
+  function detectRageClick(e) {
+    var tag = (e.target.tagName || '').toLowerCase();
+    var id = e.target.id || e.target.className || tag;
+    var now = Date.now();
+    if (id === rageClicks.el && now - rageClicks.ts < 1500) {
+      rageClicks.count++;
+      if (rageClicks.count >= 3) {
+        track('frustration', 'rage_click', { element: String(id).substring(0, 60), view: _currentNavView || 'unknown' });
+        rageClicks.count = 0;
+      }
+    } else {
+      rageClicks = { count: 1, ts: now, el: id };
+    }
+  }
+
+  return { init: init, track: track, flush: flush };
+})();
+
+// ── SATISFACTION PULSE ────────────────────────────────────────────────────────
+var _pulse = (function() {
+  var shown = {};
+  var SESSION_LIMIT = 2;
+  var shownCount = 0;
+
+  function maybeShow(feature, delay) {
+    if (isDemoMode) return;
+    if (shownCount >= SESSION_LIMIT) return;
+    if (shown[feature]) return;
+    shown[feature] = true;
+    setTimeout(function() { showPulse(feature); }, delay || 3000);
+  }
+
+  function showPulse(feature) {
+    shownCount++;
+    var el = document.createElement('div');
+    el.className = 'wellet-pulse-toast';
+    el.innerHTML = '<div class="pulse-q">How helpful was this?</div>' +
+      '<div class="pulse-btns">' +
+      '<button onclick="_pulse.respond(\'' + feature + '\',1,this)" title="Not helpful">' + escHtml('😕') + '</button>' +
+      '<button onclick="_pulse.respond(\'' + feature + '\',2,this)" title="Okay">' + escHtml('🙂') + '</button>' +
+      '<button onclick="_pulse.respond(\'' + feature + '\',3,this)" title="Very helpful">' + escHtml('😊') + '</button>' +
+      '</div>' +
+      '<button class="pulse-dismiss" onclick="this.parentNode.remove()">' + escHtml('✕') + '</button>';
+    document.body.appendChild(el);
+    setTimeout(function() { if (el.parentNode) el.remove(); }, 8000);
+  }
+
+  function respond(feature, rating, btn) {
+    _wa.track('satisfaction', 'pulse_response', { feature: feature, rating: rating });
+    var toast = btn.closest('.wellet-pulse-toast');
+    if (toast) {
+      toast.innerHTML = '<div class="pulse-q" style="padding:8px 0;">Thanks!</div>';
+      setTimeout(function() { toast.remove(); }, 1500);
+    }
+  }
+
+  return { maybeShow: maybeShow, respond: respond };
+})();
+
+// ── INSTRUMENT EXISTING FUNCTIONS ────────────────────────────────────────────
+(function() {
+  var _origSwitchNavTo = switchNavTo;
+  switchNavTo = function(view, skipPush) {
+    var from = _currentNavView || 'home';
+    _origSwitchNavTo(view, skipPush);
+    if (view !== from) _wa.track('nav', 'view_switch', { from: from, to: view });
+  };
+})();
+
+(function() {
+  var _origSwitchTab = switchTab;
+  switchTab = function(el, id) {
+    _origSwitchTab(el, id);
+    _wa.track('nav', 'tab_switch', { tab: id, view: 'home' });
+  };
+})();
+
+(function() {
+  var _origSwitchPerson = switchPerson;
+  switchPerson = function(el, personKey) {
+    _origSwitchPerson(el, personKey);
+    _wa.track('nav', 'person_switch', { person_index: personKey });
+  };
+})();
+
+(function() {
+  var _origOpenSheet = openSheetAccessible;
+  openSheetAccessible = function(id, triggerEl) {
+    _origOpenSheet(id, triggerEl);
+    _wa.track('action', 'sheet_open', { sheet: id });
+  };
+})();
+
+(function() {
+  var _origSendAsk = sendAskMessage;
+  sendAskMessage = function() {
+    _wa.track('feature', 'ask_wellet', { view: _currentNavView || 'ask' });
+    _origSendAsk();
+    _pulse.maybeShow('ask_wellet', 5000);
+  };
+})();
+
+(function() {
+  var _origVisitPrep = openVisitPrep;
+  openVisitPrep = function(resume) {
+    _wa.track('feature', 'visit_prep', { resumed: !!resume });
+    _origVisitPrep(resume);
+    _pulse.maybeShow('visit_prep', 8000);
+  };
+})();
+
+(function() {
+  var _origOpenSearch = openSearch;
+  var _origCloseSearch = closeSearch;
+  var searchOpenedAt = 0;
+  openSearch = function() {
+    searchOpenedAt = Date.now();
+    _wa.track('feature', 'search_open', {});
+    _origOpenSearch();
+  };
+  closeSearch = function() {
+    var dur = searchOpenedAt ? Math.round((Date.now() - searchOpenedAt) / 1000) : 0;
+    _wa.track('feature', 'search_close', { duration_s: dur });
+    _origCloseSearch();
+  };
+})();
+
+(function() {
+  var _origSubmitEvent = submitHealthEvent;
+  submitHealthEvent = function() {
+    _wa.track('action', 'add_event', { view: _currentNavView || 'home' });
+    return _origSubmitEvent();
+  };
+})();
+
+(function() {
+  var _origSubmitMed = submitMedication;
+  submitMedication = function() {
+    _wa.track('action', 'add_medication', {});
+    return _origSubmitMed();
+  };
+})();
+
+(function() {
+  var _origShare = createShareLink;
+  createShareLink = function(action) {
+    _wa.track('feature', 'share', { action: action || 'unknown' });
+    return _origShare(action);
+  };
+})();
+
+(function() {
+  var _origFeedback = submitFeedback;
+  submitFeedback = function() {
+    _wa.track('action', 'submit_feedback', {});
+    return _origFeedback();
+  };
+})();
+
+(function() {
+  var _origEhr = startEhrConnect;
+  startEhrConnect = function() {
+    _wa.track('feature', 'ehr_connect', {});
+    return _origEhr();
+  };
+})();
+
+// Initialize analytics after app loads
+(function() {
+  var _origInitApp = initApp;
+  initApp = async function() {
+    var result = await _origInitApp();
+    _wa.init();
+    return result;
+  };
+})();
 
 </script>
 <script src="/guided-demo.js"></script>
