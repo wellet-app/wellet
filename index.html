@@ -10044,7 +10044,22 @@ function fetchEhrData(personId, navigateToRecords) {
       body: JSON.stringify({ person_id: personId })
     });
   }).then(function(res) {
-    if (!res) return;
+    if (!res) return null;
+    // If the server says there's no connection (404), this device's cache is stale.
+    // Wipe it so the UI falls back to the "Connect Health Records" state instead
+    // of showing a zombie "EHR Connected" banner.
+    if (res.status === 404) {
+      console.warn('[EHR] fetch returned 404 — clearing stale cache for', personId);
+      clearEhrCache(personId);
+      liveMeds = liveMeds.filter(function(m) { return m.source !== 'ehr'; });
+      liveAllergies = liveAllergies.filter(function(a) { return a.source !== 'ehr'; });
+      liveLabs = liveLabs.filter(function(l) { return l.source !== 'ehr'; });
+      if (personId === currentPersonId) { try { renderRecordsView(); } catch(e){} try { renderTimeline(); } catch(e){} }
+      try { updateSettingsEhr(); } catch(e){}
+      try { updateProfileEhr(personId); } catch(e){}
+      try { initIcons(); } catch(e){}
+      return null;
+    }
     return res.json();
   }).then(function(data) {
     if (!data || data.error) {
@@ -10246,6 +10261,7 @@ function buildEhrStatusBar(ehrData) {
     + '<div class="ehr-status-right">'
     + '<span style="font-size:11px;color:var(--text-muted);">Synced ' + syncedStr + '</span>'
     + '<button class="ehr-refresh-btn" onclick="refreshEhrData()" title="Refresh data"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>'
+    + '<button class="ehr-refresh-btn" onclick="disconnectEhr()" title="Disconnect" style="color:var(--red);"><i data-lucide="unplug" style="width:14px;height:14px;"></i></button>'
     + '</div></div>';
 }
 
