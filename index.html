@@ -449,8 +449,41 @@
   .records-section { padding: 16px 20px 0; }
   .record-group { margin-bottom: 20px; }
   .record-group-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-  .record-group-title { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: var(--text-secondary); }
+  .record-group-title { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: var(--text-secondary); flex: 1; }
   .record-group-count { font-size: 11px; color: var(--text-muted); background: var(--cream); border-radius: 10px; padding: 2px 7px; }
+  /* Collapsible sections */
+  .record-group.collapsible > .record-group-header { cursor: pointer; user-select: none; padding: 4px 0; border-radius: 8px; transition: background 0.15s; }
+  .record-group.collapsible > .record-group-header:hover { background: var(--cream); }
+  .record-group-chevron { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; color: var(--text-muted); margin-left: 6px; transition: transform 0.2s ease; flex-shrink: 0; }
+  .record-group.collapsed > .record-group-header .record-group-chevron { transform: rotate(-90deg); }
+  .record-group-body { overflow: hidden; transition: max-height 0.2s ease; }
+  .record-group.collapsed > .record-group-body { display: none; }
+  /* Date-range filter controls */
+  .record-group-header-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .record-group-search-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; padding: 0; transition: color 0.15s, background 0.15s; }
+  .record-group-search-btn:hover { color: var(--moss); background: var(--mint); }
+  .record-group-search-btn.active { color: var(--moss); background: var(--mint); }
+  .record-filter-pill { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; padding: 2px 6px 2px 8px; border-radius: 10px; background: var(--mint); color: var(--moss-dark); white-space: nowrap; }
+  .record-filter-pill-clear { background: none; border: none; cursor: pointer; color: var(--moss-dark); display: inline-flex; align-items: center; justify-content: center; padding: 0; width: 14px; height: 14px; border-radius: 50%; }
+  .record-filter-pill-clear:hover { background: rgba(96,143,124,0.2); }
+  .record-date-popover { position: absolute; z-index: 90; background: white; border: 1px solid var(--border-medium); border-radius: 12px; box-shadow: 0 8px 24px rgba(44,42,38,0.12); padding: 14px; width: 268px; font-family: 'DM Sans', sans-serif; }
+  .record-date-popover .popover-title { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 8px; }
+  .record-date-popover .preset-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .record-date-popover .preset-btn { background: var(--cream); border: 1px solid var(--border); color: var(--text-secondary); font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; padding: 5px 10px; border-radius: 16px; cursor: pointer; transition: all 0.15s; }
+  .record-date-popover .preset-btn:hover { border-color: var(--moss); color: var(--moss); background: var(--mint); }
+  .record-date-popover .preset-btn.active { background: var(--moss); color: white; border-color: var(--moss); }
+  .record-date-popover .range-row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .record-date-popover .range-field { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .record-date-popover .range-field label { font-size: 11px; color: var(--text-muted); }
+  .record-date-popover .range-field input { border: 1px solid var(--border-medium); border-radius: 8px; padding: 7px 9px; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text-primary); background: white; }
+  .record-date-popover .range-field input:focus { outline: none; border-color: var(--moss); }
+  .record-date-popover .action-row { display: flex; gap: 8px; justify-content: flex-end; }
+  .record-date-popover .popover-btn { font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; padding: 7px 14px; border-radius: 8px; cursor: pointer; transition: all 0.15s; }
+  .record-date-popover .popover-btn.secondary { background: transparent; border: 1px solid var(--border-medium); color: var(--text-secondary); }
+  .record-date-popover .popover-btn.secondary:hover { background: var(--cream); }
+  .record-date-popover .popover-btn.primary { background: var(--moss); border: 1px solid var(--moss); color: white; }
+  .record-date-popover .popover-btn.primary:hover { background: var(--moss-dark); }
+  .record-date-popover-backdrop { position: fixed; inset: 0; z-index: 89; background: transparent; }
   .record-row { display: flex; align-items: center; gap: 12px; padding: 11px 14px; background: white; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 6px; cursor: pointer; transition: border-color 0.15s; }
   .record-row:hover { border-color: var(--moss); }
   .record-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -1029,6 +1062,35 @@
   .hospital-picker-sandbox { text-align:center; padding:12px 20px 4px; }
   .hospital-picker-sandbox a { font-size:12px; color:var(--text-muted); cursor:pointer; text-decoration:underline; }
   .hospital-picker-sandbox a:hover { color:var(--moss); }
+  .hospital-picker-missing { text-align:center; padding:6px 20px 4px; }
+  .hospital-picker-missing a { font-size:13px; color:var(--moss); cursor:pointer; font-weight:500; text-decoration:none; }
+  .hospital-picker-missing a:hover { text-decoration:underline; }
+
+  /* Connect-request modal (inline form for "can't find my hospital") */
+  .cr-overlay { display:none; position:fixed; inset:0; background:rgba(44,42,38,0.45); z-index:110; align-items:flex-end; justify-content:center; }
+  .cr-overlay.show { display:flex; }
+  .cr-sheet { background:white; border-radius:20px 20px 0 0; padding:24px 20px 32px; width:100%; max-width:520px; max-height:90vh; overflow-y:auto; }
+  .cr-handle { width:36px; height:4px; background:var(--border-medium); border-radius:2px; margin:0 auto 16px; }
+  .cr-title { font-family:'DM Serif Display',serif; font-size:20px; color:var(--text-primary); margin-bottom:4px; line-height:1.3; }
+  .cr-sub { font-size:13px; color:var(--text-secondary); line-height:1.5; margin-bottom:20px; }
+  .cr-field { margin-bottom:14px; }
+  .cr-field label { display:block; font-size:12px; font-weight:500; color:var(--text-secondary); margin-bottom:4px; }
+  .cr-input, .cr-textarea, .cr-select { width:100%; padding:10px 12px; border:1.5px solid var(--border-medium); border-radius:10px; font-family:'DM Sans',sans-serif; font-size:14px; color:var(--text-primary); background:white; box-sizing:border-box; }
+  .cr-input:focus, .cr-textarea:focus, .cr-select:focus { outline:none; border-color:var(--moss); }
+  .cr-textarea { min-height:80px; resize:vertical; line-height:1.5; }
+  .cr-row { display:flex; gap:10px; }
+  .cr-row .cr-field { flex:1; }
+  .cr-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:18px; }
+  .cr-btn { font-family:'DM Sans',sans-serif; font-size:14px; font-weight:500; padding:10px 18px; border-radius:10px; cursor:pointer; transition:all 0.15s; }
+  .cr-btn.secondary { background:transparent; border:1px solid var(--border-medium); color:var(--text-secondary); }
+  .cr-btn.secondary:hover { background:var(--cream); }
+  .cr-btn.primary { background:var(--moss); border:1px solid var(--moss); color:white; }
+  .cr-btn.primary:hover { background:var(--moss-dark); }
+  .cr-btn.primary:disabled { opacity:0.5; cursor:not-allowed; }
+  .cr-success { text-align:center; padding:24px 8px 4px; }
+  .cr-success-icon { width:48px; height:48px; border-radius:50%; background:var(--mint); color:var(--moss); display:flex; align-items:center; justify-content:center; margin:0 auto 12px; }
+  .cr-success-title { font-family:'DM Serif Display',serif; font-size:18px; color:var(--text-primary); margin-bottom:6px; }
+  .cr-success-body { font-size:13px; color:var(--text-secondary); line-height:1.5; }
 
   /* ── CARESIGNALS ──────────────────────────────────────────────────────────── */
   .signals-view { padding:20px 16px 100px 16px; }
@@ -4042,7 +4104,65 @@
     <ul class="hospital-picker-list" id="hospital-picker-list">
       <li class="hospital-picker-loading">Loading hospitals...</li>
     </ul>
+    <div class="hospital-picker-missing"><a href="#" role="button" onclick="event.preventDefault(); openConnectRequestModal({source:'picker'}); return false;">Can’t find your hospital? Let us know →</a></div>
     <div class="hospital-picker-sandbox"><a href="#" role="button" style="cursor:pointer;" onclick="event.preventDefault(); beginEhrOAuth(null, null, true); return false;">Use Epic sandbox (testing)</a></div>
+  </div>
+</div>
+
+<!-- CONNECT-REQUEST MODAL -->
+<div class="cr-overlay" id="cr-overlay" role="dialog" aria-modal="true" aria-labelledby="cr-title" onclick="if(event.target===this)closeConnectRequestModal()">
+  <div class="cr-sheet">
+    <div class="cr-handle"></div>
+    <div id="cr-form-view">
+      <div class="cr-title" id="cr-title">Tell us about your health system</div>
+      <div class="cr-sub" id="cr-sub">We’re adding hospitals every week. Share a few details and we’ll follow up when yours is ready.</div>
+      <div class="cr-field">
+        <label for="cr-hospital">Hospital or health system</label>
+        <input type="text" id="cr-hospital" class="cr-input" placeholder="e.g., Duke Health" maxlength="200" />
+      </div>
+      <div class="cr-row">
+        <div class="cr-field">
+          <label for="cr-city">City</label>
+          <input type="text" id="cr-city" class="cr-input" placeholder="Durham" maxlength="100" />
+        </div>
+        <div class="cr-field">
+          <label for="cr-state">State</label>
+          <input type="text" id="cr-state" class="cr-input" placeholder="NC" maxlength="50" />
+        </div>
+      </div>
+      <div class="cr-field">
+        <label for="cr-issue">What happened?</label>
+        <select id="cr-issue" class="cr-select">
+          <option value="not_found">I can’t find my hospital in the list</option>
+          <option value="unsupported_version">It says my hospital isn’t supported yet</option>
+          <option value="oauth_error">I hit an error during login</option>
+          <option value="connected_no_data">Connected, but my records didn’t come through</option>
+          <option value="other">Something else</option>
+        </select>
+      </div>
+      <div class="cr-field">
+        <label for="cr-notes">Notes (optional)</label>
+        <textarea id="cr-notes" class="cr-textarea" placeholder="Anything else that would help us add support" maxlength="4000"></textarea>
+      </div>
+      <div class="cr-field">
+        <label for="cr-email">Email (optional)</label>
+        <input type="email" id="cr-email" class="cr-input" placeholder="you@example.com" maxlength="200" />
+      </div>
+      <div class="cr-actions">
+        <button type="button" class="cr-btn secondary" onclick="closeConnectRequestModal()">Cancel</button>
+        <button type="button" class="cr-btn primary" id="cr-submit-btn" onclick="submitConnectRequest()">Send</button>
+      </div>
+    </div>
+    <div id="cr-success-view" style="display:none;">
+      <div class="cr-success">
+        <div class="cr-success-icon"><i data-lucide="check" style="width:22px;height:22px;"></i></div>
+        <div class="cr-success-title">Thanks — we’re on it</div>
+        <div class="cr-success-body">We’ll email you when your hospital is ready to connect.</div>
+      </div>
+      <div class="cr-actions" style="justify-content:center;">
+        <button type="button" class="cr-btn primary" onclick="closeConnectRequestModal()">Done</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -5703,7 +5823,7 @@ function renderRecordsView() {
       + '<div class="record-group-title"><i data-lucide="calendar-check" style="width:14px;height:14px;color:var(--moss);"></i>Appointments &amp; visits</div>'
       + '<span class="record-group-count">' + totalAppts + ' logged</span></div>';
     apptEvents.slice(0,3).forEach(function(ev) {
-      html += '<div class="record-row" onclick="openEditEvent(\'' + ev.id + '\')"><div class="record-icon moss"><i data-lucide="calendar-check" style="width:15px;height:15px;"></i></div>'
+      html += '<div class="record-row" data-date="' + escHtml(ev.event_date || '') + '" onclick="openEditEvent(\'' + ev.id + '\')"><div class="record-icon moss"><i data-lucide="calendar-check" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">' + escHtml(ev.title) + '</div>'
         + '<div class="record-meta">' + formatEventDate(ev.event_date) + '</div></div>'
         + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i></div>';
@@ -5716,7 +5836,7 @@ function renderRecordsView() {
       if (enc.status) encMeta.push('Status: ' + escHtml(enc.status));
       if (enc.type) encMeta.push('Type: ' + escHtml(enc.type));
       if (enc.reason) encMeta.push('Reason: ' + escHtml(enc.reason));
-      html += '<div class="record-row" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\'' + detailId + '\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
+      html += '<div class="record-row" data-date="' + escHtml(enc.start_date || '') + '" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\'' + detailId + '\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
         + '<div class="record-icon moss"><i data-lucide="calendar-check" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">' + escHtml(enc.name) + ' ' + ehrBadgeHtml() + '</div>'
         + '<div class="record-meta">' + formatEventDate(enc.start_date) + '</div></div>'
@@ -5740,7 +5860,7 @@ function renderRecordsView() {
       else if (lab.status === 'critical') statusBadge = '<span class="record-badge" style="background:#FEF0EE;color:var(--red);">Critical</span>';
       else if (lab.status === 'normal') statusBadge = '<span class="record-badge moss">Normal</span>';
       var srcBadge = lab.source === 'ehr' ? ' ' + ehrBadgeHtml() : '';
-      html += '<div class="record-row"><div class="record-icon blue"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>'
+      html += '<div class="record-row" data-date="' + escHtml(lab.effective_date || '') + '"><div class="record-icon blue"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">' + escHtml(lab.test_name) + srcBadge + '</div>'
         + '<div class="record-meta">' + formatEventDate(lab.effective_date)
         + (valStr ? ' \u00B7 ' + valStr : '')
@@ -5750,7 +5870,7 @@ function renderRecordsView() {
         + '</div>';
     });
     labEvents.slice(0,3).forEach(function(ev) {
-      html += '<div class="record-row" onclick="openEditEvent(\'' + ev.id + '\')"><div class="record-icon blue"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>'
+      html += '<div class="record-row" data-date="' + escHtml(ev.event_date || '') + '" onclick="openEditEvent(\'' + ev.id + '\')"><div class="record-icon blue"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">' + escHtml(ev.title) + '</div>'
         + '<div class="record-meta">' + formatEventDate(ev.event_date) + '</div></div>'
         + '<span class="record-badge moss">Logged</span></div>';
@@ -5765,7 +5885,7 @@ function renderRecordsView() {
       if (obs.effective_date) obsMeta.push('Date: ' + formatEventDate(obs.effective_date));
       if (obs.code) obsMeta.push('Code: ' + escHtml(obs.code));
       if (obs.category) obsMeta.push('Category: ' + escHtml(obs.category));
-      html += '<div class="record-row" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\'' + detailId + '\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
+      html += '<div class="record-row" data-date="' + escHtml(obs.effective_date || '') + '" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\'' + detailId + '\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
         + '<div class="record-icon blue"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">' + escHtml(obs.name) + ' ' + ehrBadgeHtml() + '</div>'
         + '<div class="record-meta">' + formatEventDate(obs.effective_date) + (valStr ? ' \u00B7 ' + escHtml(valStr) : '') + '</div></div>'
@@ -5801,7 +5921,7 @@ function renderRecordsView() {
       if (readings.length > 1) {
         trendHtml = ' <span style="color:var(--text-muted);font-size:11px;">(' + readings.length + ' readings)</span>';
       }
-      html += '<div class="record-row">'
+      html += '<div class="record-row" data-date="' + escHtml(latest.effective_date || '') + '">'
         + '<div class="record-icon moss"><i data-lucide="activity" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">' + escHtml(vt) + trendHtml + '</div>'
         + '<div class="record-meta">' + escHtml(valStr) + ' \u00B7 ' + formatEventDate(latest.effective_date) + '</div></div>'
@@ -5834,7 +5954,7 @@ function renderRecordsView() {
         entries.forEach(function(e) { parts.push(escHtml(e.title)); });
         var actSource = entries[0].source || 'apple_health';
         var actProvider = entries[0].ehr_system ? entries[0].ehr_system.replace('terra_', '') : '';
-        html += '<div class="record-row">'
+        html += '<div class="record-row" data-date="' + escHtml(day + 'T00:00:00Z') + '">'
           + '<div class="record-icon blue"><i data-lucide="footprints" style="width:15px;height:15px;"></i></div>'
           + '<div style="flex:1;"><div class="record-label">' + formatEventDate(day + 'T00:00:00Z') + '</div>'
           + '<div class="record-meta">' + parts.join(' \u00B7 ') + '</div></div>'
@@ -5858,7 +5978,7 @@ function renderRecordsView() {
       + '<span class="record-group-count">' + summaryEvents.length + ' days</span></div>';
     recentSummaries.forEach(function(e) {
       var sumProvider = e.ehr_system ? e.ehr_system.replace('terra_', '') : '';
-      html += '<div class="record-row">'
+      html += '<div class="record-row" data-date="' + escHtml(e.event_date || '') + '">'
         + '<div class="record-icon blue"><i data-lucide="target" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">' + formatEventDate(e.event_date) + '</div>'
         + '<div class="record-meta">' + escHtml(e.title) + '</div></div>'
@@ -5887,7 +6007,7 @@ function renderRecordsView() {
       sessions.forEach(function(s) { parts.push(escHtml(s.title)); });
       var sleepSource = sessions[0].source || 'apple_health';
       var sleepProvider = sessions[0].ehr_system ? sessions[0].ehr_system.replace('terra_', '') : '';
-      html += '<div class="record-row">'
+      html += '<div class="record-row" data-date="' + escHtml(night + 'T00:00:00Z') + '">'
         + '<div class="record-icon" style="background:var(--cream);color:var(--text-secondary);"><i data-lucide="moon" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">' + formatEventDate(night + 'T00:00:00Z') + '</div>'
         + '<div class="record-meta">' + parts.join(' \u00B7 ') + '</div></div>'
@@ -5909,7 +6029,7 @@ function renderRecordsView() {
       + '<span class="record-group-count">' + workoutEvents.length + ' sessions</span></div>';
     workoutEvents.slice(0, 20).forEach(function(w) {
       var wkProvider = w.ehr_system ? w.ehr_system.replace('terra_', '') : '';
-      html += '<div class="record-row">'
+      html += '<div class="record-row" data-date="' + escHtml(w.event_date || '') + '">'
         + '<div class="record-icon moss"><i data-lucide="dumbbell" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">' + escHtml(w.title) + '</div>'
         + '<div class="record-meta">' + formatEventDate(w.event_date) + '</div></div>'
@@ -5935,7 +6055,7 @@ function renderRecordsView() {
       if (p.status) pMeta.push('Status: ' + escHtml(p.status));
       if (p.code) pMeta.push('Code: ' + escHtml(p.code));
       if (p.reason) pMeta.push('Reason: ' + escHtml(p.reason));
-      html += '<div class="record-row" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\'' + detailId + '\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
+      html += '<div class="record-row" data-date="' + escHtml(p.performed_date || '') + '" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\'' + detailId + '\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
         + '<div class="record-icon" style="background:var(--cream);color:var(--text-secondary);"><i data-lucide="scissors" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">' + escHtml(p.name) + '</div>'
         + '<div class="record-meta">' + formatEventDate(p.performed_date) + '</div></div>'
@@ -5951,7 +6071,7 @@ function renderRecordsView() {
       + '<div class="record-group-title"><i data-lucide="pencil-line" style="width:14px;height:14px;color:var(--text-muted);"></i>Caregiver notes</div>'
       + '<span class="record-group-count">' + noteEvents.length + ' notes</span></div>';
     noteEvents.slice(0,3).forEach(function(ev) {
-      html += '<div class="record-row" onclick="openEditEvent(\'' + ev.id + '\')"><div class="record-icon muted"><i data-lucide="pencil-line" style="width:15px;height:15px;"></i></div>'
+      html += '<div class="record-row" data-date="' + escHtml(ev.event_date || '') + '" onclick="openEditEvent(\'' + ev.id + '\')"><div class="record-icon muted"><i data-lucide="pencil-line" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">' + escHtml(ev.title) + '</div>'
         + '<div class="record-meta">' + formatEventDate(ev.event_date) + ' \u00B7 you</div></div>'
         + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i></div>';
@@ -5976,7 +6096,7 @@ function renderRecordsView() {
       var statusLabel = docIsAudio && doc.extraction_status === 'pending' ? 'Transcribing\u2026' : getDocStatusLabel(doc.extraction_status);
       var dateStr = relativeTime(doc.uploaded_at);
       var clickable = doc.extraction_status === 'completed' ? ' onclick="showExtractionResults(\'' + doc.id + '\')"' : '';
-      html += '<div class="doc-row"' + clickable + '>'
+      html += '<div class="doc-row" data-date="' + escHtml(doc.uploaded_at || '') + '"' + clickable + '>'
         + '<div class="doc-icon"><i data-lucide="' + iconName + '" style="width:15px;height:15px;"></i></div>'
         + '<div class="doc-info"><div class="doc-name">' + escHtml(doc.file_name) + '</div>'
         + '<div class="doc-meta">' + escHtml(doc.document_type || 'Document') + ' \u00B7 ' + dateStr + '</div>';
@@ -6035,6 +6155,7 @@ function renderRecordsView() {
   html += '</div>';
   view.innerHTML = html;
   initIcons();
+  applyRecordsCollapse();
 
   // Load Terra connections asynchronously for inline display
   if (!isDemoMode && currentPersonId) {
@@ -6066,6 +6187,446 @@ async function switchRecordsToRealPerson(personId, el) {
   el.classList.add('active');
   await loadPersonData(personId);
   renderRecordsView();
+}
+
+// ── COLLAPSIBLE RECORDS SECTIONS ─────────────────────────────────────────────
+// Derive a stable section key from a .record-group element.
+// Uses the data-lucide icon name in the title as the primary key (stable, unique).
+function deriveRecordSectionKey(groupEl) {
+  var iconEl = groupEl.querySelector('.record-group-title [data-lucide]');
+  var iconName = iconEl ? iconEl.getAttribute('data-lucide') : '';
+  var titleEl = groupEl.querySelector('.record-group-title');
+  var titleText = titleEl ? (titleEl.textContent || '').trim().toLowerCase() : '';
+  // Map icon → section key. Fallback to title text slug.
+  var iconMap = {
+    'pill': 'medications',
+    'stethoscope': 'conditions',
+    'alert-triangle': 'allergies',
+    'calendar-check': 'visits',
+    'flask-conical': 'labs',
+    'activity': 'vitals',
+    'footprints': 'activity',
+    'target': 'activity_rings',
+    'moon': 'sleep',
+    'dumbbell': 'workouts',
+    'scissors': 'procedures',
+    'pencil-line': 'notes',
+    'file-text': 'documents'
+  };
+  if (iconName && iconMap[iconName]) return iconMap[iconName];
+  // Fallback: slug from first word of title
+  return titleText.replace(/[^a-z0-9]+/g, '_').slice(0, 24) || 'unknown';
+}
+
+// Default expand/collapse rule per spec.
+// Returns true = expanded, false = collapsed.
+function defaultRecordSectionExpanded(key, groupEl) {
+  if (key === 'medications') return true;
+  if (key === 'allergies') return true;
+  if (key === 'documents') return true; // always-expanded CTA section
+  if (key === 'conditions') {
+    // expanded if ≤5 rows, else collapsed
+    var rows = groupEl.querySelectorAll('.record-row').length;
+    return rows <= 5;
+  }
+  // Everything else collapsed by default
+  return false;
+}
+
+function recordsCollapseStorageKey(personId) {
+  return 'wellet_records_expanded_' + (personId || 'unknown');
+}
+
+function loadRecordsCollapseState(personId) {
+  try {
+    var raw = localStorage.getItem(recordsCollapseStorageKey(personId));
+    if (!raw) return {};
+    var obj = JSON.parse(raw);
+    return (obj && typeof obj === 'object') ? obj : {};
+  } catch (e) { return {}; }
+}
+
+function saveRecordsCollapseState(personId, state) {
+  try {
+    localStorage.setItem(recordsCollapseStorageKey(personId), JSON.stringify(state));
+  } catch (e) { /* quota or disabled; ignore */ }
+}
+
+function toggleRecordSection(groupEl, key) {
+  var expanded = !groupEl.classList.contains('collapsed');
+  // Flip
+  if (expanded) {
+    groupEl.classList.add('collapsed');
+    groupEl.setAttribute('aria-expanded', 'false');
+  } else {
+    groupEl.classList.remove('collapsed');
+    groupEl.setAttribute('aria-expanded', 'true');
+  }
+  // Persist
+  var state = loadRecordsCollapseState(currentPersonId);
+  state[key] = !expanded; // new state
+  saveRecordsCollapseState(currentPersonId, state);
+}
+
+// Walk all .record-group elements inside #view-records and make them collapsible.
+function applyRecordsCollapse() {
+  var view = document.getElementById('view-records');
+  if (!view) return;
+  var groups = view.querySelectorAll('.record-group');
+  if (!groups || groups.length === 0) return;
+  var saved = loadRecordsCollapseState(currentPersonId);
+
+  groups.forEach(function(group) {
+    // Skip if already processed (defensive)
+    if (group.classList.contains('collapsible')) return;
+    var header = group.querySelector('.record-group-header');
+    if (!header) return;
+
+    var key = deriveRecordSectionKey(group);
+    group.setAttribute('data-section', key);
+    group.classList.add('collapsible');
+
+    // Wrap body nodes (everything after the header) in a .record-group-body div.
+    var body = document.createElement('div');
+    body.className = 'record-group-body';
+    var next = header.nextSibling;
+    while (next) {
+      var toMove = next;
+      next = next.nextSibling;
+      body.appendChild(toMove);
+    }
+    group.appendChild(body);
+
+    // Add chevron to header (right side, after count chip).
+    var chevron = document.createElement('span');
+    chevron.className = 'record-group-chevron';
+    chevron.innerHTML = '<i data-lucide="chevron-down" style="width:16px;height:16px;"></i>';
+    header.appendChild(chevron);
+
+    // Determine state: saved preference wins, else default rule.
+    var isExpanded;
+    if (typeof saved[key] === 'boolean') {
+      isExpanded = saved[key];
+    } else {
+      isExpanded = defaultRecordSectionExpanded(key, group);
+    }
+    if (!isExpanded) {
+      group.classList.add('collapsed');
+    }
+    group.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+
+    // Click handler on the whole header (but not on child <button>s, which may exist).
+    header.addEventListener('click', function(ev) {
+      // Ignore clicks on buttons or links inside the header
+      var t = ev.target;
+      while (t && t !== header) {
+        if (t.tagName === 'BUTTON' || t.tagName === 'A') return;
+        t = t.parentNode;
+      }
+      toggleRecordSection(group, key);
+    });
+
+    // If this section is date-filterable, mount the search icon and apply any saved filter.
+    if (isDateFilterableSection(key)) {
+      mountRecordsDateSearch(group, key);
+    }
+  });
+
+  // Re-init icons so the chevrons render.
+  initIcons();
+}
+
+// ── DATE-RANGE SEARCH PER SECTION ────────────────────────────────────────────
+// Sections that show time-stamped rows and support date filtering.
+// Skips medications/allergies/conditions (what's-true-now lists).
+function isDateFilterableSection(key) {
+  var filterable = {
+    labs: 1, vitals: 1, visits: 1, immunizations: 1, procedures: 1,
+    activity: 1, activity_rings: 1, sleep: 1, workouts: 1,
+    notes: 1, documents: 1
+  };
+  return !!filterable[key];
+}
+
+function recordsFilterStorageKey(personId) {
+  return 'wellet_records_filter_' + (personId || 'unknown');
+}
+
+function loadRecordsFilterState(personId) {
+  try {
+    var raw = localStorage.getItem(recordsFilterStorageKey(personId));
+    if (!raw) return {};
+    var obj = JSON.parse(raw);
+    return (obj && typeof obj === 'object') ? obj : {};
+  } catch (e) { return {}; }
+}
+
+function saveRecordsFilterState(personId, state) {
+  try {
+    localStorage.setItem(recordsFilterStorageKey(personId), JSON.stringify(state));
+  } catch (e) { /* ignore */ }
+}
+
+// Convert a preset key into {from, to} ISO date strings (YYYY-MM-DD).
+// Returns null for 'all'.
+function presetToRange(preset) {
+  if (!preset || preset === 'all') return null;
+  var now = new Date();
+  var to = now.toISOString().substring(0, 10);
+  var fromDate = new Date(now);
+  if (preset === '30d') fromDate.setDate(fromDate.getDate() - 30);
+  else if (preset === '90d') fromDate.setDate(fromDate.getDate() - 90);
+  else if (preset === '1yr') fromDate.setFullYear(fromDate.getFullYear() - 1);
+  else return null;
+  return { from: fromDate.toISOString().substring(0, 10), to: to, preset: preset };
+}
+
+function formatFilterPillLabel(filter) {
+  if (!filter) return '';
+  if (filter.preset === '30d') return 'Last 30 days';
+  if (filter.preset === '90d') return 'Last 90 days';
+  if (filter.preset === '1yr') return 'Last year';
+  // Custom range
+  var f = filter.from || '\u2014';
+  var t = filter.to || '\u2014';
+  return f + ' \u2192 ' + t;
+}
+
+// Apply filter to a section: show/hide rows, update count to "N of M", auto-expand.
+function applyRecordsDateFilter(groupEl, filter) {
+  if (!groupEl) return;
+  // Rows are .record-row (standard) or .doc-row (documents section).
+  var rows = groupEl.querySelectorAll('.record-row, .doc-row');
+  var total = rows.length;
+  var visible = 0;
+  var fromTs = (filter && filter.from) ? new Date(filter.from + 'T00:00:00').getTime() : null;
+  // 'to' is inclusive — end of day.
+  var toTs = (filter && filter.to) ? new Date(filter.to + 'T23:59:59').getTime() : null;
+
+  rows.forEach(function(row) {
+    var d = row.getAttribute('data-date') || '';
+    if (!filter) {
+      row.style.display = '';
+      visible++;
+      return;
+    }
+    if (!d) {
+      // No date → hide when any filter is active
+      row.style.display = 'none';
+      return;
+    }
+    var ts = new Date(d).getTime();
+    if (isNaN(ts)) {
+      row.style.display = 'none';
+      return;
+    }
+    var inRange = true;
+    if (fromTs !== null && ts < fromTs) inRange = false;
+    if (toTs !== null && ts > toTs) inRange = false;
+    if (inRange) {
+      row.style.display = '';
+      visible++;
+    } else {
+      row.style.display = 'none';
+    }
+  });
+
+  // Update count chip
+  var countEl = groupEl.querySelector('.record-group-count');
+  if (countEl) {
+    if (filter) {
+      // Preserve original label (stored once) by stashing in dataset
+      if (!countEl.dataset.origLabel) countEl.dataset.origLabel = countEl.textContent;
+      countEl.textContent = visible + ' of ' + total;
+    } else if (countEl.dataset.origLabel) {
+      countEl.textContent = countEl.dataset.origLabel;
+    }
+  }
+
+  // Update pill + active button state
+  var searchBtn = groupEl.querySelector('.record-group-search-btn');
+  if (searchBtn) {
+    if (filter) searchBtn.classList.add('active');
+    else searchBtn.classList.remove('active');
+  }
+  var headerRight = groupEl.querySelector('.record-group-header-right');
+  if (headerRight) {
+    var existingPill = headerRight.querySelector('.record-filter-pill');
+    if (existingPill) existingPill.remove();
+    if (filter) {
+      var pill = document.createElement('span');
+      pill.className = 'record-filter-pill';
+      pill.innerHTML = escHtml(formatFilterPillLabel(filter))
+        + '<button class="record-filter-pill-clear" type="button" aria-label="Clear filter">'
+        + '<i data-lucide="x" style="width:10px;height:10px;"></i></button>';
+      // Insert before the search button
+      headerRight.insertBefore(pill, searchBtn || headerRight.firstChild);
+      var clearBtn = pill.querySelector('.record-filter-pill-clear');
+      clearBtn.addEventListener('click', function(ev) {
+        ev.stopPropagation();
+        var sectionKey = groupEl.getAttribute('data-section');
+        clearRecordsDateFilter(groupEl, sectionKey);
+      });
+      initIcons();
+    }
+  }
+
+  // Auto-expand when a filter is applied
+  if (filter && groupEl.classList.contains('collapsed')) {
+    groupEl.classList.remove('collapsed');
+    groupEl.setAttribute('aria-expanded', 'true');
+  }
+}
+
+function clearRecordsDateFilter(groupEl, sectionKey) {
+  applyRecordsDateFilter(groupEl, null);
+  var state = loadRecordsFilterState(currentPersonId);
+  if (state[sectionKey]) {
+    delete state[sectionKey];
+    saveRecordsFilterState(currentPersonId, state);
+  }
+}
+
+function setRecordsDateFilter(groupEl, sectionKey, filter) {
+  applyRecordsDateFilter(groupEl, filter);
+  var state = loadRecordsFilterState(currentPersonId);
+  state[sectionKey] = filter;
+  saveRecordsFilterState(currentPersonId, state);
+}
+
+// Build + mount the search icon and attach popover behavior.
+function mountRecordsDateSearch(groupEl, sectionKey) {
+  var header = groupEl.querySelector('.record-group-header');
+  if (!header) return;
+
+  // Move count chip + chevron into a right-side wrapper so we can inject the search button.
+  var countEl = header.querySelector('.record-group-count');
+  var chevron = header.querySelector('.record-group-chevron');
+  var right = document.createElement('div');
+  right.className = 'record-group-header-right';
+
+  var searchBtn = document.createElement('button');
+  searchBtn.type = 'button';
+  searchBtn.className = 'record-group-search-btn';
+  searchBtn.setAttribute('aria-label', 'Filter by date range');
+  searchBtn.innerHTML = '<i data-lucide="search" style="width:14px;height:14px;"></i>';
+  searchBtn.addEventListener('click', function(ev) {
+    ev.stopPropagation();
+    openRecordsDatePopover(groupEl, sectionKey, searchBtn);
+  });
+
+  right.appendChild(searchBtn);
+  if (countEl) right.appendChild(countEl);
+  if (chevron) right.appendChild(chevron);
+  header.appendChild(right);
+
+  // Apply any saved filter for this section.
+  var saved = loadRecordsFilterState(currentPersonId);
+  if (saved && saved[sectionKey]) {
+    applyRecordsDateFilter(groupEl, saved[sectionKey]);
+  }
+}
+
+// Close any open popover.
+function closeRecordsDatePopover() {
+  var existing = document.querySelector('.record-date-popover');
+  if (existing) existing.remove();
+  var backdrop = document.querySelector('.record-date-popover-backdrop');
+  if (backdrop) backdrop.remove();
+}
+
+function openRecordsDatePopover(groupEl, sectionKey, anchorBtn) {
+  closeRecordsDatePopover();
+
+  var saved = loadRecordsFilterState(currentPersonId);
+  var current = (saved && saved[sectionKey]) ? saved[sectionKey] : null;
+
+  var backdrop = document.createElement('div');
+  backdrop.className = 'record-date-popover-backdrop';
+  backdrop.addEventListener('click', closeRecordsDatePopover);
+  document.body.appendChild(backdrop);
+
+  var pop = document.createElement('div');
+  pop.className = 'record-date-popover';
+  pop.innerHTML =
+    '<div class="popover-title">Filter by date</div>'
+    + '<div class="preset-row">'
+    + '  <button type="button" class="preset-btn" data-preset="30d">Last 30 days</button>'
+    + '  <button type="button" class="preset-btn" data-preset="90d">Last 90 days</button>'
+    + '  <button type="button" class="preset-btn" data-preset="1yr">Last year</button>'
+    + '  <button type="button" class="preset-btn" data-preset="all">All</button>'
+    + '</div>'
+    + '<div class="range-row">'
+    + '  <div class="range-field"><label for="rdp-from">From</label><input type="date" id="rdp-from" /></div>'
+    + '  <div class="range-field"><label for="rdp-to">To</label><input type="date" id="rdp-to" /></div>'
+    + '</div>'
+    + '<div class="action-row">'
+    + '  <button type="button" class="popover-btn secondary" data-act="clear">Clear</button>'
+    + '  <button type="button" class="popover-btn primary" data-act="apply">Apply</button>'
+    + '</div>';
+  document.body.appendChild(pop);
+
+  // Position below the anchor button, right-aligned to it.
+  var rect = anchorBtn.getBoundingClientRect();
+  var popWidth = 268;
+  var left = Math.min(window.innerWidth - popWidth - 12, Math.max(12, rect.right - popWidth));
+  var top = rect.bottom + window.scrollY + 6;
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+
+  // Pre-fill current state.
+  var fromInput = pop.querySelector('#rdp-from');
+  var toInput = pop.querySelector('#rdp-to');
+  if (current) {
+    if (current.from) fromInput.value = current.from;
+    if (current.to) toInput.value = current.to;
+    if (current.preset) {
+      var activeBtn = pop.querySelector('.preset-btn[data-preset="' + current.preset + '"]');
+      if (activeBtn) activeBtn.classList.add('active');
+    }
+  }
+
+  // Preset buttons — fill inputs and mark active.
+  pop.querySelectorAll('.preset-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      pop.querySelectorAll('.preset-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var preset = btn.getAttribute('data-preset');
+      if (preset === 'all') {
+        fromInput.value = '';
+        toInput.value = '';
+      } else {
+        var range = presetToRange(preset);
+        if (range) {
+          fromInput.value = range.from;
+          toInput.value = range.to;
+        }
+      }
+    });
+  });
+
+  // Apply / Clear.
+  pop.querySelector('[data-act="apply"]').addEventListener('click', function() {
+    var from = fromInput.value || '';
+    var to = toInput.value || '';
+    var activePreset = pop.querySelector('.preset-btn.active');
+    var presetKey = activePreset ? activePreset.getAttribute('data-preset') : null;
+    if (!from && !to) {
+      // Treat as All → clear
+      clearRecordsDateFilter(groupEl, sectionKey);
+    } else {
+      var filter = { from: from, to: to };
+      if (presetKey && presetKey !== 'all') filter.preset = presetKey;
+      setRecordsDateFilter(groupEl, sectionKey, filter);
+    }
+    closeRecordsDatePopover();
+  });
+  pop.querySelector('[data-act="clear"]').addEventListener('click', function() {
+    clearRecordsDateFilter(groupEl, sectionKey);
+    closeRecordsDatePopover();
+  });
+
+  initIcons();
 }
 
 // ── DOCUMENT LIST & EXTRACTION ───────────────────────────────────────────────
@@ -9016,6 +9577,156 @@ function _hospitalPickerInputHandler() {
   }, 200);
 }
 
+// ── CONNECT-REQUEST FLOW ────────────────────────────────────────────────────
+var _crContext = {};
+
+function openConnectRequestModal(opts) {
+  opts = opts || {};
+  _crContext = opts;
+
+  // Reset to form view
+  var formView = document.getElementById('cr-form-view');
+  var successView = document.getElementById('cr-success-view');
+  if (formView) formView.style.display = '';
+  if (successView) successView.style.display = 'none';
+
+  // Pre-fill form fields
+  var hospitalEl = document.getElementById('cr-hospital');
+  var cityEl = document.getElementById('cr-city');
+  var stateEl = document.getElementById('cr-state');
+  var issueEl = document.getElementById('cr-issue');
+  var notesEl = document.getElementById('cr-notes');
+  var emailEl = document.getElementById('cr-email');
+  var subEl = document.getElementById('cr-sub');
+
+  if (hospitalEl) hospitalEl.value = opts.hospital_name || '';
+  if (cityEl) cityEl.value = opts.city || '';
+  if (stateEl) stateEl.value = opts.state || '';
+  if (issueEl) issueEl.value = opts.issue_type || 'not_found';
+  if (notesEl) notesEl.value = opts.notes || '';
+  if (emailEl) {
+    var defaultEmail = '';
+    try { if (currentUser && currentUser.email) defaultEmail = currentUser.email; } catch(e) {}
+    emailEl.value = opts.contact_email || defaultEmail;
+  }
+
+  // Contextual subheading
+  if (subEl) {
+    if (opts.issue_type === 'unsupported_version') {
+      subEl.textContent = 'It looks like your hospital isn’t on a supported version yet. Share a few details and we’ll let you know as soon as support is ready.';
+    } else if (opts.issue_type === 'oauth_error') {
+      subEl.textContent = 'Sorry about that — we hit a snag connecting. Send us the details and we’ll take a look.';
+    } else {
+      subEl.textContent = 'We’re adding hospitals every week. Share a few details and we’ll follow up when yours is ready.';
+    }
+  }
+
+  // Reset submit button state
+  var btn = document.getElementById('cr-submit-btn');
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = 'Send';
+  }
+
+  var overlay = document.getElementById('cr-overlay');
+  if (overlay) {
+    overlay.classList.add('show');
+  }
+  initIcons();
+}
+
+function closeConnectRequestModal() {
+  var overlay = document.getElementById('cr-overlay');
+  if (overlay) overlay.classList.remove('show');
+  _crContext = {};
+}
+
+function submitConnectRequest() {
+  var btn = document.getElementById('cr-submit-btn');
+  var hospitalEl = document.getElementById('cr-hospital');
+  var cityEl = document.getElementById('cr-city');
+  var stateEl = document.getElementById('cr-state');
+  var issueEl = document.getElementById('cr-issue');
+  var notesEl = document.getElementById('cr-notes');
+  var emailEl = document.getElementById('cr-email');
+
+  var hospitalName = hospitalEl ? hospitalEl.value.trim() : '';
+  var city = cityEl ? cityEl.value.trim() : '';
+  var state = stateEl ? stateEl.value.trim() : '';
+  var issueType = issueEl ? issueEl.value : 'other';
+  var notes = notesEl ? notesEl.value.trim() : '';
+  var contactEmail = emailEl ? emailEl.value.trim() : '';
+
+  if (!hospitalName) {
+    showToast('Please enter your hospital or health system');
+    if (hospitalEl) hospitalEl.focus();
+    return;
+  }
+
+  var payload = {
+    hospital_name: hospitalName,
+    city: city || null,
+    state: state || null,
+    issue_type: issueType,
+    notes: notes || null,
+    contact_email: contactEmail || null,
+    fhir_base_url: _crContext.fhir_base_url || null,
+    error_code: _crContext.error_code || null,
+    error_message: _crContext.error_message || null,
+    person_id: _crContext.person_id || (typeof currentPersonId !== 'undefined' ? currentPersonId : null),
+    source: _crContext.source || null
+  };
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+  }
+
+  db.auth.getSession().then(function(s) {
+    var headers = {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY
+    };
+    var session = s && s.data && s.data.session;
+    if (session && session.access_token) {
+      headers['Authorization'] = 'Bearer ' + session.access_token;
+    }
+    return fetch(SUPABASE_URL + '/functions/v1/submit-connect-request', {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(payload)
+    });
+  }).then(function(res) {
+    return res.json().then(function(data) {
+      return { status: res.status, data: data };
+    }).catch(function() {
+      return { status: res.status, data: null };
+    });
+  }).then(function(result) {
+    if (result.status >= 200 && result.status < 300) {
+      var formView = document.getElementById('cr-form-view');
+      var successView = document.getElementById('cr-success-view');
+      if (formView) formView.style.display = 'none';
+      if (successView) successView.style.display = '';
+      initIcons();
+    } else {
+      var errMsg = (result.data && result.data.error) ? result.data.error : 'Could not send right now. Please try again.';
+      showToast(errMsg);
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Send';
+      }
+    }
+  }).catch(function(err) {
+    console.error('[connect-request] submit error', err);
+    showToast('Could not send right now. Please try again.');
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Send';
+    }
+  });
+}
+
 // Begin the actual OAuth redirect for a selected hospital (or sandbox)
 function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox) {
   if (_ehrConnecting) return;
@@ -9085,9 +9796,36 @@ function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox) {
     if (!data) return;
     try { console.log('[ehr] epic-auth body', data); } catch(e) {}
     if (data.error) {
+      if (data.error === 'unsupported_fhir_version') {
+        showToast('This hospital isn’t supported yet — let us know and we’ll get to work on it.');
+        setTimeout(function() {
+          openConnectRequestModal({
+            source: 'unsupported_version',
+            issue_type: 'unsupported_version',
+            hospital_name: hospitalName || '',
+            fhir_base_url: fhirBaseUrl || null,
+            error_code: data.error,
+            error_message: data.message || data.diag || null,
+            person_id: personId
+          });
+        }, 400);
+        return;
+      }
       var msg = 'Error: ' + data.error;
       if (data.diag) msg += ' (' + data.diag + ')';
       showToast(msg);
+      // Offer the "Let us know" path for any other start-phase error
+      setTimeout(function() {
+        openConnectRequestModal({
+          source: 'start_error',
+          issue_type: 'oauth_error',
+          hospital_name: hospitalName || '',
+          fhir_base_url: fhirBaseUrl || null,
+          error_code: data.error,
+          error_message: data.message || data.diag || null,
+          person_id: personId
+        });
+      }, 400);
       return;
     }
     if (data.authorize_url) {
@@ -9161,6 +9899,21 @@ function handleEhrCallback() {
         var msg = data.message || data.error || 'Unknown error';
         showToast('EHR connection failed: ' + msg);
         try { localStorage.removeItem('wellet_ehr_pending_person'); } catch(e) {}
+        // Offer the "Let us know" path
+        var cbIssue = (data.error === 'unsupported_fhir_version') ? 'unsupported_version' : 'oauth_error';
+        var cbHospital = data.hospital_name || '';
+        var cbFhir = data.fhir_base_url || null;
+        setTimeout(function() {
+          openConnectRequestModal({
+            source: 'oauth_callback',
+            issue_type: cbIssue,
+            hospital_name: cbHospital,
+            fhir_base_url: cbFhir,
+            error_code: data.error,
+            error_message: msg,
+            person_id: personId
+          });
+        }, 400);
         return;
       }
       try { localStorage.removeItem('wellet_ehr_pending_person'); } catch(e) {}
