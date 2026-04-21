@@ -4631,9 +4631,19 @@ function renderSettingsPlanCard() {
   initIcons();
 }
 
+function isVaHousehold() {
+  if (!Array.isArray(currentPeople)) return false;
+  for (var i = 0; i < currentPeople.length; i++) {
+    if (currentPeople[i] && currentPeople[i].situation === 'va-enrolled') return true;
+  }
+  return false;
+}
+
 function showPricingSheet() {
   var container = document.getElementById('pricing-cards-container');
   if (!container) return;
+
+  var vaPerk = isVaHousehold();
 
   var plans = [
     {
@@ -4665,6 +4675,16 @@ function showPricingSheet() {
   ];
 
   var html = '';
+  if (vaPerk) {
+    html +=
+      '<div style="background:linear-gradient(135deg,#EEF0E6 0%,#F2F3EC 100%);border:1.5px solid #8A9A7C;border-radius:14px;padding:14px 16px;margin-bottom:16px;">' +
+      '<div style="font-family:\'DM Serif Display\',serif;font-size:18px;color:#3D6B58;margin-bottom:4px;">Your VA caregiver perk</div>' +
+      '<div style="font-size:13px;color:var(--text-secondary);line-height:1.55;">' +
+      'Wellet is <strong style="color:var(--moss-dark);">free for your first year</strong>, then <strong style="color:var(--moss-dark);">30% off for life</strong>. ' +
+      'It\u2019s applied automatically \u2014 no code, no hoops.' +
+      '</div>' +
+      '</div>';
+  }
   for (var i = 0; i < plans.length; i++) {
     var p = plans[i];
     var isCurrentPlan = (p.key === currentPlan);
@@ -13211,6 +13231,7 @@ function obStartVaCcdaFlow() {
   _obVaConsentGiven = false;
   _obVaUploadMode = true;
   setTimeout(function(){
+    obTypeThen('Thank you for what you do. Wellet is <strong>free for the first year</strong> for anyone caring for a VA-enrolled Veteran (and for Veterans themselves) \u2014 and <strong>always 30% off</strong> after that. No code, no hoops. I just noted it on your account.', function(){
     obTypeThen('Perfect. The VA has a file called the VA Health Summary that has the full picture \u2014 conditions, medications, allergies, labs, vaccines, procedures. I can read it in a few seconds.', function(){
       obTypeThen('Here\u2019s how to get it on VA.gov:', function(){
         obAddBubble('wellet',
@@ -13245,6 +13266,7 @@ function obStartVaCcdaFlow() {
         }, 500);
       }, 400);
     }, 400);
+    }, 500);
   }, 400);
 }
 
