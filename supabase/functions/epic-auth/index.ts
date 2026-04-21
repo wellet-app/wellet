@@ -194,6 +194,18 @@ Deno.serve(async (req) => {
       } else {
         // Production — discover SMART endpoints from the hospital's FHIR base URL
         fhirBase = fhirBaseUrl;
+
+        // Reject DSTU2 endpoints — our fetch-ehr-data is R4-only.
+        // Customers on DSTU2 sites (e.g., older Duke endpoints) will get a clear error
+        // instead of a broken connection with empty data.
+        if (/\/DSTU2(\/|$)/i.test(fhirBase) || /\/stu2(\/|$)/i.test(fhirBase)) {
+          return jsonResponse({
+            error: 'unsupported_fhir_version',
+            message: 'This provider is on an older FHIR version (DSTU2) that Wellet does not yet support. Please try a different location or ask us to add support.',
+            fhir_base_url: fhirBase,
+          }, 400);
+        }
+
         const endpoints = await discoverSmartEndpoints(fhirBase);
         authorizeUrl = endpoints.authorization_endpoint;
         tokenUrl = endpoints.token_endpoint;
@@ -300,16 +312,49 @@ Deno.serve(async (req) => {
       // Epic returns: access_token, token_type, expires_in, scope, patient (FHIR patient ID)
       const expiresAt = new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString();
 
-      // Encrypt tokens before storing
+      if (!tokenData.access_token) {
+        console.error('Epic returned no access_token:', JSON.stringify(tokenData));
+        return jsonResponse({ error: 'No access token returned from provider' }, 502);
+      }
+
+      // Encrypt tokens before storing. FAIL LOUDLY if the encryption key is missing
+      // or the RPC errors — never silently write a NULL token row.
       const encKey = Deno.env.get('EHR_ENCRYPTION_KEY') || '';
-      const { data: encAccessToken } = await admin.rpc('encrypt_ehr_token', {
+      if (!encKey) {
+        console.error('EHR_ENCRYPTION_KEY is not set in Edge Function environment');
+        return jsonResponse({
+          error: 'server_misconfigured',
+          message: 'Server encryption key is not configured. Please contact support.',
+        }, 500);
+      }
+
+      const { data: encAccessToken, error: encAccessErr } = await admin.rpc('encrypt_ehr_token', {
         plain_token: tokenData.access_token, enc_key: encKey,
       });
-      const { data: encRefreshToken } = tokenData.refresh_token
-        ? await admin.rpc('encrypt_ehr_token', {
-            plain_token: tokenData.refresh_token, enc_key: encKey,
-          })
-        : { data: null };
+      if (encAccessErr || !encAccessToken) {
+        console.error('encrypt_ehr_token failed for access_token:', encAccessErr);
+        return jsonResponse({
+          error: 'encryption_failed',
+          message: 'Failed to encrypt access token',
+          detail: encAccessErr?.message,
+        }, 500);
+      }
+
+      let encRefreshToken: string | null = null;
+      if (tokenData.refresh_token) {
+        const { data: encR, error: encRErr } = await admin.rpc('encrypt_ehr_token', {
+          plain_token: tokenData.refresh_token, enc_key: encKey,
+        });
+        if (encRErr || !encR) {
+          console.error('encrypt_ehr_token failed for refresh_token:', encRErr);
+          return jsonResponse({
+            error: 'encryption_failed',
+            message: 'Failed to encrypt refresh token',
+            detail: encRErr?.message,
+          }, 500);
+        }
+        encRefreshToken = encR;
+      }
 
       // Build connected_provider label
       const hospitalLabel = conn.hospital_name

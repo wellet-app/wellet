@@ -4082,6 +4082,17 @@ function applyPersonBg(personId) {
   document.documentElement.style.setProperty('--person-bg', bg);
 }
 var currentPersonId = null; // selected person uuid
+// Persist last-selected person so reloads (including post-EHR-OAuth round trip) stay on the right chip.
+function setCurrentPersonId(personId) {
+  currentPersonId = personId || null;
+  try {
+    if (personId) localStorage.setItem('wellet_last_person_id', personId);
+    else localStorage.removeItem('wellet_last_person_id');
+  } catch(e) {}
+}
+function getSavedPersonId() {
+  try { return localStorage.getItem('wellet_last_person_id') || null; } catch(e) { return null; }
+}
 var liveEvents = [];      // health_events fetched from DB
 var liveMeds = [];        // medications fetched from DB
 var liveDocs = [];        // documents fetched from DB
@@ -4277,7 +4288,19 @@ async function initApp() {
   var hasInvite = await checkInviteOnLoad();
 
   try {
+    // DIAGNOSTIC: log what localStorage has under sb-* keys so we can tell
+    // whether the Supabase session was persisted across reloads.
+    try {
+      var sbKeys = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && (k.indexOf('sb-') === 0 || k.indexOf('supabase') === 0)) sbKeys.push(k);
+      }
+      console.log('[auth-boot] supabase storage keys:', sbKeys, 'path:', window.location.pathname, 'search:', window.location.search);
+    } catch(e) {}
+
     var { data: { session } } = await db.auth.getSession();
+    console.log('[auth-boot] getSession result:', session ? 'HAS_SESSION (' + (session.user && session.user.email) + ')' : 'NO_SESSION');
     if (session) {
       // Verify the user is still on the alpha allowlist.
       // Only sign out on an explicit `false` — a null (RPC error / network blip)
@@ -4879,6 +4902,7 @@ async function submitWaitlistRequest() {
 
 async function handleLogout() {
   clearPhiFromStorage();
+  try { localStorage.removeItem('wellet_last_person_id'); } catch(e) {}
   await db.auth.signOut();
   isDemoMode = false;
   currentUser = null;
@@ -4903,7 +4927,7 @@ function clearPhiFromStorage() {
     var keysToRemove = [];
     for (var i = 0; i < localStorage.length; i++) {
       var k = localStorage.key(i);
-      if (k && (k.indexOf('wellet_ehr_') === 0 || k.indexOf('wellet_er_brief_') === 0 || k.indexOf('wellet_visit_prep_') === 0 || k === 'wellet_ob_chat')) {
+      if (k && (k.indexOf('wellet_ehr_') === 0 || k.indexOf('wellet_er_brief_') === 0 || k.indexOf('wellet_visit_prep_') === 0 || k === 'wellet_ob_chat' || k === 'wellet_last_person_id')) {
         keysToRemove.push(k);
       }
     }
@@ -4943,8 +4967,13 @@ async function loadUserData() {
       // New user — start onboarding
       showOnboarding();
     } else {
-      // Returning user — show app with real data
-      currentPersonId = currentPeople[0].id;
+      // Returning user — show app with real data.
+      // Prefer the last-viewed person (saved in localStorage) so reloads and post-OAuth
+      // round trips don't silently reset to sort_order=0.
+      var savedId = getSavedPersonId();
+      var match = savedId ? currentPeople.find(function(p){ return p.id === savedId; }) : null;
+      var personToLoad = match ? match.id : currentPeople[0].id;
+      setCurrentPersonId(personToLoad);
       applyPersonBg(currentPersonId);
       await loadPersonData(currentPersonId);
       showAuthenticatedApp();
@@ -4958,7 +4987,7 @@ async function loadUserData() {
 }
 
 async function loadPersonData(personId) {
-  currentPersonId = personId;
+  setCurrentPersonId(personId);
   // Load events
   const { data: events } = await db
     .from('health_events')
@@ -9122,10 +9151,30 @@ function handleEhrCallback() {
     }).then(function(data) {
       if (!data) return;
       if (data.error) {
-        showToast('EHR connection failed: ' + data.error);
+        // Surface server error messages (e.g., unsupported_fhir_version, server_misconfigured)
+        var msg = data.message || data.error || 'Unknown error';
+        showToast('EHR connection failed: ' + msg);
+        try { localStorage.removeItem('wellet_ehr_pending_person'); } catch(e) {}
         return;
       }
       try { localStorage.removeItem('wellet_ehr_pending_person'); } catch(e) {}
+      // Make sure the connected person is the one shown on return — otherwise we
+      // default to currentPeople[0] (typically Mom/Cheryl) and it looks like the
+      // import landed on the wrong person.
+      setCurrentPersonId(personId);
+      if (typeof loadPersonData === 'function') {
+        try { loadPersonData(personId); } catch(e) { console.warn('loadPersonData after EHR callback failed:', e); }
+      }
+      if (typeof applyPersonBg === 'function') { try { applyPersonBg(personId); } catch(e) {} }
+      // Sync the visible person pill so the UI also updates
+      try {
+        var pills = document.querySelectorAll('.person-pill[data-person-id]');
+        pills.forEach(function(p){
+          var match = p.getAttribute('data-person-id') === personId;
+          p.classList.toggle('active', match);
+          p.setAttribute('aria-selected', match ? 'true' : 'false');
+        });
+      } catch(e) {}
       // Check if returning from onboarding EHR connect
       var fromOnboarding = false;
       try { fromOnboarding = localStorage.getItem('wellet_ob_ehr_return') === 'true'; localStorage.removeItem('wellet_ob_ehr_return'); } catch(e) {}
