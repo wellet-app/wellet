@@ -7525,10 +7525,25 @@ function showApp() {
   document.getElementById('landing').style.display = 'none';
   document.getElementById('onboarding').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
+  // Show exit-demo button in header
+  var backBtn = document.getElementById('demo-back-btn');
+  if (backBtn) {
+    backBtn.style.display = '';
+    backBtn.title = 'Exit demo';
+    backBtn.setAttribute('aria-label', 'Exit demo');
+    backBtn.onclick = function() { exitDemoMode(); };
+  }
   // Restore demo HTML if it was replaced
   restoreDemoHTML();
   window.scrollTo(0, 0);
   initIcons();
+}
+
+function exitDemoMode() {
+  isDemoMode = false;
+  var backBtn = document.getElementById('demo-back-btn');
+  if (backBtn) backBtn.style.display = 'none';
+  showAuthScreen();
 }
 
 function showLanding() {
