@@ -4069,12 +4069,16 @@ var currentPeople = [];   // [{id, name, relationship, avatar_initials}]
 
 // Subtle per-person background tints (barely perceptible, subliminal context)
 var _personBgPalette = ['#F7F5F0', '#F0F5F2', '#F3F0F6', '#F0F3F7', '#F7F2F0'];
+// VA-enrolled people get a subtle olive/sage palette that nods to military without shouting
+var _vaPersonBgPalette = ['#F2F3EC', '#EEF0E6', '#F4F4E9', '#EDF1E8', '#F1F2EA'];
 function applyPersonBg(personId) {
   var idx = 0;
+  var person = null;
   for (var i = 0; i < currentPeople.length; i++) {
-    if (currentPeople[i].id === personId) { idx = i; break; }
+    if (currentPeople[i].id === personId) { idx = i; person = currentPeople[i]; break; }
   }
-  var bg = _personBgPalette[idx % _personBgPalette.length];
+  var palette = (person && person.situation === 'va-enrolled') ? _vaPersonBgPalette : _personBgPalette;
+  var bg = palette[idx % palette.length];
   document.documentElement.style.setProperty('--person-bg', bg);
 }
 var currentPersonId = null; // selected person uuid
