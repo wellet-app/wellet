@@ -39,16 +39,43 @@ const SMART_SCOPES = [
 
 async function getAuthenticatedUser(req: Request) {
   const authHeader = req.headers.get('Authorization');
-  if (!authHeader) return null;
+  if (!authHeader) {
+    console.error('[epic-auth] No Authorization header');
+    return { user: null, diag: 'no_authorization_header' };
+  }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
   const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('[epic-auth] Missing env vars', { hasUrl: !!supabaseUrl, hasAnon: !!supabaseAnonKey });
+    return { user: null, diag: 'missing_env' };
+  }
+
+  // Extract token for diagnostics (first 8 / last 4 chars only, no PII)
+  const tokenMatch = authHeader.match(/Bearer\s+(.+)/i);
+  const token = tokenMatch ? tokenMatch[1] : '';
+  const tokenFingerprint = token ? token.slice(0, 8) + '...' + token.slice(-4) + ' (len=' + token.length + ')' : 'EMPTY';
+
   const userClient = createClient(supabaseUrl, supabaseAnonKey, {
     global: { headers: { Authorization: authHeader } },
   });
-  const { data: { user }, error } = await userClient.auth.getUser();
-  if (error || !user) return null;
-  return user;
+
+  try {
+    const { data: { user }, error } = await userClient.auth.getUser();
+    if (error) {
+      console.error('[epic-auth] getUser error', { msg: error.message, status: (error as any).status, token: tokenFingerprint });
+      return { user: null, diag: 'getUser_error:' + error.message };
+    }
+    if (!user) {
+      console.error('[epic-auth] getUser returned null user', { token: tokenFingerprint });
+      return { user: null, diag: 'getUser_null_user' };
+    }
+    console.log('[epic-auth] getUser OK', { userId: user.id, token: tokenFingerprint });
+    return { user, diag: 'ok' };
+  } catch (e) {
+    console.error('[epic-auth] getUser threw', { err: String(e), token: tokenFingerprint });
+    return { user: null, diag: 'getUser_threw:' + String(e) };
+  }
 }
 
 function getAdminClient() {
@@ -160,9 +187,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const user = await getAuthenticatedUser(req);
+    const authResult = await getAuthenticatedUser(req);
+    const user = authResult.user;
     if (!user) {
-      return jsonResponse({ error: 'Unauthorized' }, 401);
+      return jsonResponse({ error: 'Unauthorized', diag: authResult.diag }, 401);
     }
 
     const body = await req.json().catch(() => ({}));

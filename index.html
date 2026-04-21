@@ -9065,10 +9065,12 @@ function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox) {
       payload.fhirBaseUrl = fhirBaseUrl;
       if (hospitalName) payload.hospitalName = hospitalName;
     }
+    var tok = session.access_token || '';
+    try { console.log('[ehr] sending token fingerprint', tok.slice(0,8) + '...' + tok.slice(-4), 'len=' + tok.length, 'user=' + (session.user && session.user.id)); } catch(e) {}
     return fetch(SUPABASE_URL + '/functions/v1/epic-auth', {
       method: 'POST',
       headers: {
-        'Authorization': 'Bearer ' + session.access_token,
+        'Authorization': 'Bearer ' + tok,
         'Content-Type': 'application/json',
         'apikey': SUPABASE_ANON_KEY
       },
@@ -9076,12 +9078,16 @@ function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox) {
     });
   }).then(function(res) {
     if (!res) return;
+    try { console.log('[ehr] epic-auth response status', res.status); } catch(e) {}
     return res.json();
   }).then(function(data) {
     _ehrConnecting = false;
     if (!data) return;
+    try { console.log('[ehr] epic-auth body', data); } catch(e) {}
     if (data.error) {
-      showToast('Error: ' + data.error);
+      var msg = 'Error: ' + data.error;
+      if (data.diag) msg += ' (' + data.diag + ')';
+      showToast(msg);
       return;
     }
     if (data.authorize_url) {
