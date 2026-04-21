@@ -5167,6 +5167,15 @@ async function loadPersonData(personId) {
   // Load cached EHR data and auto-refresh if stale
   loadEhrCache(personId);
   autoRefreshEhrIfNeeded(personId);
+
+  // Load visit attachments. Fire-and-forget — if records view is already
+  // on screen when this resolves, re-render so the new lists show up.
+  loadAttachmentsForPerson(personId).then(function() {
+    if (personId === currentPersonId && document.getElementById('view-records')
+        && document.getElementById('view-records').classList.contains('active')) {
+      renderRecordsView();
+    }
+  });
 }
 
 // ── SHOW AUTHENTICATED APP ────────────────────────────────────────────────────
@@ -5518,7 +5527,8 @@ function renderTimeline() {
   var ehrData = getEhrData(currentPersonId);
   var ehrTimelineItems = [];
   if (ehrData) {
-    (ehrData.encounters || []).forEach(function(enc) {
+    // `visits` is the R4 field; fall back to legacy `encounters` for older caches
+    (ehrData.visits || ehrData.encounters || []).forEach(function(enc) {
       ehrTimelineItems.push({ event_type:'appointment', title:enc.name, event_date:enc.start_date, notes:'', source:'ehr', _ehrProvider:ehrData.provider });
     });
     (ehrData.conditions || []).forEach(function(c) {
@@ -5686,7 +5696,19 @@ function renderRecordsView() {
   var ehrConditions = ehrData ? ehrData.conditions || [] : [];
   var ehrAllergies = ehrData ? ehrData.allergies || [] : [];
   var ehrObs = ehrData ? ehrData.observations || [] : [];
-  var ehrEncounters = ehrData ? ehrData.encounters || [] : [];
+  // `visits` is the new R4 field; fall back to legacy `encounters` for older caches
+  var allEhrVisits = ehrData ? (ehrData.visits || ehrData.encounters || []) : [];
+  // Apply 2-year UI filter — show "older visits" behind a toggle
+  var twoYearsAgoMs = Date.now() - (2 * 365 * 24 * 60 * 60 * 1000);
+  var ehrVisitsRecent = allEhrVisits.filter(function(v){
+    var t = v.start_date ? new Date(v.start_date).getTime() : 0;
+    return t >= twoYearsAgoMs;
+  });
+  var ehrVisitsOlder = allEhrVisits.filter(function(v){
+    var t = v.start_date ? new Date(v.start_date).getTime() : 0;
+    return t > 0 && t < twoYearsAgoMs;
+  });
+  var ehrCareTeam = ehrData ? (ehrData.care_team || []) : [];
   var ehrProcedures = ehrData ? ehrData.procedures || [] : [];
   var ehrProvider = ehrData ? ehrData.provider || 'EHR' : '';
 
@@ -5817,34 +5839,70 @@ function renderRecordsView() {
   var noteEvents = liveEvents.filter(function(e){ return e.event_type === 'note'; });
   var apptEvents = liveEvents.filter(function(e){ return e.event_type === 'appointment'; });
 
-  if (apptEvents.length > 0 || ehrEncounters.length > 0) {
-    var totalAppts = apptEvents.length + ehrEncounters.length;
+  if (apptEvents.length > 0 || ehrVisitsRecent.length > 0 || ehrVisitsOlder.length > 0) {
+    var totalAppts = apptEvents.length + ehrVisitsRecent.length;
     html += '<div class="record-group"><div class="record-group-header">'
       + '<div class="record-group-title"><i data-lucide="calendar-check" style="width:14px;height:14px;color:var(--moss);"></i>Appointments &amp; visits</div>'
-      + '<span class="record-group-count">' + totalAppts + ' logged</span></div>';
+      + '<span class="record-group-count">' + totalAppts + ' in the last 2 years</span></div>';
     apptEvents.slice(0,3).forEach(function(ev) {
-      html += '<div class="record-row" data-date="' + escHtml(ev.event_date || '') + '" onclick="openEditEvent(\'' + ev.id + '\')"><div class="record-icon moss"><i data-lucide="calendar-check" style="width:15px;height:15px;"></i></div>'
+      // Manual appointment row: click expands inline detail (with attachments).
+      // "Edit" stays accessible via a link inside the expanded panel.
+      var apptDetailId = 'appt-detail-' + ev.id;
+      html += '<div class="record-row" data-date="' + escHtml(ev.event_date || '') + '" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\'' + apptDetailId + '\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
+        + '<div class="record-icon moss"><i data-lucide="calendar-check" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">' + escHtml(ev.title) + '</div>'
         + '<div class="record-meta">' + formatEventDate(ev.event_date) + '</div></div>'
-        + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i></div>';
+        + '<i data-lucide="chevron-down" style="width:16px;height:16px;color:var(--text-muted);"></i>'
+        + '<div id="' + apptDetailId + '" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;" onclick="event.stopPropagation()">'
+        + (ev.notes ? '<div style="margin-bottom:6px;">' + escHtml(ev.notes) + '</div>' : '')
+        + '<div><a onclick="openEditEvent(\'' + ev.id + '\')" style="color:var(--moss);cursor:pointer;text-decoration:none;font-weight:600;">Edit appointment \u2192</a></div>'
+        + renderAttachmentZone('event', ev.id)
+        + '</div>'
+        + '</div>';
     });
-    ehrEncounters.forEach(function(enc, idx) {
-      var detailId = 'ehr-enc-' + idx;
+    function renderVisitRow(enc, idx, prefix) {
+      var detailId = 'ehr-enc-' + prefix + '-' + idx;
       var encMeta = [];
       if (enc.start_date) encMeta.push('Date: ' + formatEventDate(enc.start_date));
       if (enc.end_date) encMeta.push('End: ' + formatEventDate(enc.end_date));
       if (enc.status) encMeta.push('Status: ' + escHtml(enc.status));
-      if (enc.type) encMeta.push('Type: ' + escHtml(enc.type));
+      if (enc.location) encMeta.push('Location: ' + escHtml(enc.location));
       if (enc.reason) encMeta.push('Reason: ' + escHtml(enc.reason));
-      html += '<div class="record-row" data-date="' + escHtml(enc.start_date || '') + '" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\'' + detailId + '\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
+      // Provider list — practitioner displays from Encounter.participant
+      var provs = (enc.providers || []).map(function(p){ return p.name || ''; }).filter(Boolean);
+      if (provs.length) encMeta.push('Provider: ' + escHtml(provs.join(', ')));
+      // Stable key for attachments (survives cache refresh).
+      var vref = visitRefFor(enc, ehrProvider);
+      var metaHtml = encMeta.length ? encMeta.join('<br>') : '';
+      return '<div class="record-row" data-date="' + escHtml(enc.start_date || '') + '" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\'' + detailId + '\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
         + '<div class="record-icon moss"><i data-lucide="calendar-check" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">' + escHtml(enc.name) + ' ' + ehrBadgeHtml() + '</div>'
-        + '<div class="record-meta">' + formatEventDate(enc.start_date) + '</div></div>'
+        + '<div class="record-meta">' + formatEventDate(enc.start_date) + (provs.length ? ' \u00B7 ' + escHtml(provs[0]) : '') + '</div></div>'
         + ehrProviderBadgeHtml(ehrProvider)
-        + (encMeta.length ? '<div id="' + detailId + '" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;">' + encMeta.join('<br>') + '</div>' : '')
+        + '<div id="' + detailId + '" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;" onclick="event.stopPropagation()">'
+        + metaHtml
+        + renderAttachmentZone('visit', vref)
+        + '</div>'
         + '</div>';
-    });
+    }
+    ehrVisitsRecent.forEach(function(enc, idx) { html += renderVisitRow(enc, idx, 'r'); });
+    // Older visits — hidden behind a toggle. We render the rows inside a hidden
+    // container and let a small handler (toggleOlderVisits) flip the display and
+    // swap the button label. Inline onclick strings are fragile, so we use a
+    // named global helper defined near buildCareTeamSection.
+    if (ehrVisitsOlder.length > 0) {
+      var olderCount = ehrVisitsOlder.length;
+      html += '<div id="ehr-older-visits" style="display:none;">';
+      ehrVisitsOlder.forEach(function(enc, idx) { html += renderVisitRow(enc, idx, 'o'); });
+      html += '</div>';
+      html += '<button type="button" class="ehr-show-older-btn" data-older-count="' + olderCount + '" onclick="toggleOlderVisits(this)" style="display:block;margin:10px auto 0;padding:8px 14px;font-size:12px;color:var(--text-secondary);background:transparent;border:1px dashed var(--border);border-radius:20px;cursor:pointer;">Show ' + olderCount + ' older visits</button>';
+    }
     html += '</div>';
+  }
+
+  // ── Care team section ──
+  if (ehrCareTeam.length > 0) {
+    html += buildCareTeamSection(ehrCareTeam, ehrProvider);
   }
 
   // Lab results (DB records + manual events + EHR cache)
@@ -9993,6 +10051,21 @@ function fetchEhrData(personId, navigateToRecords) {
       // PHI log removed
       return;
     }
+    // Identity safety check: the FHIR Patient returned must match the patient_id
+    // stored with this connection. This catches cases where an Epic proxy session
+    // or stale browser session caused the OAuth flow to mint a token against the
+    // wrong patient (which would silently overwrite the wrong person's cache).
+    if (data.expected_patient_id && data.patient && data.patient.id
+        && data.patient.id !== data.expected_patient_id) {
+      console.warn('EHR identity mismatch', {
+        personId: personId,
+        expected: data.expected_patient_id,
+        returned: data.patient.id,
+      });
+      showToast('Identity mismatch — please reconnect this person’s record');
+      // Do NOT cache — this would overwrite the wrong person
+      return;
+    }
     saveEhrCache(personId, data);
     showToast('Health records updated');
     // Re-render views with EHR data
@@ -10158,12 +10231,369 @@ function appleHealthBadgeHtml(source, providerName) {
 function buildEhrStatusBar(ehrData) {
   if (!ehrData || !ehrData.synced_at) return '';
   var syncedStr = formatEventDate(ehrData.synced_at);
+  // Show the actual patient name/DOB returned by the EHR so the caregiver can
+  // verify the chart matches the person shown. This is the final safeguard
+  // against silent identity mismatches.
+  var patientLine = '';
+  if (ehrData.patient && ehrData.patient.name) {
+    var dob = ehrData.patient.birth_date ? ' \u00B7 DOB ' + escHtml(ehrData.patient.birth_date) : '';
+    patientLine = '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">Chart: ' + escHtml(ehrData.patient.name) + dob + '</div>';
+  }
   return '<div class="ehr-status-bar">'
-    + '<div class="ehr-status-left"><div class="ehr-status-dot" aria-hidden="true"></div><strong>EHR Connected</strong> \u00B7 ' + escHtml(ehrData.provider || 'Provider') + '</div>'
+    + '<div class="ehr-status-left"><div class="ehr-status-dot" aria-hidden="true"></div>'
+    + '<div><strong>EHR Connected</strong> \u00B7 ' + escHtml(ehrData.provider || 'Provider')
+    + patientLine + '</div></div>'
     + '<div class="ehr-status-right">'
     + '<span style="font-size:11px;color:var(--text-muted);">Synced ' + syncedStr + '</span>'
     + '<button class="ehr-refresh-btn" onclick="refreshEhrData()" title="Refresh data"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>'
     + '</div></div>';
+}
+
+// Toggle the "older visits" container inside Records → Appointments & visits.
+// Called from an inline onclick on the "Show N older visits" button. Keeping
+// this as a named global avoids the fragile nested-quote inline handlers that
+// shipped earlier and were producing literal "+" artifacts in the label.
+function toggleOlderVisits(btn) {
+  var d = document.getElementById('ehr-older-visits');
+  if (!d) return;
+  var count = btn.getAttribute('data-older-count') || '';
+  var open = d.style.display !== 'none';
+  d.style.display = open ? 'none' : 'block';
+  btn.textContent = open ? ('Show ' + count + ' older visits') : 'Hide older visits';
+  try { initIcons(); } catch (e) {}
+}
+
+// Toggle any collapsible record-group body by id. Used by Care team and
+// potentially other sections so the caregiver can expand only what they need.
+function toggleRecordGroup(btn, bodyId) {
+  var d = document.getElementById(bodyId);
+  if (!d) return;
+  var open = d.style.display !== 'none';
+  d.style.display = open ? 'none' : 'block';
+  btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+  // Swap the chevron icon to signal state. We re-render Lucide icons after.
+  var icon = btn.querySelector('i[data-lucide]');
+  if (icon) icon.setAttribute('data-lucide', open ? 'chevron-down' : 'chevron-up');
+  try { initIcons(); } catch (e) {}
+}
+
+// Build the Care team section for Records. Lists every practitioner returned
+// from the EHR (Encounter.participant + CareTeam.participant, deduped server-
+// side) with role, specialty, phones, email, and address. The whole section
+// is collapsible — per Betsy's note: "we need to be able to collapse and
+// expand sections in all of records."
+function buildCareTeamSection(careTeam, provider) {
+  if (!careTeam || !careTeam.length) return '';
+  var bodyId = 'ehr-care-team-body';
+  var html = '<div class="record-group">'
+    + '<div class="record-group-header" role="button" tabindex="0" aria-expanded="true" onclick="toggleRecordGroup(this,\'' + bodyId + '\')" style="cursor:pointer;">'
+    + '<div class="record-group-title"><i data-lucide="users" style="width:14px;height:14px;color:var(--moss);"></i>Care team ' + ehrBadgeHtml() + '</div>'
+    + '<span style="display:inline-flex;align-items:center;gap:6px;">'
+    + '<span class="record-group-count">' + careTeam.length + '</span>'
+    + '<i data-lucide="chevron-up" style="width:14px;height:14px;color:var(--text-muted);"></i>'
+    + '</span>'
+    + '</div>'
+    + '<div id="' + bodyId + '" style="display:block;">';
+
+  careTeam.forEach(function(p, idx) {
+    var detailId = 'ehr-ct-' + idx;
+    // Summary line: role · specialty
+    var summaryBits = [];
+    if (p.role) summaryBits.push(escHtml(p.role));
+    if (p.specialty && p.specialty !== p.role) summaryBits.push(escHtml(p.specialty));
+    var summary = summaryBits.join(' \u00B7 ');
+
+    // Expanded detail — contact info
+    var lines = [];
+    var phones = (p.phones || []).filter(Boolean);
+    if (phones.length) {
+      lines.push('<div style="display:flex;align-items:center;gap:6px;"><i data-lucide="phone" style="width:12px;height:12px;color:var(--text-muted);"></i>'
+        + phones.map(function(ph){
+            var clean = String(ph).replace(/[^0-9+]/g, '');
+            return '<a href="tel:' + escHtml(clean) + '" style="color:var(--moss);text-decoration:none;">' + escHtml(ph) + '</a>';
+          }).join(', ')
+        + '</div>');
+    }
+    if (p.fax) {
+      lines.push('<div style="display:flex;align-items:center;gap:6px;"><i data-lucide="printer" style="width:12px;height:12px;color:var(--text-muted);"></i>Fax: ' + escHtml(p.fax) + '</div>');
+    }
+    var emails = (p.emails || []).filter(Boolean);
+    if (emails.length) {
+      lines.push('<div style="display:flex;align-items:center;gap:6px;"><i data-lucide="mail" style="width:12px;height:12px;color:var(--text-muted);"></i>'
+        + emails.map(function(em){
+            return '<a href="mailto:' + escHtml(em) + '" style="color:var(--moss);text-decoration:none;">' + escHtml(em) + '</a>';
+          }).join(', ')
+        + '</div>');
+    }
+    if (p.address) {
+      lines.push('<div style="display:flex;align-items:flex-start;gap:6px;"><i data-lucide="map-pin" style="width:12px;height:12px;color:var(--text-muted);margin-top:2px;"></i><span>' + escHtml(p.address) + '</span></div>');
+    }
+    if (!lines.length) {
+      lines.push('<div style="color:var(--text-muted);font-style:italic;">No contact info on file.</div>');
+    }
+
+    html += '<div class="record-row" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\'' + detailId + '\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
+      + '<div class="record-icon moss"><i data-lucide="user-round" style="width:15px;height:15px;"></i></div>'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div class="record-label">' + escHtml(p.name || 'Unnamed practitioner') + '</div>'
+      + '<div class="record-meta">' + (summary || '\u2014') + '</div>'
+      + '</div>'
+      + ehrProviderBadgeHtml(provider)
+      + '<div id="' + detailId + '" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.8;">'
+      + lines.join('')
+      + '</div>'
+      + '</div>';
+  });
+
+  html += '</div></div>';
+  return html;
+}
+
+// ── Visit attachments (audio/photo/PDF) ──────────────────────────────────────
+// State: per-person attachment cache. Shape:
+//   { <personId>: { byEventId: { <eventId>: [att,...] },
+//                   byVisitRef: { <visit_ref>: [att,...] } } }
+var visitAttachments = {};
+
+var ATTACH_MAX_BYTES = 25 * 1024 * 1024; // 25 MB, matches bucket limit
+var ATTACH_ALLOWED_MIME = {
+  'audio/mpeg':'audio','audio/mp4':'audio','audio/x-m4a':'audio','audio/wav':'audio',
+  'audio/webm':'audio','audio/aac':'audio','audio/ogg':'audio',
+  'image/jpeg':'photo','image/png':'photo','image/heic':'photo','image/heif':'photo','image/webp':'photo',
+  'application/pdf':'pdf'
+};
+// accept= attribute for the hidden <input type=file>
+var ATTACH_ACCEPT_ATTR = 'audio/*,image/*,application/pdf,.m4a,.heic,.heif';
+
+// Build a stable identifier for an EHR visit. Uses provider + FHIR id so the
+// ref survives a cache refresh (the FHIR id is stable per encounter).
+function visitRefFor(enc, provider) {
+  if (!enc) return null;
+  var id = enc.id || enc.fhir_id || enc.name + '|' + (enc.start_date || '');
+  var prov = (provider || 'ehr').toLowerCase().replace(/\s+/g,'-');
+  return 'ehr:' + prov + ':' + id;
+}
+
+function classifyMime(mime) {
+  return ATTACH_ALLOWED_MIME[mime] || (mime && mime.indexOf('audio/') === 0 ? 'audio'
+    : mime && mime.indexOf('image/') === 0 ? 'photo'
+    : mime === 'application/pdf' ? 'pdf' : 'other');
+}
+
+function attachmentIcon(kind) {
+  if (kind === 'audio') return 'mic';
+  if (kind === 'photo') return 'image';
+  if (kind === 'pdf') return 'file-text';
+  return 'paperclip';
+}
+
+function humanBytes(n) {
+  if (!n && n !== 0) return '';
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// Load every attachment for the given person in one query. Caches into
+// visitAttachments[personId] keyed by event_id AND visit_ref for O(1) lookup.
+async function loadAttachmentsForPerson(personId) {
+  if (!personId || isDemoMode || !currentUser) return;
+  try {
+    var res = await db.from('visit_attachments')
+      .select('*')
+      .eq('person_id', personId)
+      .order('created_at', { ascending: false });
+    if (res.error) { console.error('load attachments', res.error); return; }
+    var byEventId = {};
+    var byVisitRef = {};
+    (res.data || []).forEach(function(a) {
+      if (a.event_id) {
+        (byEventId[a.event_id] = byEventId[a.event_id] || []).push(a);
+      } else if (a.visit_ref) {
+        (byVisitRef[a.visit_ref] = byVisitRef[a.visit_ref] || []).push(a);
+      }
+    });
+    visitAttachments[personId] = { byEventId: byEventId, byVisitRef: byVisitRef };
+  } catch (e) {
+    console.error('load attachments exception', e);
+  }
+}
+
+function getAttachmentsFor(target) {
+  // target = { eventId } or { visitRef }
+  var bucket = visitAttachments[currentPersonId] || { byEventId:{}, byVisitRef:{} };
+  if (target.eventId) return bucket.byEventId[target.eventId] || [];
+  if (target.visitRef) return bucket.byVisitRef[target.visitRef] || [];
+  return [];
+}
+
+// Render the attachment zone inside a visit's expanded detail panel.
+// `scope` is one of 'event' or 'visit'; `key` is the event_id uuid or visit_ref.
+function renderAttachmentZone(scope, key) {
+  var list = getAttachmentsFor(scope === 'event' ? { eventId: key } : { visitRef: key });
+  var safeId = String(key).replace(/[^a-z0-9]/gi, '_');
+  var inputId = 'att-in-' + scope + '-' + safeId;
+  var listId = 'att-list-' + scope + '-' + safeId;
+  // Encode key for safe embedding inside a single-quoted JS string that lives
+  // inside a double-quoted HTML attribute. Backslash-escape the JS quotes first,
+  // then HTML-escape the whole thing.
+  var jsKey = String(key).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  var html = '<div class="visit-attachments" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">'
+    + '<div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;">Attachments</div>'
+    + '<label for="' + inputId + '" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--moss);cursor:pointer;padding:4px 8px;border:1px dashed var(--border);border-radius:12px;">'
+    + '<i data-lucide="paperclip" style="width:12px;height:12px;"></i>Add file'
+    + '</label>'
+    + '<input id="' + inputId + '" type="file" multiple accept="' + ATTACH_ACCEPT_ATTR + '" style="display:none;" onchange="handleAttachmentPick(this, \'' + scope + '\', \'' + escHtml(jsKey) + '\')">'
+    + '</div>'
+    + '<div id="' + listId + '">' + renderAttachmentList(list) + '</div>'
+    + '</div>';
+  return html;
+}
+
+function renderAttachmentList(list) {
+  if (!list || !list.length) {
+    return '<div style="font-size:11px;color:var(--text-muted);font-style:italic;">No files yet \u2014 add a voice memo, photo, or PDF.</div>';
+  }
+  return list.map(function(a) {
+    var icon = attachmentIcon(a.kind);
+    var size = humanBytes(a.size_bytes);
+    return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;">'
+      + '<i data-lucide="' + icon + '" style="width:14px;height:14px;color:var(--text-secondary);flex-shrink:0;"></i>'
+      + '<a onclick="openAttachment(\'' + a.id + '\')" style="color:var(--moss);text-decoration:none;cursor:pointer;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escHtml(a.file_name) + '</a>'
+      + '<span style="color:var(--text-muted);font-size:10px;flex-shrink:0;">' + size + '</span>'
+      + '<button type="button" onclick="deleteAttachment(\'' + a.id + '\')" title="Delete" style="background:none;border:0;cursor:pointer;color:var(--text-muted);padding:2px;">'
+      + '<i data-lucide="trash-2" style="width:12px;height:12px;"></i>'
+      + '</button>'
+      + '</div>';
+  }).join('');
+}
+
+// Called by the hidden file input's onchange.
+async function handleAttachmentPick(inputEl, scope, key) {
+  var files = Array.from(inputEl.files || []);
+  inputEl.value = ''; // reset so the same file can be picked again
+  if (!files.length) return;
+  if (!currentUser || !currentPersonId) {
+    showToast('Please sign in to attach files.'); return;
+  }
+  // Validate + upload sequentially so toasts are coherent.
+  for (var i = 0; i < files.length; i++) {
+    var f = files[i];
+    if (f.size > ATTACH_MAX_BYTES) {
+      showToast(escHtml(f.name) + ' is too big (' + humanBytes(f.size) + '). 25 MB max.');
+      continue;
+    }
+    var kind = classifyMime(f.type);
+    if (kind === 'other') {
+      // Allow by extension fallback (HEIC on some browsers reports empty mime).
+      var ext = (f.name.split('.').pop() || '').toLowerCase();
+      if (ext === 'heic' || ext === 'heif') kind = 'photo';
+      else if (ext === 'm4a') kind = 'audio';
+      else {
+        showToast(escHtml(f.name) + ' \u2014 only audio, photo, or PDF files are allowed.');
+        continue;
+      }
+    }
+    await uploadAttachment(f, kind, scope, key);
+  }
+  // Refresh state and redraw just the affected list.
+  await loadAttachmentsForPerson(currentPersonId);
+  refreshAttachmentList(scope, key);
+}
+
+async function uploadAttachment(file, kind, scope, key) {
+  try {
+    var ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8);
+    // Path: <user_id>/<person_id>/<uuid>.<ext> \u2014 required for storage RLS.
+    var uid = currentUser.id;
+    var rand = (crypto && crypto.randomUUID) ? crypto.randomUUID() : ('f' + Date.now() + Math.random().toString(36).slice(2));
+    var path = uid + '/' + currentPersonId + '/' + rand + '.' + ext;
+    var up = await db.storage.from('visit-attachments').upload(path, file, {
+      contentType: file.type || 'application/octet-stream',
+      upsert: false
+    });
+    if (up.error) { console.error('upload failed', up.error); showToast('Upload failed: ' + up.error.message); return; }
+    var row = {
+      user_id: uid,
+      person_id: currentPersonId,
+      event_id: scope === 'event' ? key : null,
+      visit_ref: scope === 'visit' ? key : null,
+      storage_path: path,
+      file_name: file.name,
+      mime_type: file.type || 'application/octet-stream',
+      size_bytes: file.size,
+      kind: kind
+    };
+    var ins = await db.from('visit_attachments').insert(row);
+    if (ins.error) {
+      console.error('insert failed', ins.error);
+      // Roll back the orphan storage object.
+      try { await db.storage.from('visit-attachments').remove([path]); } catch (e) {}
+      showToast('Couldn\u2019t save attachment: ' + ins.error.message);
+      return;
+    }
+    showToast('Attached ' + file.name);
+  } catch (e) {
+    console.error('uploadAttachment', e);
+    showToast('Upload error.');
+  }
+}
+
+async function openAttachment(id) {
+  try {
+    var att = findAttachmentById(id);
+    if (!att) return;
+    var res = await db.storage.from('visit-attachments').createSignedUrl(att.storage_path, 300);
+    if (res.error || !res.data || !res.data.signedUrl) {
+      showToast('Couldn\u2019t open file.'); return;
+    }
+    window.open(res.data.signedUrl, '_blank', 'noopener');
+  } catch (e) {
+    console.error('openAttachment', e);
+  }
+}
+
+async function deleteAttachment(id) {
+  var att = findAttachmentById(id);
+  if (!att) return;
+  if (!confirm('Delete ' + att.file_name + '?')) return;
+  try {
+    // Delete DB row first (RLS guarantees ownership). Then storage.
+    var del = await db.from('visit_attachments').delete().eq('id', id);
+    if (del.error) { showToast('Delete failed.'); return; }
+    try { await db.storage.from('visit-attachments').remove([att.storage_path]); } catch (e) {}
+    await loadAttachmentsForPerson(currentPersonId);
+    // Figure out which list to refresh.
+    if (att.event_id) refreshAttachmentList('event', att.event_id);
+    else if (att.visit_ref) refreshAttachmentList('visit', att.visit_ref);
+    showToast('Deleted.');
+  } catch (e) {
+    console.error('deleteAttachment', e);
+  }
+}
+
+function findAttachmentById(id) {
+  var bucket = visitAttachments[currentPersonId];
+  if (!bucket) return null;
+  var groups = [bucket.byEventId, bucket.byVisitRef];
+  for (var g = 0; g < groups.length; g++) {
+    var byKey = groups[g];
+    for (var k in byKey) {
+      var arr = byKey[k];
+      for (var i = 0; i < arr.length; i++) if (arr[i].id === id) return arr[i];
+    }
+  }
+  return null;
+}
+
+function refreshAttachmentList(scope, key) {
+  var listId = 'att-list-' + scope + '-' + String(key).replace(/[^a-z0-9]/gi, '_');
+  var el = document.getElementById(listId);
+  if (!el) return;
+  var list = getAttachmentsFor(scope === 'event' ? { eventId: key } : { visitRef: key });
+  el.innerHTML = renderAttachmentList(list);
+  try { initIcons(); } catch (e) {}
 }
 
 // Build the "no EHR connected" prompt

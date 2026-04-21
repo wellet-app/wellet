@@ -69,6 +69,26 @@ async function fetchFhirResource(
   return entries;
 }
 
+// Fetch a single FHIR resource by reference (e.g. "Practitioner/abc123")
+async function fetchFhirById(
+  fhirBaseUrl: string,
+  reference: string,
+  accessToken: string,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const res = await fetch(`${fhirBaseUrl}/${reference}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/fhir+json',
+      },
+    });
+    if (!res.ok) return null;
+    return await res.json() as Record<string, unknown>;
+  } catch (_e) {
+    return null;
+  }
+}
+
 // ── FHIR → Wellet Mappers ──
 
 function mapConditions(resources: unknown[]) {
@@ -88,9 +108,10 @@ function mapConditions(resources: unknown[]) {
   });
 }
 
+// Map MedicationRequest resources and dedup by normalized medication name.
+// Keeps the most recently authored order for each unique medication.
 function mapMedications(resources: unknown[]) {
-  return (resources as Record<string, unknown>[]).map((r) => {
-    // Epic uses medicationReference (with display) instead of medicationCodeableConcept
+  const mapped = (resources as Record<string, unknown>[]).map((r) => {
     const medCode = (r.medicationCodeableConcept as Record<string, unknown>) || {};
     const medRef = (r.medicationReference as Record<string, unknown>) || {};
     const coding = (medCode.coding as Record<string, unknown>[]) || [];
@@ -100,8 +121,12 @@ function mapMedications(resources: unknown[]) {
     const timing = (firstDosage.timing as Record<string, unknown>) || {};
     const repeat = (timing.repeat as Record<string, unknown>) || {};
 
-    // Try medicationCodeableConcept.text, then medicationReference.display, then coding.display
     const medName = medCode.text || (medRef.display as string) || firstCoding.display || 'Unknown medication';
+
+    // Prescriber reference (e.g. "Practitioner/abc") — used to build Care team
+    const requester = (r.requester as Record<string, unknown>) || {};
+    const prescriberRef = (requester.reference as string) || '';
+    const prescriberName = (requester.display as string) || '';
 
     return {
       type: 'medication',
@@ -112,8 +137,26 @@ function mapMedications(resources: unknown[]) {
       dosage: (firstDosage.text as string) || '',
       frequency: repeat.frequency ? `${repeat.frequency}x per ${repeat.period || ''} ${repeat.periodUnit || ''}`.trim() : '',
       date_asserted: r.dateAsserted || r.authoredOn || '',
+      prescriber_ref: prescriberRef,
+      prescriber_name: prescriberName,
     };
   });
+
+  // Dedup: key by lowercased, trimmed medication name; keep most recent date_asserted
+  const byName = new Map<string, typeof mapped[number]>();
+  for (const m of mapped) {
+    const key = (m.name || '').toLowerCase().trim();
+    if (!key) continue;
+    const existing = byName.get(key);
+    if (!existing) {
+      byName.set(key, m);
+      continue;
+    }
+    const existingDate = existing.date_asserted ? new Date(existing.date_asserted as string).getTime() : 0;
+    const newDate = m.date_asserted ? new Date(m.date_asserted as string).getTime() : 0;
+    if (newDate > existingDate) byName.set(key, m);
+  }
+  return Array.from(byName.values());
 }
 
 function mapAllergies(resources: unknown[]) {
@@ -175,23 +218,58 @@ function mapObservations(resources: unknown[]) {
   });
 }
 
+// Map Encounter resources, extracting participant practitioners and sorting most-recent first
 function mapEncounters(resources: unknown[]) {
-  return (resources as Record<string, unknown>[]).map((r) => {
-    const typeCoding = ((r.type as Record<string, unknown>[]) || [])[0];
-    const coding = (typeCoding?.coding as Record<string, unknown>[]) || [];
+  const visits = (resources as Record<string, unknown>[]).map((r) => {
+    const typeArr = (r.type as Record<string, unknown>[]) || [];
+    const typeCoding = typeArr[0] || {};
+    const coding = (typeCoding.coding as Record<string, unknown>[]) || [];
     const firstCoding = coding[0] || {};
     const period = (r.period as Record<string, unknown>) || {};
+
+    // Extract participant practitioner references + display names
+    const participants = (r.participant as Record<string, unknown>[]) || [];
+    const providers = participants.map((p) => {
+      const individual = (p.individual as Record<string, unknown>) || {};
+      return {
+        ref: (individual.reference as string) || '',
+        name: (individual.display as string) || '',
+      };
+    }).filter((p) => p.ref || p.name);
+
+    // Location display if present
+    const locationArr = (r.location as Record<string, unknown>[]) || [];
+    const firstLoc = locationArr[0] || {};
+    const locationDisplay = ((firstLoc.location as Record<string, unknown>) || {}).display as string || '';
+
+    // Reason for visit (R4 uses reasonCode; falls back to reason)
+    const reasonArr = (r.reasonCode as Record<string, unknown>[]) || (r.reason as Record<string, unknown>[]) || [];
+    const firstReason = reasonArr[0] || {};
+    const reasonText = (firstReason.text as string)
+      || (((firstReason.coding as Record<string, unknown>[]) || [])[0]?.display as string)
+      || '';
 
     return {
       type: 'encounter',
       source: 'ehr',
-      name: typeCoding?.text || firstCoding.display || (r.class as Record<string, unknown>)?.display || 'Visit',
+      name: typeCoding.text || firstCoding.display || (r.class as Record<string, unknown>)?.display || 'Visit',
       status: r.status || '',
       start_date: period.start || '',
       end_date: period.end || '',
       class: (r.class as Record<string, unknown>)?.code || '',
+      location: locationDisplay,
+      reason: reasonText,
+      providers, // [{ ref, name }]
     };
   });
+
+  // Sort most-recent first by start_date
+  visits.sort((a, b) => {
+    const da = a.start_date ? new Date(a.start_date as string).getTime() : 0;
+    const db = b.start_date ? new Date(b.start_date as string).getTime() : 0;
+    return db - da;
+  });
+  return visits;
 }
 
 function mapProcedures(resources: unknown[]) {
@@ -250,6 +328,85 @@ function mapDiagnosticReports(resources: unknown[]) {
   });
 }
 
+// Map a Practitioner resource to Wellet care team member shape.
+// Pulls display name, specialty (from qualification when available), phone/email (from telecom), and mailing address.
+function mapPractitioner(p: Record<string, unknown>, role?: string) {
+  // Name
+  const nameArr = (p.name as Record<string, unknown>[]) || [];
+  const firstName = nameArr[0] || {};
+  const nameText = (firstName.text as string)
+    || [(firstName.prefix as string[] | undefined)?.join(' '), (firstName.given as string[] | undefined)?.join(' '), firstName.family as string, (firstName.suffix as string[] | undefined)?.join(' ')]
+        .filter(Boolean).join(' ').trim();
+
+  // Telecom — split by system
+  const telecom = (p.telecom as Record<string, unknown>[]) || [];
+  const phones: string[] = [];
+  const emails: string[] = [];
+  let fax = '';
+  for (const t of telecom) {
+    const system = (t.system as string) || '';
+    const value = (t.value as string) || '';
+    if (!value) continue;
+    if (system === 'phone') phones.push(value);
+    else if (system === 'email') emails.push(value);
+    else if (system === 'fax') fax = value;
+  }
+
+  // Address — first usable one
+  const addresses = (p.address as Record<string, unknown>[]) || [];
+  const firstAddr = addresses[0] || {};
+  const lineArr = (firstAddr.line as string[]) || [];
+  const addressText = (firstAddr.text as string) || [
+    lineArr.join(', '),
+    firstAddr.city as string,
+    firstAddr.state as string,
+    firstAddr.postalCode as string,
+  ].filter(Boolean).join(', ');
+
+  // Specialty from qualification.code.text (best effort)
+  const qualifications = (p.qualification as Record<string, unknown>[]) || [];
+  let specialty = '';
+  for (const q of qualifications) {
+    const code = (q.code as Record<string, unknown>) || {};
+    const coding = (code.coding as Record<string, unknown>[]) || [];
+    const display = (code.text as string) || (coding[0]?.display as string) || '';
+    if (display) { specialty = display; break; }
+  }
+
+  return {
+    type: 'practitioner',
+    source: 'ehr',
+    id: (p.id as string) || '',
+    name: nameText || 'Unknown provider',
+    role: role || '',
+    specialty,
+    phones,
+    fax,
+    emails,
+    address: addressText,
+  };
+}
+
+// Map a Patient resource to a minimal identity payload used by the frontend
+// to VERIFY the chart shown matches the connected patient. Without this,
+// a mismatched token/patient_id could silently show the wrong person's data.
+function mapPatient(p: Record<string, unknown>) {
+  const nameArr = (p.name as Record<string, unknown>[]) || [];
+  // Prefer official name, else first usable
+  const preferred = nameArr.find((n) => (n.use as string) === 'official') || nameArr[0] || {};
+  const nameText = (preferred.text as string)
+    || [
+      (preferred.given as string[] | undefined)?.join(' '),
+      preferred.family as string,
+    ].filter(Boolean).join(' ').trim();
+  return {
+    id: (p.id as string) || '',
+    name: nameText || 'Unknown',
+    birth_date: (p.birthDate as string) || '',
+    gender: (p.gender as string) || '',
+  };
+}
+
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
   function jsonResponse(data: unknown, status = 200) {
@@ -304,28 +461,99 @@ Deno.serve(async (req) => {
     // Build patient search param for scoped queries
     const patientParam = patientId ? `patient=${patientId}` : '';
 
-    // Fetch all FHIR resource types in parallel from Epic's FHIR R4 endpoint
-    const [conditions, medications, allergies, labObservations, vitalObservations, immunizations, diagnosticReports] = await Promise.all([
+    // Fetch Encounters with no date filter — frontend applies 2-year window
+    // so user can toggle "show older" without re-hitting Epic.
+    // Fetch FHIR resources in parallel from Epic's FHIR R4 endpoint
+    const [
+      patientResource,
+      conditions,
+      medications,
+      allergies,
+      labObservations,
+      vitalObservations,
+      immunizations,
+      diagnosticReports,
+      encountersRaw,
+      careTeamsRaw,
+    ] = await Promise.all([
+      // Patient identity — proves which chart we are actually pulling
+      patientId ? fetchFhirById(fhirBaseUrl, `Patient/${patientId}`, accessToken) : Promise.resolve(null),
       fetchFhirResource(fhirBaseUrl, 'Condition', accessToken, patientParam),
-      fetchFhirResource(fhirBaseUrl, 'MedicationRequest', accessToken, patientParam),
+      // status=active is an Epic-supported filter — fixes the "78 amlodipine rows" bug
+      fetchFhirResource(fhirBaseUrl, 'MedicationRequest', accessToken, patientParam ? `${patientParam}&status=active` : 'status=active'),
       fetchFhirResource(fhirBaseUrl, 'AllergyIntolerance', accessToken, patientParam),
       fetchFhirResource(fhirBaseUrl, 'Observation', accessToken, patientParam ? `${patientParam}&category=laboratory` : 'category=laboratory'),
       fetchFhirResource(fhirBaseUrl, 'Observation', accessToken, patientParam ? `${patientParam}&category=vital-signs` : 'category=vital-signs'),
       fetchFhirResource(fhirBaseUrl, 'Immunization', accessToken, patientParam),
       fetchFhirResource(fhirBaseUrl, 'DiagnosticReport', accessToken, patientParam),
+      // All encounters — UI filters to last 2 years with a "show older" toggle
+      fetchFhirResource(fhirBaseUrl, 'Encounter', accessToken, patientParam),
+      // Active care teams
+      fetchFhirResource(fhirBaseUrl, 'CareTeam', accessToken, patientParam ? `${patientParam}&status=active` : 'status=active'),
     ]);
+
+    const patient = patientResource ? mapPatient(patientResource) : { id: patientId || '', name: '', birth_date: '', gender: '' };
 
     // Combine lab and vital observations
     const observations = [...labObservations, ...vitalObservations];
 
+    const medicationsMapped = mapMedications(medications);
+    const visitsMapped = mapEncounters(encountersRaw);
+
+    // ── Build unified practitioner roster ──
+    // Collect Practitioner references from: CareTeam.participant, Encounter.participant, and MedicationRequest.requester
+    const practitionerRefs = new Set<string>();
+    const roleByRef: Record<string, string> = {};
+
+    for (const ct of careTeamsRaw as Record<string, unknown>[]) {
+      const participants = (ct.participant as Record<string, unknown>[]) || [];
+      for (const p of participants) {
+        const member = (p.member as Record<string, unknown>) || {};
+        const ref = (member.reference as string) || '';
+        if (ref && ref.startsWith('Practitioner/')) {
+          practitionerRefs.add(ref);
+          const roleArr = (p.role as Record<string, unknown>[]) || [];
+          const firstRole = roleArr[0] || {};
+          const roleCoding = (firstRole.coding as Record<string, unknown>[]) || [];
+          const roleText = (firstRole.text as string) || (roleCoding[0]?.display as string) || '';
+          if (roleText) roleByRef[ref] = roleText;
+        }
+      }
+    }
+    for (const v of visitsMapped) {
+      for (const p of v.providers) {
+        if (p.ref && p.ref.startsWith('Practitioner/')) practitionerRefs.add(p.ref);
+      }
+    }
+    for (const m of medicationsMapped) {
+      if (m.prescriber_ref && m.prescriber_ref.startsWith('Practitioner/')) practitionerRefs.add(m.prescriber_ref);
+    }
+
+    // Fetch each Practitioner individually (Epic's FHIR R4 supports Practitioner.Read by ID)
+    // Capped to protect against runaway (should be well under 50 for a typical patient)
+    const refList = Array.from(practitionerRefs).slice(0, 50);
+    const practitionerResources = await Promise.all(
+      refList.map((ref) => fetchFhirById(fhirBaseUrl, ref, accessToken))
+    );
+    const careTeam = practitionerResources
+      .map((p, i) => p ? mapPractitioner(p, roleByRef[refList[i]]) : null)
+      .filter((p) => p !== null) as ReturnType<typeof mapPractitioner>[];
+
+    // Sort care team alphabetically by name
+    careTeam.sort((a, b) => (a!.name || '').localeCompare(b!.name || ''));
+
     // Map FHIR resources to Wellet-friendly format
     const result = {
+      patient, // { id, name, birth_date, gender } — for UI verification
+      expected_patient_id: patientId || '',
       conditions: mapConditions(conditions),
-      medications: mapMedications(medications),
+      medications: medicationsMapped,
       allergies: mapAllergies(allergies),
       observations: mapObservations(observations),
       immunizations: mapImmunizations(immunizations),
       diagnostic_reports: mapDiagnosticReports(diagnosticReports),
+      visits: visitsMapped,
+      care_team: careTeam,
       provider: conn.connected_provider || 'Epic MyChart',
       synced_at: new Date().toISOString(),
     };
