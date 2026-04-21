@@ -4236,10 +4236,13 @@ async function initApp() {
   try {
     var { data: { session } } = await db.auth.getSession();
     if (session) {
-      // Verify the user is still on the alpha allowlist
+      // Verify the user is still on the alpha allowlist.
+      // Only sign out on an explicit `false` — a null (RPC error / network blip)
+      // must NOT kick a valid session. This prevents the "magic link every visit"
+      // failure mode when the RPC is transiently unavailable.
       var stillAllowed = await checkAlphaAllowlist(session.user.email);
-      if (!stillAllowed) {
-        console.warn('User removed from alpha allowlist — signing out');
+      if (stillAllowed === false) {
+        console.warn('User removed from alpha allowlist \u2014 signing out');
         await db.auth.signOut();
         showAuthScreen();
         showToast('Your alpha access has been revoked');
@@ -4273,10 +4276,11 @@ async function initApp() {
           resetInactivityTimer();
           return;
         }
-        // Verify allowlist on fresh sign-in
+        // Verify allowlist on fresh sign-in (fail-open on RPC error: sendMagicLink
+        // is the hard gate, so a transient RPC failure here shouldn't lock users out)
         if (event === 'SIGNED_IN') {
           var allowed = await checkAlphaAllowlist(session.user.email);
-          if (!allowed) {
+          if (allowed === false) {
             await db.auth.signOut();
             showAuthScreen();
             showToast('Your email is not on the alpha list');
@@ -4710,9 +4714,19 @@ document.addEventListener('keydown', function(e) {
 
 async function checkAlphaAllowlist(email) {
   var normalized = email.toLowerCase().trim();
-  var { data, error } = await db.rpc('check_alpha_allowlist', { check_email: normalized });
-  if (error) { console.error('Allowlist check error:', error); return false; }
-  return data === true;
+  try {
+    var { data, error } = await db.rpc('check_alpha_allowlist', { check_email: normalized });
+    if (error) {
+      // Transient RPC failure — don't assert the user is banned. Let magic-link
+      // send flow enforce strict gating. Return null to signal "unknown".
+      console.error('Allowlist check error:', error);
+      return null;
+    }
+    return data === true;
+  } catch (e) {
+    console.error('Allowlist check threw:', e);
+    return null;
+  }
 }
 
 async function sendMagicLink() {
@@ -4722,9 +4736,11 @@ async function sendMagicLink() {
   btn.disabled = true;
   btn.textContent = 'Checking…';
 
-  // Alpha gate: check allowlist before sending magic link
+  // Alpha gate: strictly require a positive allowlist result before sending.
+  // null (RPC error) is treated as "not allowed" here so we don't spam magic
+  // links to random emails during an outage.
   var allowed = await checkAlphaAllowlist(email);
-  if (!allowed) {
+  if (allowed !== true) {
     btn.disabled = false;
     btn.innerHTML = 'Send magic link <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>';
     initIcons();
