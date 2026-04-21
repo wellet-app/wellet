@@ -172,6 +172,30 @@ async function discoverSmartEndpoints(fhirBaseUrl: string): Promise<{
   throw new Error('Could not discover SMART endpoints from ' + fhirBaseUrl);
 }
 
+// Probe whether a candidate R4 base URL responds with a valid CapabilityStatement.
+// Used when the Epic directory returns a DSTU2 URL — most Epic customers also
+// expose /R4/ at the same host, and our fetch-ehr-data is R4-only.
+async function probeR4Metadata(r4BaseUrl: string): Promise<boolean> {
+  const ctrl = new AbortController();
+  const timeoutId = setTimeout(() => ctrl.abort(), 4000);
+  try {
+    const res = await fetch(`${r4BaseUrl}/metadata`, {
+      headers: { 'Accept': 'application/fhir+json, application/json, application/fhir+xml' },
+      signal: ctrl.signal,
+    });
+    if (!res.ok) {
+      console.log('[epic-auth] R4 probe non-200', { url: r4BaseUrl, status: res.status });
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.warn('[epic-auth] R4 probe failed', { url: r4BaseUrl, err: (e as Error).message });
+    return false;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 // ── Main Handler ─────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -223,15 +247,23 @@ Deno.serve(async (req) => {
         // Production — discover SMART endpoints from the hospital's FHIR base URL
         fhirBase = fhirBaseUrl;
 
-        // Reject DSTU2 endpoints — our fetch-ehr-data is R4-only.
-        // Customers on DSTU2 sites (e.g., older Duke endpoints) will get a clear error
-        // instead of a broken connection with empty data.
+        // Epic's public endpoint directory still lists /DSTU2/ URLs for every hospital,
+        // but the vast majority of Epic customers also expose an /R4/ path at the same
+        // host. Try that first. Only reject as unsupported if R4 genuinely doesn't respond.
         if (/\/DSTU2(\/|$)/i.test(fhirBase) || /\/stu2(\/|$)/i.test(fhirBase)) {
-          return jsonResponse({
-            error: 'unsupported_fhir_version',
-            message: 'This provider is on an older FHIR version (DSTU2) that Wellet does not yet support. Please try a different location or ask us to add support.',
-            fhir_base_url: fhirBase,
-          }, 400);
+          const r4Candidate = fhirBase.replace(/\/DSTU2(\/|$)/i, '/R4$1').replace(/\/stu2(\/|$)/i, '/R4$1');
+          const r4Works = await probeR4Metadata(r4Candidate);
+          if (r4Works) {
+            console.log('[epic-auth] Rewrote DSTU2 -> R4', { from: fhirBase, to: r4Candidate });
+            fhirBase = r4Candidate;
+          } else {
+            return jsonResponse({
+              error: 'unsupported_fhir_version',
+              message: 'This provider is on an older FHIR version (DSTU2) that Wellet does not yet support. Please try a different location or ask us to add support.',
+              fhir_base_url: fhirBase,
+              hospital_name: hospitalName || null,
+            }, 400);
+          }
         }
 
         const endpoints = await discoverSmartEndpoints(fhirBase);
