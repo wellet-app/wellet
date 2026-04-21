@@ -2622,7 +2622,7 @@
   </div>
 
   <!-- Hidden file inputs for onboarding uploads -->
-  <input type="file" id="ob-file-ehr" accept=".zip" style="display:none;" onchange="obChatHandleFiles(this,'ehr')">
+  <input type="file" id="ob-file-ehr" accept=".zip,.xml,.pdf" style="display:none;" onchange="obChatHandleFiles(this,'ehr')">
   <input type="file" id="ob-file-photo" accept="image/*" capture="environment" style="display:none;" onchange="obChatHandleFiles(this,'photo')">
   <input type="file" id="ob-file-doc" accept=".pdf,.jpg,.jpeg,.png,.heic,.doc,.docx" multiple style="display:none;" onchange="obChatHandleFiles(this,'doc')">
   <input type="file" id="ob-file-camera" accept="image/*" capture="environment" style="display:none;" onchange="obChatHandleFiles(this,'photo')">
@@ -12108,6 +12108,8 @@ var _obExtractedData = null;
 var _obUploadPaths = [];
 var _obFromEhr = false;
 var _obEhrPending = null;
+var _obVaConsentGiven = false;
+var _obVaUploadMode = false;
 
 // Legacy stubs for any external references
 function obUploadEhrZip() { document.getElementById('ob-file-ehr').click(); }
@@ -12170,6 +12172,7 @@ var _obChatSituations = [
 
 var _obChatConnectOptions = [
   { id: 'ehr',      label: 'I have a MyChart login' },
+  { id: 'va_health', label: 'They get care through the VA' },
   { id: 'docs',     label: 'I have documents to upload' },
   { id: 'photo',    label: 'I can take a photo' },
   { id: 'device',   label: 'I have a health device' },
@@ -12218,6 +12221,15 @@ function obShowScreen(screenId) {
 async function obChatHandleFiles(input, type) {
   if (!input.files || input.files.length === 0) return;
   var files = Array.from(input.files);
+
+  // Route EHR uploads by extension: XML=CCDA, ZIP=Apple Health, PDF=VA Blue Button
+  if (type === 'ehr' && files.length === 1) {
+    var fname = (files[0].name || '').toLowerCase();
+    if (fname.endsWith('.xml')) { return obHandleVaCcda(files[0], input); }
+    if (fname.endsWith('.pdf')) { return obHandleVaBlueButtonPdf(files[0], input); }
+    // .zip falls through to existing Apple Health handler
+  }
+
   _obUploadedFiles = _obUploadedFiles.concat(files);
   var fileCount = files.length;
 
@@ -12299,6 +12311,574 @@ function obRevealExtraction(data) { obShowExtractionCard(data, 'your uploads'); 
 function obAddMorePhoto() { document.getElementById('ob-file-photo').click(); }
 function obAddMoreFile() { document.getElementById('ob-file-doc').click(); }
 async function obHandleAddMore(input, type) { obChatHandleFiles(input, type); }
+
+// ─── VA CCDA / Blue Button PDF handlers ──────────────────────────────────────
+
+async function obHandleVaCcda(file, inputEl) {
+  // Require consent checkbox state captured during obStartVaCcdaFlow
+  if (!_obVaConsentGiven) {
+    obAddBubble('wellet', 'Before I read this, please confirm you have permission to handle this person\u2019s records.');
+    if (inputEl) inputEl.value = '';
+    return;
+  }
+
+  if (file.size > 20 * 1024 * 1024) {
+    obAddBubble('wellet', 'That file is larger than 20 MB \u2014 probably not a VA Health Summary. Can you double-check and try again?');
+    if (inputEl) inputEl.value = '';
+    return;
+  }
+
+  if (!currentUser) {
+    obAddBubble('wellet', 'I\u2019ll read this as soon as you finish signing in. Hold on.');
+    if (inputEl) inputEl.value = '';
+    return;
+  }
+
+  obTypeThen('Reading the VA Health Summary\u2026', null, 300);
+
+  // Read file
+  var xmlText;
+  try {
+    xmlText = await file.text();
+  } catch (e) {
+    obAddBubble('wellet', 'I couldn\u2019t read that file. Try downloading the VA Health Summary again and uploading fresh.');
+    if (inputEl) inputEl.value = '';
+    return;
+  }
+
+  // Validate CCDA
+  var doc;
+  try {
+    doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+    if (doc.getElementsByTagName('parsererror').length > 0 || !doc.documentElement) throw new Error('parse');
+    var root = doc.documentElement.localName || doc.documentElement.nodeName;
+    if (root !== 'ClinicalDocument') throw new Error('not-ccda');
+  } catch (e) {
+    obAddBubble('wellet', 'This doesn\u2019t look like a VA Health Summary XML. If you downloaded a PDF instead, upload that \u2014 I can read those too.');
+    if (inputEl) inputEl.value = '';
+    return;
+  }
+
+  // 1. Upload raw file
+  var timestamp = Date.now();
+  var rawPath = currentUser.id + '/va-ccda-' + timestamp + '.xml';
+  try {
+    await supabase.storage.from('ehr-uploads').upload(rawPath, file, { contentType: 'application/xml', upsert: false });
+  } catch (e) {
+    console.error('raw upload failed', e);
+    // Non-fatal — continue with parse
+  }
+
+  // 2. Ensure person exists
+  if (!currentPersonId) {
+    try {
+      var personName = obChat.personName || 'My Veteran';
+      var _pRes = await supabase.from('people').insert({
+        user_id: currentUser.id,
+        name: personName,
+        relationship: obChat.situation || null,
+        care_status: 'active',
+        situation: 'va-enrolled'
+      }).select().single();
+      if (_pRes.error) throw _pRes.error;
+      currentPersonId = _pRes.data.id;
+    } catch (e) {
+      obAddBubble('wellet', 'I hit a snag creating the record for your Veteran. Can you try again?');
+      if (inputEl) inputEl.value = '';
+      return;
+    }
+  }
+
+  // 3. Create ehr_source_events row
+  var effectiveTime = doc.querySelector('ClinicalDocument > effectiveTime');
+  var sourceDateIso = null;
+  if (effectiveTime) {
+    var v = effectiveTime.getAttribute('value');
+    if (v && v.length >= 8) {
+      sourceDateIso = v.substring(0,4) + '-' + v.substring(4,6) + '-' + v.substring(6,8) + 'T00:00:00Z';
+    }
+  }
+
+  var sourceEvent;
+  try {
+    var _seRes = await supabase.from('ehr_source_events').insert({
+      user_id: currentUser.id,
+      person_id: currentPersonId,
+      source_type: 'va-ccda',
+      source_label: 'VA Health Summary',
+      source_date: sourceDateIso,
+      raw_file_path: rawPath,
+      raw_file_size_bytes: file.size,
+      parse_status: 'parsing'
+    }).select().single();
+    if (_seRes.error) throw _seRes.error;
+    sourceEvent = _seRes.data;
+  } catch (e) {
+    console.error('source event insert failed', e);
+    obAddBubble('wellet', 'I saved the file but couldn\u2019t start reading it. Try again in a moment?');
+    if (inputEl) inputEl.value = '';
+    return;
+  }
+
+  // 4. Parse sections
+  var parsed = parseCcdaSections(doc);
+
+  // 5. Diff-and-merge insert each category
+  var counts = { conditions: 0, medications: 0, allergies: 0, labs: 0, vitals: 0, immunizations: 0, procedures: 0 };
+  try {
+    counts.medications   = await mergeVaRecords('medications',   parsed.medications,   sourceEvent.id);
+    counts.allergies     = await mergeVaRecords('allergies',     parsed.allergies,     sourceEvent.id);
+    counts.labs          = await mergeVaRecords('lab_results',   parsed.labs,          sourceEvent.id);
+    counts.vitals        = await mergeVaRecords('vitals',        parsed.vitals,        sourceEvent.id);
+    counts.conditions    = await mergeVaRecords('health_events', parsed.conditions,    sourceEvent.id);
+    counts.immunizations = await mergeVaRecords('health_events', parsed.immunizations, sourceEvent.id);
+    counts.procedures    = await mergeVaRecords('health_events', parsed.procedures,    sourceEvent.id);
+  } catch (e) {
+    console.error('merge failed', e);
+    await supabase.from('ehr_source_events').update({ parse_status: 'failed', parse_error: String(e).slice(0,500) }).eq('id', sourceEvent.id);
+    obAddBubble('wellet', 'I got partway through reading it and hit a snag. Your file is saved \u2014 try uploading again or email me at betsy.eble@gmail.com.');
+    if (inputEl) inputEl.value = '';
+    return;
+  }
+
+  await supabase.from('ehr_source_events').update({
+    parse_status: 'complete',
+    record_counts: counts
+  }).eq('id', sourceEvent.id);
+
+  // 6. Success bubble
+  var summaryParts = [];
+  if (counts.conditions)    summaryParts.push(counts.conditions    + ' condition'    + (counts.conditions    !== 1 ? 's' : ''));
+  if (counts.medications)   summaryParts.push(counts.medications   + ' medication'   + (counts.medications   !== 1 ? 's' : ''));
+  if (counts.allergies)     summaryParts.push(counts.allergies     + ' allerg'       + (counts.allergies     !== 1 ? 'ies' : 'y'));
+  if (counts.labs)          summaryParts.push(counts.labs          + ' lab result'   + (counts.labs          !== 1 ? 's' : ''));
+  if (counts.vitals)        summaryParts.push(counts.vitals        + ' vital'        + (counts.vitals        !== 1 ? 's' : ''));
+  if (counts.immunizations) summaryParts.push(counts.immunizations + ' immunization' + (counts.immunizations !== 1 ? 's' : ''));
+  if (counts.procedures)    summaryParts.push(counts.procedures    + ' procedure'    + (counts.procedures    !== 1 ? 's' : ''));
+
+  var _vaCcdaPersonName = obChat.personName || 'your Veteran';
+  var summaryText = summaryParts.length ? summaryParts.join(', ') : 'nothing new';
+  obAddBubble('wellet',
+    'Done. I read ' + escHtml(_vaCcdaPersonName) + '\u2019s VA Health Summary and added ' + summaryText + '.' +
+    '<br><br>You can re-upload anytime \u2014 I\u2019ll only add what\u2019s new.'
+  );
+
+  if (inputEl) inputEl.value = '';
+  setTimeout(obShowConnectChips, 900);
+}
+
+// ─── CCDA section parser ──────────────────────────────────────────────────────
+
+function parseCcdaSections(doc) {
+  var result = { conditions: [], medications: [], allergies: [], labs: [], vitals: [], immunizations: [], procedures: [] };
+
+  function getSection(code) {
+    var sections = doc.querySelectorAll('section');
+    for (var i = 0; i < sections.length; i++) {
+      var codeEl = sections[i].querySelector(':scope > code');
+      if (codeEl && codeEl.getAttribute('code') === code) return sections[i];
+    }
+    return null;
+  }
+
+  function xmlText(el, selector) {
+    if (!el) return '';
+    var found = el.querySelector(selector);
+    return found ? (found.textContent || '').trim() : '';
+  }
+
+  function isoDate(yyyymmdd) {
+    if (!yyyymmdd) return null;
+    var s = yyyymmdd.replace(/[^0-9]/g, '');
+    if (s.length < 8) return null;
+    return s.substring(0,4) + '-' + s.substring(4,6) + '-' + s.substring(6,8);
+  }
+
+  // --- Medications (10160-0) ---
+  var medSec = getSection('10160-0');
+  if (medSec) {
+    var entries = medSec.querySelectorAll('entry');
+    entries.forEach(function(entry) {
+      var sa = entry.querySelector('substanceAdministration');
+      if (!sa) return;
+      var mat = sa.querySelector('manufacturedMaterial');
+      var nameEl = mat ? mat.querySelector('code') : null;
+      var name = nameEl ? (nameEl.getAttribute('displayName') || '') : '';
+      if (!name && mat) name = xmlText(mat, 'name');
+      if (!name) return;
+      var doseQ = sa.querySelector('doseQuantity');
+      var dose = doseQ ? ((doseQ.getAttribute('value') || '') + ' ' + (doseQ.getAttribute('unit') || '')).trim() : null;
+      var etLow  = sa.querySelector('effectiveTime[xsi\\:type="IVL_TS"] low, effectiveTime low');
+      var etHigh = sa.querySelector('effectiveTime[xsi\\:type="IVL_TS"] high, effectiveTime high');
+      var startDate = etLow  ? isoDate(etLow.getAttribute('value'))  : null;
+      var endDate   = etHigh ? isoDate(etHigh.getAttribute('value')) : null;
+      var active = !endDate;
+      var fp = name.toLowerCase().trim() + '|' + (startDate || '');
+      result.medications.push({ name: name, dose: dose || null, start_date: startDate, end_date: endDate, active: active, source: 'va-ccda', ehr_system: 'VA', fingerprint: fp });
+    });
+  }
+
+  // --- Allergies (48765-2) ---
+  var allerSec = getSection('48765-2');
+  if (allerSec) {
+    var allerEntries = allerSec.querySelectorAll('entry');
+    allerEntries.forEach(function(entry) {
+      var playEl = entry.querySelector('playingEntity > code, playingEntity code');
+      var substance = playEl ? (playEl.getAttribute('displayName') || xmlText(entry, 'playingEntity name')) : xmlText(entry, 'playingEntity name');
+      if (!substance) return;
+      var reactionEl = entry.querySelector('entryRelationship observation value');
+      var reaction = reactionEl ? (reactionEl.getAttribute('displayName') || '') : null;
+      var severityEl = entry.querySelector('entryRelationship[typeCode="SUBJ"] observation value');
+      var severity = severityEl ? (severityEl.getAttribute('displayName') || '') : null;
+      var fp = substance.toLowerCase().trim();
+      result.allergies.push({ substance: substance, reaction: reaction || null, severity: severity || null, source: 'va-ccda', ehr_system: 'VA', fingerprint: fp });
+    });
+  }
+
+  // --- Problems / Conditions (11450-4) ---
+  var probSec = getSection('11450-4');
+  if (probSec) {
+    var probEntries = probSec.querySelectorAll('entry');
+    probEntries.forEach(function(entry) {
+      var obs = entry.querySelector('observation');
+      if (!obs) return;
+      var valueEl = obs.querySelector('value');
+      var title = valueEl ? (valueEl.getAttribute('displayName') || xmlText(obs, 'text')) : xmlText(obs, 'text');
+      if (!title) return;
+      var onsetEl = obs.querySelector('effectiveTime low');
+      var eventDate = onsetEl ? isoDate(onsetEl.getAttribute('value')) : null;
+      var fp = title.toLowerCase().trim();
+      result.conditions.push({ event_type: 'condition', title: title, event_date: eventDate, source: 'va-ccda', ehr_system: 'VA', fingerprint: fp });
+    });
+  }
+
+  // --- Immunizations (11369-6) ---
+  var imSec = getSection('11369-6');
+  if (imSec) {
+    var imEntries = imSec.querySelectorAll('entry');
+    imEntries.forEach(function(entry) {
+      var sa = entry.querySelector('substanceAdministration');
+      if (!sa) return;
+      var codeEl = sa.querySelector('manufacturedMaterial code');
+      var title = codeEl ? (codeEl.getAttribute('displayName') || '') : '';
+      if (!title) return;
+      var etEl = sa.querySelector('effectiveTime');
+      var eventDate = etEl ? isoDate(etEl.getAttribute('value')) : null;
+      var fp = title.toLowerCase().trim() + '|' + (eventDate || '');
+      result.immunizations.push({ event_type: 'immunization', title: title, event_date: eventDate, source: 'va-ccda', ehr_system: 'VA', fingerprint: fp });
+    });
+  }
+
+  // --- Labs / Results (30954-2) ---
+  var labSec = getSection('30954-2');
+  if (labSec) {
+    var labOrgs = labSec.querySelectorAll('organizer');
+    labOrgs.forEach(function(org) {
+      var obs = org.querySelectorAll('observation');
+      obs.forEach(function(ob) {
+        var codeEl = ob.querySelector(':scope > code');
+        var testName = codeEl ? (codeEl.getAttribute('displayName') || '') : '';
+        if (!testName) return;
+        var loincCode = codeEl ? (codeEl.getAttribute('code') || '') : '';
+        var valEl = ob.querySelector(':scope > value');
+        var value = valEl ? (valEl.getAttribute('value') || valEl.textContent || '').trim() : null;
+        var unit = valEl ? (valEl.getAttribute('unit') || null) : null;
+        var etEl = ob.querySelector('effectiveTime');
+        var effectiveDate = etEl ? isoDate(etEl.getAttribute('value')) : null;
+        var rrEl = ob.querySelector('referenceRange observationRange text');
+        var referenceRange = rrEl ? rrEl.textContent.trim() : null;
+        var statusEl = ob.querySelector('statusCode');
+        var status = statusEl ? (statusEl.getAttribute('code') || null) : null;
+        var fp = loincCode + '|' + (effectiveDate || '') + '|' + (value || '');
+        result.labs.push({ test_name: testName, loinc_code: loincCode || null, value: value, unit: unit, reference_range: referenceRange, status: status, effective_date: effectiveDate, source: 'va-ccda', ehr_system: 'VA', fingerprint: fp });
+      });
+    });
+    // Also handle flat observations not in an organizer
+    var flatObs = labSec.querySelectorAll(':scope > entry > observation');
+    flatObs.forEach(function(ob) {
+      var codeEl = ob.querySelector(':scope > code');
+      var testName = codeEl ? (codeEl.getAttribute('displayName') || '') : '';
+      if (!testName) return;
+      var loincCode = codeEl ? (codeEl.getAttribute('code') || '') : '';
+      var valEl = ob.querySelector(':scope > value');
+      var value = valEl ? (valEl.getAttribute('value') || valEl.textContent || '').trim() : null;
+      var unit = valEl ? (valEl.getAttribute('unit') || null) : null;
+      var etEl = ob.querySelector('effectiveTime');
+      var effectiveDate = etEl ? isoDate(etEl.getAttribute('value')) : null;
+      var fp = loincCode + '|' + (effectiveDate || '') + '|' + (value || '');
+      result.labs.push({ test_name: testName, loinc_code: loincCode || null, value: value, unit: unit, reference_range: null, status: null, effective_date: effectiveDate, source: 'va-ccda', ehr_system: 'VA', fingerprint: fp });
+    });
+  }
+
+  // --- Vitals (8716-3) ---
+  var vitSec = getSection('8716-3');
+  if (vitSec) {
+    var vitOrgs = vitSec.querySelectorAll('organizer');
+    vitOrgs.forEach(function(org) {
+      var obs = org.querySelectorAll('observation');
+      var etEl = org.querySelector('effectiveTime');
+      var effectiveDate = etEl ? isoDate(etEl.getAttribute('value')) : null;
+      obs.forEach(function(ob) {
+        var codeEl = ob.querySelector(':scope > code');
+        var vitalType = codeEl ? (codeEl.getAttribute('displayName') || '') : '';
+        if (!vitalType) return;
+        var loincCode = codeEl ? (codeEl.getAttribute('code') || '') : '';
+        var valEl = ob.querySelector(':scope > value');
+        var value = valEl ? (valEl.getAttribute('value') || valEl.textContent || '').trim() : null;
+        var unit = valEl ? (valEl.getAttribute('unit') || null) : null;
+        if (!effectiveDate) {
+          var obEt = ob.querySelector('effectiveTime');
+          effectiveDate = obEt ? isoDate(obEt.getAttribute('value')) : null;
+        }
+        var fp = loincCode + '|' + (effectiveDate || '');
+        result.vitals.push({ vital_type: vitalType, loinc_code: loincCode || null, value: value, unit: unit, effective_date: effectiveDate, source: 'va-ccda', ehr_system: 'VA', fingerprint: fp });
+      });
+    });
+  }
+
+  // --- Procedures (47519-4) ---
+  var procSec = getSection('47519-4');
+  if (procSec) {
+    var procEntries = procSec.querySelectorAll('entry');
+    procEntries.forEach(function(entry) {
+      var proc = entry.querySelector('procedure, act');
+      if (!proc) return;
+      var codeEl = proc.querySelector(':scope > code');
+      var title = codeEl ? (codeEl.getAttribute('displayName') || xmlText(proc, 'text')) : xmlText(proc, 'text');
+      if (!title) return;
+      var etEl = proc.querySelector('effectiveTime');
+      var eventDate = etEl ? isoDate(etEl.getAttribute('value') || etEl.getAttribute('nullFlavor')) : null;
+      if (etEl && !eventDate) {
+        var lowEl = etEl.querySelector('low');
+        eventDate = lowEl ? isoDate(lowEl.getAttribute('value')) : null;
+      }
+      var fp = title.toLowerCase().trim() + '|' + (eventDate || '');
+      result.procedures.push({ event_type: 'procedure', title: title, event_date: eventDate, source: 'va-ccda', ehr_system: 'VA', fingerprint: fp });
+    });
+  }
+
+  return result;
+}
+
+async function mergeVaRecords(table, items, sourceEventId) {
+  if (!items || items.length === 0) return 0;
+  var count = 0;
+  for (var i = 0; i < items.length; i++) {
+    var item = items[i];
+    if (!item.fingerprint) continue;
+    try {
+      var existRes = await supabase
+        .from(table)
+        .select('id, source_fingerprint')
+        .eq('person_id', currentPersonId)
+        .eq('source_fingerprint', item.fingerprint)
+        .limit(1);
+      if (existRes.data && existRes.data.length > 0) continue; // already exists
+      var insertObj = {};
+      for (var key in item) {
+        if (key !== 'fingerprint') insertObj[key] = item[key];
+      }
+      insertObj.person_id = currentPersonId;
+      insertObj.ehr_source_event_id = sourceEventId;
+      insertObj.source_fingerprint = item.fingerprint;
+      var insertRes = await supabase.from(table).insert(insertObj);
+      if (!insertRes.error) count++;
+      else console.error('merge insert error', table, insertRes.error);
+    } catch(e) {
+      console.error('mergeVaRecords exception', table, e);
+    }
+  }
+  return count;
+}
+
+// ─── VA Blue Button PDF handler ───────────────────────────────────────────────
+
+async function obHandleVaBlueButtonPdf(file, inputEl) {
+  if (!_obVaConsentGiven) {
+    obAddBubble('wellet', 'Before I read this, please confirm you have permission to handle this person\u2019s records.');
+    if (inputEl) inputEl.value = '';
+    return;
+  }
+
+  if (file.size > 20 * 1024 * 1024) {
+    obAddBubble('wellet', 'That PDF is larger than 20 MB. Can you double-check and try again?');
+    if (inputEl) inputEl.value = '';
+    return;
+  }
+
+  if (!currentUser) {
+    obAddBubble('wellet', 'I\u2019ll read this as soon as you finish signing in. Hold on.');
+    if (inputEl) inputEl.value = '';
+    return;
+  }
+
+  obTypeThen('Reading the Blue Button PDF\u2026 this may take a moment.', null, 300);
+
+  // Lazy-load pdf.js from CDN
+  if (!window.pdfjsLib) {
+    await new Promise(function(resolve, reject) {
+      var s = document.createElement('script');
+      s.type = 'module';
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs';
+      s.onload = function() { resolve(); };
+      s.onerror = function() { reject(new Error('pdf.js load failed')); };
+      document.head.appendChild(s);
+    }).catch(function() {
+      // Try alternate import
+    });
+    // If ESM import, the global may be under a different key — try dynamic import
+    if (!window.pdfjsLib) {
+      try {
+        var pdfMod = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs');
+        window.pdfjsLib = pdfMod.default || pdfMod;
+      } catch(e) {
+        obAddBubble('wellet', 'I couldn\u2019t load the PDF reader. Please try an XML download from VA.gov instead.');
+        if (inputEl) inputEl.value = '';
+        return;
+      }
+    }
+  }
+
+  // Upload raw PDF
+  var timestamp = Date.now();
+  var rawPath = currentUser.id + '/va-bluebutton-' + timestamp + '.pdf';
+  try {
+    await supabase.storage.from('ehr-uploads').upload(rawPath, file, { contentType: 'application/pdf', upsert: false });
+  } catch(e) {
+    console.error('pdf raw upload failed', e);
+  }
+
+  // Extract text from all pages
+  var fullText = '';
+  try {
+    var arrayBuffer = await file.arrayBuffer();
+    var loadingTask = window.pdfjsLib.getDocument({ data: arrayBuffer });
+    var pdfDoc = await loadingTask.promise;
+    for (var pg = 1; pg <= pdfDoc.numPages; pg++) {
+      var page = await pdfDoc.getPage(pg);
+      var textContent = await page.getTextContent();
+      var pageText = textContent.items.map(function(item) { return item.str || ''; }).join(' ');
+      fullText += pageText + '\n';
+    }
+  } catch(e) {
+    obAddBubble('wellet', 'I couldn\u2019t read that PDF. Try downloading the VA Health Summary as XML instead.');
+    if (inputEl) inputEl.value = '';
+    return;
+  }
+
+  // Parse sections from text
+  var parsed = parsePdfSections(fullText);
+
+  // Ensure person
+  if (!currentPersonId) {
+    try {
+      var _pdfPersonName = obChat.personName || 'My Veteran';
+      var _pdfPRes = await supabase.from('people').insert({
+        user_id: currentUser.id,
+        name: _pdfPersonName,
+        relationship: obChat.situation || null,
+        care_status: 'active',
+        situation: 'va-enrolled'
+      }).select().single();
+      if (_pdfPRes.error) throw _pdfPRes.error;
+      currentPersonId = _pdfPRes.data.id;
+    } catch(e) {
+      obAddBubble('wellet', 'I hit a snag creating the record. Can you try again?');
+      if (inputEl) inputEl.value = '';
+      return;
+    }
+  }
+
+  // Create source event
+  var _pdfSeRes = await supabase.from('ehr_source_events').insert({
+    user_id: currentUser.id,
+    person_id: currentPersonId,
+    source_type: 'va-bluebutton-pdf',
+    source_label: 'VA Blue Button PDF',
+    source_date: null,
+    raw_file_path: rawPath,
+    raw_file_size_bytes: file.size,
+    parse_status: 'parsing'
+  }).select().single();
+  if (_pdfSeRes.error) {
+    console.error('source event insert failed', _pdfSeRes.error);
+  }
+  var _pdfSourceEvent = _pdfSeRes.data;
+  var _pdfSourceEventId = _pdfSourceEvent ? _pdfSourceEvent.id : null;
+
+  // Merge
+  var counts = { conditions: 0, medications: 0, allergies: 0, immunizations: 0 };
+  if (_pdfSourceEventId) {
+    counts.medications   = await mergeVaRecords('medications',   parsed.medications,   _pdfSourceEventId);
+    counts.allergies     = await mergeVaRecords('allergies',     parsed.allergies,     _pdfSourceEventId);
+    counts.conditions    = await mergeVaRecords('health_events', parsed.conditions,    _pdfSourceEventId);
+    counts.immunizations = await mergeVaRecords('health_events', parsed.immunizations, _pdfSourceEventId);
+    await supabase.from('ehr_source_events').update({ parse_status: 'complete', record_counts: counts }).eq('id', _pdfSourceEventId);
+  }
+
+  var summaryParts = [];
+  if (counts.conditions)    summaryParts.push(counts.conditions    + ' condition'    + (counts.conditions    !== 1 ? 's' : ''));
+  if (counts.medications)   summaryParts.push(counts.medications   + ' medication'   + (counts.medications   !== 1 ? 's' : ''));
+  if (counts.allergies)     summaryParts.push(counts.allergies     + ' allerg'       + (counts.allergies     !== 1 ? 'ies' : 'y'));
+  if (counts.immunizations) summaryParts.push(counts.immunizations + ' immunization' + (counts.immunizations !== 1 ? 's' : ''));
+
+  var _pdfPersonNameDisplay = obChat.personName || 'your Veteran';
+  var summaryText = summaryParts.length ? summaryParts.join(', ') : 'nothing new';
+  obAddBubble('wellet',
+    'Done. I read ' + escHtml(_pdfPersonNameDisplay) + '\u2019s Blue Button PDF and added ' + summaryText + '.' +
+    '<br><br>For more complete data (labs, vitals, procedures), try downloading as XML (CCDA) from VA.gov.'
+  );
+
+  if (inputEl) inputEl.value = '';
+  setTimeout(obShowConnectChips, 900);
+}
+
+function parsePdfSections(text) {
+  var result = { conditions: [], medications: [], allergies: [], immunizations: [] };
+
+  function extractSection(headerPattern) {
+    var match = text.match(headerPattern);
+    if (!match) return [];
+    var start = match.index + match[0].length;
+    // Find next ALL-CAPS section header
+    var rest = text.substring(start);
+    var nextHeader = rest.match(/\n[A-Z][A-Z ]{3,}\n/);
+    var end = nextHeader ? nextHeader.index : rest.length;
+    var block = rest.substring(0, end);
+    return block.split('\n')
+      .map(function(l){ return l.trim(); })
+      .filter(function(l){ return l.length > 2; });
+  }
+
+  var medLines = extractSection(/ACTIVE MEDICATIONS|MEDICATIONS/i);
+  medLines.forEach(function(line) {
+    var fp = line.toLowerCase().trim();
+    result.medications.push({ name: line, active: true, source: 'va-bluebutton-pdf', ehr_system: 'VA', fingerprint: fp });
+  });
+
+  var allerLines = extractSection(/KNOWN ALLERGIES|ALLERGIES/i);
+  allerLines.forEach(function(line) {
+    var fp = line.toLowerCase().trim();
+    result.allergies.push({ substance: line, source: 'va-bluebutton-pdf', ehr_system: 'VA', fingerprint: fp });
+  });
+
+  var condLines = extractSection(/HEALTH CONDITIONS|PROBLEM LIST|PROBLEMS/i);
+  condLines.forEach(function(line) {
+    var fp = line.toLowerCase().trim();
+    result.conditions.push({ event_type: 'condition', title: line, source: 'va-bluebutton-pdf', ehr_system: 'VA', fingerprint: fp });
+  });
+
+  var imLines = extractSection(/IMMUNIZATIONS|VACCINES/i);
+  imLines.forEach(function(line) {
+    var fp = line.toLowerCase().trim();
+    result.immunizations.push({ event_type: 'immunization', title: line, source: 'va-bluebutton-pdf', ehr_system: 'VA', fingerprint: fp });
+  });
+
+  return result;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function obContinueFromProcessing() { obShowConnectChips(); }
 function obShowNameScreen() { /* no-op in chat-first flow */ }
 function obConfirmPersonName() { /* no-op */ }
@@ -12589,6 +13169,11 @@ function obSelectConnect(id, btn) {
   var label = btn.textContent.trim();
   setTimeout(function(){ obAddBubble('user', label); }, 150);
 
+  if (id === 'va_health') {
+    obStartVaCcdaFlow();
+    return;
+  }
+
   if (id === 'ehr') {
     obStartEhrConnect();
   } else if (id === 'docs') {
@@ -12616,6 +13201,51 @@ function obStartEhrConnect() {
       obConnectEhr();
     }, 800);
   }, 400);
+}
+
+function obStartVaCcdaFlow() {
+  _obVaConsentGiven = false;
+  _obVaUploadMode = true;
+  setTimeout(function(){
+    obTypeThen('Perfect. The VA has a file called the VA Health Summary that has the full picture \u2014 conditions, medications, allergies, labs, vaccines, procedures. I can read it in a few seconds.', function(){
+      obTypeThen('Here\u2019s how to get it on VA.gov:', function(){
+        obAddBubble('wellet',
+          '<ol style="margin:0 0 0 1.2em;padding:0;line-height:1.7">' +
+          '<li>Sign in at <a href="https://www.va.gov/my-health/" target="_blank" rel="noopener">VA.gov/my-health</a> with your Veteran\u2019s Login.gov or ID.me</li>' +
+          '<li>Go to <strong>Medical Records</strong></li>' +
+          '<li>Choose <strong>Download your VA health records</strong></li>' +
+          '<li>Select <strong>VA Health Summary</strong> \u2014 pick <strong>XML (CCDA)</strong> if available, or <strong>PDF</strong> works too</li>' +
+          '</ol>'
+        );
+        obTypeThen('When you have the file, tap the button below to upload it. I\u2019ll read it and show you everything.', function(){
+          obAddBubble('wellet',
+            '<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;margin-bottom:10px;">' +
+            '<input type="checkbox" id="va-consent-cb" style="margin-top:3px;flex-shrink:0;" ' +
+            'onclick="_obVaConsentGiven = this.checked; var btn = document.getElementById(\u0027va-upload-btn\u0027); if(btn) btn.disabled = !this.checked;">' +
+            '<span>I have permission to handle this person\u2019s health records. If I\u2019m using their VA.gov login to download the Health Summary, they know and have agreed.</span>' +
+            '</label>' +
+            '<button id="va-upload-btn" disabled onclick="_obVaUploadMode=true; document.getElementById(\u0027ob-file-ehr\u0027).click();" ' +
+            'style="display:block;width:100%;padding:10px 16px;border-radius:8px;border:none;background:var(--moss);color:#fff;font-weight:600;cursor:pointer;opacity:0.5;" ' +
+            'onmouseenter="if(!this.disabled)this.style.opacity=\u00270.85\u0027" onmouseleave="if(!this.disabled)this.style.opacity=\u00271\u0027">' +
+            'Upload VA Health Summary' +
+            '</button>'
+          );
+          document.addEventListener('change', function onVaConsentChange(e){
+            if (e.target && e.target.id === 'va-consent-cb') {
+              var btn = document.getElementById('va-upload-btn');
+              if (btn) btn.style.opacity = e.target.checked ? '1' : '0.5';
+              document.removeEventListener('change', onVaConsentChange);
+            }
+          });
+          obTypeThen('If your Veteran has an iPhone, Wellet Connect on their phone can sync VA records automatically \u2014 you\u2019d never need their password. <a href="javascript:obExplainWelletConnect()">Tell me more about Wellet Connect</a>', null, 600);
+        }, 500);
+      }, 400);
+    }, 400);
+  }, 400);
+}
+
+function obExplainWelletConnect() {
+  obAddBubble('wellet', 'Wellet Connect is an app I\u2019m building for your Veteran\u2019s iPhone. They sign in once with Login.gov, and their VA records flow into your Wellet. It\u2019s in TestFlight now \u2014 I can add you to the list.');
 }
 
 function obStartDocUpload() {
