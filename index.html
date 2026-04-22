@@ -591,6 +591,18 @@
   .chat-bubble.wellet { background: var(--mint); color: var(--text-primary); border-bottom-left-radius: 4px; align-self: flex-start; }
   .chat-bubble.user { background: var(--moss); color: white; border-bottom-right-radius: 4px; align-self: flex-end; }
   .chat-bubble.wellet strong { font-weight: 500; }
+  .chat-bubble.wellet em { font-style: italic; }
+  .chat-bubble.wellet .md-p { margin: 0 0 8px; }
+  .chat-bubble.wellet .md-p:last-child { margin-bottom: 0; }
+  .chat-bubble.wellet .md-h { font-weight: 600; font-size: 14px; margin: 10px 0 4px; line-height: 1.3; color: var(--text-primary); }
+  .chat-bubble.wellet .md-h:first-child { margin-top: 0; }
+  .chat-bubble.wellet .md-ul, .chat-bubble.wellet .md-ol { margin: 4px 0 8px; padding-left: 20px; }
+  .chat-bubble.wellet .md-ul:last-child, .chat-bubble.wellet .md-ol:last-child { margin-bottom: 0; }
+  .chat-bubble.wellet .md-ul li, .chat-bubble.wellet .md-ol li { margin: 2px 0; line-height: 1.5; }
+  .chat-bubble.wellet .md-ul { list-style: disc; }
+  .chat-bubble.wellet .md-ol { list-style: decimal; }
+  .chat-bubble.wellet .md-code { background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 4px; font-family: 'SF Mono', ui-monospace, Menlo, monospace; font-size: 12.5px; }
+  .chat-bubble.wellet a { color: var(--moss-dark, #4a6b5e); text-decoration: underline; word-break: break-word; }
   .chat-sender { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
   .chat-group { display: flex; flex-direction: column; }
   .chat-group.from-wellet { align-items: flex-start; }
@@ -9617,6 +9629,100 @@ function escHtml(t) {
   return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+// ── LIGHT MARKDOWN RENDERER ────────────────────────────────────────────────
+// Safe subset: escapes HTML first, then re-introduces a limited set of inline
+// and block elements. Used for chat bubbles so Wellet responses don't show
+// raw **asterisks** or - dashes. Intentionally minimal: no raw HTML passthrough,
+// no images, no tables, no nested lists. Kept ~100 lines to stay auditable.
+function renderMarkdownSafe(src) {
+  if (src === null || src === undefined) return '';
+  var text = String(src);
+  // 1) Escape HTML up front so nothing user/LLM-supplied can inject tags.
+  text = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+             .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  // Normalise line endings.
+  text = text.replace(/\r\n?/g, '\n');
+
+  // 2) Protect inline code `...` first so its contents aren't processed further.
+  var _codeStash = [];
+  text = text.replace(/`([^`\n]+)`/g, function(_m, inner) {
+    _codeStash.push(inner);
+    return '\u0000CODE' + (_codeStash.length - 1) + '\u0000';
+  });
+
+  // 3) Split into lines and group list items + paragraphs.
+  var lines = text.split('\n');
+  var out = [];
+  var i = 0;
+  function isBulletLine(l) { return /^\s*[-*\u2022]\s+\S/.test(l); }
+  function isNumberedLine(l) { return /^\s*\d+[.)]\s+\S/.test(l); }
+  function stripBullet(l) { return l.replace(/^\s*[-*\u2022]\s+/, ''); }
+  function stripNumber(l) { return l.replace(/^\s*\d+[.)]\s+/, ''); }
+  while (i < lines.length) {
+    var line = lines[i];
+    // Heading (### / ##) — map to small, emphasized headings.
+    var hMatch = /^(#{2,4})\s+(.*\S)\s*$/.exec(line);
+    if (hMatch) {
+      var lvl = hMatch[1].length; // 2,3,4
+      var tag = lvl === 2 ? 'h4' : (lvl === 3 ? 'h5' : 'h6');
+      out.push('<' + tag + ' class="md-h">' + hMatch[2] + '</' + tag + '>');
+      i++; continue;
+    }
+    // Bulleted list block
+    if (isBulletLine(line)) {
+      var items = [];
+      while (i < lines.length && isBulletLine(lines[i])) {
+        items.push('<li>' + stripBullet(lines[i]) + '</li>');
+        i++;
+      }
+      out.push('<ul class="md-ul">' + items.join('') + '</ul>');
+      continue;
+    }
+    // Numbered list block
+    if (isNumberedLine(line)) {
+      var nItems = [];
+      while (i < lines.length && isNumberedLine(lines[i])) {
+        nItems.push('<li>' + stripNumber(lines[i]) + '</li>');
+        i++;
+      }
+      out.push('<ol class="md-ol">' + nItems.join('') + '</ol>');
+      continue;
+    }
+    // Blank line — paragraph separator; collapse multiple.
+    if (/^\s*$/.test(line)) { i++; continue; }
+    // Paragraph: collect consecutive non-list, non-heading, non-blank lines.
+    var para = [line];
+    i++;
+    while (i < lines.length && !/^\s*$/.test(lines[i])
+           && !isBulletLine(lines[i]) && !isNumberedLine(lines[i])
+           && !/^#{2,4}\s+/.test(lines[i])) {
+      para.push(lines[i]); i++;
+    }
+    out.push('<p class="md-p">' + para.join('<br>') + '</p>');
+  }
+  var html = out.join('');
+
+  // 4) Inline transforms on the assembled HTML.
+  // Bold **text** or __text__
+  html = html.replace(/\*\*([^*\n][^*\n]*?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/__([^_\n][^_\n]*?)__/g, '<strong>$1</strong>');
+  // Italic *text* or _text_ — run AFTER bold so ** doesn't trigger.
+  // Negative lookarounds (where supported) would be cleaner, but stick to
+  // simple patterns: require a non-space just inside the delimiters.
+  html = html.replace(/(^|[^*])\*([^*\s][^*\n]*?)\*(?!\*)/g, '$1<em>$2</em>');
+  html = html.replace(/(^|[^_\w])_([^_\s][^_\n]*?)_(?!\w)/g, '$1<em>$2</em>');
+  // Bare URL autolink (http/https). Avoid breaking already-linked text.
+  html = html.replace(/(^|[\s(])((?:https?:\/\/)[^\s<)]+[^\s<).,;:!?])/g,
+    function(_m, pre, url) { return pre + '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + url + '</a>'; });
+
+  // 5) Restore inline code blocks.
+  html = html.replace(/\u0000CODE(\d+)\u0000/g, function(_m, idx) {
+    return '<code class="md-code">' + _codeStash[Number(idx)] + '</code>';
+  });
+
+  return html;
+}
+
 // ── RECONCILIATION: DEDUP ON SAVE ─────────────────────────────────────────────
 // Source priority: higher number = more authoritative
 var _SOURCE_PRIORITY = { manual: 1, extraction: 2, 'Onboarding upload': 2, upload: 2, apple_health: 3, terra: 3, ehr: 4 };
@@ -12235,7 +12341,7 @@ function sendAskMessage() {
         removeTyping(typingId);
         if (res.ok) {
           var data = await res.json();
-          addWelletMessage(escHtml(data.answer || data.response || 'I couldn\u2019t find an answer to that.'));
+          addWelletMessage(renderMarkdownSafe(data.answer || data.response || 'I couldn\u2019t find an answer to that.'));
         } else if (res.status === 401) {
           addWelletMessage('Your session expired. Please sign out and sign back in so I can access Betsy\u2019s records.');
         } else {
@@ -12286,7 +12392,7 @@ function sendAskMessage() {
         if (res.ok) {
           var data = await res.json();
           if (data.answer) {
-            addWelletMessage(escHtml(data.answer));
+            addWelletMessage(renderMarkdownSafe(data.answer));
           } else {
             throw new Error('empty');
           }
