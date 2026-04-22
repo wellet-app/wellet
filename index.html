@@ -734,7 +734,18 @@
   .tl-card-date { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
 
   /* — Long-press to Ask Wellet — */
-  .ask-lp-target { -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+  .ask-lp-target {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  /* Let the user select text inside explicit selectable regions if we ever add them */
+  .ask-lp-target .ask-lp-selectable,
+  .ask-lp-target input,
+  .ask-lp-target textarea { -webkit-user-select: text; user-select: text; }
   .ask-lp-target.ask-lp-pressing { transform: scale(0.985); transition: transform 0.18s ease-out; position: relative; }
   .ask-lp-target.ask-lp-pressing::after {
     content: ''; position: absolute; inset: 0; border-radius: inherit;
@@ -6204,12 +6215,19 @@ function openAskThisSheet(ctx) {
   if (ta) { ta.value = ''; ta.style.height = 'auto'; }
 }
 
-function closeAskSheet() {
+// Hide the sheet visually without touching history. Used when we're about to
+// navigate to the Ask tab ourselves (starter tap / submit) and don't want a
+// popstate race.
+function _hideAskSheetVisual() {
   var overlay = document.getElementById('ask-sheet-overlay');
   var sheet = document.getElementById('ask-sheet');
   if (overlay) overlay.classList.remove('show');
   if (sheet) sheet.classList.remove('show');
   _askSheetCtx = null;
+}
+
+function closeAskSheet() {
+  _hideAskSheetVisual();
   // If we pushed state, pop it. Guard in case the user navigated.
   try { if (history.state && history.state.id === 'ask-sheet') history.back(); } catch(_e){}
 }
@@ -6245,20 +6263,43 @@ function _askSheetDispatch(questionText) {
     selection: ctx.selection || ''
   };
   window._pendingAskContext = finalCtx;
-  closeAskSheet();
+
+  // Hide the sheet visually FIRST, but DON'T call history.back() — it races
+  // with switchNavTo and can leave us on the wrong tab.
+  _hideAskSheetVisual();
+  // Clean up the pushed 'sheet' history entry by replacing it with our target
+  // tab state, so the browser back button still works sensibly.
+  try {
+    if (history.state && history.state.id === 'ask-sheet') {
+      history.replaceState({ type: 'tab', view: 'ask' }, '');
+    }
+  } catch(_e){}
+
   try { switchNavTo('ask'); } catch(_e){}
-  setTimeout(function() {
+
+  // Use rAF so the tab switch DOM is in place before we touch #ask-input
+  requestAnimationFrame(function() {
     try { if (typeof _renderAskContextChip === 'function') _renderAskContextChip(); } catch(_e){}
     var input = document.getElementById('ask-input');
-    if (input) {
-      input.value = questionText;
-      try { autoResize(input); } catch(_e){}
-      var chips = document.getElementById('suggestion-chips');
-      if (chips) chips.style.display = 'none';
-      // Fire immediately
-      try { sendAskMessage(); } catch(_e){}
+    if (!input) {
+      // Fallback: retry once after a short delay in case switchNavTo is async
+      setTimeout(function() {
+        var i2 = document.getElementById('ask-input');
+        if (!i2) return;
+        i2.value = questionText;
+        try { autoResize(i2); } catch(_e){}
+        var c2 = document.getElementById('suggestion-chips');
+        if (c2) c2.style.display = 'none';
+        try { sendAskMessage(); } catch(_e){}
+      }, 120);
+      return;
     }
-  }, 80);
+    input.value = questionText;
+    try { autoResize(input); } catch(_e){}
+    var chips = document.getElementById('suggestion-chips');
+    if (chips) chips.style.display = 'none';
+    try { sendAskMessage(); } catch(_e){}
+  });
 }
 
 // Global back-button / escape close
@@ -12135,17 +12176,36 @@ function sendAskMessage() {
   if (!isDemoMode && currentPersonId) {
     // Real AI call
     (async function() {
-      try {
-        var session = await db.auth.getSession();
-        var token = session.data.session.access_token;
-        var res = await fetch(
+      var ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU';
+      async function getFreshToken(force) {
+        try {
+          if (force) {
+            var r = await db.auth.refreshSession();
+            if (r && r.data && r.data.session) return r.data.session.access_token;
+          }
+          var s = await db.auth.getSession();
+          var tok = s && s.data && s.data.session && s.data.session.access_token;
+          if (!tok) return null;
+          // If the token expires within 60s, refresh it pre-emptively
+          var expAt = s.data.session.expires_at ? s.data.session.expires_at * 1000 : 0;
+          if (expAt && expAt - Date.now() < 60 * 1000) {
+            try {
+              var rr = await db.auth.refreshSession();
+              if (rr && rr.data && rr.data.session) return rr.data.session.access_token;
+            } catch(_e){}
+          }
+          return tok;
+        } catch(_e) { return null; }
+      }
+      async function callAskWellet(tok) {
+        return await fetch(
           'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/ask-wellet',
           {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': 'Bearer ' + token,
-              'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU'
+              'Authorization': 'Bearer ' + tok,
+              'apikey': ANON_KEY
             },
             body: JSON.stringify({
               question: text,
@@ -12154,16 +12214,38 @@ function sendAskMessage() {
             })
           }
         );
+      }
+      try {
+        var token = await getFreshToken(false);
+        if (!token) {
+          removeTyping(typingId);
+          addWelletMessage('Your session expired. Please sign out and sign back in.');
+          return;
+        }
+        var res = await callAskWellet(token);
+        // If the JWT was rejected, try once with a forced refresh
+        if (res.status === 401) {
+          var refreshed = await getFreshToken(true);
+          if (refreshed) {
+            res = await callAskWellet(refreshed);
+          }
+        }
         // Clear one-shot context after send
         try { if (typeof _pendingAskContext !== 'undefined') { _pendingAskContext = null; if (typeof _renderAskContextChip === 'function') _renderAskContextChip(); } } catch(_e){}
         removeTyping(typingId);
         if (res.ok) {
           var data = await res.json();
           addWelletMessage(escHtml(data.answer || data.response || 'I couldn\u2019t find an answer to that.'));
+        } else if (res.status === 401) {
+          addWelletMessage('Your session expired. Please sign out and sign back in so I can access Betsy\u2019s records.');
         } else {
+          var errBody = '';
+          try { errBody = await res.text(); } catch(_e){}
+          console.error('ask-wellet failed', res.status, errBody);
           addWelletMessage('Sorry, I had trouble getting a response. Please try again.');
         }
       } catch (e) {
+        console.error('ask-wellet exception', e);
         removeTyping(typingId);
         addWelletMessage('Sorry, something went wrong. Please try again.');
       }
