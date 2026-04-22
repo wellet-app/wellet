@@ -5305,6 +5305,9 @@ function renderUpdateMe() {
   if (!pane) return;
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
   var name = person ? person.name.split(' ')[0] : 'your loved one';
+  var isSelf = !!(person && person.relationship === 'self');
+  var subjectName = isSelf ? 'you' : name;
+  var ehrConnected = !!getEhrData(currentPersonId);
   var recentEvents = liveEvents.slice(0, 3);
 
   var timelineHTML = '';
@@ -5358,12 +5361,13 @@ function renderUpdateMe() {
   }
 
   // Build empty-state vs populated content
+  var ehrBtnLabel = ehrConnected ? 'Other Health Records' : 'Connect Health Records';
   var emptyActions = '<div style="padding:24px 16px 8px;">'
-    + '<div style="font-family:\'Fraunces\',serif;font-size:20px;margin-bottom:6px;color:var(--text-primary);">Help Wellet get to know ' + escHtml(name) + '</div>'
+    + '<div style="font-family:\'Fraunces\',serif;font-size:20px;margin-bottom:6px;color:var(--text-primary);">Help Wellet get to know ' + escHtml(subjectName) + '</div>'
     + '<div style="font-size:13px;color:var(--text-secondary);line-height:1.5;margin-bottom:16px;">Upload a document or connect to health records \u2014 Wellet will read, organize, and remember everything.</div>'
     + '<div class="signals-connect-chips">'
     + '<button class="signals-chip" onclick="openUpload(\'' + escHtml(name) + '\')"><i data-lucide="upload"></i> Upload a Document</button>'
-    + '<button class="signals-chip" onclick="startEhrConnect()"><i data-lucide="link"></i> Connect Health Records</button>'
+    + '<button class="signals-chip" onclick="startEhrConnect()"><i data-lucide="link"></i> ' + ehrBtnLabel + '</button>'
     + '<button class="signals-chip" onclick="openTerraConnect()"><i data-lucide="watch"></i> Connect a Wearable</button>'
     + '</div>'
     + '</div>';
@@ -5411,10 +5415,10 @@ function renderUpdateMe() {
   }
 
   if (liveEvents.length === 0 && !hasCompletedDocs) {
-    // Truly empty: upload CTA + static placeholder
+    // Truly empty: summary placeholder FIRST, then onboarding CTAs below
     pane.innerHTML = '<div class="update-me-section">'
-      + emptyActions
       + emptyPlaceholder
+      + emptyActions
       + '</div>'
       + visitPrepCardHtml
       + '<div class="quick-actions">'
@@ -5427,7 +5431,7 @@ function renderUpdateMe() {
       + timelineHTML
       + '</div>';
   } else if (liveEvents.length === 0 && hasCompletedDocs) {
-    // Has document data but no promoted events yet: show real summary + upload CTA
+    // Has document data but no promoted events yet: real summary FIRST, then onboarding CTAs below
     pane.innerHTML = '<div class="update-me-section">'
       + summarySection
       + emptyActions
@@ -5960,6 +5964,16 @@ function _rdAllergiesContent(liveAllergies, ehrAllergies, ehrProvider) {
 
 function _rdVisitsContent(apptEvents, ehrVisitsRecent, ehrVisitsOlder, ehrProvider) {
   var html = '';
+  // Filter bar — search text + jump-to-month. Operates client-side on .record-row elements.
+  html += '<div class="visits-filter-bar" style="display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap;">'
+    + '<div style="flex:1;min-width:180px;position:relative;">'
+    + '<i data-lucide="search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--text-muted);pointer-events:none;"></i>'
+    + '<input type="text" id="visits-search-input" placeholder="Search by doctor, visit type\u2026" oninput="filterVisits()" style="width:100%;padding:8px 10px 8px 30px;font-size:13px;border:1px solid var(--border);border-radius:20px;background:#fff;color:var(--text-primary);outline:none;box-sizing:border-box;">'
+    + '</div>'
+    + '<input type="month" id="visits-month-input" onchange="filterVisits()" style="padding:7px 10px;font-size:13px;border:1px solid var(--border);border-radius:20px;background:#fff;color:var(--text-primary);outline:none;">'
+    + '<button type="button" id="visits-clear-btn" onclick="clearVisitsFilter()" style="display:none;background:none;border:none;color:var(--moss);font-size:12px;font-weight:600;cursor:pointer;padding:4px 6px;">Clear</button>'
+    + '</div>'
+    + '<div id="visits-no-match" style="display:none;text-align:center;padding:20px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">No visits match your search.</div>';
   var realRe    = /office|outpatient|inpatient|emergency|telemedicine|hospital|surgery|procedure|consult|urgent/i;
   var routineRe = /refill|patient message|message|administrative|letter|historical/i;
   function visitClass(enc) {
@@ -10575,6 +10589,82 @@ function toggleOlderVisits(btn) {
   d.style.display = open ? 'none' : 'block';
   btn.textContent = open ? ('Show ' + count + ' older visits') : 'Hide older visits';
   try { initIcons(); } catch (e) {}
+}
+
+// Filter the Appointments & Visits detail view by free-text search and/or a
+// selected year-month. Works by toggling .record-row visibility and hiding
+// month headers that end up with no visible children.
+function filterVisits() {
+  var view = document.querySelector('.records-detail-view');
+  if (!view) return;
+  var searchEl = document.getElementById('visits-search-input');
+  var monthEl  = document.getElementById('visits-month-input');
+  var clearBtn = document.getElementById('visits-clear-btn');
+  var noMatch  = document.getElementById('visits-no-match');
+  var q  = (searchEl && searchEl.value || '').trim().toLowerCase();
+  var ym = (monthEl  && monthEl.value  || '').trim(); // 'YYYY-MM'
+  var hasFilter = q.length > 0 || ym.length > 0;
+  if (clearBtn) clearBtn.style.display = hasFilter ? 'inline-block' : 'none';
+
+  // If a month is selected, auto-expand older visits so results outside the
+  // last 2 years still show up.
+  if (ym) {
+    var older = document.getElementById('ehr-older-visits');
+    if (older) older.style.display = 'block';
+  }
+
+  var rows = view.querySelectorAll('.record-row');
+  var visible = 0;
+  rows.forEach(function(row) {
+    var text = (row.textContent || '').toLowerCase();
+    var date = row.getAttribute('data-date') || '';
+    var matchesQ  = !q  || text.indexOf(q) !== -1;
+    var matchesYm = !ym || (date && date.indexOf(ym) === 0);
+    var show = matchesQ && matchesYm;
+    row.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+
+  // Hide month / section headers whose rows are all hidden.
+  var headers = view.querySelectorAll('.records-detail-view > div, .records-detail-view div');
+  // Simpler: walk through direct siblings of the content area. Month labels
+  // are inline <div> strings created right before their rows; we detect them
+  // as divs with uppercase styling and no .record-row children.
+  // To keep this robust we instead iterate section headers by text-transform.
+  // (Pragmatic: hide headers that have NO visible .record-row immediately
+  // following them before the next header.)
+  var content = view;
+  var children = content.children;
+  // Find candidate "header" divs: small divs with letter-spacing style.
+  var candidates = [];
+  for (var i = 0; i < children.length; i++) {
+    var c = children[i];
+    if (c.tagName === 'DIV' && /letter-spacing/.test(c.getAttribute('style')||'') && !c.classList.contains('record-row')) {
+      candidates.push(c);
+    }
+  }
+  candidates.forEach(function(h, idx) {
+    var next = h.nextElementSibling;
+    var anyVisible = false;
+    while (next && !(next.tagName === 'DIV' && /letter-spacing/.test(next.getAttribute('style')||'') && !next.classList.contains('record-row'))) {
+      if (next.classList && next.classList.contains('record-row') && next.style.display !== 'none') {
+        anyVisible = true;
+        break;
+      }
+      next = next.nextElementSibling;
+    }
+    h.style.display = anyVisible ? '' : 'none';
+  });
+
+  if (noMatch) noMatch.style.display = (hasFilter && visible === 0) ? 'block' : 'none';
+}
+
+function clearVisitsFilter() {
+  var s = document.getElementById('visits-search-input');
+  var m = document.getElementById('visits-month-input');
+  if (s) s.value = '';
+  if (m) m.value = '';
+  filterVisits();
 }
 
 // Toggle any collapsible record-group body by id. Used by Care team and
