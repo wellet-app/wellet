@@ -712,6 +712,25 @@
   .share-inbox-card .sib-actions { display:flex; gap:8px; margin-top:10px; }
   .share-inbox-card .sib-actions button { flex:1; padding:8px; border:1px solid var(--line); background:#fff; border-radius:8px; font-size:12px; color:var(--ink); cursor:pointer; }
   .share-inbox-card .sib-actions button.primary { background:var(--moss); color:#fff; border-color:var(--moss); }
+  .share-inbox-card .sib-you-shared { color: var(--muted); }
+  .share-inbox-card.unread .sib-you-shared { color: var(--moss); }
+  /* Reply thread */
+  .sib-thread { margin-top:10px; border-top:1px solid var(--line); padding-top:10px; display:none; }
+  .share-inbox-card.thread-open .sib-thread { display:block; }
+  .sib-reply-row { display:flex; margin-bottom:6px; }
+  .sib-reply-bubble { max-width:78%; padding:8px 12px; border-radius:14px; font-size:13px; line-height:1.4; word-wrap:break-word; }
+  .sib-reply-row.mine { justify-content:flex-end; }
+  .sib-reply-row.mine .sib-reply-bubble { background:var(--moss); color:#fff; border-bottom-right-radius:4px; }
+  .sib-reply-row.theirs .sib-reply-bubble { background:#fff; color:var(--ink); border:1px solid var(--line); border-bottom-left-radius:4px; }
+  .sib-reply-time { font-size:10px; color:var(--muted); margin-top:2px; padding:0 4px; }
+  .sib-reply-row.mine .sib-reply-time { text-align:right; }
+  .sib-reply-empty { font-size:12px; color:var(--muted); text-align:center; padding:6px 0; }
+  .sib-reply-compose { display:flex; gap:6px; margin-top:8px; }
+  .sib-reply-compose textarea { flex:1; min-height:36px; max-height:100px; padding:8px 10px; border:1px solid var(--line); border-radius:10px; font-size:13px; font-family:inherit; resize:none; background:#fff; color:var(--ink); }
+  .sib-reply-compose textarea:focus { outline:none; border-color:var(--moss); }
+  .sib-reply-send { padding:0 14px; background:var(--moss); color:#fff; border:none; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; }
+  .sib-reply-send:disabled { background:var(--muted); cursor:not-allowed; }
+  .sib-reply-count { display:inline-block; min-width:16px; padding:0 5px; height:16px; line-height:16px; font-size:10px; font-weight:700; color:#fff; background:var(--moss); border-radius:10px; margin-left:4px; vertical-align:top; }
   .tl-card-date { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
 
   /* patterns */
@@ -18643,22 +18662,99 @@ async function sendShareNow() {
 }
 
 // ── SHARED WITH YOU INBOX ─────────────────────────────────────────────────────
-async function fetchSharedWithMe() {
+// Returns shares involving the current user (either as recipient or sender),
+// each with a `replies` array and derived fields:
+//   direction: 'incoming' | 'outgoing'
+//   hasUnreadReply: bool (new reply from the other side I haven't seen)
+//   lastActivity: ISO timestamp used to bump threads with new replies to top
+async function fetchSharedInbox() {
   if (!db || !currentUser) return [];
   try {
-    var res = await db.from('care_circle_shares')
+    // Incoming: shares where I'm the recipient and haven't dismissed
+    var incomingRes = await db.from('care_circle_shares')
       .select('*')
       .eq('recipient_user_id', currentUser.id)
       .is('dismissed_at', null)
       .order('created_at', { ascending: false })
       .limit(50);
-    return (res && res.data) || [];
-  } catch(e) { console.error('fetchSharedWithMe', e); return []; }
+    var incoming = ((incomingRes && incomingRes.data) || []).map(function(s){ s._direction = 'incoming'; return s; });
+
+    // Outgoing: shares I sent. Only include those that have at least one reply
+    // from the recipient, so the sender's inbox doesn't get cluttered with
+    // every share they've ever made.
+    var outgoingRes = await db.from('care_circle_shares')
+      .select('*')
+      .eq('sender_user_id', currentUser.id)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    var outgoingAll = ((outgoingRes && outgoingRes.data) || []).map(function(s){ s._direction = 'outgoing'; return s; });
+
+    var all = incoming.concat(outgoingAll);
+    if (!all.length) return [];
+
+    // Fetch replies for all shares in one round-trip
+    var shareIds = all.map(function(s){ return s.id; });
+    var repliesRes = await db.from('care_circle_share_replies')
+      .select('*')
+      .in('share_id', shareIds)
+      .order('created_at', { ascending: true });
+    var repliesByShare = {};
+    ((repliesRes && repliesRes.data) || []).forEach(function(r){
+      if (!repliesByShare[r.share_id]) repliesByShare[r.share_id] = [];
+      repliesByShare[r.share_id].push(r);
+    });
+
+    all.forEach(function(s){
+      var replies = repliesByShare[s.id] || [];
+      s.replies = replies;
+      // Last activity = latest of share creation and any reply
+      var last = s.created_at;
+      replies.forEach(function(r){ if (r.created_at > last) last = r.created_at; });
+      s._lastActivity = last;
+      // Unread reply means: there's a reply authored by the OTHER person
+      // that I (current user) haven't marked as read on my side.
+      var myReadField = (s._direction === 'incoming') ? 'read_by_recipient_at' : 'read_by_sender_at';
+      s._hasUnreadReply = replies.some(function(r){
+        return r.author_user_id !== currentUser.id && !r[myReadField];
+      });
+    });
+
+    // Filter outgoing: only keep shares that have at least one reply
+    var outgoingWithReplies = all.filter(function(s){
+      return s._direction === 'outgoing' && s.replies.length > 0;
+    });
+    var combined = incoming.concat(outgoingWithReplies);
+    // Sort by last activity, newest first (bumps threads with new replies up)
+    combined.sort(function(a, b){ return (a._lastActivity < b._lastActivity) ? 1 : -1; });
+    return combined;
+  } catch(e) { console.error('fetchSharedInbox', e); return []; }
 }
+
+// Back-compat alias
+async function fetchSharedWithMe() { return await fetchSharedInbox(); }
 
 async function markShareRead(shareId) {
   if (!db || !currentUser) return;
   try { await db.from('care_circle_shares').update({ read_at: new Date().toISOString() }).eq('id', shareId); } catch(e){}
+}
+
+// Mark all unread replies on a share as read by the current user (either side)
+async function markRepliesReadForShare(share) {
+  if (!db || !currentUser || !share) return;
+  var field = (share._direction === 'incoming') ? 'read_by_recipient_at' : 'read_by_sender_at';
+  var unread = (share.replies || []).filter(function(r){
+    return r.author_user_id !== currentUser.id && !r[field];
+  });
+  if (!unread.length) return;
+  var now = new Date().toISOString();
+  var ids = unread.map(function(r){ return r.id; });
+  try {
+    var update = {};
+    update[field] = now;
+    await db.from('care_circle_share_replies').update(update).in('id', ids);
+    unread.forEach(function(r){ r[field] = now; });
+    share._hasUnreadReply = false;
+  } catch(e){ console.warn('markRepliesReadForShare', e); }
 }
 
 async function dismissShare(shareId) {
@@ -18668,32 +18764,152 @@ async function dismissShare(shareId) {
   if (card) { card.style.transition = 'opacity 0.2s'; card.style.opacity = '0'; setTimeout(function(){ if (card.parentNode) card.parentNode.removeChild(card); refreshSharedInboxCount(); }, 200); }
 }
 
+// Open/close the reply thread on a share card. Marks replies as read on open.
+async function toggleShareThread(shareId) {
+  var card = document.getElementById('sib-' + shareId);
+  if (!card) return;
+  var share = (_inboxCache && _inboxCache[shareId]) || null;
+  if (card.classList.contains('thread-open')) {
+    card.classList.remove('thread-open');
+    return;
+  }
+  card.classList.add('thread-open');
+  // Also flag the parent share as read if it's an incoming share
+  if (share && share._direction === 'incoming' && !share.read_at) {
+    markShareRead(shareId);
+    share.read_at = new Date().toISOString();
+    card.classList.remove('unread');
+  }
+  if (share) {
+    await markRepliesReadForShare(share);
+    // Remove unread-reply indicators
+    var badge = card.querySelector('.sib-reply-count');
+    if (badge) badge.remove();
+    refreshSharedInboxCount();
+  }
+  // Focus the textarea
+  var ta = card.querySelector('.sib-reply-compose textarea');
+  if (ta) setTimeout(function(){ ta.focus(); }, 50);
+}
+
+async function sendShareReply(shareId) {
+  if (!db || !currentUser) return;
+  var card = document.getElementById('sib-' + shareId);
+  if (!card) return;
+  var ta = card.querySelector('.sib-reply-compose textarea');
+  var btn = card.querySelector('.sib-reply-send');
+  if (!ta) return;
+  var body = (ta.value || '').trim();
+  if (!body) return;
+  btn.disabled = true;
+  try {
+    var res = await db.from('care_circle_share_replies')
+      .insert({ share_id: shareId, author_user_id: currentUser.id, body: body })
+      .select()
+      .single();
+    if (res && res.error) throw res.error;
+    var newReply = (res && res.data) || { id: 'temp-' + Date.now(), share_id: shareId, author_user_id: currentUser.id, body: body, created_at: new Date().toISOString() };
+    // Update cache and append bubble
+    var share = _inboxCache && _inboxCache[shareId];
+    if (share) {
+      share.replies = share.replies || [];
+      share.replies.push(newReply);
+      share._lastActivity = newReply.created_at;
+    }
+    var threadList = card.querySelector('.sib-thread-list');
+    if (threadList) {
+      var emptyEl = threadList.querySelector('.sib-reply-empty');
+      if (emptyEl) emptyEl.remove();
+      var row = document.createElement('div');
+      row.className = 'sib-reply-row mine';
+      row.innerHTML = '<div><div class="sib-reply-bubble">' + escHtml(body) + '</div><div class="sib-reply-time">Just now</div></div>';
+      threadList.appendChild(row);
+      threadList.scrollTop = threadList.scrollHeight;
+    }
+    ta.value = '';
+  } catch(e) {
+    console.error('sendShareReply', e);
+    showToast && showToast('Couldn\u2019t send reply \u2014 try again');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function _formatReplyTime(iso) {
+  try {
+    var d = new Date(iso);
+    var now = new Date();
+    var sameDay = d.toDateString() === now.toDateString();
+    if (sameDay) {
+      return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    }
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  } catch(e) { return ''; }
+}
+
+var _inboxCache = {};
+
 async function renderSharedWithMeInbox(containerId) {
   var el = document.getElementById(containerId);
   if (!el) return;
   if (isDemoMode) { el.innerHTML = ''; return; }
-  var items = await fetchSharedWithMe();
-  if (!items.length) {
-    el.innerHTML = '';
-    return;
-  }
+  var items = await fetchSharedInbox();
+  _inboxCache = {};
+  items.forEach(function(s){ _inboxCache[s.id] = s; });
+  if (!items.length) { el.innerHTML = ''; return; }
   var html = '<div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin:0 0 8px 4px;">Shared with you</div>';
   items.forEach(function(s) {
     var p = s.payload || {};
-    var unread = !s.read_at;
-    html += '<div class="share-inbox-card' + (unread ? ' unread' : '') + '" id="sib-' + escHtml(s.id) + '">'
-      + '<div class="sib-from">From a Care Circle member</div>'
-      + (s.sender_note ? '<div class="sib-note">&ldquo;' + escHtml(s.sender_note) + '&rdquo;</div>' : '')
+    var isOutgoing = s._direction === 'outgoing';
+    var unread = !isOutgoing && !s.read_at;
+    var hasUnreadReply = !!s._hasUnreadReply;
+    var cardUnread = unread || hasUnreadReply;
+    var replies = s.replies || [];
+    var fromLine = isOutgoing
+      ? '<div class="sib-from sib-you-shared">You shared this</div>'
+      : '<div class="sib-from">From a Care Circle member</div>';
+    var replyCountBadge = hasUnreadReply ? ' <span class="sib-reply-count">' + replies.filter(function(r){ return r.author_user_id !== currentUser.id; }).length + '</span>' : '';
+    var threadHtml = '<div class="sib-thread">'
+      + '<div class="sib-thread-list" style="max-height:240px;overflow-y:auto;">'
+      + (replies.length
+          ? replies.map(function(r){
+              var mine = r.author_user_id === currentUser.id;
+              return '<div class="sib-reply-row ' + (mine ? 'mine' : 'theirs') + '">'
+                + '<div>'
+                + '<div class="sib-reply-bubble">' + escHtml(r.body) + '</div>'
+                + '<div class="sib-reply-time">' + escHtml(_formatReplyTime(r.created_at)) + '</div>'
+                + '</div>'
+                + '</div>';
+            }).join('')
+          : '<div class="sib-reply-empty">No replies yet \u2014 be the first.</div>')
+      + '</div>'
+      + '<div class="sib-reply-compose">'
+      + '<textarea placeholder="Write a reply\u2026" rows="1" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendShareReply(\'' + escHtml(s.id) + '\');}"></textarea>'
+      + '<button class="sib-reply-send" onclick="sendShareReply(\'' + escHtml(s.id) + '\')">Send</button>'
+      + '</div>'
+      + '</div>';
+    var actionsHtml;
+    if (isOutgoing) {
+      actionsHtml = '<div class="sib-actions">'
+        + '<button class="primary" onclick="toggleShareThread(\'' + escHtml(s.id) + '\')">View replies' + replyCountBadge + '</button>'
+        + '</div>';
+    } else {
+      actionsHtml = '<div class="sib-actions">'
+        + '<button onclick="dismissShare(\'' + escHtml(s.id) + '\')">Dismiss</button>'
+        + '<button class="primary" onclick="toggleShareThread(\'' + escHtml(s.id) + '\')">Reply' + replyCountBadge + '</button>'
+        + '</div>';
+    }
+    html += '<div class="share-inbox-card' + (cardUnread ? ' unread' : '') + '" id="sib-' + escHtml(s.id) + '">'
+      + fromLine
+      + (s.sender_note && !isOutgoing ? '<div class="sib-note">&ldquo;' + escHtml(s.sender_note) + '&rdquo;</div>' : '')
       + '<div class="sib-item">'
       + '<div class="sib-kind">' + escHtml(labelForItemKind({ kind: s.item_kind, subKind: p.subKind })) + '</div>'
       + '<div class="sib-title">' + escHtml(p.title || '(no title)') + '</div>'
       + (p.date ? '<div class="sib-meta">' + escHtml(formatShareDate(p.date)) + '</div>' : '')
       + (p.notes ? '<div class="sib-meta" style="margin-top:6px;">' + escHtml(p.notes) + '</div>' : '')
       + '</div>'
-      + '<div class="sib-actions">'
-      + '<button onclick="dismissShare(\'' + escHtml(s.id) + '\')">Dismiss</button>'
-      + '<button class="primary" onclick="markShareRead(\'' + escHtml(s.id) + '\');this.closest(\'.share-inbox-card\').classList.remove(\'unread\');">Mark as seen</button>'
-      + '</div>'
+      + actionsHtml
+      + threadHtml
       + '</div>';
   });
   el.innerHTML = html;
@@ -18702,12 +18918,35 @@ async function renderSharedWithMeInbox(containerId) {
 async function refreshSharedInboxCount() {
   if (isDemoMode || !db || !currentUser) return;
   try {
-    var res = await db.from('care_circle_shares')
+    // Unread incoming shares
+    var sharesRes = await db.from('care_circle_shares')
       .select('id', { count: 'exact', head: true })
       .eq('recipient_user_id', currentUser.id)
       .is('dismissed_at', null)
       .is('read_at', null);
-    var count = (res && res.count) || 0;
+    var shareCount = (sharesRes && sharesRes.count) || 0;
+
+    // Unread replies to me (on either my incoming or outgoing shares)
+    // We need to count replies authored by someone else on shares involving me
+    // that I haven't read yet on my side. Do this via two queries and combine.
+    var replyCount = 0;
+    try {
+      // Shares where I'm recipient: count replies not authored by me with null read_by_recipient_at
+      var myIncomingIdsRes = await db.from('care_circle_shares').select('id').eq('recipient_user_id', currentUser.id).is('dismissed_at', null);
+      var myOutgoingIdsRes = await db.from('care_circle_shares').select('id').eq('sender_user_id', currentUser.id);
+      var inIds = ((myIncomingIdsRes && myIncomingIdsRes.data) || []).map(function(r){ return r.id; });
+      var outIds = ((myOutgoingIdsRes && myOutgoingIdsRes.data) || []).map(function(r){ return r.id; });
+      if (inIds.length) {
+        var incR = await db.from('care_circle_share_replies').select('id', { count: 'exact', head: true }).in('share_id', inIds).neq('author_user_id', currentUser.id).is('read_by_recipient_at', null);
+        replyCount += (incR && incR.count) || 0;
+      }
+      if (outIds.length) {
+        var outR = await db.from('care_circle_share_replies').select('id', { count: 'exact', head: true }).in('share_id', outIds).neq('author_user_id', currentUser.id).is('read_by_sender_at', null);
+        replyCount += (outR && outR.count) || 0;
+      }
+    } catch(e){ console.warn('reply count', e); }
+
+    var count = shareCount + replyCount;
     var badge = document.getElementById('shared-inbox-badge');
     if (badge) {
       badge.textContent = count > 0 ? String(count) : '';
