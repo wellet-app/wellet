@@ -12283,25 +12283,36 @@ function sendAskMessage() {
     // Real AI call
     (async function() {
       var ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU';
+      // Return a usable access token. When force is true, we always go to the
+      // network for a fresh one. When false, we use the cached one only if it
+      // has >2 minutes of life left — otherwise refresh. This avoids the
+      // iOS Safari race where getSession() returns a cached-but-just-expired
+      // token that Supabase's edge verify_jwt then rejects with 401.
       async function getFreshToken(force) {
         try {
-          if (force) {
-            var r = await db.auth.refreshSession();
-            if (r && r.data && r.data.session) return r.data.session.access_token;
+          if (!force) {
+            var s = await db.auth.getSession();
+            var tok = s && s.data && s.data.session && s.data.session.access_token;
+            var expAt = s && s.data && s.data.session && s.data.session.expires_at
+              ? s.data.session.expires_at * 1000 : 0;
+            // Use cached token only if it has a comfortable margin.
+            if (tok && expAt && expAt - Date.now() > 2 * 60 * 1000) return tok;
           }
-          var s = await db.auth.getSession();
-          var tok = s && s.data && s.data.session && s.data.session.access_token;
-          if (!tok) return null;
-          // If the token expires within 60s, refresh it pre-emptively
-          var expAt = s.data.session.expires_at ? s.data.session.expires_at * 1000 : 0;
-          if (expAt && expAt - Date.now() < 60 * 1000) {
-            try {
-              var rr = await db.auth.refreshSession();
-              if (rr && rr.data && rr.data.session) return rr.data.session.access_token;
-            } catch(_e){}
+          // Force a network refresh and return the freshly minted token.
+          var r = await db.auth.refreshSession();
+          if (r && r.data && r.data.session && r.data.session.access_token) {
+            return r.data.session.access_token;
           }
-          return tok;
-        } catch(_e) { return null; }
+          // Refresh failed — last-ditch attempt: return whatever getSession
+          // reports (the caller will see a 401 and can prompt re-login).
+          var s2 = await db.auth.getSession();
+          return (s2 && s2.data && s2.data.session && s2.data.session.access_token) || null;
+        } catch(_e) {
+          try {
+            var s3 = await db.auth.getSession();
+            return (s3 && s3.data && s3.data.session && s3.data.session.access_token) || null;
+          } catch(_e2) { return null; }
+        }
       }
       async function callAskWellet(tok) {
         return await fetch(
@@ -12322,17 +12333,23 @@ function sendAskMessage() {
         );
       }
       try {
-        var token = await getFreshToken(false);
+        // Always start with a force-refresh so every request uses a brand-new
+        // access token. Refresh is ~30ms and eliminates the class of 401s
+        // caused by borderline-expired cached tokens on mobile Safari.
+        var token = await getFreshToken(true);
         if (!token) {
           removeTyping(typingId);
-          addWelletMessage('Your session expired. Please sign out and sign back in.');
+          addWelletMessage('Your session expired. Please sign out and sign back in so I can access ' + escHtml((currentPeople.find(function(p){return p.id===currentPersonId;}) || {}).name || 'your records') + '.');
           return;
         }
         var res = await callAskWellet(token);
-        // If the JWT was rejected, try once with a forced refresh
+        // Defensive retry: if the JWT was STILL rejected, try one more time
+        // after another forced refresh and a brief pause to let the client
+        // state settle.
         if (res.status === 401) {
+          await new Promise(function(r){ setTimeout(r, 200); });
           var refreshed = await getFreshToken(true);
-          if (refreshed) {
+          if (refreshed && refreshed !== token) {
             res = await callAskWellet(refreshed);
           }
         }
@@ -12343,7 +12360,8 @@ function sendAskMessage() {
           var data = await res.json();
           addWelletMessage(renderMarkdownSafe(data.answer || data.response || 'I couldn\u2019t find an answer to that.'));
         } else if (res.status === 401) {
-          addWelletMessage('Your session expired. Please sign out and sign back in so I can access Betsy\u2019s records.');
+          console.error('ask-wellet 401 after double refresh; prompting re-auth');
+          addWelletMessage('I\u2019m having trouble verifying your session. Tap the menu and sign out, then sign back in and I\u2019ll be ready.');
         } else {
           var errBody = '';
           try { errBody = await res.text(); } catch(_e){}
