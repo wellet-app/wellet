@@ -733,6 +733,40 @@
   .sib-reply-count { display:inline-block; min-width:16px; padding:0 5px; height:16px; line-height:16px; font-size:10px; font-weight:700; color:#fff; background:var(--moss); border-radius:10px; margin-left:4px; vertical-align:top; }
   .tl-card-date { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
 
+  /* — Long-press to Ask Wellet — */
+  .ask-lp-target { -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+  .ask-lp-target.ask-lp-pressing { transform: scale(0.985); transition: transform 0.18s ease-out; position: relative; }
+  .ask-lp-target.ask-lp-pressing::after {
+    content: ''; position: absolute; inset: 0; border-radius: inherit;
+    background: radial-gradient(circle at center, rgba(91,127,87,0.08), transparent 70%);
+    pointer-events: none; animation: askLpPulse 0.5s ease-out forwards;
+  }
+  @keyframes askLpPulse { from { opacity: 0; } to { opacity: 1; } }
+
+  .ask-sheet-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1200; opacity: 0; pointer-events: none; transition: opacity 0.2s ease; }
+  .ask-sheet-overlay.show { opacity: 1; pointer-events: auto; }
+  .ask-sheet { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-radius: 20px 20px 0 0; z-index: 1201; transform: translateY(100%); transition: transform 0.25s ease-out; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 -6px 24px rgba(0,0,0,0.12); }
+  .ask-sheet.show { transform: translateY(0); }
+  .ask-sheet-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 10px auto 6px; flex-shrink: 0; }
+  .ask-sheet-header { padding: 6px 20px 12px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .ask-sheet-header .ask-sheet-title { font-size: 15px; font-weight: 700; color: var(--ink); flex: 1; display: flex; align-items: center; gap: 8px; }
+  .ask-sheet-header .ask-sheet-close { background: none; border: none; padding: 4px; cursor: pointer; color: var(--muted); }
+  .ask-sheet-body { padding: 0 20px 16px; overflow-y: auto; flex: 1; }
+  .ask-sheet-preview { background: #F6F7F5; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; }
+  .ask-sheet-preview .asp-kind { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--moss); margin-bottom: 4px; }
+  .ask-sheet-preview .asp-title { font-size: 14px; color: var(--ink); font-weight: 600; line-height: 1.35; }
+  .ask-sheet-preview .asp-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .ask-sheet-preview .asp-selection { margin-top: 8px; padding: 8px 10px; background: #FFF8D6; border-left: 3px solid #E8C547; border-radius: 4px; font-size: 13px; color: var(--ink); font-style: italic; }
+  .ask-sheet-starters { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  .ask-sheet-starter { text-align: left; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: 14px; color: var(--ink); cursor: pointer; display: flex; align-items: center; gap: 10px; transition: background 0.15s, border-color 0.15s; }
+  .ask-sheet-starter:hover, .ask-sheet-starter:active { background: #F6F9F3; border-color: var(--moss); }
+  .ask-sheet-starter i { color: var(--moss); flex-shrink: 0; }
+  .ask-sheet-input-bar { padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); display: flex; gap: 10px; align-items: flex-end; flex-shrink: 0; background: #fff; }
+  .ask-sheet-input-bar textarea { flex: 1; border: 1.5px solid var(--border-medium); border-radius: 18px; padding: 10px 14px; font-size: 15px; font-family: inherit; color: var(--text-primary); background: #fff; resize: none; line-height: 1.4; max-height: 100px; min-height: 40px; }
+  .ask-sheet-input-bar textarea:focus { outline: none; border-color: var(--moss); }
+  .ask-sheet-input-bar button { padding: 0 16px; height: 40px; background: var(--moss); color: #fff; border: none; border-radius: 20px; font-size: 14px; font-weight: 600; cursor: pointer; flex-shrink: 0; }
+  .ask-sheet-input-bar button:disabled { background: var(--muted); cursor: not-allowed; }
+
   /* patterns */
   .patterns-section { padding: 16px 20px 0; }
   .insight-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 10px; }
@@ -5748,9 +5782,19 @@ function renderTimeline() {
         ref_table: 'health_events',
         ref_id: ev.id || null
       });
+      // Register Ask context for long-press
+      if (!window._askCtxRegistry) window._askCtxRegistry = {};
+      var askKeyTl = 'tl_' + Object.keys(window._askCtxRegistry).length;
+      window._askCtxRegistry[askKeyTl] = {
+        kind: (ev.event_type === 'lab_result') ? 'lab' : (ev.event_type === 'appointment' ? 'visit' : (ev.event_type === 'note' ? 'note' : (ev.event_type || 'event'))),
+        name: ev.title,
+        date: ev.event_date,
+        notes: ev.notes || '',
+        meta: typeInfo.label
+      };
       html += '<div class="tl-item">'
         + '<div class="tl-line-col"><div class="tl-dot ' + typeInfo.dot + '" aria-hidden="true"></div>' + (isLast ? '' : '<div class="tl-connector"></div>') + '</div>'
-        + '<div class="tl-card ' + typeInfo.border + '"' + clickAttr + '>'
+        + '<div class="tl-card ' + typeInfo.border + '" data-ask-lp="' + askKeyTl + '"' + clickAttr + '>'
         + '<div class="tl-card-type-row"><i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + typeInfo.color + ';"></i>'
         + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span>'
         + (isEhr ? ' ' + ehrBadgeHtml() : '')
@@ -5932,6 +5976,385 @@ function _renderAskContextChip() {
     + '</div>';
   try { initIcons(); } catch (e) {}
 }
+
+// ── LONG-PRESS TO ASK WELLET ─────────────────────────────────────────────────────────
+// attachAskLongPress(element, contextProvider)
+//   contextProvider: function or object. Called at press time to get the
+//   Ask context object: { kind, name, value, date, meta, notes, ... }.
+//
+// Behavior:
+//   - 500ms press triggers light haptic + opens the Ask-this sheet
+//   - If text is selected inside the element at press time, the selection
+//     becomes the asked-about value (passed through as ctx.selection)
+//   - Suppresses the follow-on click/tap so the card doesn't also open
+var ASK_LP_THRESHOLD_MS = 500;
+var _askLpState = null; // { el, timer, startX, startY, fired }
+
+function attachAskLongPress(el, contextProvider) {
+  if (!el || el._askLpBound) return;
+  el._askLpBound = true;
+  el.classList.add('ask-lp-target');
+
+  function start(e) {
+    // Skip when press starts in a form control or button inside the card
+    var tag = (e.target && e.target.tagName) || '';
+    if (/^(INPUT|TEXTAREA|BUTTON|SELECT|A)$/.test(tag)) return;
+    if (e.target && e.target.closest && e.target.closest('button, a, input, textarea, select')) return;
+    // Ignore right-click
+    if (e.button === 2) return;
+    var pt = (e.touches && e.touches[0]) || e;
+    cancel();
+    // Capture any pre-existing selection at press-start (desktop clears it on mousedown)
+    var preSelection = '';
+    try {
+      var sel0 = window.getSelection && window.getSelection();
+      if (sel0 && sel0.toString && sel0.toString().trim()) {
+        var n0 = sel0.anchorNode;
+        if (n0 && el.contains(n0.nodeType === 1 ? n0 : n0.parentNode)) {
+          preSelection = sel0.toString().trim();
+        }
+      }
+    } catch(_e){}
+    _askLpState = { el: el, startX: pt.clientX, startY: pt.clientY, fired: false, preSelection: preSelection };
+    el.classList.add('ask-lp-pressing');
+    _askLpState.timer = setTimeout(function() {
+      if (!_askLpState) return;
+      _askLpState.fired = true;
+      el._askLpJustFired = true;
+      try { if (navigator.vibrate) navigator.vibrate(12); } catch(_e){}
+      // Prefer live selection at fire-time (touch), fall back to pre-captured (desktop)
+      var selText = _askLpState.preSelection || '';
+      try {
+        var sel = window.getSelection && window.getSelection();
+        if (sel && sel.toString && sel.toString().trim()) {
+          var rangeNode = sel.anchorNode;
+          if (rangeNode && el.contains(rangeNode.nodeType === 1 ? rangeNode : rangeNode.parentNode)) {
+            selText = sel.toString().trim();
+          }
+        }
+      } catch(_e){}
+      var ctx = (typeof contextProvider === 'function') ? contextProvider() : contextProvider;
+      ctx = ctx ? Object.assign({}, ctx) : {};
+      if (selText) ctx.selection = selText;
+      openAskThisSheet(ctx);
+      el.classList.remove('ask-lp-pressing');
+    }, ASK_LP_THRESHOLD_MS);
+  }
+  function move(e) {
+    if (!_askLpState || _askLpState.el !== el) return;
+    var pt = (e.touches && e.touches[0]) || e;
+    var dx = Math.abs(pt.clientX - _askLpState.startX);
+    var dy = Math.abs(pt.clientY - _askLpState.startY);
+    if (dx > 10 || dy > 10) cancel();
+  }
+  function end() { cancel(); }
+  function cancel() {
+    if (_askLpState) {
+      clearTimeout(_askLpState.timer);
+      if (_askLpState.el) _askLpState.el.classList.remove('ask-lp-pressing');
+    }
+    _askLpState = null;
+  }
+  // Swallow the click that follows a long-press
+  el.addEventListener('click', function(e) {
+    if (el._askLpJustFired) {
+      el._askLpJustFired = false;
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, true);
+
+  el.addEventListener('touchstart', start, { passive: true });
+  el.addEventListener('touchmove', move, { passive: true });
+  el.addEventListener('touchend', end, { passive: true });
+  el.addEventListener('touchcancel', end, { passive: true });
+  el.addEventListener('mousedown', start);
+  el.addEventListener('mousemove', move);
+  el.addEventListener('mouseup', end);
+  el.addEventListener('mouseleave', end);
+  el.addEventListener('contextmenu', function(e){ e.preventDefault(); }); // avoid native right-click menu on desktop
+}
+
+// After a long-press fires, we flag the element so the trailing click is
+// suppressed. We pair this with the sheet opening to ensure card tap doesn't
+// also navigate.
+function _askLpFlagFired(el) { if (el) el._askLpJustFired = true; setTimeout(function(){ if (el) el._askLpJustFired = false; }, 700); }
+
+// ── ASK THIS SHEET ──────────────────────────────────────────────────────────────────────
+var _askSheetCtx = null;
+
+function _askSheetAutoResize(ta) {
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight, 100) + 'px';
+}
+
+function _askSheetStartersFor(ctx) {
+  var kind = (ctx && ctx.kind) || '';
+  var hasSel = !!(ctx && ctx.selection);
+  if (hasSel) {
+    return [
+      { icon: 'help-circle', text: 'What does this mean?' },
+      { icon: 'alert-triangle', text: 'Should I be concerned about this?' },
+      { icon: 'stethoscope', text: 'What should I ask the doctor about this?' }
+    ];
+  }
+  switch (kind) {
+    case 'lab':
+      return [
+        { icon: 'help-circle', text: 'What does this result mean?' },
+        { icon: 'trending-up', text: 'How has this changed over time?' },
+        { icon: 'stethoscope', text: 'What should I ask the doctor?' }
+      ];
+    case 'medication':
+    case 'med':
+      return [
+        { icon: 'help-circle', text: 'What is this medication for?' },
+        { icon: 'alert-triangle', text: 'What side effects should I watch for?' },
+        { icon: 'pill', text: 'Does this interact with other medications?' }
+      ];
+    case 'vital':
+      return [
+        { icon: 'help-circle', text: 'Is this reading in a healthy range?' },
+        { icon: 'trending-up', text: 'How has this changed over time?' },
+        { icon: 'stethoscope', text: 'Should I call the doctor?' }
+      ];
+    case 'visit':
+    case 'appointment':
+      return [
+        { icon: 'clipboard-list', text: 'What should we prepare for this visit?' },
+        { icon: 'file-text', text: 'Summarize the history relevant to this visit' },
+        { icon: 'help-circle', text: 'What questions should I bring?' }
+      ];
+    case 'document':
+    case 'note':
+      return [
+        { icon: 'file-text', text: 'Summarize this for me' },
+        { icon: 'help-circle', text: 'What are the key points?' },
+        { icon: 'stethoscope', text: 'What should I ask the doctor about this?' }
+      ];
+    case 'event':
+    case 'pattern':
+    case 'symptom':
+      return [
+        { icon: 'help-circle', text: 'What could this mean?' },
+        { icon: 'trending-up', text: 'Is this a pattern I should watch?' },
+        { icon: 'stethoscope', text: 'Should I call the doctor?' }
+      ];
+    case 'emergency_section':
+      return [
+        { icon: 'help-circle', text: 'Explain this section in plain language' },
+        { icon: 'file-text', text: 'What\u2019s most important here for an ER visit?' }
+      ];
+    default:
+      return [
+        { icon: 'help-circle', text: 'What does this mean?' },
+        { icon: 'alert-triangle', text: 'Should I be concerned?' },
+        { icon: 'stethoscope', text: 'What should I ask the doctor?' }
+      ];
+  }
+}
+
+function _askSheetKindLabel(kind) {
+  var map = {
+    lab: 'Lab result', medication: 'Medication', med: 'Medication', vital: 'Vital',
+    visit: 'Visit', appointment: 'Appointment', document: 'Document', note: 'Note',
+    event: 'Health event', pattern: 'Pattern', symptom: 'Symptom',
+    emergency_section: 'Emergency summary', share: 'Shared item'
+  };
+  return map[kind] || 'This item';
+}
+
+function openAskThisSheet(ctx) {
+  ctx = ctx || {};
+  _askSheetCtx = ctx;
+  var body = document.getElementById('ask-sheet-body');
+  if (!body) return;
+  var title = ctx.name || ctx.title || '(this item)';
+  var metaParts = [];
+  if (ctx.value) metaParts.push(ctx.value);
+  if (ctx.date) { try { metaParts.push(formatEventDate(ctx.date)); } catch(_e) { metaParts.push(ctx.date); } }
+  if (ctx.meta) metaParts.push(ctx.meta);
+  var meta = metaParts.join(' \u00B7 ');
+  var starters = _askSheetStartersFor(ctx);
+  var previewHtml = '<div class="ask-sheet-preview">'
+    + '<div class="asp-kind">' + escHtml(_askSheetKindLabel(ctx.kind)) + '</div>'
+    + '<div class="asp-title">' + escHtml(title) + '</div>'
+    + (meta ? '<div class="asp-meta">' + escHtml(meta) + '</div>' : '')
+    + (ctx.selection ? '<div class="asp-selection">&ldquo;' + escHtml(ctx.selection) + '&rdquo;</div>' : '')
+    + '</div>';
+  var startersHtml = '<div class="ask-sheet-starters">'
+    + starters.map(function(s, i) {
+        return '<button class="ask-sheet-starter" onclick="_askSheetUseStarter(' + i + ')">'
+          + '<i data-lucide="' + escHtml(s.icon) + '" style="width:16px;height:16px;"></i>'
+          + '<span>' + escHtml(s.text) + '</span>'
+          + '</button>';
+      }).join('')
+    + '</div>';
+  body.innerHTML = previewHtml + startersHtml;
+  body._starters = starters;
+
+  var overlay = document.getElementById('ask-sheet-overlay');
+  var sheet = document.getElementById('ask-sheet');
+  overlay.classList.add('show');
+  sheet.classList.add('show');
+  try { history.pushState({ type: 'sheet', id: 'ask-sheet' }, ''); } catch(_e){}
+  try { initIcons(); } catch(_e){}
+  // Reset input
+  var ta = document.getElementById('ask-sheet-input');
+  if (ta) { ta.value = ''; ta.style.height = 'auto'; }
+}
+
+function closeAskSheet() {
+  var overlay = document.getElementById('ask-sheet-overlay');
+  var sheet = document.getElementById('ask-sheet');
+  if (overlay) overlay.classList.remove('show');
+  if (sheet) sheet.classList.remove('show');
+  _askSheetCtx = null;
+  // If we pushed state, pop it. Guard in case the user navigated.
+  try { if (history.state && history.state.id === 'ask-sheet') history.back(); } catch(_e){}
+}
+
+function _askSheetUseStarter(idx) {
+  var body = document.getElementById('ask-sheet-body');
+  var starters = (body && body._starters) || [];
+  var starter = starters[idx];
+  if (!starter) return;
+  _askSheetDispatch(starter.text);
+}
+
+function submitAskSheet() {
+  var ta = document.getElementById('ask-sheet-input');
+  if (!ta) return;
+  var text = (ta.value || '').trim();
+  if (!text) return;
+  _askSheetDispatch(text);
+}
+
+// Stash context, switch to Ask tab, drop the question in the input, and fire
+function _askSheetDispatch(questionText) {
+  var ctx = _askSheetCtx || {};
+  // Convert sheet ctx to the shape sendAskMessage forwards to the edge function
+  var finalCtx = {
+    kind:  ctx.kind || 'item',
+    name:  ctx.selection ? ('\u201C' + ctx.selection + '\u201D (from ' + (ctx.name || ctx.title || 'this item') + ')') : (ctx.name || ctx.title || ''),
+    value: ctx.value || '',
+    date:  ctx.date || '',
+    ref:   ctx.ref || '',
+    notes: ctx.notes || '',
+    meta:  ctx.meta || '',
+    selection: ctx.selection || ''
+  };
+  window._pendingAskContext = finalCtx;
+  closeAskSheet();
+  try { switchNavTo('ask'); } catch(_e){}
+  setTimeout(function() {
+    try { if (typeof _renderAskContextChip === 'function') _renderAskContextChip(); } catch(_e){}
+    var input = document.getElementById('ask-input');
+    if (input) {
+      input.value = questionText;
+      try { autoResize(input); } catch(_e){}
+      var chips = document.getElementById('suggestion-chips');
+      if (chips) chips.style.display = 'none';
+      // Fire immediately
+      try { sendAskMessage(); } catch(_e){}
+    }
+  }, 80);
+}
+
+// Global back-button / escape close
+document.addEventListener('keydown', function(e){
+  if (e.key === 'Escape') {
+    var sheet = document.getElementById('ask-sheet');
+    if (sheet && sheet.classList.contains('show')) closeAskSheet();
+  }
+});
+
+// Delegated long-press attachment. Call attachAskLongPressAll() after any render
+// to bind any new elements matching `[data-ask-lp]` (keyed to _askCtxRegistry)
+// or cards we auto-target by class (see AUTO_ASK_LP_SELECTORS).
+function attachAskLongPressAll() {
+  try {
+    // 1) Explicit registry-keyed elements
+    var nodes = document.querySelectorAll('[data-ask-lp]:not(.ask-lp-target)');
+    nodes.forEach(function(el) {
+      var key = el.getAttribute('data-ask-lp');
+      attachAskLongPress(el, function() {
+        return (window._askCtxRegistry && window._askCtxRegistry[key]) || _inferAskCtxFromEl(el);
+      });
+    });
+    // 2) Auto-target cards without explicit registry key — we infer context
+    //    from the visible content of the card. This covers med cards, vital
+    //    rows, visit cards, document cards, ER summary sections, and
+    //    shared-inbox items without needing renderer-by-renderer changes.
+    var AUTO_ASK_LP_SELECTORS = [
+      '.tl-card', '.lab-card',
+      '.record-card', '.med-card', '.vital-card', '.vital-row',
+      '.visit-card', '.doc-card', '.document-card', '.attachment-card',
+      '.allergy-card', '.condition-card', '.er-section', '.er-summary-section',
+      '.share-inbox-card .sib-item'
+    ].join(',');
+    var autoNodes = document.querySelectorAll(AUTO_ASK_LP_SELECTORS);
+    autoNodes.forEach(function(el) {
+      if (el.classList.contains('ask-lp-target')) return;
+      if (el.closest('.ask-sheet')) return; // don't bind inside the sheet itself
+      attachAskLongPress(el, function() { return _inferAskCtxFromEl(el); });
+    });
+  } catch(e){}
+}
+
+// Infer a sensible Ask context from a card element by reading its text.
+function _inferAskCtxFromEl(el) {
+  if (!el) return {};
+  // Prefer known subtitle/title classes, otherwise use the first two lines of text
+  function txt(sel) { var n = el.querySelector(sel); return n ? (n.textContent || '').trim() : ''; }
+  var kindGuess = 'item';
+  if (el.classList.contains('med-card')) kindGuess = 'medication';
+  else if (el.classList.contains('lab-card')) kindGuess = 'lab';
+  else if (el.classList.contains('tl-card')) {
+    // Try to read the type label
+    var typeLabel = (el.querySelector('.tl-card-type')?.textContent || '').toLowerCase();
+    if (typeLabel.indexOf('lab') >= 0) kindGuess = 'lab';
+    else if (typeLabel.indexOf('appoint') >= 0 || typeLabel.indexOf('visit') >= 0) kindGuess = 'visit';
+    else if (typeLabel.indexOf('med') >= 0) kindGuess = 'medication';
+    else if (typeLabel.indexOf('note') >= 0) kindGuess = 'note';
+    else if (typeLabel.indexOf('pattern') >= 0) kindGuess = 'pattern';
+    else kindGuess = 'event';
+  }
+  else if (el.classList.contains('vital-card') || el.classList.contains('vital-row')) kindGuess = 'vital';
+  else if (el.classList.contains('visit-card')) kindGuess = 'visit';
+  else if (el.classList.contains('doc-card') || el.classList.contains('document-card') || el.classList.contains('attachment-card')) kindGuess = 'document';
+  else if (el.classList.contains('allergy-card')) kindGuess = 'allergy';
+  else if (el.classList.contains('condition-card')) kindGuess = 'condition';
+  else if (el.classList.contains('er-section') || el.classList.contains('er-summary-section')) kindGuess = 'emergency_section';
+  else if (el.classList.contains('sib-item') || el.closest('.share-inbox-card')) kindGuess = 'share';
+
+  var title = txt('.tl-card-title') || txt('.sib-title') || txt('.record-title') || txt('.card-title') || txt('h3') || txt('h4') || '';
+  var meta  = txt('.tl-card-date') || txt('.sib-meta') || txt('.record-meta') || txt('.card-meta') || '';
+  var value = txt('.tl-card-body') || txt('.record-value') || txt('.vital-value') || '';
+  if (!title) {
+    // Fallback: first non-empty line of the element
+    var lines = (el.textContent || '').split(/\n|\r/).map(function(s){ return s.trim(); }).filter(Boolean);
+    title = lines[0] || '';
+    if (!meta) meta = (lines[1] || '').slice(0, 120);
+  }
+  return { kind: kindGuess, name: (title || '').slice(0, 160), meta: (meta || '').slice(0, 160), value: value };
+}
+// Re-scan on any DOM mutations inside #app so dynamically-rendered surfaces
+// pick up long-press automatically without each renderer needing to remember.
+(function(){
+  if (window._askLpObserver) return;
+  var runSoon = null;
+  function schedule() {
+    if (runSoon) return;
+    runSoon = setTimeout(function(){ runSoon = null; attachAskLongPressAll(); }, 50);
+  }
+  var app = document.getElementById('app') || document.body;
+  var obs = new MutationObserver(schedule);
+  obs.observe(app || document.body, { childList: true, subtree: true });
+  window._askLpObserver = obs;
+  // Initial scan
+  schedule();
+})();
 
 window.renderLabsChart = function(testName) {
   var container = document.getElementById('labs-chart-container');
@@ -6533,7 +6956,7 @@ function _rdLabsContent(liveLabs, labEvents, ehrObs, ehrProvider) {
     if (!window._askCtxRegistry) window._askCtxRegistry = {};
     window._askCtxRegistry[askKey] = askCtx;
 
-    html += '<div class="lab-card" style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;">'
+    html += '<div class="lab-card" data-ask-lp="' + askKey + '" style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;">'
       +   '<div style="display:flex;align-items:flex-start;gap:10px;">'
       +     '<div class="record-icon blue" style="flex-shrink:0;"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>'
       +     '<div style="flex:1;min-width:0;">'
@@ -20573,6 +20996,24 @@ var _pulse = (function() {
         <!-- Recent searches rendered by JS -->
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ASK WELLET — CONTEXTUAL SHEET (long-press trigger) -->
+<div class="ask-sheet-overlay" id="ask-sheet-overlay" onclick="if(event.target===this)closeAskSheet()"></div>
+<div class="ask-sheet" id="ask-sheet" role="dialog" aria-modal="true" aria-labelledby="ask-sheet-title-text">
+  <div class="ask-sheet-handle"></div>
+  <div class="ask-sheet-header">
+    <div class="ask-sheet-title" id="ask-sheet-title-text">
+      <svg viewBox="0 138 50 42" width="18" height="18" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;"><path fill="var(--moss)" d="M45.5,142c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83l.25-2.56h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z"/></svg>
+      <span>Ask Wellet</span>
+    </div>
+    <button class="ask-sheet-close" aria-label="Close" onclick="closeAskSheet()"><i data-lucide="x" style="width:20px;height:20px;"></i></button>
+  </div>
+  <div class="ask-sheet-body" id="ask-sheet-body"><!-- filled by openAskThisSheet() --></div>
+  <div class="ask-sheet-input-bar">
+    <textarea id="ask-sheet-input" rows="1" placeholder="Ask your own question…" oninput="_askSheetAutoResize(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitAskSheet();}"></textarea>
+    <button id="ask-sheet-send" onclick="submitAskSheet()">Send</button>
   </div>
 </div>
 
