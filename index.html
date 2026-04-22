@@ -671,6 +671,47 @@
   .tl-card-type.alert { color: var(--red); }
   .tl-card-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
   .tl-card-body { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+  .tl-card-type-row { display: flex; align-items: center; gap: 6px; }
+  .tl-share-btn { margin-left: auto; background: transparent; border: 1px solid var(--line); border-radius: 999px; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; color: var(--moss); cursor: pointer; padding: 0; flex-shrink: 0; }
+  .tl-share-btn:hover { background: var(--mint); border-color: var(--moss); }
+
+  /* Share sheet */
+  .share-overlay { display:none; position:fixed; inset:0; background:rgba(44,42,38,0.55); z-index:220; align-items:flex-end; justify-content:center; }
+  .share-overlay.show { display:flex; }
+  .share-sheet { background:var(--cream); border-radius:20px 20px 0 0; width:100%; max-width:480px; max-height:85vh; overflow-y:auto; padding:16px 20px 28px; box-shadow:0 -4px 24px rgba(0,0,0,0.12); }
+  .share-handle-row { display:flex; justify-content:center; padding-bottom:8px; }
+  .share-handle { width:36px; height:4px; background:var(--line); border-radius:2px; }
+  .share-title { font-size:18px; font-weight:600; color:var(--ink); margin:4px 0 2px; }
+  .share-sub { font-size:13px; color:var(--muted); margin-bottom:16px; }
+  .share-item-preview { background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:16px; }
+  .share-item-preview .sip-kind { font-size:11px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:var(--moss); margin-bottom:4px; }
+  .share-item-preview .sip-title { font-size:14px; font-weight:500; color:var(--ink); margin-bottom:2px; }
+  .share-item-preview .sip-meta { font-size:12px; color:var(--muted); }
+  .share-members { margin-bottom:14px; }
+  .share-member-label { font-size:11px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
+  .share-member-row { display:flex; align-items:center; gap:10px; padding:10px 12px; background:#fff; border:1px solid var(--line); border-radius:10px; margin-bottom:6px; cursor:pointer; }
+  .share-member-row input[type=checkbox] { margin:0; width:16px; height:16px; accent-color: var(--moss); }
+  .share-member-name { font-size:14px; color:var(--ink); flex:1; }
+  .share-member-email { font-size:12px; color:var(--muted); }
+  .share-member-status { font-size:11px; color:var(--muted); }
+  .share-member-row.disabled { opacity:0.55; cursor:not-allowed; }
+  .share-note-field { width:100%; border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-family:inherit; font-size:14px; color:var(--ink); background:#fff; resize:vertical; min-height:70px; margin-bottom:16px; box-sizing:border-box; }
+  .share-send-btn { width:100%; padding:14px; background:var(--moss); color:#fff; border:none; border-radius:12px; font-size:15px; font-weight:600; cursor:pointer; }
+  .share-send-btn:disabled { background:var(--muted); cursor:not-allowed; }
+  .share-empty-circle { padding:20px; background:var(--mint); border-radius:12px; font-size:13px; color:var(--ink); line-height:1.5; margin-bottom:16px; }
+
+  /* Shared with you inbox */
+  .share-inbox-card { background:var(--cream); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:10px; position:relative; }
+  .share-inbox-card.unread { border-color: var(--moss); background: #f6f9f3; }
+  .share-inbox-card .sib-from { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--moss); margin-bottom:4px; }
+  .share-inbox-card .sib-note { font-size:13px; color:var(--ink); font-style:italic; margin-bottom:8px; line-height:1.4; }
+  .share-inbox-card .sib-item { background:#fff; border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .share-inbox-card .sib-kind { font-size:10px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:var(--muted); margin-bottom:2px; }
+  .share-inbox-card .sib-title { font-size:14px; color:var(--ink); font-weight:500; }
+  .share-inbox-card .sib-meta { font-size:11px; color:var(--muted); margin-top:2px; }
+  .share-inbox-card .sib-actions { display:flex; gap:8px; margin-top:10px; }
+  .share-inbox-card .sib-actions button { flex:1; padding:8px; border:1px solid var(--line); background:#fff; border-radius:8px; font-size:12px; color:var(--ink); cursor:pointer; }
+  .share-inbox-card .sib-actions button.primary { background:var(--moss); color:#fff; border-color:var(--moss); }
   .tl-card-date { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
 
   /* patterns */
@@ -5285,6 +5326,11 @@ function showAuthenticatedApp() {
   // Load plan from Supabase and refresh settings card
   loadUserPlan();
 
+  // Refresh Care Circle shared-with-me count
+  if (typeof refreshSharedInboxCount === 'function') {
+    try { refreshSharedInboxCount(); } catch(e) { console.warn('[shared-inbox] count refresh failed', e); }
+  }
+
   // Alpha: show welcome on first login, track activation
   showAlphaWelcome();
   trackActivation();
@@ -5433,9 +5479,12 @@ function renderUpdateMe() {
       + '</button>';
   }
 
+  var sharedInboxContainer = !isDemoMode ? '<div id="shared-inbox" style="padding:0 20px;margin-top:16px;"></div>' : '';
+
   if (liveEvents.length === 0 && !hasCompletedDocs) {
     // Truly empty: summary placeholder FIRST, then onboarding CTAs below
-    pane.innerHTML = '<div class="update-me-section">'
+    pane.innerHTML = sharedInboxContainer
+      + '<div class="update-me-section">'
       + emptyPlaceholder
       + emptyActions
       + '</div>'
@@ -5451,7 +5500,8 @@ function renderUpdateMe() {
       + '</div>';
   } else if (liveEvents.length === 0 && hasCompletedDocs) {
     // Has document data but no promoted events yet: real summary FIRST, then onboarding CTAs below
-    pane.innerHTML = '<div class="update-me-section">'
+    pane.innerHTML = sharedInboxContainer
+      + '<div class="update-me-section">'
       + summarySection
       + emptyActions
       + '</div>'
@@ -5468,7 +5518,8 @@ function renderUpdateMe() {
   } else {
     // Populated state: show both summary card and status card
     var alertBannerHtml = buildPatternAlertBanner(name);
-    pane.innerHTML = '<div class="update-me-section">'
+    pane.innerHTML = sharedInboxContainer
+      + '<div class="update-me-section">'
       + summarySection
       + alertBannerHtml
       + '<div class="update-card">'
@@ -5489,6 +5540,9 @@ function renderUpdateMe() {
       + '</div>';
   }
   initIcons();
+  if (!isDemoMode && typeof renderSharedWithMeInbox === 'function') {
+    try { renderSharedWithMeInbox('shared-inbox'); } catch(e) { console.warn('[shared-inbox] render failed', e); }
+  }
 }
 
 // ── PATTERN ALERT DETECTION & BANNER ─────────────────────────────────────
@@ -5664,12 +5718,24 @@ function renderTimeline() {
       var dateStr = formatEventDate(ev.event_date);
       var isEhr = ev.source === 'ehr';
       var clickAttr = isEhr ? '' : ' onclick="openEditEvent(\'' + ev.id + '\')"';
+      // Register share context for this timeline item
+      var shareKey = registerShareItem({
+        kind: 'event',
+        subKind: ev.event_type,
+        title: ev.title,
+        date: ev.event_date,
+        notes: ev.notes || '',
+        source: ev.source || 'user',
+        ref_table: 'health_events',
+        ref_id: ev.id || null
+      });
       html += '<div class="tl-item">'
         + '<div class="tl-line-col"><div class="tl-dot ' + typeInfo.dot + '" aria-hidden="true"></div>' + (isLast ? '' : '<div class="tl-connector"></div>') + '</div>'
         + '<div class="tl-card ' + typeInfo.border + '"' + clickAttr + '>'
         + '<div class="tl-card-type-row"><i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + typeInfo.color + ';"></i>'
         + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span>'
         + (isEhr ? ' ' + ehrBadgeHtml() : '')
+        + '<button class="tl-share-btn" onclick="event.stopPropagation();openShareSheet(\'' + shareKey + '\')" title="Share with Care Circle" aria-label="Share"><i data-lucide="send" style="width:12px;height:12px;"></i></button>'
         + '</div>'
         + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
         + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
@@ -18410,6 +18476,246 @@ function buildRealSignalsData(vitals, events, connections) {
 // ── RENDER SIGNALS VIEW ──────────────────────────────────────────────────────
 
 
+// ── CARE CIRCLE SHARING ────────────────────────────────────────────────────────
+var _shareRegistry = {};
+var _shareRegistryCounter = 0;
+var _shareCurrentKey = null;
+
+function registerShareItem(item) {
+  var key = 'share_' + (++_shareRegistryCounter);
+  _shareRegistry[key] = item;
+  return key;
+}
+
+function labelForItemKind(item) {
+  if (!item) return 'Item';
+  var k = (item.subKind || item.kind || '').toString().toLowerCase();
+  if (k === 'lab' || k === 'lab_result') return 'Lab result';
+  if (k === 'appointment' || k === 'visit' || k === 'encounter') return 'Visit';
+  if (k === 'medication' || k === 'med') return 'Medication';
+  if (k === 'condition' || k === 'diagnosis') return 'Condition';
+  if (k === 'allergy') return 'Allergy';
+  if (k === 'document' || k === 'doc') return 'Document';
+  if (k === 'note') return 'Note';
+  if (k === 'pattern' || k === 'alert') return 'Pattern';
+  return 'Update';
+}
+
+function formatShareDate(d) {
+  if (!d) return '';
+  try {
+    var dt = new Date(d);
+    if (isNaN(dt.getTime())) return String(d);
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch(e) { return String(d); }
+}
+
+async function fetchCareCircleMembers(personId) {
+  // Returns array of { id, member_name, email, user_id, invite_status }
+  if (!db || !personId) return [];
+  try {
+    var res = await db.from('care_circle_members').select('*').eq('person_id', personId);
+    return (res && res.data) || [];
+  } catch(e) { console.error('fetchCareCircleMembers', e); return []; }
+}
+
+async function openShareSheet(shareKey) {
+  var item = _shareRegistry[shareKey];
+  if (!item) { showToast && showToast('Could not load this item'); return; }
+  _shareCurrentKey = shareKey;
+  var overlay = document.getElementById('share-overlay');
+  var body = document.getElementById('share-sheet-body');
+
+  // Demo mode: show a friendly placeholder
+  if (isDemoMode) {
+    body.innerHTML = '<div class="share-item-preview">'
+      + '<div class="sip-kind">' + escHtml(labelForItemKind(item)) + '</div>'
+      + '<div class="sip-title">' + escHtml(item.title || '') + '</div>'
+      + (item.date ? '<div class="sip-meta">' + escHtml(formatShareDate(item.date)) + '</div>' : '')
+      + '</div>'
+      + '<div class="share-empty-circle">In the real app, this is where you pick which Care Circle members to share with and add a short note. They\u2019ll see it in their Shared with you inbox.</div>'
+      + '<button class="share-send-btn" onclick="closeShareSheet()">Got it</button>';
+    overlay.classList.add('show');
+    history.pushState({ type: 'sheet', id: 'share-overlay' }, '');
+    initIcons();
+    return;
+  }
+
+  body.innerHTML = '<div class="search-loading">Loading\u2026</div>';
+  overlay.classList.add('show');
+  history.pushState({ type: 'sheet', id: 'share-overlay' }, '');
+
+  var members = await fetchCareCircleMembers(currentPersonId);
+  // Only accepted members with a linked user_id can receive in-app shares
+  var eligible = members.filter(function(m) { return m.invite_status === 'accepted' && m.user_id; });
+  var pending = members.filter(function(m) { return m.invite_status !== 'accepted' || !m.user_id; });
+
+  var preview = '<div class="share-item-preview">'
+    + '<div class="sip-kind">' + escHtml(labelForItemKind(item)) + '</div>'
+    + '<div class="sip-title">' + escHtml(item.title || '') + '</div>'
+    + (item.date ? '<div class="sip-meta">' + escHtml(formatShareDate(item.date)) + (item.notes ? ' \u00B7 ' + escHtml(item.notes.substring(0,80)) : '') + '</div>' : '')
+    + '</div>';
+
+  var membersHtml = '';
+  if (eligible.length === 0 && pending.length === 0) {
+    membersHtml = '<div class="share-empty-circle">You haven\u2019t added anyone to your Care Circle yet. Invite a family member from Settings \u2192 Care Circle so you can share updates with them.</div>';
+  } else {
+    membersHtml = '<div class="share-members"><div class="share-member-label">Share with</div>';
+    eligible.forEach(function(m) {
+      membersHtml += '<label class="share-member-row">'
+        + '<input type="checkbox" class="share-member-cb" data-user-id="' + escHtml(m.user_id) + '" checked />'
+        + '<div style="flex:1;"><div class="share-member-name">' + escHtml(m.member_name) + '</div>'
+        + (m.email ? '<div class="share-member-email">' + escHtml(m.email) + '</div>' : '') + '</div>'
+        + '</label>';
+    });
+    pending.forEach(function(m) {
+      membersHtml += '<label class="share-member-row disabled" title="They need to accept the invite before you can share in-app">'
+        + '<input type="checkbox" disabled />'
+        + '<div style="flex:1;"><div class="share-member-name">' + escHtml(m.member_name) + '</div>'
+        + (m.email ? '<div class="share-member-email">' + escHtml(m.email) + '</div>' : '') + '</div>'
+        + '<div class="share-member-status">Invite pending</div>'
+        + '</label>';
+    });
+    membersHtml += '</div>';
+  }
+
+  var noteHtml = '<textarea class="share-note-field" id="share-note-input" placeholder="Add a short note (optional) \u2014 e.g. &ldquo;Mom\u2019s A1C came down, wanted you to see.&rdquo;" maxlength="400"></textarea>';
+
+  var btnHtml = '<button class="share-send-btn" id="share-send-btn" onclick="sendShareNow()"' + (eligible.length === 0 ? ' disabled' : '') + '>'
+    + 'Send' + (eligible.length > 0 ? ' to ' + eligible.length + ' ' + (eligible.length === 1 ? 'person' : 'people') : '')
+    + '</button>';
+
+  body.innerHTML = preview + membersHtml + noteHtml + btnHtml;
+  initIcons();
+}
+
+function closeShareSheet() {
+  var overlay = document.getElementById('share-overlay');
+  overlay.classList.remove('show');
+  _shareCurrentKey = null;
+}
+
+async function sendShareNow() {
+  var item = _shareCurrentKey ? _shareRegistry[_shareCurrentKey] : null;
+  if (!item) return;
+  var btn = document.getElementById('share-send-btn');
+  var noteEl = document.getElementById('share-note-input');
+  var note = noteEl ? noteEl.value.trim() : '';
+  var cbs = document.querySelectorAll('.share-member-cb:checked');
+  var recipientIds = [];
+  cbs.forEach(function(cb) { recipientIds.push(cb.getAttribute('data-user-id')); });
+  if (recipientIds.length === 0) { showToast && showToast('Pick at least one person'); return; }
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending\u2026'; }
+
+  try {
+    var rows = recipientIds.map(function(rid) {
+      return {
+        sender_user_id: currentUser && currentUser.id,
+        recipient_user_id: rid,
+        person_id: currentPersonId,
+        item_kind: item.kind || 'event',
+        item_ref_table: item.ref_table || null,
+        item_ref_id: item.ref_id ? String(item.ref_id) : null,
+        payload: {
+          subKind: item.subKind || null,
+          title: item.title || '',
+          date: item.date || null,
+          notes: item.notes || '',
+          value: item.value || null,
+          unit: item.unit || null,
+          range: item.range || null,
+          status: item.status || null,
+          source: item.source || 'user'
+        },
+        sender_note: note || null
+      };
+    });
+    var res = await db.from('care_circle_shares').insert(rows);
+    if (res.error) throw res.error;
+    showToast && showToast('Shared with ' + recipientIds.length + ' ' + (recipientIds.length === 1 ? 'person' : 'people'));
+    closeShareSheet();
+  } catch(e) {
+    console.error('share failed', e);
+    if (btn) { btn.disabled = false; btn.textContent = 'Try again'; }
+    showToast && showToast('Couldn\u2019t send share \u2014 please try again');
+  }
+}
+
+// ── SHARED WITH YOU INBOX ─────────────────────────────────────────────────────
+async function fetchSharedWithMe() {
+  if (!db || !currentUser) return [];
+  try {
+    var res = await db.from('care_circle_shares')
+      .select('*')
+      .eq('recipient_user_id', currentUser.id)
+      .is('dismissed_at', null)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    return (res && res.data) || [];
+  } catch(e) { console.error('fetchSharedWithMe', e); return []; }
+}
+
+async function markShareRead(shareId) {
+  if (!db || !currentUser) return;
+  try { await db.from('care_circle_shares').update({ read_at: new Date().toISOString() }).eq('id', shareId); } catch(e){}
+}
+
+async function dismissShare(shareId) {
+  if (!db || !currentUser) return;
+  try { await db.from('care_circle_shares').update({ dismissed_at: new Date().toISOString() }).eq('id', shareId); } catch(e){}
+  var card = document.getElementById('sib-' + shareId);
+  if (card) { card.style.transition = 'opacity 0.2s'; card.style.opacity = '0'; setTimeout(function(){ if (card.parentNode) card.parentNode.removeChild(card); refreshSharedInboxCount(); }, 200); }
+}
+
+async function renderSharedWithMeInbox(containerId) {
+  var el = document.getElementById(containerId);
+  if (!el) return;
+  if (isDemoMode) { el.innerHTML = ''; return; }
+  var items = await fetchSharedWithMe();
+  if (!items.length) {
+    el.innerHTML = '';
+    return;
+  }
+  var html = '<div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin:0 0 8px 4px;">Shared with you</div>';
+  items.forEach(function(s) {
+    var p = s.payload || {};
+    var unread = !s.read_at;
+    html += '<div class="share-inbox-card' + (unread ? ' unread' : '') + '" id="sib-' + escHtml(s.id) + '">'
+      + '<div class="sib-from">From a Care Circle member</div>'
+      + (s.sender_note ? '<div class="sib-note">&ldquo;' + escHtml(s.sender_note) + '&rdquo;</div>' : '')
+      + '<div class="sib-item">'
+      + '<div class="sib-kind">' + escHtml(labelForItemKind({ kind: s.item_kind, subKind: p.subKind })) + '</div>'
+      + '<div class="sib-title">' + escHtml(p.title || '(no title)') + '</div>'
+      + (p.date ? '<div class="sib-meta">' + escHtml(formatShareDate(p.date)) + '</div>' : '')
+      + (p.notes ? '<div class="sib-meta" style="margin-top:6px;">' + escHtml(p.notes) + '</div>' : '')
+      + '</div>'
+      + '<div class="sib-actions">'
+      + '<button onclick="dismissShare(\'' + escHtml(s.id) + '\')">Dismiss</button>'
+      + '<button class="primary" onclick="markShareRead(\'' + escHtml(s.id) + '\');this.closest(\'.share-inbox-card\').classList.remove(\'unread\');">Mark as seen</button>'
+      + '</div>'
+      + '</div>';
+  });
+  el.innerHTML = html;
+}
+
+async function refreshSharedInboxCount() {
+  if (isDemoMode || !db || !currentUser) return;
+  try {
+    var res = await db.from('care_circle_shares')
+      .select('id', { count: 'exact', head: true })
+      .eq('recipient_user_id', currentUser.id)
+      .is('dismissed_at', null)
+      .is('read_at', null);
+    var count = (res && res.count) || 0;
+    var badge = document.getElementById('shared-inbox-badge');
+    if (badge) {
+      badge.textContent = count > 0 ? String(count) : '';
+      badge.style.display = count > 0 ? 'inline-block' : 'none';
+    }
+  } catch(e){}
+}
+
 // ── GLOBAL SEARCH ──────────────────────────────────────────────────────────────
 
 var _searchDebounceTimer = null;
@@ -20003,6 +20309,16 @@ var _pulse = (function() {
 
 </script>
 <script src="/guided-demo.js"></script>
+<!-- CARE CIRCLE SHARE SHEET -->
+<div class="share-overlay" id="share-overlay" onclick="if(event.target===this)closeShareSheet()">
+  <div class="share-sheet" role="dialog" aria-modal="true" aria-labelledby="share-sheet-title">
+    <div class="share-handle-row"><div class="share-handle"></div></div>
+    <div class="share-title" id="share-sheet-title">Share with Care Circle</div>
+    <div class="share-sub">They&rsquo;ll see this in their Shared with you inbox.</div>
+    <div id="share-sheet-body"><!-- filled by openShareSheet() --></div>
+  </div>
+</div>
+
 <!-- GLOBAL SEARCH OVERLAY -->
 <div class="search-overlay" id="search-overlay">
   <div class="search-sheet">
