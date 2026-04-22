@@ -771,7 +771,7 @@
   .ask-sheet-starters { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
   .ask-sheet-starter { text-align: left; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: 14px; color: var(--ink); cursor: pointer; display: flex; align-items: center; gap: 10px; transition: background 0.15s, border-color 0.15s; }
   .ask-sheet-starter:hover, .ask-sheet-starter:active { background: #F6F9F3; border-color: var(--moss); }
-  .ask-sheet-starter i { color: var(--moss); flex-shrink: 0; }
+  .ask-sheet-starter i, .ask-sheet-starter svg { color: var(--moss); flex-shrink: 0; width: 18px; height: 18px; stroke-width: 2; }
   .ask-sheet-input-bar { padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); display: flex; gap: 10px; align-items: flex-end; flex-shrink: 0; background: #fff; }
   .ask-sheet-input-bar textarea { flex: 1; border: 1.5px solid var(--border-medium); border-radius: 18px; padding: 10px 14px; font-size: 15px; font-family: inherit; color: var(--text-primary); background: #fff; resize: none; line-height: 1.4; max-height: 100px; min-height: 40px; }
   .ask-sheet-input-bar textarea:focus { outline: none; border-color: var(--moss); }
@@ -12255,14 +12255,33 @@ function sendAskMessage() {
     (async function() {
       try {
         var context = buildDemoContext(_currentAskPerson);
+        // If the user long-pressed a specific item, anchor the LLM to it so
+        // questions like "Summarize the history relevant to this visit" make sense.
+        var ctxItem = (typeof _pendingAskContext !== 'undefined' && _pendingAskContext) ? _pendingAskContext : null;
+        var question = text;
+        if (ctxItem) {
+          var kindLabel = (ctxItem.kind || 'item');
+          var focusBits = [];
+          if (ctxItem.name)  focusBits.push('name: ' + ctxItem.name);
+          if (ctxItem.value) focusBits.push('value: ' + ctxItem.value);
+          if (ctxItem.date)  focusBits.push('date: ' + ctxItem.date);
+          if (ctxItem.meta)  focusBits.push('meta: ' + ctxItem.meta);
+          if (ctxItem.selection) focusBits.push('selected text: \u201C' + ctxItem.selection + '\u201D');
+          if (focusBits.length) {
+            context += '\n\nFocus item (the caregiver is asking about this specific ' + kindLabel + '):\n- ' + focusBits.join('\n- ');
+            question = 'Regarding the ' + kindLabel + ' above (\u201C' + (ctxItem.name || 'this item') + '\u201D): ' + text;
+          }
+        }
         var res = await fetch(
           'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/demo-ask',
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ question: text, context: context })
+            body: JSON.stringify({ question: question, context: context })
           }
         );
+        // Clear one-shot context after send
+        try { if (typeof _pendingAskContext !== 'undefined') { _pendingAskContext = null; if (typeof _renderAskContextChip === 'function') _renderAskContextChip(); } } catch(_e){}
         removeTyping(typingId);
         if (res.ok) {
           var data = await res.json();
