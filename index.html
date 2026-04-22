@@ -2858,10 +2858,10 @@
   </button>
 
   <div class="bottom-nav">
-    <button class="nav-item active" onclick="switchNavTo('home')"><span class="nav-icon"><i data-lucide="house" style="width:20px;height:20px;"></i></span>Home</button>
-    <button class="nav-item" onclick="switchNavTo('records')"><span class="nav-icon"><i data-lucide="folder-heart" style="width:20px;height:20px;"></i></span>Records</button>
-    <button class="nav-item" onclick="switchNavTo('signals')"><span class="nav-icon"><i data-lucide="activity" style="width:20px;height:20px;"></i></span>CareSignals</button>
-    <button class="nav-item" id="nav-ask" onclick="switchNavTo('ask')"><span class="nav-icon"><svg class="wellet-nav-icon" viewBox="0 138 50 42" xmlns="http://www.w3.org/2000/svg"><path d="M45.5,142c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83l.25-2.56h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z"/></svg></span>Ask Wellet</button>
+    <button class="nav-item active" data-nav-key="nav.home" onclick="switchNavTo('home')"><span class="nav-icon"><i data-lucide="house" style="width:20px;height:20px;"></i></span>Home</button>
+    <button class="nav-item" data-nav-key="nav.records" onclick="switchNavTo('records')"><span class="nav-icon"><i data-lucide="folder-heart" style="width:20px;height:20px;"></i></span>Records</button>
+    <button class="nav-item" data-nav-key="nav.signals" onclick="switchNavTo('signals')"><span class="nav-icon"><i data-lucide="activity" style="width:20px;height:20px;"></i></span>CareSignals</button>
+    <button class="nav-item" id="nav-ask" data-nav-key="nav.ask" onclick="switchNavTo('ask')"><span class="nav-icon"><svg class="wellet-nav-icon" viewBox="0 138 50 42" xmlns="http://www.w3.org/2000/svg"><path d="M45.5,142c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83l.25-2.56h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z"/></svg></span>Ask Wellet</button>
   </div>
 </div>
 
@@ -4459,11 +4459,11 @@ window.addEventListener('load', function() {
   // Apply saved language: update nav labels, tab labels, lang picker buttons
   document.documentElement.lang = currentLang;
   var navBtns = document.querySelectorAll('.nav-item');
-  var navKeys = ['nav.home', 'nav.people', 'nav.records', 'nav.signals', 'nav.resources', 'nav.ask'];
   for (var _ni = 0; _ni < navBtns.length; _ni++) {
-    if (navKeys[_ni]) {
+    var _navKey = navBtns[_ni].getAttribute('data-nav-key');
+    if (_navKey) {
       var _tn = navBtns[_ni].lastChild;
-      if (_tn && _tn.nodeType === 3) _tn.textContent = t(navKeys[_ni]);
+      if (_tn && _tn.nodeType === 3) _tn.textContent = t(_navKey);
     }
   }
   var tabBtns = document.querySelectorAll('.tab[id^="tab-btn-"]');
@@ -14775,12 +14775,10 @@ function switchNavTo(view, skipPush) {
   if (!viewEl) { console.warn('switchNavTo: no view for', view); return; }
   viewEl.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
-  // Settings is not in the nav bar — don't try to activate a nav item for it
-  // Bottom nav now has 4 items. People and Resources live in the header menu.
-  var navMap = { home: 0, records: 1, signals: 2, ask: 3 };
-  if (navMap[view] !== undefined) {
-    document.querySelectorAll('.nav-item')[navMap[view]].classList.add('active');
-  }
+  // Find the nav button whose data-nav-key matches this view and activate it.
+  // Resilient to nav-layout changes (4-button / 6-button / menu re-org).
+  var _navMatch = document.querySelector('.nav-item[data-nav-key="nav.' + view + '"]');
+  if (_navMatch) _navMatch.classList.add('active');
   var isHome = view === 'home';
   document.getElementById('header-person-switcher').style.display = isHome ? 'flex' : 'none';
   document.getElementById('header-tab-bar').style.display = isHome ? 'flex' : 'none';
@@ -14887,6 +14885,11 @@ var _obChatSituations = [
   { id: 'child',        label: 'My child' },
   { id: 'self',         label: 'Myself' },
   { id: 'other',        label: 'Someone else' }
+];
+
+var _obChatLanguages = [
+  { id: 'en', label: 'English' },
+  { id: 'es', label: 'Espa\u00F1ol' }
 ];
 
 var _obChatConnectOptions = [
@@ -15639,8 +15642,48 @@ function obInit() {
   document.getElementById('onboarding').scrollTop = 0;
   obChat.phase = 'welcome';
   obSaveChatState();
+  // If we've already captured language (returning visitor mid-flow), skip the language picker.
+  var _alreadyAskedLang = !!(obChat && obChat.languageAsked);
   setTimeout(function() {
-    obTypeThen('Hi \u2014 I\u2019m Wellet. I help you stay on top of your loved one\u2019s health so you can stop being the memory. Who are you here for?', obShowSituationChips, 900);
+    if (_alreadyAskedLang) {
+      obTypeThen('Hi \u2014 I\u2019m Wellet. I help you stay on top of your loved one\u2019s health so you can stop being the memory. Who are you here for?', obShowSituationChips, 900);
+    } else {
+      obTypeThen('Hi \u2014 I\u2019m Wellet. / Hola \u2014 soy Wellet. Which language would you prefer? / \u00BFEn qu\u00E9 idioma prefieres continuar?', obShowLanguageChips, 900);
+    }
+  }, 400);
+}
+
+function obShowLanguageChips() {
+  var chat = document.getElementById('ob-chat-area');
+  var group = document.createElement('div');
+  group.className = 'ob-msg-group from-wellet';
+  group.id = 'ob-language-group';
+  var chipsHTML = '<div class="ob-chips" id="ob-language-chips">';
+  _obChatLanguages.forEach(function(l) {
+    chipsHTML += '<button class="ob-chip" onclick="obSelectLanguage(\'' + l.id + '\',this)">' + escHtml(l.label) + '</button>';
+  });
+  chipsHTML += '</div>';
+  group.innerHTML = chipsHTML;
+  chat.appendChild(group);
+  initIcons();
+  setTimeout(function(){ chat.scrollTop = 0; }, 60);
+}
+
+function obSelectLanguage(id, btn) {
+  document.querySelectorAll('#ob-language-chips .ob-chip').forEach(function(c){ c.disabled = true; c.classList.add('used'); });
+  btn.classList.remove('used'); btn.style.opacity='1'; btn.style.borderColor='var(--moss)'; btn.style.background='var(--mint)'; btn.style.color='var(--moss)';
+  var label = btn.textContent.trim();
+  setTimeout(function(){ obAddBubble('user', label); }, 150);
+  // Persist via the existing setLanguage() so all i18n, nav labels, and <html lang=> stay in sync.
+  try { if (typeof setLanguage === 'function') setLanguage(id); } catch(e) { console.warn('setLanguage failed', e); }
+  obChat.language = id;
+  obChat.languageAsked = true;
+  obSaveChatState();
+  var prompt = id === 'es'
+    ? 'Perfecto. Te ayudo a estar al tanto de la salud de tu ser querido para que puedas dejar de ser la memoria. \u00BFPara qui\u00E9n est\u00E1s aqu\u00ED?'
+    : 'Great. I help you stay on top of your loved one\u2019s health so you can stop being the memory. Who are you here for?';
+  setTimeout(function(){
+    obTypeThen(prompt, obShowSituationChips, 800);
   }, 400);
 }
 
@@ -16322,10 +16365,9 @@ var tourSteps = [
   { target: '#header-tab-bar .tab:first-child', title: 'Update Me', text: 'This is your home base \u2014 a plain-English summary of what\u2019s happening right now.', arrow: 'top', offsetY: 8 },
   { target: '#header-tab-bar .tab:nth-child(2)', title: 'Timeline', text: 'Everything that\u2019s happened, in order. You\u2019ll never have to reconstruct it from memory.', arrow: 'top', offsetY: 8, before: function(){ document.querySelectorAll('.tab')[1].click(); } },
   { target: '#header-tab-bar .tab:nth-child(3)', title: 'Patterns', text: 'Wellet quietly watches for patterns — like how sleep connects to pain, or whether a medication change made a difference.', arrow: 'top', offsetY: 8, before: function(){ document.querySelectorAll('.tab')[2].click(); } },
-  { target: '.nav-item:nth-child(2)', title: 'People', text: 'Everyone involved in care, in one place.', arrow: 'bottom', offsetY: -8, before: function(){ switchNavTo('people'); } },
-  { target: '.nav-item:nth-child(3)', title: 'Records', text: 'Upload photos of documents, prescriptions, or insurance cards. Wellet reads them and files them automatically.', arrow: 'bottom', offsetY: -8, before: function(){ switchNavTo('records'); } },
-  { target: '.nav-item:nth-child(4)', title: 'CareSignals', text: 'Wearable data, home sensors, and medication patterns \u2014 Wellet watches for changes across every signal.', arrow: 'bottom', offsetY: -8, before: function(){ switchNavTo('signals'); } },
-  { target: '.nav-item:nth-child(5)', title: 'Ask Wellet', text: 'Ask anything about your care history. Wellet knows.', arrow: 'bottom', offsetY: -8, before: function(){ switchNavTo('ask'); } }
+  { target: '.nav-item[data-nav-key="nav.records"]', title: 'Records', text: 'Upload photos of documents, prescriptions, or insurance cards. Wellet reads them and files them automatically.', arrow: 'bottom', offsetY: -8, before: function(){ switchNavTo('records'); } },
+  { target: '.nav-item[data-nav-key="nav.signals"]', title: 'CareSignals', text: 'Wearable data, home sensors, and medication patterns \u2014 Wellet watches for changes across every signal.', arrow: 'bottom', offsetY: -8, before: function(){ switchNavTo('signals'); } },
+  { target: '.nav-item[data-nav-key="nav.ask"]', title: 'Ask Wellet', text: 'Ask anything about your care history. Wellet knows.', arrow: 'bottom', offsetY: -8, before: function(){ switchNavTo('ask'); } }
 ];
 var tourCurrent = 0;
 
@@ -19741,19 +19783,79 @@ async function performSearch(query) {
     });
   }
 
-  // 2. Medications
+  // 2. Medications (user-entered in liveMeds)
   if (typeof liveMeds !== 'undefined' && liveMeds) {
     liveMeds.forEach(function(m) {
       if (!m) return;
       var name = m.name || '';
-      var dosage = m.dosage || '';
-      if (name.toLowerCase().indexOf(q) >= 0 || dosage.toLowerCase().indexOf(q) >= 0) {
-        results.push({ type: 'medication', title: name, subtitle: dosage || 'Medication', id: m.id, icon: 'pill' });
+      var dose = m.dose || m.dosage || '';
+      var freq = m.frequency || '';
+      if (name.toLowerCase().indexOf(q) >= 0 || dose.toLowerCase().indexOf(q) >= 0 || freq.toLowerCase().indexOf(q) >= 0) {
+        var subtitle = [dose, freq].filter(Boolean).join(' \u00b7 ') || 'Medication';
+        results.push({ type: 'medication', title: name, subtitle: subtitle, id: m.id, icon: 'pill' });
       }
     });
   }
 
-  // 3. Allergies
+  // 2b. EHR data from the in-memory EHR cache (medications, conditions, allergies, observations, visits)
+  try {
+    if (typeof getEhrData === 'function' && typeof currentPersonId !== 'undefined' && currentPersonId) {
+      var _ehr = getEhrData(currentPersonId);
+      if (_ehr) {
+        (_ehr.medications || []).forEach(function(m) {
+          if (!m) return;
+          var name = m.name || '';
+          var dosage = m.dosage || '';
+          var freq = m.frequency || '';
+          if (name.toLowerCase().indexOf(q) >= 0 || dosage.toLowerCase().indexOf(q) >= 0 || freq.toLowerCase().indexOf(q) >= 0) {
+            var sub = [dosage, freq].filter(Boolean).join(' \u00b7 ') || 'Medication';
+            results.push({ type: 'medication', title: name, subtitle: sub, icon: 'pill', source: 'ehr' });
+          }
+        });
+        (_ehr.conditions || []).forEach(function(c) {
+          if (!c) return;
+          var name = c.name || '';
+          if (name.toLowerCase().indexOf(q) >= 0) {
+            var sub = c.status ? ('Condition \u00b7 ' + c.status) : 'Condition';
+            results.push({ type: 'condition', title: name, subtitle: sub, icon: 'stethoscope', source: 'ehr' });
+          }
+        });
+        (_ehr.allergies || []).forEach(function(a) {
+          if (!a) return;
+          var name = a.substance || a.name || '';
+          var reaction = a.reaction || '';
+          if (name.toLowerCase().indexOf(q) >= 0 || reaction.toLowerCase().indexOf(q) >= 0) {
+            results.push({ type: 'allergy', title: name, subtitle: reaction || 'Allergy', icon: 'alert-triangle', source: 'ehr' });
+          }
+        });
+        (_ehr.observations || []).forEach(function(o) {
+          if (!o) return;
+          var name = o.name || o.display || '';
+          var valStr = (o.value !== undefined && o.value !== null ? String(o.value) : '') + (o.unit ? ' ' + o.unit : '');
+          if (name.toLowerCase().indexOf(q) >= 0) {
+            var dateStr = o.effective_date ? String(o.effective_date).substring(0, 10) : '';
+            results.push({ type: 'observation', title: name, subtitle: (valStr + (dateStr ? ' \u00b7 ' + dateStr : '')).trim() || 'Lab / vital', icon: 'activity', source: 'ehr' });
+          }
+        });
+        // Only surface visits from the last 2 years, matching the Records view
+        var _twoYrAgo = Date.now() - (2 * 365 * 24 * 60 * 60 * 1000);
+        var _visits = _ehr.visits || _ehr.encounters || [];
+        _visits.forEach(function(v) {
+          if (!v) return;
+          var t = v.start_date ? new Date(v.start_date).getTime() : 0;
+          if (t && t < _twoYrAgo) return;
+          var title = v.reason || v.type || v.provider || 'Visit';
+          var blob = [v.reason, v.type, v.provider, v.location].filter(Boolean).join(' ');
+          if (blob.toLowerCase().indexOf(q) >= 0) {
+            var dateStr = v.start_date ? String(v.start_date).substring(0, 10) : '';
+            results.push({ type: 'visit', title: title, subtitle: [v.provider, dateStr].filter(Boolean).join(' \u00b7 ') || 'Visit', icon: 'calendar', source: 'ehr' });
+          }
+        });
+      }
+    }
+  } catch(e) { console.warn('EHR search error', e); }
+
+  // 3. Allergies (user-entered)
   if (typeof liveAllergies !== 'undefined' && liveAllergies) {
     liveAllergies.forEach(function(a) {
       if (!a) return;
@@ -19968,7 +20070,7 @@ var TRANSLATIONS = {
     'nav.home': 'Home',
     'nav.people': 'People',
     'nav.records': 'Records',
-    'nav.signals': 'Signals',
+    'nav.signals': 'CareSignals',
     'nav.resources': 'Resources',
     'nav.ask': 'Ask Wellet',
 
@@ -20126,7 +20228,7 @@ var TRANSLATIONS = {
     'nav.home': 'Inicio',
     'nav.people': 'Personas',
     'nav.records': 'Registros',
-    'nav.signals': 'Se\u00F1ales',
+    'nav.signals': 'CareSignals',
     'nav.resources': 'Recursos',
     'nav.ask': 'Preguntar',
 
@@ -20326,11 +20428,11 @@ function setLanguage(lang) {
 function refreshCurrentView() {
   // Update bottom nav labels
   var navBtns = document.querySelectorAll('.nav-item');
-  var navKeys = ['nav.home', 'nav.people', 'nav.records', 'nav.signals', 'nav.resources', 'nav.ask'];
   for (var ni = 0; ni < navBtns.length; ni++) {
-    if (navKeys[ni]) {
+    var navKey = navBtns[ni].getAttribute('data-nav-key');
+    if (navKey) {
       var textNode = navBtns[ni].lastChild;
-      if (textNode && textNode.nodeType === 3) textNode.textContent = t(navKeys[ni]);
+      if (textNode && textNode.nodeType === 3) textNode.textContent = t(navKey);
     }
   }
 
@@ -20724,7 +20826,7 @@ function vpSaveForLater() {
 var _onboardTooltips = [
   { target: '#tab-btn-update', text: 'Summary is your home base — plain-English updates on what’s changed.' },
   { target: '#nav-ask', text: 'Ask Wellet anything about the health history you’ve captured.' },
-  { target: '.nav-item:nth-child(4)', text: 'CareSignals watches wearables, labs, and patterns for you.' }
+  { target: '.nav-item[data-nav-key="nav.signals"]', text: 'CareSignals watches wearables, labs, and patterns for you.' }
 ];
 var _onboardStep = 0;
 var _onboardEl = null;
