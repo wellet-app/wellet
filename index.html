@@ -1957,6 +1957,15 @@
           <span class="header-menu-icon"><i data-lucide="search" style="width:16px;height:16px;"></i></span>
           <span>Search</span>
         </button>
+        <button class="header-menu-item" onclick="closeHeaderMenu();switchNavTo('people')">
+          <span class="header-menu-icon"><i data-lucide="users" style="width:16px;height:16px;"></i></span>
+          <span>People</span>
+        </button>
+        <button class="header-menu-item" onclick="closeHeaderMenu();switchNavTo('resources')">
+          <span class="header-menu-icon"><i data-lucide="book-open" style="width:16px;height:16px;"></i></span>
+          <span>Resources</span>
+        </button>
+        <div class="header-menu-divider"></div>
         <button class="header-menu-item" onclick="closeHeaderMenu();openFeedbackSheet()">
           <span class="header-menu-icon"><i data-lucide="message-square-heart" style="width:16px;height:16px;"></i></span>
           <span>Send feedback</span>
@@ -2253,9 +2262,10 @@
     <div id="view-people" class="app-view">
       <div class="view-header">
         <div class="view-title">People</div>
-        <div class="view-subtitle">Everyone you're caring for</div>
+        <div class="view-subtitle">The people in your care life</div>
       </div>
       <div class="people-section" id="people-list">
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin:4px 2px 10px;">Who you are caring for</div>
         <!-- populated by renderPeople() or demo content -->
         <div class="person-card">
           <div class="person-card-top">
@@ -2310,6 +2320,15 @@
         <button class="add-person-btn" onclick="showOnboarding()">
           <i data-lucide="plus" style="width:16px;height:16px;"></i>
           Add another person
+        </button>
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin:22px 2px 10px;">Care Circle</div>
+        <button style="display:flex;align-items:center;gap:10px;width:100%;justify-content:flex-start;padding:14px;background:var(--cream);border:1px solid var(--line);border-radius:12px;font-size:14px;font-weight:500;color:var(--ink);cursor:pointer;" onclick="openCareCircle()">
+          <i data-lucide="heart-handshake" style="width:18px;height:18px;color:var(--moss);flex-shrink:0;"></i>
+          <div style="flex:1;text-align:left;">
+            <div>Care Circle</div>
+            <div style="font-size:12px;font-weight:400;color:var(--muted);margin-top:2px;">Family and friends you share updates with</div>
+          </div>
+          <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--muted);"></i>
         </button>
       </div>
     </div><!-- end view-people -->
@@ -2589,6 +2608,8 @@
           <button class="chip" onclick="askQuestion(this.textContent)">How is his CML doing?</button>
         </div>
 
+        <div id="ask-context-chip" style="display:none;margin:0 0 8px;"></div>
+
         <div class="ask-input-bar">
           <button class="ask-mic" id="ask-mic" onclick="toggleVoiceInput()" title="Voice input">
             <i data-lucide="mic" style="width:16px;height:16px;"></i>
@@ -2715,10 +2736,8 @@
 
   <div class="bottom-nav">
     <button class="nav-item active" onclick="switchNavTo('home')"><span class="nav-icon"><i data-lucide="house" style="width:20px;height:20px;"></i></span>Home</button>
-    <button class="nav-item" onclick="switchNavTo('people')"><span class="nav-icon"><i data-lucide="users" style="width:20px;height:20px;"></i></span>People</button>
-    <button class="nav-item" onclick="switchNavTo('records')"><span class="nav-icon"><i data-lucide="folder-heart" style="width:20px;height:20px;"></i></span>Documents</button>
+    <button class="nav-item" onclick="switchNavTo('records')"><span class="nav-icon"><i data-lucide="folder-heart" style="width:20px;height:20px;"></i></span>Records</button>
     <button class="nav-item" onclick="switchNavTo('signals')"><span class="nav-icon"><i data-lucide="activity" style="width:20px;height:20px;"></i></span>CareSignals</button>
-    <button class="nav-item" onclick="switchNavTo('resources')"><span class="nav-icon"><i data-lucide="heart-handshake" style="width:20px;height:20px;"></i></span>Resources</button>
     <button class="nav-item" id="nav-ask" onclick="switchNavTo('ask')"><span class="nav-icon"><svg class="wellet-nav-icon" viewBox="0 138 50 42" xmlns="http://www.w3.org/2000/svg"><path d="M45.5,142c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83l.25-2.56h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z"/></svg></span>Ask Wellet</button>
   </div>
 </div>
@@ -5756,6 +5775,79 @@ var _recordsDetailSection = null;
 
 // ── Labs chart: global data + renderer ───────────────────────────────────────
 window._labsChartData = {};
+
+// Expand/collapse the "View trends over time" panel on the Labs detail screen.
+function toggleLabsTrends() {
+  var panel = document.getElementById('labs-trends-panel');
+  var btn   = document.getElementById('labs-trends-btn');
+  if (!panel) return;
+  var open  = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : 'block';
+  if (btn) {
+    btn.innerHTML = (open
+      ? '<i data-lucide="trending-up" style="width:16px;height:16px;"></i> View trends over time'
+      : '<i data-lucide="chevron-up" style="width:16px;height:16px;"></i> Hide trends');
+    try { initIcons(); } catch (e) {}
+  }
+}
+
+// ── Ask Wellet context bridge ────────────────────────────────────────────────
+// When a user taps "Ask Wellet about this" on a record card, we:
+//  1. Stash a structured context object on window._pendingAskContext
+//  2. Switch to the Ask tab
+//  3. Render a dismissable chip above the input showing what they're asking about
+//  4. Focus the input (still empty — the chip IS the context)
+// When they submit, sendAskMessage() reads the context and sends it along with
+// the free-text question to the edge function, then clears the chip.
+window._pendingAskContext = null;
+
+function openAskWithContext(registryKey) {
+  var ctx = (window._askCtxRegistry || {})[registryKey];
+  if (!ctx) return;
+  window._pendingAskContext = ctx;
+  // Switch to Ask Wellet tab
+  try { switchNavTo('ask'); } catch (e) {}
+  // Render chip and focus input after a short delay to let the tab render
+  setTimeout(function() {
+    _renderAskContextChip();
+    var input = document.getElementById('ask-input');
+    if (input) {
+      input.focus();
+      // Hide the starter chips since the user is focused on one item
+      var chips = document.getElementById('suggestion-chips');
+      if (chips) chips.style.display = 'none';
+    }
+  }, 60);
+}
+
+function clearAskContext() {
+  window._pendingAskContext = null;
+  _renderAskContextChip();
+}
+
+function _renderAskContextChip() {
+  var slot = document.getElementById('ask-context-chip');
+  if (!slot) return;
+  var ctx = window._pendingAskContext;
+  if (!ctx) { slot.style.display = 'none'; slot.innerHTML = ''; return; }
+  // Build a short human-readable label
+  var parts = [];
+  if (ctx.name)  parts.push(ctx.name);
+  if (ctx.value) parts.push(ctx.value);
+  if (ctx.date)  parts.push(formatEventDate(ctx.date));
+  var label = parts.join(' \u00B7 ');
+  slot.style.display = 'block';
+  slot.innerHTML =
+      '<div style="display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:6px 10px;background:#E8F5EE;border:1px solid #C8E0D2;border-radius:999px;font-size:12px;color:var(--moss);">'
+    +   '<i data-lucide="link" style="width:12px;height:12px;flex-shrink:0;"></i>'
+    +   '<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">About: ' + escHtml(label) + '</span>'
+    +   '<button onclick="clearAskContext()" aria-label="Remove context" style="background:none;border:none;padding:0 0 0 4px;cursor:pointer;color:var(--moss);display:flex;align-items:center;">'
+    +     '<i data-lucide="x" style="width:12px;height:12px;"></i>'
+    +   '</button>'
+    + '</div>';
+  try { initIcons(); } catch (e) {}
+}
+
 window.renderLabsChart = function(testName) {
   var container = document.getElementById('labs-chart-container');
   if (!container) return;
@@ -6070,112 +6162,320 @@ function _rdVisitsContent(apptEvents, ehrVisitsRecent, ehrVisitsOlder, ehrProvid
   return html;
 }
 
+// Built-in plain-English dictionary for common lab tests. Keys are lowercased
+// test names. Matched by: exact key, then 'includes' fallback.
+// Explanations are intentionally short and caregiver-friendly — they describe
+// WHAT is measured, not what abnormal results mean (that's a clinical call).
+var LAB_DICT = {
+  'albumin':            'A protein made by the liver. Helps gauge nutrition and liver function.',
+  'alt':                'A liver enzyme. Elevated levels can indicate liver stress.',
+  'ast':                'A liver and muscle enzyme. Used alongside ALT to check liver health.',
+  'alkaline phosphatase':'An enzyme in the liver and bones.',
+  'bilirubin':          'A waste product from red blood cells, processed by the liver.',
+  'bun':                'Blood urea nitrogen. A waste product filtered by the kidneys.',
+  'creatinine':         'A waste product from muscles. A key marker of kidney function.',
+  'egfr':               'Estimated filtration rate \u2014 how well the kidneys are clearing waste.',
+  'glucose':            'Blood sugar level.',
+  'hemoglobin a1c':     'Average blood sugar over the past 2\u20133 months.',
+  'a1c':                'Average blood sugar over the past 2\u20133 months.',
+  'hba1c':              'Average blood sugar over the past 2\u20133 months.',
+  'calcium':            'A mineral important for bones, nerves, and muscles.',
+  'sodium':             'An electrolyte that balances fluids in the body.',
+  'potassium':          'An electrolyte important for heart and muscle function.',
+  'chloride':           'An electrolyte that helps balance acids and fluids.',
+  'co2':                'Carbon dioxide / bicarbonate. Reflects acid-base balance.',
+  'bicarbonate':        'Helps the blood maintain a stable pH.',
+  'magnesium':          'A mineral involved in muscle and nerve function.',
+  'phosphorus':         'A mineral that works with calcium for bone health.',
+  'hemoglobin':         'The protein in red blood cells that carries oxygen.',
+  'hematocrit':         'The percentage of blood volume made up of red blood cells.',
+  'wbc':                'White blood cell count \u2014 the body\u2019s infection fighters.',
+  'rbc':                'Red blood cell count.',
+  'platelets':          'Blood cells that help form clots.',
+  'mcv':                'Average size of red blood cells.',
+  'mch':                'Average amount of hemoglobin per red blood cell.',
+  'mchc':               'Hemoglobin concentration inside red blood cells.',
+  'rdw':                'Variation in red blood cell size.',
+  'cholesterol':        'Total cholesterol in the blood.',
+  'hdl':                'The \u201Cgood\u201D cholesterol that clears other cholesterol from the blood.',
+  'ldl':                'The \u201Cbad\u201D cholesterol that builds up in arteries.',
+  'triglycerides':      'A type of fat in the blood.',
+  'tsh':                'Thyroid-stimulating hormone \u2014 the main thyroid screening test.',
+  'free t4':            'A thyroid hormone that reflects how the thyroid is working.',
+  'free t3':            'A thyroid hormone that\u2019s the active form.',
+  'vitamin d':          'Supports bones, immune system, and muscle function.',
+  'vitamin b12':        'Important for nerves and blood cell formation.',
+  'folate':             'A B vitamin needed for blood cell formation.',
+  'iron':               'Needed to carry oxygen in the blood.',
+  'ferritin':           'A measure of the body\u2019s iron stores.',
+  'tibc':               'Total iron-binding capacity \u2014 how much iron the blood can carry.',
+  'transferrin':        'A protein that moves iron around the body.',
+  'crp':                'A marker of inflammation in the body.',
+  'esr':                'Another marker of inflammation.',
+  'psa':                'Prostate-specific antigen. Used to screen for prostate conditions.',
+  'urea nitrogen':      'A waste product filtered by the kidneys.',
+  'protein':            'Total protein in the blood.',
+  'globulin':           'A group of blood proteins involved in immunity.',
+  'inr':                'Measures how long blood takes to clot. Important on blood thinners.',
+  'pt':                 'Prothrombin time \u2014 how long blood takes to clot.',
+  'ptt':                'Partial thromboplastin time \u2014 another clotting measure.'
+};
+
+// Look up a short explanation for a test name. Returns '' when no match.
+function lookupLabInfo(name) {
+  if (!name) return '';
+  var n = String(name).toLowerCase().trim();
+  if (LAB_DICT[n]) return LAB_DICT[n];
+  // 'includes' fallback — check each dictionary key as a substring.
+  var keys = Object.keys(LAB_DICT);
+  for (var i = 0; i < keys.length; i++) {
+    if (n.indexOf(keys[i]) !== -1) return LAB_DICT[keys[i]];
+  }
+  return '';
+}
+
+// Parse a reference range like '3.5 - 4.8', '3.5\u20134.8', '<200', '>=40'.
+// Returns {lo, hi} with nulls for open-ended. Returns null when unparseable.
+function parseLabRange(ref) {
+  if (!ref) return null;
+  var s = String(ref).replace(/\u2013|\u2014/g, '-').trim();
+  // <X or <=X
+  var m = s.match(/^<=?\s*(-?\d+(?:\.\d+)?)/);
+  if (m) return {lo:null, hi:parseFloat(m[1])};
+  // >X or >=X
+  m = s.match(/^>=?\s*(-?\d+(?:\.\d+)?)/);
+  if (m) return {lo:parseFloat(m[1]), hi:null};
+  // X - Y
+  m = s.match(/(-?\d+(?:\.\d+)?)\s*-\s*(-?\d+(?:\.\d+)?)/);
+  if (m) return {lo:parseFloat(m[1]), hi:parseFloat(m[2])};
+  return null;
+}
+
+// Classify a numeric value against a parsed range. Returns 'low'|'normal'|'high'|null.
+function classifyLabValue(val, range) {
+  if (range === null || typeof val !== 'number' || isNaN(val)) return null;
+  if (range.lo !== null && val < range.lo) return 'low';
+  if (range.hi !== null && val > range.hi) return 'high';
+  return 'normal';
+}
+
+// Build a horizontal range track SVG. Green band = normal. Dot = where the
+// value landed. Handles open-ended ranges by extending in the open direction.
+function buildRangeTrack(val, range, unit) {
+  if (range === null || typeof val !== 'number' || isNaN(val)) return '';
+  // Figure out plot bounds. Pad by 20% of range width (or fall back when open-ended).
+  var lo = range.lo, hi = range.hi;
+  var hasLo = lo !== null, hasHi = hi !== null;
+  var bandLo, bandHi, plotLo, plotHi;
+  if (hasLo && hasHi) {
+    bandLo = lo; bandHi = hi;
+    var pad = Math.max((hi - lo) * 0.35, 0.01);
+    plotLo = Math.min(val, lo - pad);
+    plotHi = Math.max(val, hi + pad);
+  } else if (hasHi) {
+    bandHi = hi; bandLo = hi - Math.max(Math.abs(hi) * 0.5, 1);
+    plotLo = Math.min(val, bandLo);
+    plotHi = Math.max(val, hi + Math.max(Math.abs(hi) * 0.2, 0.5));
+  } else if (hasLo) {
+    bandLo = lo; bandHi = lo + Math.max(Math.abs(lo) * 0.5, 1);
+    plotLo = Math.min(val, lo - Math.max(Math.abs(lo) * 0.2, 0.5));
+    plotHi = Math.max(val, bandHi);
+  } else {
+    return '';
+  }
+  if (plotHi === plotLo) { plotHi = plotLo + 1; }
+  function pct(v) { return ((v - plotLo) / (plotHi - plotLo)) * 100; }
+  var bandL = Math.max(0, pct(bandLo));
+  var bandR = Math.min(100, pct(bandHi));
+  var bandW = Math.max(2, bandR - bandL);
+  var dotX  = Math.max(0, Math.min(100, pct(val)));
+  var cls   = classifyLabValue(val, range);
+  var dotColor = cls === 'normal' ? '#2A6645' : (cls === 'low' ? '#2C60C2' : '#B84A2E');
+  var loLbl = hasLo ? String(lo) : '';
+  var hiLbl = hasHi ? String(hi) : '';
+  return '<div style="margin-top:8px;">'
+    + '<div style="position:relative;height:8px;background:#EEF0F2;border-radius:4px;">'
+    +   '<div style="position:absolute;top:0;bottom:0;left:'+bandL+'%;width:'+bandW+'%;background:#D4EBDC;border-radius:4px;"></div>'
+    +   '<div style="position:absolute;top:-3px;left:calc('+dotX+'% - 7px);width:14px;height:14px;border-radius:50%;background:'+dotColor+';border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,0.08);"></div>'
+    + '</div>'
+    + '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);margin-top:4px;">'
+    +   '<span>'+(hasLo?escHtml(loLbl+(unit?' '+unit:'')):'')+'</span>'
+    +   '<span>'+(hasHi?escHtml(hiLbl+(unit?' '+unit:'')):'')+'</span>'
+    + '</div>'
+    + '</div>';
+}
+
 function _rdLabsContent(liveLabs, labEvents, ehrObs, ehrProvider) {
   var html = '';
-  var twelveMonthsAgo = Date.now() - (365*24*60*60*1000);
-  // abnormal strip
-  var abnItems = [];
+
+  // ---- Unify everything into a single list of readings ----
+  // shape: {name, date, value, unit, ref, status, source}
+  var all = [];
   liveLabs.forEach(function(lab) {
-    if (lab.status!=='abnormal' && lab.status!=='critical') return;
-    if (lab.effective_date && new Date(lab.effective_date).getTime() < twelveMonthsAgo) return;
-    abnItems.push({name:lab.test_name, val:(lab.value||'')+(lab.unit?' '+lab.unit:''), date:lab.effective_date, status:lab.status});
+    all.push({
+      name:   lab.test_name || 'Lab',
+      date:   lab.effective_date || '',
+      value:  lab.value,
+      unit:   lab.unit || '',
+      ref:    lab.reference_range || '',
+      status: lab.status || '',
+      source: lab.source === 'ehr' ? 'ehr' : 'live'
+    });
   });
   ehrObs.forEach(function(obs) {
-    var isAbn = obs.status==='abnormal'||obs.status==='critical'||
-      (obs.interpretation && /abnormal|critical|high|low/i.test(obs.interpretation));
+    all.push({
+      name:   obs.name || 'Lab',
+      date:   obs.effective_date || '',
+      value:  obs.value,
+      unit:   obs.unit || '',
+      ref:    obs.reference_range || '',
+      status: obs.status || obs.interpretation || '',
+      source: 'ehr'
+    });
+  });
+
+  // Build chart data (only numeric, ≥2 readings per test).
+  var chartData = {};
+  all.forEach(function(r) {
+    var v = parseFloat(r.value);
+    if (isNaN(v) || !r.date) return;
+    if (!chartData[r.name]) chartData[r.name] = [];
+    chartData[r.name].push({date:r.date, value:v, unit:r.unit, ref:r.ref});
+  });
+  Object.keys(chartData).forEach(function(k) {
+    chartData[k].sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
+  });
+  window._labsChartData = chartData;
+  var chartable = Object.keys(chartData).filter(function(k) { return chartData[k].length >= 2; }).sort();
+
+  // ---- Most-recent reading per unique test name (case-insensitive) ----
+  var latestByName = {};
+  all.forEach(function(r) {
+    if (!r.name || !r.date) return;
+    var k = r.name.toLowerCase();
+    var prev = latestByName[k];
+    if (!prev || new Date(r.date) > new Date(prev.date)) latestByName[k] = r;
+  });
+  var latestAll = Object.keys(latestByName).map(function(k) { return latestByName[k]; });
+  latestAll.sort(function(a, b) { return new Date(b.date) - new Date(a.date); });
+  var topN = latestAll.slice(0, 10);
+
+  // ---- Flagged strip (last 12 months) ----
+  var twelveMonthsAgo = Date.now() - (365 * 24 * 60 * 60 * 1000);
+  var abnItems = [];
+  all.forEach(function(r) {
+    var isAbn = r.status === 'abnormal' || r.status === 'critical' ||
+                (typeof r.status === 'string' && /abnormal|critical|high|low/i.test(r.status));
     if (!isAbn) return;
-    if (obs.effective_date && new Date(obs.effective_date).getTime() < twelveMonthsAgo) return;
-    abnItems.push({name:obs.name, val:(obs.value||'')+(obs.unit?' '+obs.unit:''), date:obs.effective_date, status:obs.status||obs.interpretation||'Flagged'});
+    if (r.date && new Date(r.date).getTime() < twelveMonthsAgo) return;
+    abnItems.push(r);
   });
   if (abnItems.length > 0) {
-    html += '<div style="background:#FEF6E8;border:1px solid #F5D78C;border-radius:10px;padding:10px 12px;margin-bottom:12px;">'
+    html += '<div style="background:#FEF6E8;border:1px solid #F5D78C;border-radius:10px;padding:10px 12px;margin-bottom:14px;">'
       + '<div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#8C6511;font-weight:600;margin-bottom:6px;">Flagged by lab \u00B7 last 12 months</div>';
     abnItems.forEach(function(item) {
-      var badge = item.status==='critical'
+      var valStr = item.value ? (item.value + (item.unit ? ' ' + item.unit : '')) : '';
+      var crit = /critical/i.test(item.status || '');
+      var badge = crit
         ? '<span class="record-badge" style="background:#FEF0EE;color:var(--red);">Critical</span>'
         : '<span class="record-badge amber">Abnormal</span>';
       html += '<div class="record-row" style="padding:4px 0;">'
-        + '<div style="flex:1;"><div class="record-label" style="font-size:13px;">'+escHtml(item.name)+'</div>'
-        + '<div class="record-meta">'+(item.val?escHtml(item.val)+' \u00B7 ':'')+formatEventDate(item.date)+'</div></div>'
-        + badge+'</div>';
+        + '<div style="flex:1;"><div class="record-label" style="font-size:13px;">' + escHtml(item.name) + '</div>'
+        + '<div class="record-meta">' + (valStr ? escHtml(valStr) + ' \u00B7 ' : '') + formatEventDate(item.date) + '</div></div>'
+        + badge + '</div>';
     });
     html += '</div>';
   }
 
-  // build chart data
-  var chartData = {};
-  function addReading(name, date, rawVal, unit, ref) {
-    var v = parseFloat(rawVal);
-    if (isNaN(v)||!date) return;
-    if (!chartData[name]) chartData[name] = [];
-    chartData[name].push({date:date, value:v, unit:unit||'', ref:ref||''});
-  }
-  liveLabs.forEach(function(lab){ addReading(lab.test_name, lab.effective_date, lab.value, lab.unit, lab.reference_range); });
-  ehrObs.forEach(function(obs){ addReading(obs.name, obs.effective_date, obs.value, obs.unit, obs.reference_range); });
-  Object.keys(chartData).forEach(function(k){
-    chartData[k].sort(function(a,b){ return new Date(a.date)-new Date(b.date); });
-  });
-  window._labsChartData = chartData;
-  var chartable = Object.keys(chartData).filter(function(k){ return chartData[k].length>=2; }).sort();
+  // ---- Always-visible "View trends over time" launcher ----
   if (chartable.length > 0) {
-    html += '<div style="margin-bottom:14px;">'
-      + '<label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px;">View trend for</label>'
-      + '<select id="labs-chart-picker" onchange="renderLabsChart(this.value)" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:white;font-family:inherit;font-size:14px;">'
-      + '<option value="">Select a test\u2026</option>';
-    chartable.forEach(function(name){
-      html += '<option value="'+escHtml(name)+'">'+escHtml(name)+' ('+chartData[name].length+' readings)</option>';
+    html += '<div id="labs-trends-block" style="margin-bottom:16px;">'
+      + '<button type="button" onclick="toggleLabsTrends()" id="labs-trends-btn" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 14px;border:1px solid var(--moss);border-radius:999px;background:#fff;color:var(--moss);font-size:14px;font-weight:600;cursor:pointer;">'
+      +   '<i data-lucide="trending-up" style="width:16px;height:16px;"></i> View trends over time'
+      + '</button>'
+      + '<div id="labs-trends-panel" style="display:none;margin-top:10px;padding:12px;border:1px solid var(--border);border-radius:12px;background:#fff;">'
+      +   '<label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Select a test</label>'
+      +   '<select id="labs-chart-picker" onchange="renderLabsChart(this.value)" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:white;font-family:inherit;font-size:14px;">'
+      +     '<option value="">Select a test\u2026</option>';
+    chartable.forEach(function(name) {
+      html += '<option value="' + escHtml(name) + '">' + escHtml(name) + ' (' + chartData[name].length + ' readings)</option>';
     });
-    html += '</select><div id="labs-chart-container" style="margin-top:10px;"></div></div>';
+    html += '</select><div id="labs-chart-container" style="margin-top:10px;"></div></div></div>';
   }
 
-  // full list, alphabetical
-  var rows = [];
-  liveLabs.forEach(function(lab) {
-    var valStr = lab.value ? escHtml(lab.value)+(lab.unit?' '+escHtml(lab.unit):'') : '';
-    var badge = '';
-    if (lab.status==='abnormal') badge='<span class="record-badge amber">Abnormal</span>';
-    else if (lab.status==='critical') badge='<span class="record-badge" style="background:#FEF0EE;color:var(--red);">Critical</span>';
-    else if (lab.status==='normal') badge='<span class="record-badge moss">Normal</span>';
-    rows.push({k:(lab.test_name||'').toLowerCase(), html:
-      '<div class="record-row" data-date="'+escHtml(lab.effective_date||'')+'"><div class="record-icon blue"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>'
-      +'<div style="flex:1;"><div class="record-label">'+escHtml(lab.test_name)+(lab.source==='ehr'?' '+ehrBadgeHtml():'')+'</div>'
-      +'<div class="record-meta">'+formatEventDate(lab.effective_date)
-      +(valStr?' \u00B7 '+valStr:'')
-      +(lab.reference_range?' (ref: '+escHtml(lab.reference_range)+')':'')
-      +'</div></div>'+badge+'</div>'
-    });
+  // ---- Most recent results (inline cards) ----
+  if (topN.length === 0) {
+    html += '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">No lab results on record.</div>';
+    return html;
+  }
+
+  html += '<div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);font-weight:500;margin:0 0 8px;">Most recent results</div>';
+
+  topN.forEach(function(r) {
+    var valNum  = parseFloat(r.value);
+    var valStr  = (r.value !== undefined && r.value !== null && r.value !== '') ? (r.value + (r.unit ? ' ' + r.unit : '')) : '';
+    var range   = parseLabRange(r.ref);
+    var cls     = classifyLabValue(valNum, range);
+    // Status badge: prefer EHR-provided status, fall back to classifier.
+    var badge;
+    if (/critical/i.test(r.status || '')) {
+      badge = '<span class="record-badge" style="background:#FEF0EE;color:var(--red);">Critical</span>';
+    } else if (/abnormal|high|low/i.test(r.status || '')) {
+      badge = '<span class="record-badge amber">' + (r.status.charAt(0).toUpperCase() + r.status.slice(1).toLowerCase()) + '</span>';
+    } else if (cls === 'high') {
+      badge = '<span class="record-badge amber">High</span>';
+    } else if (cls === 'low') {
+      badge = '<span class="record-badge amber">Low</span>';
+    } else if (cls === 'normal' || /^normal$/i.test(r.status || '')) {
+      badge = '<span class="record-badge moss">Normal</span>';
+    } else {
+      badge = '';
+    }
+    var info    = lookupLabInfo(r.name);
+    var track   = buildRangeTrack(valNum, range, r.unit || '');
+    var ehrTag  = r.source === 'ehr' ? ' ' + ehrBadgeHtml() : '';
+
+    // Structured context for Ask Wellet (stored in a registry keyed by idx)
+    var askCtx = {
+      kind:  'lab',
+      name:  r.name,
+      value: valStr,
+      date:  r.date,
+      ref:   r.ref || '',
+      status: r.status || (cls || '')
+    };
+    var askKey = 'lab_' + (window._askCtxRegistry ? Object.keys(window._askCtxRegistry).length : 0);
+    if (!window._askCtxRegistry) window._askCtxRegistry = {};
+    window._askCtxRegistry[askKey] = askCtx;
+
+    html += '<div class="lab-card" style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;">'
+      +   '<div style="display:flex;align-items:flex-start;gap:10px;">'
+      +     '<div class="record-icon blue" style="flex-shrink:0;"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>'
+      +     '<div style="flex:1;min-width:0;">'
+      +       '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">'
+      +         '<div style="font-weight:600;color:var(--text-primary);font-size:14px;">' + escHtml(r.name) + ehrTag + '</div>'
+      +         (badge || '')
+      +       '</div>'
+      +       '<div style="font-size:13px;color:var(--text-primary);margin-top:2px;">'
+      +         (valStr ? '<span style="font-weight:600;">' + escHtml(valStr) + '</span>' : '')
+      +         '<span style="color:var(--text-muted);">' + (valStr ? ' \u00B7 ' : '') + formatEventDate(r.date) + '</span>'
+      +       '</div>'
+      +       (info ? '<div style="font-size:12px;color:var(--text-secondary);margin-top:6px;line-height:1.5;">' + escHtml(info) + '</div>' : '')
+      +       track
+      +       '<div style="margin-top:10px;text-align:right;">'
+      +         '<a onclick="openAskWithContext(\'' + askKey + '\')" style="color:var(--moss);font-size:12px;font-weight:600;cursor:pointer;text-decoration:none;">Ask Wellet about this \u2192</a>'
+      +       '</div>'
+      +     '</div>'
+      +   '</div>'
+      + '</div>';
   });
-  labEvents.forEach(function(ev) {
-    rows.push({k:(ev.title||'').toLowerCase(), html:
-      '<div class="record-row" data-date="'+escHtml(ev.event_date||'')+'" onclick="openEditEvent(\''+ev.id+'\')">'
-      +'<div class="record-icon blue"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>'
-      +'<div style="flex:1;"><div class="record-label">'+escHtml(ev.title)+'</div>'
-      +'<div class="record-meta">'+formatEventDate(ev.event_date)+'</div></div>'
-      +'<span class="record-badge moss">Logged</span></div>'
-    });
-  });
-  ehrObs.forEach(function(obs, idx) {
-    var did = 'ehr-obs-'+idx;
-    var valStr = obs.value ? obs.value+(obs.unit?' '+obs.unit:'') : '';
-    var meta = [];
-    if (valStr) meta.push('Value: '+escHtml(valStr));
-    if (obs.reference_range) meta.push('Reference range: '+escHtml(obs.reference_range));
-    if (obs.status) meta.push('Status: '+escHtml(obs.status));
-    if (obs.effective_date) meta.push('Date: '+formatEventDate(obs.effective_date));
-    if (obs.code) meta.push('Code: '+escHtml(obs.code));
-    if (obs.category) meta.push('Category: '+escHtml(obs.category));
-    rows.push({k:(obs.name||'').toLowerCase(), html:
-      '<div class="record-row" data-date="'+escHtml(obs.effective_date||'')+'" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\''+did+'\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
-      +'<div class="record-icon blue"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>'
-      +'<div style="flex:1;"><div class="record-label">'+escHtml(obs.name)+' '+ehrBadgeHtml()+'</div>'
-      +'<div class="record-meta">'+formatEventDate(obs.effective_date)+(valStr?' \u00B7 '+escHtml(valStr):'')+'</div></div>'
-      +(obs.reference_range?'<span class="record-badge moss" title="Ref: '+escHtml(obs.reference_range)+'">Normal</span>':ehrProviderBadgeHtml(ehrProvider))
-      +(meta.length?'<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;">'+meta.join('<br>')+'</div>':'')
-      +'</div>'
-    });
-  });
-  rows.sort(function(a,b){ return a.k<b.k?-1:a.k>b.k?1:0; });
-  rows.forEach(function(r){ html += r.html; });
+
+  if (latestAll.length > 10) {
+    html += '<div style="text-align:center;padding:8px 0 4px;color:var(--text-secondary);font-size:12px;">'
+      + 'Showing 10 most recent of ' + latestAll.length + ' tests \u00B7 use View trends for the rest'
+      + '</div>';
+  }
+
   return html;
 }
 
@@ -11339,9 +11639,15 @@ function sendAskMessage() {
               'Authorization': 'Bearer ' + token,
               'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU'
             },
-            body: JSON.stringify({ question: text, person_id: currentPersonId })
+            body: JSON.stringify({
+              question: text,
+              person_id: currentPersonId,
+              context: (typeof _pendingAskContext !== 'undefined' && _pendingAskContext) ? _pendingAskContext : null
+            })
           }
         );
+        // Clear one-shot context after send
+        try { if (typeof _pendingAskContext !== 'undefined') { _pendingAskContext = null; if (typeof _renderAskContextChip === 'function') _renderAskContextChip(); } } catch(_e){}
         removeTyping(typingId);
         if (res.ok) {
           var data = await res.json();
@@ -13725,7 +14031,8 @@ function switchNavTo(view, skipPush) {
   viewEl.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
   // Settings is not in the nav bar — don't try to activate a nav item for it
-  var navMap = { home: 0, people: 1, records: 2, signals: 3, resources: 4, ask: 5 };
+  // Bottom nav now has 4 items. People and Resources live in the header menu.
+  var navMap = { home: 0, records: 1, signals: 2, ask: 3 };
   if (navMap[view] !== undefined) {
     document.querySelectorAll('.nav-item')[navMap[view]].classList.add('active');
   }
@@ -13734,6 +14041,7 @@ function switchNavTo(view, skipPush) {
   document.getElementById('header-tab-bar').style.display = isHome ? 'flex' : 'none';
   if (view === 'signals') { renderSignalsView(); }
   if (view === 'resources') { renderResourcesView(); }
+  if (view === 'people' && !isDemoMode) { renderPeopleView(); }
   if (view === 'ask' && !isDemoMode) { renderAskView(); }
   if (view === 'settings') { updateSettingsViewAccount(); }
   // Push history state for back button support
@@ -17370,8 +17678,9 @@ renderPeopleView = function() {
   if (!view) return;
 
   var html = '<div class="view-header"><div class="view-title">People</div>'
-    + '<div class="view-subtitle">Everyone you\u2019re caring for</div></div>'
-    + '<div class="people-section">';
+    + '<div class="view-subtitle">The people in your care life</div></div>'
+    + '<div class="people-section">'
+    + '<div style="font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin:4px 2px 10px;">Who you are caring for</div>';
 
   currentPeople.forEach(function(p) {
     var status = p.care_status || 'active';
@@ -17400,12 +17709,35 @@ renderPeopleView = function() {
 
   html += '<button class="add-person-btn" onclick="showOnboarding()">'
     + '<i data-lucide="plus" style="width:16px;height:16px;"></i>'
-    + ' ' + t('people.addPerson') + '</button>'
-    + '</div>';
+    + ' ' + t('people.addPerson') + '</button>';
+
+  // Care Circle section
+  html += '<div style="font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin:22px 2px 10px;">Care Circle</div>'
+    + '<button style="display:flex;align-items:center;gap:10px;width:100%;justify-content:flex-start;padding:14px;background:var(--cream);border:1px solid var(--line);border-radius:12px;font-size:14px;font-weight:500;color:var(--ink);cursor:pointer;" onclick="openCareCircle()">'
+    + '<i data-lucide="heart-handshake" style="width:18px;height:18px;color:var(--moss);flex-shrink:0;"></i>'
+    + '<div style="flex:1;text-align:left;">'
+    + '<div>Care Circle</div>'
+    + '<div style="font-size:12px;font-weight:400;color:var(--muted);margin-top:2px;">Family and friends you share updates with</div>'
+    + '</div>'
+    + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--muted);"></i>'
+    + '</button>';
+
+  html += '</div>';
 
   view.innerHTML = html;
   initIcons();
 };
+
+// Opens Settings and scrolls to Care Circle section
+function openCareCircle() {
+  openSettings();
+  setTimeout(function(){
+    var el = document.getElementById('care-circle-list');
+    if (el && el.scrollIntoView) {
+      el.scrollIntoView({behavior:'smooth', block:'start'});
+    }
+  }, 250);
+}
 
 // ── PATCH: openSettings to render archived profiles ──────────────────────
 var _origOpenSettings = openSettings;
