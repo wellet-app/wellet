@@ -1783,8 +1783,14 @@
   .pulse-btns button {
     background: none; border: 1px solid var(--border, #e0e0e0); border-radius: 10px;
     padding: 6px 10px; font-size: 18px; cursor: pointer; transition: all 0.15s;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--text-secondary, #555);
   }
+  .pulse-btns button i[data-lucide] { width: 20px; height: 20px; stroke-width: 2; }
   .pulse-btns button:hover { background: var(--bg-hover, #f5f5f5); transform: scale(1.15); }
+  .pulse-btns button.is-selected-low { color: #c44; border-color: #f3c2c2; }
+  .pulse-btns button.is-selected-mid { color: #8a7a2b; border-color: #ecd88a; }
+  .pulse-btns button.is-selected-high { color: #1b8a5a; border-color: #b9e3cb; }
   .pulse-dismiss {
     background: none; border: none; color: var(--text-tertiary, #aaa);
     font-size: 14px; cursor: pointer; padding: 2px 4px; margin-left: -4px;
@@ -21055,12 +21061,13 @@ var _pulse = (function() {
     el.className = 'wellet-pulse-toast';
     el.innerHTML = '<div class="pulse-q">How helpful was this?</div>' +
       '<div class="pulse-btns">' +
-      '<button onclick="_pulse.respond(\'' + feature + '\',1,this)" title="Not helpful">' + escHtml('😕') + '</button>' +
-      '<button onclick="_pulse.respond(\'' + feature + '\',2,this)" title="Okay">' + escHtml('🙂') + '</button>' +
-      '<button onclick="_pulse.respond(\'' + feature + '\',3,this)" title="Very helpful">' + escHtml('😊') + '</button>' +
+      '<button onclick="_pulse.respond(\'' + feature + '\',1,this)" title="Not helpful" aria-label="Not helpful"><i data-lucide="frown"></i></button>' +
+      '<button onclick="_pulse.respond(\'' + feature + '\',2,this)" title="Okay" aria-label="Okay"><i data-lucide="meh"></i></button>' +
+      '<button onclick="_pulse.respond(\'' + feature + '\',3,this)" title="Very helpful" aria-label="Very helpful"><i data-lucide="smile"></i></button>' +
       '</div>' +
-      '<button class="pulse-dismiss" onclick="this.parentNode.remove()">' + escHtml('✕') + '</button>';
+      '<button class="pulse-dismiss" onclick="this.parentNode.remove()" aria-label="Dismiss"><i data-lucide="x"></i></button>';
     document.body.appendChild(el);
+    if (typeof initIcons === 'function') initIcons();
     setTimeout(function() { if (el.parentNode) el.remove(); }, 8000);
   }
 
