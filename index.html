@@ -12294,34 +12294,38 @@ function sendAskMessage() {
       // has >2 minutes of life left — otherwise refresh. This avoids the
       // iOS Safari race where getSession() returns a cached-but-just-expired
       // token that Supabase's edge verify_jwt then rejects with 401.
+      // Race any async op against a timeout so nothing hangs the UI forever.
+      function withTimeout(p, ms, label) {
+        return new Promise(function(resolve, reject) {
+          var to = setTimeout(function() { reject(new Error('timeout:' + (label||'op') + ':' + ms + 'ms')); }, ms);
+          Promise.resolve(p).then(function(v){ clearTimeout(to); resolve(v); }, function(e){ clearTimeout(to); reject(e); });
+        });
+      }
       async function getFreshToken(force) {
         try {
           if (!force) {
-            var s = await db.auth.getSession();
+            var s = await withTimeout(db.auth.getSession(), 4000, 'getSession');
             var tok = s && s.data && s.data.session && s.data.session.access_token;
             var expAt = s && s.data && s.data.session && s.data.session.expires_at
               ? s.data.session.expires_at * 1000 : 0;
-            // Use cached token only if it has a comfortable margin.
             if (tok && expAt && expAt - Date.now() > 2 * 60 * 1000) return tok;
           }
-          // Force a network refresh and return the freshly minted token.
-          var r = await db.auth.refreshSession();
+          var r = await withTimeout(db.auth.refreshSession(), 6000, 'refreshSession');
           if (r && r.data && r.data.session && r.data.session.access_token) {
             return r.data.session.access_token;
           }
-          // Refresh failed — last-ditch attempt: return whatever getSession
-          // reports (the caller will see a 401 and can prompt re-login).
-          var s2 = await db.auth.getSession();
+          var s2 = await withTimeout(db.auth.getSession(), 4000, 'getSession2');
           return (s2 && s2.data && s2.data.session && s2.data.session.access_token) || null;
         } catch(_e) {
+          console.warn('getFreshToken fallback:', _e && _e.message);
           try {
-            var s3 = await db.auth.getSession();
+            var s3 = await withTimeout(db.auth.getSession(), 3000, 'getSession3');
             return (s3 && s3.data && s3.data.session && s3.data.session.access_token) || null;
           } catch(_e2) { return null; }
         }
       }
       async function callAskWellet(tok) {
-        return await fetch(
+        return await withTimeout(fetch(
           'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/ask-wellet',
           {
             method: 'POST',
@@ -12336,12 +12340,9 @@ function sendAskMessage() {
               context: (typeof _pendingAskContext !== 'undefined' && _pendingAskContext) ? _pendingAskContext : null
             })
           }
-        );
+        ), 30000, 'ask-wellet-fetch');
       }
       try {
-        // Always start with a force-refresh so every request uses a brand-new
-        // access token. Refresh is ~30ms and eliminates the class of 401s
-        // caused by borderline-expired cached tokens on mobile Safari.
         var token = await getFreshToken(true);
         if (!token) {
           removeTyping(typingId);
@@ -12349,9 +12350,6 @@ function sendAskMessage() {
           return;
         }
         var res = await callAskWellet(token);
-        // Defensive retry: if the JWT was STILL rejected, try one more time
-        // after another forced refresh and a brief pause to let the client
-        // state settle.
         if (res.status === 401) {
           await new Promise(function(r){ setTimeout(r, 200); });
           var refreshed = await getFreshToken(true);
@@ -12359,7 +12357,6 @@ function sendAskMessage() {
             res = await callAskWellet(refreshed);
           }
         }
-        // Clear one-shot context after send
         try { if (typeof _pendingAskContext !== 'undefined') { _pendingAskContext = null; if (typeof _renderAskContextChip === 'function') _renderAskContextChip(); } } catch(_e){}
         removeTyping(typingId);
         if (res.ok) {
@@ -12368,16 +12365,25 @@ function sendAskMessage() {
         } else if (res.status === 401) {
           console.error('ask-wellet 401 after double refresh; prompting re-auth');
           addWelletMessage('I\u2019m having trouble verifying your session. Tap the menu and sign out, then sign back in and I\u2019ll be ready.');
+        } else if (res.status === 404) {
+          var errBody404 = '';
+          try { errBody404 = await res.text(); } catch(_e){}
+          console.error('ask-wellet 404', errBody404);
+          addWelletMessage('I couldn\u2019t look up those records just now. Please sign out and sign back in, then try again.');
         } else {
           var errBody = '';
           try { errBody = await res.text(); } catch(_e){}
           console.error('ask-wellet failed', res.status, errBody);
-          addWelletMessage('Sorry, I had trouble getting a response. Please try again.');
+          addWelletMessage('Sorry, I had trouble getting a response (code ' + res.status + '). Please try again.');
         }
       } catch (e) {
         console.error('ask-wellet exception', e);
         removeTyping(typingId);
-        addWelletMessage('Sorry, something went wrong. Please try again.');
+        var msg = 'Sorry, something went wrong. Please try again.';
+        if (e && e.message && e.message.indexOf('timeout:') === 0) {
+          msg = 'That took longer than expected. Please check your connection and try again.';
+        }
+        addWelletMessage(msg);
       }
     })();
   } else {
