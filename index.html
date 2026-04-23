@@ -5718,6 +5718,13 @@ function renderTimeline() {
       var valStr = obs.value ? ' \u2014 ' + obs.value + (obs.unit ? ' ' + obs.unit : '') : '';
       ehrTimelineItems.push({ event_type:'lab_result', title:obs.name + valStr, event_date:obs.effective_date, notes:'', source:'ehr', _ehrProvider:ehrData.provider });
     });
+    (ehrData.diagnostic_reports || []).forEach(function(r) {
+      var dt = r.effective_date || r.issued;
+      if (!dt) return;
+      var titleStr = r.name || 'Report';
+      if (r.category) titleStr += ' \u2014 ' + r.category;
+      ehrTimelineItems.push({ event_type:'lab_result', title:titleStr, event_date:dt, notes:'', source:'ehr', _ehrProvider:ehrData.provider });
+    });
   }
 
   var allEvents = liveEvents.concat(ehrTimelineItems.filter(function(e){ return e.event_date; }));
@@ -7118,6 +7125,7 @@ function renderRecordsView() {
   var ehrVisitsOlder  = allEhrVisits.filter(function(v){ var t=v.start_date?new Date(v.start_date).getTime():0; return t>0&&t<twoYearsAgoMs; });
   var ehrCareTeam   = ehrData ? (ehrData.care_team  || []) : [];
   var ehrProcedures = ehrData ? ehrData.procedures   || [] : [];
+  var ehrReports    = ehrData ? (ehrData.diagnostic_reports || []) : [];
   var ehrProvider   = ehrData ? ehrData.provider || 'EHR' : '';
   var activeMeds    = liveMeds.filter(function(m){ return m.active; });
   var labEvents     = liveEvents.filter(function(e){ return e.event_type==='lab_result'; });
@@ -7216,6 +7224,64 @@ function renderRecordsView() {
         +(meta.length?'<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;">'+meta.join('<br>')+'</div>':'')
         +'</div>';
     });
+    html += '</div>';
+  }
+
+  // Reports (DiagnosticReport from EHR — labs, imaging, pathology summaries)
+  if (ehrReports.length > 0) {
+    // Sort newest first by effective_date (fall back to issued)
+    var reportsSorted = ehrReports.slice().sort(function(a, b) {
+      var ta = new Date(a.effective_date || a.issued || 0).getTime();
+      var tb = new Date(b.effective_date || b.issued || 0).getTime();
+      return tb - ta;
+    });
+    var reportsRecent = reportsSorted.filter(function(r) {
+      var t = new Date(r.effective_date || r.issued || 0).getTime();
+      return t >= twoYearsAgoMs;
+    });
+    var reportsOlder = reportsSorted.filter(function(r) {
+      var t = new Date(r.effective_date || r.issued || 0).getTime();
+      return t > 0 && t < twoYearsAgoMs;
+    });
+
+    html += '<div class="record-group"><div class="record-group-header">'
+      + '<div class="record-group-title"><i data-lucide="file-text" style="width:14px;height:14px;color:var(--blue);"></i>Reports '+ehrBadgeHtml()+'</div>'
+      + '<span class="record-group-count">'+reportsRecent.length+(reportsRecent.length===1?' report':' reports')+'</span></div>';
+
+    var renderReportRow = function(r, idx, keyPrefix) {
+      var did = 'ehr-report-'+keyPrefix+'-'+idx;
+      var dateStr = r.effective_date || r.issued || '';
+      var categoryLabel = r.category ? escHtml(r.category) : '';
+      var meta = [];
+      if (dateStr)   meta.push('Date: '+formatEventDate(dateStr));
+      if (r.status)  meta.push('Status: '+escHtml(r.status));
+      if (r.category) meta.push('Category: '+escHtml(r.category));
+      if (r.code)    meta.push('Code: '+escHtml(r.code));
+      if (r.issued && r.issued !== dateStr) meta.push('Issued: '+formatEventDate(r.issued));
+      var subLine = [categoryLabel, dateStr ? formatEventDate(dateStr) : ''].filter(Boolean).join(' \u00B7 ');
+      return '<div class="record-row" data-date="'+escHtml(dateStr)+'" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\''+did+'\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
+        + '<div class="record-icon blue"><i data-lucide="file-text" style="width:15px;height:15px;"></i></div>'
+        + '<div style="flex:1;min-width:0;"><div class="record-label">'+escHtml(r.name || 'Report')+'</div>'
+        + (subLine ? '<div class="record-meta">'+subLine+'</div>' : '')
+        + '</div>'
+        + ehrProviderBadgeHtml(ehrProvider)
+        + (meta.length ? '<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;">'+meta.join('<br>')+'</div>' : '')
+        + '</div>';
+    };
+
+    if (reportsRecent.length === 0) {
+      html += '<div style="padding:12px 16px;font-size:13px;color:var(--text-muted);">No reports in the last 2 years.</div>';
+    } else {
+      reportsRecent.forEach(function(r, idx) { html += renderReportRow(r, idx, 'r'); });
+    }
+
+    if (reportsOlder.length > 0) {
+      var olderLabel = 'Show '+reportsOlder.length+' older report'+(reportsOlder.length===1?'':'s');
+      html += '<button class="reports-older-toggle" onclick="toggleOlderReports(this)" data-older-count="'+reportsOlder.length+'" style="margin:8px 16px 0;background:none;border:none;color:var(--moss);font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;padding:6px 0;">'+olderLabel+'</button>';
+      html += '<div id="ehr-reports-older" style="display:none;">';
+      reportsOlder.forEach(function(r, idx) { html += renderReportRow(r, idx, 'o'); });
+      html += '</div>';
+    }
     html += '</div>';
   }
 
@@ -11454,6 +11520,22 @@ function updateProfileEhr(personId) {
 // Build EHR badge HTML
 function ehrBadgeHtml(provider) {
   return '<span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span>';
+}
+
+// Toggle older reports block in Records view
+function toggleOlderReports(btn) {
+  var el = document.getElementById('ehr-reports-older');
+  if (!el) return;
+  var count = btn.getAttribute('data-older-count') || '0';
+  var n = parseInt(count, 10) || 0;
+  var showing = el.style.display === 'block';
+  if (showing) {
+    el.style.display = 'none';
+    btn.textContent = 'Show ' + n + ' older report' + (n === 1 ? '' : 's');
+  } else {
+    el.style.display = 'block';
+    btn.textContent = 'Hide older reports';
+  }
 }
 
 function ehrProviderBadgeHtml(provider) {
