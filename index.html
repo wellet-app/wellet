@@ -669,7 +669,14 @@
   .tl-dot.note { border-color: var(--text-muted); }
   .tl-dot.alert { border-color: var(--red); background: var(--red); }
   .tl-connector { width: 1px; flex: 1; min-height: 24px; background: var(--border); margin-top: 4px; }
-  .tl-card { flex: 1; background: white; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .tl-card { flex: 1; background: white; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; transition: background 0.15s ease-out, border-color 0.15s ease-out; }
+  .tl-card[onclick]:hover { background: #FAFAF7; border-color: #C9C6BE; }
+  /* Flash highlight on a Records row when jumped to from Timeline */
+  @keyframes tlTargetFlash {
+    0% { background: #F2EFE6; box-shadow: 0 0 0 2px rgba(75, 99, 65, 0.35); }
+    100% { background: transparent; box-shadow: 0 0 0 0 rgba(75, 99, 65, 0); }
+  }
+  .tl-target-flash { animation: tlTargetFlash 2s ease-out; border-radius: 8px; }
   .tl-card.amber-border { border-left: 3px solid var(--amber); }
   .tl-card.blue-border { border-left: 3px solid var(--blue); }
   .tl-card.moss-border { border-left: 3px solid var(--moss); }
@@ -6017,32 +6024,79 @@ async function firePatternAlertNotif(alert, personName) {
 }
 
 // ── RENDER TIMELINE ───────────────────────────────────────────────────────────
+// Route a Timeline card tap to the right Records detail pane, then try to
+// scroll to and highlight the matching item if we can locate it. Called from
+// the inline onclick on each EHR-sourced timeline card.
+function openTimelineItem(section, refId) {
+  try {
+    if (typeof switchNavTo === 'function') switchNavTo('records');
+  } catch(_e) {}
+  // Defer so the Records view finishes rendering before we open the detail pane
+  setTimeout(function() {
+    try {
+      if (typeof openRecordsDetail === 'function' && section) openRecordsDetail(section);
+    } catch(_e) {}
+    if (!refId) return;
+    // After the detail pane renders, try to find and highlight the matching row
+    setTimeout(function() {
+      try {
+        var view = document.getElementById('view-records') || document.body;
+        // Match any element whose data-ref-id ends with our refId (covers
+        // Practitioner/xyz, Observation/abc, etc.).
+        var row = view.querySelector('[data-ref-id$="/' + refId + '"], [data-ref-id="' + refId + '"]');
+        if (row && typeof row.scrollIntoView === 'function') {
+          row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          row.classList.add('tl-target-flash');
+          setTimeout(function(){ row.classList.remove('tl-target-flash'); }, 2000);
+        }
+      } catch(_e) {}
+    }, 120);
+  }, 60);
+}
+
 function renderTimeline() {
   var pane = document.getElementById('tab-timeline');
   if (!pane) return;
 
-  // Add event button + FAB
-  var addBtn = '<div style="padding:16px 20px 4px;display:flex;justify-content:flex-end;">'
+  // Add event button + FAB (rendered BELOW the EHR status bar)
+  var addBtn = '<div style="padding:12px 20px 4px;display:flex;justify-content:flex-end;">'
     + '<button class="btn-primary" style="width:auto;padding:10px 16px;font-size:13px;gap:6px;" onclick="openAddEvent()">'
     + '<i data-lucide="plus" style="width:14px;height:14px;"></i> Add event</button></div>';
 
-  // Merge EHR events into timeline
+  // Merge EHR events into timeline. Each item carries a _section hint so the
+  // card knows which Records detail pane to open on tap.
   var ehrData = getEhrData(currentPersonId);
   var ehrTimelineItems = [];
   if (ehrData) {
-    // `visits` is the R4 field; fall back to legacy `encounters` for older caches
+    // Classify encounter by FHIR class/type so "Refill" and "Patient Message"
+    // don't show up as Appointments. Anything that's not a real visit is routed
+    // to notes so it doesn't pollute the visits section.
+    function classifyEncounter(enc) {
+      var nm = String(enc.name || '').toLowerCase();
+      var cls = String(enc.class || '').toLowerCase();
+      var typ = String(enc.type || enc.encounter_type || '').toLowerCase();
+      // Non-visit encounter types commonly seen in Epic
+      if (/\b(refill|message|patient message|telephone|phone call|letter|e\-?visit|portal|result note)\b/.test(nm + ' ' + typ)) {
+        return { event_type: 'note', section: 'visits' };
+      }
+      if (cls === 'virtual' || /\b(telemedicine|video visit|telehealth)\b/.test(nm + ' ' + typ)) {
+        return { event_type: 'appointment', section: 'visits' };
+      }
+      return { event_type: 'appointment', section: 'visits' };
+    }
     (ehrData.visits || ehrData.encounters || []).forEach(function(enc) {
-      ehrTimelineItems.push({ event_type:'appointment', title:enc.name, event_date:enc.start_date, notes:'', source:'ehr', _ehrProvider:ehrData.provider });
+      var c = classifyEncounter(enc);
+      ehrTimelineItems.push({ event_type:c.event_type, title:enc.name, event_date:enc.start_date, notes:'', source:'ehr', _ehrProvider:ehrData.provider, _section:c.section, _refId: enc.id || null });
     });
     (ehrData.conditions || []).forEach(function(c) {
-      ehrTimelineItems.push({ event_type:'note', title:c.name + ' (diagnosed)', event_date:c.onset_date || c.recorded_date, notes:'', source:'ehr', _ehrProvider:ehrData.provider });
+      ehrTimelineItems.push({ event_type:'note', title:c.name + ' (diagnosed)', event_date:c.onset_date || c.recorded_date, notes:'', source:'ehr', _ehrProvider:ehrData.provider, _section:'conditions', _refId: c.id || null });
     });
     (ehrData.procedures || []).forEach(function(p) {
-      ehrTimelineItems.push({ event_type:'appointment', title:p.name, event_date:p.performed_date, notes:'', source:'ehr', _ehrProvider:ehrData.provider });
+      ehrTimelineItems.push({ event_type:'appointment', title:p.name, event_date:p.performed_date, notes:'', source:'ehr', _ehrProvider:ehrData.provider, _section:'visits', _refId: p.id || null });
     });
     (ehrData.observations || []).forEach(function(obs) {
       var valStr = obs.value ? ' \u2014 ' + obs.value + (obs.unit ? ' ' + obs.unit : '') : '';
-      ehrTimelineItems.push({ event_type:'lab_result', title:obs.name + valStr, event_date:obs.effective_date, notes:'', source:'ehr', _ehrProvider:ehrData.provider });
+      ehrTimelineItems.push({ event_type:'lab_result', title:obs.name + valStr, event_date:obs.effective_date, notes:'', source:'ehr', _ehrProvider:ehrData.provider, _section:'labs', _refId: obs.id || null });
     });
     (ehrData.diagnostic_reports || []).forEach(function(r) {
       var dt = r.effective_date || r.issued;
@@ -6057,7 +6111,7 @@ function renderTimeline() {
       (Array.isArray(r.attachments) ? r.attachments : []).forEach(function(att) {
         if (att && att.inline_text && att.inline_text.trim()) noteParts.push(att.inline_text.trim());
       });
-      ehrTimelineItems.push({ event_type:'lab_result', title:titleStr, event_date:dt, notes:noteParts.join('\n\n'), source:'ehr', _ehrProvider:ehrData.provider });
+      ehrTimelineItems.push({ event_type:'lab_result', title:titleStr, event_date:dt, notes:noteParts.join('\n\n'), source:'ehr', _ehrProvider:ehrData.provider, _section:'labs', _refId: r.id || null });
     });
   }
 
@@ -6065,7 +6119,9 @@ function renderTimeline() {
   allEvents.sort(function(a,b) { return new Date(b.event_date) - new Date(a.event_date); });
 
   if (allEvents.length === 0) {
-    pane.innerHTML = addBtn + '<div class="timeline-section">'
+    // EHR status bar first (above Add event) when connected
+    var emptyHeader = (ehrData ? buildEhrStatusBar(ehrData) : '') + addBtn;
+    pane.innerHTML = emptyHeader + '<div class="timeline-section">'
       + '<div style="text-align:center;padding:48px 24px;">'
       + '<div style="font-size:32px;margin-bottom:12px;opacity:0.3;"><i data-lucide="calendar" style="width:32px;height:32px;"></i></div>'
       + '<div style="font-size:14px;color:var(--text-muted);line-height:1.6;">Appointments, medications, lab results, and your own notes \u2014 they\u2019ll all show up here in order as you add them.</div>'
@@ -6086,8 +6142,10 @@ function renderTimeline() {
     months[key].events.push(ev);
   });
 
-  var html = addBtn;
+  // EHR status bar FIRST (above Add event), then Add event, then timeline list
+  var html = '';
   if (ehrData) html += buildEhrStatusBar(ehrData);
+  html += addBtn;
   html += '<div class="timeline-section">';
   Object.keys(months).sort().reverse().forEach(function(k) {
     html += '<div class="tl-month">' + months[k].label + '</div>';
@@ -6096,7 +6154,17 @@ function renderTimeline() {
       var typeInfo = getEventTypeInfo(ev.event_type);
       var dateStr = formatEventDate(ev.event_date);
       var isEhr = ev.source === 'ehr';
-      var clickAttr = isEhr ? '' : ' onclick="openEditEvent(\'' + ev.id + '\')"';
+      // Every card is clickable. User-created events open the edit modal;
+      // EHR items route to the matching Records detail pane (labs / visits /
+      // conditions / documents), with the specific item id as a deep-link hint.
+      var clickAttr;
+      if (!isEhr) {
+        clickAttr = ' onclick="openEditEvent(\'' + ev.id + '\')"';
+      } else {
+        var section = ev._section || (ev.event_type === 'lab_result' ? 'labs' : (ev.event_type === 'appointment' ? 'visits' : 'conditions'));
+        var refIdSafe = ev._refId ? String(ev._refId).replace(/[^a-zA-Z0-9_.\-]/g, '') : '';
+        clickAttr = ' onclick="openTimelineItem(\'' + section + '\',\'' + refIdSafe + '\')" style="cursor:pointer;"';
+      }
       // Register share context for this timeline item
       var shareKey = registerShareItem({
         kind: 'event',
