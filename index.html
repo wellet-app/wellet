@@ -9449,6 +9449,10 @@ function renderPatterns() {
 }
 
 // ── SAVE PERSON AFTER ONBOARDING ──────────────────────────────────────────────
+// DOB + sex are optional at insert time so existing EHR-only flows keep working;
+// the upcoming manual-onboarding UI (issue #66) will populate obState.dateOfBirth
+// and obState.sex, which we snapshot into the manual_* columns so a later EHR
+// connection can't wipe caregiver-entered values.
 async function savePersonToSupabase() {
   if (!currentUser) return null;
   var name = obState.personName || 'My loved one';
@@ -9456,13 +9460,30 @@ async function savePersonToSupabase() {
   var initials = name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2);
   if (initials.length < 2) initials = name.slice(0,2).toUpperCase();
 
-  const { data, error } = await db.from('people').insert({
+  // Normalize optional demographic fields. Only include them in the payload
+  // when present so we don't overwrite EHR-sourced values with nulls on
+  // subsequent edits. Sex is constrained to the four allowed enum values.
+  var ALLOWED_SEX = ['female', 'male', 'intersex', 'prefer_not_to_say'];
+  var dob = obState.dateOfBirth || null;
+  var sex = obState.sex && ALLOWED_SEX.indexOf(obState.sex) !== -1 ? obState.sex : null;
+
+  var payload = {
     user_id: currentUser.id,
     name: name,
     relationship: relationship,
     avatar_initials: initials,
     sort_order: currentPeople.length
-  }).select().single();
+  };
+  if (dob) {
+    payload.date_of_birth = dob;
+    payload.manual_date_of_birth = dob;
+  }
+  if (sex) {
+    payload.sex = sex;
+    payload.manual_sex = sex;
+  }
+
+  const { data, error } = await db.from('people').insert(payload).select().single();
 
   if (error) { console.error('Error saving person:', error); return null; }
   currentPeople.push(data);
