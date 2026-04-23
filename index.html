@@ -5763,8 +5763,8 @@ function renderUpdateMe() {
     + '</div>'
     + '</div>';
   // Compact "Add more to Wellet" card (mirrors visit-prep-card styling)
-  // Using margin:12px 0 0 because it’s rendered inside .update-me-section (already has 20px padding)
-  var compactAddMore = '<button class="visit-prep-card" onclick="openAddMoreToWellet()" style="margin:12px 0 0;">'
+  // Rendered OUTSIDE .update-me-section so it spans full width like Prepare for a Visit
+  var compactAddMore = '<button class="visit-prep-card" onclick="openAddMoreToWellet()">'
     + '<div class="visit-prep-icon"><i data-lucide="plus" style="width:18px;height:18px;"></i></div>'
     + '<div class="visit-prep-content">'
     + '<div class="visit-prep-title">Add more to Wellet</div>'
@@ -5818,13 +5818,18 @@ function renderUpdateMe() {
 
   var sharedInboxContainer = !isDemoMode ? '<div id="shared-inbox" style="padding:0 20px;margin-top:16px;"></div>' : '';
 
+  // If the compact Add-more card is active, render it OUTSIDE .update-me-section so it spans full width like Prepare for a Visit
+  var addMoreOutside = (hasAnyWelletSource && emptyActions === compactAddMore) ? compactAddMore : '';
+  var addMoreInside = (hasAnyWelletSource && emptyActions === compactAddMore) ? '' : emptyActions;
+
   if (liveEvents.length === 0 && !hasCompletedDocs && !ehrConnected && !hasWearable) {
     // Truly empty: summary placeholder FIRST, then onboarding CTAs below
     pane.innerHTML = sharedInboxContainer
       + '<div class="update-me-section">'
       + emptyPlaceholder
-      + emptyActions
+      + addMoreInside
       + '</div>'
+      + addMoreOutside
       + visitPrepCardHtml
       + '<div class="quick-actions">'
       + '<button class="qa-btn" onclick="openAddEvent()"><span class="qa-icon"><i data-lucide="plus-circle" style="width:18px;height:18px;"></i></span>Add event</button>'
@@ -5840,8 +5845,9 @@ function renderUpdateMe() {
     pane.innerHTML = sharedInboxContainer
       + '<div class="update-me-section">'
       + summarySection
-      + emptyActions
+      + addMoreInside
       + '</div>'
+      + addMoreOutside
       + visitPrepCardHtml
       + '<div class="quick-actions">'
       + '<button class="qa-btn" onclick="openAddEvent()"><span class="qa-icon"><i data-lucide="plus-circle" style="width:18px;height:18px;"></i></span>Add event</button>'
