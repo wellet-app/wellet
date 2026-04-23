@@ -11499,7 +11499,8 @@ function handleEhrCallback() {
       try { fromOnboarding = localStorage.getItem('wellet_ob_ehr_return') === 'true'; localStorage.removeItem('wellet_ob_ehr_return'); } catch(e) {}
       if (fromOnboarding) {
         showToast('Health records connected!');
-        fetchEhrData(personId, false);
+        // Fetch and land on Records so the user sees their data appear
+        fetchEhrData(personId, true);
         // If chat onboarding is active, notify it instead of jumping to app
         if (obChat && obChat.phase === 'connect') {
           var hospital = data.hospital_name || data.provider || 'your hospital';
@@ -11507,9 +11508,14 @@ function handleEhrCallback() {
           return;
         }
         showOwnWellet();
+        // showOwnWellet drops into the default tab; switch to Records once the app
+        // has mounted so the EHR data has somewhere visible to land.
+        setTimeout(function() { try { switchNavTo('records'); } catch(e) {} }, 300);
         return;
       }
       showToast('Health records connected! Fetching data\u2026');
+      // Take the user straight to Records so they can watch the data land
+      try { switchNavTo('records'); } catch(e) { console.warn('switchNavTo(records) after EHR connect failed:', e); }
       fetchEhrData(personId, true);
     }).catch(function(err) {
       console.error('EHR callback error:', err);
