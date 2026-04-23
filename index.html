@@ -1142,18 +1142,32 @@
   .upload-ext-pulse { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: var(--text-muted); animation: statusPulse 2s ease-in-out infinite; }
 
   /* ── UPDATE ME SUMMARY CARD ── */
-  .update-summary-card { background: var(--mint); border-radius: 14px; padding: 16px; position: relative; overflow: hidden; margin-bottom: 10px; }
+  .update-summary-card { background: var(--mint); border-radius: 16px; padding: 18px 18px 14px; position: relative; overflow: hidden; margin-bottom: 10px; }
   .update-summary-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--moss); }
-  .update-summary-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-  .update-summary-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--moss-dark); font-weight: 500; }
-  .update-summary-refresh { background: none; border: none; cursor: pointer; color: var(--moss-dark); display: flex; padding: 2px; border-radius: 4px; opacity: 0.7; transition: opacity 0.15s; }
-  .update-summary-refresh:hover { opacity: 1; }
+  .update-summary-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 8px; }
+  .update-summary-titlerow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .update-summary-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--moss-dark); font-weight: 600; }
+  .update-summary-verdict-pill { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,0.6); color: var(--moss-dark); }
+  .update-summary-verdict-pill.attention { background: rgba(200, 120, 60, 0.14); color: #8a4a1c; }
+  .update-summary-verdict-pill.active { background: rgba(255,255,255,0.75); }
+  .update-summary-verdict-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--moss); }
+  .update-summary-verdict-pill.attention .dot { background: #c97840; }
+  .update-summary-refresh { background: none; border: none; cursor: pointer; color: var(--moss-dark); display: flex; padding: 4px; border-radius: 6px; opacity: 0.65; transition: opacity 0.15s, background 0.15s; }
+  .update-summary-refresh:hover { opacity: 1; background: rgba(255,255,255,0.5); }
+  .update-summary-sources { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11px; color: var(--moss-dark); opacity: 0.85; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid rgba(75, 99, 65, 0.14); }
+  .update-summary-source-chip { display: inline-flex; align-items: center; gap: 3px; padding: 2px 0; }
+  .update-summary-source-chip i { width: 11px; height: 11px; }
+  .update-summary-source-sep { opacity: 0.4; padding: 0 2px; }
   .update-summary-text { font-size: 14px; line-height: 1.6; color: var(--text-primary); }
   .update-summary-text strong { font-weight: 500; }
-  .update-summary-section { margin-bottom: 10px; }
+  .update-summary-section { margin-bottom: 12px; }
   .update-summary-section:last-child { margin-bottom: 0; }
-  .update-summary-subhead { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--moss-dark); font-weight: 500; margin-bottom: 4px; opacity: 0.85; }
+  .update-summary-subhead { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--moss-dark); font-weight: 600; margin-bottom: 6px; opacity: 0.9; }
   .update-summary-section-body { font-size: 14px; line-height: 1.6; color: var(--text-primary); }
+  .update-summary-section.snapshot .update-summary-section-body { font-family: 'Fraunces', serif; font-size: 16px; line-height: 1.5; letter-spacing: -0.005em; }
+  .update-summary-section.snapshot .update-summary-section-body .verdict { font-weight: 500; }
+  .update-summary-byline { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(75, 99, 65, 0.12); font-size: 10.5px; color: var(--moss-dark); opacity: 0.75; display: flex; align-items: center; gap: 6px; letter-spacing: 0.01em; }
+  .update-summary-byline i { width: 10px; height: 10px; }
   .update-summary-loading { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); animation: statusPulse 2s ease-in-out infinite; padding: 4px 0; }
   @keyframes summaryPulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
 
@@ -5543,11 +5557,77 @@ async function switchToRealPerson(personId, el) {
   initIcons();
 }
 
+// ── SUMMARY CACHE ACCESSORS ─────────────────────────────────────────────
+// summaryCache values can be 'empty', undefined, or an object { text, window_class, sources, generated_at }.
+function getSummaryText(pid) {
+  var v = summaryCache[pid];
+  if (!v || v === 'empty') return '';
+  if (typeof v === 'string') return v; // legacy fallback
+  return v.text || '';
+}
+function getSummaryMeta(pid) {
+  var v = summaryCache[pid];
+  if (!v || v === 'empty' || typeof v === 'string') return null;
+  return v;
+}
+
+// Build the "source strip" chips (e.g. Duke Health · Apple Health · 3 check-ins).
+// Only shows sources that actually fed the paragraph.
+function renderSummarySourceStrip(sources, checkInCount) {
+  if (!sources) return '';
+  var chips = [];
+  if (sources.ehr) {
+    var ehrLabel = sources.ehr_provider || 'Health records';
+    chips.push('<span class="update-summary-source-chip"><i data-lucide="hospital"></i>' + escHtml(ehrLabel) + '</span>');
+  }
+  if (sources.wearable) {
+    var wLabel = sources.wearable_provider ? capitalize(String(sources.wearable_provider).replace(/_/g,' ')) : 'Apple Health';
+    chips.push('<span class="update-summary-source-chip"><i data-lucide="activity"></i>' + escHtml(wLabel) + '</span>');
+  }
+  if (sources.labs) {
+    chips.push('<span class="update-summary-source-chip"><i data-lucide="flask-conical"></i>Labs</span>');
+  }
+  if (sources.check_ins && checkInCount) {
+    chips.push('<span class="update-summary-source-chip"><i data-lucide="notebook-pen"></i>' + checkInCount + ' check-in' + (checkInCount === 1 ? '' : 's') + '</span>');
+  } else if (sources.check_ins) {
+    chips.push('<span class="update-summary-source-chip"><i data-lucide="notebook-pen"></i>Check-ins</span>');
+  }
+  if (sources.documents) {
+    chips.push('<span class="update-summary-source-chip"><i data-lucide="file-text"></i>Documents</span>');
+  }
+  if (sources.events && chips.length === 0) {
+    chips.push('<span class="update-summary-source-chip"><i data-lucide="list"></i>Events</span>');
+  }
+  if (chips.length === 0) return '';
+  return '<div class="update-summary-sources">' + chips.join('<span class="update-summary-source-sep">·</span>') + '</div>';
+}
+
+function capitalize(s) {
+  if (!s) return '';
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function formatTimeAgo(iso) {
+  if (!iso) return '';
+  var diff = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(diff) || diff < 0) return '';
+  var min = Math.round(diff / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return min + ' min ago';
+  var hr = Math.round(min / 60);
+  if (hr < 24) return hr + ' hr ago';
+  var d = Math.round(hr / 24);
+  if (d < 7) return d + ' day' + (d === 1 ? '' : 's') + ' ago';
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 // ── FORMAT WELLET SUMMARY ───────────────────────────────────────────────
 // Parses a 2-section summary (Snapshot: / What's new (last 30 days):) into styled HTML.
 // Falls back gracefully if the model didn't follow the format.
 function formatWelletSummary(txt) {
   if (!txt) return '';
+  // Accept either a plain string OR the new {text,...} object for back-compat.
+  if (typeof txt === 'object' && txt !== null) txt = txt.text || '';
   var raw = String(txt).trim();
   // Normalize headings (case-insensitive, tolerate variations)
   var snapMatch = raw.match(/^[\s\S]*?snapshot\s*:?/i);
@@ -5574,9 +5654,16 @@ function formatWelletSummary(txt) {
   }
   var html = '';
   if (snapshotBody) {
-    html += '<div class="update-summary-section">'
+    // Wrap the opening verdict sentence in a .verdict span so typography highlights it.
+    var snapHtml = formatBody(snapshotBody);
+    // Match the first complete sentence (through period/!/?) and wrap it.
+    var verdictMatch = snapHtml.match(/^([^\.!?\n<]+[\.!?])(.*)$/s);
+    if (verdictMatch) {
+      snapHtml = '<span class="verdict">' + verdictMatch[1] + '</span>' + verdictMatch[2];
+    }
+    html += '<div class="update-summary-section snapshot">'
       + '<div class="update-summary-subhead">Snapshot</div>'
-      + '<div class="update-summary-section-body">' + formatBody(snapshotBody) + '</div>'
+      + '<div class="update-summary-section-body">' + snapHtml + '</div>'
       + '</div>';
   }
   if (newsBody) {
@@ -5630,12 +5717,24 @@ function renderUpdateMe() {
       + '<p class="update-summary-text" style="color:var(--text-secondary);font-style:italic;">Start adding health events and documents \u2014 Wellet will generate your personalized summary here.</p>'
       + '</div>';
   } else if (summaryCache[currentPersonId]) {
+    var meta = getSummaryMeta(currentPersonId);
+    var wc = (meta && meta.window_class) || 'quiet';
+    var verdictLabel = wc === 'attention' ? 'Needs attention' : (wc === 'active' ? 'Active week' : 'Steady');
+    var verdictPill = '<span class="update-summary-verdict-pill ' + escHtml(wc) + '"><span class="dot"></span>' + escHtml(verdictLabel) + '</span>';
+    var sourceStrip = meta ? renderSummarySourceStrip(meta.sources, (meta.sources && meta.sources.check_ins) ? (meta.check_in_count || null) : null) : '';
+    var bylineTime = meta && meta.generated_at ? formatTimeAgo(meta.generated_at) : '';
+    var sourceCount = meta && meta.sources ? Object.keys(meta.sources).filter(function(k){ return meta.sources[k] === true; }).length : 0;
+    var bylineDetail = sourceCount > 0
+      ? ('Wellet · written from ' + sourceCount + ' source' + (sourceCount === 1 ? '' : 's') + (bylineTime ? ' · ' + bylineTime : ''))
+      : ('Wellet' + (bylineTime ? ' · ' + bylineTime : ''));
     summarySection = '<div class="update-summary-card">'
       + '<div class="update-summary-header">'
-      + '<span class="update-summary-label">Wellet summary</span>'
+      + '<div class="update-summary-titlerow"><span class="update-summary-label">Wellet summary</span>' + verdictPill + '</div>'
       + '<button class="update-summary-refresh" onclick="fetchUpdateMeSummary(true)" title="Refresh summary"><i data-lucide="refresh-cw" style="width:13px;height:13px;"></i></button>'
       + '</div>'
+      + sourceStrip
       + '<div class="update-summary-text" id="update-summary-text">' + formatWelletSummary(summaryCache[currentPersonId]) + '</div>'
+      + '<div class="update-summary-byline"><i data-lucide="sparkles"></i>' + escHtml(bylineDetail) + '</div>'
       + '</div>'
       + '<button onclick="openShareFamily()" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px 16px;margin-top:10px;background:white;border:1.5px solid var(--moss);border-radius:10px;color:var(--moss);font-family:\'DM Sans\',sans-serif;font-size:13px;font-weight:500;cursor:pointer;"><i data-lucide="share-2" style="width:15px;height:15px;"></i> ' + t('update.shareThis') + '</button>';
   } else {
@@ -13135,8 +13234,8 @@ function openShareFamily() {
 
   // Populate preview text with the current summary
   var previewEl = document.getElementById('share-preview-text');
-  if (!isDemoMode && summaryCache[currentPersonId] && summaryCache[currentPersonId] !== 'empty') {
-    previewEl.textContent = summaryCache[currentPersonId];
+  if (!isDemoMode && getSummaryText(currentPersonId)) {
+    previewEl.textContent = getSummaryText(currentPersonId);
   } else if (isDemoMode) {
     // Keep the hardcoded demo text already in the HTML
   } else {
@@ -14128,8 +14227,15 @@ async function fetchUpdateMeSummary(forceRefresh) {
       if (data.empty || !data.summary) {
         summaryCache[pid] = 'empty';
       } else {
-        // Store as escaped HTML (summary may contain markdown-style bold)
-        summaryCache[pid] = data.summary;
+        // Store the full response so we have sources + window_class for the card.
+        // Back-compat: code that reads summaryCache[pid] as a string will now get an object
+        // (see the .text accessor in formatters).
+        summaryCache[pid] = {
+          text: data.summary,
+          window_class: data.window_class || 'quiet',
+          sources: data.sources || null,
+          generated_at: new Date().toISOString(),
+        };
       }
     } else {
       summaryCache[pid] = 'empty';
@@ -17610,8 +17716,8 @@ function downloadSharePDF() {
   var summaryText = '';
   var previewEl = document.querySelector('#share-overlay .share-preview-text');
   if (previewEl) summaryText = previewEl.textContent;
-  if (!summaryText && !isDemoMode && summaryCache[currentPersonId] && summaryCache[currentPersonId] !== 'empty') {
-    summaryText = summaryCache[currentPersonId];
+  if (!summaryText && !isDemoMode && getSummaryText(currentPersonId)) {
+    summaryText = getSummaryText(currentPersonId);
   }
   if (!summaryText) {
     summaryText = 'No summary available at this time.';
