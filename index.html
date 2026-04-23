@@ -11041,6 +11041,34 @@ function formatTime12(timeStr) {
 }
 
 // ── RENDER SIGNALS VIEW ──────────────────────────────────────────────────────
+// Client-side cache for Signals data, keyed by personId. TTL 60s.
+var _signalsCache = {};
+var _SIGNALS_CACHE_TTL_MS = 60 * 1000;
+
+function _buildDeviceCardsHtml(activeConns) {
+  var html = '<div class="terra-devices-section">';
+  html += '<div class="terra-devices-title">Connected Devices</div>';
+  for (var ci = 0; ci < activeConns.length; ci++) {
+    var conn = activeConns[ci];
+    var providerName = conn.provider ? conn.provider.charAt(0).toUpperCase() + conn.provider.slice(1).toLowerCase() : 'Unknown';
+    var statusDotClass = conn.status === 'active' ? 'terra-status-dot--active' : 'terra-status-dot--inactive';
+    var connDate = conn.connected_at ? new Date(conn.connected_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+    var lastData = conn.last_data_at ? 'Last data: ' + new Date(conn.last_data_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' at ' + new Date(conn.last_data_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : 'No data yet';
+    html += '<div class="terra-device-card">';
+    html += '<div class="terra-device-icon"><i data-lucide="watch"></i></div>';
+    html += '<div class="terra-device-info">';
+    html += '<div class="terra-device-name"><span class="terra-status-dot ' + statusDotClass + '"></span> ' + escHtml(providerName) + '</div>';
+    html += '<div class="terra-device-meta">' + escHtml(lastData);
+    if (connDate) html += ' \u00b7 Connected ' + escHtml(connDate);
+    html += '</div></div>';
+    html += '<button class="terra-disconnect-btn" onclick="disconnectTerra(\'' + conn.id + '\')">Disconnect</button>';
+    html += '</div>';
+  }
+  html += '<button class="terra-add-btn" onclick="openTerraConnect()"><i data-lucide="plus" style="width:14px;height:14px;"></i> Connect another device</button>';
+  html += '</div>';
+  return html;
+}
+
 async function renderSignalsView() {
   var el = document.getElementById('view-signals');
   if (!el) return;
@@ -11049,58 +11077,83 @@ async function renderSignalsView() {
   var data = isDemoMode ? DEMO_CARESIGNALS : null;
 
   if (!data) {
-    // Show loading state while fetching connections
-    el.innerHTML = '<div class="signals-view"><div class="terra-loading"><i data-lucide="loader" style="width:20px;height:20px;animation:spin 1s linear infinite;"></i><div style="margin-top:8px;">Loading devices\u2026</div></div></div>';
-    initIcons();
+    var sigFirstName = getPersonFirstName();
+    var cacheKey = currentPersonId || '_nopid';
+    var cached = _signalsCache[cacheKey];
+    var cacheFresh = cached && (Date.now() - cached.ts) < _SIGNALS_CACHE_TTL_MS;
 
+    // 1) Paint from cache instantly if we have it, then refresh in background.
+    if (cacheFresh) {
+      console.log('[Signals] paint from cache');
+      _paintSignals(el, sigFirstName, cached.activeConns, cached.terraData);
+    } else {
+      // Show lightweight shell so the header appears immediately instead of a blank screen.
+      el.innerHTML = '<div class="signals-view"><p class="section-label">' + escHtml(sigFirstName) + '\u2019s Signals</p>'
+        + '<div class="terra-loading"><i data-lucide="loader" style="width:20px;height:20px;animation:spin 1s linear infinite;"></i>'
+        + '<div style="margin-top:8px;">Loading devices\u2026</div></div></div>';
+      initIcons();
+    }
+
+    // 2) Fetch connections + data in parallel with a shorter 4s timeout.
     var conns = [];
+    var terraData = null;
     if (currentPersonId) {
       try {
-        // Race against a 8-second timeout so the spinner doesn't hang forever
-        var timeoutPromise = new Promise(function(resolve) { setTimeout(function() { resolve([]); }, 8000); });
-        conns = await Promise.race([loadTerraConnections(currentPersonId), timeoutPromise]);
+        var connsTimeout = new Promise(function(resolve) { setTimeout(function() { resolve([]); }, 4000); });
+        var dataTimeout = new Promise(function(resolve) { setTimeout(function() { resolve(null); }, 4000); });
+        var results = await Promise.all([
+          Promise.race([loadTerraConnections(currentPersonId), connsTimeout]),
+          Promise.race([loadTerraData(currentPersonId).catch(function(e){ console.error('[Signals] loadTerraData error:', e); return null; }), dataTimeout])
+        ]);
+        conns = results[0] || [];
+        terraData = results[1] || null;
       } catch(e) {
         console.error('Signals load error:', e);
-        conns = [];
       }
     }
-    console.log('[Signals] connections loaded:', conns.length, conns);
+    console.log('[Signals] connections loaded:', conns.length, 'data:', terraData ? 'yes' : 'no');
     var activeConns = conns.filter(function(c){ return c.status === 'active'; });
 
-    if (activeConns.length > 0) {
-      var sigFirstName = getPersonFirstName();
+    // Update cache
+    _signalsCache[cacheKey] = { ts: Date.now(), activeConns: activeConns, terraData: terraData };
 
-      // Build device cards HTML (always shown at top)
-      var chDevices = '<div class="terra-devices-section">';
-      chDevices += '<div class="terra-devices-title">Connected Devices</div>';
-      for (var ci = 0; ci < activeConns.length; ci++) {
-        var conn = activeConns[ci];
-        var providerName = conn.provider ? conn.provider.charAt(0).toUpperCase() + conn.provider.slice(1).toLowerCase() : 'Unknown';
-        var statusDotClass = conn.status === 'active' ? 'terra-status-dot--active' : 'terra-status-dot--inactive';
-        var connDate = conn.connected_at ? new Date(conn.connected_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-        var lastData = conn.last_data_at ? 'Last data: ' + new Date(conn.last_data_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' at ' + new Date(conn.last_data_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : 'No data yet';
-        chDevices += '<div class="terra-device-card">';
-        chDevices += '<div class="terra-device-icon"><i data-lucide="watch"></i></div>';
-        chDevices += '<div class="terra-device-info">';
-        chDevices += '<div class="terra-device-name"><span class="terra-status-dot ' + statusDotClass + '"></span> ' + escHtml(providerName) + '</div>';
-        chDevices += '<div class="terra-device-meta">' + escHtml(lastData);
-        if (connDate) chDevices += ' \u00b7 Connected ' + escHtml(connDate);
-        chDevices += '</div></div>';
-        chDevices += '<button class="terra-disconnect-btn" onclick="disconnectTerra(\'' + conn.id + '\')">Disconnect</button>';
-        chDevices += '</div>';
-      }
-      chDevices += '<button class="terra-add-btn" onclick="openTerraConnect()"><i data-lucide="plus" style="width:14px;height:14px;"></i> Connect another device</button>';
-      chDevices += '</div>';
+    // 3) Repaint with fresh data (unless the view has since navigated away).
+    if (document.getElementById('view-signals') !== el) return;
+    _paintSignals(el, sigFirstName, activeConns, terraData);
+    return;
+  }
 
-      // Fetch real Terra data
-      var terraData = null;
-      try {
-        terraData = await loadTerraData(currentPersonId);
-      } catch(e) {
-        console.error('[Signals] loadTerraData error:', e);
-      }
+  // Demo-mode path falls through to original renderer below.
+  return _renderSignalsDemo(el, data);
+}
 
-      var hasData = terraData && (terraData.vitals.length > 0 || terraData.events.length > 0);
+// Invalidate the cache whenever a connection changes (add/disconnect) so the
+// next render reflects reality.
+function invalidateSignalsCache(personId) {
+  if (personId) { delete _signalsCache[personId]; }
+  else { _signalsCache = {}; }
+}
+
+function _paintSignals(el, sigFirstName, activeConns, terraData) {
+  if (!activeConns || activeConns.length === 0) {
+    // No connections \u2014 show empty state with connect CTA.
+    var emptyHtml = '<div class="signals-view">';
+    emptyHtml += '<p class="section-label">' + escHtml(sigFirstName) + '\u2019s Signals</p>';
+    emptyHtml += '<div class="terra-empty">';
+    emptyHtml += '<div class="terra-empty-icon"><i data-lucide="watch"></i></div>';
+    emptyHtml += '<div class="terra-empty-title">No devices connected yet</div>';
+    emptyHtml += '<div class="terra-empty-sub">Connect a wearable to see daily signals \u2014 steps, sleep, heart rate, and more.</div>';
+    emptyHtml += '<button class="terra-add-btn" onclick="openTerraConnect()"><i data-lucide="plus" style="width:14px;height:14px;"></i> Connect a device</button>';
+    emptyHtml += '</div></div>';
+    el.innerHTML = emptyHtml;
+    initIcons();
+    return;
+  }
+
+  // Build device cards (always shown at top)
+  var chDevices = _buildDeviceCardsHtml(activeConns);
+
+  var hasData = terraData && (terraData.vitals.length > 0 || terraData.events.length > 0);
       var ch = '<div class="signals-view">';
       ch += '<p class="section-label">' + escHtml(sigFirstName) + '\u2019s Signals</p>';
       ch += chDevices;
@@ -11227,30 +11280,17 @@ async function renderSignalsView() {
           ch += '</div>';
         }
 
-        ch += '</div>'; // close wearable-grid
-        ch += '</div>'; // close signals-section
-      }
-
-      ch += '</div>'; // close signals-view
-      el.innerHTML = ch;
-    } else {
-      var sigFirstName = getPersonFirstName();
-      el.innerHTML = '<div class="signals-view">'
-        + '<p class="section-label">' + escHtml(sigFirstName) + '\u2019s Signals</p>'
-        + '<div class="signals-connect">'
-        + '<p class="signals-connect-intro">Signals quietly follows ' + escHtml(sigFirstName) + '\u2019s daily patterns so you can stay informed without asking. What would you like to connect?</p>'
-        + '<div class="signals-connect-chips">'
-        + '<button class="signals-chip" onclick="openTerraConnect()"><i data-lucide="watch"></i> Connect a Wearable</button>'
-        + '<button class="signals-chip" onclick="showSensorSetup()"><i data-lucide="radio"></i> Set Up Home Sensors</button>'
-        + '<button class="signals-chip" onclick="showAppleHealthConnect()"><i data-lucide="heart-pulse"></i> Apple Health</button>'
-        + '</div>'
-        + '</div>'
-        + '</div>';
-    }
-    initIcons();
-    return;
+    ch += '</div>'; // close wearable-grid
+    ch += '</div>'; // close signals-section
   }
 
+  ch += '</div>'; // close signals-view
+  el.innerHTML = ch;
+  initIcons();
+}
+
+// Demo-mode renderer (unchanged legacy path)
+function _renderSignalsDemo(el, data) {
   var now = new Date();
   var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -19880,27 +19920,74 @@ function handleName(val) { /* legacy stub */ }
 // ── TERRA WEARABLE CONNECTION ────────────────────────────────────────────────
 
 var _terraPopup = null;
+var _terraPopupPoll = null;
 var _currentTerraConns = [];
+var _TERRA_LS_KEY = 'wellet_terra_auth_signal';
 
-// Listen for Terra auth popup messages
+// Handle successful Terra auth in the parent-window context.
+// Idempotent: safe to call multiple times with the same payload.
+var _terraHandledKey = null;
+function _onTerraAuthSuccessInParent(payload) {
+  if (!payload || !payload.person_id || !payload.terra_user_id) return;
+  var dedupeKey = payload.terra_user_id + ':' + (payload.provider || '');
+  if (_terraHandledKey === dedupeKey) return;
+  _terraHandledKey = dedupeKey;
+  console.log('[Terra] auth success in parent:', payload);
+  storeTerraConnection(payload.person_id, payload.terra_user_id, payload.provider).then(function() {
+    invalidateSignalsCache(payload.person_id);
+    showToast('Wearable connected successfully', 'success');
+    if (typeof renderSignalsView === 'function') { try { renderSignalsView(); } catch(e){} }
+    if (obChat && obChat.phase === 'connect') {
+      obOnDeviceConnected(payload.provider || 'your device');
+    }
+  });
+}
+
+function _onTerraAuthFailureInParent() {
+  showToast('Wearable connection was cancelled', 'error');
+  if (obChat && obChat.phase === 'connect') {
+    obTypeThen('No worries \u2014 we can try again later, or you can connect a different way.', obShowConnectChips, 700);
+  }
+}
+
+// Listen for Terra auth popup messages (primary channel)
 window.addEventListener('message', function(event) {
   if (!event.data || !event.data.type) return;
   if (event.data.type === 'terra_auth_success') {
-    storeTerraConnection(event.data.person_id, event.data.terra_user_id, event.data.provider);
-    showToast('Wearable connected successfully', 'success');
-    // Refresh signals view if on that tab
-    if (typeof renderSignalsView === 'function') { try { renderSignalsView(); } catch(e){} }
-    // Notify chat onboarding if active
-    if (obChat && obChat.phase === 'connect') {
-      obOnDeviceConnected(event.data.provider || 'your device');
-    }
+    _onTerraAuthSuccessInParent({
+      person_id: event.data.person_id,
+      terra_user_id: event.data.terra_user_id,
+      provider: event.data.provider
+    });
   } else if (event.data.type === 'terra_auth_failure') {
-    showToast('Wearable connection was cancelled', 'error');
-    // If in onboarding, re-show connect chips
-    if (obChat && obChat.phase === 'connect') {
-      obTypeThen('No worries \u2014 we can try again later, or you can connect a different way.', obShowConnectChips, 700);
-    }
+    _onTerraAuthFailureInParent();
   }
+});
+
+// BroadcastChannel fallback (works when window.opener is null due to COOP)
+try {
+  var _terraBC = new BroadcastChannel('wellet_terra');
+  _terraBC.addEventListener('message', function(event) {
+    if (!event.data || !event.data.type) return;
+    if (event.data.type === 'terra_auth_success') {
+      _onTerraAuthSuccessInParent(event.data);
+    } else if (event.data.type === 'terra_auth_failure') {
+      _onTerraAuthFailureInParent();
+    }
+  });
+} catch(e) { /* BroadcastChannel unavailable */ }
+
+// localStorage fallback (works cross-tab even when BroadcastChannel isn't available)
+window.addEventListener('storage', function(event) {
+  if (event.key !== _TERRA_LS_KEY || !event.newValue) return;
+  try {
+    var payload = JSON.parse(event.newValue);
+    if (payload.type === 'terra_auth_success') {
+      _onTerraAuthSuccessInParent(payload);
+    } else if (payload.type === 'terra_auth_failure') {
+      _onTerraAuthFailureInParent();
+    }
+  } catch(e) {}
 });
 
 async function openTerraConnect() {
@@ -19911,6 +19998,9 @@ async function openTerraConnect() {
     var session = sessionRes.data.session;
     if (!session) { showToast('Please sign in first', 'error'); return; }
     var token = session.access_token;
+
+    // Reset the dedupe key so a new connect attempt can be captured
+    _terraHandledKey = null;
 
     showToast('Starting wearable connection\u2026');
     var res = await fetch(SUPABASE_URL + '/functions/v1/terra-auth', {
@@ -19936,9 +20026,25 @@ async function openTerraConnect() {
       _terraPopup = window.open(data.widget_url, 'terra_connect', 'width=500,height=700,scrollbars=yes');
       if (!_terraPopup || _terraPopup.closed) {
         showToast('Popup blocked \u2014 please allow popups for mywellet.com', 'error');
-      } else {
-        showToast('Complete the connection in the popup window', 'info');
+        return;
       }
+      showToast('Complete the connection in the popup window', 'info');
+
+      // Watch for popup close \u2014 if user completes but postMessage gets blocked by
+      // COOP, we'll still refresh connections after close as a backstop.
+      if (_terraPopupPoll) clearInterval(_terraPopupPoll);
+      _terraPopupPoll = setInterval(function() {
+        if (!_terraPopup || _terraPopup.closed) {
+          clearInterval(_terraPopupPoll);
+          _terraPopupPoll = null;
+          _terraPopup = null;
+          // Give the popup a moment to finish any storage writes, then re-check
+          setTimeout(function() {
+            invalidateSignalsCache(currentPersonId);
+            if (typeof renderSignalsView === 'function') { try { renderSignalsView(); } catch(e){} }
+          }, 800);
+        }
+      }, 500);
     } else {
       showToast('No widget URL returned \u2014 check Terra config', 'error');
     }
@@ -19962,48 +20068,67 @@ function handleTerraCallback() {
   var terraAuth = params.get('terra_auth');
   if (!terraAuth) return;
 
-  var isPopup = window.opener && window.opener !== window;
+  console.log('[Terra] handleTerraCallback fired:', terraAuth, 'search:', window.location.search);
 
-  if (terraAuth === 'success') {
-    var terraUserId = params.get('user_id');
-    var referenceId = params.get('reference_id');
-    var provider = params.get('resource') || 'unknown';
+  // A popup may have its opener stripped by COOP \u2014 detect via window.name too.
+  var looksLikePopup = (window.name === 'terra_connect') ||
+                       (window.opener && window.opener !== window);
 
-    if (terraUserId && referenceId) {
-      var parts = referenceId.split(':');
-      var personId = parts.length > 1 ? parts[1] : null;
-
-      if (personId) {
-        if (isPopup) {
-          // Store connection from parent window context, then close popup
-          try {
-            window.opener.postMessage({
-              type: 'terra_auth_success',
-              terra_user_id: terraUserId,
-              person_id: personId,
-              provider: provider
-            }, '*');
-          } catch (e) { /* cross-origin fallback handled below */ }
-          window.close();
-          return;
-        }
-        storeTerraConnection(personId, terraUserId, provider);
-      }
-    }
-
-    showToast('Wearable connected successfully', 'success');
-  } else {
-    if (isPopup) {
-      try { window.opener.postMessage({ type: 'terra_auth_failure' }, '*'); } catch (e) {}
-      window.close();
-      return;
-    }
-    showToast('Wearable connection was cancelled', 'error');
+  var terraUserId = params.get('user_id');
+  var referenceId = params.get('reference_id');
+  var provider = params.get('resource') || 'unknown';
+  var personId = null;
+  if (referenceId) {
+    var parts = referenceId.split(':');
+    personId = parts.length > 1 ? parts[1] : null;
   }
 
-  // Clean URL
-  var clean = window.location.pathname;
-  window.history.replaceState({}, '', clean);
+  // Clean URL early so a reload doesn't re-trigger.
+  try {
+    var clean = window.location.pathname;
+    window.history.replaceState({}, '', clean);
+  } catch(e) {}
+
+  var payload;
+  if (terraAuth === 'success') {
+    payload = {
+      type: 'terra_auth_success',
+      terra_user_id: terraUserId,
+      person_id: personId,
+      provider: provider,
+      ts: Date.now()
+    };
+  } else {
+    payload = { type: 'terra_auth_failure', ts: Date.now() };
+  }
+
+  // 1) postMessage to opener (primary path when COOP allows it)
+  if (looksLikePopup) {
+    try { if (window.opener) window.opener.postMessage(payload, '*'); } catch(e) { console.warn('[Terra] postMessage failed:', e); }
+    // 2) BroadcastChannel (works across same-origin windows regardless of opener)
+    try { var bc = new BroadcastChannel('wellet_terra'); bc.postMessage(payload); bc.close(); } catch(e) {}
+    // 3) localStorage signal (fires a 'storage' event in the parent tab)
+    try { localStorage.setItem('wellet_terra_auth_signal', JSON.stringify(payload)); } catch(e) {}
+    // 4) Direct write from popup: same origin, same Supabase session in localStorage.
+    //    Best-effort store so that even if ALL messaging fails, the connection lands.
+    if (payload.type === 'terra_auth_success' && personId && terraUserId) {
+      try {
+        storeTerraConnection(personId, terraUserId, provider).catch(function(e){
+          console.warn('[Terra] popup-side store failed:', e);
+        });
+      } catch(e) { console.warn('[Terra] popup-side store threw:', e); }
+    }
+    // Give the browser a beat to flush postMessage/storage before closing.
+    setTimeout(function() { try { window.close(); } catch(e) {} }, 400);
+    return;
+  }
+
+  // Not a popup \u2014 this window IS the parent (Terra may have redirected the top-level tab)
+  if (payload.type === 'terra_auth_success') {
+    _onTerraAuthSuccessInParent(payload);
+  } else {
+    _onTerraAuthFailureInParent();
+  }
 }
 
 async function storeTerraConnection(personId, terraUserId, provider) {
@@ -20070,6 +20195,7 @@ async function disconnectTerra(connectionId) {
       body: JSON.stringify({ action: 'disconnect', connection_id: connectionId })
     });
     showToast('Wearable disconnected', 'info');
+    invalidateSignalsCache(currentPersonId);
     renderRecordsView();
     var sigEl = document.getElementById('view-signals');
     if (sigEl && sigEl.offsetParent !== null) { renderSignalsView(); }
