@@ -1472,47 +1472,7 @@
   .signals-waiting-sub { font-size:12px; color:var(--text-muted); }
 
 
-  /* ── GLOBAL SEARCH OVERLAY ── */
-  .search-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.55); z-index: 200; align-items: flex-start; justify-content: center; padding-top: 0; }
-  .search-overlay.show { display: flex; }
-  .search-sheet { background: white; width: 100%; max-width: 768px; min-height: 100%; max-height: 100%; overflow-y: auto; display: flex; flex-direction: column; }
-  .search-header { padding: 16px 16px 12px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: white; z-index: 10; }
-  .search-input-wrap { flex: 1; display: flex; align-items: center; gap: 10px; background: var(--cream); border-radius: 12px; padding: 10px 14px; border: 1.5px solid transparent; transition: border-color 0.15s; }
-  .search-input-wrap:focus-within { border-color: var(--moss); background: white; }
-  .search-input-icon { color: var(--text-muted); flex-shrink: 0; }
-  .search-input { flex: 1; border: none; background: transparent; font-size: 16px; font-family: 'DM Sans', sans-serif; color: var(--text-primary); outline: none; }
-  .search-input::placeholder { color: var(--text-muted); }
-  .search-cancel-btn { background: none; border: none; font-size: 14px; font-family: 'DM Sans', sans-serif; color: var(--moss); font-weight: 500; cursor: pointer; padding: 8px 4px; white-space: nowrap; }
-  .search-cancel-btn:hover { color: var(--text-primary); }
-  .search-body { flex: 1; padding: 0 0 40px; }
-  .search-section-header { padding: 16px 16px 6px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); font-weight: 600; }
-  .search-result-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; cursor: pointer; border-bottom: 1px solid var(--border); transition: background 0.12s; }
-  .search-result-item:last-child { border-bottom: none; }
-  .search-result-item:hover, .search-result-item:active { background: var(--cream); }
-  .search-result-icon { width: 36px; height: 36px; border-radius: 10px; background: var(--mint); display: flex; align-items: center; justify-content: center; color: var(--moss); flex-shrink: 0; }
-  .search-result-icon.icon-med { background: #FFF8E1; color: #F9A825; }
-  .search-result-icon.icon-event { background: #E8F5E9; color: #4CAF50; }
-  .search-result-icon.icon-doc { background: #E3F2FD; color: #1976D2; }
-  .search-result-icon.icon-vital { background: #FCE4EC; color: #C2185B; }
-  .search-result-icon.icon-allergy { background: #FBE9E7; color: #E64A19; }
-  .search-result-text { flex: 1; min-width: 0; }
-  .search-result-title { font-size: 14px; font-weight: 500; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .search-result-sub { font-size: 12px; color: var(--text-muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .search-result-chevron { color: var(--border-medium); flex-shrink: 0; }
-  .search-empty { padding: 48px 20px; text-align: center; }
-  .search-empty-icon { width: 52px; height: 52px; border-radius: 50%; background: var(--cream); display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; color: var(--text-muted); }
-  .search-empty-title { font-size: 16px; font-weight: 500; color: var(--text-primary); margin-bottom: 6px; }
-  .search-empty-sub { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
-  .search-recents { padding: 16px 0 0; }
-  .search-recents-header { padding: 0 16px 8px; display: flex; align-items: center; justify-content: space-between; }
-  .search-recents-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); font-weight: 600; }
-  .search-recents-clear { background: none; border: none; font-size: 12px; color: var(--moss); font-family: 'DM Sans', sans-serif; cursor: pointer; padding: 0; }
-  .search-recents-clear:hover { text-decoration: underline; }
-  .search-recent-item { display: flex; align-items: center; gap: 12px; padding: 10px 16px; cursor: pointer; }
-  .search-recent-item:hover { background: var(--cream); }
-  .search-recent-icon { color: var(--text-muted); flex-shrink: 0; }
-  .search-recent-text { font-size: 14px; color: var(--text-secondary); flex: 1; }
-  .search-loading { padding: 32px 20px; text-align: center; color: var(--text-muted); font-size: 14px; }
+  /* Global search removed — Ask Wellet is the answer layer */
 
   .lang-pill-row { display: flex; gap: 8px; padding: 8px 0 4px; }
   .lang-pill-btn { flex: 1; padding: 8px 12px; border-radius: 20px; border: 1.5px solid var(--border-medium); background: white; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; color: var(--text-muted); cursor: pointer; transition: all 0.15s; }
@@ -2076,10 +2036,6 @@
           <span>ER Summary</span>
         </button>
         <div class="header-menu-divider"></div>
-        <button class="header-menu-item" onclick="closeHeaderMenu();openSearch()">
-          <span class="header-menu-icon"><i data-lucide="search" style="width:16px;height:16px;"></i></span>
-          <span>Search</span>
-        </button>
         <button class="header-menu-item" onclick="closeHeaderMenu();switchNavTo('people')">
           <span class="header-menu-icon"><i data-lucide="users" style="width:16px;height:16px;"></i></span>
           <span>People</span>
@@ -20894,11 +20850,7 @@ window.addEventListener('popstate', function(e) {
   if (state.type === 'sheet') {
     var sheetEl = document.getElementById(state.id);
     if (sheetEl && sheetEl.classList.contains('show')) {
-      if (state.id === 'search-overlay') {
-        closeSearch();
-      } else {
-        closeSheetAccessible(state.id);
-      }
+      closeSheetAccessible(state.id);
     }
   } else if (state.type === 'modal') {
     closeModal();
@@ -21244,22 +21196,6 @@ var _pulse = (function() {
 })();
 
 (function() {
-  var _origOpenSearch = openSearch;
-  var _origCloseSearch = closeSearch;
-  var searchOpenedAt = 0;
-  openSearch = function() {
-    searchOpenedAt = Date.now();
-    _wa.track('feature', 'search_open', {});
-    _origOpenSearch();
-  };
-  closeSearch = function() {
-    var dur = searchOpenedAt ? Math.round((Date.now() - searchOpenedAt) / 1000) : 0;
-    _wa.track('feature', 'search_close', { duration_s: dur });
-    _origCloseSearch();
-  };
-})();
-
-(function() {
   var _origSubmitEvent = submitHealthEvent;
   submitHealthEvent = function() {
     _wa.track('action', 'add_event', { view: _currentNavView || 'home' });
@@ -21318,24 +21254,6 @@ var _pulse = (function() {
     <div class="share-title" id="share-sheet-title">Share with Care Circle</div>
     <div class="share-sub">They&rsquo;ll see this in their Shared with you inbox.</div>
     <div id="share-sheet-body"><!-- filled by openShareSheet() --></div>
-  </div>
-</div>
-
-<!-- GLOBAL SEARCH OVERLAY -->
-<div class="search-overlay" id="search-overlay">
-  <div class="search-sheet">
-    <div class="search-header">
-      <div class="search-input-wrap">
-        <span class="search-input-icon"><i data-lucide="search" style="width:16px;height:16px;"></i></span>
-        <input class="search-input" id="search-input" type="search" placeholder="Search people, meds, events..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="onSearchInput(this.value)" />
-      </div>
-      <button class="search-cancel-btn" onclick="closeSearch()">Cancel</button>
-    </div>
-    <div class="search-body" id="search-body">
-      <div class="search-recents" id="search-recents">
-        <!-- Recent searches rendered by JS -->
-      </div>
-    </div>
   </div>
 </div>
 
