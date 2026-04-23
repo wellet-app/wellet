@@ -22,6 +22,8 @@ const EPIC_SANDBOX_AUTHORIZE = 'https://fhir.epic.com/interconnect-fhir-oauth/oa
 const EPIC_SANDBOX_TOKEN = 'https://fhir.epic.com/interconnect-fhir-oauth/oauth2/token';
 
 // SMART v2 scopes
+// offline_access is required for Epic to issue a refresh_token so connections
+// auto-renew after the initial access_token expires (Epic access_tokens last ~1h).
 const SMART_SCOPES = [
   'patient/Patient.read',
   'patient/AllergyIntolerance.read',
@@ -33,6 +35,7 @@ const SMART_SCOPES = [
   'launch/patient',
   'openid',
   'fhirUser',
+  'offline_access',
 ].join(' ');
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
