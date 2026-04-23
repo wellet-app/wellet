@@ -1148,8 +1148,12 @@
   .update-summary-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--moss-dark); font-weight: 500; }
   .update-summary-refresh { background: none; border: none; cursor: pointer; color: var(--moss-dark); display: flex; padding: 2px; border-radius: 4px; opacity: 0.7; transition: opacity 0.15s; }
   .update-summary-refresh:hover { opacity: 1; }
-  .update-summary-text { font-size: 14px; line-height: 1.7; color: var(--text-primary); }
+  .update-summary-text { font-size: 14px; line-height: 1.6; color: var(--text-primary); }
   .update-summary-text strong { font-weight: 500; }
+  .update-summary-section { margin-bottom: 10px; }
+  .update-summary-section:last-child { margin-bottom: 0; }
+  .update-summary-subhead { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--moss-dark); font-weight: 500; margin-bottom: 4px; opacity: 0.85; }
+  .update-summary-section-body { font-size: 14px; line-height: 1.6; color: var(--text-primary); }
   .update-summary-loading { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); animation: statusPulse 2s ease-in-out infinite; padding: 4px 0; }
   @keyframes summaryPulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
 
@@ -4178,6 +4182,44 @@
   </div>
 </div>
 
+<!-- ADD MORE TO WELLET SHEET -->
+<div class="qa-overlay" id="add-more-overlay">
+  <div class="qa-sheet">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" aria-label="Close" onclick="closeSheet('add-more-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title">Add more to Wellet</div>
+    <div class="qa-sheet-sub" id="add-more-sub">Give Wellet more to work with.</div>
+    <div style="padding:4px 20px 20px;display:flex;flex-direction:column;gap:10px;">
+      <button class="visit-prep-card" style="margin:0;" onclick="addMoreUpload()">
+        <div class="visit-prep-icon"><i data-lucide="upload" style="width:18px;height:18px;"></i></div>
+        <div class="visit-prep-content">
+          <div class="visit-prep-title">Upload a document</div>
+          <div class="visit-prep-desc">After-visit summaries, labs, discharge notes — Wellet reads and remembers.</div>
+        </div>
+        <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);"></i>
+      </button>
+      <button class="visit-prep-card" style="margin:0;" onclick="addMoreEhr()">
+        <div class="visit-prep-icon"><i data-lucide="link" style="width:18px;height:18px;"></i></div>
+        <div class="visit-prep-content">
+          <div class="visit-prep-title" id="add-more-ehr-title">Connect Health Records</div>
+          <div class="visit-prep-desc" id="add-more-ehr-desc">Pull visits, labs, meds from an Epic or VA system.</div>
+        </div>
+        <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);"></i>
+      </button>
+      <button class="visit-prep-card" style="margin:0;" onclick="addMoreWearable()">
+        <div class="visit-prep-icon"><i data-lucide="watch" style="width:18px;height:18px;"></i></div>
+        <div class="visit-prep-content">
+          <div class="visit-prep-title">Connect a wearable</div>
+          <div class="visit-prep-desc">Apple Watch, Fitbit, Oura and more — steps, sleep, heart rate.</div>
+        </div>
+        <i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);"></i>
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- ADD MEDICATION MODAL -->
 <div class="qa-overlay" id="add-med-overlay">
   <div class="qa-sheet">
@@ -5501,6 +5543,51 @@ async function switchToRealPerson(personId, el) {
   initIcons();
 }
 
+// ── FORMAT WELLET SUMMARY ───────────────────────────────────────────────
+// Parses a 2-section summary (Snapshot: / What's new (last 30 days):) into styled HTML.
+// Falls back gracefully if the model didn't follow the format.
+function formatWelletSummary(txt) {
+  if (!txt) return '';
+  var raw = String(txt).trim();
+  // Normalize headings (case-insensitive, tolerate variations)
+  var snapMatch = raw.match(/^[\s\S]*?snapshot\s*:?/i);
+  var newsIdx = raw.search(/what['\u2019]?s\s+new[^:]*:/i);
+  var snapIdx = raw.search(/snapshot\s*:/i);
+  if (snapIdx === -1 && newsIdx === -1) {
+    // No known headings — render as one block, preserving paragraph breaks
+    return '<div class="update-summary-section-body">' + escHtml(raw).replace(/\n\n+/g, '</p><p style="margin:6px 0 0;">').replace(/\n/g, '<br>') + '</div>';
+  }
+  var snapshotBody = '';
+  var newsBody = '';
+  if (snapIdx !== -1) {
+    var snapStart = raw.indexOf(':', snapIdx) + 1;
+    var snapEnd = (newsIdx !== -1 && newsIdx > snapIdx) ? newsIdx : raw.length;
+    snapshotBody = raw.slice(snapStart, snapEnd).trim();
+  }
+  if (newsIdx !== -1) {
+    var newsColon = raw.indexOf(':', newsIdx) + 1;
+    newsBody = raw.slice(newsColon).trim();
+  }
+  function formatBody(s) {
+    if (!s) return '';
+    return escHtml(s).replace(/\n\n+/g, '<br><br>').replace(/\n/g, '<br>');
+  }
+  var html = '';
+  if (snapshotBody) {
+    html += '<div class="update-summary-section">'
+      + '<div class="update-summary-subhead">Snapshot</div>'
+      + '<div class="update-summary-section-body">' + formatBody(snapshotBody) + '</div>'
+      + '</div>';
+  }
+  if (newsBody) {
+    html += '<div class="update-summary-section">'
+      + '<div class="update-summary-subhead">What\u2019s new (last 30 days)</div>'
+      + '<div class="update-summary-section-body">' + formatBody(newsBody) + '</div>'
+      + '</div>';
+  }
+  return html;
+}
+
 // ── RENDER UPDATE ME ──────────────────────────────────────────────────────────
 function renderUpdateMe() {
   var pane = document.getElementById('tab-update');
@@ -5548,7 +5635,7 @@ function renderUpdateMe() {
       + '<span class="update-summary-label">Wellet summary</span>'
       + '<button class="update-summary-refresh" onclick="fetchUpdateMeSummary(true)" title="Refresh summary"><i data-lucide="refresh-cw" style="width:13px;height:13px;"></i></button>'
       + '</div>'
-      + '<p class="update-summary-text" id="update-summary-text">' + escHtml(summaryCache[currentPersonId]) + '</p>'
+      + '<div class="update-summary-text" id="update-summary-text">' + formatWelletSummary(summaryCache[currentPersonId]) + '</div>'
       + '</div>'
       + '<button onclick="openShareFamily()" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px 16px;margin-top:10px;background:white;border:1.5px solid var(--moss);border-radius:10px;color:var(--moss);font-family:\'DM Sans\',sans-serif;font-size:13px;font-weight:500;cursor:pointer;"><i data-lucide="share-2" style="width:15px;height:15px;"></i> ' + t('update.shareThis') + '</button>';
   } else {
@@ -5564,7 +5651,10 @@ function renderUpdateMe() {
 
   // Build empty-state vs populated content
   var ehrBtnLabel = ehrConnected ? 'Other Health Records' : 'Connect Health Records';
-  var emptyActions = '<div style="padding:24px 16px 8px;">'
+  // Check wearable connection (_currentTerraConns is populated when Signals tab has been visited)
+  var hasWearable = !!(typeof _currentTerraConns !== 'undefined' && _currentTerraConns && _currentTerraConns.some && _currentTerraConns.some(function(c){ return c.status === 'active'; }));
+  var hasAnyWelletSource = ehrConnected || (typeof liveDocs !== 'undefined' && liveDocs.some(function(d){ return d.extraction_status === 'completed' && d.extracted_events; })) || hasWearable;
+  var fullOnboardingActions = '<div style="padding:24px 16px 8px;">'
     + '<div style="font-family:\'Fraunces\',serif;font-size:20px;margin-bottom:6px;color:var(--text-primary);">Help Wellet get to know ' + escHtml(subjectName) + '</div>'
     + '<div style="font-size:13px;color:var(--text-secondary);line-height:1.5;margin-bottom:16px;">Upload a document or connect to health records \u2014 Wellet will read, organize, and remember everything.</div>'
     + '<div class="signals-connect-chips">'
@@ -5573,6 +5663,17 @@ function renderUpdateMe() {
     + '<button class="signals-chip" onclick="openTerraConnect()"><i data-lucide="watch"></i> Connect a Wearable</button>'
     + '</div>'
     + '</div>';
+  // Compact "Add more to Wellet" card (mirrors visit-prep-card styling)
+  // Using margin:12px 0 0 because it’s rendered inside .update-me-section (already has 20px padding)
+  var compactAddMore = '<button class="visit-prep-card" onclick="openAddMoreToWellet()" style="margin:12px 0 0;">'
+    + '<div class="visit-prep-icon"><i data-lucide="plus" style="width:18px;height:18px;"></i></div>'
+    + '<div class="visit-prep-content">'
+    + '<div class="visit-prep-title">Add more to Wellet</div>'
+    + '<div class="visit-prep-desc">Upload a document, connect records, or a wearable.</div>'
+    + '</div>'
+    + '<i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);"></i>'
+    + '</button>';
+  var emptyActions = hasAnyWelletSource ? compactAddMore : fullOnboardingActions;
 
   var emptyPlaceholder = '<div class="update-summary-card">'
     + '<div class="update-summary-header">'
@@ -12989,6 +13090,36 @@ function openEmergencySummary() {
   openSheetAccessible('emergency-overlay');
   initIcons();
 }
+// Add-more-to-Wellet sheet: surfaces the three ways to grow Wellet’s knowledge
+function openAddMoreToWellet() {
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var name = person ? person.name.split(' ')[0] : 'your loved one';
+  var ehrConnected = !!getEhrData(currentPersonId);
+  var ehrLabel = ehrConnected ? 'Other Health Records' : 'Connect Health Records';
+  var ehrDesc = ehrConnected ? 'Link another hospital or clinic.' : 'Pull visits, labs, meds from an Epic or VA system.';
+  var sub = document.getElementById('add-more-sub');
+  if (sub) sub.textContent = 'Give Wellet more to work with for ' + name + '.';
+  var ehrTitle = document.getElementById('add-more-ehr-title');
+  var ehrDescEl = document.getElementById('add-more-ehr-desc');
+  if (ehrTitle) ehrTitle.textContent = ehrLabel;
+  if (ehrDescEl) ehrDescEl.textContent = ehrDesc;
+  openSheetAccessible('add-more-overlay');
+  initIcons();
+}
+function addMoreUpload() {
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var name = person ? person.name.split(' ')[0] : 'your loved one';
+  closeSheet('add-more-overlay');
+  setTimeout(function(){ openUpload(name); }, 180);
+}
+function addMoreEhr() {
+  closeSheet('add-more-overlay');
+  setTimeout(function(){ startEhrConnect(); }, 180);
+}
+function addMoreWearable() {
+  closeSheet('add-more-overlay');
+  setTimeout(function(){ openTerraConnect(); }, 180);
+}
 function openShareFamily() {
   // Reset share link state
   document.getElementById('share-link-result').style.display = 'none';
@@ -13904,6 +14035,69 @@ function selectRole(role) {
 }
 
 // ── GENERATE SUMMARY (Feature 2) ─────────────────────────────────────────────
+
+// Build a compact EHR context payload for the summary generator. The browser
+// already has this data loaded from fetch-ehr-data, so we pass it through
+// instead of having the edge function re-query Epic.
+function buildEhrSummaryContext(personId) {
+  var ehr = getEhrData(personId);
+  if (!ehr) return null;
+  var thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  function inWindow(d) {
+    var t = d ? new Date(d).getTime() : 0;
+    return t && t >= thirtyDaysAgo;
+  }
+  // Visits: last 10, with a lightweight shape (date, reason, provider, location)
+  var visits = (ehr.visits || []).slice(0, 10).map(function(v) {
+    var provs = (v.providers || []).map(function(p){ return p.name || ''; }).filter(Boolean);
+    return {
+      start_date: v.start_date || '',
+      name: v.name || v.type || '',
+      reason: v.reason || '',
+      location: v.location || '',
+      provider: provs[0] || '',
+      is_recent: inWindow(v.start_date),
+    };
+  });
+  var meds = (ehr.medications || []).slice(0, 20).map(function(m) {
+    return {
+      name: m.name || m.display || '',
+      dose: m.dose || '',
+      frequency: m.frequency || '',
+      is_recent: inWindow(m.start_date || m.authored_on || ''),
+    };
+  });
+  var conditions = (ehr.conditions || []).slice(0, 20).map(function(c) {
+    return {
+      name: c.name || c.display || '',
+      status: c.clinical_status || c.status || '',
+      recorded_date: c.recorded_date || c.onset_date || '',
+      is_recent: inWindow(c.recorded_date || c.onset_date || ''),
+    };
+  });
+  // Labs in last 30 days only — keeps context tight
+  var labs = (ehr.observations || []).filter(function(o) {
+    return (o.category === 'laboratory' || /lab/i.test(o.category || '')) && inWindow(o.effective_date || o.issued);
+  }).slice(0, 12).map(function(o) {
+    return {
+      name: o.name || o.display || '',
+      value: o.value_display || (o.value != null ? String(o.value) + (o.unit ? ' ' + o.unit : '') : ''),
+      date: o.effective_date || o.issued || '',
+      interpretation: o.interpretation || '',
+    };
+  });
+  return {
+    provider: ehr.provider || 'EHR',
+    patient_name: (ehr.patient && ehr.patient.name) || '',
+    birth_date: (ehr.patient && ehr.patient.birth_date) || '',
+    visits: visits,
+    medications: meds,
+    conditions: conditions,
+    recent_labs: labs,
+    synced_at: ehr.synced_at || '',
+  };
+}
+
 async function fetchUpdateMeSummary(forceRefresh) {
   if (isDemoMode || !currentPersonId || !currentUser) return;
   var pid = currentPersonId;
@@ -13911,6 +14105,8 @@ async function fetchUpdateMeSummary(forceRefresh) {
   if (forceRefresh) { delete summaryCache[pid]; }
   // Already cached?
   if (summaryCache[pid] !== undefined) { renderUpdateMe(); return; }
+
+  var ehrContext = buildEhrSummaryContext(pid);
 
   try {
     var session = await db.auth.getSession();
@@ -13924,7 +14120,7 @@ async function fetchUpdateMeSummary(forceRefresh) {
           'Authorization': 'Bearer ' + token,
           'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU'
         },
-        body: JSON.stringify({ person_id: pid })
+        body: JSON.stringify({ person_id: pid, ehr_context: ehrContext })
       }
     );
     if (res.ok) {
