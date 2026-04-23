@@ -11877,23 +11877,6 @@ function clearVisitsFilter() {
   filterVisits();
 }
 
-// Toggle any collapsible record-group body by id. Used by Care team and
-// potentially other sections so the caregiver can expand only what they need.
-// The header may contain multiple Lucide icons (section icon + chevron), so we
-// target the chevron specifically via the .record-group-chevron class.
-function toggleRecordGroup(btn, bodyId) {
-  var d = document.getElementById(bodyId);
-  if (!d) return;
-  var open = d.style.display !== 'none';
-  d.style.display = open ? 'none' : 'block';
-  btn.setAttribute('aria-expanded', open ? 'false' : 'true');
-  // Swap the chevron icon to signal state. Target the chevron specifically so
-  // we don't accidentally swap the section's title icon (users, file-text, etc.).
-  var chev = btn.querySelector('.record-group-chevron');
-  if (chev) chev.setAttribute('data-lucide', open ? 'chevron-down' : 'chevron-up');
-  try { initIcons(); } catch (e) {}
-}
-
 // Build the Care team section for Records. Lists every practitioner returned
 // from the EHR (Encounter.participant + CareTeam.participant, deduped server-
 // side) with role, specialty, phones, email, and address. The whole section
@@ -11901,16 +11884,15 @@ function toggleRecordGroup(btn, bodyId) {
 // expand sections in all of records."
 function buildCareTeamSection(careTeam, provider) {
   if (!careTeam || !careTeam.length) return '';
-  var bodyId = 'ehr-care-team-body';
+  // Collapse / expand is handled globally by applyRecordsCollapse() — it walks
+  // every .record-group inside #view-records, appends a chevron, wraps the
+  // body, and wires the click handler using the .collapsed class + CSS. We
+  // just render the plain header + rows here.
   var html = '<div class="record-group">'
-    + '<div class="record-group-header" role="button" tabindex="0" aria-expanded="true" onclick="toggleRecordGroup(this,\'' + bodyId + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();toggleRecordGroup(this,\'' + bodyId + '\');}" style="cursor:pointer;">'
+    + '<div class="record-group-header">'
     + '<div class="record-group-title"><i data-lucide="users" style="width:14px;height:14px;color:var(--moss);"></i>Care team ' + ehrBadgeHtml() + '</div>'
-    + '<span style="display:inline-flex;align-items:center;gap:6px;">'
     + '<span class="record-group-count">' + careTeam.length + '</span>'
-    + '<i data-lucide="chevron-up" class="record-group-chevron" style="width:16px;height:16px;color:var(--text-muted);"></i>'
-    + '</span>'
-    + '</div>'
-    + '<div id="' + bodyId + '" style="display:block;">';
+    + '</div>';
 
   careTeam.forEach(function(p, idx) {
     var detailId = 'ehr-ct-' + idx;
@@ -11962,7 +11944,7 @@ function buildCareTeamSection(careTeam, provider) {
       + '</div>';
   });
 
-  html += '</div></div>';
+  html += '</div>';
   return html;
 }
 
