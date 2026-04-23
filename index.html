@@ -9690,11 +9690,26 @@ function showOnboarding() {
   history.pushState({ type: 'onboarding' }, '');
   window.scrollTo(0, 0);
   initIcons();
-  // Start chat onboarding (or resume if state exists)
+  // Decide: first-time user vs. resume mid-onboarding vs. add-another-person.
+  //
+  // Source of truth is the server — specifically `currentPeople.length`, which
+  // loadUserData() populates from public.people before calling showOnboarding().
+  // If this authenticated user has zero people on the server they are, by
+  // definition, a first-time user regardless of what localStorage says. This
+  // prevents "Welcome back, <name>" from greeting a user whose account was
+  // wiped server-side but who still has `wellet_ob_chat` cached locally.
+  var peopleCount = Array.isArray(currentPeople) ? currentPeople.length : 0;
   var hasState = obLoadChatState();
-  if (hasState && obChat.phase !== 'welcome' && obChat.phase !== 'done') {
+  var hasMeaningfulState = hasState && obChat.phase !== 'welcome' && obChat.phase !== 'done';
+  // Only resume when the server confirms the user actually has saved people.
+  if (hasMeaningfulState && peopleCount > 0) {
     obResumeChat();
   } else {
+    // First-time user OR stale localStorage after a server-side wipe.
+    // Nuke cached chat state so obInit() starts from a clean slate.
+    if (peopleCount === 0 && hasState) {
+      obClearChatState();
+    }
     obInit();
   }
 }
