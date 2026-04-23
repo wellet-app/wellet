@@ -19923,6 +19923,20 @@ var _terraPopup = null;
 var _terraPopupPoll = null;
 var _currentTerraConns = [];
 var _TERRA_LS_KEY = 'wellet_terra_auth_signal';
+var _TERRA_PENDING_KEY = 'wellet_terra_pending';
+
+// Mobile Safari and most mobile browsers block popups aggressively. Native
+// mobile OAuth (Plaid, Fitbit, etc.) uses a same-tab redirect instead. Detect
+// mobile so we can route around the popup path.
+function _isMobileDevice() {
+  try {
+    if (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) return true;
+    // Touch-first devices with narrow viewports (iPadOS reports as Mac in UA).
+    var touch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 1);
+    if (touch && window.innerWidth < 900) return true;
+  } catch(e) {}
+  return false;
+}
 
 // Handle successful Terra auth in the parent-window context.
 // Idempotent: safe to call multiple times with the same payload.
@@ -20023,6 +20037,23 @@ async function openTerraConnect() {
     var data = await res.json();
     console.log('[Terra] generate response:', data);
     if (data.widget_url) {
+      // Mobile: skip the popup entirely (blocked on Safari/most mobile browsers).
+      // Stash the pending context and do a same-tab redirect; handleTerraCallback
+      // will restore the view when Terra sends us back.
+      if (_isMobileDevice()) {
+        try {
+          sessionStorage.setItem(_TERRA_PENDING_KEY, JSON.stringify({
+            person_id: currentPersonId,
+            view: _currentNavView || 'signals',
+            ts: Date.now()
+          }));
+        } catch(e) { console.warn('[Terra] sessionStorage write failed:', e); }
+        showToast('Opening wearable connection\u2026', 'info');
+        // Brief delay so the toast is visible before navigation.
+        setTimeout(function() { window.location.href = data.widget_url; }, 250);
+        return;
+      }
+
       _terraPopup = window.open(data.widget_url, 'terra_connect', 'width=500,height=700,scrollbars=yes');
       if (!_terraPopup || _terraPopup.closed) {
         showToast('Popup blocked \u2014 please allow popups for mywellet.com', 'error');
@@ -20123,11 +20154,29 @@ function handleTerraCallback() {
     return;
   }
 
-  // Not a popup \u2014 this window IS the parent (Terra may have redirected the top-level tab)
+  // Not a popup \u2014 this window IS the parent (Terra redirected the top-level
+  // tab, which is how mobile connect returns). Restore any stashed pending
+  // context so person_id is present even if referenceId was malformed.
+  var pending = null;
+  try {
+    var raw = sessionStorage.getItem(_TERRA_PENDING_KEY);
+    if (raw) { pending = JSON.parse(raw); sessionStorage.removeItem(_TERRA_PENDING_KEY); }
+  } catch(e) {}
+
   if (payload.type === 'terra_auth_success') {
+    // Prefer the URL-derived person_id; fall back to the stashed value.
+    if (!payload.person_id && pending && pending.person_id) {
+      payload.person_id = pending.person_id;
+    }
     _onTerraAuthSuccessInParent(payload);
   } else {
     _onTerraAuthFailureInParent();
+  }
+
+  // Mobile came back via top-level redirect \u2014 send the user back to the
+  // CareSignals view they were on when they started the connect flow.
+  if (pending && pending.view) {
+    try { switchNavTo(pending.view); } catch(e) { console.warn('[Terra] restore view failed:', e); }
   }
 }
 
