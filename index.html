@@ -5719,7 +5719,7 @@ function renderUpdateMe() {
 
   var sharedInboxContainer = !isDemoMode ? '<div id="shared-inbox" style="padding:0 20px;margin-top:16px;"></div>' : '';
 
-  if (liveEvents.length === 0 && !hasCompletedDocs) {
+  if (liveEvents.length === 0 && !hasCompletedDocs && !ehrConnected && !hasWearable) {
     // Truly empty: summary placeholder FIRST, then onboarding CTAs below
     pane.innerHTML = sharedInboxContainer
       + '<div class="update-me-section">'
@@ -5736,8 +5736,8 @@ function renderUpdateMe() {
       + '<p class="section-label">' + t('update.recentActivity') + '</p>'
       + timelineHTML
       + '</div>';
-  } else if (liveEvents.length === 0 && hasCompletedDocs) {
-    // Has document data but no promoted events yet: real summary FIRST, then onboarding CTAs below
+  } else if (liveEvents.length === 0 && (hasCompletedDocs || ehrConnected || hasWearable)) {
+    // Has document data, EHR, or wearable but no promoted events yet: real summary FIRST, then onboarding CTAs below
     pane.innerHTML = sharedInboxContainer
       + '<div class="update-me-section">'
       + summarySection
