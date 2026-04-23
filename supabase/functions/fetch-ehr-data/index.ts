@@ -33,6 +33,23 @@ async function getAuthenticatedUser(req: Request) {
   return user;
 }
 
+// Per-resource telemetry captured during a fetch. The global telemetry array
+// is reset at the start of each request handler and logged once near the end
+// so we can see exactly which FHIR endpoints Duke accepted / rejected /
+// returned empty. Critical for debugging scope mismatches — previously an
+// empty bundle and a 403 looked identical at the caller.
+type FhirCallTelemetry = {
+  resourceType: string;
+  query: string;
+  first_status: number | null;
+  pages: number;
+  bundle_total: number | null;
+  entries_returned: number;
+  operation_outcomes: string[]; // short diagnostic strings from OperationOutcome entries
+  error_body_snippet: string | null; // up to 200 chars of error response body when !res.ok
+};
+let currentFhirTelemetry: FhirCallTelemetry[] = [];
+
 // Fetch a FHIR resource type from the EHR's FHIR endpoint, handling pagination
 async function fetchFhirResource(
   fhirBaseUrl: string,
@@ -44,6 +61,17 @@ async function fetchFhirResource(
   const query = queryParams ? `&${queryParams}` : '';
   let url: string | null = `${fhirBaseUrl}/${resourceType}?_count=50${query}`;
 
+  const tele: FhirCallTelemetry = {
+    resourceType,
+    query: queryParams || '',
+    first_status: null,
+    pages: 0,
+    bundle_total: null,
+    entries_returned: 0,
+    operation_outcomes: [],
+    error_body_snippet: null,
+  };
+
   while (url && entries.length < 200) {
     const res = await fetch(url, {
       headers: {
@@ -52,16 +80,36 @@ async function fetchFhirResource(
       },
     });
 
+    if (tele.first_status === null) tele.first_status = res.status;
+
     if (!res.ok) {
+      // Capture a short snippet of the error body to distinguish 403 scope
+      // denials from 404 missing endpoints from 400 malformed queries.
+      try {
+        const body = await res.text();
+        tele.error_body_snippet = body.slice(0, 200);
+      } catch (_e) { /* ignore */ }
       console.error(`FHIR fetch ${resourceType} failed: ${res.status}`);
       break;
     }
 
     const bundle = await res.json();
+    tele.pages += 1;
+    if (bundle.total !== undefined && tele.bundle_total === null) {
+      tele.bundle_total = typeof bundle.total === 'number' ? bundle.total : null;
+    }
     if (bundle.entry) {
       for (const e of bundle.entry) {
         // Skip OperationOutcome entries (Epic returns these as warnings)
-        if (e.resource && e.resource.resourceType !== 'OperationOutcome') entries.push(e.resource);
+        if (e.resource && e.resource.resourceType === 'OperationOutcome') {
+          const issues = (e.resource.issue as Record<string, unknown>[]) || [];
+          for (const issue of issues) {
+            const diag = (issue.diagnostics as string) || (issue.details as Record<string, unknown>)?.text as string || (issue.code as string) || '';
+            if (diag && tele.operation_outcomes.length < 5) tele.operation_outcomes.push(String(diag).slice(0, 200));
+          }
+          continue;
+        }
+        if (e.resource) entries.push(e.resource);
       }
     }
 
@@ -73,6 +121,8 @@ async function fetchFhirResource(
     }
   }
 
+  tele.entries_returned = entries.length;
+  currentFhirTelemetry.push(tele);
   return entries;
 }
 
@@ -762,6 +812,11 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  // Reset per-request FHIR call telemetry. Logged as a single line before
+  // returning, so a dashboard log search for '[fetch-ehr-data] FHIR call summary'
+  // surfaces per-resource HTTP status + bundle.total for every call.
+  currentFhirTelemetry = [];
+
   try {
     const user = await getAuthenticatedUser(req);
     if (!user) {
@@ -777,6 +832,7 @@ Deno.serve(async (req) => {
     const admin = getAdminClient();
 
     // Get stored connection
+    console.log('[fetch-ehr-data] lookup', { user_id: user.id, person_id, person_id_type: typeof person_id });
     const { data: conn, error: connError } = await admin.from('ehr_connections')
       .select('*')
       .eq('person_id', person_id)
@@ -784,8 +840,26 @@ Deno.serve(async (req) => {
       .single();
 
     if (connError || !conn || !conn.access_token) {
+      // Diagnostic: find any rows that match on person_id OR user_id to surface the mismatch.
+      const byPerson = await admin.from('ehr_connections')
+        .select('id, user_id, person_id, provider, token_expires_at')
+        .eq('person_id', person_id);
+      const byUser = await admin.from('ehr_connections')
+        .select('id, user_id, person_id, provider, token_expires_at')
+        .eq('user_id', user.id);
+      console.error('[fetch-ehr-data] 404 diagnostic', {
+        requested: { user_id: user.id, person_id },
+        connError: connError?.message,
+        connError_code: connError?.code,
+        byPerson_count: byPerson.data?.length || 0,
+        byPerson_rows: byPerson.data,
+        byUser_count: byUser.data?.length || 0,
+        byUser_rows: byUser.data,
+        conn_has_token: !!conn?.access_token,
+      });
       return jsonResponse({ error: 'No EHR connection found for this person' }, 404);
     }
+    console.log('[fetch-ehr-data] lookup hit', { conn_id: conn.id, provider: conn.provider, patient_id: conn.patient_id });
 
     const encKey = Deno.env.get('EHR_ENCRYPTION_KEY') || '';
     if (!encKey) {
@@ -1001,6 +1075,26 @@ Deno.serve(async (req) => {
     await admin.from('ehr_connections').update({
       last_synced_at: result.synced_at,
     }).eq('id', conn.id);
+
+    // One-line per-resource summary: status, bundle.total (when Epic sends it),
+    // entries actually returned, and any OperationOutcome / error-body snippet.
+    // This is the telemetry that lets us distinguish "Duke denied the scope"
+    // from "patient has no data" without another redeploy.
+    console.log('[fetch-ehr-data] FHIR call summary', {
+      person_id,
+      patient_id: patientId || null,
+      calls: currentFhirTelemetry,
+      result_counts: {
+        conditions: result.conditions.length,
+        medications: result.medications.length,
+        allergies: result.allergies.length,
+        observations: result.observations.length,
+        immunizations: result.immunizations.length,
+        diagnostic_reports: result.diagnostic_reports.length,
+        visits: result.visits.length,
+        care_team: result.care_team.length,
+      },
+    });
 
     return jsonResponse(result);
 

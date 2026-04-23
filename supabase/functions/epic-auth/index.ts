@@ -32,6 +32,16 @@ const SMART_SCOPES = [
   'patient/Observation.read',
   'patient/Immunization.read',
   'patient/DiagnosticReport.read',
+  // v19 — added to restore Visits, Documents, and Care team contact fields.
+  // All five are USCDI v1+ resource types and part of Epic's standard
+  // SMART on FHIR scope catalog. Without them Duke silently rejects the
+  // corresponding FHIR reads, which is why Mom's first load showed
+  // 0 visits and 0 documents.
+  'patient/Encounter.read',
+  'patient/CareTeam.read',
+  'patient/DocumentReference.read',
+  'patient/Practitioner.read',
+  'patient/PractitionerRole.read',
   'launch/patient',
   'openid',
   'fhirUser',
