@@ -1,7 +1,14 @@
-// Supabase Edge Function: fetch-ehr-data
+// Supabase Edge Function: fetch-ehr-data (v28 — PractitionerRole address fallback + telemetry)
 // Fetches FHIR R4 resources from the connected EHR provider (Epic),
 // maps them to a simplified Wellet-friendly JSON structure,
 // and returns the data to the frontend (NOT stored in Supabase).
+//
+// v23 CHANGE: when the stored access_token is expired, use the stored
+// refresh_token (from the `offline_access` scope) to silently mint a new
+// access_token via the provider's /token endpoint, re-encrypt both tokens,
+// update ehr_connections, and continue the fetch. Only force a reconnect
+// if the provider rejects the refresh. Previously (v22) we early-returned
+// 401 on any expired access_token, which broke all pulls after ~1 hour.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders } from '../_shared/cors.ts';
@@ -87,6 +94,93 @@ async function fetchFhirById(
   } catch (_e) {
     return null;
   }
+}
+
+// Fetch PractitionerRole resources for a given practitioner id.
+// In Epic FHIR R4, contact info (phone/email/fax), specialty, and the
+// practice address live on PractitionerRole — NOT on Practitioner.telecom.
+// Returns the raw Bundle.entry array (zero or more roles), or [] on failure.
+async function fetchPractitionerRoles(
+  fhirBaseUrl: string,
+  practitionerId: string,
+  accessToken: string,
+): Promise<Record<string, unknown>[]> {
+  try {
+    const url = `${fhirBaseUrl}/PractitionerRole?practitioner=${encodeURIComponent(practitionerId)}`;
+    const res = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/fhir+json',
+      },
+    });
+    if (!res.ok) return [];
+    const bundle = await res.json() as Record<string, unknown>;
+    const entries = (bundle.entry as Record<string, unknown>[]) || [];
+    return entries.map((e) => (e.resource as Record<string, unknown>) || {}).filter((r) => r && r.resourceType === 'PractitionerRole');
+  } catch (_e) {
+    return [];
+  }
+}
+
+// Given a set of PractitionerRole resources for one practitioner, extract
+// merged phones / emails / fax / specialty / address. Used to backfill when
+// the Practitioner resource itself has nothing useful.
+//
+// For address, Epic FHIR R4 typically surfaces the practice address via
+// PractitionerRole.location[].display (text like "Duke Internal Medicine —
+// Duke Clinic 1L, 40 Duke Medicine Circle, Durham, NC 27710"). The full
+// structured address lives on the linked Location resource, but the display
+// string is usually good enough for the Care Team UI without another hop.
+function extractFromPractitionerRoles(roles: Record<string, unknown>[]) {
+  const phones: string[] = [];
+  const emails: string[] = [];
+  let fax = '';
+  let specialty = '';
+  let address = '';
+  let organization = '';
+  for (const role of roles) {
+    const telecom = (role.telecom as Record<string, unknown>[]) || [];
+    for (const t of telecom) {
+      const system = (t.system as string) || '';
+      const value = (t.value as string) || '';
+      if (!value) continue;
+      if (system === 'phone' && !phones.includes(value)) phones.push(value);
+      else if (system === 'email' && !emails.includes(value)) emails.push(value);
+      else if (system === 'fax' && !fax) fax = value;
+    }
+    if (!specialty) {
+      const specialtyArr = (role.specialty as Record<string, unknown>[]) || [];
+      for (const s of specialtyArr) {
+        const coding = (s.coding as Record<string, unknown>[]) || [];
+        const display = (s.text as string) || (coding[0]?.display as string) || '';
+        if (display) { specialty = display; break; }
+      }
+    }
+    if (!specialty) {
+      const codeArr = (role.code as Record<string, unknown>[]) || [];
+      for (const c of codeArr) {
+        const coding = (c.coding as Record<string, unknown>[]) || [];
+        const display = (c.text as string) || (coding[0]?.display as string) || '';
+        if (display) { specialty = display; break; }
+      }
+    }
+    // Address fallback: location[].display (practice location name/address line)
+    if (!address) {
+      const locations = (role.location as Record<string, unknown>[]) || [];
+      for (const loc of locations) {
+        const display = (loc.display as string) || '';
+        if (display) { address = display; break; }
+      }
+    }
+    // Organization name — useful when practice name is more recognizable than
+    // the individual practitioner's address (e.g. "Duke Internal Medicine").
+    if (!organization) {
+      const org = (role.organization as Record<string, unknown>) || {};
+      const display = (org.display as string) || '';
+      if (display) organization = display;
+    }
+  }
+  return { phones, emails, fax, specialty, address, organization };
 }
 
 // ── FHIR → Wellet Mappers ──
@@ -252,6 +346,7 @@ function mapEncounters(resources: unknown[]) {
     return {
       type: 'encounter',
       source: 'ehr',
+      id: (r.id as string) || '',
       name: typeCoding.text || firstCoding.display || (r.class as Record<string, unknown>)?.display || 'Visit',
       status: r.status || '',
       start_date: period.start || '',
@@ -270,6 +365,40 @@ function mapEncounters(resources: unknown[]) {
     return db - da;
   });
   return visits;
+}
+
+// Map DocumentReference resources. Extracts encounter link + LOINC type + attachment URLs
+// so the frontend can offer tappable AVS / Provider-note links per visit.
+function mapDocumentReferences(resources: unknown[]) {
+  return (resources as Record<string, unknown>[]).map((r) => {
+    const typeObj = (r.type as Record<string, unknown>) || {};
+    const typeCoding = ((typeObj.coding as Record<string, unknown>[]) || [])[0] || {};
+    const content = (r.content as Record<string, unknown>[]) || [];
+    const firstAtt = (content[0]?.attachment as Record<string, unknown>) || {};
+
+    // context.encounter can be a single reference object or an array of refs
+    const ctx = (r.context as Record<string, unknown>) || {};
+    const encRaw = ctx.encounter;
+    let encounterRef = '';
+    if (Array.isArray(encRaw)) {
+      encounterRef = (((encRaw as Record<string, unknown>[])[0] || {}).reference as string) || '';
+    } else if (encRaw && typeof encRaw === 'object') {
+      encounterRef = ((encRaw as Record<string, unknown>).reference as string) || '';
+    }
+    const encounterId = encounterRef.startsWith('Encounter/') ? encounterRef.slice('Encounter/'.length) : '';
+
+    return {
+      id: (r.id as string) || '',
+      encounter_id: encounterId,
+      loinc_code: (typeCoding.code as string) || '',
+      type_display: (typeObj.text as string) || (typeCoding.display as string) || '',
+      description: (r.description as string) || '',
+      date: (r.date as string) || '',
+      content_type: (firstAtt.contentType as string) || '',
+      url: (firstAtt.url as string) || '',
+      title: (firstAtt.title as string) || '',
+    };
+  });
 }
 
 function mapProcedures(resources: unknown[]) {
@@ -497,6 +626,130 @@ function mapPatient(p: Record<string, unknown>) {
   };
 }
 
+// ── Refresh flow ─────────────────────────────────────────────────────────────
+// Decrypts stored refresh_token and exchanges it at the provider's token
+// endpoint for a new access_token (and usually a new refresh_token). Updates
+// ehr_connections in place. Returns { ok, accessToken, detail? }.
+async function refreshAccessTokenIfNeeded(
+  admin: ReturnType<typeof getAdminClient>,
+  conn: Record<string, any>,
+  encKey: string,
+): Promise<{ ok: true; accessToken: string } | { ok: false; detail: string }> {
+  // Decrypt the current access token up front — we'll need it if no refresh is required.
+  const { data: decAccessToken } = await admin.rpc('decrypt_ehr_token', {
+    encrypted_token: conn.access_token, enc_key: encKey,
+  });
+  const currentAccess = (decAccessToken as string | null) || conn.access_token;
+
+  // If expires_at is missing OR the token is still valid (with 60s skew), use it as-is.
+  const skewMs = 60_000;
+  const expiresAt = conn.token_expires_at ? new Date(conn.token_expires_at).getTime() : 0;
+  if (!expiresAt || expiresAt - Date.now() > skewMs) {
+    return { ok: true, accessToken: currentAccess };
+  }
+
+  // Expired. We need a refresh token + token_url + client_id to continue.
+  if (!conn.refresh_token || !conn.token_url || !conn.client_id_used) {
+    console.warn('[fetch-ehr-data] Expired but missing refresh inputs', {
+      hasRefresh: !!conn.refresh_token,
+      hasTokenUrl: !!conn.token_url,
+      hasClientId: !!conn.client_id_used,
+    });
+    await admin.from('ehr_connections')
+      .update({ needs_reconnect: true })
+      .eq('id', conn.id);
+    return { ok: false, detail: 'missing_refresh_inputs' };
+  }
+
+  // Decrypt the refresh token
+  const { data: decRefresh, error: decRefreshErr } = await admin.rpc('decrypt_ehr_token', {
+    encrypted_token: conn.refresh_token, enc_key: encKey,
+  });
+  if (decRefreshErr || !decRefresh) {
+    console.error('[fetch-ehr-data] decrypt_ehr_token failed for refresh_token', decRefreshErr);
+    return { ok: false, detail: 'decrypt_refresh_failed' };
+  }
+
+  // POST to the provider's token endpoint with grant_type=refresh_token
+  const body = new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: decRefresh as string,
+    client_id: conn.client_id_used as string,
+  });
+
+  const res = await fetch(conn.token_url as string, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error('[fetch-ehr-data] Refresh exchange failed', {
+      status: res.status,
+      err: errText.slice(0, 300),
+      tokenUrl: conn.token_url,
+      clientId: conn.client_id_used,
+    });
+    await admin.from('ehr_connections')
+      .update({ needs_reconnect: true })
+      .eq('id', conn.id);
+    return { ok: false, detail: `refresh_rejected_${res.status}` };
+  }
+
+  const tokenData = await res.json();
+  if (!tokenData.access_token) {
+    console.error('[fetch-ehr-data] Refresh returned no access_token', tokenData);
+    return { ok: false, detail: 'no_access_token_in_refresh' };
+  }
+
+  console.log('[fetch-ehr-data] Refresh succeeded', {
+    hasNewRefresh: !!tokenData.refresh_token,
+    expiresIn: tokenData.expires_in,
+    clientId: conn.client_id_used,
+  });
+
+  // Re-encrypt and persist the new tokens
+  const newExpiresAt = new Date(Date.now() + ((tokenData.expires_in || 3600) * 1000)).toISOString();
+
+  const { data: encNewAccess, error: encAccErr } = await admin.rpc('encrypt_ehr_token', {
+    plain_token: tokenData.access_token, enc_key: encKey,
+  });
+  if (encAccErr || !encNewAccess) {
+    console.error('[fetch-ehr-data] encrypt_ehr_token failed for new access_token', encAccErr);
+    return { ok: false, detail: 'encrypt_new_access_failed' };
+  }
+
+  let encNewRefresh: string | null = conn.refresh_token as string | null;
+  if (tokenData.refresh_token) {
+    const { data: encR, error: encRErr } = await admin.rpc('encrypt_ehr_token', {
+      plain_token: tokenData.refresh_token, enc_key: encKey,
+    });
+    if (encRErr || !encR) {
+      console.error('[fetch-ehr-data] encrypt_ehr_token failed for new refresh_token', encRErr);
+      // Don't fail the request — keep the old refresh token and the new access token.
+    } else {
+      encNewRefresh = encR as string;
+    }
+  }
+
+  const { error: updateErr } = await admin.from('ehr_connections')
+    .update({
+      access_token: encNewAccess,
+      refresh_token: encNewRefresh,
+      token_expires_at: newExpiresAt,
+      needs_reconnect: false,
+    })
+    .eq('id', conn.id);
+
+  if (updateErr) {
+    console.error('[fetch-ehr-data] Failed to persist refreshed tokens', updateErr);
+    // Still return the new access token for this request.
+  }
+
+  return { ok: true, accessToken: tokenData.access_token as string };
+}
+
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
   function jsonResponse(data: unknown, status = 200) {
@@ -534,17 +787,22 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'No EHR connection found for this person' }, 404);
     }
 
-    // Check token expiry — Epic public clients don't issue refresh tokens
-    if (conn.token_expires_at && new Date(conn.token_expires_at) <= new Date()) {
-      return jsonResponse({ error: 'Token expired. Please reconnect to Epic MyChart.' }, 401);
+    const encKey = Deno.env.get('EHR_ENCRYPTION_KEY') || '';
+    if (!encKey) {
+      console.error('[fetch-ehr-data] EHR_ENCRYPTION_KEY is not set');
+      return jsonResponse({ error: 'server_misconfigured', message: 'Encryption key not configured' }, 500);
     }
 
-    // Decrypt the stored access token
-    const encKey = Deno.env.get('EHR_ENCRYPTION_KEY') || '';
-    const { data: decAccessToken } = await admin.rpc('decrypt_ehr_token', {
-      encrypted_token: conn.access_token, enc_key: encKey,
-    });
-    const accessToken = decAccessToken || conn.access_token;
+    // Refresh the access token if it's expired (or within a 60s skew window).
+    // Uses the offline_access refresh_token stored at connect time.
+    const refreshed = await refreshAccessTokenIfNeeded(admin, conn, encKey);
+    if (!refreshed.ok) {
+      return jsonResponse({
+        error: 'Token refresh failed. Please reconnect to Epic MyChart.',
+        detail: refreshed.detail,
+      }, 401);
+    }
+    const accessToken = refreshed.accessToken;
     const fhirBaseUrl = conn.fhir_base_url || 'https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4';
     const patientId = conn.patient_id;
 
@@ -565,6 +823,7 @@ Deno.serve(async (req) => {
       diagnosticReports,
       encountersRaw,
       careTeamsRaw,
+      documentReferencesRaw,
     ] = await Promise.all([
       // Patient identity — proves which chart we are actually pulling
       patientId ? fetchFhirById(fhirBaseUrl, `Patient/${patientId}`, accessToken) : Promise.resolve(null),
@@ -580,6 +839,8 @@ Deno.serve(async (req) => {
       fetchFhirResource(fhirBaseUrl, 'Encounter', accessToken, patientParam),
       // Active care teams
       fetchFhirResource(fhirBaseUrl, 'CareTeam', accessToken, patientParam ? `${patientParam}&status=active` : 'status=active'),
+      // Clinical notes / AVS / provider summaries (metadata only — content fetched on tap)
+      fetchFhirResource(fhirBaseUrl, 'DocumentReference', accessToken, patientParam),
     ]);
 
     const patient = patientResource ? mapPatient(patientResource) : { id: patientId || '', name: '', birth_date: '', gender: '' };
@@ -589,6 +850,20 @@ Deno.serve(async (req) => {
 
     const medicationsMapped = mapMedications(medications);
     const visitsMapped = mapEncounters(encountersRaw);
+
+    // Attach DocumentReference metadata to each visit by encounter id so the
+    // expanded visit row can offer AVS / Provider Summary links.
+    const documentsMapped = mapDocumentReferences(documentReferencesRaw);
+    const docsByEncounter: Record<string, typeof documentsMapped> = {};
+    for (const d of documentsMapped) {
+      if (!d.encounter_id) continue;
+      if (!docsByEncounter[d.encounter_id]) docsByEncounter[d.encounter_id] = [];
+      docsByEncounter[d.encounter_id].push(d);
+    }
+    for (const v of visitsMapped as Record<string, unknown>[]) {
+      const vid = (v.id as string) || '';
+      (v as Record<string, unknown>).documents = vid ? (docsByEncounter[vid] || []) : [];
+    }
 
     // ── Build unified practitioner roster ──
     // Collect Practitioner references from: CareTeam.participant, Encounter.participant, and MedicationRequest.requester
@@ -625,9 +900,83 @@ Deno.serve(async (req) => {
     const practitionerResources = await Promise.all(
       refList.map((ref) => fetchFhirById(fhirBaseUrl, ref, accessToken))
     );
+
+    // In Epic FHIR R4, Practitioner.telecom is almost always empty — phones,
+    // emails, fax, and specialty live on PractitionerRole resources instead.
+    // Fetch PractitionerRole?practitioner=<id> for each practitioner in
+    // parallel, then merge the contact info onto the Practitioner mapping.
+    const roleBundles = await Promise.all(
+      refList.map((ref) => {
+        const id = ref.split('/')[1] || '';
+        if (!id) return Promise.resolve([] as Record<string, unknown>[]);
+        return fetchPractitionerRoles(fhirBaseUrl, id, accessToken);
+      })
+    );
+
+    // Telemetry: per-practitioner snapshot of what Practitioner vs. PractitionerRole
+    // returned — so we can see whether Duke is exposing contact info on PractitionerRole
+    // (or whether we need a different fallback path for this provider).
+    const practitionerTelemetry: Record<string, unknown>[] = [];
+
     const careTeam = practitionerResources
-      .map((p, i) => p ? mapPractitioner(p, roleByRef[refList[i]]) : null)
+      .map((p, i) => {
+        if (!p) return null;
+        const mapped = mapPractitioner(p, roleByRef[refList[i]]);
+        const roleExtras = extractFromPractitionerRoles(roleBundles[i] || []);
+        const practPhones = Array.isArray(mapped.phones) ? mapped.phones.length : 0;
+        const practEmails = Array.isArray(mapped.emails) ? mapped.emails.length : 0;
+        const practHasAddress = !!mapped.address;
+
+        // Merge — prefer the Practitioner resource's own values when present,
+        // fall back to PractitionerRole when Practitioner is missing the field.
+        if ((!mapped.phones || mapped.phones.length === 0) && roleExtras.phones.length > 0) {
+          mapped.phones = roleExtras.phones;
+        }
+        if ((!mapped.emails || mapped.emails.length === 0) && roleExtras.emails.length > 0) {
+          mapped.emails = roleExtras.emails;
+        }
+        if (!mapped.fax && roleExtras.fax) {
+          mapped.fax = roleExtras.fax;
+        }
+        if (!mapped.specialty && roleExtras.specialty) {
+          mapped.specialty = roleExtras.specialty;
+        }
+        if (!mapped.address && roleExtras.address) {
+          mapped.address = roleExtras.address;
+        }
+        // If still no address but we have an organization name, use that —
+        // "Duke Internal Medicine" is more useful than a blank field when
+        // coordinating care across a large system.
+        if (!mapped.address && roleExtras.organization) {
+          mapped.address = roleExtras.organization;
+        }
+
+        practitionerTelemetry.push({
+          ref: refList[i],
+          name: mapped.name,
+          roles_returned: (roleBundles[i] || []).length,
+          practitioner_phones: practPhones,
+          practitioner_emails: practEmails,
+          practitioner_has_address: practHasAddress,
+          role_phones: roleExtras.phones.length,
+          role_emails: roleExtras.emails.length,
+          role_has_fax: !!roleExtras.fax,
+          role_has_address: !!roleExtras.address,
+          role_organization: roleExtras.organization || null,
+          final_phones: (mapped.phones || []).length,
+          final_emails: (mapped.emails || []).length,
+          final_has_address: !!mapped.address,
+        });
+
+        return mapped;
+      })
       .filter((p) => p !== null) as ReturnType<typeof mapPractitioner>[];
+
+    console.log('[fetch-ehr-data] Care team contact backfill', {
+      person_id,
+      practitioner_count: practitionerTelemetry.length,
+      sample: practitionerTelemetry.slice(0, 10),
+    });
 
     // Sort care team alphabetically by name
     careTeam.sort((a, b) => (a!.name || '').localeCompare(b!.name || ''));

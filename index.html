@@ -12083,8 +12083,9 @@ function handleEpicCallback() {
 }
 
 // Fetch EHR data from the edge function
-function fetchEhrData(personId, navigateToRecords) {
+function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
   if (isDemoMode || !currentUser || !personId) return;
+  var retryAttempt = _retryAttempt || 0;
 
   db.auth.getSession().then(function(sessionRes) {
     var session = sessionRes.data.session;
@@ -12100,19 +12101,45 @@ function fetchEhrData(personId, navigateToRecords) {
     });
   }).then(function(res) {
     if (!res) return null;
-    // If the server says there's no connection (404), this device's cache is stale.
-    // Wipe it so the UI falls back to the "Connect Health Records" state instead
-    // of showing a zombie "EHR Connected" banner.
+    // A 404 can happen legitimately (no connection) OR transiently right after a
+    // successful OAuth callback (Postgres read-after-write lag on a pooled replica).
+    // We never wipe the cache on 404 anymore — that caused the UI to show
+    // "Connect Health Records" even when the connection row existed in the DB.
+    // Instead: verify with a direct query; retry once after a short delay if a
+    // row exists; surface a gentle toast only if the row is truly missing.
     if (res.status === 404) {
-      console.warn('[EHR] fetch returned 404 — clearing stale cache for', personId);
-      clearEhrCache(personId);
-      liveMeds = liveMeds.filter(function(m) { return m.source !== 'ehr'; });
-      liveAllergies = liveAllergies.filter(function(a) { return a.source !== 'ehr'; });
-      liveLabs = liveLabs.filter(function(l) { return l.source !== 'ehr'; });
-      if (personId === currentPersonId) { try { renderRecordsView(); } catch(e){} try { renderTimeline(); } catch(e){} }
-      try { updateSettingsEhr(); } catch(e){}
-      try { updateProfileEhr(personId); } catch(e){}
-      try { initIcons(); } catch(e){}
+      console.warn('[EHR] fetch-ehr-data returned 404 for', personId, 'attempt', retryAttempt);
+      // Look directly at ehr_connections to know whether a connection row exists.
+      db.from('ehr_connections')
+        .select('id, access_token, connected_at')
+        .eq('person_id', personId)
+        .maybeSingle()
+        .then(function(connRes) {
+          var hasConn = connRes && connRes.data && connRes.data.access_token;
+          if (hasConn && retryAttempt < 2) {
+            // Row exists — this was a transient read-after-write race. Retry after a delay.
+            var delay = 1500 + retryAttempt * 1500;
+            console.log('[EHR] connection row exists; retrying fetch in', delay, 'ms');
+            setTimeout(function(){ fetchEhrData(personId, navigateToRecords, retryAttempt + 1); }, delay);
+            return;
+          }
+          if (hasConn) {
+            // Row exists but fetch still 404s after retries. Leave cache alone,
+            // surface a reconnect suggestion.
+            showToast('Records are taking a moment — try again in a few seconds');
+            return;
+          }
+          // No connection row really exists. Only now is it safe to clear cache.
+          console.warn('[EHR] no connection row found; clearing cache for', personId);
+          clearEhrCache(personId);
+          liveMeds = liveMeds.filter(function(m) { return m.source !== 'ehr'; });
+          liveAllergies = liveAllergies.filter(function(a) { return a.source !== 'ehr'; });
+          liveLabs = liveLabs.filter(function(l) { return l.source !== 'ehr'; });
+          if (personId === currentPersonId) { try { renderRecordsView(); } catch(e){} try { renderTimeline(); } catch(e){} }
+          try { updateSettingsEhr(); } catch(e){}
+          try { updateProfileEhr(personId); } catch(e){}
+          try { initIcons(); } catch(e){}
+        });
       return null;
     }
     return res.json();
@@ -12787,13 +12814,31 @@ function checkEhrCallbackOnLoad() {
   }
 }
 
-// Auto-refresh stale EHR data on person load
+// Auto-refresh stale EHR data on person load.
+// Also recovers from "orphan connection" state: if a connection row exists
+// in Postgres but this device has no local cache (common after a client
+// 404 wiped the cache in a previous build), kick off a fetch so the
+// records repopulate instead of showing "Connect Health Records".
 function autoRefreshEhrIfNeeded(personId) {
   if (isDemoMode || !currentUser || !personId) return;
   var cached = loadEhrCache(personId);
-  if (cached && isEhrCacheStale(personId)) {
-    fetchEhrData(personId);
+  if (cached) {
+    if (isEhrCacheStale(personId)) fetchEhrData(personId);
+    return;
   }
+  // No cache — check if there is a connection row in the database.
+  db.from('ehr_connections')
+    .select('id, provider, access_token, needs_reconnect')
+    .eq('person_id', personId)
+    .maybeSingle()
+    .then(function(res) {
+      if (!res || !res.data) return;
+      if (res.data.access_token && !res.data.needs_reconnect) {
+        console.log('[EHR] orphan connection detected for', personId, '— fetching data');
+        fetchEhrData(personId);
+      }
+    })
+    .catch(function(err) { console.warn('[EHR] orphan check failed:', err); });
 }
 
 // ── EXISTING UI FUNCTIONS (preserved) ────────────────────────────────────────
