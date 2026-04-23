@@ -5733,22 +5733,7 @@ function renderUpdateMe() {
     var viewedAt = new Date();
     var viewedStr = viewedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
     var viewedLine = 'Viewed ' + escHtml(viewedStr);
-    // Register Ask-Wellet long-press context for this summary so a long-press opens the Ask sheet
-    try {
-      if (!window._askCtxRegistry) window._askCtxRegistry = {};
-      var summaryAskKey = 'update_summary_' + currentPersonId;
-      window._askCtxRegistry[summaryAskKey] = {
-        kind: 'summary',
-        name: 'Update Me for ' + name,
-        title: 'Update Me for ' + name,
-        date: meta && meta.generated_at ? meta.generated_at : null,
-        meta: sourceCount > 0 ? ('Written from ' + sourceCount + ' source' + (sourceCount === 1 ? '' : 's')) : '',
-        summary_text: getSummaryText(currentPersonId),
-        window_class: wc,
-        sources: meta && meta.sources ? meta.sources : null
-      };
-    } catch(_e){}
-    summarySection = '<div class="update-summary-card" data-ask-lp="' + escHtml(summaryAskKey) + '">'
+    summarySection = '<div class="update-summary-card">'
       + '<div class="update-summary-header">'
       + '<div class="update-summary-titlerow"><span class="update-summary-label">Wellet summary</span>' + verdictPill + '</div>'
       + '<button class="update-summary-refresh" onclick="fetchUpdateMeSummary(true)" title="Refresh summary"><i data-lucide="refresh-cw" style="width:13px;height:13px;"></i></button>'
@@ -6471,13 +6456,6 @@ function _askSheetStartersFor(ctx) {
         { icon: 'help-circle', text: 'Explain this section in plain language' },
         { icon: 'file-text', text: 'What\u2019s most important here for an ER visit?' }
       ];
-    case 'summary':
-      return [
-        { icon: 'message-circle-question', text: 'Tell me more about this' },
-        { icon: 'eye', text: 'What should I watch for next?' },
-        { icon: 'stethoscope', text: 'What should I ask the doctor?' },
-        { icon: 'share-2', text: 'Draft a note to the family' }
-      ];
     default:
       return [
         { icon: 'help-circle', text: 'What does this mean?' },
@@ -6492,8 +6470,7 @@ function _askSheetKindLabel(kind) {
     lab: 'Lab result', medication: 'Medication', med: 'Medication', vital: 'Vital',
     visit: 'Visit', appointment: 'Appointment', document: 'Document', note: 'Note',
     event: 'Health event', pattern: 'Pattern', symptom: 'Symptom',
-    emergency_section: 'Emergency summary', share: 'Shared item',
-    summary: 'Wellet summary'
+    emergency_section: 'Emergency summary', share: 'Shared item'
   };
   return map[kind] || 'This item';
 }
@@ -6585,10 +6562,6 @@ function _askSheetDispatch(questionText) {
     meta:  ctx.meta || '',
     selection: ctx.selection || ''
   };
-  // For summary context, pass the full paragraph as notes so Ask Wellet can reference it
-  if (ctx.kind === 'summary' && ctx.summary_text && !finalCtx.notes) {
-    finalCtx.notes = ctx.summary_text;
-  }
   window._pendingAskContext = finalCtx;
 
   // Hide the sheet visually FIRST, but DON'T call history.back() — it races
