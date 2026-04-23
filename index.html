@@ -1641,6 +1641,40 @@
   .plan-card-meta { font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 10px; }
   .plan-card-action { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 500; color: var(--moss-text); background: none; border: none; font-family: 'DM Sans', sans-serif; cursor: pointer; padding: 0; }
   .plan-card-action:hover { text-decoration: underline; }
+  /* Founding Member plan card — amber-tinted, more celebratory */
+  .plan-card--founding {
+    background: linear-gradient(135deg, var(--color-amber-light, #f5e6d8) 0%, var(--mint) 100%);
+    border: 1px solid rgba(192, 112, 40, 0.25);
+  }
+  .plan-card-icon--founding {
+    background: var(--color-amber, #C07028);
+    color: white;
+  }
+  .founding-pill {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 11px;
+    background: white;
+    color: var(--color-amber, #C07028);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    border: 1px solid rgba(192, 112, 40, 0.25);
+    font-family: 'DM Sans', sans-serif;
+  }
+  [data-theme="dark"] .plan-card--founding,
+  body.dark .plan-card--founding {
+    background: linear-gradient(135deg, rgba(192, 112, 40, 0.2) 0%, rgba(61, 107, 94, 0.25) 100%);
+    border-color: rgba(192, 112, 40, 0.4);
+  }
+  [data-theme="dark"] .founding-pill,
+  body.dark .founding-pill {
+    background: rgba(0,0,0,0.25);
+    border-color: rgba(192, 112, 40, 0.5);
+  }
 
   /* ── OFFLINE BANNER ── */
   .offline-banner {
@@ -4438,6 +4472,7 @@ var _editingMedId = null;     // medications id being edited
 var currentPlan = 'free'; // 'free', 'plus', 'pro'
 var planStatus = 'active'; // 'active', 'granted', 'past_due', 'canceled'
 var planSource = 'default'; // 'stripe', 'granted', 'promo'
+var planGrantedReason = ''; // e.g. 'Founding 50 member', 'Early 100 member — 12 months'
 var planLoaded = false;
 
 var STRIPE_PRICES = {
@@ -4727,6 +4762,7 @@ async function loadUserPlan() {
       currentPlan = data.plan || 'free';
       planStatus = data.status || 'active';
       planSource = data.source || 'default';
+      planGrantedReason = data.granted_reason || '';
       planLoaded = true;
     } else {
       currentPlan = 'free';
@@ -4940,13 +4976,25 @@ function renderSettingsPlanCard() {
   var html = '';
   if (planSource === 'granted') {
     var grantedPlanName = currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1);
-    html = '<div class="plan-card" style="background:var(--mint);">'
+    // Detect Founding 50 vs Early 100 vs Beta 250 from granted reason stored on subscription.
+    // Falls back to generic "Founding" treatment if reason is missing.
+    var grantedReason = (typeof planGrantedReason === 'string') ? planGrantedReason : '';
+    var isFounding50 = grantedReason.toLowerCase().indexOf('founding') !== -1;
+    var tierLabel = isFounding50 ? 'Founding Member'
+      : (grantedReason.toLowerCase().indexOf('early 100') !== -1 ? 'Early Member'
+      : (grantedReason.toLowerCase().indexOf('beta 250') !== -1 ? 'Beta Member'
+      : 'Founding Member'));
+    var tierSub = isFounding50 ? 'Free Connect for life. Thank you for believing early.'
+      : (grantedReason.toLowerCase().indexOf('early 100') !== -1 ? 'Free Connect for 12 months. Thank you for joining early.'
+      : (grantedReason.toLowerCase().indexOf('beta 250') !== -1 ? 'Free Supporter for 12 months. Thank you for testing with us.'
+      : 'Your plan is on us. Thank you for joining early.'));
+    html = '<div class="plan-card plan-card--founding">'
       + '<div class="plan-card-header">'
-      + '<div class="plan-card-icon" style="background:var(--moss);color:white;"><i data-lucide="heart" style="width:13px;height:13px;"></i></div>'
-      + '<div class="plan-card-name" style="color:var(--moss-dark);">' + escHtml(grantedPlanName) + ' \u2014 Founding</div>'
-      + '<div class="plan-card-badge" style="background:white;color:var(--moss);">Granted</div>'
+      + '<div class="plan-card-icon plan-card-icon--founding"><i data-lucide="star" style="width:13px;height:13px;"></i></div>'
+      + '<div class="plan-card-name" style="color:var(--moss-dark);">' + escHtml(grantedPlanName) + '</div>'
+      + '<div class="founding-pill"><i data-lucide="star" style="width:10px;height:10px;"></i><span>' + escHtml(tierLabel) + '</span></div>'
       + '</div>'
-      + '<div class="plan-card-meta">Never expires. Thank you for believing early.</div>'
+      + '<div class="plan-card-meta">' + escHtml(tierSub) + '</div>'
       + '</div>';
   } else if (currentPlan === 'free') {
     html = '<div class="plan-card" style="background:var(--mint);">'
