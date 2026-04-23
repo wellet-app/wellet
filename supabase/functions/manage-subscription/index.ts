@@ -57,17 +57,17 @@ async function autoGrantFromWaitlist(
   let reason = "";
 
   if (tier === "founding") {
-    plan = "connect";
+    plan = "pro";
     periodEnd = null; // forever
     reason = "Founding 50 member";
   } else if (tier === "early") {
-    plan = "connect";
+    plan = "pro";
     const end = new Date();
     end.setDate(end.getDate() + 365);
     periodEnd = end.toISOString();
     reason = "Early 100 member — 12 months";
   } else if (tier === "beta") {
-    plan = "supporter";
+    plan = "plus";
     const end = new Date();
     end.setDate(end.getDate() + 365);
     periodEnd = end.toISOString();

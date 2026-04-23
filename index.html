@@ -4984,9 +4984,9 @@ function renderSettingsPlanCard() {
       : (grantedReason.toLowerCase().indexOf('early 100') !== -1 ? 'Early Member'
       : (grantedReason.toLowerCase().indexOf('beta 250') !== -1 ? 'Beta Member'
       : 'Founding Member'));
-    var tierSub = isFounding50 ? 'Free Connect for life. Thank you for believing early.'
-      : (grantedReason.toLowerCase().indexOf('early 100') !== -1 ? 'Free Connect for 12 months. Thank you for joining early.'
-      : (grantedReason.toLowerCase().indexOf('beta 250') !== -1 ? 'Free Supporter for 12 months. Thank you for testing with us.'
+    var tierSub = isFounding50 ? 'Free Pro for life. Thank you for believing early.'
+      : (grantedReason.toLowerCase().indexOf('early 100') !== -1 ? 'Free Pro for 12 months. Thank you for joining early.'
+      : (grantedReason.toLowerCase().indexOf('beta 250') !== -1 ? 'Free Plus for 12 months. Thank you for testing with us.'
       : 'Your plan is on us. Thank you for joining early.'));
     html = '<div class="plan-card plan-card--founding">'
       + '<div class="plan-card-header">'
