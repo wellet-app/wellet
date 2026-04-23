@@ -5723,7 +5723,15 @@ function renderTimeline() {
       if (!dt) return;
       var titleStr = r.name || 'Report';
       if (r.category) titleStr += ' \u2014 ' + r.category;
-      ehrTimelineItems.push({ event_type:'lab_result', title:titleStr, event_date:dt, notes:'', source:'ehr', _ehrProvider:ehrData.provider });
+      var noteParts = [];
+      if (r.conclusion && r.conclusion.trim()) noteParts.push(r.conclusion.trim());
+      if (Array.isArray(r.conclusion_codes) && r.conclusion_codes.length > 0) {
+        noteParts.push('Findings: ' + r.conclusion_codes.filter(Boolean).join('; '));
+      }
+      (Array.isArray(r.attachments) ? r.attachments : []).forEach(function(att) {
+        if (att && att.inline_text && att.inline_text.trim()) noteParts.push(att.inline_text.trim());
+      });
+      ehrTimelineItems.push({ event_type:'lab_result', title:titleStr, event_date:dt, notes:noteParts.join('\n\n'), source:'ehr', _ehrProvider:ehrData.provider });
     });
   }
 
@@ -7252,20 +7260,74 @@ function renderRecordsView() {
       var did = 'ehr-report-'+keyPrefix+'-'+idx;
       var dateStr = r.effective_date || r.issued || '';
       var categoryLabel = r.category ? escHtml(r.category) : '';
-      var meta = [];
-      if (dateStr)   meta.push('Date: '+formatEventDate(dateStr));
-      if (r.status)  meta.push('Status: '+escHtml(r.status));
-      if (r.category) meta.push('Category: '+escHtml(r.category));
-      if (r.code)    meta.push('Code: '+escHtml(r.code));
-      if (r.issued && r.issued !== dateStr) meta.push('Issued: '+formatEventDate(r.issued));
+
+      // Build the expanded body: attribution, conclusion, codes, attachments, meta
+      var performers = Array.isArray(r.performers) ? r.performers.filter(Boolean) : [];
+      var attribution = '';
+      if (performers.length > 0 || dateStr || ehrProvider) {
+        var parts = [];
+        if (performers.length > 0) parts.push(escHtml(performers.join(', ')));
+        if (dateStr) parts.push(formatEventDate(dateStr));
+        if (ehrProvider) parts.push(escHtml(ehrProvider));
+        attribution = '<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;letter-spacing:0.02em;">From your chart \u00B7 '+parts.join(' \u00B7 ')+'</div>';
+      }
+
+      var conclusionHtml = '';
+      if (r.conclusion && r.conclusion.trim()) {
+        conclusionHtml = '<div style="font-size:13px;color:var(--text-primary);line-height:1.6;margin-bottom:10px;white-space:pre-wrap;">'+escHtml(r.conclusion.trim())+'</div>';
+      }
+
+      var codesHtml = '';
+      var conclusionCodes = Array.isArray(r.conclusion_codes) ? r.conclusion_codes.filter(Boolean) : [];
+      if (conclusionCodes.length > 0) {
+        codesHtml = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
+          + conclusionCodes.map(function(c) {
+              return '<span style="display:inline-block;padding:3px 8px;border-radius:10px;background:#E8F0FD;color:var(--blue);font-size:11px;font-weight:500;">'+escHtml(c)+'</span>';
+            }).join('')
+          + '</div>';
+      }
+
+      var attachmentsHtml = '';
+      var attachments = Array.isArray(r.attachments) ? r.attachments : [];
+      attachments.forEach(function(att) {
+        if (att.inline_text && att.inline_text.trim()) {
+          attachmentsHtml += '<div style="font-size:13px;color:var(--text-primary);line-height:1.6;margin-bottom:10px;white-space:pre-wrap;padding:10px 12px;background:var(--cream);border-radius:8px;">'+escHtml(att.inline_text.trim())+'</div>';
+        } else if (att.content_type && att.url) {
+          // Binary attachment (PDF, etc.) — signed fetch coming in the next pass.
+          var typeLabel = att.content_type.indexOf('pdf') !== -1 ? 'PDF' : att.content_type.split('/').pop().toUpperCase();
+          attachmentsHtml += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--cream);border-radius:8px;margin-bottom:10px;font-size:12px;color:var(--text-secondary);">'
+            + '<i data-lucide="paperclip" style="width:14px;height:14px;flex-shrink:0;"></i>'
+            + '<span>'+escHtml(att.title || typeLabel+' attachment')+' \u2014 opening attachments coming soon</span>'
+            + '</div>';
+        }
+      });
+
+      // Small meta line at the bottom of the expanded body
+      var metaItems = [];
+      if (r.status)   metaItems.push('Status: '+escHtml(r.status));
+      if (r.code)     metaItems.push('Code: '+escHtml(r.code));
+      if (r.issued && r.issued !== dateStr) metaItems.push('Issued: '+formatEventDate(r.issued));
+      if (r.result_count && r.result_count > 0) metaItems.push(r.result_count+' result'+(r.result_count===1?'':'s')+' attached');
+      var metaHtml = metaItems.length ? '<div style="font-size:11px;color:var(--text-muted);line-height:1.6;padding-top:6px;border-top:1px solid var(--border);">'+metaItems.join(' \u00B7 ')+'</div>' : '';
+
+      var expandedBody = '';
+      if (attribution || conclusionHtml || codesHtml || attachmentsHtml || metaHtml) {
+        expandedBody = '<div id="'+did+'" style="display:none;width:100%;padding:12px 12px 4px 44px;">'
+          + attribution + conclusionHtml + codesHtml + attachmentsHtml + metaHtml
+          + '</div>';
+      }
+
       var subLine = [categoryLabel, dateStr ? formatEventDate(dateStr) : ''].filter(Boolean).join(' \u00B7 ');
-      return '<div class="record-row" data-date="'+escHtml(dateStr)+'" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\''+did+'\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
+      var hasContent = !!(r.conclusion || conclusionCodes.length > 0 || attachments.some(function(a) { return a.inline_text || a.url; }));
+      var chevron = hasContent ? '<i data-lucide="chevron-down" style="width:14px;height:14px;color:var(--text-muted);margin-left:6px;"></i>' : '';
+
+      return '<div class="record-row" data-date="'+escHtml(dateStr)+'" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\''+did+'\');if(d){d.style.display=d.style.display===\'none\'?\'block\':\'none\';if(d.style.display===\'block\')initIcons();}">'
         + '<div class="record-icon blue"><i data-lucide="file-text" style="width:15px;height:15px;"></i></div>'
-        + '<div style="flex:1;min-width:0;"><div class="record-label">'+escHtml(r.name || 'Report')+'</div>'
+        + '<div style="flex:1;min-width:0;"><div class="record-label" style="display:flex;align-items:center;">'+escHtml(r.name || 'Report')+chevron+'</div>'
         + (subLine ? '<div class="record-meta">'+subLine+'</div>' : '')
         + '</div>'
         + ehrProviderBadgeHtml(ehrProvider)
-        + (meta.length ? '<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;">'+meta.join('<br>')+'</div>' : '')
+        + expandedBody
         + '</div>';
     };
 

@@ -306,6 +306,37 @@ function mapImmunizations(resources: unknown[]) {
   });
 }
 
+// Safely decode a base64 string to UTF-8 text. Returns '' on failure.
+function decodeBase64Utf8(b64: string): string {
+  try {
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new TextDecoder('utf-8').decode(bytes);
+  } catch {
+    return '';
+  }
+}
+
+// Strip HTML tags and collapse whitespace — for rendering text/html presentedForm
+// content in a plain-text mobile row. Keeps paragraph breaks.
+function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<(style|script)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
+    .replace(/<\s*br\s*\/?\s*>/gi, '\n')
+    .replace(/<\/\s*(p|div|li|h[1-6]|tr)\s*>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function mapDiagnosticReports(resources: unknown[]) {
   return (resources as Record<string, unknown>[]).map((r) => {
     const coding = (r.code as Record<string, unknown>)?.coding as Record<string, unknown>[] || [];
@@ -314,6 +345,60 @@ function mapDiagnosticReports(resources: unknown[]) {
     const firstCategory = categories.length > 0
       ? ((categories[0].coding as Record<string, unknown>[]) || [])[0]?.display || categories[0].text || ''
       : '';
+
+    // Conclusion — clinician-written free text summary
+    const conclusion = (r.conclusion as string) || '';
+
+    // conclusionCode — coded findings; surface display strings
+    const conclusionCodes = (r.conclusionCode as Record<string, unknown>[]) || [];
+    const conclusionCodeDisplays = conclusionCodes
+      .map((cc) => {
+        const ccCoding = (cc.coding as Record<string, unknown>[]) || [];
+        const first = ccCoding[0] || {};
+        return (cc.text as string) || (first.display as string) || '';
+      })
+      .filter(Boolean);
+
+    // Performer — who wrote the report (for attribution). This is an array
+    // of references; we keep display strings only (Practitioner detail is
+    // fetched separately into care_team).
+    const performers = (r.performer as Record<string, unknown>[]) || [];
+    const performerNames = performers
+      .map((p) => (p.display as string) || '')
+      .filter(Boolean);
+
+    // presentedForm — attached versions of the report (inline text/html or PDF URL).
+    // We decode inline text/html content; for binary attachments (PDF) we keep a
+    // descriptor so the client can fetch them via a future signed endpoint.
+    const presentedForms = (r.presentedForm as Record<string, unknown>[]) || [];
+    const attachments = presentedForms.map((pf) => {
+      const contentType = (pf.contentType as string) || '';
+      const title = (pf.title as string) || '';
+      const url = (pf.url as string) || '';
+      const data = (pf.data as string) || '';
+      const sizeNum = typeof pf.size === 'number' ? (pf.size as number) : 0;
+      const att: Record<string, unknown> = {
+        content_type: contentType,
+        title,
+        url,
+        size: sizeNum,
+        inline_text: '',
+      };
+      if (data) {
+        if (contentType.startsWith('text/plain')) {
+          att.inline_text = decodeBase64Utf8(data);
+        } else if (contentType.startsWith('text/html')) {
+          att.inline_text = htmlToPlainText(decodeBase64Utf8(data));
+        }
+        // For PDFs and other binary attachments, we intentionally skip decoding
+        // here; tomorrow's DocumentReference pass will add a signed-fetch path.
+      }
+      return att;
+    });
+
+    // Result references — count of individual observations attached to this report
+    const results = (r.result as Record<string, unknown>[]) || [];
+    const result_count = results.length;
 
     return {
       type: 'diagnostic_report',
@@ -324,6 +409,11 @@ function mapDiagnosticReports(resources: unknown[]) {
       category: firstCategory,
       effective_date: r.effectiveDateTime || (r.effectivePeriod as Record<string, unknown>)?.start || '',
       issued: r.issued || '',
+      conclusion,
+      conclusion_codes: conclusionCodeDisplays,
+      performers: performerNames,
+      attachments,
+      result_count,
     };
   });
 }
