@@ -6929,9 +6929,9 @@ function _rdVisitsContent(apptEvents, ehrVisitsRecent, ehrVisitsOlder, ehrProvid
 
     var docLinks = '';
     function docLinkHtml(label, doc, iconName) {
-      return '<a onclick="event.stopPropagation();openEhrDocument(\''+encId+'\',\''+escHtml(doc.id)+'\')" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--moss);cursor:pointer;text-decoration:none;font-weight:600;font-size:14px;flex:1;min-width:0;">'
+      return '<a onclick="event.stopPropagation();openEhrDocument(\''+encId+'\',\''+escHtml(doc.id)+'\')" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--moss);cursor:pointer;text-decoration:none;font-weight:600;font-size:14px;line-height:1.2;flex:1;min-width:0;">'
         + '<i data-lucide="'+iconName+'" style="width:18px;height:18px;flex-shrink:0;"></i>'
-        + '<span style="flex:1;min-width:0;">' + escHtml(label) + '</span>'
+        + '<span style="flex:1;min-width:0;line-height:1.2;">' + escHtml(label) + '</span>'
         + '<i data-lucide="external-link" style="width:14px;height:14px;flex-shrink:0;opacity:0.6;"></i></a>';
     }
     if (encId && (avsDoc || providerDoc)) {
