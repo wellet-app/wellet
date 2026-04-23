@@ -6918,7 +6918,7 @@ function _rdVisitsContent(apptEvents, ehrVisitsRecent, ehrVisitsOlder, ehrProvid
     var avsDoc = null, providerDoc = null;
     for (var di = 0; di < docs.length; di++) {
       var d = docs[di];
-      var tc = (d.type_code || '') + '';
+      var tc = (d.loinc_code || d.type_code || '') + '';
       var tt = ((d.title || '') + '').toLowerCase();
       if (!avsDoc && (tc === '34133-9' || /after visit summary|summary of episode/.test(tt))) avsDoc = d;
       else if (!providerDoc && (tc === '34108-1' || tc === '18842-5' || /progress note|outpatient note|discharge|provider/.test(tt))) providerDoc = d;
