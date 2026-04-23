@@ -9613,6 +9613,8 @@ function obResumeChat() {
   // Sync obState for savePersonToSupabase compatibility
   obState.userName = obChat.userName;
   obState.personName = obChat.personName;
+  obState.dateOfBirth = obChat.dateOfBirth || null;
+  obState.sex = obChat.sex || null;
   var relMap = { aging_parent: 'parent', partner: 'partner', child: 'child', self: 'self', other: 'other' };
   obState.situation = relMap[obChat.situation] || obChat.situation;
   // Restore currentPersonId if person was created in this onboarding session
@@ -9634,6 +9636,11 @@ function obResumeChat() {
       document.getElementById('ob-input').placeholder = 'Their name\u2026';
       document.getElementById('ob-input').focus();
     }, 600);
+  } else if (obChat.phase === 'person_dob') {
+    var _dobPersonName = (obChat.situation === 'self') ? 'your' : ((obChat.personName ? escHtml(obChat.personName) + '\u2019s' : 'their'));
+    obTypeThen('Welcome back \u2014 what\u2019s ' + _dobPersonName + ' date of birth?', obShowDobPrompt, 600);
+  } else if (obChat.phase === 'person_sex') {
+    obTypeThen('Welcome back. One more quick detail \u2014 biological sex?', obShowSexChips, 600);
   } else if (obChat.phase === 'connect' || obChat.phase === 'freetext') {
     var personName = obChat.personName || 'your loved one';
     obTypeThen('What would you like to add to ' + escHtml(personName) + '\u2019s record?', obShowConnectChips, 600);
@@ -15122,6 +15129,8 @@ var obChat = {
   userName: null,
   personName: null,
   situation: null,
+  dateOfBirth: null,
+  sex: null,
   ehrConnected: false,
   ehrHospital: null,
   docsUploaded: 0,
@@ -15144,6 +15153,14 @@ var _obChatSituations = [
 var _obChatLanguages = [
   { id: 'en', label: 'English' },
   { id: 'es', label: 'Espa\u00F1ol' }
+];
+
+// Allowed values mirror the Supabase CHECK constraint on people.sex / manual_sex.
+var _obChatSexOptions = [
+  { id: 'female',             label: 'Female' },
+  { id: 'male',               label: 'Male' },
+  { id: 'intersex',           label: 'Intersex' },
+  { id: 'prefer_not_to_say',  label: 'Prefer not to say' }
 ];
 
 var _obChatConnectOptions = [
@@ -15173,7 +15190,7 @@ function obLoadChatState() {
 }
 
 function obClearChatState() {
-  obChat = { userName: null, personName: null, situation: null, ehrConnected: false, ehrHospital: null, docsUploaded: 0, photosUploaded: 0, deviceConnected: false, deviceProvider: null, freeTextGiven: false, extractedItems: [], phase: 'welcome' };
+  obChat = { userName: null, personName: null, situation: null, dateOfBirth: null, sex: null, ehrConnected: false, ehrHospital: null, docsUploaded: 0, photosUploaded: 0, deviceConnected: false, deviceProvider: null, freeTextGiven: false, extractedItems: [], phase: 'welcome' };
   try { localStorage.removeItem('wellet_ob_chat'); } catch(e) {}
 }
 
@@ -15875,7 +15892,7 @@ function obSkipHealthImport() { showOwnWellet(); }
 
 // ── UNIFIED CHAT ONBOARDING ENGINE ───────────────────────────────────────────
 // obState kept for compatibility with savePersonToSupabase
-var obState = { step: 0, situation: null, userName: null, personName: null };
+var obState = { step: 0, situation: null, userName: null, personName: null, dateOfBirth: null, sex: null };
 
 function obInit() {
   obClearChatState();
@@ -16004,6 +16021,153 @@ function obSelectSituation(id, btn) {
   }, 400);
 }
 
+// ── DOB + SEX PROMPTS (manual onboarding, Cheryl flow #66) ───────────────────
+// Rendered as chat bubbles (not a wizard) to match the conversational onboarding.
+// Values land in obChat/obState so savePersonToSupabase can write them to
+// people.date_of_birth / people.sex and mirror to the manual_* fallback columns.
+
+function obShowDobPrompt() {
+  var chat = document.getElementById('ob-chat-area');
+  var group = document.createElement('div');
+  group.className = 'ob-msg-group from-wellet';
+  group.id = 'ob-dob-group';
+  var html = '<div class="ob-dob-wrap" style="display:flex;flex-direction:column;gap:8px;max-width:320px;">';
+  html += '<input type="date" id="ob-dob-input" class="ob-dob-input" max="' + escHtml(_obTodayISO()) + '" style="padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:15px;font-family:inherit;background:#fff;color:var(--ink);" />';
+  html += '<div class="ob-dob-actions" style="display:flex;gap:8px;flex-wrap:wrap;">';
+  html += '<button class="ob-chip" id="ob-dob-save" onclick="obSaveDob()">Save</button>';
+  html += '<button class="ob-chip ob-chip-ghost" onclick="obSkipDob()" style="background:transparent;">Skip for now</button>';
+  html += '</div></div>';
+  group.innerHTML = html;
+  chat.appendChild(group);
+  initIcons();
+  setTimeout(function(){
+    var el = document.getElementById('ob-dob-input');
+    if (el) el.focus();
+    chat.scrollTop = chat.scrollHeight;
+  }, 60);
+}
+
+function _obTodayISO() {
+  var d = new Date();
+  var m = String(d.getMonth() + 1).padStart(2, '0');
+  var day = String(d.getDate()).padStart(2, '0');
+  return d.getFullYear() + '-' + m + '-' + day;
+}
+
+function _obFormatDobDisplay(iso) {
+  // iso is YYYY-MM-DD; display as e.g. "June 3, 1952" without timezone drift.
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso || '';
+  var parts = iso.split('-');
+  var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var y = parseInt(parts[0], 10);
+  var m = parseInt(parts[1], 10);
+  var d = parseInt(parts[2], 10);
+  if (!y || !m || !d || m < 1 || m > 12) return iso;
+  return months[m - 1] + ' ' + d + ', ' + y;
+}
+
+async function obSaveDob() {
+  var el = document.getElementById('ob-dob-input');
+  var iso = el ? el.value : '';
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    showToast('Please pick a date (or tap Skip for now).');
+    return;
+  }
+  // Sanity check: not in the future, not before 1900.
+  var today = _obTodayISO();
+  if (iso > today) { showToast('That date is in the future — please double-check.'); return; }
+  if (iso < '1900-01-01') { showToast('That date looks too far back — please double-check.'); return; }
+
+  _obDisableDobGroup();
+  obChat.dateOfBirth = iso;
+  obState.dateOfBirth = iso;
+  obSaveChatState();
+  obAddBubble('user', _obFormatDobDisplay(iso));
+  setTimeout(function(){ obAskSex(); }, 300);
+}
+
+async function obSkipDob() {
+  _obDisableDobGroup();
+  obChat.dateOfBirth = null;
+  obState.dateOfBirth = null;
+  obSaveChatState();
+  obAddBubble('user', 'Skip for now');
+  setTimeout(function(){ obAskSex(); }, 300);
+}
+
+function _obDisableDobGroup() {
+  var group = document.getElementById('ob-dob-group');
+  if (!group) return;
+  var inp = group.querySelector('#ob-dob-input');
+  if (inp) inp.disabled = true;
+  group.querySelectorAll('button').forEach(function(b){ b.disabled = true; b.classList.add('used'); });
+}
+
+function obAskSex() {
+  obChat.phase = 'person_sex';
+  obSaveChatState();
+  var whose = (obChat.situation === 'self') ? 'your' : (obChat.personName ? escHtml(obChat.personName) + '\u2019s' : 'their');
+  obTypeThen('And ' + whose + ' biological sex? This helps Wellet read lab ranges and dosing correctly.', obShowSexChips, 700);
+}
+
+function obShowSexChips() {
+  var chat = document.getElementById('ob-chat-area');
+  var group = document.createElement('div');
+  group.className = 'ob-msg-group from-wellet';
+  group.id = 'ob-sex-group';
+  var chipsHTML = '<div class="ob-chips" id="ob-sex-chips">';
+  _obChatSexOptions.forEach(function(s) {
+    chipsHTML += '<button class="ob-chip" onclick="obSelectSex(\'' + s.id + '\',this)">' + escHtml(s.label) + '</button>';
+  });
+  chipsHTML += '</div>';
+  chipsHTML += '<div class="ob-sex-actions" style="margin-top:8px;">';
+  chipsHTML += '<button class="ob-chip ob-chip-ghost" onclick="obSkipSex()" style="background:transparent;">Skip for now</button>';
+  chipsHTML += '</div>';
+  group.innerHTML = chipsHTML;
+  chat.appendChild(group);
+  initIcons();
+  setTimeout(function(){ chat.scrollTop = chat.scrollHeight; }, 60);
+}
+
+async function obSelectSex(id, btn) {
+  // Allowed values mirror the Supabase CHECK constraint. Anything else is rejected.
+  var allowed = ['female','male','intersex','prefer_not_to_say'];
+  if (allowed.indexOf(id) === -1) { showToast('Please pick one of the listed options.'); return; }
+  document.querySelectorAll('#ob-sex-chips .ob-chip').forEach(function(c){ c.disabled = true; c.classList.add('used'); });
+  var skipBtn = document.querySelector('#ob-sex-group .ob-sex-actions .ob-chip');
+  if (skipBtn) skipBtn.disabled = true;
+  if (btn) { btn.classList.remove('used'); btn.style.opacity='1'; btn.style.borderColor='var(--moss)'; btn.style.background='var(--mint)'; btn.style.color='var(--moss)'; }
+  var label = btn ? btn.textContent.trim() : id;
+  setTimeout(function(){ obAddBubble('user', label); }, 150);
+  obChat.sex = id;
+  obState.sex = id;
+  obSaveChatState();
+  setTimeout(function(){ obAdvanceAfterDobSex(); }, 400);
+}
+
+async function obSkipSex() {
+  document.querySelectorAll('#ob-sex-chips .ob-chip').forEach(function(c){ c.disabled = true; c.classList.add('used'); });
+  var skipBtn = document.querySelector('#ob-sex-group .ob-sex-actions .ob-chip');
+  if (skipBtn) { skipBtn.disabled = true; skipBtn.classList.add('used'); }
+  obChat.sex = null;
+  obState.sex = null;
+  obSaveChatState();
+  obAddBubble('user', 'Skip for now');
+  setTimeout(function(){ obAdvanceAfterDobSex(); }, 300);
+}
+
+async function obAdvanceAfterDobSex() {
+  obChat.phase = 'connect';
+  obSaveChatState();
+  // Create the person row now that DOB/sex (if provided) are on obState.
+  await obCreatePerson();
+  var nameDisplay = obChat.personName || obChat.userName || 'your loved one';
+  var prompt = (obChat.situation === 'self')
+    ? 'Thanks. Let\u2019s get your health into one place. What do you have handy right now? You can always come back and add more later.'
+    : 'Thanks. Let\u2019s get ' + escHtml(nameDisplay) + '\u2019s health into one place. What do you have handy right now? You can always come back and add more later.';
+  setTimeout(function(){ obTypeThen(prompt, obShowConnectChips, 700); }, 200);
+}
+
 async function obSend() {
   var input = document.getElementById('ob-input');
   var val = input.value.trim();
@@ -16026,12 +16190,10 @@ async function obSend() {
       // Skip asking for loved one's name — use their name for both
       obChat.personName = val;
       obState.personName = val;
-      obChat.phase = 'connect';
+      obChat.phase = 'person_dob';
       obSaveChatState();
-      // Await person creation before showing connect chips
-      await obCreatePerson();
       setTimeout(function(){
-        obTypeThen('Nice to meet you, ' + escHtml(val) + '. Let\u2019s get your health into one place. What do you have handy right now? You can always come back and add more later.', obShowConnectChips, 850);
+        obTypeThen('Nice to meet you, ' + escHtml(val) + '. A couple of quick details so your records match up correctly. What\u2019s your date of birth?', obShowDobPrompt, 850);
       }, 300);
     } else {
       obChat.phase = 'person_name';
@@ -16049,12 +16211,10 @@ async function obSend() {
     // User typed loved one's name
     obChat.personName = val;
     obState.personName = val;
-    obChat.phase = 'connect';
+    obChat.phase = 'person_dob';
     obSaveChatState();
-    // Await person creation before showing connect chips
-    await obCreatePerson();
     setTimeout(function(){
-      obTypeThen('Okay ' + escHtml(obChat.userName) + ' \u2014 let\u2019s get ' + escHtml(val) + '\u2019s health into one place. What do you have handy right now? You can always come back and add more later.', obShowConnectChips, 850);
+      obTypeThen('Thanks. A couple of quick details about ' + escHtml(val) + ' so their records match up correctly. What\u2019s their date of birth?', obShowDobPrompt, 850);
     }, 300);
   } else if (phase === 'freetext') {
     // User is typing free-text health info
@@ -16069,6 +16229,11 @@ async function obSend() {
         }, 300);
       }, 800);
     }, 300);
+  } else if (phase === 'person_dob' || phase === 'person_sex') {
+    // User typed instead of using the picker/chips — nudge them back.
+    setTimeout(function(){
+      obTypeThen('Use the picker above, or tap \u201cSkip for now.\u201d', null, 400);
+    }, 200);
   } else {
     // Fallback — any text in connect phase, treat as free text
     obChat.freeTextGiven = true;
