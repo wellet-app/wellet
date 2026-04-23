@@ -3342,6 +3342,11 @@
         </div>
         <button class="toggle on" id="toggle-weekly-digest" onclick="toggleNotifPref(this,'weekly_digest')"></button>
       </div>
+      <div class="settings-row" id="weekly-digest-preview-row" style="padding:4px 16px 8px;">
+        <div style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-end;">
+          <button id="btn-weekly-digest-preview" onclick="sendWeeklyDigestPreview(this)" style="font-family:'DM Sans',sans-serif;font-size:12px;border:1px solid var(--border);border-radius:999px;padding:6px 12px;background:var(--surface-secondary,#F5F5F5);color:var(--text-primary);cursor:pointer;display:inline-flex;align-items:center;gap:6px;"><i data-lucide="send" style="width:12px;height:12px;"></i><span data-i18n="settings.weeklyDigestPreview">Send me a preview</span></button>
+        </div>
+      </div>
       <div class="settings-row">
         <div class="settings-row-left">
           <div class="settings-row-icon"><i data-lucide="mail" style="width:15px;height:15px;"></i></div>
@@ -17620,6 +17625,62 @@ async function markPersistentNotifsRead() {
   unread.forEach(function(n) { n.read = true; });
 }
 
+// ── WEEKLY DIGEST PREVIEW ────────────────────────────────────────────────
+async function sendWeeklyDigestPreview(btn) {
+  if (isDemoMode || !currentUser) {
+    if (typeof showToast === 'function') showToast('Preview not available in demo mode');
+    return;
+  }
+  if (!btn) btn = document.getElementById('btn-weekly-digest-preview');
+  var originalHtml = btn ? btn.innerHTML : '';
+  try {
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i data-lucide="loader-2" style="width:12px;height:12px;animation:spin 1s linear infinite;"></i><span>Sending…</span>';
+      initIcons();
+    }
+    var session = await db.auth.getSession();
+    var token = session.data.session ? session.data.session.access_token : null;
+    if (!token) throw new Error('not_signed_in');
+    var res = await fetch(SUPABASE_URL + '/functions/v1/generate-weekly-digest', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ mode: 'preview' })
+    });
+    var data = {};
+    try { data = await res.json(); } catch(e){}
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    var msg = 'Preview sent to your email.';
+    if (data.status === 'skipped_empty') {
+      msg = data.reason === 'no_people'
+        ? 'No one in your care circle yet — add someone first.'
+        : 'Nothing new this week, so no preview to send.';
+    }
+    if (typeof showToast === 'function') {
+      showToast(msg);
+    } else {
+      alert(msg);
+    }
+  } catch (e) {
+    console.warn('weekly digest preview error:', e.message);
+    if (typeof showToast === 'function') {
+      showToast('Could not send preview. Try again.');
+    } else {
+      alert('Could not send preview: ' + e.message);
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+      initIcons();
+    }
+  }
+}
+
 // ── SEND NOTIFICATION EMAIL ──────────────────────────────────────────────
 async function sendNotificationEmail(type, recipientEmail, recipientName, personName, details) {
   if (isDemoMode || !currentUser) return;
@@ -20124,6 +20185,7 @@ var TRANSLATIONS = {
     'settings.notifications': 'Notifications',
     'settings.weeklyDigest': 'Weekly digest',
     'settings.weeklyDigestMeta': 'Every Sunday at 5 PM',
+    'settings.weeklyDigestPreview': 'Send me a preview',
     'settings.newMessages': 'New messages',
     'settings.newMessagesMeta': 'From care team portals',
     'settings.patternChanges': 'Pattern changes',
