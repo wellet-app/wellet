@@ -11879,15 +11879,18 @@ function clearVisitsFilter() {
 
 // Toggle any collapsible record-group body by id. Used by Care team and
 // potentially other sections so the caregiver can expand only what they need.
+// The header may contain multiple Lucide icons (section icon + chevron), so we
+// target the chevron specifically via the .record-group-chevron class.
 function toggleRecordGroup(btn, bodyId) {
   var d = document.getElementById(bodyId);
   if (!d) return;
   var open = d.style.display !== 'none';
   d.style.display = open ? 'none' : 'block';
   btn.setAttribute('aria-expanded', open ? 'false' : 'true');
-  // Swap the chevron icon to signal state. We re-render Lucide icons after.
-  var icon = btn.querySelector('i[data-lucide]');
-  if (icon) icon.setAttribute('data-lucide', open ? 'chevron-down' : 'chevron-up');
+  // Swap the chevron icon to signal state. Target the chevron specifically so
+  // we don't accidentally swap the section's title icon (users, file-text, etc.).
+  var chev = btn.querySelector('.record-group-chevron');
+  if (chev) chev.setAttribute('data-lucide', open ? 'chevron-down' : 'chevron-up');
   try { initIcons(); } catch (e) {}
 }
 
@@ -11900,11 +11903,11 @@ function buildCareTeamSection(careTeam, provider) {
   if (!careTeam || !careTeam.length) return '';
   var bodyId = 'ehr-care-team-body';
   var html = '<div class="record-group">'
-    + '<div class="record-group-header" role="button" tabindex="0" aria-expanded="true" onclick="toggleRecordGroup(this,\'' + bodyId + '\')" style="cursor:pointer;">'
+    + '<div class="record-group-header" role="button" tabindex="0" aria-expanded="true" onclick="toggleRecordGroup(this,\'' + bodyId + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();toggleRecordGroup(this,\'' + bodyId + '\');}" style="cursor:pointer;">'
     + '<div class="record-group-title"><i data-lucide="users" style="width:14px;height:14px;color:var(--moss);"></i>Care team ' + ehrBadgeHtml() + '</div>'
     + '<span style="display:inline-flex;align-items:center;gap:6px;">'
     + '<span class="record-group-count">' + careTeam.length + '</span>'
-    + '<i data-lucide="chevron-up" style="width:14px;height:14px;color:var(--text-muted);"></i>'
+    + '<i data-lucide="chevron-up" class="record-group-chevron" style="width:16px;height:16px;color:var(--text-muted);"></i>'
     + '</span>'
     + '</div>'
     + '<div id="' + bodyId + '" style="display:block;">';
@@ -12592,7 +12595,15 @@ function sendAskMessage() {
         ), 30000, 'ask-wellet-fetch');
       }
       try {
+        // Try forced refresh first (gets a token with full lifetime).
         var token = await getFreshToken(true);
+        // If that fails (iOS race, transient network, etc.), fall back to the
+        // cached session. Most of the time the cached token is still valid for
+        // several more minutes — the edge function will accept it.
+        if (!token) {
+          console.warn('[ask-wellet] forced refresh returned null; falling back to cached session');
+          token = await getFreshToken(false);
+        }
         if (!token) {
           removeTyping(typingId);
           addWelletMessage('Your session expired. Please sign out and sign back in so I can access ' + escHtml((currentPeople.find(function(p){return p.id===currentPersonId;}) || {}).name || 'your records') + '.');
@@ -12600,6 +12611,7 @@ function sendAskMessage() {
         }
         var res = await callAskWellet(token);
         if (res.status === 401) {
+          // Give the auth client a beat, then try one more forced refresh.
           await new Promise(function(r){ setTimeout(r, 200); });
           var refreshed = await getFreshToken(true);
           if (refreshed && refreshed !== token) {
