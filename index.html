@@ -7308,7 +7308,7 @@ function renderRecordsView() {
 
   // Care Team
   if (ehrCareTeam.length > 0) {
-    html += buildCareTeamSection(ehrCareTeam, ehrProvider);
+    html += buildCareTeamSection(ehrCareTeam, ehrProvider, allEhrVisits);
   }
 
   // Procedures
@@ -11879,34 +11879,62 @@ function clearVisitsFilter() {
 
 // Build the Care team section for Records. Lists every practitioner returned
 // from the EHR (Encounter.participant + CareTeam.participant, deduped server-
-// side) with role, specialty, phones, email, and address. The whole section
-// is collapsible — per Betsy's note: "we need to be able to collapse and
-// expand sections in all of records."
-function buildCareTeamSection(careTeam, provider) {
+// side) with role, specialty, phones, email, and address. Ordered by most-
+// recent encounter so Betsy sees who Mom actually sees most often at the top.
+// The whole section is collapsible — per Betsy's note: "we need to be able
+// to collapse and expand sections in all of records."
+function buildCareTeamSection(careTeam, provider, visits) {
   if (!careTeam || !careTeam.length) return '';
-  // Collapse / expand is handled globally by applyRecordsCollapse() — it walks
-  // every .record-group inside #view-records, appends a chevron, wraps the
-  // body, and wires the click handler using the .collapsed class + CSS. We
-  // just render the plain header + rows here.
+
+  // ── Compute last-seen date per practitioner by walking visits ────────────
+  // visits[].providers is [{ ref: 'Practitioner/<id>', name }]. Match by id.
+  var lastSeenByRef = {};
+  (visits || []).forEach(function(v) {
+    var t = v.start_date ? new Date(v.start_date).getTime() : 0;
+    if (!t) return;
+    (v.providers || []).forEach(function(pv) {
+      var ref = pv.ref || '';
+      if (!ref) return;
+      if (!lastSeenByRef[ref] || t > lastSeenByRef[ref]) lastSeenByRef[ref] = t;
+    });
+  });
+
+  // Annotate each practitioner with lastSeenMs and sort desc; undated last,
+  // alphabetical tiebreaker so the list stays stable across renders.
+  var annotated = careTeam.map(function(p) {
+    var ref = p.id ? 'Practitioner/' + p.id : '';
+    return { p: p, lastSeenMs: lastSeenByRef[ref] || 0 };
+  });
+  annotated.sort(function(a, b) {
+    if (a.lastSeenMs !== b.lastSeenMs) return b.lastSeenMs - a.lastSeenMs;
+    return (a.p.name || '').localeCompare(b.p.name || '');
+  });
+
+  // Collapse / expand is handled globally by applyRecordsCollapse().
   var html = '<div class="record-group">'
     + '<div class="record-group-header">'
     + '<div class="record-group-title"><i data-lucide="users" style="width:14px;height:14px;color:var(--moss);"></i>Care team ' + ehrBadgeHtml() + '</div>'
     + '<span class="record-group-count">' + careTeam.length + '</span>'
     + '</div>';
 
-  careTeam.forEach(function(p, idx) {
-    var detailId = 'ehr-ct-' + idx;
-    // Summary line: role · specialty
+  annotated.forEach(function(entry) {
+    var p = entry.p;
+    var lastSeenMs = entry.lastSeenMs;
+
+    // Summary line: role · specialty · Last seen <date>
     var summaryBits = [];
     if (p.role) summaryBits.push(escHtml(p.role));
     if (p.specialty && p.specialty !== p.role) summaryBits.push(escHtml(p.specialty));
+    if (lastSeenMs) {
+      summaryBits.push('Last seen ' + formatEventDate(new Date(lastSeenMs).toISOString()));
+    }
     var summary = summaryBits.join(' \u00B7 ');
 
-    // Expanded detail — contact info
+    // Contact info — shown inline (no tap needed)
     var lines = [];
     var phones = (p.phones || []).filter(Boolean);
     if (phones.length) {
-      lines.push('<div style="display:flex;align-items:center;gap:6px;"><i data-lucide="phone" style="width:12px;height:12px;color:var(--text-muted);"></i>'
+      lines.push('<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><i data-lucide="phone" style="width:12px;height:12px;color:var(--text-muted);flex-shrink:0;"></i>'
         + phones.map(function(ph){
             var clean = String(ph).replace(/[^0-9+]/g, '');
             return '<a href="tel:' + escHtml(clean) + '" style="color:var(--moss);text-decoration:none;">' + escHtml(ph) + '</a>';
@@ -11914,33 +11942,32 @@ function buildCareTeamSection(careTeam, provider) {
         + '</div>');
     }
     if (p.fax) {
-      lines.push('<div style="display:flex;align-items:center;gap:6px;"><i data-lucide="printer" style="width:12px;height:12px;color:var(--text-muted);"></i>Fax: ' + escHtml(p.fax) + '</div>');
+      lines.push('<div style="display:flex;align-items:center;gap:6px;"><i data-lucide="printer" style="width:12px;height:12px;color:var(--text-muted);flex-shrink:0;"></i>Fax: ' + escHtml(p.fax) + '</div>');
     }
     var emails = (p.emails || []).filter(Boolean);
     if (emails.length) {
-      lines.push('<div style="display:flex;align-items:center;gap:6px;"><i data-lucide="mail" style="width:12px;height:12px;color:var(--text-muted);"></i>'
+      lines.push('<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><i data-lucide="mail" style="width:12px;height:12px;color:var(--text-muted);flex-shrink:0;"></i>'
         + emails.map(function(em){
-            return '<a href="mailto:' + escHtml(em) + '" style="color:var(--moss);text-decoration:none;">' + escHtml(em) + '</a>';
+            return '<a href="mailto:' + escHtml(em) + '" style="color:var(--moss);text-decoration:none;word-break:break-all;">' + escHtml(em) + '</a>';
           }).join(', ')
         + '</div>');
     }
     if (p.address) {
-      lines.push('<div style="display:flex;align-items:flex-start;gap:6px;"><i data-lucide="map-pin" style="width:12px;height:12px;color:var(--text-muted);margin-top:2px;"></i><span>' + escHtml(p.address) + '</span></div>');
-    }
-    if (!lines.length) {
-      lines.push('<div style="color:var(--text-muted);font-style:italic;">No contact info on file.</div>');
+      lines.push('<div style="display:flex;align-items:flex-start;gap:6px;"><i data-lucide="map-pin" style="width:12px;height:12px;color:var(--text-muted);margin-top:2px;flex-shrink:0;"></i><span>' + escHtml(p.address) + '</span></div>');
     }
 
-    html += '<div class="record-row" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\'' + detailId + '\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
+    var contactBlock = lines.length
+      ? '<div style="width:100%;padding:6px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.8;">' + lines.join('') + '</div>'
+      : '<div style="width:100%;padding:6px 0 0 44px;font-size:12px;color:var(--text-muted);font-style:italic;">No contact info on file.</div>';
+
+    html += '<div class="record-row" style="flex-wrap:wrap;align-items:flex-start;">'
       + '<div class="record-icon moss"><i data-lucide="user-round" style="width:15px;height:15px;"></i></div>'
       + '<div style="flex:1;min-width:0;">'
       + '<div class="record-label">' + escHtml(p.name || 'Unnamed practitioner') + '</div>'
       + '<div class="record-meta">' + (summary || '\u2014') + '</div>'
       + '</div>'
       + ehrProviderBadgeHtml(provider)
-      + '<div id="' + detailId + '" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.8;">'
-      + lines.join('')
-      + '</div>'
+      + contactBlock
       + '</div>';
   });
 
