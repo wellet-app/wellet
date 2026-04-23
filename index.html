@@ -11499,17 +11499,15 @@ function handleEhrCallback() {
       try { fromOnboarding = localStorage.getItem('wellet_ob_ehr_return') === 'true'; localStorage.removeItem('wellet_ob_ehr_return'); } catch(e) {}
       if (fromOnboarding) {
         showToast('Health records connected!');
-        // Fetch and land on Records so the user sees their data appear
-        fetchEhrData(personId, true);
-        // If chat onboarding is active, notify it instead of jumping to app
-        if (obChat && obChat.phase === 'connect') {
-          var hospital = data.hospital_name || data.provider || 'your hospital';
-          obOnEhrConnected(hospital);
-          return;
-        }
+        var hospital = data.hospital_name || data.provider || 'your hospital';
+        // Mark onboarding state so the chat knows EHR is connected (used by
+        // obShowConnectChips to hide the already-completed option if the user
+        // comes back to it later).
+        if (obChat) { obOnEhrConnected(hospital); }
+        // Close onboarding chat and drop into the authenticated app, then jump
+        // to Records so the user watches their data land.
         showOwnWellet();
-        // showOwnWellet drops into the default tab; switch to Records once the app
-        // has mounted so the EHR data has somewhere visible to land.
+        fetchEhrData(personId, true);
         setTimeout(function() { try { switchNavTo('records'); } catch(e) {} }, 300);
         return;
       }
@@ -16798,17 +16796,16 @@ async function obFinishAndOpen() {
   showOwnWellet();
 }
 
-// Called when EHR connect completes during onboarding
+// Called when EHR connect completes during onboarding.
+// We only update state here — the caller (EHR callback handler) is
+// responsible for navigating the user to Records so they can see their
+// data land immediately.
 function obOnEhrConnected(hospitalName) {
+  if (!obChat) return;
   obChat.ehrConnected = true;
   obChat.ehrHospital = hospitalName || 'your hospital';
+  obChat.phase = 'done';
   obSaveChatState();
-  var personName = obChat.personName || 'your loved one';
-  obTypeThen('Connected! I can see ' + escHtml(personName) + '\u2019s records from ' + escHtml(obChat.ehrHospital) + '. I\u2019ll organize everything.', function(){
-    setTimeout(function(){
-      obTypeThen('Anything else you\u2019d like to connect?', obShowConnectChips, 600);
-    }, 400);
-  }, 800);
 }
 
 // Called when Terra device connect completes during onboarding
