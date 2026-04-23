@@ -6691,6 +6691,185 @@ function _rdAllergiesContent(liveAllergies, ehrAllergies, ehrProvider) {
   return html;
 }
 
+// ── Visit AI summary + document links ──
+// Per-encounter cache so we don't re-summarize or re-fetch on every expand/collapse.
+// Keyed by encounter id. Values:
+//   summary: { state: 'idle'|'loading'|'done'|'error', text?: string, error?: string }
+//   docs[docId]: { state: 'loading'|'done'|'error', url?: string, error?: string }  (blob URL while open)
+var visitSummaryCache = {};
+
+// Build a compact context for the visit summary call. We only send what the user
+// already has loaded on this device — no extra data is pulled to the server.
+function buildVisitSummaryPayload(enc) {
+  var startMs = enc.start_date ? new Date(enc.start_date).getTime() : 0;
+  // Window: 14 days before visit through 7 days after — covers related labs ordered at/after the appointment
+  var windowStart = startMs ? startMs - 14 * 86400000 : 0;
+  var windowEnd   = startMs ? startMs +  7 * 86400000 : 0;
+
+  var obs = (liveLabs || []).filter(function(o) {
+    if (!o || o.source !== 'ehr') return false;
+    var t = o.effective_date ? new Date(o.effective_date).getTime() : 0;
+    return !windowStart || (t >= windowStart && t <= windowEnd);
+  }).slice(0, 25).map(function(o) {
+    return { name: o.name, value: o.value, unit: o.unit, effective_date: o.effective_date };
+  });
+
+  var meds = (liveMeds || []).filter(function(m) { return m && m.source === 'ehr'; })
+    .slice(0, 20)
+    .map(function(m) { return { name: m.name, dose: m.dose, frequency: m.frequency }; });
+
+  return {
+    visit: {
+      id: enc.id || '',
+      name: enc.name || '',
+      status: enc.status || '',
+      start_date: enc.start_date || '',
+      end_date: enc.end_date || '',
+      location: enc.location || '',
+      reason: enc.reason || '',
+      providers: (enc.providers || []).map(function(p){ return { name: p.name || '' }; }),
+    },
+    medications: meds,
+    observations: obs,
+  };
+}
+
+// Called from visitRow onclick the first time an encounter body is expanded.
+function loadVisitSummary(encId, domId) {
+  if (!encId || !currentPersonId) return;
+  var entry = visitSummaryCache[encId] || (visitSummaryCache[encId] = { summary: { state: 'idle' }, docs: {} });
+  if (entry.summary.state === 'loading' || entry.summary.state === 'done') return;
+
+  // Find the encounter payload from the in-memory EHR data
+  var ehrData = getEhrData(currentPersonId);
+  var visits = ehrData && ehrData.visits ? ehrData.visits : [];
+  var enc = null;
+  for (var i = 0; i < visits.length; i++) { if (visits[i].id === encId) { enc = visits[i]; break; } }
+  if (!enc) return;
+
+  entry.summary.state = 'loading';
+  var payload = buildVisitSummaryPayload(enc);
+  payload.person_id = currentPersonId;
+
+  db.auth.getSession().then(function(sessionRes) {
+    var session = sessionRes.data.session;
+    if (!session) throw new Error('no session');
+    return fetch(SUPABASE_URL + '/functions/v1/summarize-visit', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + session.access_token,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify(payload),
+    });
+  }).then(function(res) {
+    if (!res || !res.ok) throw new Error('summary fetch failed');
+    return res.json();
+  }).then(function(data) {
+    if (!data || !data.summary) throw new Error(data && data.error ? data.error : 'empty summary');
+    entry.summary.state = 'done';
+    entry.summary.text = data.summary;
+    renderVisitSummaryInto(domId, entry);
+  }).catch(function(e) {
+    entry.summary.state = 'error';
+    entry.summary.error = (e && e.message) || 'unknown error';
+    renderVisitSummaryInto(domId, entry);
+  });
+}
+
+function renderVisitSummaryInto(domId, entry) {
+  var el = document.getElementById(domId);
+  if (!el) return;
+  if (entry.summary.state === 'loading') {
+    el.innerHTML = '<div style="color:var(--text-muted);font-style:italic;">Writing a plain-language summary\u2026</div>';
+  } else if (entry.summary.state === 'done') {
+    el.innerHTML = '<div style="color:var(--text-primary);">' + escHtml(entry.summary.text) + '</div>';
+  } else if (entry.summary.state === 'error') {
+    el.innerHTML = '<div style="color:var(--text-muted);font-style:italic;">Summary unavailable right now.</div>';
+  }
+}
+
+// Open a DocumentReference attachment. Fetches the Binary through our edge function
+// so the browser never sees the EHR access token, then opens it in a new tab.
+function openEhrDocument(encId, docId) {
+  if (!currentPersonId || !docId) return;
+  var entry = visitSummaryCache[encId] || (visitSummaryCache[encId] = { summary: { state: 'idle' }, docs: {} });
+  var doc = entry.docs[docId];
+  // Reuse any previously-fetched blob URL while the tab is open
+  if (doc && doc.state === 'done' && doc.url) {
+    window.open(doc.url, '_blank', 'noopener');
+    return;
+  }
+  if (doc && doc.state === 'loading') return;
+  entry.docs[docId] = { state: 'loading' };
+
+  // Find the doc metadata (includes the Epic Binary URL) on the encounter
+  var ehrData = getEhrData(currentPersonId);
+  var visits = ehrData && ehrData.visits ? ehrData.visits : [];
+  var targetDoc = null;
+  for (var i = 0; i < visits.length && !targetDoc; i++) {
+    var v = visits[i];
+    if (v.id !== encId || !v.documents) continue;
+    for (var j = 0; j < v.documents.length; j++) {
+      if (v.documents[j].id === docId) { targetDoc = v.documents[j]; break; }
+    }
+  }
+  if (!targetDoc) return;
+
+  db.auth.getSession().then(function(sessionRes) {
+    var session = sessionRes.data.session;
+    if (!session) throw new Error('no session');
+    return fetch(SUPABASE_URL + '/functions/v1/fetch-ehr-document', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + session.access_token,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({
+        person_id: currentPersonId,
+        document_id: targetDoc.id,
+        document_url: targetDoc.url || '',
+      }),
+    });
+  }).then(function(res) {
+    if (!res || !res.ok) throw new Error('document fetch failed');
+    return res.json();
+  }).then(function(data) {
+    if (!data || !data.data_base64) throw new Error(data && data.error ? data.error : 'empty document');
+    // Decode base64 into a Blob and open it in a new tab
+    var bin = atob(data.data_base64);
+    var len = bin.length;
+    var bytes = new Uint8Array(len);
+    for (var k = 0; k < len; k++) bytes[k] = bin.charCodeAt(k);
+    var blob = new Blob([bytes], { type: data.content_type || 'application/octet-stream' });
+    var url = URL.createObjectURL(blob);
+    entry.docs[docId] = { state: 'done', url: url };
+    window.open(url, '_blank', 'noopener');
+  }).catch(function(e) {
+    entry.docs[docId] = { state: 'error', error: (e && e.message) || 'unknown error' };
+    try { alert('Could not open document. Please try reconnecting Epic MyChart.'); } catch(_e) {}
+  });
+}
+
+// Called from visit row onclick (delegates to the existing toggle + kicks off summary)
+function toggleVisitDetail(detailId, encId) {
+  var d = document.getElementById(detailId);
+  if (!d) return;
+  var nowOpen = d.style.display === 'none';
+  d.style.display = nowOpen ? 'block' : 'none';
+  if (nowOpen && encId) {
+    // Kick off summary fetch only on first open
+    var entry = visitSummaryCache[encId];
+    if (!entry || entry.summary.state === 'idle') {
+      loadVisitSummary(encId, detailId + '-summary');
+    } else {
+      renderVisitSummaryInto(detailId + '-summary', entry);
+    }
+  }
+}
+
 function _rdVisitsContent(apptEvents, ehrVisitsRecent, ehrVisitsOlder, ehrProvider) {
   var html = '';
   // Filter bar — search text + jump-to-month. Operates client-side on .record-row elements.
@@ -6722,6 +6901,7 @@ function _rdVisitsContent(apptEvents, ehrVisitsRecent, ehrVisitsOlder, ehrProvid
   }
   function visitRow(enc, idx, pfx) {
     var did = 'ehr-enc-'+pfx+'-'+idx;
+    var encId = enc.id || '';
     var meta = [];
     if (enc.start_date) meta.push('Date: '+formatEventDate(enc.start_date));
     if (enc.end_date)   meta.push('End: '+formatEventDate(enc.end_date));
@@ -6731,13 +6911,49 @@ function _rdVisitsContent(apptEvents, ehrVisitsRecent, ehrVisitsOlder, ehrProvid
     var provs = (enc.providers||[]).map(function(p){ return p.name||''; }).filter(Boolean);
     if (provs.length) meta.push('Provider: '+escHtml(provs.join(', ')));
     var vref = visitRefFor(enc, ehrProvider);
-    return '<div class="record-row" data-date="'+escHtml(enc.start_date||'')+'" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\''+did+'\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
+
+    // Classify documents attached to this encounter. AVS (Summary of episode)
+    // and provider/outpatient notes are the two the UI surfaces as links.
+    var docs = Array.isArray(enc.documents) ? enc.documents : [];
+    var avsDoc = null, providerDoc = null;
+    for (var di = 0; di < docs.length; di++) {
+      var d = docs[di];
+      var tc = (d.type_code || '') + '';
+      var tt = ((d.title || '') + '').toLowerCase();
+      if (!avsDoc && (tc === '34133-9' || /after visit summary|summary of episode/.test(tt))) avsDoc = d;
+      else if (!providerDoc && (tc === '34108-1' || tc === '18842-5' || /progress note|outpatient note|discharge|provider/.test(tt))) providerDoc = d;
+    }
+    // Fallback: first two distinct docs if we couldn't classify by LOINC/title
+    if (!avsDoc && docs.length) avsDoc = docs[0];
+    if (!providerDoc && docs.length > 1) providerDoc = docs[1];
+
+    var docLinks = '';
+    function docLinkHtml(label, doc, iconName) {
+      return '<a onclick="event.stopPropagation();openEhrDocument(\''+encId+'\',\''+escHtml(doc.id)+'\')" style="display:inline-flex;align-items:center;gap:4px;color:var(--moss);cursor:pointer;text-decoration:none;font-weight:600;margin-right:14px;">'
+        + '<i data-lucide="'+iconName+'" style="width:13px;height:13px;"></i>'
+        + escHtml(label) + '</a>';
+    }
+    if (encId && (avsDoc || providerDoc)) {
+      docLinks += '<div style="margin-top:10px;">';
+      if (avsDoc)      docLinks += docLinkHtml('After Visit Summary', avsDoc, 'file-text');
+      if (providerDoc) docLinks += docLinkHtml('Provider Summary',    providerDoc, 'file-text');
+      docLinks += '</div>';
+    }
+
+    var summaryBlock = encId
+      ? '<div id="'+did+'-summary" style="margin-bottom:10px;"><div style="color:var(--text-muted);font-style:italic;">Writing a plain-language summary\u2026</div></div>'
+      : '';
+    var metaBlock = meta.length ? '<div style="color:var(--text-muted);font-size:11px;">'+meta.join('<br>')+'</div>' : '';
+
+    return '<div class="record-row" data-date="'+escHtml(enc.start_date||'')+'" style="cursor:pointer;flex-wrap:wrap;" onclick="toggleVisitDetail(\''+did+'\',\''+encId+'\')">'
       + '<div class="record-icon moss"><i data-lucide="calendar-check" style="width:15px;height:15px;"></i></div>'
       + '<div style="flex:1;"><div class="record-label">'+typePill(enc)+escHtml(enc.name)+' '+ehrBadgeHtml()+'</div>'
       + '<div class="record-meta">'+formatEventDate(enc.start_date)+(provs.length?' \u00B7 '+escHtml(provs[0]):'')+'</div></div>'
       + ehrProviderBadgeHtml(ehrProvider)
       + '<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;" onclick="event.stopPropagation()">'
-      + (meta.length ? meta.join('<br>') : '')
+      + summaryBlock
+      + docLinks
+      + metaBlock
       + renderAttachmentZone('visit', vref)
       + '</div></div>';
   }
