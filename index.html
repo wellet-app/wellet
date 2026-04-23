@@ -3309,6 +3309,18 @@
       </div>
     </div>
 
+    <!-- Danger zone: delete account (shown when logged in) -->
+    <div class="settings-section" id="settings-danger-section" style="display:none;margin-top:12px;">
+      <div class="settings-section-label" data-i18n="settings.dangerZone">Danger zone</div>
+      <div class="settings-row" style="cursor:pointer;" onclick="openDeleteAccountSheet()">
+        <div class="settings-row-left">
+          <div class="settings-row-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="trash-2" style="width:15px;height:15px;"></i></div>
+          <div><div class="settings-row-label" style="color:var(--red);" data-i18n="settings.deleteAccount">Delete my account</div><div class="settings-row-meta" data-i18n="settings.deleteAccountMeta">Permanently remove everything. This cannot be undone.</div></div>
+        </div>
+        <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+      </div>
+    </div>
+
     <div class="settings-section" id="settings-feedback-section">
       <div class="settings-section-label" data-i18n="settings.alpha">Alpha</div>
       <div class="settings-row" style="cursor:pointer;" onclick="openBugReportSheet()">
@@ -3560,6 +3572,34 @@
       <button class="btn-primary" style="width:100%;margin-top:12px;font-size:14px;padding:14px;" onclick="submitFeedback()">
         <i data-lucide="send" style="width:15px;height:15px;"></i> Send to Betsy
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE ACCOUNT SHEET -->
+<div class="qa-overlay" id="delete-account-overlay">
+  <div class="qa-sheet">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" aria-label="Close" onclick="closeSheet('delete-account-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title" style="color:var(--red);">Delete your account</div>
+    <div class="qa-sheet-sub">This permanently removes your account and all associated data &mdash; people, records, documents, medications, reminders, and shares. This cannot be undone.</div>
+    <div style="padding:0 20px 20px;">
+      <div style="background:#FEF0EE;border:1px solid #F8CDC8;border-radius:12px;padding:14px 16px;font-size:13px;color:#8C2B23;line-height:1.6;margin-bottom:16px;">
+        <strong>What gets deleted:</strong><br>
+        &bull; Everyone in your care circle<br>
+        &bull; All health records, labs, medications, and vitals<br>
+        &bull; All documents and attachments you uploaded<br>
+        &bull; Hospital and Terra connections<br>
+        &bull; Your sign-in and preferences
+      </div>
+      <label for="delete-account-confirm" style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:6px;">Type <strong style="color:var(--red);">DELETE</strong> to confirm:</label>
+      <input type="text" id="delete-account-confirm" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" oninput="onDeleteAccountConfirmInput()" style="width:100%;border:1.5px solid var(--border-medium);border-radius:12px;padding:12px 14px;font-size:15px;font-family:'DM Sans',sans-serif;color:var(--text-primary);background:white;outline:none;letter-spacing:0.08em;">
+      <button class="btn-primary" id="delete-account-submit" disabled style="width:100%;margin-top:14px;font-size:14px;padding:14px;background:var(--red);opacity:0.5;" onclick="submitDeleteAccount()">
+        <i data-lucide="trash-2" style="width:15px;height:15px;"></i> Permanently delete my account
+      </button>
+      <button class="btn-secondary" style="width:100%;margin-top:8px;font-size:14px;padding:12px;" onclick="closeSheet('delete-account-overlay')">Cancel</button>
     </div>
   </div>
 </div>
@@ -9499,13 +9539,16 @@ async function savePersonToSupabase() {
 // ── SETTINGS ACCOUNT ──────────────────────────────────────────────────────────
 function updateSettingsAccount() {
   var section = document.getElementById('settings-account-section');
+  var danger = document.getElementById('settings-danger-section');
   if (!section) return;
   if (currentUser && !isDemoMode) {
     section.style.display = 'block';
+    if (danger) danger.style.display = 'block';
     var emailEl = document.getElementById('settings-user-email');
     if (emailEl) emailEl.textContent = currentUser.email || 'Signed in';
   } else {
     section.style.display = 'none';
+    if (danger) danger.style.display = 'none';
   }
 }
 
@@ -17625,6 +17668,82 @@ async function markPersistentNotifsRead() {
   unread.forEach(function(n) { n.read = true; });
 }
 
+// ── DELETE ACCOUNT ──────────────────────────────────────────────────────────
+function openDeleteAccountSheet() {
+  if (isDemoMode || !currentUser) return;
+  closeSettings();
+  if (typeof closeHeaderMenu === 'function') closeHeaderMenu();
+  var input = document.getElementById('delete-account-confirm');
+  if (input) input.value = '';
+  var btn = document.getElementById('delete-account-submit');
+  if (btn) {
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+    btn.innerHTML = '<i data-lucide="trash-2" style="width:15px;height:15px;"></i> Permanently delete my account';
+  }
+  openSheetAccessible('delete-account-overlay');
+  initIcons();
+  setTimeout(function() { if (input) input.focus(); }, 220);
+}
+
+function onDeleteAccountConfirmInput() {
+  var input = document.getElementById('delete-account-confirm');
+  var btn = document.getElementById('delete-account-submit');
+  if (!input || !btn) return;
+  var ok = input.value.trim().toUpperCase() === 'DELETE';
+  btn.disabled = !ok;
+  btn.style.opacity = ok ? '1' : '0.5';
+}
+
+async function submitDeleteAccount() {
+  var btn = document.getElementById('delete-account-submit');
+  var input = document.getElementById('delete-account-confirm');
+  if (!input || input.value.trim().toUpperCase() !== 'DELETE') {
+    showToast('Type DELETE to confirm');
+    return;
+  }
+  if (!btn) return;
+  btn.disabled = true;
+  btn.style.opacity = '0.7';
+  btn.innerHTML = '<i data-lucide="loader-2" style="width:15px;height:15px;animation:spin 1s linear infinite;"></i> Deleting\u2026';
+  initIcons();
+
+  try {
+    var sessionRes = await db.auth.getSession();
+    var token = sessionRes.data.session ? sessionRes.data.session.access_token : null;
+    if (!token) throw new Error('Not signed in');
+    var res = await fetch(SUPABASE_URL + '/functions/v1/delete-account', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ confirmation: 'DELETE' })
+    });
+    var data = {};
+    try { data = await res.json(); } catch(e){}
+    if (!res.ok || data.success !== true) {
+      throw new Error(data.error || ('HTTP ' + res.status));
+    }
+    // Clear local state and sign out
+    try { clearPhiFromStorage(); } catch(e){}
+    try { localStorage.removeItem('wellet_last_person_id'); } catch(e){}
+    try { await db.auth.signOut(); } catch(e){}
+    closeSheet('delete-account-overlay');
+    showToast('Account deleted. Everything has been removed.');
+    // Hard refresh to a clean state
+    setTimeout(function() { window.location.replace('/'); }, 900);
+  } catch (err) {
+    console.error('Delete account error:', err);
+    showToast('Could not delete account: ' + err.message);
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.innerHTML = '<i data-lucide="trash-2" style="width:15px;height:15px;"></i> Permanently delete my account';
+    initIcons();
+  }
+}
+
 // ── WEEKLY DIGEST PREVIEW ────────────────────────────────────────────────
 async function sendWeeklyDigestPreview(btn) {
   if (isDemoMode || !currentUser) {
@@ -20186,6 +20305,9 @@ var TRANSLATIONS = {
     'settings.weeklyDigest': 'Weekly digest',
     'settings.weeklyDigestMeta': 'Every Sunday at 5 PM',
     'settings.weeklyDigestPreview': 'Send me a preview',
+    'settings.dangerZone': 'Danger zone',
+    'settings.deleteAccount': 'Delete my account',
+    'settings.deleteAccountMeta': 'Permanently remove everything. This cannot be undone.',
     'settings.newMessages': 'New messages',
     'settings.newMessagesMeta': 'From care team portals',
     'settings.patternChanges': 'Pattern changes',
