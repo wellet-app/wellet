@@ -1166,8 +1166,10 @@
   .update-summary-section-body { font-size: 14px; line-height: 1.6; color: var(--text-primary); }
   .update-summary-section.snapshot .update-summary-section-body { font-family: 'Fraunces', serif; font-size: 16px; line-height: 1.5; letter-spacing: -0.005em; }
   .update-summary-section.snapshot .update-summary-section-body .verdict { font-weight: 500; }
-  .update-summary-byline { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(75, 99, 65, 0.12); font-size: 10.5px; color: var(--moss-dark); opacity: 0.75; display: flex; align-items: center; gap: 6px; letter-spacing: 0.01em; }
+  .update-summary-byline { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(75, 99, 65, 0.12); font-size: 10.5px; color: var(--moss-dark); opacity: 0.75; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; letter-spacing: 0.01em; }
   .update-summary-byline i { width: 10px; height: 10px; }
+  .update-summary-byline-sep { opacity: 0.55; }
+  .update-summary-byline-viewed { opacity: 0.7; }
   .update-summary-loading { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); animation: statusPulse 2s ease-in-out infinite; padding: 4px 0; }
   @keyframes summaryPulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
 
@@ -5727,6 +5729,10 @@ function renderUpdateMe() {
     var bylineDetail = sourceCount > 0
       ? ('Wellet · written from ' + sourceCount + ' source' + (sourceCount === 1 ? '' : 's') + (bylineTime ? ' · ' + bylineTime : ''))
       : ('Wellet' + (bylineTime ? ' · ' + bylineTime : ''));
+    // Viewed-at timestamp: updates on every render so a hard-refresh visibly changes it
+    var viewedAt = new Date();
+    var viewedStr = viewedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    var viewedLine = 'Viewed ' + escHtml(viewedStr);
     summarySection = '<div class="update-summary-card">'
       + '<div class="update-summary-header">'
       + '<div class="update-summary-titlerow"><span class="update-summary-label">Wellet summary</span>' + verdictPill + '</div>'
@@ -5734,7 +5740,7 @@ function renderUpdateMe() {
       + '</div>'
       + sourceStrip
       + '<div class="update-summary-text" id="update-summary-text">' + formatWelletSummary(summaryCache[currentPersonId]) + '</div>'
-      + '<div class="update-summary-byline"><i data-lucide="sparkles"></i>' + escHtml(bylineDetail) + '</div>'
+      + '<div class="update-summary-byline"><i data-lucide="sparkles"></i><span class="update-summary-byline-main">' + escHtml(bylineDetail) + '</span><span class="update-summary-byline-sep">·</span><span class="update-summary-byline-viewed">' + viewedLine + '</span></div>'
       + '</div>'
       + '<button onclick="openShareFamily()" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px 16px;margin-top:10px;background:white;border:1.5px solid var(--moss);border-radius:10px;color:var(--moss);font-family:\'DM Sans\',sans-serif;font-size:13px;font-weight:500;cursor:pointer;"><i data-lucide="share-2" style="width:15px;height:15px;"></i> ' + t('update.shareThis') + '</button>';
   } else {
