@@ -852,6 +852,7 @@
   #onboarding { display: none; flex-direction: column; height: 100dvh; height: 100vh; overflow: hidden; }
   @supports (height: 100dvh) { #onboarding { height: 100dvh; } }
   .ob-header { background: white; padding: 52px 20px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .ob-logo { width: 32px; height: 32px; border-radius: 7px; flex-shrink: 0; display: block; }
   .ob-back { background: none; border: none; cursor: pointer; padding: 0; color: var(--text-secondary); display: flex; align-items: center; }
   .ob-title { font-size: 15px; font-weight: 500; }
   .ob-subtitle { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
@@ -2860,7 +2861,7 @@
 <div id="onboarding">
   <div id="ob-chat-screen" style="display:flex;flex-direction:column;height:100%;">
     <div class="ob-header">
-      <div style="width:20px;"></div>
+      <img src="/favicon.svg" alt="Wellet" class="ob-logo" width="32" height="32">
       <div>
         <div class="ob-title">Wellet</div>
         <div class="ob-subtitle">Your health companion</div>
