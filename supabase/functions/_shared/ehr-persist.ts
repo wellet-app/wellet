@@ -279,13 +279,17 @@ function buildLabRows(personId: string, mapped: any[]): Record<string, unknown>[
       if (!testName || testName === 'Lab result') return null;
       const iso = toIsoOrNull(o?.effective_date);
       const code = String(o?.code || '');
+      // lab_results.status is an abnormality flag (normal/abnormal/critical/
+      // unknown), NOT a FHIR workflow status. Observation.status (final /
+      // preliminary / amended / etc.) is workflow state and doesn't map to
+      // any of those, so we write null — let the UI render it as unknown.
       return {
         person_id: personId,
         test_name: testName,
         value: o?.value ? String(o.value) : null,
         unit: o?.unit || null,
         reference_range: o?.reference_range || null,
-        status: o?.status || null,
+        status: null,
         effective_date: iso,
         loinc_code: code || null,
         category: o?.category || 'laboratory',
@@ -339,11 +343,31 @@ function buildVitalRows(personId: string, mapped: any[]): Record<string, unknown
 // Batched upsert
 // ---------------------------------------------------------------------------
 
+// Dedupe rows by (person_id, source_fingerprint) before handing them to
+// upsert. Postgres rejects an upsert whose input batch contains two rows that
+// match the same conflict target ("ON CONFLICT DO UPDATE command cannot affect
+// row a second time"). FHIR sources can legitimately produce duplicates — e.g.
+// two Condition resources for the same problem on the same recordedDate, or
+// two DiagnosticReports with the same LOINC code issued the same day. We keep
+// the first occurrence; mappers already dedup meaningful cases upstream.
+function dedupeByFingerprint(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+  const seen = new Set<string>();
+  const out: Record<string, unknown>[] = [];
+  for (const r of rows) {
+    const key = `${r.person_id}|${r.source_fingerprint}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(r);
+  }
+  return out;
+}
+
 async function upsertBatch(
   admin: SupaClient,
   table: string,
-  rows: Record<string, unknown>[],
+  rowsRaw: Record<string, unknown>[],
 ): Promise<{ inserted: number; error: string | null }> {
+  const rows = dedupeByFingerprint(rowsRaw);
   if (rows.length === 0) return { inserted: 0, error: null };
   // Chunk to keep payloads under Postgres / PostgREST limits. 200 is
   // comfortable for our row sizes (<1kB each) and stays well under the
