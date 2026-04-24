@@ -5,6 +5,10 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(self), geolocation=()
 
-/.well-known/jwks.json
+/.well-known/jwks-prod.json
+  Content-Type: application/json
+  Cache-Control: public, max-age=300
+
+/.well-known/jwks-nonprod.json
   Content-Type: application/json
   Cache-Control: public, max-age=300
