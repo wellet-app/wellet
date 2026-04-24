@@ -50,6 +50,25 @@ type FhirCallTelemetry = {
 };
 let currentFhirTelemetry: FhirCallTelemetry[] = [];
 
+// Per-practitioner diagnostic capture for ONE-SHOT debugging of why Care Team
+// contact info is empty. For each practitioner we read, record: Practitioner
+// HTTP status, whether Practitioner.telecom was populated, PractitionerRole
+// search HTTP status, PractitionerRole entry count, and whether any role had
+// a non-empty telecom array. This bypasses the summarization in roleExtras so
+// we can see exactly what Duke is returning on the wire.
+type PractitionerTelemetry = {
+  ref: string;
+  pract_status: number | null;
+  pract_telecom_count: number;
+  pract_telecom_sample: string | null; // first telecom system:value seen (or null)
+  role_status: number | null;
+  role_entry_count: number;
+  role_telecom_counts: number[]; // telecom.length for each role entry
+  role_first_telecom_sample: string | null;
+  role_location_display_sample: string | null;
+};
+let currentPractitionerTelemetry: PractitionerTelemetry[] = [];
+
 // Fetch a FHIR resource type from the EHR's FHIR endpoint, handling pagination
 async function fetchFhirResource(
   fhirBaseUrl: string,
@@ -147,11 +166,29 @@ async function fetchFhirResource(
 }
 
 // Fetch a single FHIR resource by reference (e.g. "Practitioner/abc123")
+// When reference starts with "Practitioner/", also records diagnostic
+// telemetry for the Care Team contact info debugging pass.
 async function fetchFhirById(
   fhirBaseUrl: string,
   reference: string,
   accessToken: string,
 ): Promise<Record<string, unknown> | null> {
+  const isPractitioner = reference.startsWith('Practitioner/');
+  let tele: PractitionerTelemetry | null = null;
+  if (isPractitioner) {
+    tele = {
+      ref: reference,
+      pract_status: null,
+      pract_telecom_count: 0,
+      pract_telecom_sample: null,
+      role_status: null,
+      role_entry_count: 0,
+      role_telecom_counts: [],
+      role_first_telecom_sample: null,
+      role_location_display_sample: null,
+    };
+    currentPractitionerTelemetry.push(tele);
+  }
   try {
     const res = await fetch(`${fhirBaseUrl}/${reference}`, {
       headers: {
@@ -159,8 +196,18 @@ async function fetchFhirById(
         'Accept': 'application/fhir+json',
       },
     });
+    if (tele) tele.pract_status = res.status;
     if (!res.ok) return null;
-    return await res.json() as Record<string, unknown>;
+    const json = await res.json() as Record<string, unknown>;
+    if (tele) {
+      const tel = Array.isArray(json.telecom) ? json.telecom as Record<string, unknown>[] : [];
+      tele.pract_telecom_count = tel.length;
+      if (tel.length > 0) {
+        const first = tel[0];
+        tele.pract_telecom_sample = `${(first.system as string) || '?'}:${(first.value as string) || '?'}`.slice(0, 80);
+      }
+    }
+    return json;
   } catch (_e) {
     return null;
   }
@@ -175,6 +222,8 @@ async function fetchPractitionerRoles(
   practitionerId: string,
   accessToken: string,
 ): Promise<Record<string, unknown>[]> {
+  // Find the matching Practitioner telemetry row (was pushed by fetchFhirById)
+  const tele = currentPractitionerTelemetry.find((t) => t.ref === `Practitioner/${practitionerId}`) || null;
   try {
     const url = `${fhirBaseUrl}/PractitionerRole?practitioner=${encodeURIComponent(practitionerId)}`;
     const res = await fetch(url, {
@@ -183,10 +232,30 @@ async function fetchPractitionerRoles(
         'Accept': 'application/fhir+json',
       },
     });
+    if (tele) tele.role_status = res.status;
     if (!res.ok) return [];
     const bundle = await res.json() as Record<string, unknown>;
     const entries = (bundle.entry as Record<string, unknown>[]) || [];
-    return entries.map((e) => (e.resource as Record<string, unknown>) || {}).filter((r) => r && r.resourceType === 'PractitionerRole');
+    const roles = entries.map((e) => (e.resource as Record<string, unknown>) || {}).filter((r) => r && r.resourceType === 'PractitionerRole');
+    if (tele) {
+      tele.role_entry_count = roles.length;
+      for (const r of roles) {
+        const tel = Array.isArray(r.telecom) ? r.telecom as Record<string, unknown>[] : [];
+        tele.role_telecom_counts.push(tel.length);
+        if (!tele.role_first_telecom_sample && tel.length > 0) {
+          const first = tel[0];
+          tele.role_first_telecom_sample = `${(first.system as string) || '?'}:${(first.value as string) || '?'}`.slice(0, 80);
+        }
+        if (!tele.role_location_display_sample) {
+          const locs = Array.isArray(r.location) ? r.location as Record<string, unknown>[] : [];
+          const firstLoc = locs[0];
+          if (firstLoc && typeof firstLoc.display === 'string') {
+            tele.role_location_display_sample = (firstLoc.display as string).slice(0, 120);
+          }
+        }
+      }
+    }
+    return roles;
   } catch (_e) {
     return [];
   }
@@ -836,6 +905,7 @@ Deno.serve(async (req) => {
   // returning, so a dashboard log search for '[fetch-ehr-data] FHIR call summary'
   // surfaces per-resource HTTP status + bundle.total for every call.
   currentFhirTelemetry = [];
+  currentPractitionerTelemetry = [];
   const t0 = Date.now();
 
   try {
@@ -1126,8 +1196,17 @@ Deno.serve(async (req) => {
       person_id,
       patient_id: patientId || null,
       calls: currentFhirTelemetry,
+      practitioner_calls: currentPractitionerTelemetry,
       result_counts: resultCounts,
     });
+
+    // Merge practitioner telemetry into fhir_calls so it persists with the
+    // regular FHIR call log (diagnostic for Care Team contact info — remove
+    // after we see Duke's response shape).
+    const fhirCallsWithPract = [
+      ...currentFhirTelemetry,
+      { resourceType: '__practitioner_debug__', practitioner_calls: currentPractitionerTelemetry },
+    ];
 
     // Persist a diagnostics row so we can query it from SQL without relying on
     // log scrapers (which only surface HTTP access logs, not console output).
@@ -1141,7 +1220,7 @@ Deno.serve(async (req) => {
         expected_patient_id: patientId || null,
         patient_name: (patient && (patient as Record<string, unknown>).name as string) || null,
         result_counts: resultCounts,
-        fhir_calls: currentFhirTelemetry,
+        fhir_calls: fhirCallsWithPract,
         duration_ms: Date.now() - t0,
         status: 200,
         error_message: null,
@@ -1156,6 +1235,7 @@ Deno.serve(async (req) => {
     (result as Record<string, unknown>)._diagnostic = {
       result_counts: resultCounts,
       fhir_calls: currentFhirTelemetry,
+      practitioner_calls: currentPractitionerTelemetry,
       duration_ms: Date.now() - t0,
     };
 
