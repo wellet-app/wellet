@@ -12,7 +12,7 @@ import { getCorsHeaders } from '../_shared/cors.ts';
 
 // ── Configuration ────────────────────────────────────────────────────────────
 // Production Client ID (default). Sandbox used when sandbox=true query param is passed.
-const EPIC_PROD_CLIENT_ID = '8ade6bac-dc9a-4318-99fd-3a0aebde1da1';
+const EPIC_PROD_CLIENT_ID = 'a00e2e38-f814-4946-9b7c-a92901a8aebc';
 const EPIC_SANDBOX_CLIENT_ID = 'a4716f99-88d4-42fb-a9e7-03e7efbf9c90';
 const EPIC_REDIRECT_URI = Deno.env.get('EPIC_REDIRECT_URI') ?? 'https://mywellet.com/epic-callback';
 
