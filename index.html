@@ -2926,9 +2926,17 @@
         <i data-lucide="shield-alert" style="width:22px;height:22px;"></i>
         <span class="er-header-title" data-i18n="emergency.title">Emergency Summary</span>
       </div>
-      <button class="er-close-btn" onclick="closeSheet('emergency-overlay')" aria-label="Close">
-        <i data-lucide="x" style="width:22px;height:22px;"></i>
-      </button>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <!-- Top-level refresh: users couldn't find the per-section refresh
+             icon buried at the bottom of the modal, so this is the obvious
+             path to regenerate the full brief. -->
+        <button class="er-close-btn" onclick="refreshEmergencySummary()" aria-label="Refresh emergency summary" title="Refresh">
+          <i data-lucide="refresh-cw" style="width:20px;height:20px;"></i>
+        </button>
+        <button class="er-close-btn" onclick="closeSheet('emergency-overlay')" aria-label="Close">
+          <i data-lucide="x" style="width:22px;height:22px;"></i>
+        </button>
+      </div>
     </div>
 
     <div class="er-patient-banner" id="er-patient-banner">
@@ -13367,10 +13375,36 @@ function closeModal() {
 function openEmergencySummary() {
   if (!isDemoMode) {
     renderEmergencySummary();
-    fetchEmergencyBrief(false);
+    // Auto-refresh the AI brief if it's older than the most recent EHR sync.
+    // Before this check the brief was cached in localStorage indefinitely, so
+    // a Duke reconnect or a schema fix (both things that populate new rows)
+    // would still show the old empty brief until the user found the inline
+    // refresh icon — which they couldn't find. Here we invalidate whenever
+    // the data under the brief has changed.
+    var pid = currentPersonId;
+    var forceRefresh = false;
+    try {
+      var ehrData = getEhrData(pid);
+      var lastSyncAt = ehrData && ehrData.synced_at ? new Date(ehrData.synced_at).getTime() : 0;
+      var briefCache = JSON.parse(localStorage.getItem('wellet_er_brief_' + pid) || 'null');
+      var briefAt = briefCache && briefCache.timestamp ? briefCache.timestamp : 0;
+      if (lastSyncAt > 0 && briefAt > 0 && lastSyncAt > briefAt) {
+        forceRefresh = true;
+      }
+    } catch (e) { /* localStorage unavailable or parse error — fall through */ }
+    fetchEmergencyBrief(forceRefresh);
   }
   openSheetAccessible('emergency-overlay');
   initIcons();
+}
+
+// Full refresh — re-reads DB counts, re-renders the structured sections, and
+// forces a fresh AI brief. Bound to the refresh icon in the red header so it
+// is always visible without scrolling.
+function refreshEmergencySummary() {
+  if (isDemoMode) return;
+  renderEmergencySummary();
+  fetchEmergencyBrief(true);
 }
 // Add-more-to-Wellet sheet: surfaces the three ways to grow Wellet’s knowledge
 function openAddMoreToWellet() {
@@ -14938,8 +14972,12 @@ function renderEmergencySummary() {
     });
   }
 
+  // Profile-entered allergies (free text) — kept for manual profile users.
+  // EHR-sourced allergies get their own dedicated section below so each
+  // entry can show substance + severity + reaction separately, which is
+  // what an ER needs.
   if (person.allergies) {
-    html += '<div class="emrg-row"><span class="emrg-label">Allergies</span><span class="emrg-val" style="color:#dc2626;font-weight:700;">' + escHtml(person.allergies) + '</span></div>';
+    html += '<div class="emrg-row"><span class="emrg-label">Allergies (profile)</span><span class="emrg-val" style="color:#dc2626;font-weight:700;">' + escHtml(person.allergies) + '</span></div>';
   }
   if (person.blood_type) {
     html += '<div class="emrg-row"><span class="emrg-label">Blood type</span><span class="emrg-val">' + escHtml(person.blood_type) + '</span></div>';
@@ -14948,6 +14986,25 @@ function renderEmergencySummary() {
     html += '<div class="emrg-row"><span class="emrg-label">Insurance</span><span class="emrg-val">' + escHtml(person.insurance_info) + '</span></div>';
   }
   html += '</div>';
+
+  // EHR-sourced allergies — dedicated section with severity + reaction.
+  // The old Emergency Summary modal only read `person.allergies` (free text
+  // profile field), so Penicillin (imported from Duke) never appeared even
+  // though it was safety-critical. liveAllergies is the rows from the
+  // allergies table, keyed to person_id.
+  if (liveAllergies && liveAllergies.length > 0) {
+    html += '<div class="emrg-section"><div class="emrg-section-title" style="color:#dc2626;"><i data-lucide="alert-triangle" style="width:12px;height:12px;"></i> Allergies</div>';
+    liveAllergies.forEach(function(a) {
+      var label = escHtml(a.substance || 'Unknown');
+      var val = '';
+      var parts = [];
+      if (a.severity) parts.push(escHtml(a.severity));
+      if (a.reaction) parts.push(escHtml(a.reaction));
+      val = parts.join(' · ');
+      html += '<div class="emrg-row"><span class="emrg-label" style="color:#dc2626;font-weight:700;">' + label + '</span><span class="emrg-val">' + (val || 'On file') + '</span></div>';
+    });
+    html += '</div>';
+  }
 
   // Conditions section
   if (person.conditions) {
