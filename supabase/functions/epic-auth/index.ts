@@ -434,7 +434,31 @@ Deno.serve(async (req) => {
         ? `${conn.hospital_name} (Epic)`
         : 'Epic MyChart';
 
-      // Store encrypted tokens and patient context
+      // If Epic did NOT return a refresh_token even though we asked for
+      // offline_access, log loudly. This almost always means the Epic
+      // app registration doesn't have refresh tokens enabled — a config
+      // fix in fhir.epic.com, not a code fix. Without this, the user
+      // will be forced to reconnect every ~60 minutes when the access
+      // token expires.
+      const scopeReturned = typeof tokenData.scope === 'string' ? tokenData.scope : '';
+      const offlineGranted = scopeReturned.split(/\s+/).includes('offline_access');
+      if (!tokenData.refresh_token) {
+        console.warn('[epic-auth] Epic did NOT return a refresh_token', {
+          client_id: connClientId,
+          scope_requested: SMART_SCOPES,
+          scope_granted: scopeReturned,
+          offline_access_granted: offlineGranted,
+          expires_in: tokenData.expires_in,
+        });
+      }
+
+      // Store encrypted tokens and patient context.
+      //
+      // IMPORTANT: explicitly reset needs_reconnect=false and status='connected'
+      // here. If we don't, a stale 'needs_reconnect=true' from a prior expired
+      // token persists forever and the frontend refuses to pull data even
+      // though we just got a fresh token. Also record client_id_used so we
+      // can diagnose which Epic app minted this token when regressions hit.
       const { error: updateError } = await admin.from('ehr_connections')
         .update({
           access_token: encAccessToken,
@@ -443,6 +467,9 @@ Deno.serve(async (req) => {
           patient_id: tokenData.patient || null,
           connected_provider: hospitalLabel,
           connected_at: new Date().toISOString(),
+          client_id_used: connClientId,
+          needs_reconnect: false,
+          status: 'connected',
           // Clear PKCE values — no longer needed
           code_verifier: null,
           state: null,
@@ -455,7 +482,14 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'Failed to store tokens' }, 500);
       }
 
-      return jsonResponse({ success: true, expires_at: expiresAt });
+      // Surface refresh-token status to the client so the frontend can
+      // warn the user if Epic is going to force hourly reconnects.
+      return jsonResponse({
+        success: true,
+        expires_at: expiresAt,
+        has_refresh_token: !!tokenData.refresh_token,
+        offline_access_granted: offlineGranted,
+      });
     }
 
     // ── STATUS: Check connection status ──
