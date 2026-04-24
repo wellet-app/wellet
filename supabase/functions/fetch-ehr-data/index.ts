@@ -1,7 +1,12 @@
-// Supabase Edge Function: fetch-ehr-data (v38 — persist sync diagnostics to ehr_sync_log and echo counts in response)
+// Supabase Edge Function: fetch-ehr-data (v39 — persist mapped FHIR data to Wellet tables)
 // Fetches FHIR R4 resources from the connected EHR provider (Epic),
 // maps them to a simplified Wellet-friendly JSON structure,
-// and returns the data to the frontend (NOT stored in Supabase).
+// returns the data to the frontend, AND upserts into medications /
+// allergies / health_events / lab_results / vitals so that downstream
+// features (Emergency Summary, Update Me, Care Team enrichment) have real
+// rows to read. Previously through v38 the function returned JSON without
+// writing, which made Emergency Summary show "None reported" for every
+// section even when Duke returned 200+ resources.
 //
 // v23 CHANGE: when the stored access_token is expired, use the stored
 // refresh_token (from the `offline_access` scope) to silently mint a new
@@ -12,6 +17,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders } from '../_shared/cors.ts';
+import { persistEhrData } from '../_shared/ehr-persist.ts';
 
 function getAdminClient() {
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
@@ -1188,6 +1194,39 @@ Deno.serve(async (req) => {
       care_team: result.care_team.length,
     };
 
+    // Persist the mapped result into the canonical Wellet tables so that
+    // Emergency Summary, Update Me, and future features can read real rows
+    // instead of just the sync-log count JSON. Idempotent via
+    // (person_id, source_fingerprint) partial-unique indexes — re-running a
+    // sync replaces rows in place.
+    //
+    // Best-effort: if persistence fails partially, we still return the fetched
+    // JSON to the frontend so Records / Care Team continue to render from the
+    // live response, and we record the error in ehr_sync_log so we can see it
+    // later. We do NOT throw, because the user-visible UI path (Records page)
+    // doesn't depend on DB rows — only the Emergency Summary / Update Me paths
+    // do, and those run separately.
+    const persist = await persistEhrData(admin, person_id, {
+      medications: result.medications,
+      allergies: result.allergies,
+      conditions: result.conditions,
+      visits: result.visits,
+      immunizations: result.immunizations,
+      diagnostic_reports: result.diagnostic_reports,
+      observations: result.observations,
+    });
+    if (persist.errors.length > 0) {
+      console.error('[fetch-ehr-data] persistence errors', {
+        person_id,
+        errors: persist.errors,
+      });
+    } else {
+      console.log('[fetch-ehr-data] persisted', {
+        person_id,
+        ...persist,
+      });
+    }
+
     // One-line per-resource summary: status, bundle.total (when Epic sends it),
     // entries actually returned, and any OperationOutcome / error-body snippet.
     // This is the telemetry that lets us distinguish "Duke denied the scope"
@@ -1219,7 +1258,20 @@ Deno.serve(async (req) => {
         patient_id: patientId || null,
         expected_patient_id: patientId || null,
         patient_name: (patient && (patient as Record<string, unknown>).name as string) || null,
-        result_counts: resultCounts,
+        result_counts: {
+          ...resultCounts,
+          // Persistence outcome folded into the same JSON so we can query for
+          // "fetched N conditions but persisted 0" regressions from SQL alone.
+          _persisted: {
+            medications: persist.medications,
+            allergies: persist.allergies,
+            health_events: persist.health_events,
+            lab_results: persist.lab_results,
+            vitals: persist.vitals,
+            errors: persist.errors,
+            duration_ms: persist.duration_ms,
+          },
+        },
         fhir_calls: fhirCallsWithPract,
         duration_ms: Date.now() - t0,
         status: 200,
@@ -1234,6 +1286,14 @@ Deno.serve(async (req) => {
     // console surface the same info without a round trip to the DB.
     (result as Record<string, unknown>)._diagnostic = {
       result_counts: resultCounts,
+      persisted: {
+        medications: persist.medications,
+        allergies: persist.allergies,
+        health_events: persist.health_events,
+        lab_results: persist.lab_results,
+        vitals: persist.vitals,
+        errors: persist.errors,
+      },
       fhir_calls: currentFhirTelemetry,
       practitioner_calls: currentPractitionerTelemetry,
       duration_ms: Date.now() - t0,
