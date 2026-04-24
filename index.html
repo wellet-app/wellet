@@ -12084,7 +12084,11 @@ function handleEpicCallback() {
 
 // Fetch EHR data from the edge function
 function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
-  if (isDemoMode || !currentUser || !personId) return;
+  // Surface silent bails — these have historically caused "Refresh doesn't do anything" reports.
+  if (isDemoMode) { console.warn('[EHR] fetchEhrData bail: demo mode'); return; }
+  if (!currentUser) { console.warn('[EHR] fetchEhrData bail: no currentUser'); try { showToast('Not signed in \u2014 please reload'); } catch(e){} return; }
+  if (!personId) { console.warn('[EHR] fetchEhrData bail: no personId'); try { showToast('No person selected'); } catch(e){} return; }
+  console.log('[EHR] fetchEhrData START person=' + personId);
   var retryAttempt = _retryAttempt || 0;
 
   db.auth.getSession().then(function(sessionRes) {
@@ -12181,12 +12185,14 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
 
 // Refresh EHR data (manual button click)
 function refreshEhrData() {
+  console.log('[EHR] refreshEhrData tapped; isDemoMode=' + isDemoMode + ' currentPersonId=' + currentPersonId + ' currentUser=' + (currentUser ? currentUser.id : 'null'));
   if (isDemoMode) {
     showToast('Demo data refreshed');
     return;
   }
   var personId = currentPersonId;
-  if (!personId) return;
+  if (!personId) { showToast('No person selected \u2014 tap a person pill first'); return; }
+  if (!currentUser) { showToast('Not signed in \u2014 please reload'); return; }
   showToast('Refreshing health records\u2026');
   fetchEhrData(personId);
 }

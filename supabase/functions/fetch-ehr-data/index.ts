@@ -1,4 +1,4 @@
-// Supabase Edge Function: fetch-ehr-data (v28 — PractitionerRole address fallback + telemetry)
+// Supabase Edge Function: fetch-ehr-data (v38 — persist sync diagnostics to ehr_sync_log and echo counts in response)
 // Fetches FHIR R4 resources from the connected EHR provider (Epic),
 // maps them to a simplified Wellet-friendly JSON structure,
 // and returns the data to the frontend (NOT stored in Supabase).
@@ -93,31 +93,51 @@ async function fetchFhirResource(
       break;
     }
 
-    const bundle = await res.json();
-    tele.pages += 1;
-    if (bundle.total !== undefined && tele.bundle_total === null) {
-      tele.bundle_total = typeof bundle.total === 'number' ? bundle.total : null;
-    }
-    if (bundle.entry) {
-      for (const e of bundle.entry) {
-        // Skip OperationOutcome entries (Epic returns these as warnings)
-        if (e.resource && e.resource.resourceType === 'OperationOutcome') {
-          const issues = (e.resource.issue as Record<string, unknown>[]) || [];
+    // v34: wrap bundle parsing + telemetry in its own try/catch so a malformed
+    // OperationOutcome or unexpected shape from Duke can't take down the
+    // whole request. v33 was returning 500s on the first fetch after reconnect
+    // — almost certainly from a narrow edge case in this block.
+    try {
+      const bundle = await res.json() as Record<string, unknown>;
+      tele.pages += 1;
+      const totalVal = bundle.total;
+      if (totalVal !== undefined && tele.bundle_total === null && typeof totalVal === 'number') {
+        tele.bundle_total = totalVal;
+      }
+      const entryArr = Array.isArray(bundle.entry) ? bundle.entry as Record<string, unknown>[] : [];
+      for (const e of entryArr) {
+        const resource = e && typeof e === 'object' ? (e.resource as Record<string, unknown> | undefined) : undefined;
+        if (!resource) continue;
+        if (resource.resourceType === 'OperationOutcome') {
+          const issuesRaw = resource.issue;
+          const issues = Array.isArray(issuesRaw) ? issuesRaw as Record<string, unknown>[] : [];
           for (const issue of issues) {
-            const diag = (issue.diagnostics as string) || (issue.details as Record<string, unknown>)?.text as string || (issue.code as string) || '';
-            if (diag && tele.operation_outcomes.length < 5) tele.operation_outcomes.push(String(diag).slice(0, 200));
+            if (!issue || typeof issue !== 'object') continue;
+            const diagnostics = typeof issue.diagnostics === 'string' ? issue.diagnostics : '';
+            const detailsObj = (typeof issue.details === 'object' && issue.details) ? issue.details as Record<string, unknown> : null;
+            const detailsText = detailsObj && typeof detailsObj.text === 'string' ? detailsObj.text : '';
+            const code = typeof issue.code === 'string' ? issue.code : '';
+            const diag = diagnostics || detailsText || code || '';
+            if (diag && tele.operation_outcomes.length < 5) {
+              tele.operation_outcomes.push(diag.slice(0, 200));
+            }
           }
           continue;
         }
-        if (e.resource) entries.push(e.resource);
+        entries.push(resource);
       }
-    }
 
-    // Follow next page link
-    url = null;
-    if (bundle.link) {
-      const nextLink = bundle.link.find((l: { relation: string; url: string }) => l.relation === 'next');
-      if (nextLink) url = nextLink.url;
+      // Follow next page link
+      url = null;
+      const linkRaw = bundle.link;
+      if (Array.isArray(linkRaw)) {
+        const nextLink = (linkRaw as Record<string, unknown>[]).find((l) => l && (l as { relation?: string }).relation === 'next') as { url?: string } | undefined;
+        if (nextLink && typeof nextLink.url === 'string') url = nextLink.url;
+      }
+    } catch (parseErr) {
+      console.error(`FHIR parse ${resourceType} threw`, (parseErr as Error).message);
+      tele.error_body_snippet = `parse_error: ${(parseErr as Error).message}`.slice(0, 200);
+      break;
     }
   }
 
@@ -816,6 +836,7 @@ Deno.serve(async (req) => {
   // returning, so a dashboard log search for '[fetch-ehr-data] FHIR call summary'
   // surfaces per-resource HTTP status + bundle.total for every call.
   currentFhirTelemetry = [];
+  const t0 = Date.now();
 
   try {
     const user = await getAuthenticatedUser(req);
@@ -842,22 +863,31 @@ Deno.serve(async (req) => {
     if (connError || !conn || !conn.access_token) {
       // Diagnostic: find any rows that match on person_id OR user_id to surface the mismatch.
       const byPerson = await admin.from('ehr_connections')
-        .select('id, user_id, person_id, provider, token_expires_at')
+        .select('id, user_id, person_id, provider, token_expires_at, has_access:access_token')
         .eq('person_id', person_id);
       const byUser = await admin.from('ehr_connections')
-        .select('id, user_id, person_id, provider, token_expires_at')
+        .select('id, user_id, person_id, provider, token_expires_at, has_access:access_token')
         .eq('user_id', user.id);
-      console.error('[fetch-ehr-data] 404 diagnostic', {
-        requested: { user_id: user.id, person_id },
+      const diagnostic = {
+        requested: { user_id: user.id, person_id, person_id_type: typeof person_id },
         connError: connError?.message,
         connError_code: connError?.code,
         byPerson_count: byPerson.data?.length || 0,
-        byPerson_rows: byPerson.data,
+        byPerson_rows: (byPerson.data || []).map((r: any) => ({
+          id: r.id, user_id: r.user_id, person_id: r.person_id,
+          provider: r.provider, token_expires_at: r.token_expires_at,
+          has_access: !!r.has_access,
+        })),
         byUser_count: byUser.data?.length || 0,
-        byUser_rows: byUser.data,
+        byUser_rows: (byUser.data || []).map((r: any) => ({
+          id: r.id, user_id: r.user_id, person_id: r.person_id,
+          provider: r.provider, token_expires_at: r.token_expires_at,
+          has_access: !!r.has_access,
+        })),
         conn_has_token: !!conn?.access_token,
-      });
-      return jsonResponse({ error: 'No EHR connection found for this person' }, 404);
+      };
+      console.error('[fetch-ehr-data] 404 diagnostic', diagnostic);
+      return jsonResponse({ error: 'No EHR connection found for this person', _diagnostic: diagnostic }, 404);
     }
     console.log('[fetch-ehr-data] lookup hit', { conn_id: conn.id, provider: conn.provider, patient_id: conn.patient_id });
 
@@ -1076,6 +1106,18 @@ Deno.serve(async (req) => {
       last_synced_at: result.synced_at,
     }).eq('id', conn.id);
 
+    // Build per-resource counts — used for both log line and persisted diagnostics row
+    const resultCounts = {
+      conditions: result.conditions.length,
+      medications: result.medications.length,
+      allergies: result.allergies.length,
+      observations: result.observations.length,
+      immunizations: result.immunizations.length,
+      diagnostic_reports: result.diagnostic_reports.length,
+      visits: result.visits.length,
+      care_team: result.care_team.length,
+    };
+
     // One-line per-resource summary: status, bundle.total (when Epic sends it),
     // entries actually returned, and any OperationOutcome / error-body snippet.
     // This is the telemetry that lets us distinguish "Duke denied the scope"
@@ -1084,22 +1126,51 @@ Deno.serve(async (req) => {
       person_id,
       patient_id: patientId || null,
       calls: currentFhirTelemetry,
-      result_counts: {
-        conditions: result.conditions.length,
-        medications: result.medications.length,
-        allergies: result.allergies.length,
-        observations: result.observations.length,
-        immunizations: result.immunizations.length,
-        diagnostic_reports: result.diagnostic_reports.length,
-        visits: result.visits.length,
-        care_team: result.care_team.length,
-      },
+      result_counts: resultCounts,
     });
+
+    // Persist a diagnostics row so we can query it from SQL without relying on
+    // log scrapers (which only surface HTTP access logs, not console output).
+    // Best-effort — never blocks the response.
+    try {
+      await admin.from('ehr_sync_log').insert({
+        person_id,
+        user_id: user.id,
+        provider: conn.provider || null,
+        patient_id: patientId || null,
+        expected_patient_id: patientId || null,
+        patient_name: (patient && (patient as Record<string, unknown>).name as string) || null,
+        result_counts: resultCounts,
+        fhir_calls: currentFhirTelemetry,
+        duration_ms: Date.now() - t0,
+        status: 200,
+        error_message: null,
+      });
+    } catch (logErr) {
+      console.error('[fetch-ehr-data] ehr_sync_log insert failed', logErr);
+    }
+
+    // Also include a lightweight diagnostic block on the response. Safe to
+    // ship — no PHI, just counts and FHIR call status codes. Lets the client
+    // console surface the same info without a round trip to the DB.
+    (result as Record<string, unknown>)._diagnostic = {
+      result_counts: resultCounts,
+      fhir_calls: currentFhirTelemetry,
+      duration_ms: Date.now() - t0,
+    };
 
     return jsonResponse(result);
 
   } catch (err) {
-    console.error('fetch-ehr-data error:', err);
-    return jsonResponse({ error: err.message || 'Internal server error' }, 500);
+    const e = err as any;
+    console.error('fetch-ehr-data error:', e);
+    return jsonResponse({
+      error: (e && e.message) || 'Internal server error',
+      _error_name: e?.name || null,
+      _error_code: e?.code || null,
+      _error_details: e?.details || null,
+      _error_hint: e?.hint || null,
+      _error_stack: e?.stack ? String(e.stack).split('\n').slice(0, 20) : null,
+    }, 500);
   }
 });
