@@ -1,9 +1,10 @@
 // Supabase Edge Function: epic-auth
-// Handles Epic SMART on FHIR OAuth2 + PKCE flow for EHR connections.
-// This is a PUBLIC client (no client_secret) — standalone launch.
+// Handles Epic SMART on FHIR OAuth2 flow for EHR connections.
+// CONFIDENTIAL CLIENT — uses private_key_jwt (RFC 7523) signed with RS384.
 // Routes:
 //   POST { action: 'start' }      — Generate PKCE challenge, return Epic authorize URL
-//   POST { action: 'callback' }   — Exchange auth code for tokens via PKCE
+//   POST { action: 'callback' }   — Exchange auth code for tokens (PKCE + client_assertion)
+//   POST { action: 'refresh' }    — Exchange refresh_token for new access_token (client_assertion)
 //   POST { action: 'status' }     — Check connection status
 //   POST { action: 'disconnect' } — Remove Epic connection
 
@@ -11,15 +12,26 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders } from '../_shared/cors.ts';
 
 // ── Configuration ────────────────────────────────────────────────────────────
-// Production Client ID (default). Sandbox used when sandbox=true query param is passed.
-const EPIC_PROD_CLIENT_ID = 'a00e2e38-f814-4946-9b7c-a92901a8aebc';
-const EPIC_SANDBOX_CLIENT_ID = 'a4716f99-88d4-42fb-a9e7-03e7efbf9c90';
+// Wellet Confidential (2026-04-24) — Client IDs issued by Epic on app registration.
+// Prod is used for real hospital FHIR bases; non-prod is used for fhir.epic.com sandbox.
+const EPIC_PROD_CLIENT_ID = 'e550b8b1-8a3f-4f56-99e9-4870a616d5ab';
+const EPIC_NONPROD_CLIENT_ID = '6307e012-4778-40ed-bd24-c042b932312e';
+
+// Legacy public-client fallback. Kept ONLY so the handful of already-connected users
+// on old client IDs can still refresh during the transition window. New connections
+// always use the confidential client. Remove after May 23, 2026.
+const EPIC_LEGACY_PUBLIC_CLIENT_ID = 'a00e2e38-f814-4946-9b7c-a92901a8aebc';
+
 const EPIC_REDIRECT_URI = Deno.env.get('EPIC_REDIRECT_URI') ?? 'https://mywellet.com/epic-callback';
 
 // Sandbox fallback endpoints (used when sandbox=true or no fhirBaseUrl provided)
 const EPIC_SANDBOX_FHIR_BASE = 'https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4';
 const EPIC_SANDBOX_AUTHORIZE = 'https://fhir.epic.com/interconnect-fhir-oauth/oauth2/authorize';
 const EPIC_SANDBOX_TOKEN = 'https://fhir.epic.com/interconnect-fhir-oauth/oauth2/token';
+
+// Key IDs (must match kid in the published JWKS at mywellet.com/.well-known/jwks-*.json)
+const EPIC_PROD_KID = 'wellet-prod-2026-04';
+const EPIC_NONPROD_KID = 'wellet-nonprod-2026-04';
 
 // SMART v2 scopes
 // offline_access is required for Epic to issue a refresh_token so connections
@@ -32,11 +44,6 @@ const SMART_SCOPES = [
   'patient/Observation.read',
   'patient/Immunization.read',
   'patient/DiagnosticReport.read',
-  // v19 — added to restore Visits, Documents, and Care team contact fields.
-  // All five are USCDI v1+ resource types and part of Epic's standard
-  // SMART on FHIR scope catalog. Without them Duke silently rejects the
-  // corresponding FHIR reads, which is why Mom's first load showed
-  // 0 visits and 0 documents.
   'patient/Encounter.read',
   'patient/CareTeam.read',
   'patient/DocumentReference.read',
@@ -64,7 +71,6 @@ async function getAuthenticatedUser(req: Request) {
     return { user: null, diag: 'missing_env' };
   }
 
-  // Extract token for diagnostics (first 8 / last 4 chars only, no PII)
   const tokenMatch = authHeader.match(/Bearer\s+(.+)/i);
   const token = tokenMatch ? tokenMatch[1] : '';
   const tokenFingerprint = token ? token.slice(0, 8) + '...' + token.slice(-4) + ' (len=' + token.length + ')' : 'EMPTY';
@@ -83,7 +89,6 @@ async function getAuthenticatedUser(req: Request) {
       console.error('[epic-auth] getUser returned null user', { token: tokenFingerprint });
       return { user: null, diag: 'getUser_null_user' };
     }
-    console.log('[epic-auth] getUser OK', { userId: user.id, token: tokenFingerprint });
     return { user, diag: 'ok' };
   } catch (e) {
     console.error('[epic-auth] getUser threw', { err: String(e), token: tokenFingerprint });
@@ -97,21 +102,18 @@ function getAdminClient() {
   return createClient(supabaseUrl, supabaseServiceKey);
 }
 
-// Generate a cryptographically random string for PKCE code_verifier (43-128 chars)
 function generateCodeVerifier(): string {
   const array = new Uint8Array(64);
   crypto.getRandomValues(array);
   return base64UrlEncode(array);
 }
 
-// Generate a random state parameter for CSRF protection
 function generateState(): string {
   const array = new Uint8Array(32);
   crypto.getRandomValues(array);
   return base64UrlEncode(array);
 }
 
-// Base64 URL-encode (no padding)
 function base64UrlEncode(buffer: Uint8Array): string {
   let binary = '';
   for (const byte of buffer) {
@@ -120,7 +122,10 @@ function base64UrlEncode(buffer: Uint8Array): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-// Compute SHA-256 hash and base64url-encode it for PKCE code_challenge
+function base64UrlEncodeString(s: string): string {
+  return base64UrlEncode(new TextEncoder().encode(s));
+}
+
 async function computeCodeChallenge(codeVerifier: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(codeVerifier);
@@ -128,18 +133,120 @@ async function computeCodeChallenge(codeVerifier: string): Promise<string> {
   return base64UrlEncode(new Uint8Array(digest));
 }
 
+// ── private_key_jwt signing (RFC 7523) ───────────────────────────────────────
+// Epic confidential clients authenticate to the token endpoint by sending a
+// signed JWT as `client_assertion` with type `urn:ietf:params:oauth:client-assertion-type:jwt-bearer`.
+// The JWT is signed with RS384 using the private key whose public counterpart
+// we published at mywellet.com/.well-known/jwks-{prod,nonprod}.json.
+// Epic docs: https://fhir.epic.com/Documentation?docId=oauth2&section=BackendOAuth2Guide
+
+// Convert a PEM-encoded PKCS#8 RSA private key to a CryptoKey for RS384 signing.
+async function importPrivateKey(pem: string): Promise<CryptoKey> {
+  // Strip header/footer/whitespace. Accept both PKCS#8 ("BEGIN PRIVATE KEY") and
+  // PKCS#1 ("BEGIN RSA PRIVATE KEY") — openssl genrsa on modern macOS emits PKCS#8
+  // with "BEGIN PRIVATE KEY" so that's the common case. PKCS#1 keys need pre-conversion.
+  const pemBody = pem
+    .replace(/-----BEGIN (RSA )?PRIVATE KEY-----/g, '')
+    .replace(/-----END (RSA )?PRIVATE KEY-----/g, '')
+    .replace(/\s+/g, '');
+  if (!pemBody) throw new Error('Empty private key PEM');
+
+  const der = Uint8Array.from(atob(pemBody), (c) => c.charCodeAt(0));
+
+  try {
+    return await crypto.subtle.importKey(
+      'pkcs8',
+      der,
+      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-384' },
+      false,
+      ['sign'],
+    );
+  } catch (e) {
+    throw new Error(
+      'Failed to import RSA private key — is it PKCS#8? openssl rsa -in key.pem -out key.pkcs8.pem if not. Original: ' +
+        (e as Error).message,
+    );
+  }
+}
+
+// Build a signed client_assertion JWT for a given token endpoint + client_id.
+async function buildClientAssertion(
+  tokenUrl: string,
+  clientId: string,
+  kid: string,
+  privateKey: CryptoKey,
+): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  const header = {
+    alg: 'RS384',
+    typ: 'JWT',
+    kid,
+  };
+  const payload = {
+    iss: clientId,       // Issuer: the client
+    sub: clientId,       // Subject: the client
+    aud: tokenUrl,       // Audience: Epic's token endpoint (exact match required)
+    jti: crypto.randomUUID(), // Unique per request — Epic rejects replays
+    iat: now,
+    exp: now + 300,      // 5 minutes — Epic requires ≤ 5 min
+    nbf: now,
+  };
+
+  const encodedHeader = base64UrlEncodeString(JSON.stringify(header));
+  const encodedPayload = base64UrlEncodeString(JSON.stringify(payload));
+  const signingInput = `${encodedHeader}.${encodedPayload}`;
+
+  const signature = await crypto.subtle.sign(
+    { name: 'RSASSA-PKCS1-v1_5' },
+    privateKey,
+    new TextEncoder().encode(signingInput),
+  );
+
+  return `${signingInput}.${base64UrlEncode(new Uint8Array(signature))}`;
+}
+
+// Resolve which (client_id, kid, private_key_env) tuple to use based on
+// whether this is a sandbox/non-prod or production flow.
+function resolveClientCreds(isSandboxOrNonProd: boolean): {
+  clientId: string;
+  kid: string;
+  pemEnv: string;
+} {
+  if (isSandboxOrNonProd) {
+    return {
+      clientId: EPIC_NONPROD_CLIENT_ID,
+      kid: EPIC_NONPROD_KID,
+      pemEnv: 'EPIC_JWT_PRIVATE_KEY_NONPROD',
+    };
+  }
+  return {
+    clientId: EPIC_PROD_CLIENT_ID,
+    kid: EPIC_PROD_KID,
+    pemEnv: 'EPIC_JWT_PRIVATE_KEY_PROD',
+  };
+}
+
+// Load + import the RS384 private key for a given environment. Throws with a
+// clear error if the secret is missing so it shows up as a 500 in logs rather
+// than a mysterious signature mismatch from Epic.
+async function loadPrivateKey(pemEnv: string): Promise<CryptoKey> {
+  const pem = Deno.env.get(pemEnv) || '';
+  if (!pem) {
+    throw new Error(
+      `Missing Supabase secret: ${pemEnv}. Set it with the PEM contents of the matching private key.`,
+    );
+  }
+  return await importPrivateKey(pem);
+}
+
 // Discover SMART on FHIR authorization and token endpoints from a FHIR base URL.
-// Tries .well-known/smart-configuration first, falls back to /metadata (CapabilityStatement).
 async function discoverSmartEndpoints(fhirBaseUrl: string): Promise<{
   authorization_endpoint: string;
   token_endpoint: string;
 }> {
-  // Try .well-known/smart-configuration
   try {
     const smartUrl = `${fhirBaseUrl}/.well-known/smart-configuration`;
-    const res = await fetch(smartUrl, {
-      headers: { 'Accept': 'application/json' },
-    });
+    const res = await fetch(smartUrl, { headers: { 'Accept': 'application/json' } });
     if (res.ok) {
       const config = await res.json();
       if (config.authorization_endpoint && config.token_endpoint) {
@@ -150,15 +257,12 @@ async function discoverSmartEndpoints(fhirBaseUrl: string): Promise<{
       }
     }
   } catch (e) {
-    console.warn('SMART .well-known fetch failed, trying /metadata:', e.message);
+    console.warn('SMART .well-known fetch failed, trying /metadata:', (e as Error).message);
   }
 
-  // Fallback: /metadata (CapabilityStatement)
   try {
     const metadataUrl = `${fhirBaseUrl}/metadata`;
-    const res = await fetch(metadataUrl, {
-      headers: { 'Accept': 'application/fhir+json' },
-    });
+    const res = await fetch(metadataUrl, { headers: { 'Accept': 'application/fhir+json' } });
     if (res.ok) {
       const cap = await res.json();
       const restSecurity = cap.rest?.[0]?.security;
@@ -179,15 +283,12 @@ async function discoverSmartEndpoints(fhirBaseUrl: string): Promise<{
       }
     }
   } catch (e) {
-    console.warn('FHIR /metadata fetch failed:', e.message);
+    console.warn('FHIR /metadata fetch failed:', (e as Error).message);
   }
 
   throw new Error('Could not discover SMART endpoints from ' + fhirBaseUrl);
 }
 
-// Probe whether a candidate R4 base URL responds with a valid CapabilityStatement.
-// Used when the Epic directory returns a DSTU2 URL — most Epic customers also
-// expose /R4/ at the same host, and our fetch-ehr-data is R4-only.
 async function probeR4Metadata(r4BaseUrl: string): Promise<boolean> {
   const ctrl = new AbortController();
   const timeoutId = setTimeout(() => ctrl.abort(), 4000);
@@ -196,13 +297,8 @@ async function probeR4Metadata(r4BaseUrl: string): Promise<boolean> {
       headers: { 'Accept': 'application/fhir+json, application/json, application/fhir+xml' },
       signal: ctrl.signal,
     });
-    if (!res.ok) {
-      console.log('[epic-auth] R4 probe non-200', { url: r4BaseUrl, status: res.status });
-      return false;
-    }
-    return true;
-  } catch (e) {
-    console.warn('[epic-auth] R4 probe failed', { url: r4BaseUrl, err: (e as Error).message });
+    return res.ok;
+  } catch {
     return false;
   } finally {
     clearTimeout(timeoutId);
@@ -233,9 +329,10 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = body.action || '';
 
-    // Determine sandbox vs production from body param
+    // "Non-prod" means sandbox FHIR base. Everything else uses the production
+    // confidential client + production signing key.
     const isSandbox = body.sandbox === true;
-    const clientId = isSandbox ? EPIC_SANDBOX_CLIENT_ID : EPIC_PROD_CLIENT_ID;
+    const creds = resolveClientCreds(isSandbox);
 
     // ── START: Generate PKCE challenge and return Epic authorize URL ──
     if (action === 'start') {
@@ -246,23 +343,17 @@ Deno.serve(async (req) => {
 
       const admin = getAdminClient();
 
-      // Determine FHIR base URL and endpoints
       let fhirBase: string;
       let authorizeUrl: string;
       let tokenUrl: string;
 
       if (isSandbox || !fhirBaseUrl) {
-        // Sandbox mode — use hardcoded sandbox endpoints
         fhirBase = EPIC_SANDBOX_FHIR_BASE;
         authorizeUrl = EPIC_SANDBOX_AUTHORIZE;
         tokenUrl = EPIC_SANDBOX_TOKEN;
       } else {
-        // Production — discover SMART endpoints from the hospital's FHIR base URL
         fhirBase = fhirBaseUrl;
 
-        // Epic's public endpoint directory still lists /DSTU2/ URLs for every hospital,
-        // but the vast majority of Epic customers also expose an /R4/ path at the same
-        // host. Try that first. Only reject as unsupported if R4 genuinely doesn't respond.
         if (/\/DSTU2(\/|$)/i.test(fhirBase) || /\/stu2(\/|$)/i.test(fhirBase)) {
           const r4Candidate = fhirBase.replace(/\/DSTU2(\/|$)/i, '/R4$1').replace(/\/stu2(\/|$)/i, '/R4$1');
           const r4Works = await probeR4Metadata(r4Candidate);
@@ -284,12 +375,10 @@ Deno.serve(async (req) => {
         tokenUrl = endpoints.token_endpoint;
       }
 
-      // Generate PKCE values
       const codeVerifier = generateCodeVerifier();
       const codeChallenge = await computeCodeChallenge(codeVerifier);
       const state = generateState();
 
-      // Upsert connection record with PKCE state (clears any prior tokens)
       await admin.from('ehr_connections').upsert({
         user_id: user.id,
         person_id: person_id,
@@ -299,7 +388,6 @@ Deno.serve(async (req) => {
         fhir_base_url: fhirBase,
         token_url: tokenUrl,
         hospital_name: hospitalName || (isSandbox ? 'Epic Sandbox' : null),
-        // Clear previous token data on re-auth
         access_token: null,
         refresh_token: null,
         token_expires_at: null,
@@ -308,10 +396,9 @@ Deno.serve(async (req) => {
         connected_at: null,
       }, { onConflict: 'person_id' });
 
-      // Build Epic authorize URL
       const params = new URLSearchParams({
         response_type: 'code',
-        client_id: clientId,
+        client_id: creds.clientId,
         redirect_uri: EPIC_REDIRECT_URI,
         scope: SMART_SCOPES,
         state: state,
@@ -325,7 +412,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── CALLBACK: Exchange auth code for tokens via PKCE ──
+    // ── CALLBACK: Exchange auth code for tokens (PKCE + client_assertion) ──
     if (action === 'callback') {
       const { code, state: callbackState, person_id } = body;
       if (!code || !person_id) {
@@ -334,7 +421,6 @@ Deno.serve(async (req) => {
 
       const admin = getAdminClient();
 
-      // Retrieve the stored connection with code_verifier and state
       const { data: conn, error: connError } = await admin.from('ehr_connections')
         .select('*')
         .eq('person_id', person_id)
@@ -345,7 +431,6 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'No pending connection found' }, 404);
       }
 
-      // Verify state parameter for CSRF protection
       if (conn.state && callbackState !== conn.state) {
         return jsonResponse({ error: 'State mismatch — possible CSRF attack' }, 400);
       }
@@ -354,14 +439,29 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'No PKCE code_verifier found — restart the connection flow' }, 400);
       }
 
-      // Use the token_url stored during start, fall back to sandbox
       const tokenUrl = conn.token_url || EPIC_SANDBOX_TOKEN;
-
-      // Determine which client_id was used (check if sandbox FHIR base)
       const connIsSandbox = conn.fhir_base_url === EPIC_SANDBOX_FHIR_BASE;
-      const connClientId = connIsSandbox ? EPIC_SANDBOX_CLIENT_ID : EPIC_PROD_CLIENT_ID;
+      const connCreds = resolveClientCreds(connIsSandbox);
 
-      // Exchange authorization code for access token (PUBLIC client — no client_secret)
+      // Build client_assertion JWT signed with our RS384 private key.
+      let clientAssertion: string;
+      try {
+        const privateKey = await loadPrivateKey(connCreds.pemEnv);
+        clientAssertion = await buildClientAssertion(
+          tokenUrl,
+          connCreds.clientId,
+          connCreds.kid,
+          privateKey,
+        );
+      } catch (e) {
+        console.error('[epic-auth] client_assertion build failed', { err: (e as Error).message });
+        return jsonResponse({
+          error: 'client_assertion_failed',
+          message: 'Server could not sign the JWT assertion — check EPIC_JWT_PRIVATE_KEY_* secrets.',
+          detail: (e as Error).message,
+        }, 500);
+      }
+
       const tokenRes = await fetch(tokenUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -369,20 +469,25 @@ Deno.serve(async (req) => {
           grant_type: 'authorization_code',
           code: code,
           redirect_uri: EPIC_REDIRECT_URI,
-          client_id: connClientId,
           code_verifier: conn.code_verifier,
+          // Confidential client auth: no client_id in body, no client_secret.
+          // client_id is embedded in the assertion's iss/sub claims.
+          client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+          client_assertion: clientAssertion,
         }),
       });
 
       if (!tokenRes.ok) {
         const errText = await tokenRes.text();
         console.error('Epic token exchange failed:', tokenRes.status, errText);
-        return jsonResponse({ error: 'Token exchange failed' }, 502);
+        return jsonResponse({
+          error: 'Token exchange failed',
+          epic_status: tokenRes.status,
+          epic_body: errText.slice(0, 400),
+        }, 502);
       }
 
       const tokenData = await tokenRes.json();
-
-      // Epic returns: access_token, token_type, expires_in, scope, patient (FHIR patient ID)
       const expiresAt = new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString();
 
       if (!tokenData.access_token) {
@@ -390,11 +495,8 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'No access token returned from provider' }, 502);
       }
 
-      // Encrypt tokens before storing. FAIL LOUDLY if the encryption key is missing
-      // or the RPC errors — never silently write a NULL token row.
       const encKey = Deno.env.get('EHR_ENCRYPTION_KEY') || '';
       if (!encKey) {
-        console.error('EHR_ENCRYPTION_KEY is not set in Edge Function environment');
         return jsonResponse({
           error: 'server_misconfigured',
           message: 'Server encryption key is not configured. Please contact support.',
@@ -405,7 +507,6 @@ Deno.serve(async (req) => {
         plain_token: tokenData.access_token, enc_key: encKey,
       });
       if (encAccessErr || !encAccessToken) {
-        console.error('encrypt_ehr_token failed for access_token:', encAccessErr);
         return jsonResponse({
           error: 'encryption_failed',
           message: 'Failed to encrypt access token',
@@ -419,7 +520,6 @@ Deno.serve(async (req) => {
           plain_token: tokenData.refresh_token, enc_key: encKey,
         });
         if (encRErr || !encR) {
-          console.error('encrypt_ehr_token failed for refresh_token:', encRErr);
           return jsonResponse({
             error: 'encryption_failed',
             message: 'Failed to encrypt refresh token',
@@ -429,22 +529,15 @@ Deno.serve(async (req) => {
         encRefreshToken = encR;
       }
 
-      // Build connected_provider label
       const hospitalLabel = conn.hospital_name
         ? `${conn.hospital_name} (Epic)`
         : 'Epic MyChart';
 
-      // If Epic did NOT return a refresh_token even though we asked for
-      // offline_access, log loudly. This almost always means the Epic
-      // app registration doesn't have refresh tokens enabled — a config
-      // fix in fhir.epic.com, not a code fix. Without this, the user
-      // will be forced to reconnect every ~60 minutes when the access
-      // token expires.
       const scopeReturned = typeof tokenData.scope === 'string' ? tokenData.scope : '';
       const offlineGranted = scopeReturned.split(/\s+/).includes('offline_access');
       if (!tokenData.refresh_token) {
         console.warn('[epic-auth] Epic did NOT return a refresh_token', {
-          client_id: connClientId,
+          client_id: connCreds.clientId,
           scope_requested: SMART_SCOPES,
           scope_granted: scopeReturned,
           offline_access_granted: offlineGranted,
@@ -452,13 +545,6 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Store encrypted tokens and patient context.
-      //
-      // IMPORTANT: explicitly reset needs_reconnect=false and status='connected'
-      // here. If we don't, a stale 'needs_reconnect=true' from a prior expired
-      // token persists forever and the frontend refuses to pull data even
-      // though we just got a fresh token. Also record client_id_used so we
-      // can diagnose which Epic app minted this token when regressions hit.
       const { error: updateError } = await admin.from('ehr_connections')
         .update({
           access_token: encAccessToken,
@@ -467,10 +553,9 @@ Deno.serve(async (req) => {
           patient_id: tokenData.patient || null,
           connected_provider: hospitalLabel,
           connected_at: new Date().toISOString(),
-          client_id_used: connClientId,
+          client_id_used: connCreds.clientId,
           needs_reconnect: false,
           status: 'connected',
-          // Clear PKCE values — no longer needed
           code_verifier: null,
           state: null,
         })
@@ -482,8 +567,6 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'Failed to store tokens' }, 500);
       }
 
-      // Surface refresh-token status to the client so the frontend can
-      // warn the user if Epic is going to force hourly reconnects.
       return jsonResponse({
         success: true,
         expires_at: expiresAt,
@@ -492,7 +575,172 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── STATUS: Check connection status ──
+    // ── REFRESH: Exchange refresh_token for a new access_token ──
+    // Called by fetch-ehr-data (or any caller) right before the existing
+    // access_token expires, or transparently on a 401 from Epic.
+    // Uses private_key_jwt — same client_assertion pattern as callback.
+    if (action === 'refresh') {
+      const { person_id } = body;
+      if (!person_id) {
+        return jsonResponse({ error: 'person_id is required' }, 400);
+      }
+
+      const admin = getAdminClient();
+
+      const { data: conn, error: connError } = await admin.from('ehr_connections')
+        .select('*')
+        .eq('person_id', person_id)
+        .eq('user_id', user.id)
+        .single();
+
+      if (connError || !conn) {
+        return jsonResponse({ error: 'No connection found' }, 404);
+      }
+      if (!conn.refresh_token) {
+        // No refresh token on file — only a fresh connect can fix this.
+        await admin.from('ehr_connections')
+          .update({ needs_reconnect: true, status: 'needs_reconnect' })
+          .eq('person_id', person_id)
+          .eq('user_id', user.id);
+        return jsonResponse({
+          error: 'no_refresh_token',
+          message: 'This connection has no refresh token. Reconnect required.',
+        }, 409);
+      }
+
+      const encKey = Deno.env.get('EHR_ENCRYPTION_KEY') || '';
+      if (!encKey) {
+        return jsonResponse({ error: 'server_misconfigured' }, 500);
+      }
+
+      // Decrypt the stored refresh token.
+      const { data: plainRefresh, error: decErr } = await admin.rpc('decrypt_ehr_token', {
+        encrypted_token: conn.refresh_token, enc_key: encKey,
+      });
+      if (decErr || !plainRefresh) {
+        console.error('[epic-auth] decrypt refresh_token failed', { err: decErr?.message });
+        return jsonResponse({ error: 'decrypt_failed', detail: decErr?.message }, 500);
+      }
+
+      const tokenUrl = conn.token_url || EPIC_SANDBOX_TOKEN;
+      const connIsSandbox = conn.fhir_base_url === EPIC_SANDBOX_FHIR_BASE;
+
+      // Figure out which credentials to use. If the connection was minted by
+      // the legacy public client, refresh using the legacy client_id with NO
+      // client_assertion. Everything new uses confidential client_assertion.
+      const isLegacyPublic = conn.client_id_used === EPIC_LEGACY_PUBLIC_CLIENT_ID;
+      const connCreds = resolveClientCreds(connIsSandbox);
+
+      let refreshBody: URLSearchParams;
+      if (isLegacyPublic) {
+        refreshBody = new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: plainRefresh,
+          client_id: EPIC_LEGACY_PUBLIC_CLIENT_ID,
+        });
+      } else {
+        let clientAssertion: string;
+        try {
+          const privateKey = await loadPrivateKey(connCreds.pemEnv);
+          clientAssertion = await buildClientAssertion(
+            tokenUrl,
+            connCreds.clientId,
+            connCreds.kid,
+            privateKey,
+          );
+        } catch (e) {
+          console.error('[epic-auth] refresh client_assertion build failed', { err: (e as Error).message });
+          return jsonResponse({
+            error: 'client_assertion_failed',
+            detail: (e as Error).message,
+          }, 500);
+        }
+
+        refreshBody = new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: plainRefresh,
+          client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+          client_assertion: clientAssertion,
+        });
+      }
+
+      const tokenRes = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: refreshBody,
+      });
+
+      if (!tokenRes.ok) {
+        const errText = await tokenRes.text();
+        console.error('[epic-auth] refresh failed', { status: tokenRes.status, body: errText.slice(0, 400) });
+
+        // Refresh tokens expire too (Epic = 90 days rolling). On refresh
+        // failure, flag the connection so the UI can prompt a reconnect
+        // banner instead of silently failing forever.
+        await admin.from('ehr_connections')
+          .update({ needs_reconnect: true, status: 'needs_reconnect' })
+          .eq('person_id', person_id)
+          .eq('user_id', user.id);
+
+        return jsonResponse({
+          error: 'refresh_failed',
+          epic_status: tokenRes.status,
+          epic_body: errText.slice(0, 400),
+        }, 502);
+      }
+
+      const tokenData = await tokenRes.json();
+      if (!tokenData.access_token) {
+        return jsonResponse({ error: 'No access token returned from refresh' }, 502);
+      }
+
+      const expiresAt = new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString();
+
+      const { data: encAccessToken, error: encAccessErr } = await admin.rpc('encrypt_ehr_token', {
+        plain_token: tokenData.access_token, enc_key: encKey,
+      });
+      if (encAccessErr || !encAccessToken) {
+        return jsonResponse({ error: 'encryption_failed', detail: encAccessErr?.message }, 500);
+      }
+
+      // Epic uses rolling refresh tokens — every refresh MAY return a new
+      // refresh_token which invalidates the old one. Persist if present.
+      let encRefreshToken: string | null = null;
+      if (tokenData.refresh_token) {
+        const { data: encR, error: encRErr } = await admin.rpc('encrypt_ehr_token', {
+          plain_token: tokenData.refresh_token, enc_key: encKey,
+        });
+        if (encRErr || !encR) {
+          return jsonResponse({ error: 'encryption_failed', detail: encRErr?.message }, 500);
+        }
+        encRefreshToken = encR;
+      }
+
+      const updatePatch: Record<string, unknown> = {
+        access_token: encAccessToken,
+        token_expires_at: expiresAt,
+        needs_reconnect: false,
+        status: 'connected',
+      };
+      if (encRefreshToken) updatePatch.refresh_token = encRefreshToken;
+
+      const { error: updateError } = await admin.from('ehr_connections')
+        .update(updatePatch)
+        .eq('person_id', person_id)
+        .eq('user_id', user.id);
+
+      if (updateError) {
+        return jsonResponse({ error: 'Failed to store refreshed tokens' }, 500);
+      }
+
+      return jsonResponse({
+        success: true,
+        expires_at: expiresAt,
+        rotated: !!tokenData.refresh_token,
+      });
+    }
+
+    // ── STATUS ──
     if (action === 'status') {
       const { person_id } = body;
       if (!person_id) {
@@ -501,7 +749,7 @@ Deno.serve(async (req) => {
 
       const admin = getAdminClient();
       const { data: conn } = await admin.from('ehr_connections')
-        .select('id, provider, connected_provider, connected_at, last_synced_at, token_expires_at')
+        .select('id, provider, connected_provider, connected_at, last_synced_at, token_expires_at, needs_reconnect, status')
         .eq('person_id', person_id)
         .eq('user_id', user.id)
         .single();
@@ -516,10 +764,12 @@ Deno.serve(async (req) => {
         connected_at: conn.connected_at,
         last_synced_at: conn.last_synced_at,
         token_valid: conn.token_expires_at ? new Date(conn.token_expires_at) > new Date() : false,
+        needs_reconnect: !!conn.needs_reconnect,
+        status: conn.status || null,
       });
     }
 
-    // ── DISCONNECT: Remove Epic connection ──
+    // ── DISCONNECT ──
     if (action === 'disconnect') {
       const { person_id } = body;
       if (!person_id) {
@@ -535,10 +785,10 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true });
     }
 
-    return jsonResponse({ error: 'Unknown action. Use: start, callback, status, disconnect' }, 400);
+    return jsonResponse({ error: 'Unknown action. Use: start, callback, refresh, status, disconnect' }, 400);
 
   } catch (err) {
     console.error('epic-auth error:', err);
-    return jsonResponse({ error: err.message || 'Internal server error' }, 500);
+    return jsonResponse({ error: (err as Error).message || 'Internal server error' }, 500);
   }
 });
