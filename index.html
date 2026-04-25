@@ -8098,21 +8098,31 @@ function renderRecordsView() {
   initIcons();
   applyRecordsCollapse();
 
-  // Render EHR connection status inline (mirrors Terra inline pattern)
+  // Render EHR connection status inline (mirrors Terra inline pattern).
+  // Also hides the contradictory "Connect health records" prompt below
+  // the tile grid when a connection is confirmed (cache OR DB).
   if (!isDemoMode && currentPersonId) {
     var ehrStatusEl = document.getElementById('records-ehr-status');
     if (ehrStatusEl) {
+      var renderEhrStatusRow = function(providerLabel, lastSyncIso) {
+        var lastSync = lastSyncIso ? formatTimeAgo(lastSyncIso) : '';
+        var rh = '<div class="terra-inline-list">';
+        rh += '<div class="terra-inline-item">';
+        rh += '<span class="terra-status-dot terra-status-dot--active"></span>';
+        rh += 'Connected: ' + escHtml(providerLabel);
+        if (lastSync) rh += ' \u00B7 last synced ' + escHtml(lastSync);
+        rh += ' <button class="terra-inline-disconnect" style="text-decoration:none;border:1px solid var(--border);border-radius:6px;padding:2px 8px;" onclick="syncNowFromRecords()">Sync now</button>';
+        rh += '</div>';
+        rh += '</div>';
+        ehrStatusEl.innerHTML = rh;
+        // Remove the contradictory "Connect health records" prompt — we're connected.
+        var promptEl = document.getElementById('ehr-section-prompt');
+        if (promptEl && promptEl.parentNode) promptEl.parentNode.removeChild(promptEl);
+      };
+
       var ehrForStatus = getEhrData(currentPersonId);
       if (ehrForStatus && ehrForStatus.provider) {
-        var ehrLastSync = ehrForStatus.synced_at ? formatTimeAgo(ehrForStatus.synced_at) : '';
-        var eih = '<div class="terra-inline-list">';
-        eih += '<div class="terra-inline-item">';
-        eih += '<span class="terra-status-dot terra-status-dot--active"></span>';
-        eih += 'Connected: ' + escHtml(ehrForStatus.provider);
-        if (ehrLastSync) eih += ' \u00B7 last synced ' + escHtml(ehrLastSync);
-        eih += '</div>';
-        eih += '</div>';
-        ehrStatusEl.innerHTML = eih;
+        renderEhrStatusRow(ehrForStatus.provider, ehrForStatus.synced_at);
       } else {
         // No local cache — check DB for an orphan connection so we don't
         // leave the UI silent when records actually are connected.
@@ -8125,16 +8135,7 @@ function renderRecordsView() {
             .then(function(res){
               if (!res || !res.data) return;
               var d = res.data;
-              var providerLabel = d.hospital_name || d.provider || 'EHR';
-              var lastSync = d.last_synced_at ? formatTimeAgo(d.last_synced_at) : '';
-              var oih = '<div class="terra-inline-list">';
-              oih += '<div class="terra-inline-item">';
-              oih += '<span class="terra-status-dot terra-status-dot--active"></span>';
-              oih += 'Connected: ' + escHtml(providerLabel);
-              if (lastSync) oih += ' \u00B7 last synced ' + escHtml(lastSync);
-              oih += '</div>';
-              oih += '</div>';
-              ehrStatusEl.innerHTML = oih;
+              renderEhrStatusRow(d.hospital_name || d.provider || 'EHR', d.last_synced_at);
             }).catch(function(){});
         } catch(e) {}
       }
@@ -12863,10 +12864,28 @@ function refreshAttachmentList(scope, key) {
 
 // Build the "no EHR connected" prompt
 function buildEhrPrompt() {
-  return '<div class="ehr-section-prompt">'
+  return '<div class="ehr-section-prompt" id="ehr-section-prompt">'
     + '<i data-lucide="hospital" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:3px;color:var(--moss);"></i>'
     + '<a onclick="startEhrConnect()">Connect health records</a> to see medications, conditions, and lab results from your provider.'
     + '</div>';
+}
+
+// Trigger an on-demand sync from the inline EHR status row.
+// Updates the row to a loading state, calls fetchEhrData, and re-renders
+// the records view (which the fetch already does on success via
+// renderRecordsView() inside fetchEhrData's success path) so the user gets
+// fresh data and an updated "last synced" timestamp without a page reload.
+function syncNowFromRecords() {
+  if (!currentPersonId || isDemoMode) return;
+  var statusEl = document.getElementById('records-ehr-status');
+  if (statusEl) {
+    statusEl.innerHTML = '<div class="terra-inline-list">'
+      + '<div class="terra-inline-item" style="opacity:0.7;">'
+      + '<span class="terra-status-dot terra-status-dot--inactive"></span>'
+      + 'Syncing health records\u2026'
+      + '</div></div>';
+  }
+  try { fetchEhrData(currentPersonId); } catch(e) { console.warn('syncNowFromRecords:', e); }
 }
 
 // Check for auth callback code on page load (supports both /epic-callback route and ?code= param)
