@@ -11564,6 +11564,14 @@ function loadEhrCache(personId) {
     if (cached) {
       var parsed = JSON.parse(cached);
       ehrCache[personId] = parsed;
+      // Fire practitioner enrichment off the cached care_team so the app
+      // can light up Call/Email/Map links without waiting for a fresh sync.
+      try {
+        if (typeof enrichPractitionersForPerson === 'function' &&
+            parsed && Array.isArray(parsed.care_team) && parsed.care_team.length) {
+          enrichPractitionersForPerson(personId, parsed.care_team, parsed.provider || {});
+        }
+      } catch(_e) {}
       return parsed;
     }
   } catch(e) { console.warn('EHR cache read error:', e); }
@@ -12249,6 +12257,13 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
       renderTimeline();
       try { evaluateReconnectBanner(); } catch(e) {}
     }
+    // Background-fill missing practitioner contact info from public sources
+    // (dukehealth.org, NPPES). Render gets re-triggered as each result lands.
+    try {
+      var ct = (data && data.care_team) || [];
+      var prov = (data && (data.provider || {})) || {};
+      enrichPractitionersForPerson(personId, ct, prov);
+    } catch(e) {}
     // Navigate to Records view after initial EHR connection
     if (navigateToRecords) {
       switchNavTo('records');
@@ -12534,6 +12549,140 @@ function clearVisitsFilter() {
   filterVisits();
 }
 
+// ── Practitioner enrichment cache (in-memory, per personId+ref) ─────────────
+// Populated by enrichPractitionersForPerson() which calls the
+// enrich-practitioner edge function. The function itself caches in Postgres
+// for 30 days; this is a session-scoped read-through so we don't refetch on
+// every renderRecordsView().
+var _enrichedPractitioners = {}; // { personId: { practitioner_ref: enriched } }
+var _enrichInflight = {};        // { personId+ref: true } — dedupe in-flight
+
+function _practitionerEnrichKey(personId, ref) {
+  return (personId || '') + '|' + (ref || '');
+}
+
+function _mergePractitioner(p, enriched) {
+  // Merge enriched contact info onto the EHR-derived practitioner.
+  // EHR-provided phones/emails/address always win (source of truth when
+  // present); enrichment only fills gaps. This keeps Confidential-client
+  // data flowing through the moment Duke prod activates without us having
+  // to gate on enrichment freshness.
+  if (!enriched || !enriched.found) return p;
+  var merged = {};
+  for (var k in p) merged[k] = p[k];
+
+  var hasPhones = Array.isArray(p.phones) && p.phones.length > 0;
+  if (!hasPhones && Array.isArray(enriched.phones) && enriched.phones.length) {
+    merged.phones = enriched.phones.slice();
+  }
+  var hasEmails = Array.isArray(p.emails) && p.emails.length > 0;
+  if (!hasEmails && Array.isArray(enriched.emails) && enriched.emails.length) {
+    merged.emails = enriched.emails.slice();
+  }
+  if (!p.fax && enriched.fax) merged.fax = enriched.fax;
+
+  // Address: enrichment returns array of {street, city, state, zip, label}.
+  // EHR's p.address is a single text string. Convert enrichment's first
+  // address to a single comma-joined string so the existing render path works.
+  if (!p.address && Array.isArray(enriched.addresses) && enriched.addresses.length) {
+    var first = enriched.addresses[0] || {};
+    var pieces = [];
+    if (first.street) pieces.push(first.street);
+    var cityState = [first.city, first.state].filter(Boolean).join(', ');
+    if (cityState) pieces.push(cityState);
+    if (first.zip) pieces.push(first.zip);
+    var addrText = pieces.join(', ');
+    if (addrText) merged.address = addrText;
+    if (first.label && !merged._enriched_address_label) merged._enriched_address_label = first.label;
+  }
+
+  if (!p.specialty && enriched.specialty) merged.specialty = enriched.specialty;
+  merged._enriched_source_name = enriched.source_name || null;
+  merged._enriched_source_url = enriched.source_url || null;
+  return merged;
+}
+
+function _mapsHrefForAddress(addrText) {
+  if (!addrText) return null;
+  var encoded = encodeURIComponent(addrText);
+  // iOS opens maps.apple.com natively, everywhere else falls back to Google
+  var ua = (navigator.userAgent || '').toLowerCase();
+  if (ua.indexOf('iphone') !== -1 || ua.indexOf('ipad') !== -1 || ua.indexOf('ipod') !== -1) {
+    return 'https://maps.apple.com/?q=' + encoded;
+  }
+  return 'https://maps.google.com/?q=' + encoded;
+}
+
+// Fire enrich-practitioner for every practitioner on this person who doesn't
+// already have phones populated (either from EHR or from a prior enrichment).
+// Each result lands in _enrichedPractitioners and triggers a re-render.
+function enrichPractitionersForPerson(personId, careTeam, provider) {
+  if (isDemoMode || !currentUser || !personId) return;
+  if (!careTeam || !careTeam.length) return;
+  _enrichedPractitioners[personId] = _enrichedPractitioners[personId] || {};
+  var personCache = _enrichedPractitioners[personId];
+
+  var rerenderScheduled = false;
+  function scheduleRerender() {
+    if (rerenderScheduled) return;
+    rerenderScheduled = true;
+    setTimeout(function() {
+      rerenderScheduled = false;
+      if (personId === currentPersonId) {
+        try { renderRecordsView(); } catch(e) {}
+      }
+    }, 250);
+  }
+
+  db.auth.getSession().then(function(sessionRes) {
+    var session = sessionRes && sessionRes.data && sessionRes.data.session;
+    if (!session) return;
+
+    careTeam.forEach(function(p) {
+      var ref = p.id ? 'Practitioner/' + p.id : '';
+      // Skip if EHR already gave us phones — nothing to enrich.
+      if (Array.isArray(p.phones) && p.phones.length > 0) return;
+      // Skip if we already have a cached result for this person+ref this session.
+      if (ref && personCache[ref]) return;
+      // Skip if a request is already in flight.
+      var inflightKey = _practitionerEnrichKey(personId, ref || p.name);
+      if (_enrichInflight[inflightKey]) return;
+      if (!p.name) return;
+
+      _enrichInflight[inflightKey] = true;
+
+      var hintOrg = (provider && (provider.name || provider.hospital_name)) || '';
+      var payload = {
+        name: p.name,
+        practitioner_ref: ref || undefined,
+        npi: p.npi || undefined,
+        hint_org: hintOrg || undefined
+      };
+
+      fetch(SUPABASE_URL + '/functions/v1/enrich-practitioner', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + session.access_token,
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify(payload)
+      }).then(function(res) {
+        return res.ok ? res.json() : null;
+      }).then(function(data) {
+        delete _enrichInflight[inflightKey];
+        if (!data || !data.found) return;
+        if (ref) personCache[ref] = data;
+        else personCache['name:' + p.name] = data;
+        scheduleRerender();
+      }).catch(function(err) {
+        delete _enrichInflight[inflightKey];
+        console.warn('[enrich-practitioner] failed for', p.name, err);
+      });
+    });
+  }).catch(function(err) { console.warn('[enrich-practitioner] session lookup failed', err); });
+}
+
 // Build the Care team section for Records. Lists every practitioner returned
 // from the EHR (Encounter.participant + CareTeam.participant, deduped server-
 // side) with role, specialty, phones, email, and address. Ordered by most-
@@ -12542,6 +12691,14 @@ function clearVisitsFilter() {
 // to collapse and expand sections in all of records."
 function buildCareTeamSection(careTeam, provider, visits) {
   if (!careTeam || !careTeam.length) return '';
+
+  // Merge in any enriched contact info we have for the active person.
+  var personCache = (currentPersonId && _enrichedPractitioners[currentPersonId]) || {};
+  careTeam = careTeam.map(function(p) {
+    var ref = p.id ? 'Practitioner/' + p.id : '';
+    var enriched = (ref && personCache[ref]) || personCache['name:' + (p.name || '')];
+    return enriched ? _mergePractitioner(p, enriched) : p;
+  });
 
   // ── Compute last-seen date per practitioner by walking visits ────────────
   // visits[].providers is [{ ref: 'Practitioner/<id>', name }]. Match by id.
@@ -12610,12 +12767,28 @@ function buildCareTeamSection(careTeam, provider, visits) {
         + '</div>');
     }
     if (p.address) {
-      lines.push('<div style="display:flex;align-items:flex-start;gap:6px;"><i data-lucide="map-pin" style="width:12px;height:12px;color:var(--text-muted);margin-top:2px;flex-shrink:0;"></i><span>' + escHtml(p.address) + '</span></div>');
+      var mapsHref = _mapsHrefForAddress(p.address);
+      var addrLabel = p._enriched_address_label ? '<span style="color:var(--text-muted);"> \u00B7 ' + escHtml(p._enriched_address_label) + '</span>' : '';
+      lines.push('<div style="display:flex;align-items:flex-start;gap:6px;"><i data-lucide="map-pin" style="width:12px;height:12px;color:var(--text-muted);margin-top:2px;flex-shrink:0;"></i><span>'
+        + (mapsHref ? '<a href="' + escHtml(mapsHref) + '" target="_blank" rel="noopener" style="color:var(--moss);text-decoration:none;">' + escHtml(p.address) + '</a>' : escHtml(p.address))
+        + addrLabel
+        + '</span></div>');
+    }
+    // Source attribution — only shown when the data came from enrichment
+    if (p._enriched_source_name) {
+      var srcLabel = escHtml(p._enriched_source_name);
+      var srcHtml = p._enriched_source_url
+        ? '<a href="' + escHtml(p._enriched_source_url) + '" target="_blank" rel="noopener" style="color:var(--text-muted);text-decoration:underline;">' + srcLabel + '</a>'
+        : srcLabel;
+      lines.push('<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">From ' + srcHtml + '</div>');
     }
 
+    // Per spec: hide rows whose value is missing — silence is better than
+    // "No contact info on file." placeholder. The card is still useful with
+    // name, role, and last-seen.
     var contactBlock = lines.length
       ? '<div style="width:100%;padding:6px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.8;">' + lines.join('') + '</div>'
-      : '<div style="width:100%;padding:6px 0 0 44px;font-size:12px;color:var(--text-muted);font-style:italic;">No contact info on file.</div>';
+      : '';
 
     html += '<div class="record-row" style="flex-wrap:wrap;align-items:flex-start;">'
       + '<div class="record-icon moss"><i data-lucide="user-round" style="width:15px;height:15px;"></i></div>'
