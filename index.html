@@ -13127,7 +13127,12 @@ var EHR_LEGACY_PUBLIC_CLIENT_ID = 'a00e2e38-f814-4946-9b7c-a92901a8aebc';
 // substrings (lowercase) here as Wellet onboards each one. Until a hospital is
 // listed here, the migration-available trigger will not fire for it.
 var EHR_CONFIDENTIAL_AVAILABLE_HOSPITALS = [
-  // 'duke'  // un-comment after Duke prod download is provisioned
+  // Hospital name substring matching is lowercased and uses indexOf().
+  // Add a hospital here once its Wellet Confidential download has
+  // "Keys enabled" status on fhir.epic.com (both non-prod and prod activated).
+  // Epic's sync window is ~12 hours after activation; the banner will only
+  // do something useful once that sync completes for the hospital below.
+  'duke'  // 4/25/2026: Wellet Confidential prod activated, jwks-prod.json wired up
 ];
 
 function _bannerDismissedToday(connectionId) {
