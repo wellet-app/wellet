@@ -8086,8 +8086,9 @@ function renderRecordsView() {
     html += '</div>';
   }
 
-  // Terra connections placeholder
+  // EHR + Terra connection status placeholder
   if (!isDemoMode && currentPersonId) {
+    html += '<div id="records-ehr-status"></div>';
     html += '<div id="records-terra-conns"></div>';
   }
 
@@ -8096,6 +8097,49 @@ function renderRecordsView() {
   view.innerHTML = html;
   initIcons();
   applyRecordsCollapse();
+
+  // Render EHR connection status inline (mirrors Terra inline pattern)
+  if (!isDemoMode && currentPersonId) {
+    var ehrStatusEl = document.getElementById('records-ehr-status');
+    if (ehrStatusEl) {
+      var ehrForStatus = getEhrData(currentPersonId);
+      if (ehrForStatus && ehrForStatus.provider) {
+        var ehrLastSync = ehrForStatus.synced_at ? formatTimeAgo(ehrForStatus.synced_at) : '';
+        var eih = '<div class="terra-inline-list">';
+        eih += '<div class="terra-inline-item">';
+        eih += '<span class="terra-status-dot terra-status-dot--active"></span>';
+        eih += 'Connected: ' + escHtml(ehrForStatus.provider);
+        if (ehrLastSync) eih += ' \u00B7 last synced ' + escHtml(ehrLastSync);
+        eih += '</div>';
+        eih += '</div>';
+        ehrStatusEl.innerHTML = eih;
+      } else {
+        // No local cache — check DB for an orphan connection so we don't
+        // leave the UI silent when records actually are connected.
+        try {
+          db.from('ehr_connections')
+            .select('provider, last_synced_at, hospital_name, status')
+            .eq('person_id', currentPersonId)
+            .eq('status', 'connected')
+            .maybeSingle()
+            .then(function(res){
+              if (!res || !res.data) return;
+              var d = res.data;
+              var providerLabel = d.hospital_name || d.provider || 'EHR';
+              var lastSync = d.last_synced_at ? formatTimeAgo(d.last_synced_at) : '';
+              var oih = '<div class="terra-inline-list">';
+              oih += '<div class="terra-inline-item">';
+              oih += '<span class="terra-status-dot terra-status-dot--active"></span>';
+              oih += 'Connected: ' + escHtml(providerLabel);
+              if (lastSync) oih += ' \u00B7 last synced ' + escHtml(lastSync);
+              oih += '</div>';
+              oih += '</div>';
+              ehrStatusEl.innerHTML = oih;
+            }).catch(function(){});
+        } catch(e) {}
+      }
+    }
+  }
 
   // Load Terra connections asynchronously for inline display
   if (!isDemoMode && currentPersonId) {
