@@ -1432,6 +1432,9 @@
   .terra-inline-item .terra-status-dot { width:6px; height:6px; }
   .terra-inline-disconnect { background:none; border:none; font-size:11px; color:var(--text-muted); cursor:pointer; text-decoration:underline; padding:0; font-family:'DM Sans',sans-serif; }
   .terra-inline-disconnect:hover { color:#e57373; }
+  .terra-poweredby { font-size:11px; color:var(--text-muted); margin-top:10px; text-align:center; opacity:0.75; letter-spacing:0.2px; }
+  .terra-poweredby a { color:var(--text-muted); text-decoration:none; border-bottom:1px dotted var(--border); }
+  .terra-poweredby a:hover { color:var(--moss); }
 
   /* ── END-OF-CARE JOURNEY ──────────────────────────────────────────────────── */
   .eoc-overlay { display:none; position:fixed; inset:0; background:rgba(44,42,38,0.5); z-index:150; align-items:flex-end; justify-content:center; }
@@ -11073,6 +11076,7 @@ function _buildDeviceCardsHtml(activeConns) {
     html += '</div>';
   }
   html += '<button class="terra-add-btn" onclick="openTerraConnect()"><i data-lucide="plus" style="width:14px;height:14px;"></i> Connect another device</button>';
+  html += '<div class="terra-poweredby">Wearables powered by <a href="https://tryterra.co" target="_blank" rel="noopener noreferrer">Terra</a></div>';
   html += '</div>';
   return html;
 }
@@ -11152,6 +11156,7 @@ function _paintSignals(el, sigFirstName, activeConns, terraData) {
     emptyHtml += '<div class="terra-empty-title">No devices connected yet</div>';
     emptyHtml += '<div class="terra-empty-sub">Connect a wearable to see daily signals \u2014 steps, sleep, heart rate, and more.</div>';
     emptyHtml += '<button class="terra-add-btn" onclick="openTerraConnect()"><i data-lucide="plus" style="width:14px;height:14px;"></i> Connect a device</button>';
+    emptyHtml += '<div class="terra-poweredby">Wearables powered by <a href="https://tryterra.co" target="_blank" rel="noopener noreferrer">Terra</a></div>';
     emptyHtml += '</div></div>';
     el.innerHTML = emptyHtml;
     initIcons();
