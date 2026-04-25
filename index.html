@@ -261,6 +261,18 @@
   .tab-pane { display: none; }
   .tab-pane.active { display: block; }
 
+  /* ── RECONNECT BANNER (Option B) ─────────────────────────────────────────── */
+  .reconnect-banner { display: none; background: #FEF3C7; color: #78350F; border-bottom: 1px solid #FCD34D; padding: 10px 16px; font-size: 13px; line-height: 1.35; }
+  .reconnect-banner.show { display: flex; align-items: center; gap: 10px; }
+  .reconnect-banner__icon { flex: 0 0 auto; display: inline-flex; align-items: center; }
+  .reconnect-banner__copy { flex: 1 1 auto; min-width: 0; }
+  .reconnect-banner__actions { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; }
+  .reconnect-banner__btn { background: #78350F; color: #FEF3C7; border: none; border-radius: 6px; padding: 6px 12px; font-size: 13px; font-weight: 500; font-family: 'DM Sans', sans-serif; cursor: pointer; }
+  .reconnect-banner__btn:hover { background: #5a280a; }
+  .reconnect-banner__dismiss { background: none; border: none; color: #78350F; opacity: 0.7; font-size: 12px; cursor: pointer; padding: 4px 6px; font-family: 'DM Sans', sans-serif; text-decoration: underline; }
+  .reconnect-banner__dismiss:hover { opacity: 1; }
+  @media (max-width: 480px) { .reconnect-banner { flex-wrap: wrap; } .reconnect-banner__copy { flex-basis: 100%; } }
+
   /* ── NAV VIEWS ── */
   .app-view { display: none; }
   .app-view.active { display: block; }
@@ -2130,6 +2142,9 @@
       <button class="tab" role="tab" aria-selected="false" aria-controls="tab-patterns" id="tab-btn-patterns" onclick="switchTab(this,'patterns')">Trends</button>
     </div>
   </div>
+
+  <!-- Reconnect banner (Option B) — rendered into by evaluateReconnectBanner() -->
+  <div id="reconnect-banner-host" class="reconnect-banner" role="status" aria-live="polite"></div>
 
   <div class="app-body">
     <div id="view-home" class="app-view active">
@@ -4530,6 +4545,7 @@ function setCurrentPersonId(personId) {
     if (personId) localStorage.setItem('wellet_last_person_id', personId);
     else localStorage.removeItem('wellet_last_person_id');
   } catch(e) {}
+  try { evaluateReconnectBanner(); } catch(e) {}
 }
 function getSavedPersonId() {
   try { return localStorage.getItem('wellet_last_person_id') || null; } catch(e) { return null; }
@@ -12231,6 +12247,7 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
     if (personId === currentPersonId) {
       renderRecordsView();
       renderTimeline();
+      try { evaluateReconnectBanner(); } catch(e) {}
     }
     // Navigate to Records view after initial EHR connection
     if (navigateToRecords) {
@@ -12921,6 +12938,178 @@ function autoRefreshEhrIfNeeded(personId) {
       }
     })
     .catch(function(err) { console.warn('[EHR] orphan check failed:', err); });
+}
+
+// ── RECONNECT BANNER (Option B) ──────────────────────────────────────────────
+// Renders an amber bar at the top of the app shell when the active loved one's
+// EHR connection needs the family member's attention. Priority order:
+//   1. needs_reconnect = true        — token refresh failed twice
+//   2. scope regression noticed      — care_team or conditions silently went to 0
+//   3. migration available           — on legacy public client, Confidential exists
+//   4. staleness                     — last_synced_at older than 7 days
+// Tapping Reconnect kicks off the standard OAuth flow for that hospital.
+// Tapping Dismiss-for-today hides the banner until tomorrow via localStorage.
+var EHR_LEGACY_PUBLIC_CLIENT_ID = 'a00e2e38-f814-4946-9b7c-a92901a8aebc';
+// Hospitals known to have a Confidential client provisioned. Add hospital_name
+// substrings (lowercase) here as Wellet onboards each one. Until a hospital is
+// listed here, the migration-available trigger will not fire for it.
+var EHR_CONFIDENTIAL_AVAILABLE_HOSPITALS = [
+  // 'duke'  // un-comment after Duke prod download is provisioned
+];
+
+function _bannerDismissedToday(connectionId) {
+  if (!connectionId) return false;
+  try {
+    var d = new Date();
+    var ymd = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    return localStorage.getItem('wellet.banner.dismissed.' + connectionId + '.' + ymd) === '1';
+  } catch(e) { return false; }
+}
+
+function _bannerDismissForToday(connectionId) {
+  if (!connectionId) return;
+  try {
+    var d = new Date();
+    var ymd = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    localStorage.setItem('wellet.banner.dismissed.' + connectionId + '.' + ymd, '1');
+  } catch(e) {}
+}
+
+function _bannerHide() {
+  var host = document.getElementById('reconnect-banner-host');
+  if (host) { host.classList.remove('show'); host.innerHTML = ''; }
+}
+
+function _bannerRender(state) {
+  var host = document.getElementById('reconnect-banner-host');
+  if (!host) return;
+  var hospital = escHtml(state.hospital_name || 'your hospital');
+  var copy = '';
+  if (state.kind === 'needs_reconnect') {
+    copy = 'Your connection to ' + hospital + ' needs a quick refresh.';
+  } else if (state.kind === 'scope_regression') {
+    copy = hospital + ' stopped sending some records. Reconnect to fix it.';
+  } else if (state.kind === 'migration_available') {
+    copy = 'Reconnect ' + hospital + ' to see your care team\u2019s contact info.';
+  } else if (state.kind === 'stale') {
+    copy = 'It\u2019s been a while since ' + hospital + ' synced. Reconnect to keep things current.';
+  } else {
+    return;
+  }
+  host.innerHTML =
+    '<span class="reconnect-banner__icon"><i data-lucide="alert-circle" style="width:16px;height:16px;"></i></span>'
+    + '<span class="reconnect-banner__copy">' + copy + '</span>'
+    + '<span class="reconnect-banner__actions">'
+    +   '<button type="button" class="reconnect-banner__btn" onclick="reconnectBannerTap()">Reconnect</button>'
+    +   '<button type="button" class="reconnect-banner__dismiss" onclick="reconnectBannerDismiss()">Not now</button>'
+    + '</span>';
+  host.classList.add('show');
+  try { initIcons(); } catch(e) {}
+  // Stash on host so tap handlers can read without another round-trip
+  host.dataset.connectionId = state.connection_id || '';
+  host.dataset.fhirBaseUrl = state.fhir_base_url || '';
+  host.dataset.hospitalName = state.hospital_name || '';
+}
+
+function reconnectBannerTap() {
+  var host = document.getElementById('reconnect-banner-host');
+  if (!host) return;
+  var fhir = host.dataset.fhirBaseUrl || null;
+  var name = host.dataset.hospitalName || null;
+  // Hide eagerly — OAuth redirect is about to happen
+  _bannerHide();
+  try { beginEhrOAuth(fhir, name, false); } catch(e) { console.warn('[banner] reconnect tap failed', e); }
+}
+
+function reconnectBannerDismiss() {
+  var host = document.getElementById('reconnect-banner-host');
+  if (!host) return;
+  _bannerDismissForToday(host.dataset.connectionId);
+  _bannerHide();
+}
+
+// Decide whether to show the banner for the active loved one and which kind.
+function evaluateReconnectBanner() {
+  if (isDemoMode || !currentUser || !currentPersonId) { _bannerHide(); return; }
+  var personId = currentPersonId;
+  db.from('ehr_connections')
+    .select('id, hospital_name, fhir_base_url, status, needs_reconnect, client_id_used, token_expires_at, last_synced_at, connected_at')
+    .eq('person_id', personId)
+    .eq('status', 'connected')
+    .maybeSingle()
+    .then(function(res) {
+      if (!res || !res.data) { _bannerHide(); return; }
+      // Bail if the user already dismissed this connection's banner today
+      if (_bannerDismissedToday(res.data.id)) { _bannerHide(); return; }
+
+      var conn = res.data;
+      var nowMs = Date.now();
+      var lastSyncMs = conn.last_synced_at ? new Date(conn.last_synced_at).getTime() : 0;
+      var staleMs = 7 * 24 * 60 * 60 * 1000;
+
+      // 1. needs_reconnect — highest priority
+      if (conn.needs_reconnect === true) {
+        _bannerRender({ kind: 'needs_reconnect', connection_id: conn.id, hospital_name: conn.hospital_name, fhir_base_url: conn.fhir_base_url });
+        return;
+      }
+
+      // 2. scope regression — check the most recent sync row for an empty critical resource
+      //    while baseline (max over previous syncs for this person) had something
+      db.from('ehr_sync_log')
+        .select('created_at, status, result_counts')
+        .eq('person_id', personId)
+        .eq('status', 200)
+        .order('created_at', { ascending: false })
+        .limit(30)
+        .then(function(logRes) {
+          var rows = (logRes && logRes.data) || [];
+          var regressed = false;
+          if (rows.length >= 5) {
+            var latest = rows[0].result_counts || {};
+            var baseline = {};
+            for (var i = 1; i < rows.length; i++) {
+              var rc = rows[i].result_counts || {};
+              for (var k in rc) {
+                if (typeof rc[k] === 'number') {
+                  if (!(k in baseline) || rc[k] > baseline[k]) baseline[k] = rc[k];
+                }
+              }
+            }
+            // Resources that meaningfully change the user's view
+            var watch = ['care_team', 'conditions', 'medications', 'allergies', 'visits'];
+            for (var w = 0; w < watch.length; w++) {
+              var key = watch[w];
+              if ((baseline[key] || 0) > 0 && (latest[key] || 0) === 0) { regressed = true; break; }
+            }
+          }
+          if (regressed) {
+            _bannerRender({ kind: 'scope_regression', connection_id: conn.id, hospital_name: conn.hospital_name, fhir_base_url: conn.fhir_base_url });
+            return;
+          }
+
+          // 3. migration available — on legacy public client and Confidential exists for this hospital
+          var onLegacy = conn.client_id_used === EHR_LEGACY_PUBLIC_CLIENT_ID;
+          var hospitalLower = (conn.hospital_name || '').toLowerCase();
+          var confidentialAvailable = false;
+          for (var c = 0; c < EHR_CONFIDENTIAL_AVAILABLE_HOSPITALS.length; c++) {
+            if (hospitalLower.indexOf(EHR_CONFIDENTIAL_AVAILABLE_HOSPITALS[c]) !== -1) { confidentialAvailable = true; break; }
+          }
+          if (onLegacy && confidentialAvailable) {
+            _bannerRender({ kind: 'migration_available', connection_id: conn.id, hospital_name: conn.hospital_name, fhir_base_url: conn.fhir_base_url });
+            return;
+          }
+
+          // 4. staleness — no successful sync in 7+ days
+          if (lastSyncMs > 0 && (nowMs - lastSyncMs) > staleMs) {
+            _bannerRender({ kind: 'stale', connection_id: conn.id, hospital_name: conn.hospital_name, fhir_base_url: conn.fhir_base_url });
+            return;
+          }
+
+          _bannerHide();
+        })
+        .catch(function(err) { console.warn('[banner] sync log read failed', err); _bannerHide(); });
+    })
+    .catch(function(err) { console.warn('[banner] connection read failed', err); _bannerHide(); });
 }
 
 // ── EXISTING UI FUNCTIONS (preserved) ────────────────────────────────────────
