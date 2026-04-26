@@ -84,7 +84,7 @@ function toDateOrNull(d: unknown): string | null {
 
 // Medications: `active` is derived from the FHIR MedicationRequest status.
 // Emergency Summary and the Records page both filter on active=true.
-function buildMedicationRows(personId: string, mapped: any[]): Record<string, unknown>[] {
+function buildMedicationRows(personId: string, connectionId: string | null, mapped: any[]): Record<string, unknown>[] {
   if (!Array.isArray(mapped)) return [];
   return mapped
     .map((m) => {
@@ -98,6 +98,7 @@ function buildMedicationRows(personId: string, mapped: any[]): Record<string, un
       const active = status === 'active' || status === 'on-hold' || status === 'draft' || status === '';
       return {
         person_id: personId,
+        connection_id: connectionId,
         name,
         dose: m?.dosage || null,
         frequency: m?.frequency || null,
@@ -112,7 +113,7 @@ function buildMedicationRows(personId: string, mapped: any[]): Record<string, un
     .filter((r) => r !== null) as Record<string, unknown>[];
 }
 
-function buildAllergyRows(personId: string, mapped: any[]): Record<string, unknown>[] {
+function buildAllergyRows(personId: string, connectionId: string | null, mapped: any[]): Record<string, unknown>[] {
   if (!Array.isArray(mapped)) return [];
   return mapped
     .map((a) => {
@@ -124,6 +125,7 @@ function buildAllergyRows(personId: string, mapped: any[]): Record<string, unkno
       const reactionText = reactionArr.filter(Boolean).join(', ') || null;
       return {
         person_id: personId,
+        connection_id: connectionId,
         substance,
         reaction: reactionText,
         severity: a?.severity || null,
@@ -143,6 +145,7 @@ function buildAllergyRows(personId: string, mapped: any[]): Record<string, unkno
 // distinct event_type values. (Lab results live in `lab_results`, not here.)
 function buildHealthEventRows(
   personId: string,
+  connectionId: string | null,
   conditions: any[],
   visits: any[],
   immunizations: any[],
@@ -162,6 +165,7 @@ function buildHealthEventRows(
       const code = String(c?.code || '');
       rows.push({
         person_id: personId,
+        connection_id: connectionId,
         event_type: 'condition',
         event_date: iso,
         title,
@@ -184,6 +188,7 @@ function buildHealthEventRows(
       const location = String(v?.location || '');
       rows.push({
         person_id: personId,
+        connection_id: connectionId,
         event_type: 'visit',
         event_date: iso,
         title,
@@ -206,6 +211,7 @@ function buildHealthEventRows(
       const code = String(im?.code || '');
       rows.push({
         person_id: personId,
+        connection_id: connectionId,
         event_type: 'immunization',
         event_date: iso,
         title,
@@ -236,6 +242,7 @@ function buildHealthEventRows(
         : (d?.category || null);
       rows.push({
         person_id: personId,
+        connection_id: connectionId,
         event_type: 'diagnostic_report',
         event_date: iso,
         title,
@@ -270,7 +277,7 @@ function isVitalObservation(o: any): boolean {
   return VITAL_LOINC.has(code);
 }
 
-function buildLabRows(personId: string, mapped: any[]): Record<string, unknown>[] {
+function buildLabRows(personId: string, connectionId: string | null, mapped: any[]): Record<string, unknown>[] {
   if (!Array.isArray(mapped)) return [];
   return mapped
     .map((o) => {
@@ -285,6 +292,7 @@ function buildLabRows(personId: string, mapped: any[]): Record<string, unknown>[
       // any of those, so we write null — let the UI render it as unknown.
       return {
         person_id: personId,
+        connection_id: connectionId,
         test_name: testName,
         value: o?.value ? String(o.value) : null,
         unit: o?.unit || null,
@@ -307,7 +315,7 @@ function buildLabRows(personId: string, mapped: any[]): Record<string, unknown>[
     .filter((r) => r !== null) as Record<string, unknown>[];
 }
 
-function buildVitalRows(personId: string, mapped: any[]): Record<string, unknown>[] {
+function buildVitalRows(personId: string, connectionId: string | null, mapped: any[]): Record<string, unknown>[] {
   if (!Array.isArray(mapped)) return [];
   return mapped
     .map((o) => {
@@ -320,6 +328,7 @@ function buildVitalRows(personId: string, mapped: any[]): Record<string, unknown
       const code = String(o?.code || '');
       return {
         person_id: personId,
+        connection_id: connectionId,
         vital_type: vitalType,
         value: valueStr,
         unit: o?.unit || null,
@@ -354,7 +363,10 @@ function dedupeByFingerprint(rows: Record<string, unknown>[]): Record<string, un
   const seen = new Set<string>();
   const out: Record<string, unknown>[] = [];
   for (const r of rows) {
-    const key = `${r.person_id}|${r.source_fingerprint}`;
+    // Phase 2: dedupe key includes connection_id so the same med synced from
+    // two hospitals on the same day doesn't get squashed in this batch.
+    const connKey = r.connection_id == null ? '__null__' : String(r.connection_id);
+    const key = `${r.person_id}|${connKey}|${r.source_fingerprint}`;
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(r);
@@ -379,7 +391,12 @@ async function upsertBatch(
     const { error, count } = await admin
       .from(table)
       .upsert(slice, {
-        onConflict: 'person_id,source_fingerprint',
+        // Phase 2: matches the new (person_id, connection_id, source_fingerprint)
+        // UNIQUE NULLS NOT DISTINCT index. Each connection owns its own
+        // fingerprint slot per person; manual rows (connection_id IS NULL)
+        // collapse into a single shared slot, preserving the old dedup behavior
+        // for CCDA / Apple Health uploads.
+        onConflict: 'person_id,connection_id,source_fingerprint',
         count: 'exact',
         ignoreDuplicates: false,
       });
@@ -422,21 +439,28 @@ export async function persistEhrData(
     diagnostic_reports?: any[];
     observations?: any[];
   },
+  // Phase 2: Source-tag every row with the connection it came from so the
+  // hospital pill UI and per-connection reconnect banners can find their data.
+  // Pass `null` (the default) for non-EHR persistence paths (manual entry,
+  // CCDA upload, Apple Health import) — those rows continue to coexist via
+  // the NULLS NOT DISTINCT unique index.
+  connectionId: string | null = null,
 ): Promise<PersistResult> {
   const t0 = Date.now();
   const errors: string[] = [];
 
-  const medRows = buildMedicationRows(personId, mapped.medications || []);
-  const allergyRows = buildAllergyRows(personId, mapped.allergies || []);
+  const medRows = buildMedicationRows(personId, connectionId, mapped.medications || []);
+  const allergyRows = buildAllergyRows(personId, connectionId, mapped.allergies || []);
   const eventRows = buildHealthEventRows(
     personId,
+    connectionId,
     mapped.conditions || [],
     mapped.visits || [],
     mapped.immunizations || [],
     mapped.diagnostic_reports || [],
   );
-  const labRows = buildLabRows(personId, mapped.observations || []);
-  const vitalRows = buildVitalRows(personId, mapped.observations || []);
+  const labRows = buildLabRows(personId, connectionId, mapped.observations || []);
+  const vitalRows = buildVitalRows(personId, connectionId, mapped.observations || []);
 
   // Run each table's upsert sequentially. Could parallelize with Promise.all
   // but sequencing keeps error isolation clean and a typical payload is under
