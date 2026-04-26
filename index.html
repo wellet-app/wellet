@@ -2883,6 +2883,17 @@
             </div>
           </div>
         </div>
+        <!-- Developer preview (Phase 2 multi-hospital). Safe no-op when off. -->
+        <div class="settings-section" style="margin-top:12px;">
+          <div class="settings-section-label">Developer preview</div>
+          <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div class="settings-row-left" style="flex:1;min-width:0;">
+              <div class="settings-row-icon" style="background:#E8F5E9;color:#4CAF50;"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Multi-hospital preview</div><div class="settings-row-meta" id="phase2-toggle-desc">Off — Records reads the single-hospital cache.</div></div>
+            </div>
+            <button id="phase2-toggle-btn" type="button" onclick="togglePhase2Flag()" style="flex:0 0 auto;background:#eef2f0;border:1px solid var(--border);color:var(--text-primary);font-size:13px;font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;">Turn on</button>
+          </div>
+        </div>
       </div>
     </div><!-- end view-settings -->
 
@@ -3575,18 +3586,6 @@
     <div class="settings-section" style="margin-top:12px;">
       <div class="settings-section-label" data-i18n="settings.yourPlan">Your plan</div>
       <div id="settings-plan-card"><!-- rendered by renderSettingsPlanCard() --></div>
-    </div>
-
-    <!-- Developer preview toggle (Phase 2 multi-hospital). Safe no-op when off. -->
-    <div class="settings-section" style="margin-top:12px;">
-      <div class="settings-section-label">Developer preview</div>
-      <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:14px;color:var(--text-primary);font-weight:500;">Multi-hospital preview</div>
-          <div id="phase2-toggle-desc" style="font-size:12px;color:var(--text-muted);line-height:1.5;margin-top:2px;">Off — Records reads the single-hospital cache.</div>
-        </div>
-        <button id="phase2-toggle-btn" type="button" onclick="togglePhase2Flag()" style="flex:0 0 auto;background:#eef2f0;border:1px solid var(--border);color:var(--text-primary);font-size:13px;font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;">Turn on</button>
-      </div>
     </div>
 
     <div style="padding:20px 20px 0;text-align:center;">
