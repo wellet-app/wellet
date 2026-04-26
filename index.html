@@ -12468,13 +12468,19 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
   console.log('[EHR] fetchEhrData START person=' + personId);
   var retryAttempt = _retryAttempt || 0;
 
+  // Sentinel returned by any earlier silent-bail path so the next .then in
+  // this chain knows the bail was already handled (toast + status restore
+  // already happened) and should NOT show its own "Couldn't reach health
+  // records" toast.
+  var BAILED = '__bailed__';
+
   db.auth.getSession().then(function(sessionRes) {
     var session = sessionRes.data.session;
     if (!session) {
       console.warn('[EHR] fetchEhrData bail: no session');
       try { showToast('Session expired \u2014 please reload to sign in'); } catch(e){}
       try { restoreRecordsEhrStatus(); } catch(e){}
-      return;
+      return BAILED;
     }
     return fetch(SUPABASE_URL + '/functions/v1/fetch-ehr-data', {
       method: 'POST',
@@ -12486,6 +12492,7 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
       body: JSON.stringify({ person_id: personId })
     });
   }).then(function(res) {
+    if (res === BAILED) return BAILED;
     if (!res) return null;
     // A 404 can happen legitimately (no connection) OR transiently right after a
     // successful OAuth callback (Postgres read-after-write lag on a pooled replica).
@@ -12526,10 +12533,11 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
           try { updateProfileEhr(personId); } catch(e){}
           try { initIcons(); } catch(e){}
         });
-      return null;
+      return BAILED;
     }
     return res.json();
   }).then(function(data) {
+    if (data === BAILED) return;
     if (!data || data.error) {
       // PHI log removed
       console.warn('[EHR] fetchEhrData bail: no data or data.error');
