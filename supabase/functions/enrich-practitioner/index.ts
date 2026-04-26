@@ -1,77 +1,62 @@
-// Supabase Edge Function: enrich-practitioner (v1)
+// Supabase Edge Function: enrich-practitioner (v2)
 //
 // Why this exists:
-//   Duke Health's Epic FHIR R4 endpoint returns Practitioner and
-//   PractitionerRole resources without telecom (phone/fax/email) or
-//   practice addresses populated. fetch-ehr-data captures telemetry
-//   confirming this across every practitioner we've tried. The app
-//   displays "No contact info on file" for every Care Team card, which
-//   is useless to families coordinating care.
+//   Epic FHIR endpoints (Duke confirmed; UNC and other Epic hospitals
+//   strongly suspected) return Practitioner / PractitionerRole resources
+//   with telecom (phone/fax/email) and practice addresses empty. The app
+//   would otherwise display "No contact info on file" for every Care
+//   Team card, which is useless to families coordinating care.
 //
-// What this does:
-//   Given a Practitioner name (and optional NPI / Epic reference / state),
-//   look up public contact info from, in order:
-//     1. practitioner_contact_cache in Supabase (30-day TTL)
-//     2. dukehealth.org provider directory (primary source — clean
-//        Schema.org microdata, designed for machine consumption)
-//     3. NPPES NPI registry (fallback — US federal registry, always
-//        available, but addresses can be years stale)
+// What this does (3-tier cascade):
+//   1. practitioner_contact_cache in Supabase (30-day TTL) — keyed by
+//      NPI when known, or by adapter-specific slug otherwise.
+//   2. Hospital directory adapter (Tier 2.5) — high-confidence,
+//      hospital-specific. Adapters live in ./adapters/*.ts and register
+//      themselves via ./adapters/index.ts. Today only Duke is wired up;
+//      the registry exists so adding UNC/WakeMed/Cone/Atrium is a new
+//      adapter file plus one registerAdapter() line.
+//   3. NPPES NPI registry — federal Tier 3 fallback. Always available
+//      but addresses can be years stale, so confidence = "medium".
 //
 // Returns a Wellet-shaped practitioner contact object plus source
-// attribution so the UI can render "Phone: … · from dukehealth.org".
+// attribution so the UI can render "Phone: … · from Duke Health".
 //
 // Safety:
 //   - Never writes to any FHIR resource.
 //   - Never writes to ehr_connections or any patient-scoped table.
 //   - Only writes to the dedicated practitioner_contact_cache table
-//     (non-PHI: public directory info keyed by NPI).
-//   - All external HTTP calls have 8-second timeouts.
+//     (non-PHI: public directory info keyed by NPI / slug).
+//   - All external HTTP calls have 8-second timeouts inside the adapters.
 //   - Fails soft: if every source misses, returns { found: false }
 //     instead of 500'ing the card.
+//
+// v2 refactor (multi-hospital/registry-refactor branch):
+//   The previously inlined dukehealth.org lookup moved to
+//   ./adapters/duke.ts. Behavior for Duke is intentionally identical —
+//   same URL pattern, same regexes, same lookup_key shape, same
+//   source_name "dukehealth.org". This refactor is observably a no-op
+//   for current Duke users; its purpose is to make adding the next
+//   hospital a small, contained change.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import type {
+  EnrichedContact,
+  EnrichInput,
+} from "../_shared/practitioner-types.ts";
+import {
+  runDirectoryLookup,
+  tentativeCacheKeysFor,
+} from "../_shared/hospital-directory-registry.ts";
+// Importing this file is what registers every adapter into the registry.
+// Do NOT remove — it is the composition root.
+import "./adapters/index.ts";
 
 // ── Types ─────────────────────────────────────────────────────────────
-
-type Address = {
-  street?: string;
-  city?: string;
-  state?: string;
-  zip?: string;
-  label?: string;
-};
-
-type EnrichedContact = {
-  found: boolean;
-  lookup_key?: string;
-  practitioner_ref?: string;
-  name?: string;
-  npi?: string;
-  phones: string[];
-  fax?: string;
-  emails: string[];
-  addresses: Address[];
-  specialty?: string;
-  bio?: string;
-  photo_url?: string;
-  source_name?: string;  // "dukehealth.org" | "NPPES" | "cache"
-  source_url?: string;
-  confidence?: "high" | "medium" | "low";
-  cached?: boolean;
-};
-
-type EnrichInput = {
-  // At minimum we need a name. Everything else sharpens the match.
-  name: string;               // full display name e.g. "Jaseela Illath, MD"
-  first_name?: string;
-  last_name?: string;
-  npi?: string;               // if already known from anywhere
-  practitioner_ref?: string;  // Epic "Practitioner/abc123"
-  state?: string;             // 2-letter, biases NPPES matches
-  hint_org?: string;          // e.g. "Duke" — picks dukehealth.org first
-};
+// (Address / EnrichedContact / EnrichInput now live in
+// ../_shared/practitioner-types.ts so adapters and this handler share
+// one definition.)
 
 const CACHE_TTL_DAYS = 30;
 const FETCH_TIMEOUT_MS = 8_000;
@@ -105,10 +90,11 @@ async function timedFetch(url: string, init: RequestInit = {}): Promise<Response
 }
 
 // Strip common suffixes ("MD", "DO", "PhD", "RN", commas, etc.) so we can
-// split a display name into first/last reliably.
+// split a display name into first/last reliably. Used by NPPES and the
+// generic name-based cache key. Adapters have their own copy because
+// they may want different splitting rules per hospital.
 function splitName(display: string): { first: string; last: string; credential: string } {
   if (!display) return { first: "", last: "", credential: "" };
-  // pull trailing credential (MD, DO, PA-C, NP, RN, PhD, etc.)
   const m = display.match(/^(.+?)(?:,\s*)?\b(MD|DO|DDS|DMD|PA-C|PA|NP|APRN|RN|PhD|PsyD|MSN|MPH|MBA)\b\.?\s*$/i);
   let core = display;
   let credential = "";
@@ -120,7 +106,6 @@ function splitName(display: string): { first: string; last: string; credential: 
   const parts = core.split(" ").filter(Boolean);
   if (parts.length === 0) return { first: "", last: "", credential };
   if (parts.length === 1) return { first: "", last: parts[0], credential };
-  // Assume first token is first name, last token is last name — middle names/initials ignored.
   return { first: parts[0], last: parts[parts.length - 1], credential };
 }
 
@@ -128,16 +113,15 @@ function slugify(s: string): string {
   return s
     .toLowerCase()
     .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")   // strip accents
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9\s-]/g, "")
     .trim()
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-");
 }
 
-function buildLookupKey(input: { npi?: string; dukeSlug?: string; name?: string; state?: string }): string {
+function buildLookupKey(input: { npi?: string; name?: string; state?: string }): string {
   if (input.npi) return `npi:${input.npi}`;
-  if (input.dukeSlug) return `duke:${input.dukeSlug}`;
   const n = slugify(input.name || "unknown");
   const s = (input.state || "").toLowerCase();
   return s ? `name:${n}-${s}` : `name:${n}`;
@@ -147,189 +131,6 @@ function cacheIsFresh(updated_at: string): boolean {
   const then = new Date(updated_at).getTime();
   const now = Date.now();
   return (now - then) < CACHE_TTL_DAYS * 24 * 60 * 60 * 1000;
-}
-
-// ── dukehealth.org primary source ─────────────────────────────────────
-//
-// URL pattern: /find-doctors-physicians/{first}-{last}-{credential}
-//   e.g. /find-doctors-physicians/jaseela-illath-md
-//
-// The page uses Schema.org microdata: itemprop="telephone" / "fax" /
-// "streetAddress" / "addressLocality" / "addressRegion" / "postalCode" /
-// "description" / "image". NPI and duke_id are embedded inside a
-// drupal-settings-json <script> tag as "np_id" and "duke_id".
-
-async function lookupDukeHealth(input: EnrichInput): Promise<EnrichedContact | null> {
-  const parts = input.first_name && input.last_name
-    ? { first: input.first_name, last: input.last_name, credential: "" }
-    : splitName(input.name);
-
-  if (!parts.last) return null;
-
-  // Try most common credential suffixes if none provided.
-  const credentials = parts.credential
-    ? [parts.credential.toLowerCase()]
-    : ["md", "do", "pa-c", "pa", "np", "aprn", "rn", "phd"];
-
-  const baseSlug = slugify([parts.first, parts.last].filter(Boolean).join(" "));
-  if (!baseSlug) return null;
-
-  for (const cred of credentials) {
-    const slug = cred ? `${baseSlug}-${cred}` : baseSlug;
-    const url = `https://www.dukehealth.org/find-doctors-physicians/${slug}`;
-    let res: Response;
-    try {
-      res = await timedFetch(url);
-    } catch {
-      continue;
-    }
-    if (!res.ok) continue;
-
-    const html = await res.text();
-    // Sanity check: is this actually a provider page?
-    if (!html.includes('itemprop="')) continue;
-
-    const parsed = parseDukeHealthHtml(html, url, slug);
-    if (parsed && (parsed.phones.length || parsed.fax || parsed.addresses.length)) {
-      parsed.confidence = "high";
-      return parsed;
-    }
-    // If the page loaded but we couldn't parse useful info, don't keep
-    // trying other credential suffixes — we found the right person.
-    if (parsed) return parsed;
-  }
-
-  return null;
-}
-
-function parseDukeHealthHtml(html: string, sourceUrl: string, slug: string): EnrichedContact | null {
-  const get = (re: RegExp): string | undefined => {
-    const m = html.match(re);
-    return m ? m[1].trim() : undefined;
-  };
-
-  // Name (from <h1> or og:title fallback)
-  const name =
-    get(/<h1[^>]*itemprop="name"[^>]*>\s*([^<]+?)\s*<\/h1>/i) ||
-    get(/<meta[^>]+property="og:title"[^>]+content="([^"]+)"/i) ||
-    "";
-
-  // All "tel:" links — captures per-location phones (dukehealth.org
-  // wraps each location's phone in <a class="phone" href="tel:...">).
-  const phones: string[] = [];
-  const phoneRe = /href="tel:([0-9\-+() .]+)"/gi;
-  let pm: RegExpExecArray | null;
-  while ((pm = phoneRe.exec(html)) !== null) {
-    const normalized = pm[1].replace(/[^0-9+]/g, "").replace(/^1(\d{10})$/, "$1");
-    const formatted = formatPhoneUS(normalized) || pm[1].trim();
-    if (formatted && !phones.includes(formatted)) phones.push(formatted);
-  }
-  // Also pick up the single itemprop="telephone" in case tel: links are absent.
-  const ipTel = get(/<[^>]*itemprop="telephone"[^>]*>\s*([^<]+?)\s*</i);
-  if (ipTel) {
-    const norm = ipTel.replace(/[^0-9+]/g, "");
-    const fmt = formatPhoneUS(norm) || ipTel.trim();
-    if (fmt && !phones.includes(fmt)) phones.push(fmt);
-  }
-
-  // Fax
-  const faxRaw = get(/<[^>]*itemprop="fax"[^>]*>\s*([^<]+?)\s*</i);
-  const fax = faxRaw ? (formatPhoneUS(faxRaw.replace(/[^0-9+]/g, "")) || faxRaw.trim()) : undefined;
-
-  // Addresses — dukehealth.org uses a <div itemprop="address"> wrapper
-  // that contains nested divs. Naively matching to the next </div>
-  // closes too early. Instead, slice the HTML between each
-  // itemprop="address" marker and the start of the next one (or EOF),
-  // and parse each slice for the microdata fields.
-  const addresses: Address[] = [];
-  const addrAnchors: number[] = [];
-  const anchorRe = /itemprop="address"/gi;
-  let aam: RegExpExecArray | null;
-  while ((aam = anchorRe.exec(html)) !== null) addrAnchors.push(aam.index);
-  for (let i = 0; i < addrAnchors.length; i++) {
-    const start = addrAnchors[i];
-    const end = i + 1 < addrAnchors.length ? addrAnchors[i + 1] : html.length;
-    // Cap the window at 4KB so we don't walk into a different logical
-    // section of the page (e.g. reviews, bio) on a malformed template.
-    const block = html.slice(start, Math.min(end, start + 4096));
-    const a: Address = {
-      street: block.match(/itemprop="streetAddress"[^>]*>\s*([^<]+?)\s*</i)?.[1]?.trim(),
-      city: block.match(/itemprop="addressLocality"[^>]*>\s*([^<]+?)\s*</i)?.[1]?.trim(),
-      state: block.match(/itemprop="addressRegion"[^>]*>\s*([^<]+?)\s*</i)?.[1]?.trim(),
-      zip: block.match(/itemprop="postalCode"[^>]*>\s*([^<]+?)\s*</i)?.[1]?.trim(),
-    };
-    // Try to grab the location name that usually precedes the address
-    // microdata ("Duke Primary Care of Galloway Ridge").
-    const labelMatch = block.match(/class="location-name-text"[^>]*>\s*([\s\S]*?)\s*<\/a>/i);
-    if (labelMatch) {
-      a.label = labelMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
-    }
-    if (a.street || a.city || a.state || a.zip) {
-      addresses.push(a);
-    }
-  }
-
-  // Bio (itemprop="description" — can contain HTML, so strip tags)
-  const bioRaw = get(/itemprop="description"[^>]*>([\s\S]*?)<\/(?:div|p|span)>/i);
-  const bio = bioRaw ? stripHtml(bioRaw).trim() : undefined;
-
-  // Photo — og:image is the high-quality version
-  const photo_url =
-    get(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/i) ||
-    get(/itemprop="image"[^>]+(?:src|content)="([^"]+)"/i);
-
-  // NPI + specialty from embedded drupal-settings JSON
-  let npi: string | undefined;
-  let specialty: string | undefined;
-  const drupalMatch = html.match(/drupal-settings-json[^>]*>([\s\S]*?)<\/script>/i);
-  if (drupalMatch) {
-    const raw = drupalMatch[1];
-    const npiMatch = raw.match(/"np_id":"(\d+)"/);
-    if (npiMatch) npi = npiMatch[1];
-    // physicianSpecialities: {"id":"Name", ...} — pick the first
-    const specMatch = raw.match(/"physicianSpecialities":\{([^}]+)\}/);
-    if (specMatch) {
-      const firstName = specMatch[1].match(/"\d+":"([^"]+)"/);
-      if (firstName) specialty = firstName[1];
-    }
-  }
-
-  if (!name && phones.length === 0 && !fax && addresses.length === 0) return null;
-
-  return {
-    found: true,
-    lookup_key: npi ? `npi:${npi}` : `duke:${slug}`,
-    name: decodeHtmlEntities(name),
-    npi,
-    phones,
-    fax,
-    emails: [],
-    addresses,
-    specialty: specialty ? decodeHtmlEntities(specialty) : undefined,
-    bio: bio ? decodeHtmlEntities(bio) : undefined,
-    photo_url,
-    source_name: "dukehealth.org",
-    source_url: sourceUrl,
-    confidence: "high",
-  };
-}
-
-function stripHtml(s: string): string {
-  return s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
-}
-
-function decodeHtmlEntities(s: string): string {
-  return s
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#039;/g, "'")
-    .replace(/&rsquo;/g, "\u2019")
-    .replace(/&lsquo;/g, "\u2018")
-    .replace(/&ndash;/g, "\u2013")
-    .replace(/&mdash;/g, "\u2014")
-    .replace(/&nbsp;/g, " ");
 }
 
 function formatPhoneUS(digits: string): string | null {
@@ -350,6 +151,12 @@ function formatPhoneUS(digits: string): string | null {
 //   - "practice location" address (address_purpose=LOCATION) is usually
 //     the most useful for patient-facing display.
 //   - no phones are guaranteed; many records omit telephone_number.
+//
+// NPPES intentionally lives in the handler, not in the adapter
+// registry, because:
+//   (a) it's federal — not hospital-specific — so it shouldn't be
+//       routed by FHIR domain.
+//   (b) it's the universal fallback, always tried last.
 
 async function lookupNppes(input: EnrichInput): Promise<EnrichedContact | null> {
   const parts = input.first_name && input.last_name
@@ -385,9 +192,6 @@ async function lookupNppes(input: EnrichInput): Promise<EnrichedContact | null> 
   const results = (data.results as Record<string, unknown>[]) || [];
   if (results.length === 0) return null;
 
-  // Prefer an exact last-name match. If multiple, return the first —
-  // NPPES orders by NPI ascending which is basically arbitrary. Callers
-  // should ideally pass an NPI when they have one.
   const preferred = results.find((r) => {
     const basic = (r.basic as Record<string, unknown>) || {};
     const ln = ((basic.last_name as string) || "").toLowerCase();
@@ -399,12 +203,12 @@ async function lookupNppes(input: EnrichInput): Promise<EnrichedContact | null> 
   const taxonomies = (preferred.taxonomies as Record<string, unknown>[]) || [];
   const npi = (preferred.number as string) || input.npi;
 
-  const addresses: Address[] = addrs.map((a) => ({
+  const addresses = addrs.map((a) => ({
     street: [a.address_1, a.address_2].filter(Boolean).join(", ") as string,
     city: a.city as string,
     state: a.state as string,
     zip: a.postal_code as string,
-    label: a.address_purpose as string, // "MAILING" | "LOCATION"
+    label: a.address_purpose as string,
   }));
   const phones: string[] = [];
   for (const a of addrs) {
@@ -540,18 +344,19 @@ serve(async (req) => {
     }
 
     // ── Step 1: try cache ─────────────────────────────────────────
+    // Tentative keys come from the registry: NPI first (if known),
+    // then each matching adapter's slug variants. If no adapters match
+    // (e.g. unknown FHIR domain), we still probe the generic name+state
+    // key so cache hits from prior NPPES-only lookups still work.
+    const tentativeKeys = tentativeCacheKeysFor(body);
     const parts = body.first_name && body.last_name
       ? { first: body.first_name, last: body.last_name }
       : splitName(body.name);
-    const tentativeKeys: string[] = [];
-    if (body.npi) tentativeKeys.push(`npi:${body.npi}`);
     if (parts.first && parts.last) {
-      const slug = slugify(`${parts.first} ${parts.last}`);
-      // Duke-style slug with common credentials
-      tentativeKeys.push(`duke:${slug}-md`);
-      tentativeKeys.push(`duke:${slug}-do`);
-      // Plain name+state key
-      tentativeKeys.push(buildLookupKey({ name: `${parts.first} ${parts.last}`, state: body.state }));
+      tentativeKeys.push(buildLookupKey({
+        name: `${parts.first} ${parts.last}`,
+        state: body.state,
+      }));
     }
     for (const key of tentativeKeys) {
       const hit = await readCache(admin, key);
@@ -560,16 +365,13 @@ serve(async (req) => {
       }
     }
 
-    // ── Step 2: dukehealth.org (prefer when hint_org says Duke) ──
-    // We try Duke first unconditionally because (a) it's by far the
-    // highest-quality source when the provider is Duke, and (b) the
-    // 404 cost is cheap — one fast request.
-    let result: EnrichedContact | null = null;
-    if (!body.hint_org || /duke/i.test(body.hint_org)) {
-      result = await lookupDukeHealth(body);
-    }
+    // ── Step 2: hospital directory adapter (Tier 2.5) ────────────
+    // The router picks adapters whose fhir_domains or hint_org_keywords
+    // match the input. If nothing matches, runDirectoryLookup returns
+    // null immediately (no network calls) and we fall through to NPPES.
+    let result: EnrichedContact | null = await runDirectoryLookup(body);
 
-    // ── Step 3: NPPES fallback ───────────────────────────────────
+    // ── Step 3: NPPES fallback (Tier 3) ──────────────────────────
     if (!result) {
       result = await lookupNppes(body);
     }
@@ -581,7 +383,7 @@ serve(async (req) => {
           phones: [],
           emails: [],
           addresses: [],
-          searched_sources: ["dukehealth.org", "NPPES"],
+          searched_sources: ["hospital_directory", "NPPES"],
         },
         200,
         corsHeaders,
