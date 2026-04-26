@@ -86,11 +86,18 @@ export type HospitalDirectoryAdapter = {
 const REGISTRY: HospitalDirectoryAdapter[] = [];
 
 export function registerAdapter(adapter: HospitalDirectoryAdapter): void {
-  // Refuse silent duplicates — they almost always indicate a bug.
+  // Idempotent: silently skip duplicates. Edge functions can be cold-started
+  // multiple times in the same isolate, and the composition root
+  // (adapters/index.ts) runs at module-init. Throwing on a duplicate id would
+  // 500 every Care Team request after a re-import. Tests register/reset their
+  // own adapter sets, so they need the same guarantee. We log a warn so a real
+  // duplicate-id bug (two different adapters claiming the same id) is still
+  // visible in stderr without breaking production.
   if (REGISTRY.some((a) => a.id === adapter.id)) {
-    throw new Error(
-      `hospital-directory-registry: adapter id "${adapter.id}" already registered`,
+    console.warn(
+      `hospital-directory-registry: adapter id "${adapter.id}" already registered, skipping`,
     );
+    return;
   }
   REGISTRY.push(adapter);
 }

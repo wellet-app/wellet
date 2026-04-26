@@ -12651,7 +12651,14 @@ function enrichPractitionersForPerson(personId, careTeam, provider) {
 
       _enrichInflight[inflightKey] = true;
 
-      var hintOrg = (provider && (provider.name || provider.hospital_name)) || '';
+      // fetch-ehr-data returns `provider` as a string (e.g. 'Duke Health'), but
+      // older code paths and tests sometimes pass an object ({name, hospital_name}).
+      // Accept both shapes so the registry router actually sees a hint for live
+      // Duke connections (without this, hint_org=undefined and the Duke adapter
+      // never gets selected).
+      var hintOrg = (typeof provider === 'string'
+                       ? provider
+                       : (provider && (provider.name || provider.hospital_name))) || '';
       var payload = {
         name: p.name,
         practitioner_ref: ref || undefined,

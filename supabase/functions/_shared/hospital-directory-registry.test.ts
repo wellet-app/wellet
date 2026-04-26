@@ -5,12 +5,10 @@
 //   4. tentativeCacheKeysFor builds NPI key first, then adapter slugs
 //   5. runDirectoryLookup returns first non-null hit
 //   6. runDirectoryLookup soft-fails when an adapter throws
-//   7. registerAdapter rejects duplicate IDs
+//   7. registerAdapter is idempotent on duplicate IDs (no throw, warn only)
 
 import {
   assertEquals,
-  assertRejects,
-  assertThrows,
 } from "https://deno.land/std@0.168.0/testing/asserts.ts";
 
 import type {
@@ -150,10 +148,34 @@ Deno.test("runDirectoryLookup soft-fails when an adapter throws", async () => {
   assertEquals(result, null);
 });
 
-Deno.test("registerAdapter rejects duplicate ids", () => {
-  assertThrows(
-    () => registerAdapter(makeAdapter("test_fhirhospital")),
-    Error,
-    'adapter id "test_fhirhospital" already registered',
+Deno.test("registerAdapter is idempotent on duplicate ids", () => {
+  // Capture console.warn so we can assert the duplicate path warned but did
+  // not throw. Idempotence is required because edge function isolates can
+  // re-run module init on cold start; a throw there would 500 every Care
+  // Team request.
+  const originalWarn = console.warn;
+  const warnings: string[] = [];
+  console.warn = (...args: unknown[]) => {
+    warnings.push(args.map((a) => String(a)).join(" "));
+  };
+  try {
+    // Should NOT throw — silently skipped because test_fhirhospital is
+    // already registered earlier in this test file.
+    registerAdapter(makeAdapter("test_fhirhospital"));
+  } finally {
+    console.warn = originalWarn;
+  }
+  // Registry should still report the original adapter once
+  const matches = selectAdaptersFor({
+    name: "X",
+    hint_fhir_domain: "test_fhirhospital.example.com",
+  });
+  assertEquals(matches.length, 1);
+  // And we should have warned
+  assertEquals(
+    warnings.some((w) =>
+      w.includes('adapter id "test_fhirhospital" already registered')
+    ),
+    true,
   );
 });
