@@ -11678,7 +11678,148 @@ function clearEhrCache(personId) {
   try {
     delete ehrCache[personId];
     localStorage.removeItem('wellet_ehr_' + personId);
+    // Also clear v2 cache (keyed per-connection) so a wipe is consistent
+    // across both shapes regardless of which path the caller is on.
+    delete ehrCacheV2[personId];
+    localStorage.removeItem('wellet_ehr_v2_' + personId);
   } catch(e) {}
+}
+
+// ── EHR CACHE V2 (per-connection, gated by localStorage.welletPhase2) ─────────
+// v1 stores ONE flat ehrData per person. v2 stores N connections per person and
+// merges them on read. Both shapes coexist; v1 is untouched so the flag can
+// flip ON or OFF freely without losing data. saveEhrCache() writes BOTH shapes
+// when the response includes _phase2 + connections[] (always true on v55+).
+//
+// Storage key:  wellet_ehr_v2_<personId>
+// Storage shape:
+//   { version: 2,
+//     connections: { <connection_id>: { hospital_name, fhir_base_url,
+//       patient_id, provider, status, conditions, medications, allergies,
+//       observations, immunizations, diagnostic_reports, visits, care_team,
+//       patient, synced_at, last_data_at, result_counts, _diagnostic } } }
+var ehrCacheV2 = {}; // in-memory mirror, lazy-loaded from localStorage
+
+function _v2Key(personId) { return 'wellet_ehr_v2_' + personId; }
+
+function loadEhrCacheV2(personId) {
+  if (!personId) return null;
+  if (ehrCacheV2[personId]) return ehrCacheV2[personId];
+  try {
+    var raw = localStorage.getItem(_v2Key(personId));
+    if (!raw) return null;
+    var parsed = JSON.parse(raw);
+    if (!parsed || parsed.version !== 2 || !parsed.connections) return null;
+    ehrCacheV2[personId] = parsed;
+    return parsed;
+  } catch(e) { console.warn('EHR v2 cache read error:', e); return null; }
+}
+
+// Save the v2 shape for a person. Drops connections that are no longer
+// present in the latest fetch-ehr-data response (server-side disconnect).
+function saveEhrCacheV2(personId, data) {
+  if (!personId || !data || !data._phase2 || !Array.isArray(data.connections)) return;
+  try {
+    var byId = {};
+    for (var i = 0; i < data.connections.length; i++) {
+      var c = data.connections[i];
+      if (!c || !c.connection_id) continue;
+      byId[c.connection_id] = c;
+    }
+    var v2 = { version: 2, connections: byId, _phase2: true };
+    ehrCacheV2[personId] = v2;
+    localStorage.setItem(_v2Key(personId), JSON.stringify(v2));
+  } catch(e) { console.warn('EHR v2 cache write error:', e); }
+}
+
+// Merge all connections for a person into the same flat shape v1 produced,
+// so every existing caller (renderRecordsView, openRecordsDetail, timeline,
+// AskWellet, etc.) keeps working unchanged. Each row is stamped with
+// _connection_id and _hospital_name so later UI (hospital pills, per-row
+// provenance) can read it without another lookup.
+function getMergedEhr(personId) {
+  var v2 = loadEhrCacheV2(personId);
+  if (!v2 || !v2.connections) return null;
+  var ids = Object.keys(v2.connections);
+  if (ids.length === 0) return null;
+
+  // Sort by sort_order ascending if present, otherwise by synced_at descending
+  // (most-recently-synced first). v55 doesn't expose sort_order in the
+  // response yet — fall back to synced_at until it does.
+  ids.sort(function(a, b) {
+    var ca = v2.connections[a] || {};
+    var cb = v2.connections[b] || {};
+    if (ca.sort_order != null && cb.sort_order != null) return ca.sort_order - cb.sort_order;
+    var ta = ca.synced_at ? new Date(ca.synced_at).getTime() : 0;
+    var tb = cb.synced_at ? new Date(cb.synced_at).getTime() : 0;
+    return tb - ta;
+  });
+
+  var ARRAY_KEYS = ['conditions','medications','allergies','observations',
+    'immunizations','diagnostic_reports','visits','care_team'];
+  var merged = {
+    conditions: [], medications: [], allergies: [], observations: [],
+    immunizations: [], diagnostic_reports: [], visits: [], care_team: [],
+    _connections: [],
+  };
+
+  var providerNames = [];
+  var maxSyncedMs = 0;
+  var maxSyncedIso = null;
+  var firstPatient = null;
+  var firstExpectedPatientId = null;
+
+  for (var k = 0; k < ids.length; k++) {
+    var conn = v2.connections[ids[k]];
+    if (!conn) continue;
+
+    if (conn.hospital_name) providerNames.push(conn.hospital_name);
+    if (conn.synced_at) {
+      var t = new Date(conn.synced_at).getTime();
+      if (t > maxSyncedMs) { maxSyncedMs = t; maxSyncedIso = conn.synced_at; }
+    }
+    if (!firstPatient && conn.patient) firstPatient = conn.patient;
+    if (!firstExpectedPatientId && conn.patient_id) firstExpectedPatientId = conn.patient_id;
+
+    // Per-connection summary (used by hospital pills + reconnect banners)
+    merged._connections.push({
+      connection_id: conn.connection_id,
+      hospital_name: conn.hospital_name,
+      fhir_base_url: conn.fhir_base_url,
+      patient_id: conn.patient_id,
+      provider: conn.provider,
+      status: conn.status,
+      synced_at: conn.synced_at,
+      result_counts: conn.result_counts,
+    });
+
+    for (var ak = 0; ak < ARRAY_KEYS.length; ak++) {
+      var key = ARRAY_KEYS[ak];
+      var rows = Array.isArray(conn[key]) ? conn[key] : [];
+      for (var ri = 0; ri < rows.length; ri++) {
+        var row = rows[ri];
+        if (!row) continue;
+        // Stamp source-of-truth without mutating the original cached row.
+        var stamped = {};
+        for (var p in row) { if (Object.prototype.hasOwnProperty.call(row, p)) stamped[p] = row[p]; }
+        if (!stamped._connection_id) stamped._connection_id = conn.connection_id;
+        if (!stamped._hospital_name) stamped._hospital_name = conn.hospital_name;
+        merged[key].push(stamped);
+      }
+    }
+  }
+
+  merged.provider = providerNames.length > 1 ? providerNames.join(', ') : (providerNames[0] || 'EHR');
+  merged.synced_at = maxSyncedIso;
+  if (firstPatient) merged.patient = firstPatient;
+  if (firstExpectedPatientId) merged.expected_patient_id = firstExpectedPatientId;
+  merged._phase2 = true;
+
+  return merged;
+}
+
+function isPhase2Enabled() {
+  try { return localStorage.getItem('welletPhase2') === '1'; } catch(e) { return false; }
 }
 
 // Check if cached EHR data is stale (older than 24 hours)
@@ -11689,16 +11830,27 @@ function isEhrCacheStale(personId) {
   return age > 24 * 60 * 60 * 1000;
 }
 
-// Get EHR data for current person (demo or real)
-function getEhrData(personId) {
+// Legacy v1 reader — same body as before, kept so the flag can dispatch.
+function _legacyGetEhrData(personId) {
   if (isDemoMode) {
-    // In demo mode, only Dad has EHR data
     var pills = document.querySelectorAll('#view-records .person-pill, .person-pill.active');
     var isDad = !personId || personId === 'dad';
     if (isDad) return DEMO_EHR_DATA;
     return null;
   }
   return ehrCache[personId] || loadEhrCache(personId);
+}
+
+// Get EHR data for current person (demo or real). When the Phase 2 flag is
+// set, route through getMergedEhr() so all existing callers transparently
+// see merged-across-connections data; fall back to v1 if v2 cache is empty
+// (e.g., user just flipped the flag and hasn't synced yet).
+function getEhrData(personId) {
+  if (isPhase2Enabled() && !isDemoMode) {
+    var merged = getMergedEhr(personId);
+    if (merged) return merged;
+  }
+  return _legacyGetEhrData(personId);
 }
 
 // ── Hospital picker state ──
@@ -12343,6 +12495,10 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
       return;
     }
     saveEhrCache(personId, data);
+    // Phase 2 dual-write: when the response carries connections[] (v55+),
+    // also persist the per-connection v2 shape. v1 stays the source of truth
+    // until the flag flips ON; v2 is read-only until then.
+    try { saveEhrCacheV2(personId, data); } catch(e) { console.warn('v2 cache save:', e); }
     showToast('Health records updated');
     // Re-render views with EHR data
     if (personId === currentPersonId) {
