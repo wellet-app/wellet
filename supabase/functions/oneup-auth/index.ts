@@ -139,12 +139,20 @@ Deno.serve(async (req) => {
 
       const admin = getAdminClient();
 
-      // Check if there's already a connection for this person
-      const { data: existing } = await admin.from('ehr_connections')
+      // HOTFIX 2026-04-26: changed from .single() to .maybeSingle() because
+      // .single() throws PGRST116 when there are 2+ rows, which would be the
+      // case once N-connections-per-person is fully shipped. Today this still
+      // returns at most one row because the `start` upserts below have an
+      // application-layer guard preventing more than one connected row per
+      // person. Limit(1) defends against the transient state where a pending
+      // and a connected row temporarily co-exist for the same person.
+      const { data: existingRows } = await admin.from('ehr_connections')
         .select('*')
         .eq('person_id', person_id)
         .eq('user_id', user.id)
-        .single();
+        .order('connected_at', { ascending: false, nullsFirst: false })
+        .limit(1);
+      const existing = existingRows && existingRows.length > 0 ? existingRows[0] : null;
 
       let oneupUserId: string;
       let authCode: string;
@@ -171,18 +179,33 @@ Deno.serve(async (req) => {
           authCode = codeData.code || '';
         }
       } else {
-        // Create a new 1upHealth user
+        // HOTFIX 2026-04-26: previously this was an upsert with
+        // onConflict: 'person_id', which would silently overwrite a sibling
+        // EHR connection (e.g. Mom's Duke chart) the moment a 1upHealth flow
+        // started for the same person. Switched to plain insert; the
+        // companion migration drops UNIQUE(person_id) and adds a partial
+        // UNIQUE(person_id, fhir_base_url) WHERE status='connected'. The
+        // application-layer guard above blocks a second hospital from
+        // starting until the rest of the N-connections refactor lands.
         const result = await createOneUpUser(`${user.id}_${person_id}`);
         oneupUserId = result.oneup_user_id;
         authCode = result.code;
 
-        // Store the connection record
-        await admin.from('ehr_connections').upsert({
+        const { error: insertError } = await admin.from('ehr_connections').insert({
           user_id: user.id,
           person_id: person_id,
           oneup_user_id: oneupUserId,
+          status: 'pending',
           connected_at: new Date().toISOString(),
-        }, { onConflict: 'person_id' });
+        });
+        if (insertError) {
+          console.error('[oneup-auth] start insert failed', { err: insertError });
+          return jsonResponse({
+            error: 'connection_start_failed',
+            message: 'Could not start a new EHR connection — please try again.',
+            detail: insertError.message,
+          }, 500);
+        }
       }
 
       // Build the authorize URL — this opens 1upHealth's health system picker
