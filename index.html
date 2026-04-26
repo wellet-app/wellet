@@ -7718,6 +7718,48 @@ function openRecordsDetail(section) {
   var labEvents   = liveEvents.filter(function(e){ return e.event_type==='lab_result'; });
   var apptEvents  = liveEvents.filter(function(e){ return e.event_type==='appointment'; });
 
+  // DB-backed fallback for Conditions / Visits when the live EHR cache is empty
+  // (e.g. first paint before sync completes, or identity-check skipped a write).
+  // health_events stores condition + visit rows with shape: {title, event_date,
+  // notes, source, accepted}. We adapt them into the shape Conditions / Visits
+  // detail views already expect (name, recorded_date, onset_date, status / start_date).
+  if (ehrConditions.length === 0) {
+    ehrConditions = liveEvents
+      .filter(function(e){ return e.event_type==='condition' && e.accepted!==false; })
+      .map(function(e){
+        var status = '';
+        var notes = e.notes || '';
+        var m = /^Status:\s*(.+)$/i.exec(notes);
+        if (m) status = (m[1] || '').trim().toLowerCase();
+        return {
+          name: e.title || '',
+          code: '',
+          status: status,
+          onset_date: e.event_date || '',
+          recorded_date: e.event_date || '',
+          source: 'ehr',
+        };
+      });
+  }
+  if (allEhrVisits.length === 0) {
+    var liveVisitEvents = liveEvents
+      .filter(function(e){ return e.event_type==='visit' && e.accepted!==false; })
+      .map(function(e){
+        return {
+          name: e.title || 'Visit',
+          start_date: e.event_date || '',
+          end_date: '',
+          location: '',
+          reason: e.notes || '',
+          providers: [],
+          source: 'ehr',
+        };
+      });
+    allEhrVisits = liveVisitEvents;
+    ehrVisitsRecent = allEhrVisits.filter(function(v){ var t=v.start_date?new Date(v.start_date).getTime():0; return t>=twoYearsAgoMs; });
+    ehrVisitsOlder  = allEhrVisits.filter(function(v){ var t=v.start_date?new Date(v.start_date).getTime():0; return t>0&&t<twoYearsAgoMs; });
+  }
+
   var titles = {
     medications: 'Medications',
     conditions:  'Conditions',
@@ -7774,6 +7816,48 @@ function renderRecordsView() {
   var labEvents     = liveEvents.filter(function(e){ return e.event_type==='lab_result'; });
   var noteEvents    = liveEvents.filter(function(e){ return e.event_type==='note'; });
   var apptEvents    = liveEvents.filter(function(e){ return e.event_type==='appointment'; });
+
+  // DB-backed fallback for Conditions / Visits when the live EHR cache is empty
+  // (e.g. first paint before sync completes, or identity-check skipped a write).
+  // Mirrors the Meds/Allergies/Labs pattern, which already merge live (DB) +
+  // ehr (cache) sources. health_events stores condition + visit rows with shape
+  // {title, event_date, notes, source, accepted}; we adapt to the shape the
+  // Records render path + detail views already expect.
+  if (ehrConditions.length === 0) {
+    ehrConditions = liveEvents
+      .filter(function(e){ return e.event_type==='condition' && e.accepted!==false; })
+      .map(function(e){
+        var status = '';
+        var notes = e.notes || '';
+        var m = /^Status:\s*(.+)$/i.exec(notes);
+        if (m) status = (m[1] || '').trim().toLowerCase();
+        return {
+          name: e.title || '',
+          code: '',
+          status: status,
+          onset_date: e.event_date || '',
+          recorded_date: e.event_date || '',
+          source: 'ehr',
+        };
+      });
+  }
+  if (allEhrVisits.length === 0) {
+    allEhrVisits = liveEvents
+      .filter(function(e){ return e.event_type==='visit' && e.accepted!==false; })
+      .map(function(e){
+        return {
+          name: e.title || 'Visit',
+          start_date: e.event_date || '',
+          end_date: '',
+          location: '',
+          reason: e.notes || '',
+          providers: [],
+          source: 'ehr',
+        };
+      });
+    ehrVisitsRecent = allEhrVisits.filter(function(v){ var t=v.start_date?new Date(v.start_date).getTime():0; return t>=twoYearsAgoMs; });
+    ehrVisitsOlder  = allEhrVisits.filter(function(v){ var t=v.start_date?new Date(v.start_date).getTime():0; return t>0&&t<twoYearsAgoMs; });
+  }
 
   // ── computed counts for tile summaries ───────────────────────────────────
   var totalMeds       = activeMeds.length + ehrMeds.length;
