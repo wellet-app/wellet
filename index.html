@@ -12478,11 +12478,10 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
     var session = sessionRes.data.session;
     if (!session) {
       console.warn('[EHR] fetchEhrData bail: no session');
-      try { showToast('Sync bail: no session'); } catch(e){}
+      try { showToast('Session expired \u2014 please reload to sign in'); } catch(e){}
       try { restoreRecordsEhrStatus(); } catch(e){}
       return BAILED;
     }
-    try { showToast('Sync: calling function\u2026'); } catch(e){}
     return fetch(SUPABASE_URL + '/functions/v1/fetch-ehr-data', {
       method: 'POST',
       headers: {
@@ -12494,11 +12493,17 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
     });
   }).then(function(res) {
     if (res === BAILED) return BAILED;
-    if (!res) {
-      try { showToast('Sync bail: fetch returned no response'); } catch(e){}
-      return null;
+    if (!res) return null;
+    // 401 + error envelope = every connection failed token refresh.
+    // Surface this as a reconnect prompt instead of a generic "couldn't
+    // reach health records" toast — the network is fine, the token isn't.
+    if (res.status === 401) {
+      console.warn('[EHR] fetch-ehr-data 401 \u2014 token refresh failed for all connections');
+      try { showToast('Please reconnect your health records to refresh access'); } catch(e){}
+      try { restoreRecordsEhrStatus(); } catch(e){}
+      try { evaluateReconnectBanner(); } catch(e) {}
+      return BAILED;
     }
-    try { showToast('Sync: HTTP ' + res.status); } catch(e){}
     // A 404 can happen legitimately (no connection) OR transiently right after a
     // successful OAuth callback (Postgres read-after-write lag on a pooled replica).
     // We never wipe the cache on 404 anymore — that caused the UI to show
@@ -12545,9 +12550,8 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
     if (data === BAILED) return;
     if (!data || data.error) {
       // PHI log removed
-      console.warn('[EHR] fetchEhrData bail: no data or data.error', data);
-      var why = !data ? 'no data' : ('data.error=' + String(data.error).slice(0,80));
-      try { showToast('Sync bail: ' + why); } catch(e){}
+      console.warn('[EHR] fetchEhrData bail: no data or data.error');
+      try { showToast("Couldn\u2019t reach health records \u2014 try again"); } catch(e){}
       try { restoreRecordsEhrStatus(); } catch(e){}
       return;
     }
@@ -12592,8 +12596,7 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
     }
   }).catch(function(err) {
     console.error('EHR fetch error:', err);
-    var msg = (err && (err.message || err.name)) ? (err.name + ': ' + err.message).slice(0, 120) : String(err).slice(0, 120);
-    try { showToast('Sync catch: ' + msg); } catch(e){}
+    try { showToast("Couldn\u2019t reach health records \u2014 try again"); } catch(e){}
     try { restoreRecordsEhrStatus(); } catch(e){}
   });
 }

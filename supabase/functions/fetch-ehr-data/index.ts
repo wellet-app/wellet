@@ -39,6 +39,92 @@ async function getAuthenticatedUser(req: Request) {
   return user;
 }
 
+// ── Epic confidential client config (must match epic-auth) ──────────────────
+// Confidential clients authenticate to Epic's token endpoint using a signed
+// `client_assertion` JWT (RFC 7523) instead of a client_secret. The matching
+// public keys are published at mywellet.com/.well-known/jwks-{prod,nonprod}.json.
+// Connections minted by the legacy public client (a00e2e38…) still refresh
+// with just client_id; everything else uses client_assertion.
+const EPIC_PROD_CLIENT_ID = 'e550b8b1-8a3f-4f56-99e9-4870a616d5ab';
+const EPIC_NONPROD_CLIENT_ID = '6307e012-4778-40ed-bd24-c042b932312e';
+const EPIC_LEGACY_PUBLIC_CLIENT_ID = 'a00e2e38-f814-4946-9b7c-a92901a8aebc';
+const EPIC_PROD_KID = 'wellet-prod-2026-04';
+const EPIC_NONPROD_KID = 'wellet-nonprod-2026-04';
+const EPIC_SANDBOX_FHIR_BASE = 'https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4';
+
+function base64UrlEncode(buffer: Uint8Array): string {
+  let binary = '';
+  for (const byte of buffer) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function base64UrlEncodeString(s: string): string {
+  return base64UrlEncode(new TextEncoder().encode(s));
+}
+
+// PKCS#8 PEM → CryptoKey for RS384 signing. Same import path as epic-auth.
+async function importPrivateKey(pem: string): Promise<CryptoKey> {
+  const pemBody = pem
+    .replace(/-----BEGIN (RSA )?PRIVATE KEY-----/g, '')
+    .replace(/-----END (RSA )?PRIVATE KEY-----/g, '')
+    .replace(/\s+/g, '');
+  if (!pemBody) throw new Error('Empty private key PEM');
+  const der = Uint8Array.from(atob(pemBody), (c) => c.charCodeAt(0));
+  return await crypto.subtle.importKey(
+    'pkcs8',
+    der,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-384' },
+    false,
+    ['sign'],
+  );
+}
+
+async function loadPrivateKey(pemEnv: string): Promise<CryptoKey> {
+  const pem = Deno.env.get(pemEnv) || '';
+  if (!pem) throw new Error(`Missing Supabase secret: ${pemEnv}`);
+  return await importPrivateKey(pem);
+}
+
+// Build a signed client_assertion JWT for refresh.
+// jti must be unique per request — Epic rejects replays.
+// exp ≤ 5 min — Epic requires this.
+async function buildClientAssertion(
+  tokenUrl: string,
+  clientId: string,
+  kid: string,
+  privateKey: CryptoKey,
+): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: 'RS384', typ: 'JWT', kid };
+  const payload = {
+    iss: clientId,
+    sub: clientId,
+    aud: tokenUrl,
+    jti: crypto.randomUUID(),
+    iat: now,
+    exp: now + 300,
+    nbf: now,
+  };
+  const signingInput = `${base64UrlEncodeString(JSON.stringify(header))}.${base64UrlEncodeString(JSON.stringify(payload))}`;
+  const signature = await crypto.subtle.sign(
+    { name: 'RSASSA-PKCS1-v1_5' },
+    privateKey,
+    new TextEncoder().encode(signingInput),
+  );
+  return `${signingInput}.${base64UrlEncode(new Uint8Array(signature))}`;
+}
+
+function resolveClientCreds(isSandboxOrNonProd: boolean): {
+  clientId: string;
+  kid: string;
+  pemEnv: string;
+} {
+  if (isSandboxOrNonProd) {
+    return { clientId: EPIC_NONPROD_CLIENT_ID, kid: EPIC_NONPROD_KID, pemEnv: 'EPIC_JWT_PRIVATE_KEY_NONPROD' };
+  }
+  return { clientId: EPIC_PROD_CLIENT_ID, kid: EPIC_PROD_KID, pemEnv: 'EPIC_JWT_PRIVATE_KEY_PROD' };
+}
+
 // Per-resource telemetry captured during a fetch. Each connection maintains
 // its own local telemetry array (see fetchAndPersistOneConnection) so that
 // parallel fan-out calls never interleave their diagnostic data.
@@ -873,12 +959,46 @@ async function refreshAccessTokenIfNeeded(
     return { ok: false, detail: 'decrypt_refresh_failed' };
   }
 
-  // POST to the provider's token endpoint with grant_type=refresh_token
-  const body = new URLSearchParams({
-    grant_type: 'refresh_token',
-    refresh_token: decRefresh as string,
-    client_id: conn.client_id_used as string,
-  });
+  // Build the refresh body. Confidential clients (everything except the
+  // legacy public client) authenticate via a signed client_assertion JWT.
+  // Public clients use just `client_id`. epic-auth's callback path already
+  // does this correctly — we mirror that here so subsequent token refreshes
+  // don't quietly fail and force users into a reconnect loop.
+  const isLegacyPublic = conn.client_id_used === EPIC_LEGACY_PUBLIC_CLIENT_ID;
+  const isSandbox = conn.fhir_base_url === EPIC_SANDBOX_FHIR_BASE;
+
+  let body: URLSearchParams;
+  if (isLegacyPublic) {
+    body = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: decRefresh as string,
+      client_id: EPIC_LEGACY_PUBLIC_CLIENT_ID,
+    });
+  } else {
+    let clientAssertion: string;
+    try {
+      const creds = resolveClientCreds(isSandbox);
+      const privateKey = await loadPrivateKey(creds.pemEnv);
+      clientAssertion = await buildClientAssertion(
+        conn.token_url as string,
+        creds.clientId,
+        creds.kid,
+        privateKey,
+      );
+    } catch (e) {
+      console.error('[fetch-ehr-data] refresh client_assertion build failed', {
+        err: (e as Error).message,
+        conn_id: conn.id,
+      });
+      return { ok: false, detail: 'client_assertion_failed' };
+    }
+    body = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: decRefresh as string,
+      client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+      client_assertion: clientAssertion,
+    });
+  }
 
   const res = await fetch(conn.token_url as string, {
     method: 'POST',
