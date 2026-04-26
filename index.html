@@ -12470,7 +12470,12 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
 
   db.auth.getSession().then(function(sessionRes) {
     var session = sessionRes.data.session;
-    if (!session) return;
+    if (!session) {
+      console.warn('[EHR] fetchEhrData bail: no session');
+      try { showToast('Session expired \u2014 please reload to sign in'); } catch(e){}
+      try { restoreRecordsEhrStatus(); } catch(e){}
+      return;
+    }
     return fetch(SUPABASE_URL + '/functions/v1/fetch-ehr-data', {
       method: 'POST',
       headers: {
@@ -12527,6 +12532,9 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
   }).then(function(data) {
     if (!data || data.error) {
       // PHI log removed
+      console.warn('[EHR] fetchEhrData bail: no data or data.error');
+      try { showToast("Couldn\u2019t reach health records \u2014 try again"); } catch(e){}
+      try { restoreRecordsEhrStatus(); } catch(e){}
       return;
     }
     // Identity safety check: the FHIR Patient returned must match the patient_id
@@ -12542,6 +12550,7 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
       });
       showToast('Identity mismatch — please reconnect this person’s record');
       // Do NOT cache — this would overwrite the wrong person
+      try { restoreRecordsEhrStatus(); } catch(e){}
       return;
     }
     saveEhrCache(personId, data);
@@ -12569,6 +12578,8 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
     }
   }).catch(function(err) {
     console.error('EHR fetch error:', err);
+    try { showToast("Couldn\u2019t reach health records \u2014 try again"); } catch(e){}
+    try { restoreRecordsEhrStatus(); } catch(e){}
   });
 }
 
@@ -13373,11 +13384,23 @@ function buildEhrPrompt() {
     + '</div>';
 }
 
+// Restore the inline EHR status row from any transient state
+// (e.g. "Syncing health records..." spinner) back to whatever the current
+// records view normally shows. Used by the watchdog and silent-bail paths
+// in fetchEhrData so the spinner never gets stuck if the sync fails or
+// short-circuits before re-rendering.
+function restoreRecordsEhrStatus() {
+  try { renderRecordsView(); } catch(e) { console.warn('restoreRecordsEhrStatus:', e); }
+}
+
 // Trigger an on-demand sync from the inline EHR status row.
 // Updates the row to a loading state, calls fetchEhrData, and re-renders
 // the records view (which the fetch already does on success via
 // renderRecordsView() inside fetchEhrData's success path) so the user gets
 // fresh data and an updated "last synced" timestamp without a page reload.
+// Also installs a 25-second watchdog that restores the status row if the
+// sync silently bails (no session, network failure, identity mismatch, etc.)
+// so the spinner never gets stuck.
 function syncNowFromRecords() {
   if (!currentPersonId || isDemoMode) return;
   var statusEl = document.getElementById('records-ehr-status');
@@ -13388,7 +13411,23 @@ function syncNowFromRecords() {
       + 'Syncing health records\u2026'
       + '</div></div>';
   }
-  try { fetchEhrData(currentPersonId); } catch(e) { console.warn('syncNowFromRecords:', e); }
+  // Watchdog: if the row is still in the spinning state 25s later, the
+  // sync silently bailed. Restore the row and surface a toast so the user
+  // knows to try again.
+  setTimeout(function() {
+    var el = document.getElementById('records-ehr-status');
+    if (el && el.innerHTML.indexOf('Syncing health records') !== -1) {
+      try { restoreRecordsEhrStatus(); } catch(e){}
+      try { showToast("Sync didn\u2019t finish \u2014 try again"); } catch(e){}
+    }
+  }, 25000);
+  try {
+    fetchEhrData(currentPersonId);
+  } catch(e) {
+    console.warn('syncNowFromRecords:', e);
+    try { restoreRecordsEhrStatus(); } catch(e2){}
+    try { showToast("Sync didn\u2019t finish \u2014 try again"); } catch(e2){}
+  }
 }
 
 // Check for auth callback code on page load (supports both /epic-callback route and ?code= param)
