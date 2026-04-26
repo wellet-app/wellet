@@ -3577,6 +3577,18 @@
       <div id="settings-plan-card"><!-- rendered by renderSettingsPlanCard() --></div>
     </div>
 
+    <!-- Developer preview toggle (Phase 2 multi-hospital). Safe no-op when off. -->
+    <div class="settings-section" style="margin-top:12px;">
+      <div class="settings-section-label">Developer preview</div>
+      <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14px;color:var(--text-primary);font-weight:500;">Multi-hospital preview</div>
+          <div id="phase2-toggle-desc" style="font-size:12px;color:var(--text-muted);line-height:1.5;margin-top:2px;">Off — Records reads the single-hospital cache.</div>
+        </div>
+        <button id="phase2-toggle-btn" type="button" onclick="togglePhase2Flag()" style="flex:0 0 auto;background:#eef2f0;border:1px solid var(--border);color:var(--text-primary);font-size:13px;font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;">Turn on</button>
+      </div>
+    </div>
+
     <div style="padding:20px 20px 0;text-align:center;">
       <p style="font-size:12px;color:var(--text-muted);line-height:1.6;">Wellet v1.0 · Private by design.<br>Your data is protected with row-level security.</p>
     </div>
@@ -11822,6 +11834,45 @@ function isPhase2Enabled() {
   try { return localStorage.getItem('welletPhase2') === '1'; } catch(e) { return false; }
 }
 
+// Update the Settings → Developer preview row to reflect current flag state.
+function updatePhase2ToggleUI() {
+  var btn = document.getElementById('phase2-toggle-btn');
+  var desc = document.getElementById('phase2-toggle-desc');
+  if (!btn || !desc) return;
+  var on = isPhase2Enabled();
+  if (on) {
+    btn.textContent = 'Turn off';
+    btn.style.background = 'var(--moss)';
+    btn.style.color = '#fff';
+    btn.style.borderColor = 'var(--moss)';
+    desc.textContent = 'On — Records reads the merged multi-hospital cache.';
+  } else {
+    btn.textContent = 'Turn on';
+    btn.style.background = '#eef2f0';
+    btn.style.color = 'var(--text-primary)';
+    btn.style.borderColor = 'var(--border)';
+    desc.textContent = 'Off — Records reads the single-hospital cache.';
+  }
+}
+
+// Tap handler for the toggle button.
+function togglePhase2Flag() {
+  try {
+    if (isPhase2Enabled()) {
+      localStorage.removeItem('welletPhase2');
+      try { showToast('Multi-hospital preview off'); } catch(e){}
+    } else {
+      localStorage.setItem('welletPhase2', '1');
+      try { showToast('Multi-hospital preview on'); } catch(e){}
+    }
+  } catch(e) { console.warn('phase2 toggle:', e); }
+  updatePhase2ToggleUI();
+  // Re-render the views that read getEhrData() so the change takes effect
+  // immediately without a hard reload.
+  try { if (typeof renderRecordsView === 'function') renderRecordsView(); } catch(e){}
+  try { if (typeof renderTimeline === 'function') renderTimeline(); } catch(e){}
+}
+
 // Check if cached EHR data is stale (older than 24 hours)
 function isEhrCacheStale(personId) {
   var cached = ehrCache[personId];
@@ -16159,6 +16210,7 @@ function openSettings() {
   updateSettingsEhr();
   if (!isDemoMode) { renderCareCircle(); }
   renderSettingsPlanCard();
+  try { updatePhase2ToggleUI(); } catch(e){}
   switchNavTo('settings');
   initIcons();
 }
