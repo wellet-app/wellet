@@ -375,11 +375,55 @@ Deno.serve(async (req) => {
         tokenUrl = endpoints.token_endpoint;
       }
 
+      // HOTFIX 2026-04-26 (defensive guard): until the rest of the
+      // N-connections-per-person refactor lands (fetch-ehr-data fan-out,
+      // frontend cache merge, render path), refuse to start a SECOND
+      // connection for a person who already has one connected. This
+      // preserves today's one-connection-per-person behavior while we ship
+      // the proper refactor. Without this guard the start succeeds but
+      // downstream `status` / `refresh` calls would 500 because they still
+      // use .single() on person_id.
+      const { data: existingConnected, error: existingError } = await admin
+        .from('ehr_connections')
+        .select('id, hospital_name, fhir_base_url')
+        .eq('person_id', person_id)
+        .eq('user_id', user.id)
+        .eq('status', 'connected')
+        .limit(1);
+      if (existingError) {
+        console.error('[epic-auth] start existing-check failed', { err: existingError });
+        return jsonResponse({ error: 'connection_check_failed', message: 'Could not verify existing connections.' }, 500);
+      }
+      if (existingConnected && existingConnected.length > 0) {
+        const existing = existingConnected[0];
+        // If the user is re-connecting the SAME hospital (e.g. token expired
+        // beyond refresh) allow it — we'll replace the existing row in
+        // callback. If it's a DIFFERENT hospital, refuse with a friendly
+        // message until N-connections is fully shipped.
+        if (existing.fhir_base_url !== fhirBase) {
+          return jsonResponse({
+            error: 'multi_hospital_not_yet_supported',
+            message: "This loved one already has " + (existing.hospital_name || 'a hospital connection') + " connected. Multi-hospital support is shipping soon \u2014 for now, only one hospital can be connected at a time per loved one.",
+            existing_hospital_name: existing.hospital_name,
+            existing_fhir_base_url: existing.fhir_base_url,
+          }, 409);
+        }
+      }
+
       const codeVerifier = generateCodeVerifier();
       const codeChallenge = await computeCodeChallenge(codeVerifier);
       const state = generateState();
 
-      await admin.from('ehr_connections').upsert({
+      // HOTFIX 2026-04-26: previously this was an upsert with
+      // onConflict: 'person_id' — which silently overwrote any existing
+      // connection on the same person row whenever a second hospital was
+      // started. We now insert a new pending row per OAuth attempt and rely
+      // on `state` (globally unique per attempt) to resolve the matching
+      // row in `callback`. The companion migration drops UNIQUE(person_id)
+      // and adds a partial UNIQUE(person_id, fhir_base_url) WHERE
+      // status='connected' so multiple connected hospitals can coexist on
+      // the same person.
+      const { error: insertError } = await admin.from('ehr_connections').insert({
         user_id: user.id,
         person_id: person_id,
         provider: 'epic',
@@ -388,13 +432,22 @@ Deno.serve(async (req) => {
         fhir_base_url: fhirBase,
         token_url: tokenUrl,
         hospital_name: hospitalName || (isSandbox ? 'Epic Sandbox' : null),
+        status: 'pending',
         access_token: null,
         refresh_token: null,
         token_expires_at: null,
         patient_id: null,
         connected_provider: null,
         connected_at: null,
-      }, { onConflict: 'person_id' });
+      });
+      if (insertError) {
+        console.error('[epic-auth] start insert failed', { err: insertError });
+        return jsonResponse({
+          error: 'connection_start_failed',
+          message: 'Could not start a new EHR connection — please try again.',
+          detail: insertError.message,
+        }, 500);
+      }
 
       const params = new URLSearchParams({
         response_type: 'code',
@@ -421,17 +474,26 @@ Deno.serve(async (req) => {
 
       const admin = getAdminClient();
 
+      // HOTFIX 2026-04-26: callback now looks up the pending connection by
+      // `state` (which is globally unique per OAuth attempt) instead of by
+      // person_id. Under N-connections-per-person a single person can have
+      // multiple pending rows in flight, so person_id is no longer
+      // sufficient to identify the right row. We still verify person_id and
+      // user_id match the row we found to defend against state forgery from
+      // a different account.
       const { data: conn, error: connError } = await admin.from('ehr_connections')
         .select('*')
-        .eq('person_id', person_id)
+        .eq('state', callbackState)
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (connError || !conn) {
         return jsonResponse({ error: 'No pending connection found' }, 404);
       }
 
-      if (conn.state && callbackState !== conn.state) {
+      if (conn.person_id !== person_id) {
+        // The state matched a row but for a different person on this account.
+        // Treat as a CSRF / cross-person leak and refuse.
         return jsonResponse({ error: 'State mismatch — possible CSRF attack' }, 400);
       }
 
@@ -545,6 +607,10 @@ Deno.serve(async (req) => {
         });
       }
 
+      // HOTFIX 2026-04-26: scope this update to the specific connection row
+      // we resolved by `state` above. Previously it filtered by person_id
+      // which would clobber sibling rows once a person had multiple
+      // connections (e.g. wipe Mom's Duke code_verifier when finishing UNC).
       const { error: updateError } = await admin.from('ehr_connections')
         .update({
           access_token: encAccessToken,
@@ -559,7 +625,7 @@ Deno.serve(async (req) => {
           code_verifier: null,
           state: null,
         })
-        .eq('person_id', person_id)
+        .eq('id', conn.id)
         .eq('user_id', user.id);
 
       if (updateError) {
