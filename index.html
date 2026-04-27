@@ -11912,24 +11912,29 @@ var _hospitalPickerDebounce = null;
 // activated. Picker only shows these so users don't hit Epic's OAuth2 Error
 // at unactivated orgs. URLs are normalized (lowercased, trailing slash stripped)
 // before comparison since Epic's endpoint list is inconsistent.
+// URLs below are taken verbatim from Epic's published R4 bundle
+// (https://open.epic.com/Endpoints/R4). _normFhirUrl() strips trailing
+// slashes and lowercases before comparison so minor formatting drift in
+// either source can't break the gate.
 var ACTIVATED_FHIR_URLS = [
   // NC Tier 1 (Mom's likely care network)
-  'https://epsoap.conehealth.com/FHIRProxy/api/FHIR/R4',                              // Cone Health
-  'https://health-apis.duke.edu/FHIR/api/FHIR/R4',                                    // Duke Health
-  'https://epicrp.firsthealth.org/FHIR-PRD/FHMYCHART/api/FHIR/R4',                    // FirstHealth of the Carolinas
-  'https://epicproxy.et0798.epichosted.com/APIProxyPRD/api/FHIR/R4',                  // Novant
-  'https://epicfe.unch.unc.edu/FHIR/api/FHIR/R4',                                     // UNC Health Care
-  'https://epic-soap.wakemed.org/FHIR/api/FHIR/R4',                                   // WakeMed
-  'https://epicproxy.et0905.epichosted.com/FHIRProxy/api/FHIR/R4',                    // Atrium Health
-  'https://spp.caromonthealth.org/FhirProxy/CAROMONT/api/FHIR/R4',                    // CaroMont Health
-  'https://prd-proxy.vidanthealth.com/FHIR/api/FHIR/R4',                              // ECU Health
-  'https://epicproxy.et1385.epichosted.com/FHIRProxyPRD/CarolinaEast/api/FHIR/R4',    // CarolinaEast Health System
+  'https://epsoap.conehealth.com/FHIRProxy/api/FHIR/R4/',                            // Cone Health
+  'https://health-apis.duke.edu/FHIR/api/FHIR/R4/',                                  // Duke Health
+  'https://epicrp.firsthealth.org/FHIR-PRD/api/FHIR/R4/',                            // FirstHealth of the Carolinas
+  'https://epicproxy.et0798.epichosted.com/APIProxyPRD/api/FHIR/R4/',                // Novant
+  'https://epicfe.unch.unc.edu/FHIR/api/FHIR/R4/',                                   // UNC Health Care
+  'https://epic-soap.wakemed.org/FHIR/api/FHIR/R4/',                                 // WakeMed
+  'https://epicproxy.et0905.epichosted.com/FHIRProxy/api/FHIR/R4/',                  // Atrium Health
+  'https://spp.caromonthealth.org/FhirProxy/api/FHIR/R4/',                           // CaroMont Health
+  'https://prd-proxy.vidanthealth.com/FHIR/api/FHIR/R4/',                            // ECU Health (Vidant)
+  // CarolinaEast: not in Epic's R4 bundle as of 2026-04-27. Captured via
+  // "Add my health system" form until Epic publishes their R4 endpoint.
   // National anchors
-  'https://api.ccf.org/mu/api/FHIR/R4',                                               // Cleveland Clinic
-  'https://ws-interconnect-fhir.partners.org/Interconnect-FHIR-MU-PRD/api/FHIR/R4',   // Mass General Brigham
-  'https://tls.mcc.apix.mayo.edu/epic-fhir/api/FHIR/R4',                              // Mayo Clinic
-  'https://unified-api.ucsf.edu/clinical/apex/UCSF/api/FHIR/R4',                      // UCSF
-  'https://fhir.kp.org/service/ptnt_care/EpicEdiFhirRoutingSvc/v2014/esb-envlbl/226/api/FHIR/R4' // Kaiser Permanente - Southern California
+  'https://api.ccf.org/mu/api/FHIR/R4/',                                             // Cleveland Clinic
+  'https://ws-interconnect-fhir.partners.org/Interconnect-FHIR-MU-PRD/api/FHIR/R4/', // Mass General Brigham
+  // Mayo Clinic: not in Epic's R4 bundle as of 2026-04-27. Captured via form.
+  'https://unified-api.ucsf.edu/clinical/apex/api/FHIR/R4/',                         // UCSF Health
+  'https://fhir.kp.org/service/ptnt_care/EpicEdiFhirRoutingSvc/v2014/esb-envlbl/212/api/FHIR/R4/' // Kaiser Permanente - Southern California
 ];
 
 function _normFhirUrl(u) {
@@ -11953,8 +11958,8 @@ function isActivatedHospital(fhirBaseUrl) {
 function loadEpicEndpoints(cb) {
   // Bump v when ACTIVATED_FHIR_URLS changes so existing users don't see
   // a stale unfiltered list from localStorage.
-  var CACHE_KEY = 'wellet_epic_endpoints_v2';
-  var CACHE_TS_KEY = 'wellet_epic_endpoints_v2_ts';
+  var CACHE_KEY = 'wellet_epic_endpoints_v3';
+  var CACHE_TS_KEY = 'wellet_epic_endpoints_v3_ts';
   var CACHE_TTL = 24 * 60 * 60 * 1000;
 
   // Check in-memory cache first
