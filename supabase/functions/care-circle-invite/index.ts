@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { action, member_id, invite_token } = await req.json()
+    const { action, member_id, invite_token, short_code } = await req.json()
     const supabase = createClient(supabaseUrl, serviceKey)
 
     // ── CREATE: Generate invite token and return invite link ──
@@ -69,18 +69,31 @@ Deno.serve(async (req) => {
         })
       }
 
-      // Generate a unique invite token
+      // Generate a unique invite token (long, used in invite links)
       const token = crypto.randomUUID()
 
+      // Generate a 6-char short code (used by Wellet Connect Flutter app).
+      // Best-effort: if the RPC isn't available yet (pre-migration), we
+      // continue without a short code rather than failing the whole invite.
+      let shortCode: string | null = null
+      const { data: shortCodeData, error: shortCodeErr } = await supabase
+        .rpc('generate_short_invite_code')
+      if (!shortCodeErr && typeof shortCodeData === 'string') {
+        shortCode = shortCodeData
+      }
+
       // Update the member record with invite info
+      const updatePayload: Record<string, unknown> = {
+        invite_token: token,
+        invited_at: new Date().toISOString(),
+        invited_by: user.id,
+        invite_status: 'invited',
+      }
+      if (shortCode) updatePayload.invite_short_code = shortCode
+
       const { error: updateErr } = await supabase
         .from('care_circle_members')
-        .update({
-          invite_token: token,
-          invited_at: new Date().toISOString(),
-          invited_by: user.id,
-          invite_status: 'invited',
-        })
+        .update(updatePayload)
         .eq('id', member_id)
 
       if (updateErr) {
@@ -95,6 +108,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({
         success: true,
         invite_link: inviteLink,
+        short_code: shortCode,
         person_name: member.people.name,
         member_name: member.member_name,
         member_email: member.email,
@@ -104,18 +118,29 @@ Deno.serve(async (req) => {
     }
 
     // ── LOOKUP: Public lookup of invite metadata (no auth needed) ──
-    if (action === 'lookup') {
-      if (!invite_token) {
-        return new Response(JSON.stringify({ error: 'invite_token required' }), {
+    // Accepts either invite_token (UUID, from invite link) or
+    // short_code (6-char A-Z/2-9, from Wellet Connect Flutter app).
+    if (action === 'lookup' || action === 'lookup_short_code') {
+      const isShortCode = action === 'lookup_short_code' || (!invite_token && short_code)
+      const lookupValue = isShortCode
+        ? (short_code ? String(short_code).trim().toUpperCase() : null)
+        : invite_token
+
+      if (!lookupValue) {
+        return new Response(JSON.stringify({
+          error: isShortCode ? 'short_code required' : 'invite_token required',
+        }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
 
+      const lookupColumn = isShortCode ? 'invite_short_code' : 'invite_token'
+
       const { data: member, error: lookupErr } = await supabase
         .from('care_circle_members')
-        .select('member_name, role, email, invite_status, invited_by, people!inner(name)')
-        .eq('invite_token', invite_token)
+        .select('member_name, role, email, invite_status, invited_by, invite_token, people!inner(name)')
+        .eq(lookupColumn, lookupValue)
         .single()
 
       if (lookupErr || !member) {
@@ -147,12 +172,16 @@ Deno.serve(async (req) => {
         member_name: member.member_name,
         member_role: member.role,
         inviter_name: inviterName,
+        // Returned only on short-code lookups so Flutter can call accept
+        // with the canonical token afterward.
+        invite_token: isShortCode ? member.invite_token : undefined,
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
     // ── ACCEPT: Link the authenticated user to the member record ──
+    // Accepts either invite_token (UUID) or short_code (6-char).
     if (action === 'accept') {
       const authHeader = req.headers.get('Authorization')
       if (!authHeader) {
@@ -173,18 +202,23 @@ Deno.serve(async (req) => {
         })
       }
 
-      if (!invite_token) {
-        return new Response(JSON.stringify({ error: 'invite_token required' }), {
+      if (!invite_token && !short_code) {
+        return new Response(JSON.stringify({ error: 'invite_token or short_code required' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
 
-      // Find the member record by token
+      // Find the member record by either token or short code
+      const acceptColumn = invite_token ? 'invite_token' : 'invite_short_code'
+      const acceptValue = invite_token
+        ? invite_token
+        : String(short_code).trim().toUpperCase()
+
       const { data: member, error: findErr } = await supabase
         .from('care_circle_members')
         .select('id, invite_status, person_id')
-        .eq('invite_token', invite_token)
+        .eq(acceptColumn, acceptValue)
         .single()
 
       if (findErr || !member) {
