@@ -54,7 +54,12 @@ Deno.serve(async (req) => {
       headers: {
         ...cors,
         "Content-Type": "application/json",
-        "Cache-Control": "public, max-age=86400",
+        // Do NOT let browsers/CDN cache this response. The picker has its own
+        // 24h localStorage cache; an HTTP cache on top creates a trap where a
+        // stale response (e.g. the old DSTU2 shape) keeps being served back
+        // for 24h even after the function is updated. Seen in prod 2026-04-27:
+        // users got DSTU2 URLs from disk cache after we shipped R4.
+        "Cache-Control": "no-store",
       },
     });
   } catch (err) {

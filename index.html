@@ -11961,17 +11961,19 @@ function isActivatedHospital(fhirBaseUrl) {
 function loadEpicEndpoints(cb) {
   // Bump v whenever the loader logic, ACTIVATED_FHIR_URLS, or the cache
   // shape changes so existing users with stale data refresh.
-  var CACHE_KEY = 'wellet_epic_endpoints_v4';
-  var CACHE_TS_KEY = 'wellet_epic_endpoints_v4_ts';
+  var CACHE_KEY = 'wellet_epic_endpoints_v5';
+  var CACHE_TS_KEY = 'wellet_epic_endpoints_v5_ts';
   var CACHE_TTL = 24 * 60 * 60 * 1000;
 
-  // Also wipe legacy cache keys on first run so users on v2/v3 don't keep
-  // dragging around an old (possibly-empty) array under a stale key.
+  // Also wipe legacy cache keys on first run so users on v2/v3/v4 don't keep
+  // dragging around an old (possibly-empty or DSTU2) array under a stale key.
   try {
     localStorage.removeItem('wellet_epic_endpoints_v2');
     localStorage.removeItem('wellet_epic_endpoints_v2_ts');
     localStorage.removeItem('wellet_epic_endpoints_v3');
     localStorage.removeItem('wellet_epic_endpoints_v3_ts');
+    localStorage.removeItem('wellet_epic_endpoints_v4');
+    localStorage.removeItem('wellet_epic_endpoints_v4_ts');
   } catch(e) {}
 
   // Check in-memory cache first — but only if it's non-empty. An empty array
@@ -12000,8 +12002,13 @@ function loadEpicEndpoints(cb) {
     }
   } catch(e) {}
 
-  // Fetch from Epic
-  fetch('https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/epic-endpoints')
+  // Fetch from Epic. The cache-buster query param + no-store on the response
+  // belt-and-suspenders defeat any HTTP cache (browser disk, intermediary CDN)
+  // that might still be holding the old DSTU2 response from a prior version
+  // of this edge function. Seen in prod 2026-04-27: a user's tab kept
+  // receiving DSTU2 URLs from disk cache for 24h after we shipped R4.
+  var bust = 'v5_' + Date.now();
+  fetch('https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/epic-endpoints?cb=' + bust, { cache: 'no-store' })
     .then(function(res) { return res.json(); })
     .then(function(data) {
       var endpoints = (data.Entries || data).map(function(e) {
