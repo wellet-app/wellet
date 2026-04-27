@@ -375,40 +375,17 @@ Deno.serve(async (req) => {
         tokenUrl = endpoints.token_endpoint;
       }
 
-      // HOTFIX 2026-04-26 (defensive guard): until the rest of the
-      // N-connections-per-person refactor lands (fetch-ehr-data fan-out,
-      // frontend cache merge, render path), refuse to start a SECOND
-      // connection for a person who already has one connected. This
-      // preserves today's one-connection-per-person behavior while we ship
-      // the proper refactor. Without this guard the start succeeds but
-      // downstream `status` / `refresh` calls would 500 because they still
-      // use .single() on person_id.
-      const { data: existingConnected, error: existingError } = await admin
-        .from('ehr_connections')
-        .select('id, hospital_name, fhir_base_url')
-        .eq('person_id', person_id)
-        .eq('user_id', user.id)
-        .eq('status', 'connected')
-        .limit(1);
-      if (existingError) {
-        console.error('[epic-auth] start existing-check failed', { err: existingError });
-        return jsonResponse({ error: 'connection_check_failed', message: 'Could not verify existing connections.' }, 500);
-      }
-      if (existingConnected && existingConnected.length > 0) {
-        const existing = existingConnected[0];
-        // If the user is re-connecting the SAME hospital (e.g. token expired
-        // beyond refresh) allow it — we'll replace the existing row in
-        // callback. If it's a DIFFERENT hospital, refuse with a friendly
-        // message until N-connections is fully shipped.
-        if (existing.fhir_base_url !== fhirBase) {
-          return jsonResponse({
-            error: 'multi_hospital_not_yet_supported',
-            message: "This loved one already has " + (existing.hospital_name || 'a hospital connection') + " connected. Multi-hospital support is shipping soon \u2014 for now, only one hospital can be connected at a time per loved one.",
-            existing_hospital_name: existing.hospital_name,
-            existing_fhir_base_url: existing.fhir_base_url,
-          }, 409);
-        }
-      }
+      // 2026-04-27: The 2026-04-26 hotfix guard that returned
+      // `multi_hospital_not_yet_supported` (409) for a SECOND hospital is
+      // removed now that the rest of the N-connections refactor is in
+      // place: the DB partial unique index
+      // `idx_ehr_connections_person_fhir_connected` enforces at most one
+      // CONNECTED row per (person_id, fhir_base_url), `fetch-ehr-data` fans
+      // out across all connections, and the frontend cache + render path
+      // merge them. Same-hospital reconnect (e.g. expired refresh) is still
+      // handled correctly: the new pending row carries a unique `state` and
+      // the partial unique index ignores rows whose status is not
+      // 'connected', so concurrent OAuth attempts don't collide.
 
       const codeVerifier = generateCodeVerifier();
       const codeChallenge = await computeCodeChallenge(codeVerifier);
