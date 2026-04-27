@@ -6903,7 +6903,7 @@ function _rdMedsContent(activeMeds, ehrMeds, ehrData, ehrProvider) {
         + '<div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">'+escHtml(med.name)+' '+ehrBadgeHtml()+'</div>'
         + '<div class="record-meta">'+escHtml(med.dosage||med.frequency||'')+'</div></div>'
-        + ehrProviderBadgeHtml(ehrProvider)
+        + rowProviderBadge(med, ehrProvider, ehrData)
         + '<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;">'+mp.join('<br>')+'</div>'
         + '</div>';
     });
@@ -6987,7 +6987,7 @@ function _rdConditionsContent(ehrConditions, ehrData, ehrProvider) {
   return html;
 }
 
-function _rdAllergiesContent(liveAllergies, ehrAllergies, ehrProvider) {
+function _rdAllergiesContent(liveAllergies, ehrAllergies, ehrData, ehrProvider) {
   var html = '';
   liveAllergies.forEach(function(a) {
     var srcBadge = a.source==='ehr' ? ' '+ehrBadgeHtml() : '';
@@ -7014,7 +7014,7 @@ function _rdAllergiesContent(liveAllergies, ehrAllergies, ehrProvider) {
       + '<div class="record-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="alert-triangle" style="width:15px;height:15px;"></i></div>'
       + '<div style="flex:1;"><div class="record-label">'+escHtml(a.name)+' '+ehrBadgeHtml()+'</div>'
       + '<div class="record-meta">'+(rxStr?escHtml(rxStr):'')+(a.severity?' \u00B7 '+escHtml(a.severity):'')+'</div></div>'
-      + ehrProviderBadgeHtml(ehrProvider)
+      + rowProviderBadge(a, ehrProvider, ehrData)
       + (meta.length?'<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;">'+meta.join('<br>')+'</div>':'')
       + '</div>';
   });
@@ -7200,7 +7200,7 @@ function toggleVisitDetail(detailId, encId) {
   }
 }
 
-function _rdVisitsContent(apptEvents, ehrVisitsRecent, ehrVisitsOlder, ehrProvider) {
+function _rdVisitsContent(apptEvents, ehrVisitsRecent, ehrVisitsOlder, ehrData, ehrProvider) {
   var html = '';
   // Filter bar — search text + jump-to-month. Operates client-side on .record-row elements.
   html += '<div class="visits-filter-bar" style="display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap;">'
@@ -7280,7 +7280,7 @@ function _rdVisitsContent(apptEvents, ehrVisitsRecent, ehrVisitsOlder, ehrProvid
       + '<div class="record-icon moss"><i data-lucide="calendar-check" style="width:15px;height:15px;"></i></div>'
       + '<div style="flex:1;"><div class="record-label">'+typePill(enc)+escHtml(enc.name)+' '+ehrBadgeHtml()+'</div>'
       + '<div class="record-meta">'+formatEventDate(enc.start_date)+(provs.length?' \u00B7 '+escHtml(provs[0]):'')+'</div></div>'
-      + ehrProviderBadgeHtml(ehrProvider)
+      + rowProviderBadge(enc, ehrProvider, ehrData)
       + '<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;" onclick="event.stopPropagation()">'
       + summaryBlock
       + docLinks
@@ -7784,8 +7784,8 @@ function openRecordsDetail(section) {
   var body = '';
   if (section==='medications') body = _rdMedsContent(activeMeds, ehrMeds, ehrData, ehrProvider);
   else if (section==='conditions') body = _rdConditionsContent(ehrConditions, ehrData, ehrProvider);
-  else if (section==='allergies')  body = _rdAllergiesContent(liveAllergies, ehrAllergies, ehrProvider);
-  else if (section==='visits')     body = _rdVisitsContent(apptEvents, ehrVisitsRecent, ehrVisitsOlder, ehrProvider);
+  else if (section==='allergies')  body = _rdAllergiesContent(liveAllergies, ehrAllergies, ehrData, ehrProvider);
+  else if (section==='visits')     body = _rdVisitsContent(apptEvents, ehrVisitsRecent, ehrVisitsOlder, ehrData, ehrProvider);
   else if (section==='labs')       body = _rdLabsContent(liveLabs, labEvents, ehrObs, ehrProvider);
   else if (section==='documents')  body = _rdDocsContent(liveDocs, currentPersonId);
 
@@ -7958,7 +7958,7 @@ function renderRecordsView() {
         +'<div class="record-icon" style="background:var(--cream);color:var(--text-secondary);"><i data-lucide="scissors" style="width:15px;height:15px;"></i></div>'
         +'<div style="flex:1;"><div class="record-label">'+escHtml(p.name)+'</div>'
         +'<div class="record-meta">'+formatEventDate(p.performed_date)+'</div></div>'
-        +ehrProviderBadgeHtml(ehrProvider)
+        +rowProviderBadge(p, ehrProvider, ehrData)
         +(meta.length?'<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;">'+meta.join('<br>')+'</div>':'')
         +'</div>';
     });
@@ -8056,7 +8056,7 @@ function renderRecordsView() {
         + '<div style="flex:1;min-width:0;"><div class="record-label" style="display:flex;align-items:center;">'+escHtml(r.name || 'Report')+chevron+'</div>'
         + (subLine ? '<div class="record-meta">'+subLine+'</div>' : '')
         + '</div>'
-        + ehrProviderBadgeHtml(ehrProvider)
+        + rowProviderBadge(r, ehrProvider, ehrData)
         + expandedBody
         + '</div>';
     };
@@ -12753,6 +12753,21 @@ function ehrProviderBadgeHtml(provider) {
   return '<span class="ehr-provider-badge">From ' + escHtml(provider || 'EHR') + '</span>';
 }
 
+// Per-row hospital pill: when the loved one has 2+ connected hospitals AND
+// the row was tagged with `_hospital_name` by getMergedEhr(), use that name
+// so each row reads "From Duke Health" or "From UNC" instead of the joined
+// global "From Duke Health, UNC". Falls back to the global provider for
+// single-connection people (Mom today) so behavior is unchanged.
+function rowProviderBadge(row, fallbackProvider, ehrData) {
+  try {
+    var multi = ehrData && ehrData._connections && ehrData._connections.length >= 2;
+    if (multi && row && row._hospital_name) {
+      return ehrProviderBadgeHtml(row._hospital_name);
+    }
+  } catch(e) {}
+  return ehrProviderBadgeHtml(fallbackProvider);
+}
+
 function appleHealthBadgeHtml(source, providerName) {
   if (source === 'apple_health') {
     return '<span class="ehr-badge" style="background:#E8F5E9;color:#2E7D32;"><i data-lucide="watch" style="width:10px;height:10px;"></i>Apple Health</span>';
@@ -13577,6 +13592,12 @@ function reconnectBannerDismiss() {
 }
 
 // Decide whether to show the banner for the active loved one and which kind.
+// 2026-04-27: Rewritten to handle N connections per loved one. We pull all
+// connected rows, evaluate each independently, and surface the
+// highest-priority issue across the set. Priority order matches the
+// single-connection version: needs_reconnect > scope_regression >
+// migration_available > stale. Connections whose banner was dismissed today
+// are skipped.
 function evaluateReconnectBanner() {
   if (isDemoMode || !currentUser || !currentPersonId) { _bannerHide(); return; }
   var personId = currentPersonId;
@@ -13584,25 +13605,30 @@ function evaluateReconnectBanner() {
     .select('id, hospital_name, fhir_base_url, status, needs_reconnect, client_id_used, token_expires_at, last_synced_at, connected_at')
     .eq('person_id', personId)
     .eq('status', 'connected')
-    .maybeSingle()
     .then(function(res) {
-      if (!res || !res.data) { _bannerHide(); return; }
-      // Bail if the user already dismissed this connection's banner today
-      if (_bannerDismissedToday(res.data.id)) { _bannerHide(); return; }
+      var conns = (res && res.data) || [];
+      // Filter out dismissed-today connections up front
+      conns = conns.filter(function(c) { return !_bannerDismissedToday(c.id); });
+      if (conns.length === 0) { _bannerHide(); return; }
 
-      var conn = res.data;
       var nowMs = Date.now();
-      var lastSyncMs = conn.last_synced_at ? new Date(conn.last_synced_at).getTime() : 0;
       var staleMs = 7 * 24 * 60 * 60 * 1000;
 
-      // 1. needs_reconnect — highest priority
-      if (conn.needs_reconnect === true) {
-        _bannerRender({ kind: 'needs_reconnect', connection_id: conn.id, hospital_name: conn.hospital_name, fhir_base_url: conn.fhir_base_url });
-        return;
+      // 1. needs_reconnect — first hit wins
+      for (var i = 0; i < conns.length; i++) {
+        if (conns[i].needs_reconnect === true) {
+          _bannerRender({ kind: 'needs_reconnect', connection_id: conns[i].id, hospital_name: conns[i].hospital_name, fhir_base_url: conns[i].fhir_base_url });
+          return;
+        }
       }
 
-      // 2. scope regression — check the most recent sync row for an empty critical resource
-      //    while baseline (max over previous syncs for this person) had something
+      // 2. scope regression — today's `ehr_sync_log` schema is person-level
+      //    (no connection_id column yet), so we evaluate one rolling window
+      //    of recent rows for the person and, if it looks regressed, blame
+      //    the most-recently-synced connection. Per-connection regression
+      //    detection will arrive when sync_log gets a connection_id column;
+      //    the daily Duke regression cron is the higher-confidence signal
+      //    in the meantime.
       db.from('ehr_sync_log')
         .select('created_at, status, result_counts')
         .eq('person_id', personId)
@@ -13623,7 +13649,6 @@ function evaluateReconnectBanner() {
                 }
               }
             }
-            // Resources that meaningfully change the user's view
             var watch = ['care_team', 'conditions', 'medications', 'allergies', 'visits'];
             for (var w = 0; w < watch.length; w++) {
               var key = watch[w];
@@ -13631,26 +13656,41 @@ function evaluateReconnectBanner() {
             }
           }
           if (regressed) {
-            _bannerRender({ kind: 'scope_regression', connection_id: conn.id, hospital_name: conn.hospital_name, fhir_base_url: conn.fhir_base_url });
+            // Attribute to the connection that synced most recently.
+            var newest = conns[0];
+            for (var i = 1; i < conns.length; i++) {
+              var a = conns[i].last_synced_at ? new Date(conns[i].last_synced_at).getTime() : 0;
+              var b = newest.last_synced_at ? new Date(newest.last_synced_at).getTime() : 0;
+              if (a > b) newest = conns[i];
+            }
+            _bannerRender({ kind: 'scope_regression', connection_id: newest.id, hospital_name: newest.hospital_name, fhir_base_url: newest.fhir_base_url });
             return;
           }
 
-          // 3. migration available — on legacy public client and Confidential exists for this hospital
-          var onLegacy = conn.client_id_used === EHR_LEGACY_PUBLIC_CLIENT_ID;
-          var hospitalLower = (conn.hospital_name || '').toLowerCase();
-          var confidentialAvailable = false;
-          for (var c = 0; c < EHR_CONFIDENTIAL_AVAILABLE_HOSPITALS.length; c++) {
-            if (hospitalLower.indexOf(EHR_CONFIDENTIAL_AVAILABLE_HOSPITALS[c]) !== -1) { confidentialAvailable = true; break; }
-          }
-          if (onLegacy && confidentialAvailable) {
-            _bannerRender({ kind: 'migration_available', connection_id: conn.id, hospital_name: conn.hospital_name, fhir_base_url: conn.fhir_base_url });
-            return;
+          // 3. migration available — first connection on legacy public client
+          //    where Confidential exists for that hospital
+          for (var i = 0; i < conns.length; i++) {
+            var conn = conns[i];
+            var onLegacy = conn.client_id_used === EHR_LEGACY_PUBLIC_CLIENT_ID;
+            var hospitalLower = (conn.hospital_name || '').toLowerCase();
+            var confidentialAvailable = false;
+            for (var c = 0; c < EHR_CONFIDENTIAL_AVAILABLE_HOSPITALS.length; c++) {
+              if (hospitalLower.indexOf(EHR_CONFIDENTIAL_AVAILABLE_HOSPITALS[c]) !== -1) { confidentialAvailable = true; break; }
+            }
+            if (onLegacy && confidentialAvailable) {
+              _bannerRender({ kind: 'migration_available', connection_id: conn.id, hospital_name: conn.hospital_name, fhir_base_url: conn.fhir_base_url });
+              return;
+            }
           }
 
-          // 4. staleness — no successful sync in 7+ days
-          if (lastSyncMs > 0 && (nowMs - lastSyncMs) > staleMs) {
-            _bannerRender({ kind: 'stale', connection_id: conn.id, hospital_name: conn.hospital_name, fhir_base_url: conn.fhir_base_url });
-            return;
+          // 4. staleness — first connection with no successful sync in 7+ days
+          for (var i = 0; i < conns.length; i++) {
+            var conn = conns[i];
+            var lastSyncMs = conn.last_synced_at ? new Date(conn.last_synced_at).getTime() : 0;
+            if (lastSyncMs > 0 && (nowMs - lastSyncMs) > staleMs) {
+              _bannerRender({ kind: 'stale', connection_id: conn.id, hospital_name: conn.hospital_name, fhir_base_url: conn.fhir_base_url });
+              return;
+            }
           }
 
           _bannerHide();
