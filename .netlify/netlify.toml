@@ -1,13 +1,11 @@
 plugins = []
-headers = []
-redirects = []
 
 [functions]
 
 [functions."*"]
 
 [build]
-publish = "/home/user/workspace/wellet-deploy"
+publish = "/home/user/workspace/wellet-app-repo"
 publishOrigin = "default"
 
 [build.environment]
@@ -23,3 +21,111 @@ publishOrigin = "default"
 [build.processing.js]
 
 [build.services]
+
+[[headers]]
+for = "/*"
+
+[headers.values]
+Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co https://api.perplexity.ai https://api.tryterra.co https://fhir.epic.com https://open.epic.com https://*.epic.com wss://*.supabase.co; img-src 'self' data: blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+X-Frame-Options = "DENY"
+X-Content-Type-Options = "nosniff"
+Referrer-Policy = "strict-origin-when-cross-origin"
+Permissions-Policy = "camera=(), microphone=(self), geolocation=()"
+
+[[headers]]
+for = "/.well-known/jwks-prod.json"
+
+[headers.values]
+Content-Type = "application/json"
+Cache-Control = "public, max-age=300"
+
+[[headers]]
+for = "/.well-known/jwks-nonprod.json"
+
+[headers.values]
+Content-Type = "application/json"
+Cache-Control = "public, max-age=300"
+
+[[redirects]]
+from = "/epic-callback"
+to = "/index.html"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/share.html"
+to = "/share.html"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/privacy"
+to = "/privacy.html"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/terms"
+to = "/terms.html"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/how-it-works"
+to = "/how-it-works.html"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/your-data"
+to = "/your-data.html"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
