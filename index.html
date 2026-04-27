@@ -11954,30 +11954,48 @@ function isActivatedHospital(fhirBaseUrl) {
   return !!_ACTIVATED_FHIR_SET[_normFhirUrl(fhirBaseUrl)];
 }
 
-// Load Epic endpoint list from open.epic.com (cached 24h in localStorage)
+// Load Epic endpoint list from open.epic.com (cached 24h in localStorage).
+// Empty arrays are NEVER cached or served from cache — a zero-length result
+// is always treated as a miss so a transient init-time race can't poison the
+// session for 24 hours.
 function loadEpicEndpoints(cb) {
-  // Bump v when ACTIVATED_FHIR_URLS changes so existing users don't see
-  // a stale unfiltered list from localStorage.
-  var CACHE_KEY = 'wellet_epic_endpoints_v3';
-  var CACHE_TS_KEY = 'wellet_epic_endpoints_v3_ts';
+  // Bump v whenever the loader logic, ACTIVATED_FHIR_URLS, or the cache
+  // shape changes so existing users with stale data refresh.
+  var CACHE_KEY = 'wellet_epic_endpoints_v4';
+  var CACHE_TS_KEY = 'wellet_epic_endpoints_v4_ts';
   var CACHE_TTL = 24 * 60 * 60 * 1000;
 
-  // Check in-memory cache first
-  if (_epicEndpoints && (Date.now() - _epicEndpointsCachedAt < CACHE_TTL)) {
+  // Also wipe legacy cache keys on first run so users on v2/v3 don't keep
+  // dragging around an old (possibly-empty) array under a stale key.
+  try {
+    localStorage.removeItem('wellet_epic_endpoints_v2');
+    localStorage.removeItem('wellet_epic_endpoints_v2_ts');
+    localStorage.removeItem('wellet_epic_endpoints_v3');
+    localStorage.removeItem('wellet_epic_endpoints_v3_ts');
+  } catch(e) {}
+
+  // Check in-memory cache first — but only if it's non-empty. An empty array
+  // is treated as a miss so a transient init-time race (e.g. callback fired
+  // before isActivatedHospital was defined) can recover on the next call
+  // instead of poisoning the session.
+  if (_epicEndpoints && _epicEndpoints.length > 0 && (Date.now() - _epicEndpointsCachedAt < CACHE_TTL)) {
     cb(_epicEndpoints);
     return;
   }
 
-  // Check localStorage cache
+  // Check localStorage cache — same rule: non-empty only.
   try {
     var ts = parseInt(localStorage.getItem(CACHE_TS_KEY) || '0', 10);
     if (Date.now() - ts < CACHE_TTL) {
       var cached = localStorage.getItem(CACHE_KEY);
       if (cached) {
-        _epicEndpoints = JSON.parse(cached);
-        _epicEndpointsCachedAt = ts;
-        cb(_epicEndpoints);
-        return;
+        var parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          _epicEndpoints = parsed;
+          _epicEndpointsCachedAt = ts;
+          cb(_epicEndpoints);
+          return;
+        }
       }
     }
   } catch(e) {}
@@ -12002,10 +12020,15 @@ function loadEpicEndpoints(cb) {
       _epicEndpoints = endpoints;
       _epicEndpointsCachedAt = Date.now();
 
-      try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify(endpoints));
-        localStorage.setItem(CACHE_TS_KEY, String(Date.now()));
-      } catch(e) {}
+      // Only persist non-empty results so an upstream blip doesn't poison
+      // the cache for 24h. The next call after a transient empty result
+      // will retry the fetch.
+      if (endpoints.length > 0) {
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify(endpoints));
+          localStorage.setItem(CACHE_TS_KEY, String(Date.now()));
+        } catch(e) {}
+      }
 
       cb(endpoints);
     }).catch(function(err) {
