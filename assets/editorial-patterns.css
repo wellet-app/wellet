@@ -1,0 +1,182 @@
+/* ============================================================
+   editorial-patterns.css
+   Editorial pass on the Patterns tab (Updates → Patterns).
+   - Drops white cards in favor of hairline-divided rows.
+   - Big Fraunces editorial lede number + observation + body.
+   - Bar visualization becomes a quiet typographic comparison
+     instead of two filled progress bars.
+   - "WELLET IS WITNESSING" callout becomes a subtle linen
+     island with a 2px moss-quieter rule on the leading edge.
+   ============================================================ */
+
+#tab-patterns {
+  background: var(--linen, #F7F5F0);
+}
+
+/* Section heading "What Wellet has noticed" */
+#tab-patterns .section-label {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 12px;
+  font-weight: 500;
+  font-variation-settings: "opsz" 14, "SOFT" 60;
+  font-style: normal;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-5, #6E6962);
+  margin: 24px 0 18px;
+}
+
+/* ----- Insight rows: hairline-divided, not cards ----- */
+#tab-patterns .insight-card {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 22px 0 !important;
+  margin: 0 !important;
+  border-bottom: 1px solid var(--ink-1, #E6E1D6) !important;
+  box-shadow: none !important;
+}
+#tab-patterns .insight-card:last-of-type {
+  border-bottom: 0 !important;
+}
+
+/* Lede row: oversized Fraunces number + label */
+#tab-patterns .insight-row {
+  display: flex !important;
+  align-items: baseline !important;
+  gap: 16px !important;
+  margin-bottom: 10px !important;
+}
+#tab-patterns .insight-count {
+  font-family: 'Fraunces', Georgia, serif !important;
+  font-size: 56px !important;
+  font-weight: 300 !important;
+  font-variation-settings: "opsz" 144, "SOFT" 60 !important;
+  font-style: normal !important;
+  line-height: 0.92 !important;
+  letter-spacing: -0.02em !important;
+  color: var(--ink-9, #1F1B16) !important;
+  flex-shrink: 0;
+}
+#tab-patterns .insight-label {
+  font-family: 'Fraunces', Georgia, serif !important;
+  font-size: 18px !important;
+  font-weight: 500 !important;
+  font-variation-settings: "opsz" 24, "SOFT" 60 !important;
+  font-style: normal !important;
+  line-height: 1.32 !important;
+  color: var(--ink-9, #1F1B16) !important;
+}
+
+/* Body — DM Sans 300, calm read */
+#tab-patterns .insight-sub {
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 300 !important;
+  line-height: 1.55 !important;
+  color: var(--ink-7, #443F38) !important;
+  margin: 0 !important;
+  max-width: 60ch;
+}
+
+/* ----- Bar comparison: typographic, not filled ----- */
+#tab-patterns .bar-wrap {
+  margin-top: 14px !important;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#tab-patterns .bar-label {
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 300 !important;
+  color: var(--ink-6, #57534C) !important;
+  margin-bottom: 0 !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: baseline;
+  border-bottom: 1px solid var(--ink-1, #E6E1D6);
+  padding-bottom: 6px;
+}
+/* Right-side number — Fraunces small caps, the editorial "value" */
+#tab-patterns .bar-label > span:last-child {
+  font-family: 'Fraunces', Georgia, serif !important;
+  font-weight: 500 !important;
+  font-variation-settings: "opsz" 24, "SOFT" 60 !important;
+  font-style: normal !important;
+  font-size: 15px !important;
+  letter-spacing: 0.01em;
+  color: var(--ink-9, #1F1B16) !important;
+}
+/* The morning row keeps default ink color; evening row signals concern via signal-warm.
+   We can't easily target without modifying HTML — drop the fill bars entirely and let
+   typography carry the comparison. */
+#tab-patterns .bar {
+  display: none !important;
+}
+/* Evening "146/91" inline style was color:var(--amber) — override to signal-warm */
+#tab-patterns .bar-label > span[style*="amber"],
+#tab-patterns .bar-label > span[style*="--amber"] {
+  color: var(--signal-warm, #B8835A) !important;
+}
+
+/* ----- "WELLET IS WITNESSING" — linen island with editorial register ----- */
+#tab-patterns .insight-card[style*="mint"] {
+  background: var(--linen-deep, #EFEAE0) !important;
+  border: 0 !important;
+  border-bottom: 0 !important;
+  border-left: 2px solid var(--moss-quieter, #8AA89A) !important;
+  border-radius: 0 !important;
+  padding: 22px 18px !important;
+  margin-top: 28px !important;
+}
+/* The header row inside the witnessing block — small caps Fraunces */
+#tab-patterns .insight-card[style*="mint"] > div:first-child {
+  margin-bottom: 10px !important;
+}
+#tab-patterns .insight-card[style*="mint"] > div:first-child span {
+  font-family: 'Fraunces', Georgia, serif !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  font-variation-settings: "opsz" 14, "SOFT" 60 !important;
+  font-style: normal !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase !important;
+  color: var(--moss-deep, #3F5F52) !important;
+}
+#tab-patterns .insight-card[style*="mint"] > div:first-child i,
+#tab-patterns .insight-card[style*="mint"] > div:first-child svg {
+  color: var(--moss-quieter, #8AA89A) !important;
+  width: 12px !important;
+  height: 12px !important;
+}
+#tab-patterns .insight-card[style*="mint"] p {
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 300 !important;
+  line-height: 1.6 !important;
+  color: var(--ink-8, #2A2620) !important;
+  margin: 0 !important;
+  max-width: 60ch;
+}
+
+/* Tablet+ — slightly larger lede */
+@media (min-width: 768px) {
+  #tab-patterns .insight-count {
+    font-size: 72px !important;
+    line-height: 0.9 !important;
+  }
+  #tab-patterns .insight-label {
+    font-size: 20px !important;
+    font-variation-settings: "opsz" 28, "SOFT" 60 !important;
+  }
+  #tab-patterns .insight-sub {
+    font-size: 15px !important;
+  }
+  #tab-patterns .insight-card {
+    padding: 28px 0 !important;
+  }
+  #tab-patterns .insight-card[style*="mint"] {
+    padding: 28px 24px !important;
+  }
+}
