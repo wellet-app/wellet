@@ -1,0 +1,369 @@
+/* ============================================================
+   Wellet · Editorial UI Rollout · PR 5
+   Ask Wellet surface (#view-ask)
+
+   The intent: Ask is a quiet conversation with someone who has read
+   the chart and remembers everything. Not a chatbot. Not a UI.
+   So: editorial typography, hairline structure, no green chat
+   bubbles, no shadows, no fills except where signal demands it.
+
+   Every override scoped to #view-ask[data-editorial="ask"]
+   so removing the data attribute reverts instantly.
+   Foundation tokens come from editorial-foundation.css.
+   ============================================================ */
+
+/* ---- Container ---- */
+#view-ask[data-editorial="ask"] {
+  font-family: var(--sans);
+  font-weight: 300;
+  color: var(--ink-9);
+  letter-spacing: 0.005em;
+  background: transparent;
+}
+#view-ask[data-editorial="ask"] .ask-view {
+  background: transparent;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+@media (min-width: 1100px) {
+  /* Soft cap on desktop so the conversation doesn't run super-wide. */
+  #view-ask[data-editorial="ask"] .ask-view {
+    max-width: 760px;
+  }
+}
+
+/* ---- Person bar — same outline-only treatment as Records ---- */
+#view-ask[data-editorial="ask"] .ask-person-bar {
+  padding: 22px var(--gutter, 22px) 8px;
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--ink-1);
+}
+#view-ask[data-editorial="ask"] .ask-person-pill {
+  background: transparent;
+  border: 1px solid var(--ink-2);
+  border-radius: 999px;
+  color: var(--ink-5);
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 13px;
+  letter-spacing: 0.005em;
+  padding: 5px 14px;
+  box-shadow: none;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+#view-ask[data-editorial="ask"] .ask-person-pill:hover {
+  border-color: var(--ink-4);
+  color: var(--ink-7);
+}
+#view-ask[data-editorial="ask"] .ask-person-pill.active {
+  border-color: var(--moss-deep);
+  color: var(--moss-deep);
+  background: transparent;
+}
+#view-ask[data-editorial="ask"] .ask-person-pill > span {
+  background: var(--signal-fresh);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  opacity: 1;
+}
+
+/* ---- Chat area ---- */
+#view-ask[data-editorial="ask"] .chat-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px var(--gutter, 22px) 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  background: transparent;
+}
+
+/* ---- Chat groups ---- */
+#view-ask[data-editorial="ask"] .chat-group {
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+}
+#view-ask[data-editorial="ask"] .chat-group.from-wellet { align-items: flex-start; }
+#view-ask[data-editorial="ask"] .chat-group.from-user   { align-items: flex-end; }
+
+/* The "Wellet" sender label — quiet upright serif byline. */
+#view-ask[data-editorial="ask"] .chat-sender {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-5);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-variation-settings: "opsz" 14, "SOFT" 60;
+}
+/* Wellet glyph — quieter, smaller, moss-deep. */
+#view-ask[data-editorial="ask"] .chat-sender svg {
+  width: 11px;
+  height: 11px;
+  fill: var(--moss-deep);
+  flex-shrink: 0;
+}
+
+/* ---- Wellet replies — no bubble, editorial body type on linen ---- */
+#view-ask[data-editorial="ask"] .chat-bubble.wellet {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  max-width: 100%;
+  color: var(--ink-9);
+  font-family: var(--sans);
+  font-weight: 300;
+  font-size: 15px;
+  line-height: 1.55;
+  letter-spacing: 0.005em;
+  align-self: stretch;
+}
+/* The first/lede greeting bubble — upright Fraunces, intimate. */
+#view-ask[data-editorial="ask"] .chat-group.from-wellet:first-child .chat-bubble.wellet {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 19px;
+  line-height: 1.45;
+  color: var(--ink-7);
+  letter-spacing: -0.005em;
+  font-variation-settings: "opsz" 24, "SOFT" 60;
+  padding: 4px 0 0;
+}
+@media (min-width: 768px) {
+  #view-ask[data-editorial="ask"] .chat-group.from-wellet:first-child .chat-bubble.wellet {
+    font-size: 22px;
+  }
+}
+
+/* Markdown bits inside Wellet replies */
+#view-ask[data-editorial="ask"] .chat-bubble.wellet .md-p {
+  margin: 0 0 10px;
+}
+#view-ask[data-editorial="ask"] .chat-bubble.wellet .md-p:last-child {
+  margin-bottom: 0;
+}
+#view-ask[data-editorial="ask"] .chat-bubble.wellet .md-h {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 17px;
+  line-height: 1.25;
+  color: var(--ink-9);
+  margin: 14px 0 6px;
+  letter-spacing: -0.005em;
+  font-variation-settings: "opsz" 24, "SOFT" 60;
+}
+#view-ask[data-editorial="ask"] .chat-bubble.wellet .md-h:first-child {
+  margin-top: 0;
+}
+#view-ask[data-editorial="ask"] .chat-bubble.wellet .md-ul,
+#view-ask[data-editorial="ask"] .chat-bubble.wellet .md-ol {
+  margin: 6px 0 12px;
+  padding-left: 20px;
+}
+#view-ask[data-editorial="ask"] .chat-bubble.wellet .md-ul li,
+#view-ask[data-editorial="ask"] .chat-bubble.wellet .md-ol li {
+  margin: 4px 0;
+  line-height: 1.55;
+  color: var(--ink-9);
+}
+#view-ask[data-editorial="ask"] .chat-bubble.wellet .md-ul { list-style: disc; }
+#view-ask[data-editorial="ask"] .chat-bubble.wellet .md-ol { list-style: decimal; }
+#view-ask[data-editorial="ask"] .chat-bubble.wellet .md-code {
+  background: var(--ink-1);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 13px;
+  color: var(--ink-9);
+}
+#view-ask[data-editorial="ask"] .chat-bubble.wellet a {
+  color: var(--moss-deep);
+  text-decoration: underline;
+  text-decoration-color: var(--moss);
+  text-underline-offset: 2px;
+  word-break: break-word;
+}
+
+/* ---- User messages — quiet ink-1 chip, right-aligned ---- */
+#view-ask[data-editorial="ask"] .chat-bubble.user {
+  background: var(--ink-1);
+  color: var(--ink-9);
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 15px;
+  line-height: 1.5;
+  border: 0;
+  border-radius: 14px;
+  padding: 10px 14px;
+  max-width: 80%;
+  align-self: flex-end;
+  box-shadow: none;
+}
+
+/* ---- Suggestion chips — converted to vertical "starting points" list ---- */
+#view-ask[data-editorial="ask"] .suggestion-chips {
+  padding: 4px var(--gutter, 22px) 16px;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 0;
+  border-top: 1px solid var(--ink-1);
+  margin-top: 8px;
+}
+#view-ask[data-editorial="ask"] .suggestion-chips::before {
+  content: "Some places to start";
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-5);
+  padding: 14px 0 6px;
+  font-variation-settings: "opsz" 14, "SOFT" 60;
+}
+#view-ask[data-editorial="ask"] .chip {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--ink-1);
+  border-radius: 0;
+  padding: 12px 0;
+  margin: 0;
+  font-family: var(--sans);
+  font-weight: 300;
+  font-size: 15px;
+  letter-spacing: 0.005em;
+  color: var(--ink-9);
+  text-align: left;
+  white-space: normal;
+  cursor: pointer;
+  transition: color 0.15s ease;
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#view-ask[data-editorial="ask"] .chip::before {
+  content: "";
+  flex: 0 0 6px;
+  width: 6px;
+  height: 1px;
+  background: var(--moss);
+}
+#view-ask[data-editorial="ask"] .chip:hover {
+  background: transparent;
+  border-color: var(--ink-3);
+  color: var(--moss-deep);
+}
+#view-ask[data-editorial="ask"] .chip:last-child {
+  border-bottom: 0;
+}
+
+/* ---- Input bar — quiet hairline, no shadow ---- */
+#view-ask[data-editorial="ask"] .ask-input-bar {
+  padding: 12px var(--gutter, 22px) 14px;
+  border-top: 1px solid var(--ink-1);
+  background: var(--bg, #F7F5F0);
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+#view-ask[data-editorial="ask"] .ask-input {
+  flex: 1;
+  border: 1px solid var(--ink-2);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-family: var(--sans);
+  font-weight: 300;
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--ink-9);
+  background: var(--bg-2, #FBF9F4);
+  resize: none;
+  max-height: 100px;
+  box-shadow: none;
+  letter-spacing: 0.005em;
+}
+#view-ask[data-editorial="ask"] .ask-input::placeholder {
+  color: var(--ink-5);
+  font-family: var(--sans);
+  font-weight: 300;
+  letter-spacing: 0.005em;
+}
+#view-ask[data-editorial="ask"] .ask-input:focus {
+  outline: none;
+  border-color: var(--moss-deep);
+  background: #fff;
+}
+#view-ask[data-editorial="ask"] .ask-mic {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--ink-2);
+  color: var(--ink-5);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+#view-ask[data-editorial="ask"] .ask-mic:hover {
+  border-color: var(--moss-deep);
+  color: var(--moss-deep);
+}
+#view-ask[data-editorial="ask"] .ask-mic.listening {
+  background: var(--moss-deep);
+  border-color: var(--moss-deep);
+  color: #fff;
+}
+#view-ask[data-editorial="ask"] .ask-send {
+  min-width: 38px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--moss-deep);
+  color: #fff;
+  border: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: none;
+  transition: background 0.15s ease;
+}
+#view-ask[data-editorial="ask"] .ask-send:hover {
+  background: var(--moss);
+}
+#view-ask[data-editorial="ask"] .ask-send:disabled {
+  background: var(--ink-2);
+  cursor: default;
+}
+
+/* ---- Context chip (when a record/event is being asked about) ---- */
+#view-ask[data-editorial="ask"] #ask-context-chip {
+  margin: 0 var(--gutter, 22px) 6px;
+  font-family: var(--serif);
+  font-size: 13px;
+  color: var(--ink-5);
+  font-variation-settings: "opsz" 14, "SOFT" 60;
+}
