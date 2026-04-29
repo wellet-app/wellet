@@ -2,3 +2,6 @@ node_modules/
 test-results/
 playwright-report/
 deno.lock
+# local extraction artifacts (kept on disk as a safety net, never committed)
+index.html.pre-extract
+extract.py
