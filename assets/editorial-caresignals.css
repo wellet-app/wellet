@@ -268,6 +268,44 @@
   color: var(--ink-5, #6E6962) !important;
 }
 
+/* Sleep stages bar — quiet to a single-hue ladder of moss
+   instead of the bright purple/blue/teal default. */
+#view-signals .sleep-bar {
+  border-radius: 0 !important;
+  height: 6px !important;
+  margin-top: 8px !important;
+  overflow: hidden;
+  background: var(--ink-1, #E6E1D6) !important;
+}
+#view-signals .sleep-bar-seg--deep { background: var(--moss-deep, #3F5F52) !important; }
+#view-signals .sleep-bar-seg--core { background: var(--moss, #608F7C) !important; }
+#view-signals .sleep-bar-seg--rem { background: var(--moss-quieter, #8AA89A) !important; }
+#view-signals .sleep-bar-seg--awake { background: var(--ink-2, #D9D3C5) !important; }
+#view-signals .sleep-legend {
+  margin-top: 6px !important;
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 300 !important;
+  color: var(--ink-5, #6E6962) !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 4px 10px !important;
+}
+#view-signals .sleep-legend-item {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+#view-signals .sleep-legend-dot {
+  width: 6px !important;
+  height: 6px !important;
+  border-radius: 50% !important;
+}
+#view-signals .sleep-legend-item:nth-child(1) .sleep-legend-dot { background: var(--moss-deep, #3F5F52) !important; }
+#view-signals .sleep-legend-item:nth-child(2) .sleep-legend-dot { background: var(--moss, #608F7C) !important; }
+#view-signals .sleep-legend-item:nth-child(3) .sleep-legend-dot { background: var(--moss-quieter, #8AA89A) !important; }
+#view-signals .sleep-legend-item:nth-child(4) .sleep-legend-dot { background: var(--ink-2, #D9D3C5) !important; }
+
 /* SpO2 status dot — moss-quieter instead of bright moss */
 #view-signals .wearable-card span[style*="background:var(--moss)"],
 #view-signals .wearable-card span[style*="background: var(--moss)"] {
