@@ -690,6 +690,15 @@
           <button class="person-pill" id="records-pill-mom" onclick="switchRecordsPerson(this,'mom')"><span class="pip"></span>Mom</button>
         </div>
       </div>
+      <!-- EDITORIAL RAIL — sticky section index for Records -->
+      <nav id="records-rail" class="records-rail" aria-label="Records sections">
+        <a href="#" data-target="meds">Medications</a>
+        <a href="#" data-target="diagnoses">Diagnoses</a>
+        <a href="#" data-target="allergies">Allergies</a>
+        <a href="#" data-target="labs">Recent labs</a>
+        <a href="#" data-target="visits">Recent visits</a>
+        <a href="#" data-target="notes">Caregiver notes</a>
+      </nav>
       <div id="records-dad" class="records-section">
         <div class="ehr-status-bar">
           <div class="ehr-status-left"><div class="ehr-status-dot" aria-hidden="true"></div><strong>EHR Connected</strong> · Duke Health (Epic)</div>
@@ -698,7 +707,7 @@
             <button class="ehr-demo-tooltip ehr-refresh-btn" data-tooltip="In the real app, this connects to your provider's records" onclick="showToast('In the real app, this refreshes data from your provider')"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>
           </div>
         </div>
-        <div class="record-group">
+        <div class="record-group" data-group="meds">
           <div class="record-group-header">
             <div class="record-group-title"><i data-lucide="pill" style="width:14px;height:14px;color:var(--amber);"></i>Medications</div>
             <div style="display:flex;align-items:center;gap:8px;">
@@ -738,7 +747,7 @@
           </div>
         </div>
 
-        <div class="record-group">
+        <div class="record-group" data-group="diagnoses">
           <div class="record-group-header">
             <div class="record-group-title"><i data-lucide="stethoscope" style="width:14px;height:14px;color:var(--moss);"></i>Diagnoses</div>
             <span class="record-group-count">6 active</span>
@@ -770,7 +779,7 @@
           </div>
         </div>
 
-        <div class="record-group">
+        <div class="record-group" data-group="allergies">
           <div class="record-group-header">
             <div class="record-group-title"><i data-lucide="alert-triangle" style="width:14px;height:14px;color:var(--red);"></i>Allergies <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div>
             <span class="record-group-count">1 from EHR</span>
@@ -782,7 +791,7 @@
           </div>
         </div>
 
-        <div class="record-group">
+        <div class="record-group" data-group="labs">
           <div class="record-group-header">
             <div class="record-group-title"><i data-lucide="flask-conical" style="width:14px;height:14px;color:var(--blue);"></i>Recent labs</div>
             <span class="record-group-count">7 this month</span>
@@ -809,7 +818,7 @@
           </div>
         </div>
 
-        <div class="record-group">
+        <div class="record-group" data-group="visits">
           <div class="record-group-header">
             <div class="record-group-title"><i data-lucide="calendar-check" style="width:14px;height:14px;color:var(--moss);"></i>Recent visits <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div>
             <span class="record-group-count">2 from EHR</span>
@@ -826,7 +835,7 @@
           </div>
         </div>
 
-        <div class="record-group">
+        <div class="record-group" data-group="notes">
           <div class="record-group-header">
             <div class="record-group-title"><i data-lucide="pencil-line" style="width:14px;height:14px;color:var(--text-muted);"></i>Caregiver notes</div>
             <span class="record-group-count">5 notes</span>
@@ -850,7 +859,7 @@
 
       <!-- MOM'S RECORDS -->
       <div id="records-mom" class="records-section" style="display:none;">
-        <div class="record-group">
+        <div class="record-group" data-group="meds">
           <div class="record-group-header">
             <div class="record-group-title"><i data-lucide="pill" style="width:14px;height:14px;color:var(--amber);"></i>Medications</div>
             <div style="display:flex;align-items:center;gap:8px;">
@@ -874,7 +883,7 @@
             <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
           </div>
         </div>
-        <div class="record-group">
+        <div class="record-group" data-group="diagnoses">
           <div class="record-group-header">
             <div class="record-group-title"><i data-lucide="stethoscope" style="width:14px;height:14px;color:var(--moss);"></i>Diagnoses</div>
             <span class="record-group-count">2 active</span>
@@ -890,7 +899,7 @@
             <span class="record-badge moss">Stable</span>
           </div>
         </div>
-        <div class="record-group">
+        <div class="record-group" data-group="labs">
           <div class="record-group-header">
             <div class="record-group-title"><i data-lucide="flask-conical" style="width:14px;height:14px;color:var(--blue);"></i>Recent labs</div>
             <span class="record-group-count">2 this month</span>
@@ -906,7 +915,7 @@
             <span class="record-badge moss">Normal</span>
           </div>
         </div>
-        <div class="record-group">
+        <div class="record-group" data-group="notes">
           <div class="record-group-header">
             <div class="record-group-title"><i data-lucide="pencil-line" style="width:14px;height:14px;color:var(--text-muted);"></i>Caregiver notes</div>
             <span class="record-group-count">2 notes</span>
@@ -919,6 +928,71 @@
         </div>
       </div><!-- end records-mom -->
     </div><!-- end view-records -->
+
+    <script>
+    // Editorial records rail: smooth-scroll to active person's group + active state.
+    (function() {
+      var rail = document.getElementById('records-rail');
+      if (!rail) return;
+      var links = rail.querySelectorAll('a[data-target]');
+      function activeSection() {
+        var dad = document.getElementById('records-dad');
+        var mom = document.getElementById('records-mom');
+        if (mom && mom.style.display !== 'none') return mom;
+        return dad;
+      }
+      function scrollToGroup(key) {
+        var section = activeSection();
+        if (!section) return;
+        var target = section.querySelector('[data-group="' + key + '"]');
+        if (!target) return; // Mom may not have allergies/visits — silently noop
+        // Account for sticky rail height
+        var railH = rail.getBoundingClientRect().height;
+        var y = target.getBoundingClientRect().top + window.scrollY - railH - 8;
+        window.scrollTo({ top: y, behavior: 'smooth' });
+      }
+      links.forEach(function(a) {
+        a.addEventListener('click', function(e) {
+          e.preventDefault();
+          links.forEach(function(x) { x.classList.remove('active'); });
+          a.classList.add('active');
+          scrollToGroup(a.getAttribute('data-target'));
+        });
+      });
+      // Update active link as the user scrolls.
+      function updateActive() {
+        var section = activeSection();
+        if (!section) return;
+        var groups = section.querySelectorAll('[data-group]');
+        var railH = rail.getBoundingClientRect().height;
+        var threshold = railH + 24;
+        var current = null;
+        groups.forEach(function(g) {
+          var top = g.getBoundingClientRect().top;
+          if (top - threshold <= 0) current = g.getAttribute('data-group');
+        });
+        if (!current && groups.length) current = groups[0].getAttribute('data-group');
+        links.forEach(function(a) {
+          a.classList.toggle('active', a.getAttribute('data-target') === current);
+        });
+      }
+      var ticking = false;
+      window.addEventListener('scroll', function() {
+        if (ticking) return;
+        ticking = true;
+        window.requestAnimationFrame(function() {
+          updateActive();
+          ticking = false;
+        });
+      }, { passive: true });
+      // Run once on load and after person switches.
+      updateActive();
+      var dadPill = document.getElementById('records-pill-dad');
+      var momPill = document.getElementById('records-pill-mom');
+      if (dadPill) dadPill.addEventListener('click', function() { setTimeout(updateActive, 50); });
+      if (momPill) momPill.addEventListener('click', function() { setTimeout(updateActive, 50); });
+    })();
+    </script>
 
     <!-- CARESIGNALS VIEW -->
     <div id="view-signals" class="app-view">

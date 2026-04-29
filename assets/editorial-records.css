@@ -70,6 +70,58 @@
   margin-right: 6px;
 }
 
+/* ============================================================
+   STICKY SECTION RAIL — Records table-of-contents
+   Sits between the header and the records-section. Sticks to top.
+   Tap a label to smooth-scroll to that group.
+   ============================================================ */
+#view-records[data-editorial="records"] .records-rail {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 12px 0;
+  margin: 0 0 4px;
+  background: var(--bg, #F7F5F0);
+  border-top: 1px solid var(--ink-1);
+  border-bottom: 1px solid var(--ink-1);
+}
+#view-records[data-editorial="records"] .records-rail::-webkit-scrollbar {
+  display: none;
+}
+#view-records[data-editorial="records"] .records-rail a {
+  flex-shrink: 0;
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-5);
+  text-decoration: none;
+  padding: 4px 0;
+  border-bottom: 1px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
+  cursor: pointer;
+}
+#view-records[data-editorial="records"] .records-rail a:hover {
+  color: var(--ink-9);
+}
+#view-records[data-editorial="records"] .records-rail a.active {
+  color: var(--moss-deep);
+  border-bottom-color: var(--moss-deep);
+}
+
+/* When the rail is in editorial mode, hide it for the legacy non-editorial
+   view (it sits inside view-records, between header and records-section). */
+#view-records:not([data-editorial="records"]) .records-rail {
+  display: none;
+}
+
 /* ---- EHR status bar — quiet caption row ---- */
 #view-records[data-editorial="records"] .ehr-status-bar {
   background: transparent;
