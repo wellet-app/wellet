@@ -79,17 +79,18 @@
   padding: 0;
 }
 
-/* The lede sentence itself — Fraunces, large, ink-9 */
+/* The lede paragraph — Fraunces, ink-9. Sized smaller than the
+   prototype's single-sentence lede because production renders a
+   multi-sentence paragraph and a hero size buries the rest of the page. */
 #view-home[data-editorial="updates"] .update-card .update-text {
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 26px;
-  line-height: 1.22;
+  font-size: 19px;
+  line-height: 1.4;
   color: var(--ink-9);
-  letter-spacing: -0.005em;
-  margin: 0 0 16px;
-  font-variation-settings: "opsz" 36, "SOFT" 60;
-  max-width: 28ch;
+  letter-spacing: 0;
+  margin: 0 0 14px;
+  font-variation-settings: "opsz" 24, "SOFT" 50;
 }
 
 /* <strong> inside the lede — moss-deep italic emphasis,
@@ -127,8 +128,8 @@
 
 @media (min-width: 768px) {
   #view-home[data-editorial="updates"] .update-card .update-text {
-    font-size: 30px;
-    line-height: 1.18;
+    font-size: 22px;
+    line-height: 1.38;
   }
 }
 
