@@ -1,0 +1,485 @@
+/* ============================================================
+   Wellet · Editorial UI Rollout · PR 3
+   Updates surface (#view-home) — "A quiet day for Mom" pattern
+
+   Every override scoped to #view-home[data-editorial="updates"]
+   so removing the data attribute reverts instantly.
+
+   Foundation tokens (--ink-0..9, --signal-*, --serif/--sans,
+   --frame-max, --gutter, --moss-deep/--moss-quiet) come from
+   editorial-foundation.css. This file does layout + type only.
+
+   Behavior unchanged: no JS edits, no copy edits, no route changes.
+   ============================================================ */
+
+/* ---- Container: editorial reading column, left-aligned ---- */
+#view-home[data-editorial="updates"] {
+  font-family: var(--sans);
+  font-weight: 300;
+  color: var(--ink-9);
+  letter-spacing: 0.005em;
+  background: transparent;
+}
+
+#view-home[data-editorial="updates"] #tab-update,
+#view-home[data-editorial="updates"] #tab-timeline {
+  max-width: var(--frame-max, 640px);
+  margin-left: 0;
+  margin-right: auto;
+  padding: 0 var(--gutter, 22px);
+}
+
+/* Pull-to-refresh — keep mechanics, quiet the colors */
+#view-home[data-editorial="updates"] .pull-refresh-indicator {
+  color: var(--ink-4);
+}
+#view-home[data-editorial="updates"] .pull-refresh-text {
+  font-family: var(--sans);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+/* ============================================================
+   THE LEDE — .update-card becomes the editorial headline
+   ============================================================ */
+#view-home[data-editorial="updates"] .update-me-section {
+  margin: 0;
+  padding: 26px 0 0;
+}
+
+#view-home[data-editorial="updates"] .update-card {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0 0 24px;
+  margin: 0 0 4px;
+  position: static;
+  overflow: visible;
+}
+#view-home[data-editorial="updates"] .update-card::before,
+#view-home[data-editorial="updates"] .update-card::after {
+  display: none;
+  content: none;
+}
+
+/* The small label above the lede — eyebrow */
+#view-home[data-editorial="updates"] .update-card .update-label {
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--ink-4);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0 0 14px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+/* The lede paragraph — Fraunces, ink-9. Sized smaller than the
+   prototype's single-sentence lede because production renders a
+   multi-sentence paragraph and a hero size buries the rest of the page. */
+#view-home[data-editorial="updates"] .update-card .update-text {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 19px;
+  line-height: 1.4;
+  color: var(--ink-9);
+  letter-spacing: 0;
+  margin: 0 0 14px;
+  font-variation-settings: "opsz" 24, "SOFT" 50;
+}
+
+/* <strong> inside the lede — moss-deep italic emphasis,
+   the in-prose signal vocabulary from the prototype */
+#view-home[data-editorial="updates"] .update-card .update-text strong {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-style: italic;
+  color: var(--moss-deep);
+  font-variation-settings: "opsz" 14, "SOFT" 75;
+}
+
+/* Source / meta line — quiet caption */
+#view-home[data-editorial="updates"] .update-card .update-meta {
+  font-family: var(--sans);
+  font-weight: 300;
+  font-size: 13px;
+  color: var(--ink-5);
+  margin: 0;
+  letter-spacing: 0.005em;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+#view-home[data-editorial="updates"] .update-card .update-meta a {
+  color: var(--moss-deep);
+  text-decoration: none;
+  border-bottom: 1px solid var(--ink-2);
+  padding-bottom: 1px;
+  cursor: pointer;
+}
+#view-home[data-editorial="updates"] .update-card .update-meta a:hover {
+  border-bottom-color: var(--moss-deep);
+}
+
+@media (min-width: 768px) {
+  #view-home[data-editorial="updates"] .update-card .update-text {
+    font-size: 22px;
+    line-height: 1.38;
+  }
+}
+
+/* ============================================================
+   VISIT PREP — flatten card to editorial row
+   ============================================================ */
+#view-home[data-editorial="updates"] .visit-prep-card {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--ink-1);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 20px 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 14px;
+  align-items: center;
+}
+#view-home[data-editorial="updates"] .visit-prep-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--ink-2);
+  color: var(--moss-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#view-home[data-editorial="updates"] .visit-prep-title {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 17px;
+  color: var(--ink-9);
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+#view-home[data-editorial="updates"] .visit-prep-sub {
+  font-family: var(--sans);
+  font-weight: 300;
+  font-size: 13px;
+  color: var(--ink-5);
+  margin-top: 2px;
+}
+#view-home[data-editorial="updates"] .visit-prep-btn {
+  background: transparent;
+  border: 0;
+  color: var(--moss-deep);
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 13px;
+  padding: 6px 0;
+  cursor: pointer;
+  letter-spacing: 0.005em;
+  border-bottom: 1px solid var(--ink-2);
+  border-radius: 0;
+  box-shadow: none;
+}
+#view-home[data-editorial="updates"] .visit-prep-btn:hover {
+  border-bottom-color: var(--moss-deep);
+}
+
+/* ============================================================
+   ALERT BANNER — flatten to editorial "noticed" row
+   No red. Amber-warm dot only.
+   ============================================================ */
+#view-home[data-editorial="updates"] .alert-banner {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--ink-1);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 20px 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 14px;
+  align-items: start;
+  color: var(--ink-9);
+}
+#view-home[data-editorial="updates"] .alert-banner .alert-icon {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--signal-warm);
+  margin-top: 12px;
+  color: transparent;
+  border: 0;
+  padding: 0;
+  flex-shrink: 0;
+}
+/* Hide the lucide icon inside; the dot replaces it */
+#view-home[data-editorial="updates"] .alert-banner .alert-icon svg {
+  display: none;
+}
+#view-home[data-editorial="updates"] .alert-banner .alert-title {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 19px;
+  line-height: 1.3;
+  color: var(--ink-9);
+  letter-spacing: 0;
+}
+#view-home[data-editorial="updates"] .alert-banner .alert-body {
+  font-family: var(--sans);
+  font-weight: 300;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-5);
+  margin-top: 8px;
+  letter-spacing: 0.005em;
+}
+
+/* ============================================================
+   QUICK ACTIONS — quiet editorial button row
+   ============================================================ */
+#view-home[data-editorial="updates"] .quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin: 0;
+  padding: 22px 0;
+  border-top: 1px solid var(--ink-1);
+  background: transparent;
+}
+#view-home[data-editorial="updates"] .qa-btn {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--ink-2);
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--moss-deep);
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 13px;
+  letter-spacing: 0.005em;
+  padding: 4px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+#view-home[data-editorial="updates"] .qa-btn:hover {
+  border-bottom-color: var(--moss-deep);
+}
+#view-home[data-editorial="updates"] .qa-btn .qa-icon {
+  background: transparent;
+  border: 0;
+  color: var(--moss-deep);
+  width: auto;
+  height: auto;
+  padding: 0;
+  display: inline-flex;
+}
+
+/* ============================================================
+   RECENT ACTIVITY (Updates tab) and full TIMELINE tab
+   tl-card colored borders → editorial entry rows
+   ============================================================ */
+#view-home[data-editorial="updates"] .timeline-section {
+  margin: 0;
+  padding: 22px 0 0;
+  border-top: 1px solid var(--ink-1);
+}
+
+/* Section eyebrow */
+#view-home[data-editorial="updates"] .timeline-section .section-label,
+#view-home[data-editorial="updates"] .tl-month {
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--ink-4);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0 0 14px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+#view-home[data-editorial="updates"] .tl-month {
+  margin: 24px 0 14px;
+  padding-top: 18px;
+  border-top: 1px solid var(--ink-1);
+}
+#view-home[data-editorial="updates"] .tl-month:first-child {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+/* Each tl-item becomes a row */
+#view-home[data-editorial="updates"] .tl-item {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 12px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--ink-0);
+  align-items: start;
+  background: transparent;
+}
+#view-home[data-editorial="updates"] .tl-item:last-child {
+  border-bottom: 0;
+}
+
+/* Quiet the timeline rail: thin column, dot only, no connector line */
+#view-home[data-editorial="updates"] .tl-line-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 10px;
+}
+#view-home[data-editorial="updates"] .tl-connector {
+  display: none;
+}
+#view-home[data-editorial="updates"] .tl-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--signal-fresh);
+  border: 0;
+  margin: 0;
+  flex-shrink: 0;
+}
+#view-home[data-editorial="updates"] .tl-dot.appt { background: var(--signal-fresh); }
+#view-home[data-editorial="updates"] .tl-dot.med  { background: var(--signal-warm); }
+#view-home[data-editorial="updates"] .tl-dot.lab  { background: var(--moss-quiet); }
+#view-home[data-editorial="updates"] .tl-dot.alert{ background: var(--signal-warm); }
+#view-home[data-editorial="updates"] .tl-dot.note { background: var(--signal-stale); }
+
+/* The card body becomes a flat editorial entry */
+#view-home[data-editorial="updates"] .tl-card {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+}
+/* Strip every colored-border variant */
+#view-home[data-editorial="updates"] .tl-card.moss-border,
+#view-home[data-editorial="updates"] .tl-card.amber-border,
+#view-home[data-editorial="updates"] .tl-card.blue-border,
+#view-home[data-editorial="updates"] .tl-card.red-border {
+  border: 0;
+}
+
+/* The small type-row above the headline — eyebrow */
+#view-home[data-editorial="updates"] .tl-card-type-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  padding: 0;
+  background: transparent;
+}
+#view-home[data-editorial="updates"] .tl-card-type {
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--ink-4);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+#view-home[data-editorial="updates"] .tl-card-type-row svg,
+#view-home[data-editorial="updates"] .tl-card-type-row [data-lucide] {
+  color: var(--ink-4) !important;
+  width: 11px;
+  height: 11px;
+}
+
+/* The headline of each row — Fraunces */
+#view-home[data-editorial="updates"] .tl-card-title {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 1.32;
+  color: var(--ink-9);
+  letter-spacing: 0;
+  margin: 0 0 6px;
+}
+
+/* The body / connective text — sans, light */
+#view-home[data-editorial="updates"] .tl-card-body {
+  font-family: var(--sans);
+  font-weight: 300;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-5);
+  margin: 0 0 6px;
+  letter-spacing: 0.005em;
+}
+
+/* The date footer — quiet caption with tabular figures */
+#view-home[data-editorial="updates"] .tl-card-date {
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--ink-4);
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+/* Inner span "From Duke Health (Epic)" — keep moss-deep italic */
+#view-home[data-editorial="updates"] .tl-card-date span {
+  color: var(--moss-deep) !important;
+  font-style: italic;
+  font-family: var(--serif);
+  font-weight: 400 !important;
+}
+
+/* EHR provenance badge — quiet pill */
+#view-home[data-editorial="updates"] .ehr-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid var(--ink-2);
+  color: var(--ink-5);
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 4px;
+}
+#view-home[data-editorial="updates"] .ehr-badge svg,
+#view-home[data-editorial="updates"] .ehr-badge [data-lucide] {
+  width: 10px;
+  height: 10px;
+  color: var(--ink-5);
+}
+
+/* Tablet/desktop bumps */
+@media (min-width: 768px) {
+  #view-home[data-editorial="updates"] #tab-update,
+  #view-home[data-editorial="updates"] #tab-timeline {
+    padding-top: 8px;
+  }
+  #view-home[data-editorial="updates"] .tl-card-title {
+    font-size: 19px;
+  }
+  #view-home[data-editorial="updates"] .alert-banner .alert-title {
+    font-size: 20px;
+  }
+}
