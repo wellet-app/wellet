@@ -194,3 +194,33 @@
   display: block;
   opacity: 1;
 }
+
+/* ----------------------------------------------------------------------
+   Single switcher policy — masthead is canonical.
+   Hide the in-page Records person-switcher and the Ask person-bar so the
+   masthead Dad/Mom is the only place that switcher lives.
+---------------------------------------------------------------------- */
+[data-editorial="records"] .records-person-switcher {
+  display: none !important;
+}
+[data-editorial="ask"] .ask-person-bar,
+.ask-person-bar {
+  display: none !important;
+}
+
+/* ----------------------------------------------------------------------
+   Three-dot menu — Betsy is OK with the dots, not the circle around them.
+   Strip the moss-tinted disc from the masthead overflow button only.
+   Back/bell keep their circles.
+---------------------------------------------------------------------- */
+#header-menu-btn {
+  background: transparent !important;
+  color: var(--ink-5, #6E6962) !important;
+  min-width: 32px !important;
+  min-height: 32px !important;
+  border-radius: 0 !important;
+}
+#header-menu-btn:hover {
+  background: transparent !important;
+  color: var(--ink-9, #1F1B16) !important;
+}
