@@ -18,6 +18,15 @@
     --red: #C0392B;
     --blue: #3B6EA5;
     --font-display: 'Fraunces', serif;
+
+    /* Responsive scale variables — phone defaults.
+       The 768px breakpoint at the bottom of this file bumps these for iPad. */
+    --touch-min: 44px;     /* iOS HIG floor for any tap target */
+    --tap-pad-y: 12px;     /* default vertical padding for tappable rows */
+    --type-body: 14px;
+    --type-h1: 34px;       /* auth lede */
+    --type-h2: 22px;       /* sheet titles, view titles */
+    --type-h3: 20px;       /* secondary sheet headers */
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
@@ -1811,4 +1820,116 @@
   @keyframes pulse-in {
     from { opacity: 0; transform: translateX(-50%) translateY(10px); }
     to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+
+  /* ==========================================================================
+     Responsive layer — tablet & mobile pass (Apr 28, 2026)
+     Older folks use iPads a lot. The page-wrap is already 768px wide so the
+     frame doesn't need widening, but type sizes and touch targets were tuned
+     for narrow phones. This block bumps them up at iPad portrait (768+) so
+     headlines feel right and every tap target clears the iOS 48px floor.
+     Pure additive — nothing above this is changed.
+     ========================================================================== */
+
+  /* Touch-target floor on phones too. Many existing rules use 8–12px vertical
+     padding which lands shy of 44px tall when the font is 12–14px. The
+     min-height floor catches every tap target without re-padding each one. */
+  .demo-tab,
+  .tab,
+  .card-action-btn,
+  .format-btn,
+  .add-contact-btn,
+  .record-row,
+  .ob-chip,
+  .ob-extract-card-btn,
+  .resource-btn,
+  .header-menu-item,
+  .auth-demo-link,
+  .ob-cta-ghost,
+  .reminder-time-opt,
+  .share-member-row,
+  .share-inbox-card .sib-actions button {
+    min-height: var(--touch-min);
+  }
+
+  /* iPad portrait & up: bigger headlines, slightly bigger body, deeper taps. */
+  @media (min-width: 768px) {
+    :root {
+      --touch-min: 48px;
+      --tap-pad-y: 14px;
+      --type-body: 15px;
+      --type-h1: 40px;
+      --type-h2: 26px;
+      --type-h3: 22px;
+    }
+
+    /* Body type baseline. */
+    body { font-size: var(--type-body); }
+
+    /* Auth screen — the first thing every user sees. */
+    .auth-headline h1 { font-size: var(--type-h1); line-height: 1.12; }
+    .auth-title { font-size: 26px; }
+    .auth-description { font-size: 15px; }
+    .auth-subtitle { font-size: 15px; }
+    .auth-input { padding: 15px 18px; font-size: 16px; min-height: var(--touch-min); }
+    .auth-demo-link { padding: 13px 18px; font-size: 15px; }
+    .auth-sent-title,
+    .auth-gate-title { font-size: 22px; }
+
+    /* Hero / landing band. */
+    .hero-band h1 { font-size: 32px; line-height: 1.18; }
+
+    /* Sheet titles — medication reminder, settings, upload, qa, profile,
+       view picker, eoc, share, vp, upgrade, pricing, etc. The 20px serif
+       headers all bump together; the 22px ones bump together. */
+    .med-reminder-title,
+    .settings-title,
+    .upload-title,
+    .qa-sheet-title,
+    .profile-title,
+    .vp-title,
+    .notif-panel-title,
+    .ob-processing-label,
+    .cr-title { font-size: var(--type-h3); }
+
+    .view-title,
+    .resources-view-title,
+    .eoc-heading,
+    .upgrade-title { font-size: var(--type-h2); }
+
+    .ob-upload-title { font-size: 28px; }
+
+    /* ER summary patient name — this is the one screen handed to a doctor. */
+    .er-patient-name { font-size: 30px; }
+
+    /* Tabs and chips — deeper taps, slightly bigger labels. */
+    .demo-tab { padding: 11px 18px; font-size: 14px; }
+    .tab { padding: 13px 6px; font-size: 14px; }
+    .ob-chip { padding: 11px 16px; font-size: 14px; }
+    .resource-btn { padding: 11px 16px; font-size: 14px; }
+
+    /* Action buttons inside cards & sheets. */
+    .card-action-btn { padding: 11px; font-size: 13px; }
+    .format-btn { padding: 12px; font-size: 14px; }
+    .add-contact-btn { padding: 13px; font-size: 14px; }
+    .qa-btn { padding: 12px 8px; font-size: 12px; }
+
+    /* List rows — records, notifications, reminders. */
+    .record-row { padding: 14px 16px; }
+    .notif-item { padding: 13px 18px; }
+    .reminder-time-opt { padding: 14px 16px; }
+
+    /* Header menu and bottom nav. */
+    .header-menu-item { padding: 14px 18px; font-size: 15px; }
+    .nav-item { padding: 10px 0; font-size: 11px; }
+
+    /* Onboarding CTAs. */
+    .ob-cta-ghost { padding: 14px; font-size: 16px; }
+  }
+
+  /* iPad landscape & desktop — same 768 column, just a touch more breathing
+     room around it via the auth screen's existing centered layout. No frame
+     changes needed here; the page-wrap is already capped and centered. */
+  @media (min-width: 1024px) {
+    .auth-headline h1 { font-size: 44px; }
   }
