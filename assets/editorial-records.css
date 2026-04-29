@@ -77,8 +77,10 @@
    ============================================================ */
 #view-records[data-editorial="records"] .records-rail {
   position: sticky;
-  top: 0;
-  z-index: 5;
+  /* Stick BELOW the app-header (sticky, ~65px tall, z-index:10).
+     iOS safe-area-inset is already inside app-header padding, so 65px is enough. */
+  top: 64px;
+  z-index: 9;
   display: flex;
   gap: 18px;
   align-items: center;

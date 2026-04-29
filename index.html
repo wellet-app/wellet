@@ -948,7 +948,10 @@
         if (!target) return; // Mom may not have allergies/visits — silently noop
         var rail = getRail();
         var railH = rail ? rail.getBoundingClientRect().height : 0;
-        var y = target.getBoundingClientRect().top + window.scrollY - railH - 8;
+        // Account for the sticky app-header (~65px) AND the rail height.
+        var headerEl = document.querySelector('.app-header');
+        var headerH = headerEl ? headerEl.getBoundingClientRect().height : 0;
+        var y = target.getBoundingClientRect().top + window.scrollY - headerH - railH - 8;
         window.scrollTo({ top: y, behavior: 'smooth' });
       }
       function setActiveLink(key) {
@@ -976,7 +979,9 @@
         var groups = section.querySelectorAll('[data-group]');
         if (!groups.length) return;
         var railH = rail.getBoundingClientRect().height;
-        var threshold = railH + 24;
+        var headerEl = document.querySelector('.app-header');
+        var headerH = headerEl ? headerEl.getBoundingClientRect().height : 0;
+        var threshold = headerH + railH + 24;
         var current = null;
         groups.forEach(function(g) {
           var top = g.getBoundingClientRect().top;
