@@ -524,6 +524,244 @@
   color: var(--signal-warm, #B8835A) !important;
 }
 
+/* ---- Upload type cards (.upload-option) ----
+   Drop the white card frame + heavy color icon tile. Hairline rule
+   between rows like other action lists. */
+[data-editorial="sheet"] .upload-options {
+  border-top: 1px solid var(--ink-1);
+  margin: 4px 0 0 !important;
+  padding: 0 !important;
+  display: block !important;
+}
+[data-editorial="sheet"] .upload-option {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 14px !important;
+  padding: 16px 22px !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--ink-1) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  width: 100% !important;
+  cursor: pointer !important;
+  box-shadow: none !important;
+  transition: background 0.15s ease;
+}
+@media (min-width: 768px) {
+  [data-editorial="sheet"] .upload-option {
+    padding: 16px 28px !important;
+  }
+}
+[data-editorial="sheet"] .upload-option:hover {
+  background: rgba(96, 143, 124, 0.05) !important;
+}
+[data-editorial="sheet"] .upload-option-icon {
+  width: 36px !important;
+  height: 36px !important;
+  background: transparent !important;
+  border: 1px solid var(--moss) !important;
+  border-radius: 50% !important;
+  color: var(--moss-deep) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  margin-top: 2px;
+}
+[data-editorial="sheet"] .upload-option-icon i,
+[data-editorial="sheet"] .upload-option-icon svg {
+  width: 16px !important;
+  height: 16px !important;
+  stroke-width: 1.5 !important;
+  color: var(--moss-deep) !important;
+}
+[data-editorial="sheet"] .upload-option--record .upload-option-icon {
+  border-color: var(--signal-warm, #B8835A) !important;
+  color: var(--signal-warm, #B8835A) !important;
+}
+[data-editorial="sheet"] .upload-option--record .upload-option-icon i,
+[data-editorial="sheet"] .upload-option--record .upload-option-icon svg {
+  color: var(--signal-warm, #B8835A) !important;
+}
+[data-editorial="sheet"] .upload-option-label {
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 15px;
+  color: var(--ink-9);
+  margin-bottom: 2px;
+}
+[data-editorial="sheet"] .upload-option-sub {
+  font-family: var(--sans);
+  font-weight: 300;
+  font-size: 13px;
+  color: var(--ink-5);
+  letter-spacing: 0.005em;
+  line-height: 1.45;
+}
+[data-editorial="sheet"] .upload-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 22px;
+  margin: 18px 0 0;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-5);
+  font-variation-settings: "opsz" 14, "SOFT" 60;
+}
+[data-editorial="sheet"] .upload-divider::before,
+[data-editorial="sheet"] .upload-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--ink-1);
+}
+[data-editorial="sheet"] .upload-divider span {
+  background: transparent !important;
+  padding: 0 !important;
+  color: var(--ink-5) !important;
+}
+
+/* Upload drop zone — real class is .upload-drop / .upload-drop-icon /
+   .upload-drop-label / .upload-drop-sub */
+[data-editorial="sheet"] .upload-drop {
+  background: transparent !important;
+  border: 1px dashed var(--ink-2) !important;
+  border-radius: 6px !important;
+  padding: 36px 18px !important;
+  margin: 0 22px 4px !important;
+  text-align: center !important;
+  cursor: pointer !important;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  box-shadow: none !important;
+}
+@media (min-width: 768px) {
+  [data-editorial="sheet"] .upload-drop {
+    margin: 0 28px 4px !important;
+    padding: 44px 18px !important;
+  }
+}
+[data-editorial="sheet"] .upload-drop:hover {
+  border-color: var(--moss) !important;
+  background: rgba(96, 143, 124, 0.04) !important;
+}
+[data-editorial="sheet"] .upload-drop-icon {
+  background: transparent !important;
+  color: var(--moss-deep) !important;
+  margin: 0 auto 12px !important;
+  width: auto !important;
+  height: auto !important;
+  border: 0 !important;
+}
+[data-editorial="sheet"] .upload-drop-icon svg,
+[data-editorial="sheet"] .upload-drop-icon i {
+  width: 28px !important;
+  height: 28px !important;
+  stroke-width: 1.5 !important;
+  color: var(--moss-deep) !important;
+}
+[data-editorial="sheet"] .upload-drop-label {
+  font-family: var(--serif) !important;
+  font-weight: 400 !important;
+  font-size: 17px !important;
+  color: var(--ink-9) !important;
+  margin-bottom: 4px !important;
+  font-variation-settings: "opsz" 24, "SOFT" 60 !important;
+}
+[data-editorial="sheet"] .upload-drop-sub {
+  font-family: var(--sans) !important;
+  font-weight: 300 !important;
+  font-size: 13px !important;
+  color: var(--ink-5) !important;
+}
+
+/* Upload sheet's title + person sub */
+[data-editorial="sheet"] .upload-title {
+  font-family: var(--serif) !important;
+  font-weight: 400 !important;
+  font-size: 26px !important;
+  line-height: 1.15 !important;
+  letter-spacing: -0.01em !important;
+  color: var(--ink-9) !important;
+  padding: 22px 22px 4px !important;
+  font-variation-settings: "opsz" 36, "SOFT" 60 !important;
+}
+[data-editorial="sheet"] .upload-person {
+  font-family: var(--sans) !important;
+  font-weight: 300 !important;
+  font-size: 14px !important;
+  color: var(--ink-5) !important;
+  padding: 0 22px 18px !important;
+  letter-spacing: 0.005em !important;
+}
+[data-editorial="sheet"] .upload-person strong {
+  color: var(--moss-deep);
+  font-weight: 500;
+}
+@media (min-width: 768px) {
+  [data-editorial="sheet"] .upload-title {
+    font-size: 30px !important;
+    padding: 26px 28px 4px !important;
+  }
+  [data-editorial="sheet"] .upload-person {
+    padding: 0 28px 22px !important;
+    font-size: 15px !important;
+  }
+}
+
+/* ---- Export sheet body card (the blurb above the CTA) ----
+   Inline mint background → linen with hairline border. */
+[data-editorial="sheet"] .export-section > div[style*="var(--mint)"],
+[data-editorial="sheet"] .export-section > div[style*="background:var(--mint)"] {
+  background: transparent !important;
+  border: 1px solid var(--ink-1) !important;
+  border-radius: 6px !important;
+}
+[data-editorial="sheet"] .export-section > div[style*="var(--mint)"] i,
+[data-editorial="sheet"] .export-section > div[style*="var(--mint)"] svg {
+  color: var(--moss-deep) !important;
+}
+
+/* ---- Send-to area inside share sheet ---- */
+[data-editorial="sheet"] #share-recipients {
+  padding: 16px 22px 8px !important;
+  border-bottom: 1px solid var(--ink-1);
+}
+@media (min-width: 768px) {
+  [data-editorial="sheet"] #share-recipients {
+    padding: 18px 28px 10px !important;
+  }
+}
+[data-editorial="sheet"] #share-recipients > div:first-child {
+  font-family: var(--serif) !important;
+  font-weight: 400 !important;
+  font-size: 11px !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--ink-5) !important;
+  margin-bottom: 8px !important;
+  font-variation-settings: "opsz" 14, "SOFT" 60 !important;
+}
+
+/* ---- Settings care-circle avatar (was mint) ---- */
+[data-editorial="sheet"] .settings-avatar,
+[data-editorial="sheet"] .care-circle-avatar,
+[data-editorial="sheet"] .person-avatar {
+  background: var(--moss-deep) !important;
+  color: #fff !important;
+}
+
+/* Close-btn focus ring suppression — keep keyboard focus visible */
+[data-editorial="sheet"] .close-btn:focus { outline: none; }
+[data-editorial="sheet"] .close-btn:focus-visible {
+  outline: 1px solid var(--ink-3);
+  outline-offset: 2px;
+}
+
 /* ---- Care-circle person row in Settings ---- */
 [data-editorial="sheet"] .care-circle-row,
 #view-settings[data-editorial="settings"] .care-circle-row {
