@@ -1,0 +1,226 @@
+/* ============================================================
+   editorial-people.css — PR 8
+   Person switcher editorial treatment + the 7th primitive
+   (Gestures: long-press to swap person, swipe-left/right to cycle).
+
+   Was: heavy moss-filled active pill with white text.
+   Now: typeset nameplate. Names sit in Fraunces, the active person
+   carries a quiet 1px underline rule (--moss-deep) two pixels below
+   the baseline. Inactive names recede to ink-5. The "pip" dot is
+   retired — the underline is the affordance.
+
+   Applies to all three switcher surfaces:
+     - .person-switcher (masthead — Updates surface)
+     - .person-switcher inside the records header
+     - .ask-person-bar (Ask surface)
+
+   The 7th primitive — Gestures — is wired here because the switcher
+   is the most natural place to discover it: long-press a name to see
+   a quick "switching to Mom" affordance, swipe left/right on the
+   switcher row to cycle. Long-press the wordmark for ER summary
+   (already shipped in PR 7) is the same primitive, applied elsewhere.
+   ============================================================ */
+
+/* ---- Container ---- */
+.person-switcher {
+  display: flex !important;
+  align-items: baseline !important;
+  gap: 22px !important;
+  margin-bottom: 16px !important;
+  padding-bottom: 4px !important;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.person-switcher::-webkit-scrollbar { display: none; }
+
+/* ---- Nameplate buttons ---- */
+.person-switcher .person-pill,
+.person-switcher .person-pill.active {
+  display: inline-flex !important;
+  align-items: baseline !important;
+  gap: 0 !important;                          /* retire the pip-dot gap */
+  padding: 4px 0 6px !important;              /* room for the underline */
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  cursor: pointer;
+  font-family: 'Fraunces', Georgia, serif !important;
+  font-size: 22px !important;
+  font-weight: 400 !important;
+  font-variation-settings: "opsz" 24, "SOFT" 60 !important;
+  letter-spacing: -0.005em !important;
+  line-height: 1.05 !important;
+  color: var(--ink-5, #6E665C) !important;
+  transition: color 0.18s ease, border-color 0.18s ease;
+  position: relative;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-height: auto !important;
+  min-width: auto !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Retire the pip — the rule below carries the affordance */
+.person-switcher .person-pill .pip {
+  display: none !important;
+}
+
+/* Inactive */
+.person-switcher .person-pill {
+  color: var(--ink-5, #6E665C) !important;
+  border-bottom: 1px solid transparent !important;
+}
+.person-switcher .person-pill:hover {
+  color: var(--ink-9, #1F1B16) !important;
+}
+
+/* Active — Fraunces ink-9 with hairline moss-deep rule */
+.person-switcher .person-pill.active {
+  color: var(--ink-9, #1F1B16) !important;
+  border-bottom: 1px solid var(--moss-deep, #3F5F52) !important;
+}
+
+/* Pressing state — gesture feedback (used by long-press handler) */
+.person-switcher .person-pill.is-pressing {
+  opacity: 0.55 !important;
+  transition: opacity 0.18s ease;
+}
+
+/* Bereaved person treatment — eoc-heart sits next to the name in moss-quieter,
+   never colored, never red. */
+.person-switcher .person-pill.bereaved {
+  color: var(--ink-4, #8A8278) !important;
+  opacity: 1 !important;
+  border-bottom-color: transparent !important;
+}
+.person-switcher .person-pill.bereaved .eoc-heart {
+  color: var(--moss-quieter, #8AA89A) !important;
+  opacity: 0.75 !important;
+  margin-left: 4px !important;
+}
+
+/* Focus */
+.person-switcher .person-pill:focus { outline: none; }
+.person-switcher .person-pill:focus-visible {
+  outline: 1px solid var(--ink-3, #C8C0B5);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+/* ---- Records-surface variant inherits .person-switcher rules above ---- */
+
+/* ---- Ask surface — same nameplate treatment, slightly tighter ---- */
+.ask-person-bar {
+  padding: 14px 20px 4px !important;
+  display: flex !important;
+  align-items: baseline !important;
+  gap: 22px !important;
+}
+.ask-person-bar .ask-person-pill,
+.ask-person-bar .ask-person-pill.active {
+  display: inline-flex !important;
+  align-items: baseline !important;
+  gap: 0 !important;
+  padding: 4px 0 6px !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  cursor: pointer;
+  font-family: 'Fraunces', Georgia, serif !important;
+  font-size: 20px !important;
+  font-weight: 400 !important;
+  font-variation-settings: "opsz" 24, "SOFT" 60 !important;
+  letter-spacing: -0.005em !important;
+  line-height: 1.05 !important;
+  color: var(--ink-5, #6E665C) !important;
+  transition: color 0.18s ease, border-color 0.18s ease;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+.ask-person-bar .ask-person-pill > span {
+  display: none !important;                    /* retire inline pip-dot in Ask too */
+}
+.ask-person-bar .ask-person-pill {
+  border-bottom: 1px solid transparent !important;
+}
+.ask-person-bar .ask-person-pill:hover {
+  color: var(--ink-9, #1F1B16) !important;
+}
+.ask-person-bar .ask-person-pill.active {
+  color: var(--ink-9, #1F1B16) !important;
+  border-bottom: 1px solid var(--moss-deep, #3F5F52) !important;
+}
+.ask-person-bar .ask-person-pill.is-pressing {
+  opacity: 0.55 !important;
+}
+.ask-person-bar .ask-person-pill:focus { outline: none; }
+.ask-person-bar .ask-person-pill:focus-visible {
+  outline: 1px solid var(--ink-3, #C8C0B5);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+/* ---- Tablet + desktop — slightly larger nameplates ---- */
+@media (min-width: 768px) {
+  .person-switcher .person-pill,
+  .person-switcher .person-pill.active {
+    font-size: 26px !important;
+  }
+  .ask-person-bar .ask-person-pill,
+  .ask-person-bar .ask-person-pill.active {
+    font-size: 24px !important;
+  }
+}
+
+/* ---- Gesture hint — quiet caption under switcher on first sight only.
+   Hidden by default; the JS hint controller adds .show on first surface load,
+   then auto-dismisses after 4s or first interaction. ---- */
+.gesture-hint {
+  font-family: 'Fraunces', Georgia, serif;
+  font-style: normal;                          /* user banned italics */
+  font-size: 11px;
+  font-weight: 400;
+  font-variation-settings: "opsz" 14, "SOFT" 60;
+  letter-spacing: 0.04em;
+  color: var(--ink-4, #8A8278);
+  margin: -8px 0 12px;
+  padding: 0 4px;
+  display: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.gesture-hint.show {
+  display: block;
+  opacity: 1;
+}
+
+/* ----------------------------------------------------------------------
+   Single switcher policy — masthead is canonical.
+   Hide the in-page Records person-switcher and the Ask person-bar so the
+   masthead Dad/Mom is the only place that switcher lives.
+---------------------------------------------------------------------- */
+[data-editorial="records"] .records-person-switcher {
+  display: none !important;
+}
+[data-editorial="ask"] .ask-person-bar,
+.ask-person-bar {
+  display: none !important;
+}
+
+/* ----------------------------------------------------------------------
+   Three-dot menu — Betsy is OK with the dots, not the circle around them.
+   Strip the moss-tinted disc from the masthead overflow button only.
+   Back/bell keep their circles.
+---------------------------------------------------------------------- */
+#header-menu-btn {
+  background: transparent !important;
+  color: var(--ink-5, #6E6962) !important;
+  min-width: 32px !important;
+  min-height: 32px !important;
+  border-radius: 0 !important;
+}
+#header-menu-btn:hover {
+  background: transparent !important;
+  color: var(--ink-9, #1F1B16) !important;
+}
