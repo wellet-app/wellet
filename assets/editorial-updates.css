@@ -35,7 +35,7 @@
 @media (min-width: 768px) {
   #view-home[data-editorial="updates"] #tab-update,
   #view-home[data-editorial="updates"] #tab-timeline {
-    max-width: 90vw;
+    max-width: 95vw;
   }
 }
 
