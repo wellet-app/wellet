@@ -134,10 +134,13 @@
    Tablet+
    ============================================================ */
 @media (min-width: 768px) {
+  /* At 768+ the parent .tab-pane already supplies 28px horizontal padding,
+     so the upcoming-block should not add its own — otherwise hairlines and
+     copy fall short of the lede above and leave empty space on the right. */
   .upcoming-block {
-    padding: 0 32px;
-    max-width: 720px;
-    margin: 24px auto 0;
+    padding: 0;
+    max-width: none;
+    margin: 24px 0 0;
   }
   .upcoming-title {
     font-size: 20px;
