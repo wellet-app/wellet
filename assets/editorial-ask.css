@@ -99,20 +99,19 @@
 #view-ask[data-editorial="ask"] .chat-group.from-wellet { align-items: flex-start; }
 #view-ask[data-editorial="ask"] .chat-group.from-user   { align-items: flex-end; }
 
-/* The "Wellet" sender label becomes a faint serif-italic byline. */
+/* The "Wellet" sender label — quiet upright serif byline. */
 #view-ask[data-editorial="ask"] .chat-sender {
   font-family: var(--serif);
-  font-style: italic;
   font-weight: 400;
   font-size: 11px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-5);
   margin-bottom: 6px;
   display: flex;
   align-items: center;
   gap: 6px;
-  font-variation-settings: "opsz" 14, "SOFT" 75;
+  font-variation-settings: "opsz" 14, "SOFT" 60;
 }
 /* Wellet glyph — quieter, smaller, moss-deep. */
 #view-ask[data-editorial="ask"] .chat-sender svg {
@@ -137,16 +136,15 @@
   letter-spacing: 0.005em;
   align-self: stretch;
 }
-/* The first/lede greeting bubble — Fraunces italic, intimate. */
+/* The first/lede greeting bubble — upright Fraunces, intimate. */
 #view-ask[data-editorial="ask"] .chat-group.from-wellet:first-child .chat-bubble.wellet {
   font-family: var(--serif);
   font-weight: 400;
-  font-style: italic;
   font-size: 19px;
   line-height: 1.45;
   color: var(--ink-7);
   letter-spacing: -0.005em;
-  font-variation-settings: "opsz" 24, "SOFT" 75;
+  font-variation-settings: "opsz" 24, "SOFT" 60;
   padding: 4px 0 0;
 }
 @media (min-width: 768px) {
@@ -234,13 +232,12 @@
   content: "Some places to start";
   font-family: var(--serif);
   font-weight: 400;
-  font-style: italic;
   font-size: 12px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-5);
   padding: 14px 0 6px;
-  font-variation-settings: "opsz" 14, "SOFT" 75;
+  font-variation-settings: "opsz" 14, "SOFT" 60;
 }
 #view-ask[data-editorial="ask"] .chip {
   background: transparent;
@@ -306,10 +303,9 @@
 }
 #view-ask[data-editorial="ask"] .ask-input::placeholder {
   color: var(--ink-5);
-  font-style: italic;
-  font-family: var(--serif);
-  font-weight: 400;
-  font-variation-settings: "opsz" 14, "SOFT" 75;
+  font-family: var(--sans);
+  font-weight: 300;
+  letter-spacing: 0.005em;
 }
 #view-ask[data-editorial="ask"] .ask-input:focus {
   outline: none;
@@ -367,8 +363,7 @@
 #view-ask[data-editorial="ask"] #ask-context-chip {
   margin: 0 var(--gutter, 22px) 6px;
   font-family: var(--serif);
-  font-style: italic;
   font-size: 13px;
   color: var(--ink-5);
-  font-variation-settings: "opsz" 14, "SOFT" 75;
+  font-variation-settings: "opsz" 14, "SOFT" 60;
 }
