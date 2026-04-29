@@ -10,17 +10,26 @@
    Behavior unchanged: no JS edits, no copy edits, no route changes.
    ============================================================ */
 
-/* ---- Container: editorial reading column, left-aligned ---- */
+/* ---- Container: full-width on tablet+, reading column on phones ---- */
+/* Records is a list/index surface (not prose), so it should use the available
+   width on tablet/desktop — not be confined to the 640px reading column that
+   suits Updates. Phones still use the natural single column. */
 #view-records[data-editorial="records"] {
   font-family: var(--sans);
   font-weight: 300;
   color: var(--ink-9);
   letter-spacing: 0.005em;
   background: transparent;
-  max-width: var(--frame-max, 640px);
+  max-width: 100%;
   margin-left: 0;
   margin-right: auto;
   padding: 0 var(--gutter, 22px);
+}
+@media (min-width: 1100px) {
+  /* Soft cap on very large desktops so rows don't run into super-long lines. */
+  #view-records[data-editorial="records"] {
+    max-width: 1040px;
+  }
 }
 
 /* ---- View header ---- */
