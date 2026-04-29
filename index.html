@@ -29,6 +29,7 @@
 <link rel="stylesheet" href="/assets/editorial-ask.css">
 <link rel="stylesheet" href="/assets/editorial-sheets.css">
 <link rel="stylesheet" href="/assets/editorial-er.css">
+<link rel="stylesheet" href="/assets/editorial-people.css">
 </head>
 <body>
 <div class="page-wrap">
@@ -3003,6 +3004,72 @@
   document.addEventListener('touchend', onUp, true);
   document.addEventListener('touchcancel', clear, true);
   document.addEventListener('scroll', clear, true);
+})();
+
+/* ────────────────────────────────────────────────────────────
+   Editorial primitive #7 (continued) — Gestures on the person switcher.
+   - swipe left / right on .person-switcher or .ask-person-bar cycles the
+     active person
+   - long-press a name plate dims it (visual handshake) and triggers the
+     existing switchPerson()/selectAskPerson() handler
+   The switcher already handles tap natively; gestures are additive only.
+   ──────────────────────────────────────────────────────────── */
+(function(){
+  var SWIPE_MIN = 36;          // minimum horizontal travel to count as swipe
+  var SWIPE_VERT_LIMIT = 24;   // vertical drift cancels (it's a tap or scroll)
+  var SWIPE_TIME_LIMIT = 600;  // long swipes are scroll, not gesture
+
+  function findActive(container, sel) {
+    var pills = container.querySelectorAll(sel);
+    var arr = Array.prototype.slice.call(pills);
+    var idx = arr.findIndex(function(el){ return el.classList.contains('active'); });
+    return { arr: arr, idx: idx };
+  }
+
+  function cyclePerson(container, dir) {
+    // dir = +1 (next) or -1 (prev)
+    var sel, useFn;
+    if (container.classList.contains('ask-person-bar')) {
+      sel = '.ask-person-pill';
+    } else {
+      sel = '.person-pill';
+    }
+    var info = findActive(container, sel);
+    if (!info.arr.length) return;
+    var nextIdx = (info.idx + dir + info.arr.length) % info.arr.length;
+    if (nextIdx === info.idx) return;
+    var target = info.arr[nextIdx];
+    if (target && typeof target.click === 'function') target.click();
+  }
+
+  var swipeStart = null;
+  function isSwipeContainer(el) {
+    return el && (el.classList.contains('person-switcher') || el.classList.contains('ask-person-bar'));
+  }
+
+  function onTouchStart(e) {
+    var t = e.target.closest && e.target.closest('.person-switcher, .ask-person-bar');
+    if (!t) { swipeStart = null; return; }
+    var p = e.touches ? e.touches[0] : e;
+    swipeStart = { x: p.clientX, y: p.clientY, t: Date.now(), container: t };
+  }
+
+  function onTouchEnd(e) {
+    if (!swipeStart) return;
+    var p = e.changedTouches ? e.changedTouches[0] : e;
+    var dx = p.clientX - swipeStart.x;
+    var dy = p.clientY - swipeStart.y;
+    var dt = Date.now() - swipeStart.t;
+    var c = swipeStart.container;
+    swipeStart = null;
+    if (dt > SWIPE_TIME_LIMIT) return;
+    if (Math.abs(dy) > SWIPE_VERT_LIMIT) return;
+    if (Math.abs(dx) < SWIPE_MIN) return;
+    cyclePerson(c, dx < 0 ? 1 : -1);
+  }
+
+  document.addEventListener('touchstart', onTouchStart, { capture: true, passive: true });
+  document.addEventListener('touchend', onTouchEnd, true);
 })();
 </script>
 </body>
