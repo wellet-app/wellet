@@ -13,7 +13,7 @@
   background: var(--linen, #F7F5F0);
 }
 
-/* ----- Month divider — Fraunces small caps, hairline tail ----- */
+/* ----- Month label — Fraunces small caps, no hairline ----- */
 #tab-timeline .tl-month {
   font-family: 'Fraunces', Georgia, serif;
   font-size: 12px;
@@ -24,15 +24,20 @@
   text-transform: uppercase;
   color: var(--ink-5, #6E6962);
   margin: 28px 0 14px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  display: block;                           /* was flex+::after — drop the trailing hairline */
+  border-top: 0 !important;
 }
-#tab-timeline .tl-month::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--ink-2, #D8D3CA);
+#tab-timeline .tl-month::after,
+#tab-timeline .tl-month::before {
+  content: none !important;
+  display: none !important;
+}
+
+/* Drop any structural border above timeline content (between tabs and first month) */
+#tab-timeline,
+#tab-timeline .timeline-section,
+#tab-timeline .timeline-section > * {
+  border-top: 0 !important;
 }
 
 /* ----- Section + group: remove all card chrome ----- */
