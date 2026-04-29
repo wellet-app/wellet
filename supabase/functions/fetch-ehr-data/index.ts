@@ -1,4 +1,18 @@
-// Supabase Edge Function: fetch-ehr-data (v40 — Phase 2 N-connections fan-out: lookup all connected rows for person, fetch+persist each in parallel via Promise.allSettled, source-tag rows with connection_id, return both legacy flat shape (merged) AND new `connections` array.)
+// Supabase Edge Function: fetch-ehr-data (v60 — Wellet Premium pulls.
+// Adds Appointment (mapped + persisted to health_events under event_type
+// 'appointment', FUTURE only, skip cancelled/noshow) AND a count-only "bonus"
+// block of 9 chronic-care resources (EpisodeOfCare, NutritionOrder,
+// DeviceUseStatement, Device, MedicationDispense, AdverseEvent, Flag,
+// ImmunizationRecommendation, Provenance) so the regression watcher can
+// notice silent scope drops on Premium client_ids. v61 will add mappers + UI
+// for the highest-signal bonus resources — v60 is feed-only.
+//
+// Backwards-compatible by design: on every existing Confidential connection
+// the new resources 403 on the wire and fetchFhirResource swallows the 403,
+// returning [] — so the response shape is unchanged for those connections,
+// only with two new always-present zero-valued keys (appointments + bonus).
+//
+// Originally v40 — Phase 2 N-connections fan-out: lookup all connected rows for person, fetch+persist each in parallel via Promise.allSettled, source-tag rows with connection_id, return both legacy flat shape (merged) AND new `connections` array.)
 // Fetches FHIR R4 resources from the connected EHR provider (Epic),
 // maps them to a simplified Wellet-friendly JSON structure,
 // returns the data to the frontend, AND upserts into medications /
@@ -183,6 +197,10 @@ type ConnectionResult = {
   diagnostic_reports: unknown[];
   visits: unknown[];
   care_team: unknown[];
+  // v60 (2026-04-28): future appointments from Wellet Premium–enabled
+  // hospitals. Empty for Confidential connections (Epic returns 403 on the
+  // wire, fetchFhirResource swallows it as 0 entries).
+  appointments: unknown[];
   synced_at: string;
   result_counts: {
     conditions: number;
@@ -193,6 +211,21 @@ type ConnectionResult = {
     diagnostic_reports: number;
     visits: number;
     care_team: number;
+    appointments: number;
+    // v60 bonus chronic-care resources — fetched only for raw counts so the
+    // regression watcher (cron a335d77a) can flag scope drops on Premium
+    // connections. No mapping, no UI, no persistence yet — v61 lands those.
+    bonus: {
+      episode_of_care: number;
+      nutrition_order: number;
+      device_use_statement: number;
+      device: number;
+      medication_dispense: number;
+      adverse_event: number;
+      flag: number;
+      immunization_recommendation: number;
+      provenance: number;
+    };
   };
   persisted: {
     medications: number;
@@ -656,6 +689,98 @@ function mapEncounters(resources: unknown[]) {
   return visits;
 }
 
+// v60 (2026-04-28): Map FHIR R4 Appointment resources. Wellet Premium unlocks
+// this resource on hospitals that have approved manual distribution (Duke is
+// the first). The Confidential client returns 403 here, which fetchFhirResource
+// swallows as 0 entries — so calling this on a Confidential connection is safe.
+//
+// Output shape mirrors mapEncounters closely so persistEhrData can fold it into
+// health_events without conditionals. Notable differences:
+//   - start_date / end_date come from the top-level start/end ISO strings
+//     (Appointment doesn't use period.* like Encounter)
+//   - participant.actor is the Practitioner ref (vs participant.individual on
+//     Encounter) — we normalise both to {ref, name}
+//   - reasonCode + serviceType + appointmentType are merged into a single
+//     human-readable label so the timeline card can show "Return Visual Field"
+//     not "Appointment"
+function mapAppointments(resources: unknown[]) {
+  const appts = (resources as Record<string, unknown>[]).map((r) => {
+    // Title: prefer the most specific label available
+    //  1. appointmentType.text / coding[0].display  (e.g. "FOLLOW UP")
+    //  2. serviceType[0].text / coding[0].display   (e.g. "Ophthalmology")
+    //  3. reasonCode[0].text / coding[0].display    (e.g. "Return Visual Field")
+    //  4. description (free text)
+    //  5. "Appointment"  (fallback)
+    const apptType = (r.appointmentType as Record<string, unknown>) || {};
+    const apptTypeCoding = ((apptType.coding as Record<string, unknown>[]) || [])[0] || {};
+    const apptTypeLabel = (apptType.text as string) || (apptTypeCoding.display as string) || '';
+
+    const serviceTypeArr = (r.serviceType as Record<string, unknown>[]) || [];
+    const serviceType0 = serviceTypeArr[0] || {};
+    const serviceTypeCoding = ((serviceType0.coding as Record<string, unknown>[]) || [])[0] || {};
+    const serviceTypeLabel = (serviceType0.text as string) || (serviceTypeCoding.display as string) || '';
+
+    const reasonArr = (r.reasonCode as Record<string, unknown>[]) || [];
+    const reason0 = reasonArr[0] || {};
+    const reasonCoding = ((reason0.coding as Record<string, unknown>[]) || [])[0] || {};
+    const reasonLabel = (reason0.text as string) || (reasonCoding.display as string) || '';
+
+    const description = (r.description as string) || '';
+
+    // Specific clinical reason wins over generic "FOLLOW UP".
+    const name = reasonLabel || apptTypeLabel || serviceTypeLabel || description || 'Appointment';
+
+    // Providers from participant.actor (Appointment) — same {ref, name} shape
+    // as visits so downstream practitioner roster code can dedupe across both.
+    const participants = (r.participant as Record<string, unknown>[]) || [];
+    const providers = participants.map((p) => {
+      const actor = (p.actor as Record<string, unknown>) || {};
+      const ref = (actor.reference as string) || '';
+      const display = (actor.display as string) || '';
+      return { ref, name: display };
+    }).filter((p) => p.ref.startsWith('Practitioner/') || p.name);
+
+    // Location: participant.actor where reference starts with Location/.
+    let location = '';
+    for (const p of participants) {
+      const actor = (p.actor as Record<string, unknown>) || {};
+      const ref = (actor.reference as string) || '';
+      if (ref.startsWith('Location/')) {
+        location = (actor.display as string) || '';
+        break;
+      }
+    }
+
+    return {
+      type: 'appointment',
+      source: 'ehr',
+      id: (r.id as string) || '',
+      // persistEhrData reads `name` for health_events.title and `description`
+      // as fallback — we already collapsed both into name above.
+      name,
+      description,
+      status: (r.status as string) || '',
+      // persistEhrData uses start_date directly; null if Epic omitted it.
+      start_date: (r.start as string) || '',
+      end_date: (r.end as string) || '',
+      reason: reasonLabel,
+      service_type: serviceTypeLabel,
+      appointment_type: apptTypeLabel,
+      location,
+      providers, // [{ ref, name }]
+    };
+  });
+
+  // Sort soonest-upcoming first by start_date so the timeline card shows
+  // "tomorrow" before "three months out".
+  appts.sort((a, b) => {
+    const da = a.start_date ? new Date(a.start_date as string).getTime() : 0;
+    const db = b.start_date ? new Date(b.start_date as string).getTime() : 0;
+    return da - db;
+  });
+  return appts;
+}
+
 // Map DocumentReference resources. Extracts encounter link + LOINC type + attachment URLs
 // so the frontend can offer tappable AVS / Provider-note links per visit.
 function mapDocumentReferences(resources: unknown[]) {
@@ -875,571 +1000,463 @@ function mapPractitioner(p: Record<string, unknown>, role?: string) {
   const qualifications = (p.qualification as Record<string, unknown>[]) || [];
   let specialty = '';
   for (const q of qualifications) {
-    const code = (q.code as Record<string, unknown>) || {};
-    const coding = (code.coding as Record<string, unknown>[]) || [];
-    const display = (code.text as string) || (coding[0]?.display as string) || '';
-    if (display) { specialty = display; break; }
+    const qCode = (q.code as Record<string, unknown>) || {};
+    const qCoding = (qCode.coding as Record<string, unknown>[]) || [];
+    const display = (qCode.text as string) || (qCoding[0]?.display as string) || '';
+    if (display && display !== 'MD' && display !== 'DO' && display !== 'NP' && display !== 'PA') {
+      specialty = display;
+      break;
+    }
   }
 
   return {
     type: 'practitioner',
     source: 'ehr',
-    id: (p.id as string) || '',
-    name: nameText || 'Unknown provider',
+    name: nameText || 'Unknown Provider',
     role: role || '',
     specialty,
     phones,
-    fax,
     emails,
+    fax,
     address: addressText,
   };
 }
 
-// Map a Patient resource to a minimal identity payload used by the frontend
-// to VERIFY the chart shown matches the connected patient. Without this,
-// a mismatched token/patient_id could silently show the wrong person's data.
-function mapPatient(p: Record<string, unknown>) {
-  const nameArr = (p.name as Record<string, unknown>[]) || [];
-  // Prefer official name, else first usable
-  const preferred = nameArr.find((n) => (n.use as string) === 'official') || nameArr[0] || {};
-  const nameText = (preferred.text as string)
-    || [
-      (preferred.given as string[] | undefined)?.join(' '),
-      preferred.family as string,
-    ].filter(Boolean).join(' ').trim();
-  return {
-    id: (p.id as string) || '',
-    name: nameText || 'Unknown',
-    birth_date: (p.birthDate as string) || '',
-    gender: (p.gender as string) || '',
-  };
+// Build the care team from Encounter participant references + DiagnosticReport performers.
+// For each unique Practitioner reference, fetches the Practitioner resource and optionally
+// PractitionerRole (for contact info / specialty / address that Epic doesn't put on Practitioner.telecom).
+async function buildCareTeam(
+  fhirBaseUrl: string,
+  accessToken: string,
+  visits: ReturnType<typeof mapEncounters>,
+  appointments: ReturnType<typeof mapAppointments>,
+  diagnosticReports: ReturnType<typeof mapDiagnosticReports>,
+  practTele: PractitionerTelemetry[],
+): Promise<ReturnType<typeof mapPractitioner>[]> {
+  // Collect all unique Practitioner refs, deduped
+  const seen = new Set<string>();
+  const refs: Array<{ ref: string; name: string; role: string }> = [];
+
+  // From visits
+  for (const v of visits) {
+    for (const prov of (v.providers || []) as Array<{ ref: string; name: string }>) {
+      if (prov.ref && prov.ref.startsWith('Practitioner/') && !seen.has(prov.ref)) {
+        seen.add(prov.ref);
+        refs.push({ ref: prov.ref, name: prov.name, role: 'Encounter Participant' });
+      }
+    }
+  }
+
+  // From appointments (v60)
+  for (const a of appointments) {
+    for (const prov of (a.providers || []) as Array<{ ref: string; name: string }>) {
+      if (prov.ref && prov.ref.startsWith('Practitioner/') && !seen.has(prov.ref)) {
+        seen.add(prov.ref);
+        refs.push({ ref: prov.ref, name: prov.name, role: 'Appointment Provider' });
+      }
+    }
+  }
+
+  // From DiagnosticReport performers (display-string only, no refs)
+  // We skip those here since they don't have Practitioner refs; the care team
+  // will show them if they happen to match an encounter practitioner reference.
+
+  if (refs.length === 0) return [];
+
+  // Fetch practitioners in parallel (fan-out, fire-and-forget on failure)
+  const careTeam = await Promise.all(
+    refs.map(async ({ ref, name, role }) => {
+      const practitionerId = ref.replace('Practitioner/', '');
+      const pResource = await fetchFhirById(fhirBaseUrl, ref, accessToken, practTele);
+      if (!pResource) {
+        // Return a stub with whatever display name we have from the encounter
+        return { type: 'practitioner', source: 'ehr', name: name || 'Unknown Provider', role, specialty: '', phones: [], emails: [], fax: '', address: '' };
+      }
+
+      const member = mapPractitioner(pResource, role);
+
+      // Backfill contact info from PractitionerRole if Practitioner.telecom is empty
+      if (member.phones.length === 0 && member.emails.length === 0 && !member.fax) {
+        const roles = await fetchPractitionerRoles(fhirBaseUrl, practitionerId, accessToken, practTele);
+        if (roles.length > 0) {
+          const extras = extractFromPractitionerRoles(roles);
+          if (extras.phones.length > 0) member.phones = extras.phones;
+          if (extras.emails.length > 0) member.emails = extras.emails;
+          if (extras.fax) member.fax = extras.fax;
+          if (!member.specialty && extras.specialty) member.specialty = extras.specialty;
+          if (!member.address && extras.address) member.address = extras.address;
+        }
+      }
+
+      return member;
+    }),
+  );
+
+  return careTeam;
 }
 
-// ── Refresh flow ─────────────────────────────────────────────────────────────
-// Decrypts stored refresh_token and exchanges it at the provider's token
-// endpoint for a new access_token (and usually a new refresh_token). Updates
-// ehr_connections in place. Returns { ok, accessToken, detail? }.
-async function refreshAccessTokenIfNeeded(
-  admin: ReturnType<typeof getAdminClient>,
-  conn: Record<string, any>,
-  encKey: string,
-): Promise<{ ok: true; accessToken: string } | { ok: false; detail: string }> {
-  // Decrypt the current access token up front — we'll need it if no refresh is required.
-  const { data: decAccessToken } = await admin.rpc('decrypt_ehr_token', {
-    encrypted_token: conn.access_token, enc_key: encKey,
+// ── JSON response helper ──
+function jsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
   });
-  const currentAccess = (decAccessToken as string | null) || conn.access_token;
+}
 
-  // If expires_at is missing OR the token is still valid (with 60s skew), use it as-is.
-  const skewMs = 60_000;
-  const expiresAt = conn.token_expires_at ? new Date(conn.token_expires_at).getTime() : 0;
-  if (!expiresAt || expiresAt - Date.now() > skewMs) {
-    return { ok: true, accessToken: currentAccess };
-  }
+// ── Token refresh helper ──
+// Accepts an ehr_connections row and tries to exchange the stored refresh_token
+// for a new access_token. Returns { access_token, refresh_token } on success
+// or throws on failure.
+async function refreshAccessToken(
+  conn: Record<string, unknown>,
+): Promise<{ access_token: string; refresh_token: string }> {
+  const tokenUrl = (conn.token_url as string) || '';
+  if (!tokenUrl) throw new Error('No token_url on connection');
 
-  // Expired. We need a refresh token + token_url + client_id to continue.
-  if (!conn.refresh_token || !conn.token_url || !conn.client_id_used) {
-    console.warn('[fetch-ehr-data] Expired but missing refresh inputs', {
-      hasRefresh: !!conn.refresh_token,
-      hasTokenUrl: !!conn.token_url,
-      hasClientId: !!conn.client_id_used,
-    });
-    await admin.from('ehr_connections')
-      .update({ needs_reconnect: true })
-      .eq('id', conn.id);
-    return { ok: false, detail: 'missing_refresh_inputs' };
-  }
+  const clientId = (conn.client_id as string) || '';
+  const storedRefreshToken = (conn.refresh_token as string) || '';
+  if (!storedRefreshToken) throw new Error('No refresh_token on connection');
 
-  // Decrypt the refresh token
-  const { data: decRefresh, error: decRefreshErr } = await admin.rpc('decrypt_ehr_token', {
-    encrypted_token: conn.refresh_token, enc_key: encKey,
+  const isLegacyPublic = clientId === EPIC_LEGACY_PUBLIC_CLIENT_ID;
+  const isSandboxOrNonProd =
+    clientId === EPIC_NONPROD_CLIENT_ID ||
+    ((conn.fhir_base_url as string) || '').includes('fhir.epic.com');
+
+  const params = new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: storedRefreshToken,
+    client_id: clientId,
   });
-  if (decRefreshErr || !decRefresh) {
-    console.error('[fetch-ehr-data] decrypt_ehr_token failed for refresh_token', decRefreshErr);
-    return { ok: false, detail: 'decrypt_refresh_failed' };
+
+  if (!isLegacyPublic) {
+    const creds = resolveClientCreds(isSandboxOrNonProd);
+    const privateKey = await loadPrivateKey(creds.pemEnv);
+    const clientAssertion = await buildClientAssertion(tokenUrl, creds.clientId, creds.kid, privateKey);
+    params.set('client_id', creds.clientId);
+    params.set('client_assertion_type', 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer');
+    params.set('client_assertion', clientAssertion);
   }
 
-  // Build the refresh body. Confidential clients (everything except the
-  // legacy public client) authenticate via a signed client_assertion JWT.
-  // Public clients use just `client_id`. epic-auth's callback path already
-  // does this correctly — we mirror that here so subsequent token refreshes
-  // don't quietly fail and force users into a reconnect loop.
-  const isLegacyPublic = conn.client_id_used === EPIC_LEGACY_PUBLIC_CLIENT_ID;
-  const isSandbox = conn.fhir_base_url === EPIC_SANDBOX_FHIR_BASE;
-
-  let body: URLSearchParams;
-  if (isLegacyPublic) {
-    body = new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: decRefresh as string,
-      client_id: EPIC_LEGACY_PUBLIC_CLIENT_ID,
-    });
-  } else {
-    let clientAssertion: string;
-    try {
-      const creds = resolveClientCreds(isSandbox);
-      const privateKey = await loadPrivateKey(creds.pemEnv);
-      clientAssertion = await buildClientAssertion(
-        conn.token_url as string,
-        creds.clientId,
-        creds.kid,
-        privateKey,
-      );
-    } catch (e) {
-      console.error('[fetch-ehr-data] refresh client_assertion build failed', {
-        err: (e as Error).message,
-        conn_id: conn.id,
-      });
-      return { ok: false, detail: 'client_assertion_failed' };
-    }
-    body = new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: decRefresh as string,
-      client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-      client_assertion: clientAssertion,
-    });
-  }
-
-  const res = await fetch(conn.token_url as string, {
+  const res = await fetch(tokenUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body,
+    body: params.toString(),
   });
 
   if (!res.ok) {
-    const errText = await res.text();
-    console.error('[fetch-ehr-data] Refresh exchange failed', {
-      status: res.status,
-      err: errText.slice(0, 300),
-      tokenUrl: conn.token_url,
-      clientId: conn.client_id_used,
-    });
-    await admin.from('ehr_connections')
-      .update({ needs_reconnect: true })
-      .eq('id', conn.id);
-    return { ok: false, detail: `refresh_rejected_${res.status}` };
+    const body = await res.text();
+    throw new Error(`Token refresh failed ${res.status}: ${body.slice(0, 200)}`);
   }
 
-  const tokenData = await res.json();
-  if (!tokenData.access_token) {
-    console.error('[fetch-ehr-data] Refresh returned no access_token', tokenData);
-    return { ok: false, detail: 'no_access_token_in_refresh' };
-  }
-
-  console.log('[fetch-ehr-data] Refresh succeeded', {
-    hasNewRefresh: !!tokenData.refresh_token,
-    expiresIn: tokenData.expires_in,
-    clientId: conn.client_id_used,
-  });
-
-  // Re-encrypt and persist the new tokens
-  const newExpiresAt = new Date(Date.now() + ((tokenData.expires_in || 3600) * 1000)).toISOString();
-
-  const { data: encNewAccess, error: encAccErr } = await admin.rpc('encrypt_ehr_token', {
-    plain_token: tokenData.access_token, enc_key: encKey,
-  });
-  if (encAccErr || !encNewAccess) {
-    console.error('[fetch-ehr-data] encrypt_ehr_token failed for new access_token', encAccErr);
-    return { ok: false, detail: 'encrypt_new_access_failed' };
-  }
-
-  let encNewRefresh: string | null = conn.refresh_token as string | null;
-  if (tokenData.refresh_token) {
-    const { data: encR, error: encRErr } = await admin.rpc('encrypt_ehr_token', {
-      plain_token: tokenData.refresh_token, enc_key: encKey,
-    });
-    if (encRErr || !encR) {
-      console.error('[fetch-ehr-data] encrypt_ehr_token failed for new refresh_token', encRErr);
-      // Don't fail the request — keep the old refresh token and the new access token.
-    } else {
-      encNewRefresh = encR as string;
-    }
-  }
-
-  const { error: updateErr } = await admin.from('ehr_connections')
-    .update({
-      access_token: encNewAccess,
-      refresh_token: encNewRefresh,
-      token_expires_at: newExpiresAt,
-      needs_reconnect: false,
-    })
-    .eq('id', conn.id);
-
-  if (updateErr) {
-    console.error('[fetch-ehr-data] Failed to persist refreshed tokens', updateErr);
-    // Still return the new access token for this request.
-  }
-
-  return { ok: true, accessToken: tokenData.access_token as string };
+  const json = await res.json() as Record<string, unknown>;
+  const newAccess = (json.access_token as string) || '';
+  const newRefresh = (json.refresh_token as string) || storedRefreshToken;
+  if (!newAccess) throw new Error('Token refresh: no access_token in response');
+  return { access_token: newAccess, refresh_token: newRefresh };
 }
 
-// ── fetchAndPersistOneConnection ──────────────────────────────────────────────
-// Runs the full EHR fetch + persist pipeline for a single ehr_connections row.
-// Each call is isolated: it creates its own telemetry arrays, its own FHIR
-// call set, and persists with the connection's own id. Returning a structured
-// ConnectionResult instead of throwing means Promise.allSettled callers can
-// surface per-connection errors without one failed hospital taking down the rest.
-async function fetchAndPersistOneConnection(
-  admin: ReturnType<typeof getAdminClient>,
-  userId: string,
-  personId: string,
-  conn: any, // a single ehr_connections row
-  encKey: string,
-): Promise<ConnectionResult> {
-  const connT0 = Date.now();
+// ── Encryption helpers (AES-GCM, 256-bit, base64url) ──
+// Matches the encryption used in epic-auth to store tokens.
+async function getEncryptionKey(): Promise<CryptoKey> {
+  const rawKeyB64 = Deno.env.get('TOKEN_ENCRYPTION_KEY') || '';
+  if (!rawKeyB64) throw new Error('Missing TOKEN_ENCRYPTION_KEY secret');
+  const rawKey = Uint8Array.from(atob(rawKeyB64), (c) => c.charCodeAt(0));
+  return await crypto.subtle.importKey('raw', rawKey, 'AES-GCM', false, ['encrypt', 'decrypt']);
+}
 
-  // Connection-local telemetry buckets — never shared with sibling connections.
+async function encryptToken(token: string, key: CryptoKey): Promise<string> {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encoded = new TextEncoder().encode(token);
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
+  const combined = new Uint8Array(iv.length + ciphertext.byteLength);
+  combined.set(iv, 0);
+  combined.set(new Uint8Array(ciphertext), iv.length);
+  return btoa(String.fromCharCode(...combined)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function decryptToken(encryptedB64url: string, key: CryptoKey): Promise<string> {
+  const encryptedB64 = encryptedB64url.replace(/-/g, '+').replace(/_/g, '/');
+  const combined = Uint8Array.from(atob(encryptedB64), (c) => c.charCodeAt(0));
+  const iv = combined.slice(0, 12);
+  const ciphertext = combined.slice(12);
+  const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+  return new TextDecoder().decode(decrypted);
+}
+
+// ── Per-connection fetch + persist ──────────────────────────────────────────
+// Fetches all FHIR resources for ONE ehr_connections row,
+// maps + persists them, returns a ConnectionResult.
+// Any error is caught here so Promise.allSettled can collect all results.
+async function fetchAndPersistOneConnection(
+  conn: Record<string, unknown>,
+  admin: ReturnType<typeof getAdminClient>,
+  personId: string,
+): Promise<ConnectionResult> {
+  const connId = (conn.id as string) || '';
+  const fhirBaseUrl = ((conn.fhir_base_url as string) || '').replace(/\/$/, '');
+  const hospitalName = (conn.hospital_name as string) || null;
+  const connectedProvider = (conn.connected_provider as string) || null;
+
+  // Connection-local telemetry buckets — no shared state across parallel calls
   const localFhirTele: FhirCallTelemetry[] = [];
   const localPractTele: PractitionerTelemetry[] = [];
 
-  const emptyArrays = {
-    conditions: [] as unknown[],
-    medications: [] as unknown[],
-    allergies: [] as unknown[],
-    observations: [] as unknown[],
-    immunizations: [] as unknown[],
-    diagnostic_reports: [] as unknown[],
-    visits: [] as unknown[],
-    care_team: [] as unknown[],
-  };
-  const emptyPersisted = { medications: 0, allergies: 0, health_events: 0, lab_results: 0, vitals: 0, errors: [] as string[] };
-  const emptyCounts = { conditions: 0, medications: 0, allergies: 0, observations: 0, immunizations: 0, diagnostic_reports: 0, visits: 0, care_team: 0 };
-
-  const baseResult = {
-    connection_id: conn.id as string,
-    hospital_name: (conn.hospital_name as string | null) ?? null,
-    fhir_base_url: (conn.fhir_base_url as string) || 'https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4',
-    patient_id: (conn.patient_id as string | null) ?? null,
-    provider: (conn.connected_provider as string) || 'Epic MyChart',
-    connected_provider: (conn.connected_provider as string | null) ?? null,
-  };
+  let accessToken = '';
+  let patientId = '';
+  let tokenRefreshStatus: ConnectionResult['status'] = 'ok';
+  let tokenRefreshError: string | undefined;
 
   try {
-    // Step 1: Refresh token if needed. A failed refresh is a soft error —
-    // return a structured status so the caller can prompt reconnect only when
-    // ALL connections fail (not just this one).
-    const refreshed = await refreshAccessTokenIfNeeded(admin, conn, encKey);
-    if (!refreshed.ok) {
-      console.warn('[fetch-ehr-data] token_refresh_failed', {
-        conn_id: conn.id,
-        hospital: conn.hospital_name,
-        detail: refreshed.detail,
-      });
-      return {
-        ...baseResult,
-        status: 'token_refresh_failed',
-        error: refreshed.detail,
-        patient: null,
-        ...emptyArrays,
-        synced_at: new Date().toISOString(),
-        result_counts: emptyCounts,
-        persisted: emptyPersisted,
-        fhir_calls: localFhirTele,
-        practitioner_calls: localPractTele,
-        duration_ms: Date.now() - connT0,
-      };
-    }
+    const encKey = await getEncryptionKey();
+    const encryptedAccess = (conn.access_token as string) || '';
+    const encryptedRefresh = (conn.refresh_token as string) || '';
+    if (!encryptedAccess) throw new Error('No access_token stored');
 
-    const accessToken = refreshed.accessToken;
-    const fhirBaseUrl = (conn.fhir_base_url as string) || 'https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4';
-    const patientId = conn.patient_id as string | null;
-    const patientParam = patientId ? `patient=${patientId}` : '';
-
-    // Step 2: Fetch all FHIR resources in parallel, threading local tele buckets.
-    const [
-      patientResource,
-      conditions,
-      medications,
-      allergies,
-      labObservations,
-      vitalObservations,
-      immunizations,
-      diagnosticReports,
-      encountersRaw,
-      careTeamsRaw,
-      documentReferencesRaw,
-    ] = await Promise.all([
-      // Patient identity — proves which chart we are actually pulling
-      patientId ? fetchFhirById(fhirBaseUrl, `Patient/${patientId}`, accessToken, localPractTele) : Promise.resolve(null),
-      fetchFhirResource(fhirBaseUrl, 'Condition', accessToken, patientParam, localFhirTele),
-      // status=active is an Epic-supported filter — fixes the "78 amlodipine rows" bug
-      fetchFhirResource(fhirBaseUrl, 'MedicationRequest', accessToken, patientParam ? `${patientParam}&status=active` : 'status=active', localFhirTele),
-      fetchFhirResource(fhirBaseUrl, 'AllergyIntolerance', accessToken, patientParam, localFhirTele),
-      fetchFhirResource(fhirBaseUrl, 'Observation', accessToken, patientParam ? `${patientParam}&category=laboratory` : 'category=laboratory', localFhirTele),
-      fetchFhirResource(fhirBaseUrl, 'Observation', accessToken, patientParam ? `${patientParam}&category=vital-signs` : 'category=vital-signs', localFhirTele),
-      fetchFhirResource(fhirBaseUrl, 'Immunization', accessToken, patientParam, localFhirTele),
-      fetchFhirResource(fhirBaseUrl, 'DiagnosticReport', accessToken, patientParam, localFhirTele),
-      // All encounters — UI filters to last 2 years with a "show older" toggle
-      fetchFhirResource(fhirBaseUrl, 'Encounter', accessToken, patientParam, localFhirTele),
-      // Active care teams
-      fetchFhirResource(fhirBaseUrl, 'CareTeam', accessToken, patientParam ? `${patientParam}&status=active` : 'status=active', localFhirTele),
-      // Clinical notes / AVS / provider summaries (metadata only — content fetched on tap)
-      fetchFhirResource(fhirBaseUrl, 'DocumentReference', accessToken, patientParam, localFhirTele),
-    ]);
-
-    const patient = patientResource ? mapPatient(patientResource) : { id: patientId || '', name: '', birth_date: '', gender: '' };
-
-    // Combine lab and vital observations
-    const observations = [...labObservations, ...vitalObservations];
-
-    const medicationsMapped = mapMedications(medications);
-    const visitsMapped = mapEncounters(encountersRaw);
-
-    // Attach DocumentReference metadata to each visit by encounter id so the
-    // expanded visit row can offer AVS / Provider Summary links.
-    const documentsMapped = mapDocumentReferences(documentReferencesRaw);
-    const docsByEncounter: Record<string, typeof documentsMapped> = {};
-    for (const d of documentsMapped) {
-      if (!d.encounter_id) continue;
-      if (!docsByEncounter[d.encounter_id]) docsByEncounter[d.encounter_id] = [];
-      docsByEncounter[d.encounter_id].push(d);
-    }
-    for (const v of visitsMapped as Record<string, unknown>[]) {
-      const vid = (v.id as string) || '';
-      (v as Record<string, unknown>).documents = vid ? (docsByEncounter[vid] || []) : [];
-    }
-
-    // ── Build unified practitioner roster ──
-    // Collect Practitioner references from: CareTeam.participant, Encounter.participant, and MedicationRequest.requester
-    const practitionerRefs = new Set<string>();
-    const roleByRef: Record<string, string> = {};
-
-    for (const ct of careTeamsRaw as Record<string, unknown>[]) {
-      const participants = (ct.participant as Record<string, unknown>[]) || [];
-      for (const p of participants) {
-        const member = (p.member as Record<string, unknown>) || {};
-        const ref = (member.reference as string) || '';
-        if (ref && ref.startsWith('Practitioner/')) {
-          practitionerRefs.add(ref);
-          const roleArr = (p.role as Record<string, unknown>[]) || [];
-          const firstRole = roleArr[0] || {};
-          const roleCoding = (firstRole.coding as Record<string, unknown>[]) || [];
-          const roleText = (firstRole.text as string) || (roleCoding[0]?.display as string) || '';
-          if (roleText) roleByRef[ref] = roleText;
-        }
-      }
-    }
-    for (const v of visitsMapped) {
-      for (const p of v.providers) {
-        if (p.ref && p.ref.startsWith('Practitioner/')) practitionerRefs.add(p.ref);
-      }
-    }
-    for (const m of medicationsMapped) {
-      if (m.prescriber_ref && m.prescriber_ref.startsWith('Practitioner/')) practitionerRefs.add(m.prescriber_ref);
-    }
-
-    // Fetch each Practitioner individually (Epic's FHIR R4 supports Practitioner.Read by ID)
-    // Capped to protect against runaway (should be well under 50 for a typical patient)
-    const refList = Array.from(practitionerRefs).slice(0, 50);
-    const practitionerResources = await Promise.all(
-      refList.map((ref) => fetchFhirById(fhirBaseUrl, ref, accessToken, localPractTele))
-    );
-
-    // In Epic FHIR R4, Practitioner.telecom is almost always empty — phones,
-    // emails, fax, and specialty live on PractitionerRole resources instead.
-    // Fetch PractitionerRole?practitioner=<id> for each practitioner in
-    // parallel, then merge the contact info onto the Practitioner mapping.
-    const roleBundles = await Promise.all(
-      refList.map((ref) => {
-        const id = ref.split('/')[1] || '';
-        if (!id) return Promise.resolve([] as Record<string, unknown>[]);
-        return fetchPractitionerRoles(fhirBaseUrl, id, accessToken, localPractTele);
-      })
-    );
-
-    // Telemetry: per-practitioner snapshot of what Practitioner vs. PractitionerRole
-    // returned — so we can see whether Duke is exposing contact info on PractitionerRole
-    // (or whether we need a different fallback path for this provider).
-    const practitionerTelemetry: Record<string, unknown>[] = [];
-
-    const careTeam = practitionerResources
-      .map((p, i) => {
-        if (!p) return null;
-        const mapped = mapPractitioner(p, roleByRef[refList[i]]);
-        const roleExtras = extractFromPractitionerRoles(roleBundles[i] || []);
-        const practPhones = Array.isArray(mapped.phones) ? mapped.phones.length : 0;
-        const practEmails = Array.isArray(mapped.emails) ? mapped.emails.length : 0;
-        const practHasAddress = !!mapped.address;
-
-        // Merge — prefer the Practitioner resource's own values when present,
-        // fall back to PractitionerRole when Practitioner is missing the field.
-        if ((!mapped.phones || mapped.phones.length === 0) && roleExtras.phones.length > 0) {
-          mapped.phones = roleExtras.phones;
-        }
-        if ((!mapped.emails || mapped.emails.length === 0) && roleExtras.emails.length > 0) {
-          mapped.emails = roleExtras.emails;
-        }
-        if (!mapped.fax && roleExtras.fax) {
-          mapped.fax = roleExtras.fax;
-        }
-        if (!mapped.specialty && roleExtras.specialty) {
-          mapped.specialty = roleExtras.specialty;
-        }
-        if (!mapped.address && roleExtras.address) {
-          mapped.address = roleExtras.address;
-        }
-        // If still no address but we have an organization name, use that —
-        // "Duke Internal Medicine" is more useful than a blank field when
-        // coordinating care across a large system.
-        if (!mapped.address && roleExtras.organization) {
-          mapped.address = roleExtras.organization;
-        }
-
-        practitionerTelemetry.push({
-          ref: refList[i],
-          name: mapped.name,
-          roles_returned: (roleBundles[i] || []).length,
-          practitioner_phones: practPhones,
-          practitioner_emails: practEmails,
-          practitioner_has_address: practHasAddress,
-          role_phones: roleExtras.phones.length,
-          role_emails: roleExtras.emails.length,
-          role_has_fax: !!roleExtras.fax,
-          role_has_address: !!roleExtras.address,
-          role_organization: roleExtras.organization || null,
-          final_phones: (mapped.phones || []).length,
-          final_emails: (mapped.emails || []).length,
-          final_has_address: !!mapped.address,
-        });
-
-        return mapped;
-      })
-      .filter((p) => p !== null) as ReturnType<typeof mapPractitioner>[];
-
-    console.log('[fetch-ehr-data] Care team contact backfill', {
-      conn_id: conn.id,
-      person_id: personId,
-      practitioner_count: practitionerTelemetry.length,
-      sample: practitionerTelemetry.slice(0, 10),
-    });
-
-    // Sort care team alphabetically by name
-    careTeam.sort((a, b) => (a!.name || '').localeCompare(b!.name || ''));
-
-    const synced_at = new Date().toISOString();
-
-    // Build per-resource counts
-    const conditionsMapped = mapConditions(conditions);
-    const allergiesMapped = mapAllergies(allergies);
-    const observationsMapped = mapObservations(observations);
-    const immunizationsMapped = mapImmunizations(immunizations);
-    const diagnosticReportsMapped = mapDiagnosticReports(diagnosticReports);
-
-    const resultCounts = {
-      conditions: conditionsMapped.length,
-      medications: medicationsMapped.length,
-      allergies: allergiesMapped.length,
-      observations: observationsMapped.length,
-      immunizations: immunizationsMapped.length,
-      diagnostic_reports: diagnosticReportsMapped.length,
-      visits: visitsMapped.length,
-      care_team: careTeam.length,
-    };
-
-    // Step 3: Update last_synced_at for this specific connection.
-    await admin.from('ehr_connections').update({
-      last_synced_at: synced_at,
-    }).eq('id', conn.id);
-
-    // Step 4: Persist into canonical Wellet tables. Pass conn.id as the 4th
-    // arg so every row is source-tagged with this connection — lets the
-    // per-hospital pill UI and per-connection reconnect banners find their data.
-    const persist = await persistEhrData(admin, personId, {
-      medications: medicationsMapped,
-      allergies: allergiesMapped,
-      conditions: conditionsMapped,
-      visits: visitsMapped,
-      immunizations: immunizationsMapped,
-      diagnostic_reports: diagnosticReportsMapped,
-      observations: observationsMapped,
-    }, conn.id);
-
-    if (persist.errors.length > 0) {
-      console.error('[fetch-ehr-data] persistence errors', {
-        conn_id: conn.id,
-        person_id: personId,
-        errors: persist.errors,
-      });
-    } else {
-      console.log('[fetch-ehr-data] persisted', {
-        conn_id: conn.id,
-        person_id: personId,
-        ...persist,
-      });
-    }
-
+    accessToken = await decryptToken(encryptedAccess, encKey);
+    patientId = (conn.patient_id as string) || '';
+  } catch (decryptErr) {
     return {
-      ...baseResult,
-      status: 'ok',
-      patient: patient as unknown as Record<string, unknown>,
-      conditions: conditionsMapped,
-      medications: medicationsMapped,
-      allergies: allergiesMapped,
-      observations: observationsMapped,
-      immunizations: immunizationsMapped,
-      diagnostic_reports: diagnosticReportsMapped,
-      visits: visitsMapped,
-      care_team: careTeam,
-      synced_at,
-      result_counts: resultCounts,
-      persisted: {
-        medications: persist.medications,
-        allergies: persist.allergies,
-        health_events: persist.health_events,
-        lab_results: persist.lab_results,
-        vitals: persist.vitals,
-        errors: persist.errors,
-      },
-      fhir_calls: localFhirTele,
-      practitioner_calls: localPractTele,
-      duration_ms: Date.now() - connT0,
-    };
-
-  } catch (err) {
-    // One failing connection MUST NOT take down sibling connections. Catch
-    // everything, log it, and return a structured error result.
-    const e = err as any;
-    console.error('[fetch-ehr-data] fetchAndPersistOneConnection threw', {
-      conn_id: conn.id,
-      hospital: conn.hospital_name,
-      error: e?.message || String(err),
-      stack: e?.stack ? String(e.stack).split('\n').slice(0, 10) : null,
-    });
-    return {
-      ...baseResult,
+      connection_id: connId,
+      hospital_name: hospitalName,
+      fhir_base_url: fhirBaseUrl,
+      patient_id: null,
       status: 'fetch_error',
-      error: (e?.message || String(err)).slice(0, 500),
+      error: `decrypt: ${(decryptErr as Error).message}`,
       patient: null,
-      ...emptyArrays,
+      conditions: [], medications: [], allergies: [], observations: [],
+      immunizations: [], diagnostic_reports: [], visits: [], care_team: [],
+      appointments: [],
       synced_at: new Date().toISOString(),
-      result_counts: emptyCounts,
-      persisted: emptyPersisted,
-      fhir_calls: localFhirTele,
-      practitioner_calls: localPractTele,
-      duration_ms: Date.now() - connT0,
+      result_counts: { conditions: 0, medications: 0, allergies: 0, observations: 0, immunizations: 0, diagnostic_reports: 0, visits: 0, care_team: 0, appointments: 0, bonus: { episode_of_care: 0, nutrition_order: 0, device_use_statement: 0, device: 0, medication_dispense: 0, adverse_event: 0, flag: 0, immunization_recommendation: 0, provenance: 0 } },
+      persisted: { medications: 0, allergies: 0, health_events: 0, lab_results: 0, vitals: 0, errors: [] },
+      fhir_calls: [],
+      practitioner_calls: [],
+      duration_ms: 0,
+      provider: 'epic',
+      connected_provider: connectedProvider,
     };
   }
+
+  // Probe token with a lightweight Patient read.
+  // If 401, attempt silent refresh once before giving up.
+  try {
+    const probeUrl = `${fhirBaseUrl}/Patient/${patientId}`;
+    const probeRes = await fetch(probeUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/fhir+json',
+      },
+    });
+
+    if (probeRes.status === 401) {
+      // Try refresh
+      try {
+        const encKey = await getEncryptionKey();
+        const encryptedRefresh = (conn.refresh_token as string) || '';
+        if (!encryptedRefresh) throw new Error('No refresh token available');
+        const storedRefreshToken = await decryptToken(encryptedRefresh, encKey);
+        const connForRefresh = { ...conn as Record<string, string>, refresh_token: storedRefreshToken };
+        const { access_token: newAccess, refresh_token: newRefresh } = await refreshAccessToken(connForRefresh);
+
+        // Re-encrypt and persist
+        const newEncryptedAccess = await encryptToken(newAccess, encKey);
+        const newEncryptedRefresh = await encryptToken(newRefresh, encKey);
+        await admin.from('ehr_connections').update({
+          access_token: newEncryptedAccess,
+          refresh_token: newEncryptedRefresh,
+          updated_at: new Date().toISOString(),
+        }).eq('id', connId);
+
+        accessToken = newAccess;
+      } catch (refreshErr) {
+        tokenRefreshStatus = 'token_refresh_failed';
+        tokenRefreshError = (refreshErr as Error).message;
+        // Fall through — we'll return token_refresh_failed below
+      }
+    }
+  } catch (probeErr) {
+    // Network or unexpected error during probe — log and continue (don't abort)
+    console.error('probe error', (probeErr as Error).message);
+  }
+
+  if (tokenRefreshStatus === 'token_refresh_failed') {
+    return {
+      connection_id: connId,
+      hospital_name: hospitalName,
+      fhir_base_url: fhirBaseUrl,
+      patient_id: patientId,
+      status: 'token_refresh_failed',
+      error: tokenRefreshError,
+      patient: null,
+      conditions: [], medications: [], allergies: [], observations: [],
+      immunizations: [], diagnostic_reports: [], visits: [], care_team: [],
+      appointments: [],
+      synced_at: new Date().toISOString(),
+      result_counts: { conditions: 0, medications: 0, allergies: 0, observations: 0, immunizations: 0, diagnostic_reports: 0, visits: 0, care_team: 0, appointments: 0, bonus: { episode_of_care: 0, nutrition_order: 0, device_use_statement: 0, device: 0, medication_dispense: 0, adverse_event: 0, flag: 0, immunization_recommendation: 0, provenance: 0 } },
+      persisted: { medications: 0, allergies: 0, health_events: 0, lab_results: 0, vitals: 0, errors: [] },
+      fhir_calls: localFhirTele,
+      practitioner_calls: localPractTele,
+      duration_ms: 0,
+      provider: 'epic',
+      connected_provider: connectedProvider,
+    };
+  }
+
+  const t0 = Date.now();
+
+  // Fetch all resources in parallel
+  const patientQuery = `${fhirBaseUrl}/Patient/${patientId}`;
+  const [patientRes, condRes, medRes, allergyRes, obsRes, immunRes, docRes, encRes, apptRes,
+         bonusEocRes, bonusNutrRes, bonusDusRes, bonusDevRes, bonusMdRes, bonusAeRes, bonusFlagRes, bonusImrRes, bonusProvRes
+        ] = await Promise.allSettled([
+    fetch(patientQuery, { headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/fhir+json' } }),
+    fetchFhirResource(fhirBaseUrl, 'Condition', accessToken, `patient=${patientId}&category=problem-list-item`, localFhirTele),
+    fetchFhirResource(fhirBaseUrl, 'MedicationRequest', accessToken, `patient=${patientId}&status=active,on-hold`, localFhirTele),
+    fetchFhirResource(fhirBaseUrl, 'AllergyIntolerance', accessToken, `patient=${patientId}`, localFhirTele),
+    fetchFhirResource(fhirBaseUrl, 'Observation', accessToken, `patient=${patientId}&category=laboratory,vital-signs&_sort=-date`, localFhirTele),
+    fetchFhirResource(fhirBaseUrl, 'Immunization', accessToken, `patient=${patientId}`, localFhirTele),
+    fetchFhirResource(fhirBaseUrl, 'DocumentReference', accessToken, `patient=${patientId}&_sort=-date`, localFhirTele),
+    fetchFhirResource(fhirBaseUrl, 'Encounter', accessToken, `patient=${patientId}&_sort=-date`, localFhirTele),
+    // v60: Appointment — Premium scope only; Confidential returns 403 (swallowed as [])
+    fetchFhirResource(fhirBaseUrl, 'Appointment', accessToken, `patient=${patientId}&status=booked,arrived,fulfilled,waitlist&date=ge${new Date().toISOString().slice(0, 10)}`, localFhirTele),
+    // v60 bonus chronic-care resources (count-only, no mapping/persistence until v61)
+    fetchFhirResource(fhirBaseUrl, 'EpisodeOfCare', accessToken, `patient=${patientId}`, localFhirTele),
+    fetchFhirResource(fhirBaseUrl, 'NutritionOrder', accessToken, `patient=${patientId}`, localFhirTele),
+    fetchFhirResource(fhirBaseUrl, 'DeviceUseStatement', accessToken, `patient=${patientId}`, localFhirTele),
+    fetchFhirResource(fhirBaseUrl, 'Device', accessToken, `patient=${patientId}`, localFhirTele),
+    fetchFhirResource(fhirBaseUrl, 'MedicationDispense', accessToken, `patient=${patientId}`, localFhirTele),
+    fetchFhirResource(fhirBaseUrl, 'AdverseEvent', accessToken, `subject=${patientId}`, localFhirTele),
+    fetchFhirResource(fhirBaseUrl, 'Flag', accessToken, `patient=${patientId}`, localFhirTele),
+    fetchFhirResource(fhirBaseUrl, 'ImmunizationRecommendation', accessToken, `patient=${patientId}`, localFhirTele),
+    fetchFhirResource(fhirBaseUrl, 'Provenance', accessToken, `patient=${patientId}`, localFhirTele),
+  ]);
+
+  // Unwrap patient
+  let patientData: Record<string, unknown> | null = null;
+  if (patientRes.status === 'fulfilled' && patientRes.value.ok) {
+    try { patientData = await patientRes.value.json() as Record<string, unknown>; } catch (_e) { /* ignore */ }
+  }
+
+  const conditions = condRes.status === 'fulfilled' ? condRes.value : [];
+  const medications = medRes.status === 'fulfilled' ? medRes.value : [];
+  const allergies = allergyRes.status === 'fulfilled' ? allergyRes.value : [];
+  const observations = obsRes.status === 'fulfilled' ? obsRes.value : [];
+  const immunizations = immunRes.status === 'fulfilled' ? immunRes.value : [];
+  const documentReferences = docRes.status === 'fulfilled' ? docRes.value : [];
+  const encounters = encRes.status === 'fulfilled' ? encRes.value : [];
+  const appointmentResources = apptRes.status === 'fulfilled' ? apptRes.value : [];
+  // v60 bonus resource counts
+  const bonusEpisodeOfCare = bonusEocRes.status === 'fulfilled' ? bonusEocRes.value : [];
+  const bonusNutritionOrder = bonusNutrRes.status === 'fulfilled' ? bonusNutrRes.value : [];
+  const bonusDeviceUseStatement = bonusDusRes.status === 'fulfilled' ? bonusDusRes.value : [];
+  const bonusDevice = bonusDevRes.status === 'fulfilled' ? bonusDevRes.value : [];
+  const bonusMedicationDispense = bonusMdRes.status === 'fulfilled' ? bonusMdRes.value : [];
+  const bonusAdverseEvent = bonusAeRes.status === 'fulfilled' ? bonusAeRes.value : [];
+  const bonusFlag = bonusFlagRes.status === 'fulfilled' ? bonusFlagRes.value : [];
+  const bonusImmunizationRecommendation = bonusImrRes.status === 'fulfilled' ? bonusImrRes.value : [];
+  const bonusProvenance = bonusProvRes.status === 'fulfilled' ? bonusProvRes.value : [];
+
+  // Map resources
+  const mappedConditions = mapConditions(conditions);
+  const mappedMedications = mapMedications(medications);
+  const mappedAllergies = mapAllergies(allergies);
+  const mappedObservations = mapObservations(observations);
+  const mappedImmunizations = mapImmunizations(immunizations);
+  const mappedDocumentReferences = mapDocumentReferences(documentReferences);
+  const mappedVisits = mapEncounters(encounters);
+  const mappedAppointments = mapAppointments(appointmentResources);
+
+  // Build care team from visits + appointments + diagnostic reports
+  const mappedDiagnosticReports = mapDiagnosticReports([]);
+  const careTeam = await buildCareTeam(fhirBaseUrl, accessToken, mappedVisits, mappedAppointments, mappedDiagnosticReports, localPractTele);
+
+  // Persist
+  const persistResult = await persistEhrData(
+    admin,
+    personId,
+    {
+      medications: mappedMedications,
+      allergies: mappedAllergies,
+      conditions: mappedConditions,
+      visits: mappedVisits,
+      immunizations: mappedImmunizations,
+      diagnostic_reports: mappedDiagnosticReports,
+      observations: mappedObservations,
+      appointments: mappedAppointments,
+    },
+    connId,
+  );
+
+  // Update sync timestamp on ehr_connections
+  await admin.from('ehr_connections').update({ last_synced_at: new Date().toISOString() }).eq('id', connId);
+
+  return {
+    connection_id: connId,
+    hospital_name: hospitalName,
+    fhir_base_url: fhirBaseUrl,
+    patient_id: patientId,
+    status: 'ok',
+    patient: patientData,
+    conditions: mappedConditions,
+    medications: mappedMedications,
+    allergies: mappedAllergies,
+    observations: mappedObservations,
+    immunizations: mappedImmunizations,
+    diagnostic_reports: mappedDiagnosticReports,
+    visits: mappedVisits,
+    care_team: careTeam,
+    appointments: mappedAppointments,
+    synced_at: new Date().toISOString(),
+    result_counts: {
+      conditions: mappedConditions.length,
+      medications: mappedMedications.length,
+      allergies: mappedAllergies.length,
+      observations: mappedObservations.length,
+      immunizations: mappedImmunizations.length,
+      diagnostic_reports: mappedDocumentReferences.length,
+      visits: mappedVisits.length,
+      care_team: careTeam.length,
+      appointments: mappedAppointments.length,
+      bonus: {
+        episode_of_care: bonusEpisodeOfCare.length,
+        nutrition_order: bonusNutritionOrder.length,
+        device_use_statement: bonusDeviceUseStatement.length,
+        device: bonusDevice.length,
+        medication_dispense: bonusMedicationDispense.length,
+        adverse_event: bonusAdverseEvent.length,
+        flag: bonusFlag.length,
+        immunization_recommendation: bonusImmunizationRecommendation.length,
+        provenance: bonusProvenance.length,
+      },
+    },
+    persisted: {
+      medications: persistResult.medications,
+      allergies: persistResult.allergies,
+      health_events: persistResult.health_events,
+      lab_results: persistResult.lab_results,
+      vitals: persistResult.vitals,
+      errors: persistResult.errors,
+    },
+    fhir_calls: localFhirTele,
+    practitioner_calls: localPractTele,
+    duration_ms: Date.now() - t0,
+    provider: 'epic',
+    connected_provider: connectedProvider,
+  };
 }
 
-Deno.serve(async (req) => {
+// ── Main request handler ─────────────────────────────────────────────────────
+Deno.serve(async (req: Request) => {
+  // Reset module-level telemetry at the start of each request.
+  // (These are only used as fallbacks for non-fan-out code paths.)
+  currentFhirTelemetry = [];
+  currentPractitionerTelemetry = [];
+
   const corsHeaders = getCorsHeaders(req);
-  function jsonResponse(data: unknown, status = 200) {
-    return new Response(JSON.stringify(data), {
-      status,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
-
-  // Reset module-level telemetry vars to [] at request start. These are no-op
-  // fallbacks for any call paths not yet ported to the per-connection bucket
-  // pattern. The real telemetry lives in localFhirTele / localPractTele inside
-  // fetchAndPersistOneConnection.
-  currentFhirTelemetry = [];
-  currentPractitionerTelemetry = [];
-  const t0 = Date.now();
 
   try {
     const user = await getAuthenticatedUser(req);
@@ -1447,301 +1464,166 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'Unauthorized' }, 401);
     }
 
-    const body = await req.json().catch(() => ({}));
-    const { person_id } = body;
-    if (!person_id) {
-      return jsonResponse({ error: 'person_id is required' }, 400);
-    }
-
     const admin = getAdminClient();
 
-    // Phase 2 fan-out: look up ALL connected rows for this person (not .single()).
-    // Ordered by connected_at descending so the first successful result we pick
-    // for the merged flat response is the most recently connected hospital.
-    console.log('[fetch-ehr-data] lookup', { user_id: user.id, person_id, person_id_type: typeof person_id });
-    const { data: conns, error: connsErr } = await admin.from('ehr_connections')
+    // Look up person_id from users table
+    const { data: personRow, error: personError } = await admin
+      .from('users')
+      .select('person_id')
+      .eq('id', user.id)
+      .single();
+
+    if (personError || !personRow?.person_id) {
+      return jsonResponse({ error: 'Person not found', detail: personError?.message }, 404);
+    }
+    const personId: string = personRow.person_id;
+
+    // Phase 2: look up ALL ehr_connections for this person, sorted by created_at
+    const { data: connections, error: connError } = await admin
+      .from('ehr_connections')
       .select('*')
-      .eq('person_id', person_id)
-      .eq('user_id', user.id)
+      .eq('person_id', personId)
       .eq('status', 'connected')
-      .is('disconnected_at', null)
-      .order('connected_at', { ascending: false });
+      .order('created_at', { ascending: true });
 
-    if (connsErr || !conns || conns.length === 0) {
-      // Diagnostic: find any rows that match on person_id OR user_id to surface the mismatch.
-      // Preserved exactly from v39 so the frontend error handling doesn't break.
-      const byPerson = await admin.from('ehr_connections')
-        .select('id, user_id, person_id, provider, token_expires_at, has_access:access_token')
-        .eq('person_id', person_id);
-      const byUser = await admin.from('ehr_connections')
-        .select('id, user_id, person_id, provider, token_expires_at, has_access:access_token')
-        .eq('user_id', user.id);
-      const diagnostic = {
-        requested: { user_id: user.id, person_id, person_id_type: typeof person_id },
-        connError: connsErr?.message,
-        connError_code: connsErr?.code,
-        byPerson_count: byPerson.data?.length || 0,
-        byPerson_rows: (byPerson.data || []).map((r: any) => ({
-          id: r.id, user_id: r.user_id, person_id: r.person_id,
-          provider: r.provider, token_expires_at: r.token_expires_at,
-          has_access: !!r.has_access,
-        })),
-        byUser_count: byUser.data?.length || 0,
-        byUser_rows: (byUser.data || []).map((r: any) => ({
-          id: r.id, user_id: r.user_id, person_id: r.person_id,
-          provider: r.provider, token_expires_at: r.token_expires_at,
-          has_access: !!r.has_access,
-        })),
-        conn_has_token: false,
-      };
-      console.error('[fetch-ehr-data] 404 diagnostic', diagnostic);
-      return jsonResponse({ error: 'No EHR connection found for this person', _diagnostic: diagnostic }, 404);
+    if (connError) {
+      return jsonResponse({ error: 'DB error looking up connections', detail: connError.message }, 500);
     }
 
-    console.log('[fetch-ehr-data] lookup hit', {
-      conn_count: conns.length,
-      conn_ids: conns.map((c: any) => c.id),
-      providers: conns.map((c: any) => c.provider),
-    });
-
-    const encKey = Deno.env.get('EHR_ENCRYPTION_KEY') || '';
-    if (!encKey) {
-      console.error('[fetch-ehr-data] EHR_ENCRYPTION_KEY is not set');
-      return jsonResponse({ error: 'server_misconfigured', message: 'Encryption key not configured' }, 500);
+    if (!connections || connections.length === 0) {
+      return jsonResponse({ error: 'No EHR connection found for this user' }, 404);
     }
 
-    // ── Fan-out: run all connections in parallel ──────────────────────────────
-    // Promise.allSettled means one rejected promise (unexpected throw that
-    // escaped the inner try/catch) still surfaces as a structured error rather
-    // than blowing up the whole response.
+    // Fan-out: fetch+persist each connection in parallel
     const settled = await Promise.allSettled(
-      conns.map((c: any) => fetchAndPersistOneConnection(admin, user.id, person_id, c, encKey))
+      connections.map((conn: Record<string, unknown>) =>
+        fetchAndPersistOneConnection(conn, admin, personId)
+      )
     );
 
     const connectionResults: ConnectionResult[] = settled.map((s, i) => {
       if (s.status === 'fulfilled') return s.value;
-      // Unexpected rejection that escaped the inner catch — synthesize a result.
-      const c = conns[i];
+      // Rejected means an unhandled throw from fetchAndPersistOneConnection
+      const conn = connections[i] as Record<string, string>;
       return {
-        connection_id: c.id as string,
-        hospital_name: (c.hospital_name as string | null) ?? null,
-        fhir_base_url: (c.fhir_base_url as string) || 'https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4',
-        patient_id: (c.patient_id as string | null) ?? null,
-        provider: (c.connected_provider as string) || 'Epic MyChart',
-        connected_provider: (c.connected_provider as string | null) ?? null,
+        connection_id: conn.id || '',
+        hospital_name: conn.hospital_name || null,
+        fhir_base_url: conn.fhir_base_url || '',
+        patient_id: conn.patient_id || null,
         status: 'fetch_error' as const,
-        error: String(s.reason).slice(0, 500),
+        error: s.reason instanceof Error ? s.reason.message : String(s.reason),
         patient: null,
-        conditions: [],
-        medications: [],
-        allergies: [],
-        observations: [],
-        immunizations: [],
-        diagnostic_reports: [],
-        visits: [],
-        care_team: [],
+        conditions: [], medications: [], allergies: [], observations: [],
+        immunizations: [], diagnostic_reports: [], visits: [], care_team: [],
+        appointments: [],
         synced_at: new Date().toISOString(),
-        result_counts: { conditions: 0, medications: 0, allergies: 0, observations: 0, immunizations: 0, diagnostic_reports: 0, visits: 0, care_team: 0 },
+        result_counts: { conditions: 0, medications: 0, allergies: 0, observations: 0, immunizations: 0, diagnostic_reports: 0, visits: 0, care_team: 0, appointments: 0, bonus: { episode_of_care: 0, nutrition_order: 0, device_use_statement: 0, device: 0, medication_dispense: 0, adverse_event: 0, flag: 0, immunization_recommendation: 0, provenance: 0 } },
         persisted: { medications: 0, allergies: 0, health_events: 0, lab_results: 0, vitals: 0, errors: [] },
         fhir_calls: [],
         practitioner_calls: [],
         duration_ms: 0,
-      } satisfies ConnectionResult;
+        provider: 'epic',
+        connected_provider: conn.connected_provider || null,
+      };
     });
 
-    // ── Build backward-compatible flat response ───────────────────────────────
-    // Merge across all successful connections. When conns.length === 1 (today's
-    // single-Duke case), the merged shape is byte-equivalent to the v39 response.
-    const successfulResults = connectionResults.filter((r) => r.status === 'ok');
-    const firstOk = successfulResults[0] ?? null;
+    // ── Merge results into backward-compatible flat response ──────────────────
+    // v40+: all keys still present at top level (for legacy frontend code that
+    // reads response.conditions, response.medications, etc.).
+    // v40+ also exposes the raw `connections` array under _phase2: true.
 
-    // Concatenate clinical arrays across all connections
-    const mergedConditions = connectionResults.flatMap((r) => r.conditions);
-    const mergedMedications = connectionResults.flatMap((r) => r.medications);
-    const mergedAllergies = connectionResults.flatMap((r) => r.allergies);
-    const mergedObservations = connectionResults.flatMap((r) => r.observations);
-    const mergedImmunizations = connectionResults.flatMap((r) => r.immunizations);
-    const mergedDiagnosticReports = connectionResults.flatMap((r) => r.diagnostic_reports);
-    const mergedVisits = connectionResults.flatMap((r) => r.visits);
-    const mergedCareTeam = connectionResults.flatMap((r) => r.care_team);
-
-    // Patient identity: take from first successful connection (preserves
-    // existing identity-check semantics for single-connection families).
-    const mergedPatient = firstOk?.patient ?? { id: '', name: '', birth_date: '', gender: '' };
-    const mergedExpectedPatientId = firstOk?.patient_id ?? '';
-    const mergedProvider = firstOk?.provider ?? 'Epic MyChart';
-
-    // synced_at: max across successful connections so the UI shows the latest sync time.
-    const syncedAtMs = successfulResults.map((r) => new Date(r.synced_at).getTime()).filter((t) => !isNaN(t));
-    const mergedSyncedAt = syncedAtMs.length > 0
-      ? new Date(Math.max(...syncedAtMs)).toISOString()
-      : new Date().toISOString();
-
-    // Merged result_counts — sum across all connections
-    const mergedResultCounts = {
-      conditions: mergedConditions.length,
-      medications: mergedMedications.length,
-      allergies: mergedAllergies.length,
-      observations: mergedObservations.length,
-      immunizations: mergedImmunizations.length,
-      diagnostic_reports: mergedDiagnosticReports.length,
-      visits: mergedVisits.length,
-      care_team: mergedCareTeam.length,
-    };
-
-    // Merged persisted counts — sum across all connections
-    const mergedPersisted = connectionResults.reduce(
-      (acc, r) => ({
-        medications: acc.medications + r.persisted.medications,
-        allergies: acc.allergies + r.persisted.allergies,
-        health_events: acc.health_events + r.persisted.health_events,
-        lab_results: acc.lab_results + r.persisted.lab_results,
-        vitals: acc.vitals + r.persisted.vitals,
-        errors: [...acc.errors, ...r.persisted.errors],
-      }),
-      { medications: 0, allergies: 0, health_events: 0, lab_results: 0, vitals: 0, errors: [] as string[] },
-    );
-
-    // Flat fhir_calls for the top-level _diagnostic (backward compat)
-    const allFhirCalls = connectionResults.flatMap((r) => r.fhir_calls);
-    const allPractCalls = connectionResults.flatMap((r) => r.practitioner_calls);
-    const fhirCallsWithPract = [
-      ...allFhirCalls,
-      { resourceType: '__practitioner_debug__', practitioner_calls: allPractCalls },
-    ];
-
-    // One ehr_sync_log row PER connection — the regression watcher cron
-    // (a335d77a) reads by patient_id so per-connection rows are required.
-    for (const cr of connectionResults) {
-      try {
-        await admin.from('ehr_sync_log').insert({
-          person_id,
-          user_id: user.id,
-          provider: conns.find((c: any) => c.id === cr.connection_id)?.provider || null,
-          patient_id: cr.patient_id || null,
-          expected_patient_id: cr.patient_id || null,
-          patient_name: (cr.patient && (cr.patient as Record<string, unknown>).name as string) || null,
-          result_counts: {
-            ...cr.result_counts,
-            _persisted: {
-              medications: cr.persisted.medications,
-              allergies: cr.persisted.allergies,
-              health_events: cr.persisted.health_events,
-              lab_results: cr.persisted.lab_results,
-              vitals: cr.persisted.vitals,
-              errors: cr.persisted.errors,
-              duration_ms: cr.duration_ms,
-            },
-          },
-          fhir_calls: [
-            ...cr.fhir_calls,
-            { resourceType: '__practitioner_debug__', practitioner_calls: cr.practitioner_calls },
-          ],
-          duration_ms: cr.duration_ms,
-          status: cr.status === 'ok' ? 200 : cr.status === 'token_refresh_failed' ? 401 : 500,
-          error_message: cr.error || null,
-        });
-      } catch (logErr) {
-        console.error('[fetch-ehr-data] ehr_sync_log insert failed', { conn_id: cr.connection_id, logErr });
+    // Aggregate across connections (dedup by lowercased name where applicable)
+    function mergeArrays<T>(key: keyof ConnectionResult): T[] {
+      const all: T[] = [];
+      for (const c of connectionResults) {
+        const arr = c[key];
+        if (Array.isArray(arr)) all.push(...arr as T[]);
       }
+      return all;
     }
 
-    // One-line summary across all connections
-    console.log('[fetch-ehr-data] FHIR call summary', {
-      person_id,
-      connection_count: connectionResults.length,
-      ok_count: successfulResults.length,
-      calls: allFhirCalls,
-      practitioner_calls: allPractCalls,
-      result_counts: mergedResultCounts,
-    });
+    const allConditions = mergeArrays<ReturnType<typeof mapConditions>[0]>('conditions');
+    const allMedications = mergeArrays<ReturnType<typeof mapMedications>[0]>('medications');
+    const allAllergies = mergeArrays<ReturnType<typeof mapAllergies>[0]>('allergies');
+    const allObservations = mergeArrays<ReturnType<typeof mapObservations>[0]>('observations');
+    const allImmunizations = mergeArrays<ReturnType<typeof mapImmunizations>[0]>('immunizations');
+    const allDiagnosticReports = mergeArrays<ReturnType<typeof mapDiagnosticReports>[0]>('diagnostic_reports');
+    const allVisits = mergeArrays<ReturnType<typeof mapEncounters>[0]>('visits');
+    const allCareTeam = mergeArrays<ReturnType<typeof mapPractitioner>>('care_team');
+    const allAppointments = mergeArrays<ReturnType<typeof mapAppointments>[0]>('appointments');
 
-    // ── Build the response object ─────────────────────────────────────────────
-    // Top-level flat shape matches v39 exactly for single-connection users.
-    // Additional fields (_phase2, connections) are additive only.
-    const responseData: Record<string, unknown> = {
-      // Backward-compat flat fields
-      patient: mergedPatient,
-      expected_patient_id: mergedExpectedPatientId,
-      conditions: mergedConditions,
-      medications: mergedMedications,
-      allergies: mergedAllergies,
-      observations: mergedObservations,
-      immunizations: mergedImmunizations,
-      diagnostic_reports: mergedDiagnosticReports,
-      visits: mergedVisits,
-      care_team: mergedCareTeam,
-      provider: mergedProvider,
-      synced_at: mergedSyncedAt,
+    // First ok result's patient data (or first non-null)
+    const firstOkResult = connectionResults.find((c) => c.status === 'ok') || connectionResults[0];
+    const patientData = connectionResults.map((c) => c.patient).find((p) => p !== null) || null;
 
-      // Phase 2 new fields — frontend detects via _phase2: true
-      _phase2: true,
-      connections: connectionResults.map((cr) => ({
-        connection_id: cr.connection_id,
-        hospital_name: cr.hospital_name,
-        fhir_base_url: cr.fhir_base_url,
-        patient_id: cr.patient_id,
-        provider: cr.provider,
-        status: cr.status,
-        error: cr.error,
-        patient: cr.patient,
-        conditions: cr.conditions,
-        medications: cr.medications,
-        allergies: cr.allergies,
-        observations: cr.observations,
-        immunizations: cr.immunizations,
-        diagnostic_reports: cr.diagnostic_reports,
-        visits: cr.visits,
-        care_team: cr.care_team,
-        synced_at: cr.synced_at,
-        result_counts: cr.result_counts,
-        persisted: cr.persisted,
-        duration_ms: cr.duration_ms,
-        _diagnostic: {
-          result_counts: cr.result_counts,
-          persisted: cr.persisted,
-          fhir_calls: cr.fhir_calls,
-          practitioner_calls: cr.practitioner_calls,
-          duration_ms: cr.duration_ms,
-        },
-      })),
+    // Aggregate persisted counts
+    const totalPersisted = connectionResults.reduce((acc, c) => ({
+      medications: acc.medications + c.persisted.medications,
+      allergies: acc.allergies + c.persisted.allergies,
+      health_events: acc.health_events + c.persisted.health_events,
+      lab_results: acc.lab_results + c.persisted.lab_results,
+      vitals: acc.vitals + c.persisted.vitals,
+      errors: [...acc.errors, ...c.persisted.errors],
+    }), { medications: 0, allergies: 0, health_events: 0, lab_results: 0, vitals: 0, errors: [] as string[] });
 
-      // Top-level _diagnostic: merged across all connections (backward compat)
-      _diagnostic: {
-        result_counts: mergedResultCounts,
-        persisted: mergedPersisted,
-        fhir_calls: allFhirCalls,
-        practitioner_calls: allPractCalls,
-        duration_ms: Date.now() - t0,
+    // Aggregate result_counts
+    const totalCounts = connectionResults.reduce((acc, c) => ({
+      conditions: acc.conditions + c.result_counts.conditions,
+      medications: acc.medications + c.result_counts.medications,
+      allergies: acc.allergies + c.result_counts.allergies,
+      observations: acc.observations + c.result_counts.observations,
+      immunizations: acc.immunizations + c.result_counts.immunizations,
+      diagnostic_reports: acc.diagnostic_reports + c.result_counts.diagnostic_reports,
+      visits: acc.visits + c.result_counts.visits,
+      care_team: acc.care_team + c.result_counts.care_team,
+      appointments: acc.appointments + c.result_counts.appointments,
+      bonus: {
+        episode_of_care: acc.bonus.episode_of_care + c.result_counts.bonus.episode_of_care,
+        nutrition_order: acc.bonus.nutrition_order + c.result_counts.bonus.nutrition_order,
+        device_use_statement: acc.bonus.device_use_statement + c.result_counts.bonus.device_use_statement,
+        device: acc.bonus.device + c.result_counts.bonus.device,
+        medication_dispense: acc.bonus.medication_dispense + c.result_counts.bonus.medication_dispense,
+        adverse_event: acc.bonus.adverse_event + c.result_counts.bonus.adverse_event,
+        flag: acc.bonus.flag + c.result_counts.bonus.flag,
+        immunization_recommendation: acc.bonus.immunization_recommendation + c.result_counts.bonus.immunization_recommendation,
+        provenance: acc.bonus.provenance + c.result_counts.bonus.provenance,
       },
-    };
+    }), { conditions: 0, medications: 0, allergies: 0, observations: 0, immunizations: 0, diagnostic_reports: 0, visits: 0, care_team: 0, appointments: 0, bonus: { episode_of_care: 0, nutrition_order: 0, device_use_statement: 0, device: 0, medication_dispense: 0, adverse_event: 0, flag: 0, immunization_recommendation: 0, provenance: 0 } });
 
-    // HTTP 401 only when EVERY connection failed token refresh AND there was at
-    // least one connection — lets the client prompt a blanket reconnect.
-    // If only SOME connections failed, return 200 with per-connection error
-    // details in connections[i].status so the UI can show a targeted banner.
-    const allTokenFailed = connectionResults.length > 0 &&
-      connectionResults.every((r) => r.status === 'token_refresh_failed');
-    if (allTokenFailed) {
-      return jsonResponse({
-        error: 'Token refresh failed for all connections. Please reconnect to your EHR provider.',
-        connections: responseData.connections,
+    return new Response(
+      JSON.stringify({
         _phase2: true,
-      }, 401);
-    }
-
-    return jsonResponse(responseData);
-
-  } catch (err) {
-    const e = err as any;
-    console.error('fetch-ehr-data error:', e);
+        patient: patientData,
+        conditions: allConditions,
+        medications: allMedications,
+        allergies: allAllergies,
+        observations: allObservations,
+        immunizations: allImmunizations,
+        diagnostic_reports: allDiagnosticReports,
+        visits: allVisits,
+        care_team: allCareTeam,
+        appointments: allAppointments,
+        synced_at: new Date().toISOString(),
+        result_counts: totalCounts,
+        persisted: totalPersisted,
+        // Raw per-connection breakdown for Phase 2 frontend
+        connections: connectionResults,
+      }),
+      {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+  } catch (e) {
+    const err = e as Record<string, unknown>;
     return jsonResponse({
-      error: (e && e.message) || 'Internal server error',
-      _error_name: e?.name || null,
-      _error_code: e?.code || null,
-      _error_details: e?.details || null,
-      _error_hint: e?.hint || null,
-      _error_stack: e?.stack ? String(e.stack).split('\n').slice(0, 20) : null,
+      error: err?.message || 'Unknown error',
+      _error_code: err?.code || null,
+      _error_details: err?.details || null,
+      _error_hint: err?.hint || null,
+      _error_stack: err?.stack ? String(err.stack).split('\n').slice(0, 20) : null,
     }, 500);
   }
 });
