@@ -692,12 +692,12 @@
       </div>
       <!-- EDITORIAL RAIL — sticky section index for Records -->
       <nav id="records-rail" class="records-rail" aria-label="Records sections">
-        <a href="#" data-target="meds">Medications</a>
-        <a href="#" data-target="diagnoses">Diagnoses</a>
-        <a href="#" data-target="allergies">Allergies</a>
-        <a href="#" data-target="labs">Recent labs</a>
-        <a href="#" data-target="visits">Recent visits</a>
-        <a href="#" data-target="notes">Caregiver notes</a>
+        <button type="button" data-target="meds">Medications</button>
+        <button type="button" data-target="diagnoses">Diagnoses</button>
+        <button type="button" data-target="allergies">Allergies</button>
+        <button type="button" data-target="labs">Recent labs</button>
+        <button type="button" data-target="visits">Recent visits</button>
+        <button type="button" data-target="notes">Caregiver notes</button>
       </nav>
       <div id="records-dad" class="records-section">
         <div class="ehr-status-bar">
@@ -934,7 +934,7 @@
     (function() {
       var rail = document.getElementById('records-rail');
       if (!rail) return;
-      var links = rail.querySelectorAll('a[data-target]');
+      var links = rail.querySelectorAll('[data-target]');
       function activeSection() {
         var dad = document.getElementById('records-dad');
         var mom = document.getElementById('records-mom');
