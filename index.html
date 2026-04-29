@@ -974,6 +974,10 @@
       function updateActive() {
         var rail = getRail();
         if (!rail) return;
+        // Skip when records view is not active — hidden views report zeroed rects
+        // and would mark every group as "passed", landing on the LAST item.
+        var view = document.getElementById('view-records');
+        if (!view || !view.classList.contains('active')) return;
         var section = activeSection();
         if (!section) return;
         var groups = section.querySelectorAll('[data-group]');
@@ -1004,6 +1008,13 @@
         var pill = e.target && e.target.closest && e.target.closest('#records-pill-dad, #records-pill-mom');
         if (!pill) return;
         setTimeout(updateActive, 60);
+      });
+      // Re-evaluate active link whenever the records view becomes active
+      // (covers nav clicks, programmatic switchNavTo calls, demo entry, etc.).
+      document.addEventListener('click', function(e) {
+        var nav = e.target && e.target.closest && e.target.closest('.nav-item[data-nav-key="nav.records"]');
+        if (!nav) return;
+        setTimeout(updateActive, 80);
       });
       // Run once on load.
       updateActive();
