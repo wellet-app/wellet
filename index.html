@@ -28,6 +28,7 @@
 <link rel="stylesheet" href="/assets/editorial-records.css">
 <link rel="stylesheet" href="/assets/editorial-ask.css">
 <link rel="stylesheet" href="/assets/editorial-sheets.css">
+<link rel="stylesheet" href="/assets/editorial-er.css">
 </head>
 <body>
 <div class="page-wrap">
@@ -276,7 +277,7 @@
   <div class="app-header">
     <div class="header-top">
       <div class="app-logo-row">
-        <div>
+        <div data-longpress="er" aria-label="Press and hold for emergency summary">
           <svg class="app-wordmark" viewBox="0 138 150 42" xmlns="http://www.w3.org/2000/svg" aria-label="Wellet">
             <path fill="#608F7C" d="M45.5,142c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83l.25-2.56h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z"/>
             <path fill="#608F7C" d="M57.31,168.14c-1.13,1.44-2.57,2.56-4.32,3.37-1.75.8-3.61,1.21-5.58,1.21s-3.92-.49-5.65-1.48c-1.73-.98-3.1-2.32-4.1-4.01-1.01-1.69-1.51-3.55-1.51-5.56s.5-3.87,1.51-5.56c1.01-1.69,2.38-3.03,4.1-4.01,1.73-.98,3.61-1.48,5.65-1.48,1.92,0,3.62.28,5.09.83s2.62,1.31,3.42,2.29c.8.97,1.21,2.06,1.21,3.26,0,2.62-1.68,4.46-5.04,5.54-1.49.46-3.06.68-4.72.68-1.08,0-2.24-.11-3.49-.32.02,1.13.35,2.16.99,3.1.64.94,1.46,1.67,2.47,2.21s2.05.81,3.13.81c.96,0,1.94-.2,2.93-.61,1-.41,1.82-.98,2.47-1.73l1.44,1.48ZM45.7,155.59c-.8,1.26-1.34,2.86-1.6,4.81.84.17,1.64.25,2.41.25,1.61,0,2.87-.34,3.78-1.01.91-.67,1.51-1.5,1.8-2.48.1-.29.14-.59.14-.9,0-.86-.32-1.56-.95-2.09-.64-.53-1.36-.76-2.18-.68-1.46.14-2.6.85-3.4,2.11Z"/>
@@ -1240,7 +1241,7 @@
 
 
 <!-- EMERGENCY SUMMARY OVERLAY (full-screen, ER-optimized) -->
-<div class="er-overlay" id="emergency-overlay">
+<div class="er-overlay" id="emergency-overlay" data-editorial="er-sheet">
   <div class="er-container">
     <div class="er-header">
       <div class="er-header-left">
@@ -2939,5 +2940,70 @@
   </div>
 </div>
 
+<script>
+/* ────────────────────────────────────────────────────────────
+   Editorial primitive #7 — long-press the wordmark for ER summary.
+   Activates after 600ms of sustained press. Cancels on movement >8px,
+   release, or scroll. Works for mouse, touch, and pen.
+   ──────────────────────────────────────────────────────────── */
+(function(){
+  var HOLD_MS = 600;
+  var MOVE_TOLERANCE = 8;
+  var pressTimer = null;
+  var pressTarget = null;
+  var startX = 0, startY = 0;
+  var fired = false;
+
+  function clear() {
+    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+    if (pressTarget) { pressTarget.classList.remove('is-pressing'); pressTarget = null; }
+  }
+
+  function onDown(e) {
+    var t = e.target.closest && e.target.closest('[data-longpress="er"]');
+    if (!t) return;
+    fired = false;
+    pressTarget = t;
+    var p = e.touches ? e.touches[0] : e;
+    startX = p.clientX; startY = p.clientY;
+    t.classList.add('is-pressing');
+    pressTimer = setTimeout(function(){
+      fired = true;
+      if (pressTarget) pressTarget.classList.remove('is-pressing');
+      try { if (typeof openEmergencySummary === 'function') openEmergencySummary(); } catch(err){ /* noop */ }
+      // Light haptic if supported (mobile only — desktop browsers ignore)
+      try { if (navigator.vibrate) navigator.vibrate(12); } catch(err){}
+    }, HOLD_MS);
+  }
+
+  function onMove(e) {
+    if (!pressTimer) return;
+    var p = e.touches ? e.touches[0] : e;
+    if (Math.abs(p.clientX - startX) > MOVE_TOLERANCE || Math.abs(p.clientY - startY) > MOVE_TOLERANCE) {
+      clear();
+    }
+  }
+
+  function onUp(e) {
+    // If the long-press already fired, swallow the trailing click so the page
+    // doesn't double-handle it.
+    if (fired) {
+      e.preventDefault && e.preventDefault();
+      e.stopPropagation && e.stopPropagation();
+    }
+    clear();
+  }
+
+  document.addEventListener('mousedown', onDown, true);
+  document.addEventListener('mousemove', onMove, true);
+  document.addEventListener('mouseup', onUp, true);
+  document.addEventListener('mouseleave', clear, true);
+  document.addEventListener('touchstart', onDown, { capture: true, passive: true });
+  document.addEventListener('touchmove', onMove, { capture: true, passive: true });
+  document.addEventListener('touchend', onUp, true);
+  document.addEventListener('touchcancel', clear, true);
+  document.addEventListener('scroll', clear, true);
+})();
+</script>
 </body>
 </html>

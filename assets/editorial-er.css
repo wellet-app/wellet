@@ -1,0 +1,322 @@
+/* ============================================================
+   editorial-er.css — PR 7
+   ER summary editorial treatment.
+
+   This is the ONE place the editorial system intentionally breaks
+   the linen palette: the ER sheet is full-screen WHITE so a panicked
+   spouse, an EMT under fluorescent light, or a triage nurse can
+   read it at a glance. Everything else still follows the linen +
+   eight-gray ladder + Fraunces editorial DNA — no red, no clinical
+   crimson, no scary alert chrome.
+
+   Trigger surfaces:
+   - long-press on the masthead wordmark (preferred — primitive #7)
+   - the existing "Emergency summary" QA button + header menu item
+   ============================================================ */
+
+/* ---- Overlay shell ---- */
+[data-editorial="er-sheet"].er-overlay {
+  background: #FFFFFF !important;          /* the only white surface in the app */
+  z-index: 9000;
+}
+[data-editorial="er-sheet"] .er-container {
+  max-width: 760px;
+  height: 100%;
+  background: #FFFFFF;
+  overflow-y: auto;
+}
+
+/* ---- Header (was crimson bar) ---- */
+[data-editorial="er-sheet"] .er-header {
+  background: #FFFFFF !important;
+  color: var(--ink-9) !important;
+  padding: 22px 24px 16px !important;
+  border-bottom: 1px solid var(--ink-1, #E8E2D6);
+  align-items: flex-start !important;
+}
+[data-editorial="er-sheet"] .er-header-left {
+  gap: 12px !important;
+  align-items: center;
+}
+[data-editorial="er-sheet"] .er-header-left > i,
+[data-editorial="er-sheet"] .er-header-left > svg,
+[data-editorial="er-sheet"] .er-header-left [data-lucide] {
+  color: var(--signal-warm, #B8835A) !important;
+  width: 18px !important;
+  height: 18px !important;
+  stroke-width: 1.6;
+}
+[data-editorial="er-sheet"] .er-header-title {
+  font-family: 'Fraunces', Georgia, serif !important;
+  font-size: 22px !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.005em !important;
+  line-height: 1.15 !important;
+  color: var(--ink-9) !important;
+  font-variation-settings: "opsz" 36, "SOFT" 60 !important;
+}
+
+/* refresh + close glyphs */
+[data-editorial="er-sheet"] .er-close-btn {
+  background: transparent !important;
+  border: 0 !important;
+  color: var(--ink-5) !important;
+  width: 38px !important;
+  height: 38px !important;
+  min-width: 38px !important;
+  min-height: 38px !important;
+  border-radius: 0 !important;
+  transition: color 0.15s ease;
+  box-shadow: none !important;
+}
+[data-editorial="er-sheet"] .er-close-btn:hover {
+  background: transparent !important;
+  color: var(--ink-9) !important;
+}
+[data-editorial="er-sheet"] .er-close-btn:focus { outline: none; }
+[data-editorial="er-sheet"] .er-close-btn:focus-visible {
+  outline: 1px solid var(--ink-3);
+  outline-offset: 2px;
+}
+[data-editorial="er-sheet"] .er-close-btn svg,
+[data-editorial="er-sheet"] .er-close-btn i {
+  width: 20px !important;
+  height: 20px !important;
+  stroke-width: 1.6;
+}
+
+/* ---- Patient banner (was pink with crimson rule) ---- */
+[data-editorial="er-sheet"] .er-patient-banner {
+  background: #FFFFFF !important;
+  border-bottom: 1px solid var(--ink-1, #E8E2D6) !important;
+  padding: 24px !important;
+}
+[data-editorial="er-sheet"] .er-patient-name {
+  font-family: 'Fraunces', Georgia, serif !important;
+  font-size: 36px !important;
+  font-weight: 400 !important;
+  letter-spacing: -0.01em !important;
+  line-height: 1.05 !important;
+  color: var(--ink-9) !important;
+  margin-bottom: 6px !important;
+  font-variation-settings: "opsz" 36, "SOFT" 60 !important;
+}
+[data-editorial="er-sheet"] .er-patient-dob {
+  font-family: 'DM Sans', -apple-system, sans-serif !important;
+  font-weight: 300 !important;
+  font-size: 14px !important;
+  color: var(--ink-6) !important;
+  letter-spacing: 0 !important;
+}
+
+/* ---- Body / sections ---- */
+[data-editorial="er-sheet"] .er-body {
+  background: #FFFFFF !important;
+  padding: 0 !important;
+}
+[data-editorial="er-sheet"] .er-body .emrg-section {
+  margin: 0 !important;
+  padding: 22px 24px !important;
+  border-bottom: 1px solid var(--ink-1, #E8E2D6) !important;
+}
+[data-editorial="er-sheet"] .er-body .emrg-section:last-child {
+  border-bottom: none !important;
+}
+[data-editorial="er-sheet"] .er-body .emrg-section-title {
+  font-family: 'Fraunces', Georgia, serif !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.12em !important;
+  text-transform: uppercase !important;
+  color: var(--ink-5) !important;
+  margin-bottom: 14px !important;
+  font-variation-settings: "opsz" 14, "SOFT" 60 !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+[data-editorial="er-sheet"] .er-body .emrg-section-title i,
+[data-editorial="er-sheet"] .er-body .emrg-section-title svg,
+[data-editorial="er-sheet"] .er-body .emrg-section-title [data-lucide] {
+  width: 13px !important;
+  height: 13px !important;
+  color: var(--moss-deep, #3F5F52) !important;
+  stroke-width: 1.6;
+}
+
+/* rows: label/value as a hairline-divided ladder */
+[data-editorial="er-sheet"] .er-body .emrg-row {
+  display: flex !important;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 0 !important;
+  border-bottom: 1px solid var(--ink-0, #F2EDE2);
+  font-size: 16px !important;
+}
+[data-editorial="er-sheet"] .er-body .emrg-row:last-child {
+  border-bottom: none;
+}
+[data-editorial="er-sheet"] .er-body .emrg-label {
+  font-family: 'DM Sans', -apple-system, sans-serif !important;
+  font-weight: 300 !important;
+  font-size: 16px !important;
+  color: var(--ink-6) !important;
+  flex: 0 0 auto;
+}
+[data-editorial="er-sheet"] .er-body .emrg-val {
+  font-family: 'Fraunces', Georgia, serif !important;
+  font-weight: 500 !important;
+  font-size: 16px !important;
+  color: var(--ink-9) !important;
+  text-align: right;
+  font-variation-settings: "opsz" 24, "SOFT" 60 !important;
+}
+
+/* ---- AI brief section ---- */
+[data-editorial="er-sheet"] #er-ai-section {
+  padding: 22px 24px !important;
+  background: var(--linen, #F7F5F0) !important;   /* gentle linen island so the brief reads as
+                                                       a separate voice, not chart data */
+  border-top: 1px solid var(--ink-1, #E8E2D6);
+  border-bottom: 1px solid var(--ink-1, #E8E2D6);
+}
+[data-editorial="er-sheet"] .er-ai-header {
+  margin-bottom: 12px !important;
+}
+[data-editorial="er-sheet"] .er-ai-label {
+  font-family: 'Fraunces', Georgia, serif !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.12em !important;
+  text-transform: uppercase !important;
+  color: var(--ink-5) !important;
+  font-variation-settings: "opsz" 14, "SOFT" 60 !important;
+}
+[data-editorial="er-sheet"] .er-ai-label i,
+[data-editorial="er-sheet"] .er-ai-label [data-lucide] {
+  color: var(--moss-deep, #3F5F52) !important;
+  stroke-width: 1.6;
+}
+[data-editorial="er-sheet"] .er-ai-refresh {
+  color: var(--ink-5) !important;
+  background: transparent !important;
+  opacity: 1;
+}
+[data-editorial="er-sheet"] .er-ai-refresh:hover {
+  color: var(--ink-9) !important;
+}
+[data-editorial="er-sheet"] .er-ai-body,
+[data-editorial="er-sheet"] .er-ai-text {
+  font-family: 'Fraunces', Georgia, serif !important;
+  font-size: 17px !important;
+  font-weight: 400 !important;
+  line-height: 1.6 !important;
+  color: var(--ink-9) !important;
+  font-variation-settings: "opsz" 24, "SOFT" 60 !important;
+}
+[data-editorial="er-sheet"] .er-ai-loading {
+  font-family: 'DM Sans', -apple-system, sans-serif !important;
+  font-weight: 300 !important;
+  color: var(--ink-5) !important;
+}
+[data-editorial="er-sheet"] .er-ai-cached-note {
+  font-family: 'DM Sans', -apple-system, sans-serif !important;
+  font-weight: 300 !important;
+  font-size: 12px !important;
+  color: var(--ink-5) !important;
+  border-top: 1px solid var(--ink-1, #E8E2D6) !important;
+}
+
+/* ---- Actions footer ---- */
+[data-editorial="er-sheet"] .er-actions {
+  background: #FFFFFF !important;
+  border-top: 1px solid var(--ink-1, #E8E2D6) !important;
+  padding: 16px 24px !important;
+  gap: 12px !important;
+}
+[data-editorial="er-sheet"] .er-action-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: 'DM Sans', -apple-system, sans-serif !important;
+  font-weight: 500 !important;
+  font-size: 14px !important;
+  letter-spacing: 0.01em !important;
+  border-radius: 999px !important;
+  padding: 13px 18px !important;
+  border: 0 !important;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+[data-editorial="er-sheet"] .er-action-share {
+  background: var(--moss-deep, #3F5F52) !important;
+  color: #FFFFFF !important;
+  border: 1px solid var(--moss-deep, #3F5F52) !important;
+}
+[data-editorial="er-sheet"] .er-action-share:hover {
+  background: var(--ink-9, #1F1B16) !important;
+  border-color: var(--ink-9, #1F1B16) !important;
+}
+[data-editorial="er-sheet"] .er-action-pdf {
+  background: transparent !important;
+  color: var(--ink-9, #1F1B16) !important;
+  border: 1px solid var(--ink-3, #C8C0B5) !important;
+}
+[data-editorial="er-sheet"] .er-action-pdf:hover {
+  background: transparent !important;
+  border-color: var(--ink-9, #1F1B16) !important;
+  color: var(--ink-9, #1F1B16) !important;
+}
+[data-editorial="er-sheet"] .er-action-btn i,
+[data-editorial="er-sheet"] .er-action-btn [data-lucide] {
+  width: 15px !important;
+  height: 15px !important;
+  stroke-width: 1.6;
+}
+
+[data-editorial="er-sheet"] .er-footer {
+  background: #FFFFFF !important;
+  font-family: 'DM Sans', -apple-system, sans-serif !important;
+  font-weight: 300 !important;
+  color: var(--ink-5) !important;
+}
+
+/* ---- Long-press on wordmark ---- */
+/* Visual affordance: when held, the wordmark dims so the user feels the gesture
+   register before the sheet animates in. No tooltip; this is a primitive, not a
+   discoverable button — Settings > "How Wellet works" will teach it. */
+.app-logo-row [data-longpress="er"] {
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.18s ease;
+}
+.app-logo-row [data-longpress="er"].is-pressing {
+  opacity: 0.55;
+}
+
+/* ---- Tablet + desktop tightening ---- */
+@media (min-width: 768px) {
+  [data-editorial="er-sheet"] .er-container {
+    max-width: 720px;
+  }
+  [data-editorial="er-sheet"] .er-patient-name {
+    font-size: 44px !important;
+  }
+  [data-editorial="er-sheet"] .er-body .emrg-row {
+    font-size: 17px !important;
+  }
+  [data-editorial="er-sheet"] .er-ai-body,
+  [data-editorial="er-sheet"] .er-ai-text {
+    font-size: 18px !important;
+  }
+}
+@media (min-width: 1024px) {
+  [data-editorial="er-sheet"] .er-container {
+    max-width: 760px;
+  }
+}
