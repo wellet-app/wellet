@@ -1,0 +1,462 @@
+/* ============================================================
+   Wellet · Editorial UI Rollout · PR 4
+   Records surface (#view-records) — medications & groups
+   as flat editorial rows.
+
+   Every override scoped to #view-records[data-editorial="records"]
+   so removing the data attribute reverts instantly.
+
+   Foundation tokens come from editorial-foundation.css.
+   Behavior unchanged: no JS edits, no copy edits, no route changes.
+   ============================================================ */
+
+/* ---- Container: full-width on tablet+, reading column on phones ---- */
+/* Records is a list/index surface (not prose), so it should use the available
+   width on tablet/desktop — not be confined to the 640px reading column that
+   suits Updates. Phones still use the natural single column. */
+#view-records[data-editorial="records"] {
+  font-family: var(--sans);
+  font-weight: 300;
+  color: var(--ink-9);
+  letter-spacing: 0.005em;
+  background: transparent;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: auto;
+  padding: 0 var(--gutter, 22px);
+}
+@media (min-width: 1100px) {
+  /* Soft cap on very large desktops so rows don't run into super-long lines. */
+  #view-records[data-editorial="records"] {
+    max-width: 1040px;
+  }
+}
+
+/* ---- View header ---- */
+#view-records[data-editorial="records"] .view-header {
+  border: 0;
+  padding: 26px 0 18px;
+  margin: 0;
+  background: transparent;
+}
+#view-records[data-editorial="records"] .view-title {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 30px;
+  line-height: 1.18;
+  color: var(--ink-9);
+  letter-spacing: -0.005em;
+  font-variation-settings: "opsz" 36, "SOFT" 60;
+  margin: 0;
+}
+
+/* Person pills — from PR 8 we'll move these to switcher; for now
+   just quiet them. Underline-only chips, no fills. */
+#view-records[data-editorial="records"] .person-pill {
+  background: transparent;
+  border: 1px solid var(--ink-2);
+  border-radius: 999px;
+  color: var(--ink-5);
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 13px;
+  letter-spacing: 0.005em;
+  padding: 5px 14px;
+  box-shadow: none;
+  cursor: pointer;
+}
+#view-records[data-editorial="records"] .person-pill.active {
+  border-color: var(--moss-deep);
+  color: var(--moss-deep);
+  background: transparent;
+}
+#view-records[data-editorial="records"] .person-pill .pip {
+  background: var(--signal-fresh);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+}
+
+/* ============================================================
+   STICKY SECTION RAIL — Records table-of-contents
+   Sits between the header and the records-section. Sticks to top.
+   Tap a label to smooth-scroll to that group.
+   ============================================================ */
+#view-records[data-editorial="records"] .records-rail {
+  position: sticky;
+  /* Stick BELOW the app-header (sticky, ~65px tall, z-index:10).
+     iOS safe-area-inset is already inside app-header padding, so 65px is enough. */
+  top: 64px;
+  z-index: 9;
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 12px 0;
+  margin: 0 0 4px;
+  background: var(--bg, #F7F5F0);
+  border-top: 1px solid var(--ink-1);
+  border-bottom: 1px solid var(--ink-1);
+}
+#view-records[data-editorial="records"] .records-rail::-webkit-scrollbar {
+  display: none;
+}
+#view-records[data-editorial="records"] .records-rail button {
+  flex-shrink: 0;
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-5);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  padding: 4px 0;
+  margin: 0;
+  box-shadow: none;
+  transition: color 0.15s ease, border-color 0.15s ease;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+#view-records[data-editorial="records"] .records-rail button:hover {
+  color: var(--ink-9);
+}
+#view-records[data-editorial="records"] .records-rail button.active {
+  color: var(--moss-deep);
+  border-bottom-color: var(--moss-deep);
+}
+
+/* When the rail is in editorial mode, hide it for the legacy non-editorial
+   view (it sits inside view-records, between header and records-section). */
+#view-records:not([data-editorial="records"]) .records-rail {
+  display: none;
+}
+
+/* ---- EHR status bar — quiet caption row ---- */
+#view-records[data-editorial="records"] .ehr-status-bar {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--ink-1);
+  border-bottom: 1px solid var(--ink-1);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 12px 0;
+  margin: 0 0 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--sans);
+  font-weight: 300;
+  font-size: 13px;
+  color: var(--ink-5);
+  flex-wrap: wrap;
+}
+#view-records[data-editorial="records"] .ehr-status-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-7);
+}
+#view-records[data-editorial="records"] .ehr-status-left strong {
+  font-weight: 500;
+  color: var(--ink-9);
+}
+#view-records[data-editorial="records"] .ehr-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--signal-fresh);
+  flex-shrink: 0;
+}
+#view-records[data-editorial="records"] .ehr-status-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-4);
+  font-size: 12px;
+}
+#view-records[data-editorial="records"] .ehr-refresh-btn {
+  background: transparent;
+  border: 0;
+  color: var(--ink-4);
+  padding: 4px;
+  cursor: pointer;
+}
+#view-records[data-editorial="records"] .ehr-refresh-btn:hover {
+  color: var(--moss-deep);
+}
+
+/* ============================================================
+   GROUPS — section pattern, no card chrome
+   ============================================================ */
+#view-records[data-editorial="records"] .record-group {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 24px 0 4px;
+  margin: 0;
+}
+
+#view-records[data-editorial="records"] .record-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 0;
+  margin: 0 0 14px;
+  background: transparent;
+  border: 0;
+}
+
+/* Group title — Fraunces serif headline */
+#view-records[data-editorial="records"] .record-group-title {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 22px;
+  line-height: 1.25;
+  color: var(--ink-9);
+  letter-spacing: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+/* Hide the lucide icon next to the title — typography carries hierarchy */
+#view-records[data-editorial="records"] .record-group-title svg,
+#view-records[data-editorial="records"] .record-group-title [data-lucide]:not(.ehr-badge [data-lucide]) {
+  display: none;
+}
+
+/* Count — quiet caption */
+#view-records[data-editorial="records"] .record-group-count {
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--ink-4);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* + Add button — underline-only editorial action */
+#view-records[data-editorial="records"] .record-group-header button {
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--ink-2) !important;
+  border-radius: 0 !important;
+  color: var(--moss-deep) !important;
+  font-family: var(--sans) !important;
+  font-weight: 400 !important;
+  font-size: 13px !important;
+  letter-spacing: 0.005em !important;
+  padding: 2px 0 !important;
+  box-shadow: none !important;
+  cursor: pointer;
+}
+#view-records[data-editorial="records"] .record-group-header button:hover {
+  border-bottom-color: var(--moss-deep) !important;
+}
+
+/* ============================================================
+   ROWS — flat editorial entries
+   ============================================================ */
+#view-records[data-editorial="records"] .record-row {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--ink-0);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 16px 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 12px;
+  cursor: pointer;
+}
+#view-records[data-editorial="records"] .record-group > .record-row:last-child,
+#view-records[data-editorial="records"] .record-group [id$="-list"] > .record-row:last-child {
+  border-bottom: 0;
+}
+#view-records[data-editorial="records"] .record-row:hover {
+  background: rgba(96, 143, 124, 0.04);
+}
+
+/* Hide the colored icon block — typography only */
+#view-records[data-editorial="records"] .record-row .record-icon {
+  display: none;
+}
+
+/* Hide the chevron — the row is the affordance */
+#view-records[data-editorial="records"] .record-row > svg:last-child,
+#view-records[data-editorial="records"] .record-row > [data-lucide="chevron-right"],
+#view-records[data-editorial="records"] .record-row [data-lucide="chevron-right"] {
+  display: none;
+}
+
+/* The row's primary text (record-label) — sans medium */
+#view-records[data-editorial="records"] .record-row .record-label {
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: 17px;
+  color: var(--ink-9);
+  letter-spacing: 0.005em;
+  line-height: 1.35;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* The meta line — serif italic, the editorial commentary register */
+#view-records[data-editorial="records"] .record-row .record-meta {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-style: italic;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-5);
+  margin-top: 4px;
+  letter-spacing: 0.005em;
+  font-variation-settings: "opsz" 14, "SOFT" 60;
+}
+
+/* The middle div that wraps label+meta — make sure it expands */
+#view-records[data-editorial="records"] .record-row > div:not(.record-icon) {
+  min-width: 0;
+}
+
+/* ============================================================
+   BADGES — quiet pills only
+   ============================================================ */
+/* Status badges (Watching / Improving / Stable / Active / Normal /
+   Changed Feb 18) — replace colored fills with a small dot + text */
+#view-records[data-editorial="records"] .record-badge {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  font-family: var(--serif) !important;
+  font-style: italic !important;
+  font-weight: 400 !important;
+  font-size: 13px !important;
+  color: var(--ink-5) !important;
+  padding: 0 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+#view-records[data-editorial="records"] .record-badge::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--signal-fresh);
+  display: inline-block;
+  flex-shrink: 0;
+  transform: translateY(-1px);
+}
+#view-records[data-editorial="records"] .record-badge.amber::before {
+  background: var(--signal-warm);
+}
+#view-records[data-editorial="records"] .record-badge.moss::before {
+  background: var(--signal-fresh);
+}
+#view-records[data-editorial="records"] .record-badge.red::before {
+  background: var(--signal-warm);
+}
+
+/* EHR provenance — small caption */
+#view-records[data-editorial="records"] .ehr-provider-badge {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  color: var(--moss-deep) !important;
+  font-family: var(--serif) !important;
+  font-style: italic !important;
+  font-weight: 400 !important;
+  font-size: 13px !important;
+  padding: 0 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* EHR badge inside labels (small uppercase pill) — keep but quiet */
+#view-records[data-editorial="records"] .ehr-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid var(--ink-2);
+  color: var(--ink-5);
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin-left: 0;
+}
+#view-records[data-editorial="records"] .ehr-badge svg,
+#view-records[data-editorial="records"] .ehr-badge [data-lucide] {
+  width: 10px;
+  height: 10px;
+  color: var(--ink-5);
+}
+
+/* ============================================================
+   PRIVACY NOTICE — small editorial footer
+   ============================================================ */
+#view-records[data-editorial="records"] .ehr-privacy-notice {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--ink-1);
+  border-radius: 0;
+  padding: 22px 0 8px;
+  margin: 30px 0 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-family: var(--sans);
+  font-weight: 300;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-5);
+}
+#view-records[data-editorial="records"] .ehr-privacy-notice svg,
+#view-records[data-editorial="records"] .ehr-privacy-notice [data-lucide] {
+  color: var(--ink-4);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* Tablet bumps */
+@media (min-width: 768px) {
+  #view-records[data-editorial="records"] .view-title {
+    font-size: 36px;
+  }
+  #view-records[data-editorial="records"] .record-group-title {
+    font-size: 24px;
+  }
+  #view-records[data-editorial="records"] .record-row .record-label {
+    font-size: 18px;
+  }
+}
