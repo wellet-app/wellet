@@ -1,4 +1,20 @@
-// Supabase Edge Function: fetch-ehr-data (v60 — Wellet Premium pulls.
+// Supabase Edge Function: fetch-ehr-data (v61 — surface dead refresh tokens
+// as HTTP 401 instead of HTTP 200 with an empty envelope.
+//
+// Before v61, when every connection's refresh token was rejected by Epic
+// (the access_token had expired AND the refresh path failed for each row),
+// we still returned a 200 with empty arrays and `_phase2: true`. The
+// frontend treated that as a successful sync of zero data and ultimately
+// surfaced "Couldn't reach health records — try again" — even though the
+// real fix is to reconnect the EHR. The frontend already has a clean
+// reconnect-prompt path keyed off HTTP 401, so v61 returns 401 with the
+// same per-connection envelope when every connection in this fan-out came
+// back with status === 'token_refresh_failed'. Mixed states (some ok,
+// some refresh-failed) still return 200 with the partial data so the user
+// can keep reading what we did manage to sync — only the all-failed case
+// changes status code.
+//
+// Originally v60 — Wellet Premium pulls.
 // Adds Appointment (mapped + persisted to health_events under event_type
 // 'appointment', FUTURE only, skip cancelled/noshow) AND a count-only "bonus"
 // block of 9 chronic-care resources (EpisodeOfCare, NutritionOrder,
@@ -1526,6 +1542,38 @@ Deno.serve(async (req: Request) => {
         connected_provider: conn.connected_provider || null,
       };
     });
+
+    // ── v61: surface all-tokens-dead as HTTP 401 ──────────────────────────────
+    // If every connection came back with token_refresh_failed, the user needs
+    // to reconnect. Returning 200 with empty data here causes the frontend to
+    // show a generic "Couldn't reach health records" toast. The frontend
+    // already keys reconnect-prompt UX off HTTP 401 (see fetchEhrData in
+    // assets/wellet.js — the 401 branch calls evaluateReconnectBanner()).
+    //
+    // Mixed states (some ok, some refresh-failed) still return 200 below so
+    // the user can keep reading whatever did sync — only the all-failed case
+    // changes status code. The per-connection envelope under `connections`
+    // is preserved so the UI can highlight which hospital(s) need reconnect.
+    const allRefreshFailed =
+      connectionResults.length > 0 &&
+      connectionResults.every((c) => c.status === 'token_refresh_failed');
+    if (allRefreshFailed) {
+      return new Response(
+        JSON.stringify({
+          error: 'token_refresh_failed',
+          detail:
+            'Every connected EHR rejected the stored refresh token. The user must reconnect.',
+          connections: connectionResults,
+        }),
+        {
+          status: 401,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+    }
 
     // ── Merge results into backward-compatible flat response ──────────────────
     // v40+: all keys still present at top level (for legacy frontend code that
