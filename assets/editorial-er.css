@@ -232,21 +232,22 @@
 [data-editorial="er-sheet"] .er-actions {
   background: #FFFFFF !important;
   border-top: 1px solid var(--ink-1, #E8E2D6) !important;
-  padding: 16px 24px !important;
-  gap: 12px !important;
+  padding: 16px 20px !important;
+  gap: 10px !important;
 }
 [data-editorial="er-sheet"] .er-action-btn {
   flex: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 7px;
   font-family: 'DM Sans', -apple-system, sans-serif !important;
   font-weight: 500 !important;
   font-size: 14px !important;
   letter-spacing: 0.01em !important;
+  white-space: nowrap !important;
   border-radius: 999px !important;
-  padding: 13px 18px !important;
+  padding: 13px 12px !important;
   border: 0 !important;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
