@@ -39,7 +39,9 @@
 #auth-screen[data-editorial="auth"] > .auth-privacy,
 #auth-screen[data-editorial="auth"] > .auth-building-badge {
   max-width: var(--frame-max);
-  margin-left: auto;
+  /* Left-align the editorial column to the page-wrap edge instead of
+     centering it. Wordmark sits flush left with the headline column. */
+  margin-left: 0;
   margin-right: auto;
 }
 
