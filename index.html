@@ -931,10 +931,10 @@
 
     <script>
     // Editorial records rail: smooth-scroll to active person's group + active state.
+    // NOTE: handlers are delegated on document so they survive view-records innerHTML
+    // restorations (saveDemoHTML/restoreDemoHTML clones DOM, drops listeners).
     (function() {
-      var rail = document.getElementById('records-rail');
-      if (!rail) return;
-      var links = rail.querySelectorAll('[data-target]');
+      function getRail() { return document.getElementById('records-rail'); }
       function activeSection() {
         var dad = document.getElementById('records-dad');
         var mom = document.getElementById('records-mom');
@@ -946,24 +946,35 @@
         if (!section) return;
         var target = section.querySelector('[data-group="' + key + '"]');
         if (!target) return; // Mom may not have allergies/visits — silently noop
-        // Account for sticky rail height
-        var railH = rail.getBoundingClientRect().height;
+        var rail = getRail();
+        var railH = rail ? rail.getBoundingClientRect().height : 0;
         var y = target.getBoundingClientRect().top + window.scrollY - railH - 8;
         window.scrollTo({ top: y, behavior: 'smooth' });
       }
-      links.forEach(function(a) {
-        a.addEventListener('click', function(e) {
-          e.preventDefault();
-          links.forEach(function(x) { x.classList.remove('active'); });
-          a.classList.add('active');
-          scrollToGroup(a.getAttribute('data-target'));
+      function setActiveLink(key) {
+        var rail = getRail();
+        if (!rail) return;
+        rail.querySelectorAll('[data-target]').forEach(function(x) {
+          x.classList.toggle('active', x.getAttribute('data-target') === key);
         });
+      }
+      // Delegated click — survives innerHTML restoration of view-records.
+      document.addEventListener('click', function(e) {
+        var btn = e.target && e.target.closest && e.target.closest('#records-rail [data-target]');
+        if (!btn) return;
+        e.preventDefault();
+        var key = btn.getAttribute('data-target');
+        setActiveLink(key);
+        scrollToGroup(key);
       });
       // Update active link as the user scrolls.
       function updateActive() {
+        var rail = getRail();
+        if (!rail) return;
         var section = activeSection();
         if (!section) return;
         var groups = section.querySelectorAll('[data-group]');
+        if (!groups.length) return;
         var railH = rail.getBoundingClientRect().height;
         var threshold = railH + 24;
         var current = null;
@@ -971,10 +982,8 @@
           var top = g.getBoundingClientRect().top;
           if (top - threshold <= 0) current = g.getAttribute('data-group');
         });
-        if (!current && groups.length) current = groups[0].getAttribute('data-group');
-        links.forEach(function(a) {
-          a.classList.toggle('active', a.getAttribute('data-target') === current);
-        });
+        if (!current) current = groups[0].getAttribute('data-group');
+        setActiveLink(current);
       }
       var ticking = false;
       window.addEventListener('scroll', function() {
@@ -985,12 +994,14 @@
           ticking = false;
         });
       }, { passive: true });
-      // Run once on load and after person switches.
+      // Delegated person-pill clicks (also survive re-renders).
+      document.addEventListener('click', function(e) {
+        var pill = e.target && e.target.closest && e.target.closest('#records-pill-dad, #records-pill-mom');
+        if (!pill) return;
+        setTimeout(updateActive, 60);
+      });
+      // Run once on load.
       updateActive();
-      var dadPill = document.getElementById('records-pill-dad');
-      var momPill = document.getElementById('records-pill-mom');
-      if (dadPill) dadPill.addEventListener('click', function() { setTimeout(updateActive, 50); });
-      if (momPill) momPill.addEventListener('click', function() { setTimeout(updateActive, 50); });
     })();
     </script>
 
