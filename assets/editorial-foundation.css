@@ -1,0 +1,589 @@
+/* ============================================================================
+   editorial-foundation.css — Foundation plumbing for the editorial UI direction.
+
+   This file is ADDITIVE-ONLY plumbing for the upcoming editorial UI rollout.
+   It introduces:
+     1. New CSS custom properties (eight-gray ladder, quiet-status tones,
+        --serif/--sans aliases, --frame-max/--gutter)
+     2. Dormant baseline classes for the editorial shell (masthead, shell-sheet,
+        shell-scrim, shell-nav, lp-hint, er-sheet)
+
+   IMPORTANT: nothing in production's current markup uses these classes today.
+   Adding this file MUST NOT change any visible surface. Surfaces will be
+   migrated one PR at a time in subsequent rollout PRs:
+       PR 2 — Auth screen
+       PR 3 — Updates surface
+       PR 4 — Records surface
+       PR 5 — Ask surface
+       PR 6 — Sheets (settings/profile/upload/qa/share)
+       PR 7 — ER summary (long-press wordmark + full-screen white sheet)
+       PR 8 — Person switcher + 7th primitive Gestures
+
+   This file is loaded AFTER wellet.css in <head>, so :root extensions stack
+   onto the existing variable set and nothing already declared is overridden.
+   ============================================================================ */
+
+/* ---------------------------------------------------------------------------
+   :root extension — purely additive. Existing wellet.css :root variables
+   (--moss, --mint, --cream, --text-primary, --font-display, --touch-min, etc.)
+   remain intact. Nothing below collides with anything currently declared.
+   --------------------------------------------------------------------------- */
+:root {
+  /* Eight-gray ladder — no black, no flat #000.
+     Used for editorial body copy, dividers, and quiet metadata.
+     Range goes from --ink-0 (lightest, near-cream) to --ink-9 (deepest ink). */
+  --ink-0: #ECE7DC;
+  --ink-1: #E2DDD3;
+  --ink-2: #C8C0B5;
+  --ink-3: #A8A097;
+  --ink-4: #8A8278;
+  --ink-5: #6E665C;
+  --ink-7: #3C362F;
+  --ink-9: #1F1B16;
+
+  /* Quiet status tones — no red, ever.
+     Used for editorial signals. The signal palette deliberately stays
+     warm/neutral so the app never feels alarming. */
+  --signal-warm:    #B8835A;  /* the only "urgent" tone, used sparingly */
+  --signal-stale:   #B5A582;  /* unanswered / aging */
+  --signal-fresh:   #8AA89A;  /* recent / healthy */
+  --signal-missing: #C8C0B5;  /* absent data */
+
+  /* Editorial moss palette — supplements the existing --moss. */
+  --moss-deep: #3F5F52;       /* deeper editorial accent */
+  --moss-quiet: #8AA89A;      /* quieter moss for serif marks */
+
+  /* Editorial frame & gutter — sits alongside the existing 768px page-wrap.
+     These power the editorial reading column when surfaces opt in. */
+  --frame-max: 420px;         /* phone editorial column */
+  --gutter: 22px;
+
+  /* Font aliases — Fraunces is already loaded in index.html <head>.
+     --serif is the editorial display face. --sans is the body face.
+     Existing --font-display ('Fraunces') is left untouched. */
+  --serif: 'Fraunces', 'DM Serif Display', Georgia, serif;
+  --sans:  'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --frame-max: 620px;
+    --gutter: 32px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --gutter: 40px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Fraunces variation tuning — only applies when an element opts in via the
+   .serif class or one of the editorial wrappers. Existing DM Serif Display
+   headlines in production are NOT affected.
+   --------------------------------------------------------------------------- */
+.serif,
+.shell-sheet h3,
+.shell-sheet .ps-name,
+.lede,
+.er-sheet h2.er-name,
+.er-sheet .er-key,
+.masthead .person .name {
+  font-variation-settings: "opsz" 36, "SOFT" 60, "WONK" 0;
+}
+.serif-italic,
+em.fr {
+  font-variation-settings: "opsz" 14, "SOFT" 75, "WONK" 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Masthead — dormant unless a surface adds .masthead markup.
+   Shipped here so PR 2+ can wire it without re-adding plumbing each time.
+   --------------------------------------------------------------------------- */
+.masthead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 0 18px;
+  max-width: var(--frame-max);
+  margin: 0 auto;
+  padding-left: var(--gutter);
+  padding-right: var(--gutter);
+}
+@media (min-width: 768px) {
+  .masthead { padding: 30px 0 22px; padding-left: var(--gutter); padding-right: var(--gutter); }
+  .masthead .wordmark svg { width: 112px; }
+  .masthead .where { font-size: 13px; }
+  .masthead .person { font-size: 14px; min-height: var(--touch-min); padding: 10px 6px 10px 12px; }
+  .masthead .person .name { font-size: 17px; }
+}
+.masthead .wordmark {
+  color: var(--moss-deep);
+  display: inline-flex;
+  align-items: center;
+}
+.masthead .wordmark svg {
+  width: 96px;
+  height: auto;
+  display: block;
+}
+.masthead .where {
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--ink-4);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 400;
+}
+.masthead .person {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 4px 0;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ink-7);
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: color 0.12s ease;
+}
+.masthead .person:hover { color: var(--moss-deep); }
+.masthead .person .chev {
+  width: 9px; height: 9px;
+  display: inline-block;
+  border-right: 1.25px solid currentColor;
+  border-bottom: 1.25px solid currentColor;
+  transform: rotate(45deg) translateY(-2px);
+  opacity: 0.55;
+}
+.masthead .person .name {
+  font-family: var(--serif);
+  font-size: 15px;
+  color: var(--ink-9);
+  letter-spacing: -0.002em;
+}
+
+/* ---------------------------------------------------------------------------
+   Long-press hint — coach mark for the wordmark. Hidden by default; only
+   visible when JS toggles .shown. PR 7 wires this in.
+   --------------------------------------------------------------------------- */
+.lp-hint {
+  position: fixed;
+  top: 64px;
+  left: max(var(--gutter), calc((100vw - var(--frame-max)) / 2 + var(--gutter)));
+  max-width: 240px;
+  background: var(--moss-deep);
+  color: #F7F5F0;
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 10px 14px 12px;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(63, 95, 82, 0.22);
+  z-index: 65;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+  pointer-events: none;
+}
+.lp-hint.shown {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.lp-hint::before {
+  content: "";
+  position: absolute;
+  top: -6px; left: 26px;
+  width: 12px; height: 12px;
+  background: var(--moss-deep);
+  transform: rotate(45deg);
+  border-radius: 2px;
+}
+.lp-hint .lp-dismiss {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(247, 245, 240, 0.8);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: rgba(247, 245, 240, 0.4);
+}
+@media (min-width: 768px) {
+  .lp-hint { top: 78px; }
+}
+
+/* ---------------------------------------------------------------------------
+   Shell-level scrim and sheet — namespaced as .shell-* so they NEVER collide
+   with production's existing .scrim / .sheet / .overlay rules.
+   --------------------------------------------------------------------------- */
+.shell-scrim {
+  position: fixed; inset: 0;
+  background: rgba(31, 27, 22, 0.18);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.22s ease;
+  z-index: 60;
+}
+.shell-scrim.shown { opacity: 1; pointer-events: auto; }
+
+.shell-sheet {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  background: var(--cream);
+  border-top: 1px solid var(--ink-1);
+  border-radius: 18px 18px 0 0;
+  transform: translateY(100%);
+  transition: transform 0.32s cubic-bezier(0.22, 0.61, 0.36, 1);
+  z-index: 70;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.shell-sheet.shown { transform: translateY(0); }
+.shell-sheet .handle {
+  width: 40px; height: 4px;
+  background: var(--ink-2);
+  border-radius: 2px;
+  margin: 10px auto 6px;
+}
+.shell-sheet .inner {
+  max-width: var(--frame-max);
+  margin: 0 auto;
+  padding: 8px var(--gutter) 24px;
+}
+@media (min-width: 768px) {
+  .shell-sheet { border-radius: 22px 22px 0 0; }
+  .shell-sheet .inner { padding: 12px var(--gutter) 28px; }
+  .shell-sheet h3 { font-size: 26px; }
+  .shell-sheet .ps-list li { padding: 18px 0; min-height: var(--touch-min); }
+  .shell-sheet .ps-list .ps-name { font-size: 20px; }
+  .shell-sheet .ps-list .ps-meta { font-size: 14px; }
+}
+.shell-sheet h3 {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 22px;
+  line-height: 1.22;
+  margin: 8px 0 4px;
+  color: var(--ink-9);
+}
+.shell-sheet .ps-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+}
+.shell-sheet .ps-list li {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--ink-1);
+  cursor: pointer;
+  transition: color 0.14s ease;
+}
+.shell-sheet .ps-list li:hover { color: var(--moss-deep); }
+.shell-sheet .ps-list .ps-name {
+  font-family: var(--serif);
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--ink-9);
+  letter-spacing: -0.002em;
+}
+.shell-sheet .ps-list .ps-meta {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink-5);
+}
+.shell-sheet .ps-list .ps-current {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--moss-deep);
+  margin-right: 6px;
+  vertical-align: middle;
+  margin-bottom: 1px;
+}
+.shell-sheet .ps-list li.add .ps-name {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--moss-deep);
+  text-decoration: underline;
+  text-decoration-color: var(--ink-2);
+  text-underline-offset: 3px;
+}
+.shell-sheet .ps-foot {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--ink-1);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+.shell-sheet .ps-foot a {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink-5);
+  text-decoration: underline;
+  text-decoration-color: var(--ink-2);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.shell-sheet .ps-foot a:hover { color: var(--moss-deep); }
+
+/* ---------------------------------------------------------------------------
+   ER summary sheet — the only place Wellet uses pure white. Full-screen,
+   slides up, lives at z-index 90. Wired in PR 7.
+   --------------------------------------------------------------------------- */
+.er-sheet {
+  position: fixed;
+  inset: 0;
+  background: #FFFFFF;
+  transform: translateY(100%);
+  transition: transform 0.36s cubic-bezier(0.22, 0.61, 0.36, 1);
+  z-index: 90;
+  overflow-y: auto;
+}
+.er-sheet.shown { transform: translateY(0); }
+.er-sheet .er-bar {
+  position: sticky; top: 0;
+  background: #FFFFFF;
+  border-bottom: 1px solid #E5E2DC;
+  padding: 14px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 1;
+}
+.er-sheet .er-bar .er-eyebrow {
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--signal-warm);
+  font-weight: 500;
+}
+.er-sheet .er-bar .er-close {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--ink-9);
+  cursor: pointer;
+  padding: 4px 6px;
+  text-decoration: underline;
+  text-decoration-color: var(--ink-2);
+  text-underline-offset: 3px;
+}
+.er-sheet .er-inner {
+  max-width: var(--frame-max);
+  margin: 0 auto;
+  padding: 18px var(--gutter) 120px;
+}
+.er-sheet h2.er-name {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 32px;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  margin: 8px 0 2px;
+  color: #0F0D0A;
+}
+.er-sheet p.er-sub {
+  font-family: var(--sans);
+  font-size: 14px;
+  color: #5C5650;
+  margin: 0 0 6px;
+  line-height: 1.5;
+}
+.er-sheet p.er-stamp {
+  font-family: var(--sans);
+  font-size: 12px;
+  color: #8A847C;
+  margin: 0 0 24px;
+  letter-spacing: 0.02em;
+}
+.er-sheet section.er-block {
+  border-top: 1px solid #E5E2DC;
+  padding: 18px 0 6px;
+}
+.er-sheet section.er-block .er-label {
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #5C5650;
+  font-weight: 500;
+  margin: 0 0 10px;
+}
+.er-sheet section.er-block ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.er-sheet section.er-block li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 14px;
+  padding: 9px 0;
+  font-family: var(--sans);
+  font-size: 16px;
+  color: #0F0D0A;
+  line-height: 1.4;
+  border-bottom: 1px solid #F0EDE7;
+}
+.er-sheet section.er-block li:last-child { border-bottom: 0; }
+.er-sheet section.er-block li .er-key {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 18px;
+  color: #0F0D0A;
+  letter-spacing: -0.002em;
+}
+.er-sheet section.er-block li .er-val {
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--ink-7);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.er-sheet .er-hand {
+  position: fixed;
+  left: var(--gutter); right: var(--gutter); bottom: 22px;
+  max-width: calc(var(--frame-max) - var(--gutter));
+  margin: 0 auto;
+  min-height: var(--touch-min);
+  background: var(--ink-9);
+  color: #FFFFFF;
+  border: 0;
+  padding: 16px 18px;
+  border-radius: 14px;
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  box-shadow: 0 8px 28px rgba(15, 13, 10, 0.18);
+  z-index: 2;
+  text-align: center;
+  display: flex; align-items: center; justify-content: center;
+  gap: 8px;
+}
+.er-sheet .er-hand:hover { background: var(--ink-7); }
+.er-sheet .er-hand .er-hand-sub {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.65);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-top: 3px;
+}
+.er-sheet .er-hand-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.er-sheet.doctor .er-bar .er-eyebrow { color: var(--ink-9); }
+.er-sheet.doctor .er-bar .er-close { display: none; }
+.er-sheet.doctor .er-hand {
+  background: var(--cream);
+  color: var(--ink-9);
+  border: 1px solid #E5E2DC;
+  box-shadow: none;
+}
+.er-sheet.doctor .er-doctor-strip {
+  background: var(--ink-9);
+  color: #FFFFFF;
+  text-align: center;
+  font-family: var(--sans);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 10px 22px;
+}
+
+/* ---------------------------------------------------------------------------
+   Shell bottom-nav — editorial tab bar variant. Lives alongside the existing
+   bottom nav. Surfaces will opt in later by adding .shell-nav markup; until
+   then this is dormant.
+   --------------------------------------------------------------------------- */
+.shell-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(247, 245, 240, 0.96);
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  border-top: 1px solid var(--ink-1);
+  z-index: 40;
+}
+.shell-nav-inner {
+  max-width: var(--frame-max);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  padding: 8px 6px calc(env(safe-area-inset-bottom, 0px) + 8px);
+}
+@media (min-width: 768px) {
+  .shell-nav-inner { padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 10px); }
+  .shell-nav a { padding: 12px 6px; min-height: var(--touch-min); font-size: 12px; }
+  .shell-nav a svg { width: 26px; height: 26px; }
+}
+.shell-nav a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  text-decoration: none;
+  color: var(--ink-4);
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  transition: color 0.12s ease;
+  position: relative;
+}
+.shell-nav a:hover { color: var(--ink-7); }
+.shell-nav a svg {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  display: block;
+}
+.shell-nav a.current {
+  color: var(--moss-deep);
+}
+.shell-nav a.current svg {
+  stroke-width: 1.75;
+}
+.shell-nav a.current::after {
+  content: "";
+  display: block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--moss-deep);
+  margin-top: 2px;
+  position: absolute;
+  bottom: 4px;
+}
+
+/* ============================================================================
+   END editorial-foundation.css
+   No surface markup uses these classes yet. Visual diff vs production = none.
+   ============================================================================ */
