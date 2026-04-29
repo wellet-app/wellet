@@ -1,0 +1,18882 @@
+// ── SUPABASE SETUP ──────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://nrpdhxygzyfmyljzfexv.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storageKey: 'sb-wellet-auth',
+    storage: window.localStorage
+  }
+});
+
+// ── GLOBAL STATE ─────────────────────────────────────────────────────────────
+var isDemoMode = false;
+var currentUser = null;
+var currentPeople = [];   // [{id, name, relationship, avatar_initials}]
+
+// Subtle per-person background tints (barely perceptible, subliminal context)
+var _personBgPalette = ['#F7F5F0', '#F0F5F2', '#F3F0F6', '#F0F3F7', '#F7F2F0'];
+// VA-enrolled people get a subtle olive/sage palette that nods to military without shouting
+var _vaPersonBgPalette = ['#F2F3EC', '#EEF0E6', '#F4F4E9', '#EDF1E8', '#F1F2EA'];
+function applyPersonBg(personId) {
+  var idx = 0;
+  var person = null;
+  for (var i = 0; i < currentPeople.length; i++) {
+    if (currentPeople[i].id === personId) { idx = i; person = currentPeople[i]; break; }
+  }
+  var palette = (person && person.situation === 'va-enrolled') ? _vaPersonBgPalette : _personBgPalette;
+  var bg = palette[idx % palette.length];
+  document.documentElement.style.setProperty('--person-bg', bg);
+}
+var currentPersonId = null; // selected person uuid
+// Persist last-selected person so reloads (including post-EHR-OAuth round trip) stay on the right chip.
+function setCurrentPersonId(personId) {
+  currentPersonId = personId || null;
+  try {
+    if (personId) localStorage.setItem('wellet_last_person_id', personId);
+    else localStorage.removeItem('wellet_last_person_id');
+  } catch(e) {}
+  try { evaluateReconnectBanner(); } catch(e) {}
+}
+function getSavedPersonId() {
+  try { return localStorage.getItem('wellet_last_person_id') || null; } catch(e) { return null; }
+}
+var liveEvents = [];      // health_events fetched from DB
+var liveMeds = [];        // medications fetched from DB
+var liveDocs = [];        // documents fetched from DB
+var liveLabs = [];        // lab_results fetched from DB
+var liveVitals = [];      // vitals fetched from DB
+var liveAllergies = [];   // allergies fetched from DB
+var liveCareCircle = [];  // care_circle_members fetched from DB
+var summaryCache = {};    // { personId: summaryText } to avoid re-fetching
+var _cardToRemove = null;
+var _cardToRemoveId = null; // Supabase id if real person
+var _currentAskPerson = 'dad';
+var _editingContactId = null; // care_circle_members id being edited
+var _editingEventId = null;   // health_events id being edited
+var _editingMedId = null;     // medications id being edited
+
+// ── BILLING / PLAN STATE ─────────────────────────────────────────────────────
+var currentPlan = 'free'; // 'free', 'plus', 'pro'
+var planStatus = 'active'; // 'active', 'granted', 'past_due', 'canceled'
+var planSource = 'default'; // 'stripe', 'granted', 'promo'
+var planGrantedReason = ''; // e.g. 'Founding 50 member', 'Early 100 member — 12 months'
+var planLoaded = false;
+
+var STRIPE_PRICES = {
+  plus_monthly: 'price_1TNJEkQk7RCcdO4CnH8kmhqX',
+  plus_annual: 'price_1TNJEkQk7RCcdO4CO7oK9fje',
+  pro_monthly: 'price_1TNJEkQk7RCcdO4CUxM7DeVN',
+  pro_annual: 'price_1TNJElQk7RCcdO4Ca4Qsbg6U'
+};
+
+var PLAN_FEATURES = {
+  free: ['timeline', 'basic_meds', 'upload_5', 'care_circle_2', 'one_person'],
+  plus: ['ai_summaries', 'patterns', 'ask_wellet', 'visit_prep', 'unlimited_docs', 'unlimited_circle', 'email_notif', 'search', 'multi_lang'],
+  pro: ['ehr_integration', 'caresignals', 'data_export', 'multi_person', 'push_notif', 'emergency_pdf']
+};
+
+// ── ICON INIT ────────────────────────────────────────────────────────────────
+function initIcons() { if (window.lucide) lucide.createIcons(); }
+window.addEventListener('load', function() {
+  initIcons();
+  initVoiceInput();
+  // Apply saved language: update nav labels, tab labels, lang picker buttons
+  document.documentElement.lang = currentLang;
+  var navBtns = document.querySelectorAll('.nav-item');
+  for (var _ni = 0; _ni < navBtns.length; _ni++) {
+    var _navKey = navBtns[_ni].getAttribute('data-nav-key');
+    if (_navKey) {
+      var _tn = navBtns[_ni].lastChild;
+      if (_tn && _tn.nodeType === 3) _tn.textContent = t(_navKey);
+    }
+  }
+  var tabBtns = document.querySelectorAll('.tab[id^="tab-btn-"]');
+  var tabKeys = ['tab.update', 'tab.timeline', 'tab.patterns'];
+  for (var _ti = 0; _ti < tabBtns.length; _ti++) {
+    if (tabKeys[_ti]) tabBtns[_ti].textContent = t(tabKeys[_ti]);
+  }
+  // Set active lang pill
+  var langPills = document.querySelectorAll('.lang-pill-btn');
+  for (var _li = 0; _li < langPills.length; _li++) {
+    if (langPills[_li].dataset.lang === currentLang) langPills[_li].classList.add('active');
+    else langPills[_li].classList.remove('active');
+  }
+  // Apply i18n to all data-i18n elements
+  applyI18n();
+});
+
+// ── CARE CIRCLE INVITE ACCEPTANCE ─────────────────────────────────────────
+var _pendingInviteToken = null;
+var _inviteData = null;
+
+async function checkInviteOnLoad() {
+  var params = new URLSearchParams(window.location.search);
+  var token = params.get('invite');
+  if (!token) return false;
+  // Validate invite token format (UUID) to prevent injection
+  if (!/^[a-f0-9\-]{36}$/.test(token)) return false;
+  _pendingInviteToken = token;
+
+  try {
+    var res = await fetch(SUPABASE_URL + '/functions/v1/care-circle-invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+      body: JSON.stringify({ action: 'lookup', invite_token: token })
+    });
+    var data = await res.json();
+    if (!res.ok || !data.success) {
+      showInviteError(data.error || 'This invite link is no longer valid.');
+      return true;
+    }
+    _inviteData = data;
+    return true;
+  } catch(e) {
+    console.error('Invite lookup error:', e);
+    showInviteError('Could not load invite. Please try again.');
+    return true;
+  }
+}
+
+function showInviteAcceptUI() {
+  if (!_inviteData) return;
+  var d = _inviteData;
+  var overlay = document.getElementById('invite-accept-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'invite-accept-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(44,42,38,0.5);z-index:250;display:flex;align-items:center;justify-content:center;padding:24px;';
+    document.body.appendChild(overlay);
+  }
+  var inviterName = escHtml(d.inviter_name || 'Someone');
+  var personName = escHtml(d.person_name || 'their loved one');
+  var memberRole = escHtml(d.member_role || 'Care Circle Member');
+  overlay.innerHTML = '<div style="background:white;border-radius:20px;padding:32px 24px 24px;max-width:360px;width:100%;text-align:center;font-family:DM Sans,sans-serif;">'
+    + '<div style="width:56px;height:56px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">'
+    + '<i data-lucide="heart-handshake" style="width:26px;height:26px;color:var(--moss);"></i></div>'
+    + '<div style="font-family:DM Serif Display,serif;font-size:20px;margin-bottom:6px;">You\u2019re invited</div>'
+    + '<div style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:20px;">'
+    + inviterName + ' invited you to join the care circle for <strong>' + personName + '</strong> as <strong>' + memberRole + '</strong>.'
+    + '</div>'
+    + '<div style="font-size:12px;color:var(--text-muted);line-height:1.5;margin-bottom:20px;padding:12px;background:var(--cream);border-radius:10px;">'
+    + 'When you join, you\u2019ll be able to see ' + personName + '\u2019s health timeline, medications, and care updates.</div>'
+    + (currentUser
+      ? '<button onclick="acceptInvite()" style="background:var(--moss);color:white;border:none;border-radius:12px;padding:13px 32px;font-size:15px;font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;width:100%;margin-bottom:10px;">Join Care Circle</button>'
+      : '<div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;">Sign in or create an account to join</div>'
+      + '<button onclick="dismissInviteUI();showAuthForInvite()" style="background:var(--moss);color:white;border:none;border-radius:12px;padding:13px 32px;font-size:15px;font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;width:100%;margin-bottom:10px;">Sign in to join</button>')
+    + '<button onclick="dismissInviteUI();clearInviteParam()" style="background:none;border:none;color:var(--text-muted);font-size:13px;cursor:pointer;font-family:DM Sans,sans-serif;padding:6px;">Not now</button>'
+    + '</div>';
+  overlay.style.display = 'flex';
+  initIcons();
+}
+
+function showInviteError(msg) {
+  var overlay = document.createElement('div');
+  overlay.className = 'invite-err';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(44,42,38,0.5);z-index:250;display:flex;align-items:center;justify-content:center;padding:24px;';
+  overlay.innerHTML = '<div style="background:white;border-radius:20px;padding:32px 24px 24px;max-width:340px;width:100%;text-align:center;font-family:DM Sans,sans-serif;">'
+    + '<div style="width:52px;height:52px;border-radius:50%;background:#FFF0F0;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">'
+    + '<i data-lucide="alert-triangle" style="width:24px;height:24px;color:var(--red);"></i></div>'
+    + '<div style="font-family:DM Serif Display,serif;font-size:18px;margin-bottom:8px;">Invalid Invite</div>'
+    + '<div style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:20px;">' + escHtml(msg) + '</div>'
+    + '<button onclick="this.closest(\'.invite-err\').remove();clearInviteParam()" style="background:var(--moss);color:white;border:none;border-radius:12px;padding:12px 28px;font-size:14px;font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;">OK</button>'
+    + '</div>';
+  document.body.appendChild(overlay);
+  initIcons();
+}
+
+function dismissInviteUI() {
+  var overlay = document.getElementById('invite-accept-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function showAuthForInvite() {
+  showAuthScreen();
+}
+
+function clearInviteParam() {
+  var url = new URL(window.location);
+  url.searchParams.delete('invite');
+  window.history.replaceState({}, '', url.pathname + (url.search || ''));
+  _pendingInviteToken = null;
+  _inviteData = null;
+}
+
+async function acceptInvite() {
+  if (!currentUser || !_pendingInviteToken) {
+    showToast('Please sign in first');
+    return;
+  }
+  dismissInviteUI();
+  showToast('Joining care circle\u2026');
+
+  try {
+    var session = (await db.auth.getSession()).data.session;
+    var res = await fetch(SUPABASE_URL + '/functions/v1/care-circle-invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+      body: JSON.stringify({ action: 'accept', invite_token: _pendingInviteToken })
+    });
+    var data = await res.json();
+    if (!res.ok || !data.success) {
+      showToast('Error: ' + (data.error || 'Could not accept invite'));
+      return;
+    }
+    clearInviteParam();
+    showToast('You\u2019ve joined the care circle!');
+    await loadUserData();
+  } catch(e) {
+    console.error('Accept invite error:', e);
+    showToast('Error joining circle: ' + e.message);
+  }
+}
+
+// ── AUTH FLOW ────────────────────────────────────────────────────────────────
+async function initApp() {
+  // Check for invite token in URL first
+  var hasInvite = await checkInviteOnLoad();
+
+  try {
+    // DIAGNOSTIC: log what localStorage has under sb-* keys so we can tell
+    // whether the Supabase session was persisted across reloads.
+    try {
+      var sbKeys = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && (k.indexOf('sb-') === 0 || k.indexOf('supabase') === 0)) sbKeys.push(k);
+      }
+      console.log('[auth-boot] supabase storage keys:', sbKeys, 'path:', window.location.pathname, 'search:', window.location.search);
+    } catch(e) {}
+
+    var { data: { session } } = await db.auth.getSession();
+    console.log('[auth-boot] getSession result:', session ? 'HAS_SESSION (' + (session.user && session.user.email) + ')' : 'NO_SESSION');
+    if (session) {
+      // Verify the user is still on the alpha allowlist.
+      // Only sign out on an explicit `false` — a null (RPC error / network blip)
+      // must NOT kick a valid session. This prevents the "magic link every visit"
+      // failure mode when the RPC is transiently unavailable.
+      var stillAllowed = await checkAlphaAllowlist(session.user.email);
+      if (stillAllowed === false) {
+        console.warn('User removed from alpha allowlist \u2014 signing out');
+        await db.auth.signOut();
+        showAuthScreen();
+        showToast('Your alpha access has been revoked');
+        return;
+      }
+      currentUser = session.user;
+      await loadUserData();
+      // If there's a pending invite and user is signed in, show accept UI
+      if (_pendingInviteToken && _inviteData) {
+        showInviteAcceptUI();
+      }
+    } else {
+      // If invite pending, show the invite UI on top of auth screen
+      if (hasInvite && _inviteData) {
+        showAuthScreen();
+        showInviteAcceptUI();
+      } else {
+        showAuthScreen();
+      }
+    }
+  } catch (e) {
+    console.error('Auth init error:', e);
+    showAuthScreen();
+  }
+  // Handle auth state changes (magic link callback)
+  db.auth.onAuthStateChange(async (event, session) => {
+    try {
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && session) {
+        // Skip re-init if we already loaded this user (avoids double-load on startup)
+        if (currentUser && currentUser.id === session.user.id && event !== 'SIGNED_IN') {
+          resetInactivityTimer();
+          return;
+        }
+        // Verify allowlist on fresh sign-in (fail-open on RPC error: sendMagicLink
+        // is the hard gate, so a transient RPC failure here shouldn't lock users out)
+        if (event === 'SIGNED_IN') {
+          var allowed = await checkAlphaAllowlist(session.user.email);
+          if (allowed === false) {
+            await db.auth.signOut();
+            showAuthScreen();
+            showToast('Your email is not on the alpha list');
+            return;
+          }
+        }
+        currentUser = session.user;
+        resetInactivityTimer();
+        // Only load data if not already loaded by initApp
+        if (event === 'SIGNED_IN') {
+          await loadUserData();
+          if (_pendingInviteToken && _inviteData) {
+            await acceptInvite();
+          }
+        }
+      } else if (event === 'SIGNED_OUT') {
+        currentUser = null;
+        if (_inactivityTimer) clearTimeout(_inactivityTimer);
+        showAuthScreen();
+      }
+    } catch (authErr) {
+      console.error('onAuthStateChange error:', authErr);
+      showAuthScreen();
+      showToast('Something went wrong — please sign in again');
+    }
+  });
+  // Check for EHR OAuth callback code in URL
+  checkEhrCallbackOnLoad();
+  // Handle Terra wearable auth redirect
+  handleTerraCallback();
+  // Handle billing success return from Stripe
+  checkBillingSuccessParam();
+}
+
+// ── BILLING FUNCTIONS ────────────────────────────────────────────────────────────────
+async function loadUserPlan() {
+  try {
+    var sessionResult = await db.auth.getSession();
+    var session = sessionResult.data.session;
+    if (!session) return;
+    var res = await fetch(SUPABASE_URL + '/functions/v1/manage-subscription', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ action: 'status' })
+    });
+    if (res.ok) {
+      var data = await res.json();
+      currentPlan = data.plan || 'free';
+      planStatus = data.status || 'active';
+      planSource = data.source || 'default';
+      planGrantedReason = data.granted_reason || '';
+      planLoaded = true;
+    } else {
+      currentPlan = 'free';
+      planLoaded = true;
+    }
+  } catch(e) {
+    console.error('Plan load error:', e);
+    currentPlan = 'free';
+    planLoaded = true;
+  }
+  // Refresh plan card in settings if open
+  renderSettingsPlanCard();
+}
+
+function canAccess(feature) {
+  // During alpha, everything is unlocked.
+  // Remove this line when going to public launch:
+  return true;
+
+  if (currentPlan === 'pro') return true;
+  if (currentPlan === 'plus') {
+    return PLAN_FEATURES.free.indexOf(feature) >= 0 || PLAN_FEATURES.plus.indexOf(feature) >= 0;
+  }
+  return PLAN_FEATURES.free.indexOf(feature) >= 0;
+}
+
+function requiredPlan(feature) {
+  if (PLAN_FEATURES.plus.indexOf(feature) >= 0) return 'plus';
+  if (PLAN_FEATURES.pro.indexOf(feature) >= 0) return 'pro';
+  return 'free';
+}
+
+// Upgrade prompt state
+var _upgradeFeature = null;
+var _upgradeBilling = 'annual'; // 'monthly' | 'annual'
+
+function showUpgradePrompt(feature) {
+  var plan = requiredPlan(feature);
+  var planName = plan === 'pro' ? 'Pro' : 'Plus';
+  var featureNames = {
+    ai_summaries: 'AI Health Summaries',
+    patterns: 'Pattern Detection',
+    ask_wellet: 'Ask Wellet',
+    visit_prep: 'Visit Prep',
+    ehr_integration: 'EHR Integration',
+    caresignals: 'CareSignals & Wearables',
+    data_export: 'Full Data Export',
+    multi_person: 'Multiple People',
+    push_notif: 'Push Notifications',
+    emergency_pdf: 'Emergency Summary PDF'
+  };
+  var name = featureNames[feature] || feature;
+  var planDescs = {
+    plus: 'Unlock AI summaries, pattern detection, Ask Wellet, visit prep, and more — everything you need to stay on top of care.',
+    pro: 'Full integrations with Epic and MyChart, wearable data, multiple people, and emergency PDF summaries.'
+  };
+  var plusFeatures = ['AI Health Summaries', 'Pattern Detection', 'Ask Wellet', 'Visit Prep', 'Unlimited Documents', 'Unlimited Care Circle', 'Email Notifications', 'Search', 'Multi-language'];
+  var proFeatures = ['Everything in Plus', 'EHR Integration (Epic/MyChart)', 'CareSignals & Wearables', 'Full Data Export', 'Multiple People', 'Push Notifications', 'Emergency Summary PDF'];
+  var features = plan === 'pro' ? proFeatures : plusFeatures;
+
+  _upgradeFeature = feature;
+  _upgradeBilling = 'annual';
+
+  var labelEl = document.getElementById('upgrade-feature-label');
+  if (labelEl) labelEl.textContent = name;
+  var titleEl = document.getElementById('upgrade-title');
+  if (titleEl) titleEl.textContent = 'Unlock ' + name;
+  var descEl = document.getElementById('upgrade-desc');
+  if (descEl) descEl.textContent = planDescs[plan] || '';
+  var ctaEl = document.getElementById('upgrade-cta-btn');
+  if (ctaEl) ctaEl.textContent = 'Upgrade to ' + planName;
+
+  var listEl = document.getElementById('upgrade-features-list');
+  if (listEl) {
+    var listHtml = '';
+    for (var i = 0; i < features.length; i++) {
+      listHtml += '<li class="upgrade-feature-item"><span class="upgrade-feature-check"><i data-lucide="check" style="width:10px;height:10px;"></i></span><span>' + escHtml(features[i]) + '</span></li>';
+    }
+    listEl.innerHTML = listHtml;
+  }
+
+  _setUpgradePriceDisplay(plan, 'annual');
+
+  // Mark annual as active in toggle
+  var btnMonthly = document.getElementById('upgrade-btn-monthly');
+  var btnAnnual = document.getElementById('upgrade-btn-annual');
+  if (btnMonthly) btnMonthly.classList.remove('active');
+  if (btnAnnual) btnAnnual.classList.add('active');
+
+  openSheetAccessible('upgrade-overlay');
+  initIcons();
+}
+
+function _setUpgradePriceDisplay(plan, billing) {
+  var amountEl = document.getElementById('upgrade-price-amount');
+  var perEl = document.getElementById('upgrade-price-per');
+  var noteEl = document.getElementById('upgrade-price-annual-note');
+  if (!amountEl) return;
+  if (plan === 'pro') {
+    if (billing === 'annual') {
+      amountEl.textContent = '$24.92';
+      perEl.textContent = '/mo';
+      noteEl.textContent = 'Billed annually at $299/yr';
+    } else {
+      amountEl.textContent = '$29.99';
+      perEl.textContent = '/mo';
+      noteEl.textContent = '';
+    }
+  } else {
+    if (billing === 'annual') {
+      amountEl.textContent = '$8.25';
+      perEl.textContent = '/mo';
+      noteEl.textContent = 'Billed annually at $99/yr';
+    } else {
+      amountEl.textContent = '$9.99';
+      perEl.textContent = '/mo';
+      noteEl.textContent = '';
+    }
+  }
+}
+
+function setUpgradeBilling(billing) {
+  _upgradeBilling = billing;
+  var plan = _upgradeFeature ? requiredPlan(_upgradeFeature) : 'plus';
+  _setUpgradePriceDisplay(plan, billing);
+  var btnMonthly = document.getElementById('upgrade-btn-monthly');
+  var btnAnnual = document.getElementById('upgrade-btn-annual');
+  if (btnMonthly) btnMonthly.classList.toggle('active', billing === 'monthly');
+  if (btnAnnual) btnAnnual.classList.toggle('active', billing === 'annual');
+}
+
+function startUpgradeCheckout() {
+  var plan = _upgradeFeature ? requiredPlan(_upgradeFeature) : 'plus';
+  var priceKey = plan + '_' + _upgradeBilling;
+  var priceId = STRIPE_PRICES[priceKey];
+  if (priceId) startCheckout(priceId);
+}
+
+async function startCheckout(priceId) {
+  try {
+    var sessionResult = await db.auth.getSession();
+    var session = sessionResult.data.session;
+    if (!session) { showToast('Please sign in first'); return; }
+    showToast('Opening checkout…');
+    var res = await fetch(SUPABASE_URL + '/functions/v1/create-checkout-session', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({
+        price_id: priceId,
+        success_url: window.location.origin + window.location.pathname + '?billing=success',
+        cancel_url: window.location.href
+      })
+    });
+    if (res.ok) {
+      var data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        showToast('Could not start checkout. Please try again.');
+      }
+    } else {
+      showToast('Checkout error. Please try again.');
+    }
+  } catch(e) {
+    console.error('Checkout error:', e);
+    showToast('Checkout error. Please try again.');
+  }
+}
+
+async function openBillingPortal() {
+  try {
+    var sessionResult = await db.auth.getSession();
+    var session = sessionResult.data.session;
+    if (!session) { showToast('Please sign in first'); return; }
+    showToast('Opening billing portal…');
+    var res = await fetch(SUPABASE_URL + '/functions/v1/manage-subscription', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({
+        action: 'portal',
+        return_url: window.location.href
+      })
+    });
+    if (res.ok) {
+      var data = await res.json();
+      if (data.url) {
+        window.open(data.url, '_blank');
+      } else {
+        showToast('Could not open billing portal.');
+      }
+    } else {
+      showToast('Error opening billing portal.');
+    }
+  } catch(e) {
+    console.error('Billing portal error:', e);
+    showToast('Error opening billing portal.');
+  }
+}
+
+function renderSettingsPlanCard() {
+  var container = document.getElementById('settings-plan-card');
+  if (!container) return;
+  var html = '';
+  if (planSource === 'granted') {
+    var grantedPlanName = currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1);
+    // Detect Founding 50 vs Early 100 vs Beta 250 from granted reason stored on subscription.
+    // Falls back to generic "Founding" treatment if reason is missing.
+    var grantedReason = (typeof planGrantedReason === 'string') ? planGrantedReason : '';
+    var isFounding50 = grantedReason.toLowerCase().indexOf('founding') !== -1;
+    var tierLabel = isFounding50 ? 'Founding Member'
+      : (grantedReason.toLowerCase().indexOf('early 100') !== -1 ? 'Early Member'
+      : (grantedReason.toLowerCase().indexOf('beta 250') !== -1 ? 'Beta Member'
+      : 'Founding Member'));
+    var tierSub = isFounding50 ? 'Free Pro for life. Thank you for believing early.'
+      : (grantedReason.toLowerCase().indexOf('early 100') !== -1 ? 'Free Pro for 12 months. Thank you for joining early.'
+      : (grantedReason.toLowerCase().indexOf('beta 250') !== -1 ? 'Free Plus for 12 months. Thank you for testing with us.'
+      : 'Your plan is on us. Thank you for joining early.'));
+    html = '<div class="plan-card plan-card--founding">'
+      + '<div class="plan-card-header">'
+      + '<div class="plan-card-icon plan-card-icon--founding"><i data-lucide="star" style="width:13px;height:13px;"></i></div>'
+      + '<div class="plan-card-name" style="color:var(--moss-dark);">' + escHtml(grantedPlanName) + '</div>'
+      + '<div class="founding-pill"><i data-lucide="star" style="width:10px;height:10px;"></i><span>' + escHtml(tierLabel) + '</span></div>'
+      + '</div>'
+      + '<div class="plan-card-meta">' + escHtml(tierSub) + '</div>'
+      + '</div>';
+  } else if (currentPlan === 'free') {
+    html = '<div class="plan-card" style="background:var(--mint);">'
+      + '<div class="plan-card-header">'
+      + '<div class="plan-card-icon" style="background:var(--moss);color:white;"><i data-lucide="heart" style="width:13px;height:13px;"></i></div>'
+      + '<div class="plan-card-name" style="color:var(--moss-dark);">Free</div>'
+      + '<div class="plan-card-badge" style="background:white;color:var(--moss);">Current</div>'
+      + '</div>'
+      + '<div class="plan-card-meta">Upgrade to unlock AI summaries, pattern detection, and more.</div>'
+      + '<button class="plan-card-action" onclick="showPricingSheet()">'
+      + '<i data-lucide="arrow-right" style="width:13px;height:13px;"></i> See Plans'
+      + '</button>'
+      + '</div>';
+  } else {
+    var paidPlanName = currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1);
+    var priceLine = currentPlan === 'pro' ? '$29.99/mo' : '$9.99/mo';
+    var statusNote = planStatus === 'past_due' ? ' · Payment past due' : (planStatus === 'canceled' ? ' · Canceled' : '');
+    html = '<div class="plan-card" style="background:var(--mint);">'
+      + '<div class="plan-card-header">'
+      + '<div class="plan-card-icon" style="background:var(--moss);color:white;"><i data-lucide="star" style="width:13px;height:13px;"></i></div>'
+      + '<div class="plan-card-name" style="color:var(--moss-dark);">' + escHtml(paidPlanName) + '</div>'
+      + '<div class="plan-card-badge" style="background:white;color:var(--moss);">Active</div>'
+      + '</div>'
+      + '<div class="plan-card-meta">' + escHtml(priceLine + statusNote) + '</div>'
+      + '<button class="plan-card-action" onclick="openBillingPortal()">'
+      + '<i data-lucide="credit-card" style="width:13px;height:13px;"></i> Manage Billing'
+      + '</button>'
+      + '</div>';
+  }
+  container.innerHTML = html;
+  initIcons();
+}
+
+function isVaHousehold() {
+  if (!Array.isArray(currentPeople)) return false;
+  for (var i = 0; i < currentPeople.length; i++) {
+    if (currentPeople[i] && currentPeople[i].situation === 'va-enrolled') return true;
+  }
+  return false;
+}
+
+function showPricingSheet() {
+  var container = document.getElementById('pricing-cards-container');
+  if (!container) return;
+
+  var vaPerk = isVaHousehold();
+
+  var plans = [
+    {
+      key: 'free',
+      name: 'Free',
+      price: 'Free',
+      priceSub: '',
+      recommended: false,
+      features: ['Upload up to 5 documents', 'Health timeline', 'Basic medication list', '1 person', 'Care circle (2 members)', 'In-app notifications']
+    },
+    {
+      key: 'plus',
+      name: 'Plus',
+      price: '$9.99',
+      priceSub: '/mo',
+      annualNote: 'or $8.25/mo billed annually',
+      recommended: true,
+      features: ['Everything in Free', 'AI Health Summaries', 'Pattern Detection', 'Ask Wellet (AI Q&A)', 'Visit Prep', 'Unlimited documents', 'Unlimited care circle', 'Email notifications', 'Search', 'Multi-language']
+    },
+    {
+      key: 'pro',
+      name: 'Pro',
+      price: '$29.99',
+      priceSub: '/mo',
+      annualNote: 'or $24.92/mo billed annually',
+      recommended: false,
+      features: ['Everything in Plus', 'EHR Integration (Epic/MyChart)', 'CareSignals & Wearables', 'Full Data Export', 'Multiple People', 'Push Notifications', 'Emergency Summary PDF']
+    }
+  ];
+
+  var html = '';
+  if (vaPerk) {
+    html +=
+      '<div style="background:linear-gradient(135deg,#EEF0E6 0%,#F2F3EC 100%);border:1.5px solid #8A9A7C;border-radius:14px;padding:14px 16px;margin-bottom:16px;">' +
+      '<div style="font-family:\'DM Serif Display\',serif;font-size:18px;color:#3D6B58;margin-bottom:4px;">Your VA caregiver perk</div>' +
+      '<div style="font-size:13px;color:var(--text-secondary);line-height:1.55;">' +
+      'Wellet is <strong style="color:var(--moss-dark);">free for your first year</strong>, then <strong style="color:var(--moss-dark);">30% off for life</strong>. ' +
+      'It\u2019s applied automatically \u2014 no code, no hoops.' +
+      '</div>' +
+      '</div>';
+  }
+  for (var i = 0; i < plans.length; i++) {
+    var p = plans[i];
+    var isCurrentPlan = (p.key === currentPlan);
+    var cardClass = 'pricing-plan-card' + (p.recommended ? ' recommended' : '');
+    html += '<div class="' + cardClass + '">';
+    html += '<div class="pricing-plan-header">';
+    html += '<div class="pricing-plan-name">' + escHtml(p.name) + '</div>';
+    if (p.recommended) html += '<div class="pricing-plan-badge">Most Popular</div>';
+    if (isCurrentPlan) html += '<div class="pricing-plan-badge" style="background:var(--text-secondary);">Current</div>';
+    html += '</div>';
+    html += '<div class="pricing-plan-price">' + escHtml(p.price) + '<span>' + escHtml(p.priceSub || '') + '</span></div>';
+    if (p.annualNote) html += '<div style="font-size:11px;color:var(--moss-text);margin-bottom:4px;">' + escHtml(p.annualNote) + '</div>';
+    html += '<ul class="pricing-plan-features">';
+    for (var j = 0; j < p.features.length; j++) {
+      html += '<li class="pricing-plan-feature"><div class="pricing-plan-feature-dot"></div><span>' + escHtml(p.features[j]) + '</span></li>';
+    }
+    html += '</ul>';
+    if (isCurrentPlan) {
+      html += '<button class="pricing-plan-cta current" disabled>Current Plan</button>';
+    } else if (p.key === 'free') {
+      html += '';
+    } else {
+      var priceKey = p.key + '_monthly';
+      var priceId = STRIPE_PRICES[priceKey] || '';
+      var ctaClass = p.recommended ? 'primary' : 'secondary';
+      html += '<button class="pricing-plan-cta ' + ctaClass + '" onclick="startCheckout(\'' + escHtml(priceId) + '\')">Upgrade to ' + escHtml(p.name) + '</button>';
+    }
+    html += '</div>';
+  }
+  container.innerHTML = html;
+  openSheetAccessible('pricing-overlay');
+  initIcons();
+}
+
+function checkBillingSuccessParam() {
+  if (window.location.search.indexOf('billing=success') >= 0) {
+    var planName = currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1);
+    showToast('Welcome to Wellet ' + planName + '! \uD83C\uDF89');
+    loadUserPlan();
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+}
+
+function togglePrivacyDetail() {
+  var detail = document.getElementById('auth-privacy-detail');
+  var chevron = document.getElementById('privacy-chevron');
+  detail.classList.toggle('open');
+  if (detail.classList.contains('open')) {
+    chevron.style.transform = 'rotate(180deg)';
+  } else {
+    chevron.style.transform = 'rotate(0deg)';
+  }
+}
+
+/* ── EXPLAINER FILM ── */
+var explainerRunning = false;
+
+function showExplainer() {
+  var overlay = document.getElementById('explainer-overlay');
+  var vid = document.getElementById('explainer-video');
+  overlay.classList.add('show');
+  explainerRunning = true;
+  initIcons();
+  vid.currentTime = 0;
+  vid.play().catch(function() {});
+}
+
+function hideExplainer() {
+  var overlay = document.getElementById('explainer-overlay');
+  var vid = document.getElementById('explainer-video');
+  overlay.classList.remove('show');
+  explainerRunning = false;
+  vid.pause();
+  vid.currentTime = 0;
+}
+
+/* Close on overlay background click (not on video) */
+document.addEventListener('click', function(e) {
+  if (e.target && e.target.id === 'explainer-overlay') {
+    hideExplainer();
+  }
+});
+
+/* Close on Escape key */
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && explainerRunning) {
+    hideExplainer();
+  }
+});
+
+async function checkAlphaAllowlist(email) {
+  var normalized = email.toLowerCase().trim();
+  try {
+    var { data, error } = await db.rpc('check_alpha_allowlist', { check_email: normalized });
+    if (error) {
+      // Transient RPC failure — don't assert the user is banned. Let magic-link
+      // send flow enforce strict gating. Return null to signal "unknown".
+      console.error('Allowlist check error:', error);
+      return null;
+    }
+    return data === true;
+  } catch (e) {
+    console.error('Allowlist check threw:', e);
+    return null;
+  }
+}
+
+async function sendMagicLink() {
+  var email = document.getElementById('auth-email').value.trim();
+  if (!email) { showToast('Please enter your email'); return; }
+  var btn = document.getElementById('auth-send-btn');
+  btn.disabled = true;
+  btn.textContent = 'Checking…';
+
+  // Alpha gate: strictly require a positive allowlist result before sending.
+  // null (RPC error) is treated as "not allowed" here so we don't spam magic
+  // links to random emails during an outage.
+  var allowed = await checkAlphaAllowlist(email);
+  if (allowed !== true) {
+    btn.disabled = false;
+    btn.innerHTML = 'Send magic link <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>';
+    initIcons();
+    showAlphaGate(email);
+    return;
+  }
+
+  btn.textContent = 'Sending…';
+  var sentEmail = document.getElementById('auth-sent-email');
+  if (sentEmail) sentEmail.textContent = email;
+  var { error } = await db.auth.signInWithOtp({
+    email: email,
+    options: { emailRedirectTo: 'https://mywellet.com' }
+  });
+  if (error) {
+    showToast('Error: ' + error.message);
+    btn.disabled = false;
+    btn.innerHTML = 'Send magic link <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>';
+    initIcons();
+  } else {
+    document.getElementById('auth-form-state').style.display = 'none';
+    document.getElementById('auth-sent-state').style.display = 'block';
+    document.getElementById('auth-gate-state').style.display = 'none';
+  }
+}
+
+function showAlphaGate(email) {
+  document.getElementById('auth-form-state').style.display = 'none';
+  document.getElementById('auth-sent-state').style.display = 'none';
+  document.getElementById('auth-gate-state').style.display = 'block';
+  // Pre-fill the gate email input with what they already typed
+  var gateInput = document.getElementById('auth-gate-email');
+  if (gateInput && email) gateInput.value = email;
+  // Reset to form view (hide success in case they come back)
+  document.getElementById('auth-gate-form').style.display = 'block';
+  document.getElementById('auth-gate-success').style.display = 'none';
+  initIcons();
+}
+
+function showAuthFormState() {
+  document.getElementById('auth-form-state').style.display = 'block';
+  document.getElementById('auth-sent-state').style.display = 'none';
+  document.getElementById('auth-gate-state').style.display = 'none';
+  var reveal = document.getElementById('auth-signin-reveal');
+  var toggle = document.getElementById('auth-signin-toggle');
+  if (reveal) reveal.style.display = 'none';
+  if (toggle) toggle.style.display = '';
+  initIcons();
+}
+
+async function submitWaitlistRequest() {
+  var email = document.getElementById('auth-gate-email').value.trim();
+  if (!email) { showToast('Please enter your email'); return; }
+  var btn = document.getElementById('auth-gate-btn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting…';
+  var { error } = await db.from('waitlist_requests').upsert(
+    { email: email.toLowerCase(), requested_at: new Date().toISOString() },
+    { onConflict: 'email' }
+  );
+  if (error) {
+    showToast('Error: ' + error.message);
+    btn.disabled = false;
+    btn.innerHTML = 'Request access <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>';
+    initIcons();
+    return;
+  }
+  // Show success
+  document.getElementById('auth-gate-form').style.display = 'none';
+  document.getElementById('auth-gate-success').style.display = 'block';
+  initIcons();
+}
+
+async function handleLogout() {
+  clearPhiFromStorage();
+  try { localStorage.removeItem('wellet_last_person_id'); } catch(e) {}
+  await db.auth.signOut();
+  isDemoMode = false;
+  currentUser = null;
+  currentPeople = [];
+  currentPersonId = null;
+  liveEvents = [];
+  liveMeds = [];
+  liveDocs = [];
+  liveCareCircle = [];
+  summaryCache = {};
+  if (_audioPlayer) { _audioPlayer.pause(); _audioPlayer = null; }
+  ehrCache = {};
+  _emergencyBriefCache = {};
+  closeSettings();
+  showAuthScreen();
+  showToast('Signed out');
+}
+
+// ── PHI STORAGE CLEANUP ───────────────────────────────────────────────────────
+function clearPhiFromStorage() {
+  try {
+    var keysToRemove = [];
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (k && (k.indexOf('wellet_ehr_') === 0 || k.indexOf('wellet_er_brief_') === 0 || k.indexOf('wellet_visit_prep_') === 0 || k === 'wellet_ob_chat' || k === 'wellet_last_person_id')) {
+        keysToRemove.push(k);
+      }
+    }
+    keysToRemove.forEach(function(k) { localStorage.removeItem(k); });
+  } catch(e) { /* localStorage unavailable */ }
+}
+
+// ── INACTIVITY TIMEOUT (15 minutes) ──────────────────────────────────────────
+var _inactivityTimer = null;
+var INACTIVITY_LIMIT_MS = 15 * 60 * 1000;
+
+function resetInactivityTimer() {
+  if (_inactivityTimer) clearTimeout(_inactivityTimer);
+  _inactivityTimer = setTimeout(function() {
+    if (currentUser && !isDemoMode) {
+      handleLogout();
+      showToast('Signed out due to inactivity');
+    }
+  }, INACTIVITY_LIMIT_MS);
+}
+
+['mousedown','keydown','touchstart','scroll'].forEach(function(evt) {
+  document.addEventListener(evt, resetInactivityTimer, { passive: true });
+});
+
+// ── LOAD USER DATA ────────────────────────────────────────────────────────────
+async function loadUserData() {
+  try {
+    const { data: people, error } = await db
+      .from('people')
+      .select('*')
+      .order('sort_order', { ascending: true });
+    if (error) { console.error('Error loading people:', error); }
+    currentPeople = people || [];
+
+    if (currentPeople.length === 0) {
+      // New user — start onboarding
+      showOnboarding();
+    } else {
+      // Returning user — show app with real data.
+      // Prefer the last-viewed person (saved in localStorage) so reloads and post-OAuth
+      // round trips don't silently reset to sort_order=0.
+      var savedId = getSavedPersonId();
+      var match = savedId ? currentPeople.find(function(p){ return p.id === savedId; }) : null;
+      var personToLoad = match ? match.id : currentPeople[0].id;
+      setCurrentPersonId(personToLoad);
+      applyPersonBg(currentPersonId);
+      await loadPersonData(currentPersonId);
+      showAuthenticatedApp();
+    }
+  } catch (loadErr) {
+    console.error('loadUserData error:', loadErr);
+    // Don't leave a blank screen — show auth as fallback
+    showAuthScreen();
+    showToast('Could not load your data \u2014 please try again');
+  }
+}
+
+async function loadPersonData(personId) {
+  setCurrentPersonId(personId);
+  // Load events
+  const { data: events } = await db
+    .from('health_events')
+    .select('*')
+    .eq('person_id', personId)
+    .order('event_date', { ascending: false });
+  liveEvents = events || [];
+
+  // Load meds
+  const { data: meds } = await db
+    .from('medications')
+    .select('*')
+    .eq('person_id', personId)
+    .order('created_at', { ascending: true });
+  liveMeds = meds || [];
+
+  // Load documents
+  const { data: docs } = await db
+    .from('documents')
+    .select('*')
+    .eq('person_id', personId)
+    .order('uploaded_at', { ascending: false });
+  liveDocs = docs || [];
+
+  // Load lab results
+  const { data: labs } = await db
+    .from('lab_results')
+    .select('*')
+    .eq('person_id', personId)
+    .order('effective_date', { ascending: false });
+  liveLabs = labs || [];
+
+  // Load vitals
+  const { data: vitals } = await db
+    .from('vitals')
+    .select('*')
+    .eq('person_id', personId)
+    .order('effective_date', { ascending: false });
+  liveVitals = vitals || [];
+
+  // Load allergies
+  const { data: allergies } = await db
+    .from('allergies')
+    .select('*')
+    .eq('person_id', personId)
+    .order('created_at', { ascending: false });
+  liveAllergies = allergies || [];
+
+  // Load care circle members
+  const { data: circle } = await db
+    .from('care_circle_members')
+    .select('*')
+    .eq('person_id', personId)
+    .order('created_at', { ascending: true });
+  liveCareCircle = circle || [];
+
+  // Load cached EHR data and auto-refresh if stale
+  loadEhrCache(personId);
+  autoRefreshEhrIfNeeded(personId);
+
+  // Load visit attachments. Fire-and-forget — if records view is already
+  // on screen when this resolves, re-render so the new lists show up.
+  loadAttachmentsForPerson(personId).then(function() {
+    if (personId === currentPersonId && document.getElementById('view-records')
+        && document.getElementById('view-records').classList.contains('active')) {
+      renderRecordsView();
+    }
+  });
+}
+
+// ── SHOW AUTHENTICATED APP ────────────────────────────────────────────────────
+function showAuthenticatedApp() {
+  isDemoMode = false;
+  document.getElementById('loading-screen').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('landing').style.display = 'none';
+  document.getElementById('onboarding').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  // Show bug report button for signed-in users
+  var bugBtn = document.getElementById('bug-report-btn');
+  if (bugBtn) bugBtn.style.display = '';
+  window.scrollTo(0, 0);
+
+  renderPersonSwitcher();
+  renderUpdateMe();
+  renderTimeline();
+  renderPeopleView();
+  renderRecordsView();
+  renderPatterns();
+  renderAskView();
+  updateSettingsAccount();
+  initIcons();
+
+  // Load plan from Supabase and refresh settings card
+  loadUserPlan();
+
+  // Refresh Care Circle shared-with-me count
+  if (typeof refreshSharedInboxCount === 'function') {
+    try { refreshSharedInboxCount(); } catch(e) { console.warn('[shared-inbox] count refresh failed', e); }
+  }
+
+  // Alpha: show welcome on first login, track activation
+  showAlphaWelcome();
+  trackActivation();
+  // First-run onboarding tooltips (P2D)
+  setTimeout(maybeShowOnboardTooltips, 2000);
+}
+
+// ── PERSON SWITCHER ───────────────────────────────────────────────────────────
+function renderPersonSwitcher() {
+  var switcher = document.getElementById('header-person-switcher');
+  if (!switcher) return;
+  var html = '';
+  currentPeople.forEach(function(p, i) {
+    var active = p.id === currentPersonId ? ' active' : '';
+    html += '<button class="person-pill' + active + '" onclick="switchToRealPerson(\'' + p.id + '\',this)">'
+      + '<span class="pip"></span>' + escHtml(p.name.split(' ')[0]) + '</button>';
+  });
+  switcher.innerHTML = html;
+}
+
+async function switchToRealPerson(personId, el) {
+  document.querySelectorAll('.person-pill').forEach(function(p){ p.classList.remove('active'); });
+  el.classList.add('active');
+  applyPersonBg(personId);
+  showSkeletons();
+  await loadPersonData(personId);
+  hideSkeletons();
+  renderUpdateMe();
+  renderTimeline();
+  renderPatterns();
+  initIcons();
+}
+
+// ── SUMMARY CACHE ACCESSORS ─────────────────────────────────────────────
+// summaryCache values can be 'empty', undefined, or an object { text, window_class, sources, generated_at }.
+function getSummaryText(pid) {
+  var v = summaryCache[pid];
+  if (!v || v === 'empty') return '';
+  if (typeof v === 'string') return v; // legacy fallback
+  return v.text || '';
+}
+function getSummaryMeta(pid) {
+  var v = summaryCache[pid];
+  if (!v || v === 'empty' || typeof v === 'string') return null;
+  return v;
+}
+
+// Build the "source strip" chips (e.g. Duke Health · Apple Health · 3 check-ins).
+// Only shows sources that actually fed the paragraph.
+function renderSummarySourceStrip(sources, checkInCount) {
+  if (!sources) return '';
+  var chips = [];
+  if (sources.ehr) {
+    var ehrLabel = sources.ehr_provider || 'Health records';
+    chips.push('<span class="update-summary-source-chip"><i data-lucide="hospital"></i>' + escHtml(ehrLabel) + '</span>');
+  }
+  if (sources.wearable) {
+    var wLabel = sources.wearable_provider ? capitalize(String(sources.wearable_provider).replace(/_/g,' ')) : 'Apple Health';
+    chips.push('<span class="update-summary-source-chip"><i data-lucide="activity"></i>' + escHtml(wLabel) + '</span>');
+  }
+  if (sources.labs) {
+    chips.push('<span class="update-summary-source-chip"><i data-lucide="flask-conical"></i>Labs</span>');
+  }
+  if (sources.check_ins && checkInCount) {
+    chips.push('<span class="update-summary-source-chip"><i data-lucide="notebook-pen"></i>' + checkInCount + ' check-in' + (checkInCount === 1 ? '' : 's') + '</span>');
+  } else if (sources.check_ins) {
+    chips.push('<span class="update-summary-source-chip"><i data-lucide="notebook-pen"></i>Check-ins</span>');
+  }
+  if (sources.documents) {
+    chips.push('<span class="update-summary-source-chip"><i data-lucide="file-text"></i>Documents</span>');
+  }
+  if (sources.events && chips.length === 0) {
+    chips.push('<span class="update-summary-source-chip"><i data-lucide="list"></i>Events</span>');
+  }
+  if (chips.length === 0) return '';
+  return '<div class="update-summary-sources">' + chips.join('<span class="update-summary-source-sep">·</span>') + '</div>';
+}
+
+function capitalize(s) {
+  if (!s) return '';
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function formatTimeAgo(iso) {
+  if (!iso) return '';
+  var diff = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(diff) || diff < 0) return '';
+  var min = Math.round(diff / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return min + ' min ago';
+  var hr = Math.round(min / 60);
+  if (hr < 24) return hr + ' hr ago';
+  var d = Math.round(hr / 24);
+  if (d < 7) return d + ' day' + (d === 1 ? '' : 's') + ' ago';
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// ── FORMAT WELLET SUMMARY ───────────────────────────────────────────────
+// Parses a 2-section summary (Snapshot: / What's new (last 30 days):) into styled HTML.
+// Falls back gracefully if the model didn't follow the format.
+function formatWelletSummary(txt) {
+  if (!txt) return '';
+  // Accept either a plain string OR the new {text,...} object for back-compat.
+  if (typeof txt === 'object' && txt !== null) txt = txt.text || '';
+  var raw = String(txt).trim();
+  // Normalize headings (case-insensitive, tolerate variations)
+  var snapMatch = raw.match(/^[\s\S]*?snapshot\s*:?/i);
+  var newsIdx = raw.search(/what['\u2019]?s\s+new[^:]*:/i);
+  var snapIdx = raw.search(/snapshot\s*:/i);
+  if (snapIdx === -1 && newsIdx === -1) {
+    // No known headings — render as one block, preserving paragraph breaks
+    return '<div class="update-summary-section-body">' + escHtml(raw).replace(/\n\n+/g, '</p><p style="margin:6px 0 0;">').replace(/\n/g, '<br>') + '</div>';
+  }
+  var snapshotBody = '';
+  var newsBody = '';
+  if (snapIdx !== -1) {
+    var snapStart = raw.indexOf(':', snapIdx) + 1;
+    var snapEnd = (newsIdx !== -1 && newsIdx > snapIdx) ? newsIdx : raw.length;
+    snapshotBody = raw.slice(snapStart, snapEnd).trim();
+  }
+  if (newsIdx !== -1) {
+    var newsColon = raw.indexOf(':', newsIdx) + 1;
+    newsBody = raw.slice(newsColon).trim();
+  }
+  function formatBody(s) {
+    if (!s) return '';
+    return escHtml(s).replace(/\n\n+/g, '<br><br>').replace(/\n/g, '<br>');
+  }
+  var html = '';
+  if (snapshotBody) {
+    // Wrap the opening verdict sentence in a .verdict span so typography highlights it.
+    var snapHtml = formatBody(snapshotBody);
+    // Match the first complete sentence (through period/!/?) and wrap it.
+    var verdictMatch = snapHtml.match(/^([^\.!?\n<]+[\.!?])(.*)$/s);
+    if (verdictMatch) {
+      snapHtml = '<span class="verdict">' + verdictMatch[1] + '</span>' + verdictMatch[2];
+    }
+    html += '<div class="update-summary-section snapshot">'
+      + '<div class="update-summary-subhead">Snapshot</div>'
+      + '<div class="update-summary-section-body">' + snapHtml + '</div>'
+      + '</div>';
+  }
+  if (newsBody) {
+    html += '<div class="update-summary-section">'
+      + '<div class="update-summary-subhead">What\u2019s new (last 30 days)</div>'
+      + '<div class="update-summary-section-body">' + formatBody(newsBody) + '</div>'
+      + '</div>';
+  }
+  return html;
+}
+
+// ── RENDER UPDATE ME ──────────────────────────────────────────────────────────
+function renderUpdateMe() {
+  var pane = document.getElementById('tab-update');
+  if (!pane) return;
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var name = person ? person.name.split(' ')[0] : 'your loved one';
+  var isSelf = !!(person && person.relationship === 'self');
+  var subjectName = isSelf ? 'you' : name;
+  var ehrConnected = !!getEhrData(currentPersonId);
+  var recentEvents = liveEvents.slice(0, 3);
+
+  var timelineHTML = '';
+  if (recentEvents.length === 0) {
+    timelineHTML = '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">Your timeline will appear here as you add things.</div>';
+  } else {
+    recentEvents.forEach(function(ev, i) {
+      var isLast = i === recentEvents.length - 1;
+      var typeInfo = getEventTypeInfo(ev.event_type);
+      var dateStr = formatEventDate(ev.event_date);
+      timelineHTML += '<div class="tl-item">'
+        + '<div class="tl-line-col"><div class="tl-dot ' + typeInfo.dot + '" aria-hidden="true"></div>' + (isLast ? '' : '<div class="tl-connector"></div>') + '</div>'
+        + '<div class="tl-card ' + typeInfo.border + '">'
+        + '<div class="tl-card-type-row"><i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + typeInfo.color + ';"></i>'
+        + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span></div>'
+        + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
+        + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
+        + '<div class="tl-card-date">' + dateStr + '</div>'
+        + '</div></div>';
+    });
+  }
+
+  // Determine summary section: show cache or loading or empty
+  var summarySection = '';
+  if (summaryCache[currentPersonId] === 'empty') {
+    summarySection = '<div class="update-summary-card">'
+      + '<div class="update-summary-header">'
+      + '<span class="update-summary-label">Wellet summary</span>'
+      + '<button class="update-summary-refresh" onclick="fetchUpdateMeSummary(true)" title="Refresh summary"><i data-lucide="refresh-cw" style="width:13px;height:13px;"></i></button>'
+      + '</div>'
+      + '<p class="update-summary-text" style="color:var(--text-secondary);font-style:italic;">Start adding health events and documents \u2014 Wellet will generate your personalized summary here.</p>'
+      + '</div>';
+  } else if (summaryCache[currentPersonId]) {
+    var meta = getSummaryMeta(currentPersonId);
+    var wc = (meta && meta.window_class) || 'quiet';
+    var verdictLabel = wc === 'attention' ? 'Needs attention' : (wc === 'active' ? 'Active week' : 'Steady');
+    var verdictPill = '<span class="update-summary-verdict-pill ' + escHtml(wc) + '"><span class="dot"></span>' + escHtml(verdictLabel) + '</span>';
+    var sourceStrip = meta ? renderSummarySourceStrip(meta.sources, (meta.sources && meta.sources.check_ins) ? (meta.check_in_count || null) : null) : '';
+    var bylineTime = meta && meta.generated_at ? formatTimeAgo(meta.generated_at) : '';
+    var sourceCount = meta && meta.sources ? Object.keys(meta.sources).filter(function(k){ return meta.sources[k] === true; }).length : 0;
+    var bylineDetail = sourceCount > 0
+      ? ('Wellet · written from ' + sourceCount + ' source' + (sourceCount === 1 ? '' : 's') + (bylineTime ? ' · ' + bylineTime : ''))
+      : ('Wellet' + (bylineTime ? ' · ' + bylineTime : ''));
+    // Viewed-at timestamp: updates on every render so a hard-refresh visibly changes it
+    var viewedAt = new Date();
+    var viewedStr = viewedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    var viewedLine = 'Viewed ' + escHtml(viewedStr);
+    // Register Ask-Wellet long-press context for this summary so a long-press opens the Ask sheet
+    try {
+      if (!window._askCtxRegistry) window._askCtxRegistry = {};
+      var summaryAskKey = 'update_summary_' + currentPersonId;
+      window._askCtxRegistry[summaryAskKey] = {
+        kind: 'summary',
+        name: 'Update Me for ' + name,
+        title: 'Update Me for ' + name,
+        date: meta && meta.generated_at ? meta.generated_at : null,
+        meta: sourceCount > 0 ? ('Written from ' + sourceCount + ' source' + (sourceCount === 1 ? '' : 's')) : '',
+        summary_text: getSummaryText(currentPersonId),
+        window_class: wc,
+        sources: meta && meta.sources ? meta.sources : null
+      };
+    } catch(_e){}
+    summarySection = '<div class="update-summary-card" data-ask-lp="' + escHtml(summaryAskKey) + '">'
+      + '<div class="update-summary-header">'
+      + '<div class="update-summary-titlerow"><span class="update-summary-label">Wellet summary</span>' + verdictPill + '</div>'
+      + '<button class="update-summary-refresh" onclick="fetchUpdateMeSummary(true)" title="Refresh summary"><i data-lucide="refresh-cw" style="width:13px;height:13px;"></i></button>'
+      + '</div>'
+      + sourceStrip
+      + '<div class="update-summary-text" id="update-summary-text">' + formatWelletSummary(summaryCache[currentPersonId]) + '</div>'
+      + '<div class="update-summary-byline"><i data-lucide="sparkles"></i><span class="update-summary-byline-main">' + escHtml(bylineDetail) + '</span><span class="update-summary-byline-sep">·</span><span class="update-summary-byline-viewed">' + viewedLine + '</span></div>'
+      + '</div>'
+      + '<button onclick="openShareFamily()" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px 16px;margin-top:10px;background:white;border:1.5px solid var(--moss);border-radius:10px;color:var(--moss);font-family:\'DM Sans\',sans-serif;font-size:13px;font-weight:500;cursor:pointer;"><i data-lucide="share-2" style="width:15px;height:15px;"></i> ' + t('update.shareThis') + '</button>';
+  } else {
+    // Not yet fetched — show loading placeholder and trigger fetch
+    summarySection = '<div class="update-summary-card" id="update-summary-loading-card">'
+      + '<div class="update-summary-header">'
+      + '<span class="update-summary-label">Wellet summary</span>'
+      + '</div>'
+      + '<div class="update-summary-loading"><i data-lucide="loader" style="width:13px;height:13px;animation:spin 1.2s linear infinite;"></i> ' + t('update.generating') + '</div>'
+      + '</div>';
+    fetchUpdateMeSummary(false);
+  }
+
+  // Build empty-state vs populated content
+  var ehrBtnLabel = ehrConnected ? 'Other Health Records' : 'Connect Health Records';
+  // Check wearable connection (_currentTerraConns is populated when Signals tab has been visited)
+  var hasWearable = !!(typeof _currentTerraConns !== 'undefined' && _currentTerraConns && _currentTerraConns.some && _currentTerraConns.some(function(c){ return c.status === 'active'; }));
+  var hasAnyWelletSource = ehrConnected || (typeof liveDocs !== 'undefined' && liveDocs.some(function(d){ return d.extraction_status === 'completed' && d.extracted_events; })) || hasWearable;
+  var fullOnboardingActions = '<div style="padding:24px 16px 8px;">'
+    + '<div style="font-family:\'Fraunces\',serif;font-size:20px;margin-bottom:6px;color:var(--text-primary);">Help Wellet get to know ' + escHtml(subjectName) + '</div>'
+    + '<div style="font-size:13px;color:var(--text-secondary);line-height:1.5;margin-bottom:16px;">Upload a document or connect to health records \u2014 Wellet will read, organize, and remember everything.</div>'
+    + '<div class="signals-connect-chips">'
+    + '<button class="signals-chip" onclick="openUpload(\'' + escHtml(name) + '\')"><i data-lucide="upload"></i> Upload a Document</button>'
+    + '<button class="signals-chip" onclick="startEhrConnect()"><i data-lucide="link"></i> ' + ehrBtnLabel + '</button>'
+    + '<button class="signals-chip" onclick="openTerraConnect()"><i data-lucide="watch"></i> Connect a Wearable</button>'
+    + '</div>'
+    + '</div>';
+  // Compact "Add more to Wellet" card (mirrors visit-prep-card styling)
+  // Rendered OUTSIDE .update-me-section so it spans full width like Prepare for a Visit
+  var compactAddMore = '<button class="visit-prep-card" onclick="openAddMoreToWellet()">'
+    + '<div class="visit-prep-icon"><i data-lucide="plus" style="width:18px;height:18px;"></i></div>'
+    + '<div class="visit-prep-content">'
+    + '<div class="visit-prep-title">Add more to Wellet</div>'
+    + '<div class="visit-prep-desc">Upload a document, connect records, or a wearable.</div>'
+    + '</div>'
+    + '<i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);"></i>'
+    + '</button>';
+  var emptyActions = hasAnyWelletSource ? compactAddMore : fullOnboardingActions;
+
+  var emptyPlaceholder = '<div class="update-summary-card">'
+    + '<div class="update-summary-header">'
+    + '<span class="update-summary-label">Wellet summary</span>'
+    + '</div>'
+    + '<p class="update-summary-text" style="color:var(--text-secondary);font-style:italic;">As you add documents, appointments, and medications, Wellet will build a personalized summary here.</p>'
+    + '</div>';
+
+  // Check if user has completed document extractions (even without promoted events)
+  var hasCompletedDocs = liveDocs.some(function(d){ return d.extraction_status === 'completed' && d.extracted_events; });
+
+  // Build visit prep card (resume if saved prep exists, otherwise fresh)
+  var savedPrep = currentPersonId ? JSON.parse(localStorage.getItem('wellet_visit_prep_' + currentPersonId) || 'null') : null;
+  var visitPrepCardHtml = '';
+  if (savedPrep && savedPrep.questions && savedPrep.questions.length > 0) {
+    var savedDate = savedPrep.savedAt ? new Date(savedPrep.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+    visitPrepCardHtml = '<button class="visit-prep-card resume-card" onclick="openVisitPrep(true)">'
+      + '<div class="visit-prep-icon resume"><i data-lucide="clipboard-list" style="width:18px;height:18px;"></i></div>'
+      + '<div class="visit-prep-content">'
+      + '<div class="visit-prep-title">Resume Visit Prep</div>'
+      + '<div class="visit-prep-desc">' + escHtml(savedPrep.visitType || 'Saved prep') + (savedDate ? ' · Saved ' + savedDate : '') + '</div>'
+      + '</div>'
+      + '<i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);"></i>'
+      + '</button>';
+    visitPrepCardHtml += '<button class="visit-prep-card" onclick="openVisitPrep(false)" style="margin-top:-4px;">'
+      + '<div class="visit-prep-icon"><i data-lucide="plus" style="width:18px;height:18px;"></i></div>'
+      + '<div class="visit-prep-content">'
+      + '<div class="visit-prep-title">Start New Visit Prep</div>'
+      + '<div class="visit-prep-desc">Generate fresh questions for an upcoming appointment.</div>'
+      + '</div>'
+      + '<i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);"></i>'
+      + '</button>';
+  } else {
+    visitPrepCardHtml = '<button class="visit-prep-card" onclick="openVisitPrep(false)">'
+      + '<div class="visit-prep-icon"><i data-lucide="clipboard-list" style="width:18px;height:18px;"></i></div>'
+      + '<div class="visit-prep-content">'
+      + '<div class="visit-prep-title">Prepare for a Visit</div>'
+      + '<div class="visit-prep-desc">Get personalized questions and a summary to bring to the doctor.</div>'
+      + '</div>'
+      + '<i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);"></i>'
+      + '</button>';
+  }
+
+  var sharedInboxContainer = !isDemoMode ? '<div id="shared-inbox" style="padding:0 20px;margin-top:16px;"></div>' : '';
+
+  // If the compact Add-more card is active, render it OUTSIDE .update-me-section so it spans full width like Prepare for a Visit
+  var addMoreOutside = (hasAnyWelletSource && emptyActions === compactAddMore) ? compactAddMore : '';
+  var addMoreInside = (hasAnyWelletSource && emptyActions === compactAddMore) ? '' : emptyActions;
+
+  if (liveEvents.length === 0 && !hasCompletedDocs && !ehrConnected && !hasWearable) {
+    // Truly empty: summary placeholder FIRST, then onboarding CTAs below
+    pane.innerHTML = sharedInboxContainer
+      + '<div class="update-me-section">'
+      + emptyPlaceholder
+      + addMoreInside
+      + '</div>'
+      + addMoreOutside
+      + visitPrepCardHtml
+      + '<div class="timeline-section" style="margin-top:16px;">'
+      + '<p class="section-label">' + t('update.recentActivity') + '</p>'
+      + timelineHTML
+      + '</div>';
+  } else if (liveEvents.length === 0 && (hasCompletedDocs || ehrConnected || hasWearable)) {
+    // Has document data, EHR, or wearable but no promoted events yet: real summary FIRST, then onboarding CTAs below
+    pane.innerHTML = sharedInboxContainer
+      + '<div class="update-me-section">'
+      + summarySection
+      + addMoreInside
+      + '</div>'
+      + addMoreOutside
+      + visitPrepCardHtml
+      + '<div class="timeline-section" style="margin-top:16px;">'
+      + '<p class="section-label">' + t('update.recentActivity') + '</p>'
+      + timelineHTML
+      + '</div>';
+  } else {
+    // Populated state: show both summary card and status card
+    var alertBannerHtml = buildPatternAlertBanner(name);
+    pane.innerHTML = sharedInboxContainer
+      + '<div class="update-me-section">'
+      + summarySection
+      + alertBannerHtml
+      + '<div class="update-card">'
+      + '<div class="update-label">What\u2019s going on with ' + escHtml(name) + ' right now</div>'
+      + '<p class="update-text">' + escHtml(name) + ' has <strong>' + liveEvents.length + ' health event' + (liveEvents.length !== 1 ? 's' : '') + '</strong> logged. '
+        + (liveMeds.filter(function(m){ return m.active; }).length > 0 ? 'Currently on <strong>' + liveMeds.filter(function(m){ return m.active; }).length + ' active medication' + (liveMeds.filter(function(m){ return m.active; }).length !== 1 ? 's' : '') + '</strong>.' : '') + '</p>'
+      + '<div class="update-meta">' + liveEvents.length + ' health event' + (liveEvents.length !== 1 ? 's' : '') + ' logged</div>'
+      + '</div></div>'
+      + visitPrepCardHtml
+      + '<div class="timeline-section" style="margin-top:16px;">'
+      + '<p class="section-label">' + t('update.recentActivity') + '</p>'
+      + timelineHTML
+      + '</div>';
+  }
+  initIcons();
+  if (!isDemoMode && typeof renderSharedWithMeInbox === 'function') {
+    try { renderSharedWithMeInbox('shared-inbox'); } catch(e) { console.warn('[shared-inbox] render failed', e); }
+  }
+}
+
+// ── PATTERN ALERT DETECTION & BANNER ─────────────────────────────────────
+function buildPatternAlertBanner(personName) {
+  if (isDemoMode) return ''; // Demo has its own static banner
+  var alerts = detectPatternAlerts(personName);
+  if (alerts.length === 0) return '';
+  var html = '';
+  alerts.forEach(function(alert) {
+    html += '<div class="alert-banner">'
+      + '<div class="alert-icon"><i data-lucide="triangle-alert" style="width:16px;height:16px;"></i></div>'
+      + '<div>'
+      + '<div class="alert-title">' + escHtml(alert.title) + '</div>'
+      + '<div class="alert-body">' + escHtml(alert.body) + '</div>'
+      + '</div></div>';
+    // Fire pattern alert notification (once per person per alert key)
+    firePatternAlertNotif(alert, personName);
+  });
+  return html;
+}
+
+function detectPatternAlerts(personName) {
+  var alerts = [];
+  if (!liveEvents || liveEvents.length < 3) return alerts;
+
+  // Detect pattern events logged in the last 14 days
+  var fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+  var recentPatterns = liveEvents.filter(function(ev) {
+    return ev.event_type === 'pattern' && new Date(ev.event_date) >= fourteenDaysAgo;
+  });
+  recentPatterns.forEach(function(ev) {
+    alerts.push({
+      key: 'event:' + ev.id,
+      title: ev.title || 'Pattern noticed',
+      body: ev.notes || 'Wellet noticed something in the recent health data.'
+    });
+  });
+
+  // Detect vitals patterns (e.g., rising BP)
+  if (liveVitals && liveVitals.length >= 3) {
+    var recentBP = liveVitals.filter(function(v) {
+      return v.vital_type === 'blood_pressure' && new Date(v.effective_date) >= fourteenDaysAgo;
+    });
+    if (recentBP.length >= 3) {
+      var highCount = recentBP.filter(function(v) {
+        var systolic = v.value_numeric || (v.value_text ? parseInt(v.value_text) : 0);
+        return systolic >= 140;
+      }).length;
+      if (highCount >= 2) {
+        alerts.push({
+          key: 'bp:high:' + new Date().toDateString(),
+          title: 'Blood pressure pattern noticed',
+          body: 'Multiple readings above 140 systolic in the last two weeks. Consider discussing with the care team.'
+        });
+      }
+    }
+  }
+
+  // Detect medication changes cluster
+  var recentMedChanges = liveEvents.filter(function(ev) {
+    return ev.event_type === 'medication' && new Date(ev.event_date) >= fourteenDaysAgo;
+  });
+  if (recentMedChanges.length >= 3) {
+    alerts.push({
+      key: 'medchanges:' + new Date().toDateString(),
+      title: 'Multiple medication changes',
+      body: recentMedChanges.length + ' medication changes in the last two weeks. Wellet is following how these are going.'
+    });
+  }
+
+  return alerts;
+}
+
+async function firePatternAlertNotif(alert, personName) {
+  var alertKey = currentPersonId + ':' + alert.key;
+  if (_patternAlertsSent[alertKey]) return;
+  _patternAlertsSent[alertKey] = true;
+
+  // Insert persistent notification
+  var notif = await insertNotification('pattern_alert', alert.title, alert.body, currentPersonId);
+
+  // Add to in-memory list
+  if (notif) {
+    _notifList.unshift({
+      id: 'db:' + notif.id,
+      type: 'pattern',
+      title: alert.title,
+      body: alert.body,
+      time: notif.created_at,
+      personName: personName || '',
+      seen: false
+    });
+    updateNotifBadge();
+  }
+
+  // Send email to care circle if care_circle_emails enabled
+  if (_notifPrefs && _notifPrefs.care_circle_emails && liveCareCircle && liveCareCircle.length > 0) {
+    liveCareCircle.forEach(function(member) {
+      if (member.email) {
+        sendNotificationEmail('pattern_alert', member.email, member.member_name, personName || '', {
+          title: alert.title,
+          body: alert.body,
+          time: new Date().toISOString()
+        });
+      }
+    });
+  }
+}
+
+// ── RENDER TIMELINE ───────────────────────────────────────────────────────────
+// Route a Timeline card tap to the right Records detail pane, then try to
+// scroll to and highlight the matching item if we can locate it. Called from
+// the inline onclick on each EHR-sourced timeline card.
+function openTimelineItem(section, refId) {
+  try {
+    if (typeof switchNavTo === 'function') switchNavTo('records');
+  } catch(_e) {}
+  // Defer so the Records view finishes rendering before we open the detail pane
+  setTimeout(function() {
+    try {
+      if (typeof openRecordsDetail === 'function' && section) openRecordsDetail(section);
+    } catch(_e) {}
+    if (!refId) return;
+    // After the detail pane renders, try to find and highlight the matching row
+    setTimeout(function() {
+      try {
+        var view = document.getElementById('view-records') || document.body;
+        // Match any element whose data-ref-id ends with our refId (covers
+        // Practitioner/xyz, Observation/abc, etc.).
+        var row = view.querySelector('[data-ref-id$="/' + refId + '"], [data-ref-id="' + refId + '"]');
+        if (row && typeof row.scrollIntoView === 'function') {
+          row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          row.classList.add('tl-target-flash');
+          setTimeout(function(){ row.classList.remove('tl-target-flash'); }, 2000);
+        }
+      } catch(_e) {}
+    }, 120);
+  }, 60);
+}
+
+function renderTimeline() {
+  var pane = document.getElementById('tab-timeline');
+  if (!pane) return;
+
+  // Add event button + FAB (rendered BELOW the EHR status bar)
+  var addBtn = '<div style="padding:12px 20px 4px;display:flex;justify-content:flex-end;">'
+    + '<button class="btn-primary" style="width:auto;padding:10px 16px;font-size:13px;gap:6px;" onclick="openAddEvent()">'
+    + '<i data-lucide="plus" style="width:14px;height:14px;"></i> Add event</button></div>';
+
+  // Merge EHR events into timeline. Each item carries a _section hint so the
+  // card knows which Records detail pane to open on tap.
+  var ehrData = getEhrData(currentPersonId);
+  var ehrTimelineItems = [];
+  if (ehrData) {
+    // Classify encounter by FHIR class/type so "Refill" and "Patient Message"
+    // don't show up as Appointments. Anything that's not a real visit is routed
+    // to notes so it doesn't pollute the visits section.
+    function classifyEncounter(enc) {
+      var nm = String(enc.name || '').toLowerCase();
+      var cls = String(enc.class || '').toLowerCase();
+      var typ = String(enc.type || enc.encounter_type || '').toLowerCase();
+      // Non-visit encounter types commonly seen in Epic
+      if (/\b(refill|message|patient message|telephone|phone call|letter|e\-?visit|portal|result note)\b/.test(nm + ' ' + typ)) {
+        return { event_type: 'note', section: 'visits' };
+      }
+      if (cls === 'virtual' || /\b(telemedicine|video visit|telehealth)\b/.test(nm + ' ' + typ)) {
+        return { event_type: 'appointment', section: 'visits' };
+      }
+      return { event_type: 'appointment', section: 'visits' };
+    }
+    (ehrData.visits || ehrData.encounters || []).forEach(function(enc) {
+      var c = classifyEncounter(enc);
+      ehrTimelineItems.push({ event_type:c.event_type, title:enc.name, event_date:enc.start_date, notes:'', source:'ehr', _ehrProvider:ehrData.provider, _section:c.section, _refId: enc.id || null });
+    });
+    (ehrData.conditions || []).forEach(function(c) {
+      ehrTimelineItems.push({ event_type:'note', title:c.name + ' (diagnosed)', event_date:c.onset_date || c.recorded_date, notes:'', source:'ehr', _ehrProvider:ehrData.provider, _section:'conditions', _refId: c.id || null });
+    });
+    (ehrData.procedures || []).forEach(function(p) {
+      ehrTimelineItems.push({ event_type:'appointment', title:p.name, event_date:p.performed_date, notes:'', source:'ehr', _ehrProvider:ehrData.provider, _section:'visits', _refId: p.id || null });
+    });
+    (ehrData.observations || []).forEach(function(obs) {
+      var valStr = obs.value ? ' \u2014 ' + obs.value + (obs.unit ? ' ' + obs.unit : '') : '';
+      ehrTimelineItems.push({ event_type:'lab_result', title:obs.name + valStr, event_date:obs.effective_date, notes:'', source:'ehr', _ehrProvider:ehrData.provider, _section:'labs', _refId: obs.id || null });
+    });
+    (ehrData.diagnostic_reports || []).forEach(function(r) {
+      var dt = r.effective_date || r.issued;
+      if (!dt) return;
+      var titleStr = r.name || 'Report';
+      if (r.category) titleStr += ' \u2014 ' + r.category;
+      var noteParts = [];
+      if (r.conclusion && r.conclusion.trim()) noteParts.push(r.conclusion.trim());
+      if (Array.isArray(r.conclusion_codes) && r.conclusion_codes.length > 0) {
+        noteParts.push('Findings: ' + r.conclusion_codes.filter(Boolean).join('; '));
+      }
+      (Array.isArray(r.attachments) ? r.attachments : []).forEach(function(att) {
+        if (att && att.inline_text && att.inline_text.trim()) noteParts.push(att.inline_text.trim());
+      });
+      ehrTimelineItems.push({ event_type:'lab_result', title:titleStr, event_date:dt, notes:noteParts.join('\n\n'), source:'ehr', _ehrProvider:ehrData.provider, _section:'labs', _refId: r.id || null });
+    });
+  }
+
+  var allEvents = liveEvents.concat(ehrTimelineItems.filter(function(e){ return e.event_date; }));
+  allEvents.sort(function(a,b) { return new Date(b.event_date) - new Date(a.event_date); });
+
+  if (allEvents.length === 0) {
+    // EHR status bar first (above Add event) when connected
+    var emptyHeader = (ehrData ? buildEhrStatusBar(ehrData) : '') + addBtn;
+    pane.innerHTML = emptyHeader + '<div class="timeline-section">'
+      + '<div style="text-align:center;padding:48px 24px;">'
+      + '<div style="font-size:32px;margin-bottom:12px;opacity:0.3;"><i data-lucide="calendar" style="width:32px;height:32px;"></i></div>'
+      + '<div style="font-size:14px;color:var(--text-muted);line-height:1.6;">Appointments, medications, lab results, and your own notes \u2014 they\u2019ll all show up here in order as you add them.</div>'
+      + (!ehrData && !isDemoMode ? buildEhrPrompt() : '')
+      + '</div></div>';
+    initIcons();
+    return;
+  }
+
+  // Group by month
+  var months = {};
+  allEvents.forEach(function(ev) {
+    var d = new Date(ev.event_date);
+    if (isNaN(d.getTime())) return;
+    var key = d.getFullYear() + '-' + String(d.getMonth()).padStart(2,'0');
+    var label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    if (!months[key]) months[key] = { label: label, events: [] };
+    months[key].events.push(ev);
+  });
+
+  // EHR status bar FIRST (above Add event), then Add event, then timeline list
+  var html = '';
+  if (ehrData) html += buildEhrStatusBar(ehrData);
+  html += addBtn;
+  html += '<div class="timeline-section">';
+  Object.keys(months).sort().reverse().forEach(function(k) {
+    html += '<div class="tl-month">' + months[k].label + '</div>';
+    months[k].events.forEach(function(ev, i) {
+      var isLast = i === months[k].events.length - 1;
+      var typeInfo = getEventTypeInfo(ev.event_type);
+      var dateStr = formatEventDate(ev.event_date);
+      var isEhr = ev.source === 'ehr';
+      // Every card is clickable. User-created events open the edit modal;
+      // EHR items route to the matching Records detail pane (labs / visits /
+      // conditions / documents), with the specific item id as a deep-link hint.
+      var clickAttr;
+      if (!isEhr) {
+        clickAttr = ' onclick="openEditEvent(\'' + ev.id + '\')"';
+      } else {
+        var section = ev._section || (ev.event_type === 'lab_result' ? 'labs' : (ev.event_type === 'appointment' ? 'visits' : 'conditions'));
+        var refIdSafe = ev._refId ? String(ev._refId).replace(/[^a-zA-Z0-9_.\-]/g, '') : '';
+        clickAttr = ' onclick="openTimelineItem(\'' + section + '\',\'' + refIdSafe + '\')" style="cursor:pointer;"';
+      }
+      // Register share context for this timeline item
+      var shareKey = registerShareItem({
+        kind: 'event',
+        subKind: ev.event_type,
+        title: ev.title,
+        date: ev.event_date,
+        notes: ev.notes || '',
+        source: ev.source || 'user',
+        ref_table: 'health_events',
+        ref_id: ev.id || null
+      });
+      // Register Ask context for long-press
+      if (!window._askCtxRegistry) window._askCtxRegistry = {};
+      var askKeyTl = 'tl_' + Object.keys(window._askCtxRegistry).length;
+      window._askCtxRegistry[askKeyTl] = {
+        kind: (ev.event_type === 'lab_result') ? 'lab' : (ev.event_type === 'appointment' ? 'visit' : (ev.event_type === 'note' ? 'note' : (ev.event_type || 'event'))),
+        name: ev.title,
+        date: ev.event_date,
+        notes: ev.notes || '',
+        meta: typeInfo.label
+      };
+      html += '<div class="tl-item">'
+        + '<div class="tl-line-col"><div class="tl-dot ' + typeInfo.dot + '" aria-hidden="true"></div>' + (isLast ? '' : '<div class="tl-connector"></div>') + '</div>'
+        + '<div class="tl-card ' + typeInfo.border + '" data-ask-lp="' + askKeyTl + '"' + clickAttr + '>'
+        + '<div class="tl-card-type-row"><i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + typeInfo.color + ';"></i>'
+        + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span>'
+        + (isEhr ? ' ' + ehrBadgeHtml() : '')
+        + '<button class="tl-share-btn" onclick="event.stopPropagation();openShareSheet(\'' + shareKey + '\')" title="Share with Care Circle" aria-label="Share"><i data-lucide="send" style="width:12px;height:12px;"></i></button>'
+        + '</div>'
+        + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
+        + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
+        + '<div class="tl-card-date">' + dateStr
+        + (isEhr ? ' \u00B7 <span style="color:var(--moss);font-weight:500;">From ' + escHtml(ev._ehrProvider || 'EHR') + '</span>' : '')
+        + '</div>'
+        + '</div></div>';
+    });
+  });
+  html += '</div>';
+  pane.innerHTML = html;
+  initIcons();
+}
+
+// ── RENDER PEOPLE VIEW ────────────────────────────────────────────────────────
+function renderPeopleView() {
+  var view = document.getElementById('view-people');
+  if (!view) return;
+
+  var html = '<div class="view-header"><div class="view-title">People</div>'
+    + '<div class="view-subtitle">Everyone you\u2019re caring for</div></div>'
+    + '<div class="people-section">';
+
+  currentPeople.forEach(function(p) {
+    var initials = p.avatar_initials || p.name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2);
+    var evCount = 0; // could count per person if needed
+    html += '<div class="person-card" id="pcard-' + p.id + '">'
+      + '<div class="person-card-top">'
+      + '<div class="person-card-avatar moss">' + escHtml(initials) + '</div>'
+      + '<div><div class="person-card-name">' + escHtml(p.name) + '</div>'
+      + '<div class="person-card-rel">' + escHtml(p.relationship || '') + '</div></div>'
+      + '<div class="person-card-status stable"><i data-lucide="check-circle" style="width:13px;height:13px;"></i> Active</div>'
+      + '<button class="remove-btn" onclick="confirmRemovePerson(\'' + p.id + '\',\'' + p.name.replace(/'/g,"\\\'") + '\')" title="Remove person">'
+      + '<i data-lucide="x" style="width:16px;height:16px;"></i></button>'
+      + '</div>'
+      + '<div class="person-card-action">'
+      + '<button class="card-action-btn" onclick="switchToRealPersonNav(\'' + p.id + '\')">' + t('tab.update') + '</button>'
+      + '<button class="card-action-btn" onclick="openAddEvent(\'' + p.id + '\')">Add event</button>'
+      + '<button class="card-action-btn" onclick="openProfileEdit(\'' + p.id + '\')"><i data-lucide="pencil" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:3px;"></i>Edit profile</button>'
+      + '</div></div>';
+  });
+
+  html += '<button class="add-person-btn" onclick="showOnboarding()">'
+    + '<i data-lucide="plus" style="width:16px;height:16px;"></i>'
+    + ' ' + t('people.addPerson') + '</button>'
+    + '</div>';
+
+  view.innerHTML = html;
+  initIcons();
+}
+
+async function switchToRealPersonNav(personId) {
+  await loadPersonData(personId);
+  renderPersonSwitcher();
+  renderUpdateMe();
+  renderTimeline();
+  switchNavTo('home');
+}
+
+function confirmRemovePerson(personId, personName) {
+  _cardToRemoveId = personId;
+  document.getElementById('modal-person-name').textContent = personName;
+  document.getElementById('remove-modal').classList.add('show');
+  history.pushState({ type: 'modal' }, '');
+  initIcons();
+}
+
+async function removePerson() {
+  if (_cardToRemoveId) {
+    // Demo mode just removes from DOM
+    var card = document.getElementById('pcard-' + _cardToRemoveId);
+    if (card) {
+      card.style.transition = 'opacity 0.2s, transform 0.2s';
+      card.style.opacity = '0';
+      card.style.transform = 'scale(0.97)';
+      setTimeout(function() { if (card) card.remove(); }, 200);
+    }
+    // Remove from Supabase
+    if (!isDemoMode) {
+      await db.from('people').delete().eq('id', _cardToRemoveId);
+      currentPeople = currentPeople.filter(function(p){ return p.id !== _cardToRemoveId; });
+      if (currentPersonId === _cardToRemoveId && currentPeople.length > 0) {
+        currentPersonId = currentPeople[0].id;
+        await loadPersonData(currentPersonId);
+        renderPersonSwitcher();
+        renderUpdateMe();
+        renderTimeline();
+      }
+    }
+    _cardToRemoveId = null;
+  } else if (_cardToRemove) {
+    _cardToRemove.style.transition = 'opacity 0.2s, transform 0.2s';
+    _cardToRemove.style.opacity = '0';
+    _cardToRemove.style.transform = 'scale(0.97)';
+    setTimeout(function() { if (_cardToRemove) { _cardToRemove.remove(); _cardToRemove = null; } }, 200);
+  }
+  closeModal();
+}
+
+// ── RENDER RECORDS VIEW ───────────────────────────────────────────────────────
+// Module-level state: which detail section is open (null = landing grid).
+var _recordsDetailSection = null;
+
+// ── Labs chart: global data + renderer ───────────────────────────────────────
+window._labsChartData = {};
+
+// Expand/collapse the "View trends over time" panel on the Labs detail screen.
+function toggleLabsTrends() {
+  var panel = document.getElementById('labs-trends-panel');
+  var btn   = document.getElementById('labs-trends-btn');
+  if (!panel) return;
+  var open  = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : 'block';
+  if (btn) {
+    btn.innerHTML = (open
+      ? '<i data-lucide="trending-up" style="width:16px;height:16px;"></i> View trends over time'
+      : '<i data-lucide="chevron-up" style="width:16px;height:16px;"></i> Hide trends');
+    try { initIcons(); } catch (e) {}
+  }
+}
+
+// ── Ask Wellet context bridge ────────────────────────────────────────────────
+// When a user taps "Ask Wellet about this" on a record card, we:
+//  1. Stash a structured context object on window._pendingAskContext
+//  2. Switch to the Ask tab
+//  3. Render a dismissable chip above the input showing what they're asking about
+//  4. Focus the input (still empty — the chip IS the context)
+// When they submit, sendAskMessage() reads the context and sends it along with
+// the free-text question to the edge function, then clears the chip.
+window._pendingAskContext = null;
+
+function openAskWithContext(registryKey) {
+  var ctx = (window._askCtxRegistry || {})[registryKey];
+  if (!ctx) return;
+  window._pendingAskContext = ctx;
+  // Switch to Ask Wellet tab
+  try { switchNavTo('ask'); } catch (e) {}
+  // Render chip and focus input after a short delay to let the tab render
+  setTimeout(function() {
+    _renderAskContextChip();
+    var input = document.getElementById('ask-input');
+    if (input) {
+      input.focus();
+      // Hide the starter chips since the user is focused on one item
+      var chips = document.getElementById('suggestion-chips');
+      if (chips) chips.style.display = 'none';
+    }
+  }, 60);
+}
+
+function clearAskContext() {
+  window._pendingAskContext = null;
+  _renderAskContextChip();
+}
+
+function _renderAskContextChip() {
+  var slot = document.getElementById('ask-context-chip');
+  if (!slot) return;
+  var ctx = window._pendingAskContext;
+  if (!ctx) { slot.style.display = 'none'; slot.innerHTML = ''; return; }
+  // Build a short human-readable label
+  var parts = [];
+  if (ctx.name)  parts.push(ctx.name);
+  if (ctx.value) parts.push(ctx.value);
+  if (ctx.date)  parts.push(formatEventDate(ctx.date));
+  var label = parts.join(' \u00B7 ');
+  slot.style.display = 'block';
+  slot.innerHTML =
+      '<div style="display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:6px 10px;background:#E8F5EE;border:1px solid #C8E0D2;border-radius:999px;font-size:12px;color:var(--moss);">'
+    +   '<i data-lucide="link" style="width:12px;height:12px;flex-shrink:0;"></i>'
+    +   '<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">About: ' + escHtml(label) + '</span>'
+    +   '<button onclick="clearAskContext()" aria-label="Remove context" style="background:none;border:none;padding:0 0 0 4px;cursor:pointer;color:var(--moss);display:flex;align-items:center;">'
+    +     '<i data-lucide="x" style="width:12px;height:12px;"></i>'
+    +   '</button>'
+    + '</div>';
+  try { initIcons(); } catch (e) {}
+}
+
+// ── LONG-PRESS TO ASK WELLET ─────────────────────────────────────────────────────────
+// attachAskLongPress(element, contextProvider)
+//   contextProvider: function or object. Called at press time to get the
+//   Ask context object: { kind, name, value, date, meta, notes, ... }.
+//
+// Behavior:
+//   - 500ms press triggers light haptic + opens the Ask-this sheet
+//   - If text is selected inside the element at press time, the selection
+//     becomes the asked-about value (passed through as ctx.selection)
+//   - Suppresses the follow-on click/tap so the card doesn't also open
+var ASK_LP_THRESHOLD_MS = 500;
+var _askLpState = null; // { el, timer, startX, startY, fired }
+
+function attachAskLongPress(el, contextProvider) {
+  if (!el || el._askLpBound) return;
+  el._askLpBound = true;
+  el.classList.add('ask-lp-target');
+
+  function start(e) {
+    // Skip when press starts in a form control or button inside the card
+    var tag = (e.target && e.target.tagName) || '';
+    if (/^(INPUT|TEXTAREA|BUTTON|SELECT|A)$/.test(tag)) return;
+    if (e.target && e.target.closest && e.target.closest('button, a, input, textarea, select')) return;
+    // Ignore right-click
+    if (e.button === 2) return;
+    var pt = (e.touches && e.touches[0]) || e;
+    cancel();
+    // Capture any pre-existing selection at press-start (desktop clears it on mousedown)
+    var preSelection = '';
+    try {
+      var sel0 = window.getSelection && window.getSelection();
+      if (sel0 && sel0.toString && sel0.toString().trim()) {
+        var n0 = sel0.anchorNode;
+        if (n0 && el.contains(n0.nodeType === 1 ? n0 : n0.parentNode)) {
+          preSelection = sel0.toString().trim();
+        }
+      }
+    } catch(_e){}
+    _askLpState = { el: el, startX: pt.clientX, startY: pt.clientY, fired: false, preSelection: preSelection };
+    el.classList.add('ask-lp-pressing');
+    _askLpState.timer = setTimeout(function() {
+      if (!_askLpState) return;
+      _askLpState.fired = true;
+      el._askLpJustFired = true;
+      try { if (navigator.vibrate) navigator.vibrate(12); } catch(_e){}
+      // Prefer live selection at fire-time (touch), fall back to pre-captured (desktop)
+      var selText = _askLpState.preSelection || '';
+      try {
+        var sel = window.getSelection && window.getSelection();
+        if (sel && sel.toString && sel.toString().trim()) {
+          var rangeNode = sel.anchorNode;
+          if (rangeNode && el.contains(rangeNode.nodeType === 1 ? rangeNode : rangeNode.parentNode)) {
+            selText = sel.toString().trim();
+          }
+        }
+      } catch(_e){}
+      var ctx = (typeof contextProvider === 'function') ? contextProvider() : contextProvider;
+      ctx = ctx ? Object.assign({}, ctx) : {};
+      if (selText) ctx.selection = selText;
+      openAskThisSheet(ctx);
+      el.classList.remove('ask-lp-pressing');
+    }, ASK_LP_THRESHOLD_MS);
+  }
+  function move(e) {
+    if (!_askLpState || _askLpState.el !== el) return;
+    var pt = (e.touches && e.touches[0]) || e;
+    var dx = Math.abs(pt.clientX - _askLpState.startX);
+    var dy = Math.abs(pt.clientY - _askLpState.startY);
+    if (dx > 10 || dy > 10) cancel();
+  }
+  function end() { cancel(); }
+  function cancel() {
+    if (_askLpState) {
+      clearTimeout(_askLpState.timer);
+      if (_askLpState.el) _askLpState.el.classList.remove('ask-lp-pressing');
+    }
+    _askLpState = null;
+  }
+  // Swallow the click that follows a long-press
+  el.addEventListener('click', function(e) {
+    if (el._askLpJustFired) {
+      el._askLpJustFired = false;
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, true);
+
+  el.addEventListener('touchstart', start, { passive: true });
+  el.addEventListener('touchmove', move, { passive: true });
+  el.addEventListener('touchend', end, { passive: true });
+  el.addEventListener('touchcancel', end, { passive: true });
+  el.addEventListener('mousedown', start);
+  el.addEventListener('mousemove', move);
+  el.addEventListener('mouseup', end);
+  el.addEventListener('mouseleave', end);
+  el.addEventListener('contextmenu', function(e){ e.preventDefault(); }); // avoid native right-click menu on desktop
+}
+
+// After a long-press fires, we flag the element so the trailing click is
+// suppressed. We pair this with the sheet opening to ensure card tap doesn't
+// also navigate.
+function _askLpFlagFired(el) { if (el) el._askLpJustFired = true; setTimeout(function(){ if (el) el._askLpJustFired = false; }, 700); }
+
+// ── ASK THIS SHEET ──────────────────────────────────────────────────────────────────────
+var _askSheetCtx = null;
+
+function _askSheetAutoResize(ta) {
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight, 100) + 'px';
+}
+
+function _askSheetStartersFor(ctx) {
+  var kind = (ctx && ctx.kind) || '';
+  var hasSel = !!(ctx && ctx.selection);
+  if (hasSel) {
+    return [
+      { icon: 'help-circle', text: 'What does this mean?' },
+      { icon: 'alert-triangle', text: 'Should I be concerned about this?' },
+      { icon: 'stethoscope', text: 'What should I ask the doctor about this?' }
+    ];
+  }
+  switch (kind) {
+    case 'lab':
+      return [
+        { icon: 'help-circle', text: 'What does this result mean?' },
+        { icon: 'trending-up', text: 'How has this changed over time?' },
+        { icon: 'stethoscope', text: 'What should I ask the doctor?' }
+      ];
+    case 'medication':
+    case 'med':
+      return [
+        { icon: 'help-circle', text: 'What is this medication for?' },
+        { icon: 'alert-triangle', text: 'What side effects should I watch for?' },
+        { icon: 'pill', text: 'Does this interact with other medications?' }
+      ];
+    case 'vital':
+      return [
+        { icon: 'help-circle', text: 'Is this reading in a healthy range?' },
+        { icon: 'trending-up', text: 'How has this changed over time?' },
+        { icon: 'stethoscope', text: 'Should I call the doctor?' }
+      ];
+    case 'visit':
+    case 'appointment':
+      return [
+        { icon: 'clipboard-list', text: 'What should we prepare for this visit?' },
+        { icon: 'file-text', text: 'Summarize the history relevant to this visit' },
+        { icon: 'help-circle', text: 'What questions should I bring?' }
+      ];
+    case 'document':
+    case 'note':
+      return [
+        { icon: 'file-text', text: 'Summarize this for me' },
+        { icon: 'help-circle', text: 'What are the key points?' },
+        { icon: 'stethoscope', text: 'What should I ask the doctor about this?' }
+      ];
+    case 'event':
+    case 'pattern':
+    case 'symptom':
+      return [
+        { icon: 'help-circle', text: 'What could this mean?' },
+        { icon: 'trending-up', text: 'Is this a pattern I should watch?' },
+        { icon: 'stethoscope', text: 'Should I call the doctor?' }
+      ];
+    case 'emergency_section':
+      return [
+        { icon: 'help-circle', text: 'Explain this section in plain language' },
+        { icon: 'file-text', text: 'What\u2019s most important here for an ER visit?' }
+      ];
+    case 'summary':
+      return [
+        { icon: 'message-circle-question', text: 'Tell me more about this' },
+        { icon: 'eye', text: 'What should I watch for next?' },
+        { icon: 'stethoscope', text: 'What should I ask the doctor?' },
+        { icon: 'share-2', text: 'Draft a note to the family' }
+      ];
+    default:
+      return [
+        { icon: 'help-circle', text: 'What does this mean?' },
+        { icon: 'alert-triangle', text: 'Should I be concerned?' },
+        { icon: 'stethoscope', text: 'What should I ask the doctor?' }
+      ];
+  }
+}
+
+function _askSheetKindLabel(kind) {
+  var map = {
+    lab: 'Lab result', medication: 'Medication', med: 'Medication', vital: 'Vital',
+    visit: 'Visit', appointment: 'Appointment', document: 'Document', note: 'Note',
+    event: 'Health event', pattern: 'Pattern', symptom: 'Symptom',
+    emergency_section: 'Emergency summary', share: 'Shared item',
+    summary: 'Wellet summary'
+  };
+  return map[kind] || 'This item';
+}
+
+function openAskThisSheet(ctx) {
+  ctx = ctx || {};
+  _askSheetCtx = ctx;
+  var body = document.getElementById('ask-sheet-body');
+  if (!body) return;
+  var title = ctx.name || ctx.title || '(this item)';
+  var metaParts = [];
+  if (ctx.value) metaParts.push(ctx.value);
+  if (ctx.date) { try { metaParts.push(formatEventDate(ctx.date)); } catch(_e) { metaParts.push(ctx.date); } }
+  if (ctx.meta) metaParts.push(ctx.meta);
+  var meta = metaParts.join(' \u00B7 ');
+  var starters = _askSheetStartersFor(ctx);
+  var previewHtml = '<div class="ask-sheet-preview">'
+    + '<div class="asp-kind">' + escHtml(_askSheetKindLabel(ctx.kind)) + '</div>'
+    + '<div class="asp-title">' + escHtml(title) + '</div>'
+    + (meta ? '<div class="asp-meta">' + escHtml(meta) + '</div>' : '')
+    + (ctx.selection ? '<div class="asp-selection">&ldquo;' + escHtml(ctx.selection) + '&rdquo;</div>' : '')
+    + '</div>';
+  var startersHtml = '<div class="ask-sheet-starters">'
+    + starters.map(function(s, i) {
+        return '<button class="ask-sheet-starter" onclick="_askSheetUseStarter(' + i + ')">'
+          + '<i data-lucide="' + escHtml(s.icon) + '" style="width:16px;height:16px;"></i>'
+          + '<span>' + escHtml(s.text) + '</span>'
+          + '</button>';
+      }).join('')
+    + '</div>';
+  body.innerHTML = previewHtml + startersHtml;
+  body._starters = starters;
+
+  var overlay = document.getElementById('ask-sheet-overlay');
+  var sheet = document.getElementById('ask-sheet');
+  overlay.classList.add('show');
+  sheet.classList.add('show');
+  try { history.pushState({ type: 'sheet', id: 'ask-sheet' }, ''); } catch(_e){}
+  try { initIcons(); } catch(_e){}
+  // Reset input
+  var ta = document.getElementById('ask-sheet-input');
+  if (ta) { ta.value = ''; ta.style.height = 'auto'; }
+}
+
+// Hide the sheet visually without touching history. Used when we're about to
+// navigate to the Ask tab ourselves (starter tap / submit) and don't want a
+// popstate race.
+function _hideAskSheetVisual() {
+  var overlay = document.getElementById('ask-sheet-overlay');
+  var sheet = document.getElementById('ask-sheet');
+  if (overlay) overlay.classList.remove('show');
+  if (sheet) sheet.classList.remove('show');
+  _askSheetCtx = null;
+}
+
+function closeAskSheet() {
+  _hideAskSheetVisual();
+  // If we pushed state, pop it. Guard in case the user navigated.
+  try { if (history.state && history.state.id === 'ask-sheet') history.back(); } catch(_e){}
+}
+
+function _askSheetUseStarter(idx) {
+  var body = document.getElementById('ask-sheet-body');
+  var starters = (body && body._starters) || [];
+  var starter = starters[idx];
+  if (!starter) return;
+  _askSheetDispatch(starter.text);
+}
+
+function submitAskSheet() {
+  var ta = document.getElementById('ask-sheet-input');
+  if (!ta) return;
+  var text = (ta.value || '').trim();
+  if (!text) return;
+  _askSheetDispatch(text);
+}
+
+// Stash context, switch to Ask tab, drop the question in the input, and fire
+function _askSheetDispatch(questionText) {
+  var ctx = _askSheetCtx || {};
+  // Convert sheet ctx to the shape sendAskMessage forwards to the edge function
+  var finalCtx = {
+    kind:  ctx.kind || 'item',
+    name:  ctx.selection ? ('\u201C' + ctx.selection + '\u201D (from ' + (ctx.name || ctx.title || 'this item') + ')') : (ctx.name || ctx.title || ''),
+    value: ctx.value || '',
+    date:  ctx.date || '',
+    ref:   ctx.ref || '',
+    notes: ctx.notes || '',
+    meta:  ctx.meta || '',
+    selection: ctx.selection || ''
+  };
+  // For summary context, pass the full paragraph as notes so Ask Wellet can reference it
+  if (ctx.kind === 'summary' && ctx.summary_text && !finalCtx.notes) {
+    finalCtx.notes = ctx.summary_text;
+  }
+  window._pendingAskContext = finalCtx;
+
+  // Hide the sheet visually FIRST, but DON'T call history.back() — it races
+  // with switchNavTo and can leave us on the wrong tab.
+  _hideAskSheetVisual();
+  // Clean up the pushed 'sheet' history entry by replacing it with our target
+  // tab state, so the browser back button still works sensibly.
+  try {
+    if (history.state && history.state.id === 'ask-sheet') {
+      history.replaceState({ type: 'tab', view: 'ask' }, '');
+    }
+  } catch(_e){}
+
+  try { switchNavTo('ask'); } catch(_e){}
+
+  // Use rAF so the tab switch DOM is in place before we touch #ask-input
+  requestAnimationFrame(function() {
+    try { if (typeof _renderAskContextChip === 'function') _renderAskContextChip(); } catch(_e){}
+    var input = document.getElementById('ask-input');
+    if (!input) {
+      // Fallback: retry once after a short delay in case switchNavTo is async
+      setTimeout(function() {
+        var i2 = document.getElementById('ask-input');
+        if (!i2) return;
+        i2.value = questionText;
+        try { autoResize(i2); } catch(_e){}
+        var c2 = document.getElementById('suggestion-chips');
+        if (c2) c2.style.display = 'none';
+        try { sendAskMessage(); } catch(_e){}
+      }, 120);
+      return;
+    }
+    input.value = questionText;
+    try { autoResize(input); } catch(_e){}
+    var chips = document.getElementById('suggestion-chips');
+    if (chips) chips.style.display = 'none';
+    try { sendAskMessage(); } catch(_e){}
+  });
+}
+
+// Global back-button / escape close
+document.addEventListener('keydown', function(e){
+  if (e.key === 'Escape') {
+    var sheet = document.getElementById('ask-sheet');
+    if (sheet && sheet.classList.contains('show')) closeAskSheet();
+  }
+});
+
+// Delegated long-press attachment. Call attachAskLongPressAll() after any render
+// to bind any new elements matching `[data-ask-lp]` (keyed to _askCtxRegistry)
+// or cards we auto-target by class (see AUTO_ASK_LP_SELECTORS).
+function attachAskLongPressAll() {
+  try {
+    // 1) Explicit registry-keyed elements
+    var nodes = document.querySelectorAll('[data-ask-lp]:not(.ask-lp-target)');
+    nodes.forEach(function(el) {
+      var key = el.getAttribute('data-ask-lp');
+      attachAskLongPress(el, function() {
+        return (window._askCtxRegistry && window._askCtxRegistry[key]) || _inferAskCtxFromEl(el);
+      });
+    });
+    // 2) Auto-target cards without explicit registry key — we infer context
+    //    from the visible content of the card. This covers med cards, vital
+    //    rows, visit cards, document cards, ER summary sections, and
+    //    shared-inbox items without needing renderer-by-renderer changes.
+    var AUTO_ASK_LP_SELECTORS = [
+      '.tl-card', '.lab-card',
+      '.record-card', '.med-card', '.vital-card', '.vital-row',
+      '.visit-card', '.doc-card', '.document-card', '.attachment-card',
+      '.allergy-card', '.condition-card', '.er-section', '.er-summary-section',
+      '.share-inbox-card .sib-item'
+    ].join(',');
+    var autoNodes = document.querySelectorAll(AUTO_ASK_LP_SELECTORS);
+    autoNodes.forEach(function(el) {
+      if (el.classList.contains('ask-lp-target')) return;
+      if (el.closest('.ask-sheet')) return; // don't bind inside the sheet itself
+      attachAskLongPress(el, function() { return _inferAskCtxFromEl(el); });
+    });
+  } catch(e){}
+}
+
+// Infer a sensible Ask context from a card element by reading its text.
+function _inferAskCtxFromEl(el) {
+  if (!el) return {};
+  // Prefer known subtitle/title classes, otherwise use the first two lines of text
+  function txt(sel) { var n = el.querySelector(sel); return n ? (n.textContent || '').trim() : ''; }
+  var kindGuess = 'item';
+  if (el.classList.contains('med-card')) kindGuess = 'medication';
+  else if (el.classList.contains('lab-card')) kindGuess = 'lab';
+  else if (el.classList.contains('tl-card')) {
+    // Try to read the type label
+    var typeLabel = (el.querySelector('.tl-card-type')?.textContent || '').toLowerCase();
+    if (typeLabel.indexOf('lab') >= 0) kindGuess = 'lab';
+    else if (typeLabel.indexOf('appoint') >= 0 || typeLabel.indexOf('visit') >= 0) kindGuess = 'visit';
+    else if (typeLabel.indexOf('med') >= 0) kindGuess = 'medication';
+    else if (typeLabel.indexOf('note') >= 0) kindGuess = 'note';
+    else if (typeLabel.indexOf('pattern') >= 0) kindGuess = 'pattern';
+    else kindGuess = 'event';
+  }
+  else if (el.classList.contains('vital-card') || el.classList.contains('vital-row')) kindGuess = 'vital';
+  else if (el.classList.contains('visit-card')) kindGuess = 'visit';
+  else if (el.classList.contains('doc-card') || el.classList.contains('document-card') || el.classList.contains('attachment-card')) kindGuess = 'document';
+  else if (el.classList.contains('allergy-card')) kindGuess = 'allergy';
+  else if (el.classList.contains('condition-card')) kindGuess = 'condition';
+  else if (el.classList.contains('er-section') || el.classList.contains('er-summary-section')) kindGuess = 'emergency_section';
+  else if (el.classList.contains('sib-item') || el.closest('.share-inbox-card')) kindGuess = 'share';
+
+  var title = txt('.tl-card-title') || txt('.sib-title') || txt('.record-title') || txt('.card-title') || txt('h3') || txt('h4') || '';
+  var meta  = txt('.tl-card-date') || txt('.sib-meta') || txt('.record-meta') || txt('.card-meta') || '';
+  var value = txt('.tl-card-body') || txt('.record-value') || txt('.vital-value') || '';
+  if (!title) {
+    // Fallback: first non-empty line of the element
+    var lines = (el.textContent || '').split(/\n|\r/).map(function(s){ return s.trim(); }).filter(Boolean);
+    title = lines[0] || '';
+    if (!meta) meta = (lines[1] || '').slice(0, 120);
+  }
+  return { kind: kindGuess, name: (title || '').slice(0, 160), meta: (meta || '').slice(0, 160), value: value };
+}
+// Re-scan on any DOM mutations inside #app so dynamically-rendered surfaces
+// pick up long-press automatically without each renderer needing to remember.
+(function(){
+  if (window._askLpObserver) return;
+  var runSoon = null;
+  function schedule() {
+    if (runSoon) return;
+    runSoon = setTimeout(function(){ runSoon = null; attachAskLongPressAll(); }, 50);
+  }
+  var app = document.getElementById('app') || document.body;
+  var obs = new MutationObserver(schedule);
+  obs.observe(app || document.body, { childList: true, subtree: true });
+  window._askLpObserver = obs;
+  // Initial scan
+  schedule();
+})();
+
+window.renderLabsChart = function(testName) {
+  var container = document.getElementById('labs-chart-container');
+  if (!container) return;
+  if (!testName) {
+    container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:12px;">Select a test to view its trend.</div>';
+    return;
+  }
+  var readings = window._labsChartData[testName];
+  if (!readings || readings.length < 2) {
+    container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:12px;">Not enough numeric readings to chart.</div>';
+    return;
+  }
+  var W = 300, H = 120, padL = 36, padR = 12, padT = 14, padB = 26;
+  var vals  = readings.map(function(r){ return r.value; });
+  var dates = readings.map(function(r){ return new Date(r.date).getTime(); });
+  var minV = Math.min.apply(null, vals), maxV = Math.max.apply(null, vals);
+  var minD = Math.min.apply(null, dates), maxD = Math.max.apply(null, dates);
+  var vRange = maxV - minV || 1;
+  var vLow = minV - vRange * 0.1, vHigh = maxV + vRange * 0.1;
+  function xP(d){ return padL + (d - minD) / (maxD - minD || 1) * (W - padL - padR); }
+  function yP(v){ return padT + (1 - (v - vLow) / (vHigh - vLow)) * (H - padT - padB); }
+  var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" style="width:100%;height:120px;display:block;">';
+  // reference range band
+  if (readings[0].ref) {
+    var rm = readings[0].ref.match(/^(\d+\.?\d*)\s*[-\u2013]\s*(\d+\.?\d*)$/);
+    var lm = readings[0].ref.match(/^[<\u003c]\s*(\d+\.?\d*)$/);
+    var gm = readings[0].ref.match(/^[>\u003e]\s*(\d+\.?\d*)$/);
+    var bLow = null, bHigh = null;
+    if (rm) { bLow = parseFloat(rm[1]); bHigh = parseFloat(rm[2]); }
+    else if (lm) { bLow = vLow; bHigh = parseFloat(lm[1]); }
+    else if (gm) { bLow = parseFloat(gm[1]); bHigh = vHigh; }
+    if (bLow !== null) {
+      var by1 = Math.max(padT, yP(bHigh)), by2 = Math.min(H - padB, yP(bLow));
+      svg += '<rect x="' + padL + '" y="' + by1.toFixed(1) + '" width="' + (W-padL-padR) + '" height="' + Math.max(0,by2-by1).toFixed(1) + '" fill="rgba(100,160,100,0.12)" rx="3"/>';
+    }
+  }
+  // gridlines
+  for (var gi = 0; gi <= 2; gi++) {
+    var gy = padT + gi*(H-padT-padB)/2;
+    var gv = vHigh - gi*(vHigh-vLow)/2;
+    svg += '<line x1="'+padL+'" y1="'+gy.toFixed(1)+'" x2="'+(W-padR)+'" y2="'+gy.toFixed(1)+'" stroke="#e5e5e5" stroke-width="0.8"/>';
+    svg += '<text x="'+(padL-4)+'" y="'+(gy+4).toFixed(1)+'" font-size="8" fill="#aaa" text-anchor="end">'+gv.toFixed(1)+'</text>';
+  }
+  // line
+  var pts = readings.map(function(r){ return xP(new Date(r.date).getTime()).toFixed(1)+','+yP(r.value).toFixed(1); });
+  svg += '<polyline points="'+pts.join(' ')+'" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+  // dots
+  readings.forEach(function(r){
+    svg += '<circle cx="'+xP(new Date(r.date).getTime()).toFixed(1)+'" cy="'+yP(r.value).toFixed(1)+'" r="3.5" fill="var(--blue)" stroke="white" stroke-width="1.5"/>';
+  });
+  svg += '</svg>';
+  var latest = readings[readings.length-1], earliest = readings[0];
+  function fcd(d){ try{ return new Date(d).toLocaleDateString('en-US',{month:'short',year:'numeric'}); }catch(e2){ return d; } }
+  var unitStr = latest.unit ? ' ' + latest.unit : '';
+  container.innerHTML = svg
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">'
+    + '<span style="font-size:11px;color:var(--text-muted);">'+fcd(earliest.date)+' \u2192 '+fcd(latest.date)+' \u00B7 '+readings.length+' readings</span>'
+    + '<span style="font-size:14px;font-weight:600;color:var(--text-primary);">'+latest.value+unitStr+'</span>'
+    + '</div>';
+};
+
+// ── Detail-section content builders ──────────────────────────────────────────
+
+function _rdMedsContent(activeMeds, ehrMeds, ehrData, ehrProvider) {
+  var html = '';
+  if (activeMeds.length === 0 && ehrMeds.length === 0) {
+    html += '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">No medications added yet.</div>';
+    if (!ehrData) html += buildEhrPrompt();
+  } else {
+    activeMeds.forEach(function(med) {
+      html += '<div class="record-row" onclick="openEditMed(\''+med.id+'\')">'
+        + '<div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>'
+        + '<div style="flex:1;"><div class="record-label">'+escHtml(med.name)+(med.dose?' '+escHtml(med.dose):'')+'</div>'
+        + '<div class="record-meta">'+(med.frequency?escHtml(med.frequency):'')+(med.prescriber?' \u00B7 '+escHtml(med.prescriber):'')+'</div></div>'
+        + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>'
+        + '</div>';
+    });
+    ehrMeds.forEach(function(med, idx) {
+      var did = 'ehr-med-'+idx;
+      var mp = [];
+      if (med.dosage) mp.push(escHtml(med.dosage));
+      if (med.frequency) mp.push(escHtml(med.frequency));
+      if (med.status) mp.push('Status: '+escHtml(med.status));
+      if (med.date_asserted) mp.push('Prescribed: '+escHtml(med.date_asserted));
+      html += '<div class="record-row" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\''+did+'\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
+        + '<div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>'
+        + '<div style="flex:1;"><div class="record-label">'+escHtml(med.name)+' '+ehrBadgeHtml()+'</div>'
+        + '<div class="record-meta">'+escHtml(med.dosage||med.frequency||'')+'</div></div>'
+        + rowProviderBadge(med, ehrProvider, ehrData)
+        + '<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;">'+mp.join('<br>')+'</div>'
+        + '</div>';
+    });
+  }
+  html += '<button class="add-person-btn" style="border-style:dashed;margin:12px 0 4px;" onclick="openAddMed()">'
+    + '<i data-lucide="plus" style="width:15px;height:15px;"></i> Add medication</button>';
+  return html;
+}
+
+function _rdConditionsContent(ehrConditions, ehrData, ehrProvider) {
+  var html = '';
+  if (ehrConditions.length === 0) {
+    html += '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">No conditions on file.</div>';
+    if (!ehrData) html += buildEhrPrompt();
+    return html;
+  }
+  var needsAttnRe = /need.*vaccin|lacks?|overdue|gap|non-adherence|immuniz.*overdue/i;
+  var preventiveRe = /BMI|body mass|screen|wellness|preventive|counseling|routine|exam|physical/i;
+  var condNA = [], condActive = [], condPrev = [], condResolved = [];
+  ehrConditions.forEach(function(c) {
+    var n = c.name || '';
+    if (needsAttnRe.test(n))         condNA.push(c);
+    else if (preventiveRe.test(n))   condPrev.push(c);
+    else if (c.status === 'active')  condActive.push(c);
+    else                             condResolved.push(c);
+  });
+  // dedup preventive & resolved by name, keep most recent
+  function dedup(arr) {
+    var map = {};
+    arr.forEach(function(c) {
+      var k = (c.name||'').toLowerCase().trim();
+      var t = new Date(c.recorded_date||c.onset_date||'1900-01-01').getTime();
+      if (!map[k] || t > new Date(map[k].recorded_date||map[k].onset_date||'1900-01-01').getTime()) map[k]=c;
+    });
+    return Object.keys(map).map(function(k){ return map[k]; });
+  }
+  condPrev     = dedup(condPrev);
+  condResolved = dedup(condResolved);
+
+  var shdr = 'font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);font-weight:500;margin:14px 0 6px;';
+  html += '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;">'
+    + condActive.length+' active \u00B7 '+condPrev.length+' preventive \u00B7 '+condResolved.length+' historical'+'</div>';
+
+  function condRow(c, idx, pfx) {
+    var did = 'cond-'+pfx+'-'+idx;
+    var badge = c.status==='active'
+      ? '<span class="record-badge amber">Active</span>'
+      : '<span class="record-badge moss">'+escHtml(c.status||'Recorded')+'</span>';
+    var meta = [];
+    if (c.onset_date)    meta.push('Onset: '+formatEventDate(c.onset_date));
+    if (c.recorded_date) meta.push('Recorded: '+formatEventDate(c.recorded_date));
+    if (c.code)          meta.push('Code: '+escHtml(c.code));
+    if (c.status)        meta.push('Status: '+escHtml(c.status));
+    return '<div class="record-row" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\''+did+'\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
+      + '<div class="record-icon moss"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>'
+      + '<div style="flex:1;"><div class="record-label">'+escHtml(c.name)+'</div>'
+      + '<div class="record-meta">'+(c.onset_date?'Since '+formatEventDate(c.onset_date):(c.recorded_date?formatEventDate(c.recorded_date):''))+'</div></div>'
+      + badge
+      + (meta.length?'<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;">'+meta.join('<br>')+'</div>':'')
+      + '</div>';
+  }
+
+  if (condNA.length) {
+    html += '<div style="'+shdr+'">Needs Attention</div>';
+    condNA.forEach(function(c,i){
+      html += '<div style="background:#FEF6E8;border:1px solid #F5D78C;border-radius:10px;margin-bottom:6px;overflow:hidden;">'+condRow(c,i,'na')+'</div>';
+    });
+  }
+  if (condActive.length) {
+    html += '<div style="'+shdr+'">Active</div>';
+    condActive.forEach(function(c,i){ html += condRow(c,i,'act'); });
+  }
+  if (condPrev.length) {
+    html += '<div style="'+shdr+'">Preventive &amp; Screenings</div>';
+    condPrev.forEach(function(c,i){ html += condRow(c,i,'prev'); });
+  }
+  if (condResolved.length) {
+    html += '<div style="'+shdr+'">Resolved / Historical</div>';
+    condResolved.forEach(function(c,i){ html += condRow(c,i,'res'); });
+  }
+  return html;
+}
+
+function _rdAllergiesContent(liveAllergies, ehrAllergies, ehrData, ehrProvider) {
+  var html = '';
+  liveAllergies.forEach(function(a) {
+    var srcBadge = a.source==='ehr' ? ' '+ehrBadgeHtml() : '';
+    html += '<div class="record-row">'
+      + '<div class="record-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="alert-triangle" style="width:15px;height:15px;"></i></div>'
+      + '<div style="flex:1;"><div class="record-label">'+escHtml(a.substance)+srcBadge+'</div>'
+      + '<div class="record-meta">'+(a.reaction?escHtml(a.reaction):'')+(a.severity?' \u00B7 '+escHtml(a.severity):'')+'</div></div>'
+      + (a.clinical_status==='active'?'<span class="record-badge amber">Active</span>':'')
+      + '</div>';
+  });
+  ehrAllergies.forEach(function(a, idx) {
+    var alreadyInDb = liveAllergies.some(function(d){ return d.substance && a.name && d.substance.toLowerCase()===a.name.toLowerCase(); });
+    if (alreadyInDb) return;
+    var did = 'ehr-allergy-'+idx;
+    var rxStr = a.reactions && a.reactions.length ? a.reactions.join(', ') : '';
+    var meta = [];
+    if (rxStr) meta.push('Reactions: '+escHtml(rxStr));
+    if (a.severity) meta.push('Severity: '+escHtml(a.severity));
+    if (a.clinical_status) meta.push('Status: '+escHtml(a.clinical_status));
+    if (a.verification_status) meta.push('Verification: '+escHtml(a.verification_status));
+    if (a.onset_date) meta.push('Onset: '+escHtml(a.onset_date));
+    if (a.code) meta.push('Code: '+escHtml(a.code));
+    html += '<div class="record-row" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\''+did+'\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
+      + '<div class="record-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="alert-triangle" style="width:15px;height:15px;"></i></div>'
+      + '<div style="flex:1;"><div class="record-label">'+escHtml(a.name)+' '+ehrBadgeHtml()+'</div>'
+      + '<div class="record-meta">'+(rxStr?escHtml(rxStr):'')+(a.severity?' \u00B7 '+escHtml(a.severity):'')+'</div></div>'
+      + rowProviderBadge(a, ehrProvider, ehrData)
+      + (meta.length?'<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;">'+meta.join('<br>')+'</div>':'')
+      + '</div>';
+  });
+  return html;
+}
+
+// ── Visit AI summary + document links ──
+// Per-encounter cache so we don't re-summarize or re-fetch on every expand/collapse.
+// Keyed by encounter id. Values:
+//   summary: { state: 'idle'|'loading'|'done'|'error', text?: string, error?: string }
+//   docs[docId]: { state: 'loading'|'done'|'error', url?: string, error?: string }  (blob URL while open)
+var visitSummaryCache = {};
+
+// Build a compact context for the visit summary call. We only send what the user
+// already has loaded on this device — no extra data is pulled to the server.
+function buildVisitSummaryPayload(enc) {
+  var startMs = enc.start_date ? new Date(enc.start_date).getTime() : 0;
+  // Window: 14 days before visit through 7 days after — covers related labs ordered at/after the appointment
+  var windowStart = startMs ? startMs - 14 * 86400000 : 0;
+  var windowEnd   = startMs ? startMs +  7 * 86400000 : 0;
+
+  var obs = (liveLabs || []).filter(function(o) {
+    if (!o || o.source !== 'ehr') return false;
+    var t = o.effective_date ? new Date(o.effective_date).getTime() : 0;
+    return !windowStart || (t >= windowStart && t <= windowEnd);
+  }).slice(0, 25).map(function(o) {
+    return { name: o.name, value: o.value, unit: o.unit, effective_date: o.effective_date };
+  });
+
+  var meds = (liveMeds || []).filter(function(m) { return m && m.source === 'ehr'; })
+    .slice(0, 20)
+    .map(function(m) { return { name: m.name, dose: m.dose, frequency: m.frequency }; });
+
+  return {
+    visit: {
+      id: enc.id || '',
+      name: enc.name || '',
+      status: enc.status || '',
+      start_date: enc.start_date || '',
+      end_date: enc.end_date || '',
+      location: enc.location || '',
+      reason: enc.reason || '',
+      providers: (enc.providers || []).map(function(p){ return { name: p.name || '' }; }),
+    },
+    medications: meds,
+    observations: obs,
+  };
+}
+
+// Called from visitRow onclick the first time an encounter body is expanded.
+function loadVisitSummary(encId, domId) {
+  if (!encId || !currentPersonId) return;
+  var entry = visitSummaryCache[encId] || (visitSummaryCache[encId] = { summary: { state: 'idle' }, docs: {} });
+  if (entry.summary.state === 'loading' || entry.summary.state === 'done') return;
+
+  // Find the encounter payload from the in-memory EHR data
+  var ehrData = getEhrData(currentPersonId);
+  var visits = ehrData && ehrData.visits ? ehrData.visits : [];
+  var enc = null;
+  for (var i = 0; i < visits.length; i++) { if (visits[i].id === encId) { enc = visits[i]; break; } }
+  if (!enc) return;
+
+  entry.summary.state = 'loading';
+  var payload = buildVisitSummaryPayload(enc);
+  payload.person_id = currentPersonId;
+
+  db.auth.getSession().then(function(sessionRes) {
+    var session = sessionRes.data.session;
+    if (!session) throw new Error('no session');
+    return fetch(SUPABASE_URL + '/functions/v1/summarize-visit', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + session.access_token,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify(payload),
+    });
+  }).then(function(res) {
+    if (!res || !res.ok) throw new Error('summary fetch failed');
+    return res.json();
+  }).then(function(data) {
+    if (!data || !data.summary) throw new Error(data && data.error ? data.error : 'empty summary');
+    entry.summary.state = 'done';
+    entry.summary.text = data.summary;
+    renderVisitSummaryInto(domId, entry);
+  }).catch(function(e) {
+    entry.summary.state = 'error';
+    entry.summary.error = (e && e.message) || 'unknown error';
+    renderVisitSummaryInto(domId, entry);
+  });
+}
+
+function renderVisitSummaryInto(domId, entry) {
+  var el = document.getElementById(domId);
+  if (!el) return;
+  if (entry.summary.state === 'loading') {
+    el.innerHTML = '<div style="color:var(--text-muted);font-style:italic;">Writing a plain-language summary\u2026</div>';
+  } else if (entry.summary.state === 'done') {
+    el.innerHTML = '<div style="color:var(--text-primary);">' + escHtml(entry.summary.text) + '</div>';
+  } else if (entry.summary.state === 'error') {
+    el.innerHTML = '<div style="color:var(--text-muted);font-style:italic;">Summary unavailable right now.</div>';
+  }
+}
+
+// Open a DocumentReference attachment. Fetches the Binary through our edge function
+// so the browser never sees the EHR access token, then opens it in a new tab.
+function openEhrDocument(encId, docId) {
+  if (!currentPersonId || !docId) return;
+  var entry = visitSummaryCache[encId] || (visitSummaryCache[encId] = { summary: { state: 'idle' }, docs: {} });
+  var doc = entry.docs[docId];
+  // Reuse any previously-fetched blob URL while the tab is open
+  if (doc && doc.state === 'done' && doc.url) {
+    window.open(doc.url, '_blank', 'noopener');
+    return;
+  }
+  if (doc && doc.state === 'loading') return;
+  entry.docs[docId] = { state: 'loading' };
+
+  // Find the doc metadata (includes the Epic Binary URL) on the encounter
+  var ehrData = getEhrData(currentPersonId);
+  var visits = ehrData && ehrData.visits ? ehrData.visits : [];
+  var targetDoc = null;
+  for (var i = 0; i < visits.length && !targetDoc; i++) {
+    var v = visits[i];
+    if (v.id !== encId || !v.documents) continue;
+    for (var j = 0; j < v.documents.length; j++) {
+      if (v.documents[j].id === docId) { targetDoc = v.documents[j]; break; }
+    }
+  }
+  if (!targetDoc) return;
+
+  db.auth.getSession().then(function(sessionRes) {
+    var session = sessionRes.data.session;
+    if (!session) throw new Error('no session');
+    return fetch(SUPABASE_URL + '/functions/v1/fetch-ehr-document', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + session.access_token,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({
+        person_id: currentPersonId,
+        document_id: targetDoc.id,
+        document_url: targetDoc.url || '',
+      }),
+    });
+  }).then(function(res) {
+    if (!res || !res.ok) throw new Error('document fetch failed');
+    return res.json();
+  }).then(function(data) {
+    if (!data || !data.data_base64) throw new Error(data && data.error ? data.error : 'empty document');
+    // Decode base64 into a Blob and open it in a new tab
+    var bin = atob(data.data_base64);
+    var len = bin.length;
+    var bytes = new Uint8Array(len);
+    for (var k = 0; k < len; k++) bytes[k] = bin.charCodeAt(k);
+    var blob = new Blob([bytes], { type: data.content_type || 'application/octet-stream' });
+    var url = URL.createObjectURL(blob);
+    entry.docs[docId] = { state: 'done', url: url };
+    window.open(url, '_blank', 'noopener');
+  }).catch(function(e) {
+    entry.docs[docId] = { state: 'error', error: (e && e.message) || 'unknown error' };
+    try { alert('Could not open document. Please try reconnecting Epic MyChart.'); } catch(_e) {}
+  });
+}
+
+// Called from visit row onclick (delegates to the existing toggle + kicks off summary)
+function toggleVisitDetail(detailId, encId) {
+  var d = document.getElementById(detailId);
+  if (!d) return;
+  var nowOpen = d.style.display === 'none';
+  d.style.display = nowOpen ? 'block' : 'none';
+  if (nowOpen && encId) {
+    // Kick off summary fetch only on first open
+    var entry = visitSummaryCache[encId];
+    if (!entry || entry.summary.state === 'idle') {
+      loadVisitSummary(encId, detailId + '-summary');
+    } else {
+      renderVisitSummaryInto(detailId + '-summary', entry);
+    }
+  }
+}
+
+function _rdVisitsContent(apptEvents, ehrVisitsRecent, ehrVisitsOlder, ehrData, ehrProvider) {
+  var html = '';
+  // Filter bar — search text + jump-to-month. Operates client-side on .record-row elements.
+  html += '<div class="visits-filter-bar" style="display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap;">'
+    + '<div style="flex:1;min-width:180px;position:relative;">'
+    + '<i data-lucide="search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--text-muted);pointer-events:none;"></i>'
+    + '<input type="text" id="visits-search-input" placeholder="Search by doctor, visit type\u2026" oninput="filterVisits()" style="width:100%;padding:8px 10px 8px 30px;font-size:13px;border:1px solid var(--border);border-radius:20px;background:#fff;color:var(--text-primary);outline:none;box-sizing:border-box;">'
+    + '</div>'
+    + '<input type="month" id="visits-month-input" onchange="filterVisits()" style="padding:7px 10px;font-size:13px;border:1px solid var(--border);border-radius:20px;background:#fff;color:var(--text-primary);outline:none;">'
+    + '<button type="button" id="visits-clear-btn" onclick="clearVisitsFilter()" style="display:none;background:none;border:none;color:var(--moss);font-size:12px;font-weight:600;cursor:pointer;padding:4px 6px;">Clear</button>'
+    + '</div>'
+    + '<div id="visits-no-match" style="display:none;text-align:center;padding:20px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">No visits match your search.</div>';
+  var realRe    = /office|outpatient|inpatient|emergency|telemedicine|hospital|surgery|procedure|consult|urgent/i;
+  var routineRe = /refill|patient message|message|administrative|letter|historical/i;
+  function visitClass(enc) {
+    var n = enc.name || enc.type || '';
+    if (realRe.test(n))    return 'real';
+    if (routineRe.test(n)) return 'routine';
+    return 'real';
+  }
+  function typePill(enc) {
+    var n = (enc.name||enc.type||'').toLowerCase();
+    var bg, fg, lbl;
+    if (/telemedicine/.test(n))       { bg='#E8F0FD'; fg='#2C60C2'; lbl='Telemedicine'; }
+    else if (/inpatient|hospital/.test(n)) { bg='#FEF6E8'; fg='#8C6511'; lbl='Inpatient'; }
+    else if (/outpatient/.test(n))    { bg='#EDFAF2'; fg='#2A6645'; lbl='Outpatient'; }
+    else                              { bg='#EDFAF2'; fg='#2A6645'; lbl='Office Visit'; }
+    return '<span style="font-size:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;padding:2px 7px;border-radius:10px;background:'+bg+';color:'+fg+';margin-right:6px;">'+lbl+'</span>';
+  }
+  function visitRow(enc, idx, pfx) {
+    var did = 'ehr-enc-'+pfx+'-'+idx;
+    var encId = enc.id || '';
+    var meta = [];
+    if (enc.start_date) meta.push('Date: '+formatEventDate(enc.start_date));
+    if (enc.end_date)   meta.push('End: '+formatEventDate(enc.end_date));
+    if (enc.status)     meta.push('Status: '+escHtml(enc.status));
+    if (enc.location)   meta.push('Location: '+escHtml(enc.location));
+    if (enc.reason)     meta.push('Reason: '+escHtml(enc.reason));
+    var provs = (enc.providers||[]).map(function(p){ return p.name||''; }).filter(Boolean);
+    if (provs.length) meta.push('Provider: '+escHtml(provs.join(', ')));
+    var vref = visitRefFor(enc, ehrProvider);
+
+    // Classify documents attached to this encounter. AVS (Summary of episode)
+    // and provider/outpatient notes are the two the UI surfaces as links.
+    var docs = Array.isArray(enc.documents) ? enc.documents : [];
+    var avsDoc = null, providerDoc = null;
+    for (var di = 0; di < docs.length; di++) {
+      var d = docs[di];
+      var tc = (d.loinc_code || d.type_code || '') + '';
+      var tt = ((d.title || '') + '').toLowerCase();
+      if (!avsDoc && (tc === '34133-9' || /after visit summary|summary of episode/.test(tt))) avsDoc = d;
+      else if (!providerDoc && (tc === '34108-1' || tc === '18842-5' || /progress note|outpatient note|discharge|provider/.test(tt))) providerDoc = d;
+    }
+    // Fallback: first two distinct docs if we couldn't classify by LOINC/title
+    if (!avsDoc && docs.length) avsDoc = docs[0];
+    if (!providerDoc && docs.length > 1) providerDoc = docs[1];
+
+    var docLinks = '';
+    function docLinkHtml(label, doc, iconName) {
+      return '<a onclick="event.stopPropagation();openEhrDocument(\''+encId+'\',\''+escHtml(doc.id)+'\')" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--moss);cursor:pointer;text-decoration:none;font-weight:600;font-size:14px;line-height:1.2;flex:1;min-width:0;">'
+        + '<i data-lucide="'+iconName+'" style="width:18px;height:18px;flex-shrink:0;"></i>'
+        + '<span style="flex:1;min-width:0;line-height:1.2;">' + escHtml(label) + '</span>'
+        + '<i data-lucide="external-link" style="width:14px;height:14px;flex-shrink:0;opacity:0.6;"></i></a>';
+    }
+    if (encId && (avsDoc || providerDoc)) {
+      docLinks += '<div style="display:flex;gap:8px;margin:14px 0 4px;flex-wrap:wrap;">';
+      if (avsDoc)      docLinks += docLinkHtml('After Visit Summary', avsDoc, 'file-text');
+      if (providerDoc) docLinks += docLinkHtml('Provider Summary',    providerDoc, 'file-text');
+      docLinks += '</div>';
+    }
+
+    var summaryBlock = encId
+      ? '<div id="'+did+'-summary" style="margin-bottom:10px;"><div style="color:var(--text-muted);font-style:italic;">Writing a plain-language summary\u2026</div></div>'
+      : '';
+    var metaBlock = meta.length ? '<div style="color:var(--text-muted);font-size:11px;">'+meta.join('<br>')+'</div>' : '';
+
+    return '<div class="record-row" data-date="'+escHtml(enc.start_date||'')+'" style="cursor:pointer;flex-wrap:wrap;" onclick="toggleVisitDetail(\''+did+'\',\''+encId+'\')">'
+      + '<div class="record-icon moss"><i data-lucide="calendar-check" style="width:15px;height:15px;"></i></div>'
+      + '<div style="flex:1;"><div class="record-label">'+typePill(enc)+escHtml(enc.name)+' '+ehrBadgeHtml()+'</div>'
+      + '<div class="record-meta">'+formatEventDate(enc.start_date)+(provs.length?' \u00B7 '+escHtml(provs[0]):'')+'</div></div>'
+      + rowProviderBadge(enc, ehrProvider, ehrData)
+      + '<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;" onclick="event.stopPropagation()">'
+      + summaryBlock
+      + docLinks
+      + metaBlock
+      + renderAttachmentZone('visit', vref)
+      + '</div></div>';
+  }
+
+  // Manual appointments
+  apptEvents.forEach(function(ev) {
+    var did = 'appt-detail-'+ev.id;
+    html += '<div class="record-row" data-date="'+escHtml(ev.event_date||'')+'" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\''+did+'\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
+      + '<div class="record-icon moss"><i data-lucide="calendar-check" style="width:15px;height:15px;"></i></div>'
+      + '<div style="flex:1;"><div class="record-label">'+escHtml(ev.title)+'</div>'
+      + '<div class="record-meta">'+formatEventDate(ev.event_date)+'</div></div>'
+      + '<i data-lucide="chevron-down" style="width:16px;height:16px;color:var(--text-muted);"></i>'
+      + '<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;" onclick="event.stopPropagation()">'
+      + (ev.notes?'<div style="margin-bottom:6px;">'+escHtml(ev.notes)+'</div>':'')
+      + '<div><a onclick="openEditEvent(\''+ev.id+'\')" style="color:var(--moss);cursor:pointer;text-decoration:none;font-weight:600;">Edit appointment \u2192</a></div>'
+      + renderAttachmentZone('event', ev.id)
+      + '</div></div>';
+  });
+
+  // Group real EHR visits by month (newest first)
+  var realVisits = ehrVisitsRecent.filter(function(v){ return visitClass(v)==='real'; });
+  var routineVisits = ehrVisitsRecent.filter(function(v){ return visitClass(v)==='routine'; });
+
+  var byMonth = {};
+  realVisits.forEach(function(enc, idx) {
+    var d = enc.start_date ? new Date(enc.start_date) : null;
+    var mk = d ? d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0') : '0000-00';
+    var lbl = d ? d.toLocaleDateString('en-US',{month:'long',year:'numeric'}) : 'Unknown date';
+    if (!byMonth[mk]) byMonth[mk] = {lbl:lbl, items:[]};
+    byMonth[mk].items.push({enc:enc, idx:idx});
+  });
+  var shdr = 'font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);font-weight:500;margin:14px 0 6px;';
+  Object.keys(byMonth).sort().reverse().forEach(function(mk) {
+    var g = byMonth[mk];
+    html += '<div style="'+shdr+'">'+escHtml(g.lbl)+'</div>';
+    g.items.sort(function(a,b){ return new Date(b.enc.start_date||0)-new Date(a.enc.start_date||0); });
+    g.items.forEach(function(item){ html += visitRow(item.enc, item.idx, 'r'); });
+  });
+
+  // Routine activity — shown directly below a divider on this dedicated screen
+  if (routineVisits.length > 0) {
+    html += '<div style="'+shdr+';margin-top:20px;padding-top:12px;border-top:1px solid var(--border);">Routine Activity</div>';
+    routineVisits.slice().sort(function(a,b){ return new Date(b.start_date||0)-new Date(a.start_date||0); })
+      .forEach(function(enc, idx){ html += visitRow(enc, idx, 'rt'); });
+  }
+
+  // Older visits (2+ years)
+  if (ehrVisitsOlder.length > 0) {
+    var olderCount = ehrVisitsOlder.length;
+    html += '<div id="ehr-older-visits" style="display:none;">';
+    ehrVisitsOlder.forEach(function(enc,idx){ html += visitRow(enc,idx,'o'); });
+    html += '</div>';
+    html += '<button type="button" class="ehr-show-older-btn" data-older-count="'+olderCount+'" onclick="toggleOlderVisits(this)" style="display:block;margin:10px auto 0;padding:8px 14px;font-size:12px;color:var(--text-secondary);background:transparent;border:1px dashed var(--border);border-radius:20px;cursor:pointer;">Show '+olderCount+' older visits</button>';
+  }
+
+  if (apptEvents.length===0 && ehrVisitsRecent.length===0 && ehrVisitsOlder.length===0) {
+    html += '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">No visits on record.</div>';
+  }
+  return html;
+}
+
+// Built-in plain-English dictionary for common lab tests. Keys are lowercased
+// test names. Matched by: exact key, then 'includes' fallback.
+// Explanations are intentionally short and caregiver-friendly — they describe
+// WHAT is measured, not what abnormal results mean (that's a clinical call).
+var LAB_DICT = {
+  'albumin':            'A protein made by the liver. Helps gauge nutrition and liver function.',
+  'alt':                'A liver enzyme. Elevated levels can indicate liver stress.',
+  'ast':                'A liver and muscle enzyme. Used alongside ALT to check liver health.',
+  'alkaline phosphatase':'An enzyme in the liver and bones.',
+  'bilirubin':          'A waste product from red blood cells, processed by the liver.',
+  'bun':                'Blood urea nitrogen. A waste product filtered by the kidneys.',
+  'creatinine':         'A waste product from muscles. A key marker of kidney function.',
+  'egfr':               'Estimated filtration rate \u2014 how well the kidneys are clearing waste.',
+  'glucose':            'Blood sugar level.',
+  'hemoglobin a1c':     'Average blood sugar over the past 2\u20133 months.',
+  'a1c':                'Average blood sugar over the past 2\u20133 months.',
+  'hba1c':              'Average blood sugar over the past 2\u20133 months.',
+  'calcium':            'A mineral important for bones, nerves, and muscles.',
+  'sodium':             'An electrolyte that balances fluids in the body.',
+  'potassium':          'An electrolyte important for heart and muscle function.',
+  'chloride':           'An electrolyte that helps balance acids and fluids.',
+  'co2':                'Carbon dioxide / bicarbonate. Reflects acid-base balance.',
+  'bicarbonate':        'Helps the blood maintain a stable pH.',
+  'magnesium':          'A mineral involved in muscle and nerve function.',
+  'phosphorus':         'A mineral that works with calcium for bone health.',
+  'hemoglobin':         'The protein in red blood cells that carries oxygen.',
+  'hematocrit':         'The percentage of blood volume made up of red blood cells.',
+  'wbc':                'White blood cell count \u2014 the body\u2019s infection fighters.',
+  'rbc':                'Red blood cell count.',
+  'platelets':          'Blood cells that help form clots.',
+  'mcv':                'Average size of red blood cells.',
+  'mch':                'Average amount of hemoglobin per red blood cell.',
+  'mchc':               'Hemoglobin concentration inside red blood cells.',
+  'rdw':                'Variation in red blood cell size.',
+  'cholesterol':        'Total cholesterol in the blood.',
+  'hdl':                'The \u201Cgood\u201D cholesterol that clears other cholesterol from the blood.',
+  'ldl':                'The \u201Cbad\u201D cholesterol that builds up in arteries.',
+  'triglycerides':      'A type of fat in the blood.',
+  'tsh':                'Thyroid-stimulating hormone \u2014 the main thyroid screening test.',
+  'free t4':            'A thyroid hormone that reflects how the thyroid is working.',
+  'free t3':            'A thyroid hormone that\u2019s the active form.',
+  'vitamin d':          'Supports bones, immune system, and muscle function.',
+  'vitamin b12':        'Important for nerves and blood cell formation.',
+  'folate':             'A B vitamin needed for blood cell formation.',
+  'iron':               'Needed to carry oxygen in the blood.',
+  'ferritin':           'A measure of the body\u2019s iron stores.',
+  'tibc':               'Total iron-binding capacity \u2014 how much iron the blood can carry.',
+  'transferrin':        'A protein that moves iron around the body.',
+  'crp':                'A marker of inflammation in the body.',
+  'esr':                'Another marker of inflammation.',
+  'psa':                'Prostate-specific antigen. Used to screen for prostate conditions.',
+  'urea nitrogen':      'A waste product filtered by the kidneys.',
+  'protein':            'Total protein in the blood.',
+  'globulin':           'A group of blood proteins involved in immunity.',
+  'inr':                'Measures how long blood takes to clot. Important on blood thinners.',
+  'pt':                 'Prothrombin time \u2014 how long blood takes to clot.',
+  'ptt':                'Partial thromboplastin time \u2014 another clotting measure.'
+};
+
+// Look up a short explanation for a test name. Returns '' when no match.
+function lookupLabInfo(name) {
+  if (!name) return '';
+  var n = String(name).toLowerCase().trim();
+  if (LAB_DICT[n]) return LAB_DICT[n];
+  // 'includes' fallback — check each dictionary key as a substring.
+  var keys = Object.keys(LAB_DICT);
+  for (var i = 0; i < keys.length; i++) {
+    if (n.indexOf(keys[i]) !== -1) return LAB_DICT[keys[i]];
+  }
+  return '';
+}
+
+// Parse a reference range like '3.5 - 4.8', '3.5\u20134.8', '<200', '>=40'.
+// Returns {lo, hi} with nulls for open-ended. Returns null when unparseable.
+function parseLabRange(ref) {
+  if (!ref) return null;
+  var s = String(ref).replace(/\u2013|\u2014/g, '-').trim();
+  // <X or <=X
+  var m = s.match(/^<=?\s*(-?\d+(?:\.\d+)?)/);
+  if (m) return {lo:null, hi:parseFloat(m[1])};
+  // >X or >=X
+  m = s.match(/^>=?\s*(-?\d+(?:\.\d+)?)/);
+  if (m) return {lo:parseFloat(m[1]), hi:null};
+  // X - Y
+  m = s.match(/(-?\d+(?:\.\d+)?)\s*-\s*(-?\d+(?:\.\d+)?)/);
+  if (m) return {lo:parseFloat(m[1]), hi:parseFloat(m[2])};
+  return null;
+}
+
+// Classify a numeric value against a parsed range. Returns 'low'|'normal'|'high'|null.
+function classifyLabValue(val, range) {
+  if (range === null || typeof val !== 'number' || isNaN(val)) return null;
+  if (range.lo !== null && val < range.lo) return 'low';
+  if (range.hi !== null && val > range.hi) return 'high';
+  return 'normal';
+}
+
+// Build a horizontal range track SVG. Green band = normal. Dot = where the
+// value landed. Handles open-ended ranges by extending in the open direction.
+function buildRangeTrack(val, range, unit) {
+  if (range === null || typeof val !== 'number' || isNaN(val)) return '';
+  // Figure out plot bounds. Pad by 20% of range width (or fall back when open-ended).
+  var lo = range.lo, hi = range.hi;
+  var hasLo = lo !== null, hasHi = hi !== null;
+  var bandLo, bandHi, plotLo, plotHi;
+  if (hasLo && hasHi) {
+    bandLo = lo; bandHi = hi;
+    var pad = Math.max((hi - lo) * 0.35, 0.01);
+    plotLo = Math.min(val, lo - pad);
+    plotHi = Math.max(val, hi + pad);
+  } else if (hasHi) {
+    bandHi = hi; bandLo = hi - Math.max(Math.abs(hi) * 0.5, 1);
+    plotLo = Math.min(val, bandLo);
+    plotHi = Math.max(val, hi + Math.max(Math.abs(hi) * 0.2, 0.5));
+  } else if (hasLo) {
+    bandLo = lo; bandHi = lo + Math.max(Math.abs(lo) * 0.5, 1);
+    plotLo = Math.min(val, lo - Math.max(Math.abs(lo) * 0.2, 0.5));
+    plotHi = Math.max(val, bandHi);
+  } else {
+    return '';
+  }
+  if (plotHi === plotLo) { plotHi = plotLo + 1; }
+  function pct(v) { return ((v - plotLo) / (plotHi - plotLo)) * 100; }
+  var bandL = Math.max(0, pct(bandLo));
+  var bandR = Math.min(100, pct(bandHi));
+  var bandW = Math.max(2, bandR - bandL);
+  var dotX  = Math.max(0, Math.min(100, pct(val)));
+  var cls   = classifyLabValue(val, range);
+  var dotColor = cls === 'normal' ? '#2A6645' : (cls === 'low' ? '#2C60C2' : '#B84A2E');
+  var loLbl = hasLo ? String(lo) : '';
+  var hiLbl = hasHi ? String(hi) : '';
+  return '<div style="margin-top:8px;">'
+    + '<div style="position:relative;height:8px;background:#EEF0F2;border-radius:4px;">'
+    +   '<div style="position:absolute;top:0;bottom:0;left:'+bandL+'%;width:'+bandW+'%;background:#D4EBDC;border-radius:4px;"></div>'
+    +   '<div style="position:absolute;top:-3px;left:calc('+dotX+'% - 7px);width:14px;height:14px;border-radius:50%;background:'+dotColor+';border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,0.08);"></div>'
+    + '</div>'
+    + '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);margin-top:4px;">'
+    +   '<span>'+(hasLo?escHtml(loLbl+(unit?' '+unit:'')):'')+'</span>'
+    +   '<span>'+(hasHi?escHtml(hiLbl+(unit?' '+unit:'')):'')+'</span>'
+    + '</div>'
+    + '</div>';
+}
+
+function _rdLabsContent(liveLabs, labEvents, ehrObs, ehrProvider) {
+  var html = '';
+
+  // ---- Unify everything into a single list of readings ----
+  // shape: {name, date, value, unit, ref, status, source}
+  var all = [];
+  liveLabs.forEach(function(lab) {
+    all.push({
+      name:   lab.test_name || 'Lab',
+      date:   lab.effective_date || '',
+      value:  lab.value,
+      unit:   lab.unit || '',
+      ref:    lab.reference_range || '',
+      status: lab.status || '',
+      source: lab.source === 'ehr' ? 'ehr' : 'live'
+    });
+  });
+  ehrObs.forEach(function(obs) {
+    all.push({
+      name:   obs.name || 'Lab',
+      date:   obs.effective_date || '',
+      value:  obs.value,
+      unit:   obs.unit || '',
+      ref:    obs.reference_range || '',
+      status: obs.status || obs.interpretation || '',
+      source: 'ehr'
+    });
+  });
+
+  // Build chart data (only numeric, ≥2 readings per test).
+  var chartData = {};
+  all.forEach(function(r) {
+    var v = parseFloat(r.value);
+    if (isNaN(v) || !r.date) return;
+    if (!chartData[r.name]) chartData[r.name] = [];
+    chartData[r.name].push({date:r.date, value:v, unit:r.unit, ref:r.ref});
+  });
+  Object.keys(chartData).forEach(function(k) {
+    chartData[k].sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
+  });
+  window._labsChartData = chartData;
+  var chartable = Object.keys(chartData).filter(function(k) { return chartData[k].length >= 2; }).sort();
+
+  // ---- Most-recent reading per unique test name (case-insensitive) ----
+  var latestByName = {};
+  all.forEach(function(r) {
+    if (!r.name || !r.date) return;
+    var k = r.name.toLowerCase();
+    var prev = latestByName[k];
+    if (!prev || new Date(r.date) > new Date(prev.date)) latestByName[k] = r;
+  });
+  var latestAll = Object.keys(latestByName).map(function(k) { return latestByName[k]; });
+  latestAll.sort(function(a, b) { return new Date(b.date) - new Date(a.date); });
+  var topN = latestAll.slice(0, 10);
+
+  // ---- Flagged strip (last 12 months) ----
+  var twelveMonthsAgo = Date.now() - (365 * 24 * 60 * 60 * 1000);
+  var abnItems = [];
+  all.forEach(function(r) {
+    var isAbn = r.status === 'abnormal' || r.status === 'critical' ||
+                (typeof r.status === 'string' && /abnormal|critical|high|low/i.test(r.status));
+    if (!isAbn) return;
+    if (r.date && new Date(r.date).getTime() < twelveMonthsAgo) return;
+    abnItems.push(r);
+  });
+  if (abnItems.length > 0) {
+    html += '<div style="background:#FEF6E8;border:1px solid #F5D78C;border-radius:10px;padding:10px 12px;margin-bottom:14px;">'
+      + '<div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#8C6511;font-weight:600;margin-bottom:6px;">Flagged by lab \u00B7 last 12 months</div>';
+    abnItems.forEach(function(item) {
+      var valStr = item.value ? (item.value + (item.unit ? ' ' + item.unit : '')) : '';
+      var crit = /critical/i.test(item.status || '');
+      var badge = crit
+        ? '<span class="record-badge" style="background:#FEF0EE;color:var(--red);">Critical</span>'
+        : '<span class="record-badge amber">Abnormal</span>';
+      html += '<div class="record-row" style="padding:4px 0;">'
+        + '<div style="flex:1;"><div class="record-label" style="font-size:13px;">' + escHtml(item.name) + '</div>'
+        + '<div class="record-meta">' + (valStr ? escHtml(valStr) + ' \u00B7 ' : '') + formatEventDate(item.date) + '</div></div>'
+        + badge + '</div>';
+    });
+    html += '</div>';
+  }
+
+  // ---- Always-visible "View trends over time" launcher ----
+  if (chartable.length > 0) {
+    html += '<div id="labs-trends-block" style="margin-bottom:16px;">'
+      + '<button type="button" onclick="toggleLabsTrends()" id="labs-trends-btn" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 14px;border:1px solid var(--moss);border-radius:999px;background:#fff;color:var(--moss);font-size:14px;font-weight:600;cursor:pointer;">'
+      +   '<i data-lucide="trending-up" style="width:16px;height:16px;"></i> View trends over time'
+      + '</button>'
+      + '<div id="labs-trends-panel" style="display:none;margin-top:10px;padding:12px;border:1px solid var(--border);border-radius:12px;background:#fff;">'
+      +   '<label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Select a test</label>'
+      +   '<select id="labs-chart-picker" onchange="renderLabsChart(this.value)" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:white;font-family:inherit;font-size:14px;">'
+      +     '<option value="">Select a test\u2026</option>';
+    chartable.forEach(function(name) {
+      html += '<option value="' + escHtml(name) + '">' + escHtml(name) + ' (' + chartData[name].length + ' readings)</option>';
+    });
+    html += '</select><div id="labs-chart-container" style="margin-top:10px;"></div></div></div>';
+  }
+
+  // ---- Most recent results (inline cards) ----
+  if (topN.length === 0) {
+    html += '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">No lab results on record.</div>';
+    return html;
+  }
+
+  html += '<div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);font-weight:500;margin:0 0 8px;">Most recent results</div>';
+
+  topN.forEach(function(r) {
+    var valNum  = parseFloat(r.value);
+    var valStr  = (r.value !== undefined && r.value !== null && r.value !== '') ? (r.value + (r.unit ? ' ' + r.unit : '')) : '';
+    var range   = parseLabRange(r.ref);
+    var cls     = classifyLabValue(valNum, range);
+    // Status badge: prefer EHR-provided status, fall back to classifier.
+    var badge;
+    if (/critical/i.test(r.status || '')) {
+      badge = '<span class="record-badge" style="background:#FEF0EE;color:var(--red);">Critical</span>';
+    } else if (/abnormal|high|low/i.test(r.status || '')) {
+      badge = '<span class="record-badge amber">' + (r.status.charAt(0).toUpperCase() + r.status.slice(1).toLowerCase()) + '</span>';
+    } else if (cls === 'high') {
+      badge = '<span class="record-badge amber">High</span>';
+    } else if (cls === 'low') {
+      badge = '<span class="record-badge amber">Low</span>';
+    } else if (cls === 'normal' || /^normal$/i.test(r.status || '')) {
+      badge = '<span class="record-badge moss">Normal</span>';
+    } else {
+      badge = '';
+    }
+    var info    = lookupLabInfo(r.name);
+    var track   = buildRangeTrack(valNum, range, r.unit || '');
+    var ehrTag  = r.source === 'ehr' ? ' ' + ehrBadgeHtml() : '';
+
+    // Structured context for Ask Wellet (stored in a registry keyed by idx)
+    var askCtx = {
+      kind:  'lab',
+      name:  r.name,
+      value: valStr,
+      date:  r.date,
+      ref:   r.ref || '',
+      status: r.status || (cls || '')
+    };
+    var askKey = 'lab_' + (window._askCtxRegistry ? Object.keys(window._askCtxRegistry).length : 0);
+    if (!window._askCtxRegistry) window._askCtxRegistry = {};
+    window._askCtxRegistry[askKey] = askCtx;
+
+    html += '<div class="lab-card" data-ask-lp="' + askKey + '" style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;">'
+      +   '<div style="display:flex;align-items:flex-start;gap:10px;">'
+      +     '<div class="record-icon blue" style="flex-shrink:0;"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>'
+      +     '<div style="flex:1;min-width:0;">'
+      +       '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">'
+      +         '<div style="font-weight:600;color:var(--text-primary);font-size:14px;">' + escHtml(r.name) + ehrTag + '</div>'
+      +         (badge || '')
+      +       '</div>'
+      +       '<div style="font-size:13px;color:var(--text-primary);margin-top:2px;">'
+      +         (valStr ? '<span style="font-weight:600;">' + escHtml(valStr) + '</span>' : '')
+      +         '<span style="color:var(--text-muted);">' + (valStr ? ' \u00B7 ' : '') + formatEventDate(r.date) + '</span>'
+      +       '</div>'
+      +       (info ? '<div style="font-size:12px;color:var(--text-secondary);margin-top:6px;line-height:1.5;">' + escHtml(info) + '</div>' : '')
+      +       track
+      +       '<div style="margin-top:10px;text-align:right;">'
+      +         '<a onclick="openAskWithContext(\'' + askKey + '\')" style="color:var(--moss);font-size:12px;font-weight:600;cursor:pointer;text-decoration:none;">Ask Wellet about this \u2192</a>'
+      +       '</div>'
+      +     '</div>'
+      +   '</div>'
+      + '</div>';
+  });
+
+  if (latestAll.length > 10) {
+    html += '<div style="text-align:center;padding:8px 0 4px;color:var(--text-secondary);font-size:12px;">'
+      + 'Showing 10 most recent of ' + latestAll.length + ' tests \u00B7 use View trends for the rest'
+      + '</div>';
+  }
+
+  return html;
+}
+
+function _rdDocsContent(liveDocs, currentPersonId) {
+  var html = '';
+  if (liveDocs.length === 0) {
+    html += '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">No documents uploaded yet.</div>';
+  } else {
+    liveDocs.forEach(function(doc) {
+      var docIsAudio = isAudioFile(doc.file_name);
+      var iconName   = docIsAudio ? 'mic' : getDocTypeIcon(doc.document_type);
+      var statusClass = getDocStatusClass(doc.extraction_status);
+      var statusLabel = docIsAudio && doc.extraction_status==='pending' ? 'Transcribing\u2026' : getDocStatusLabel(doc.extraction_status);
+      var dateStr   = relativeTime(doc.uploaded_at);
+      var clickable = doc.extraction_status==='completed' ? ' onclick="showExtractionResults(\''+doc.id+'\')"' : '';
+      html += '<div class="doc-row" data-date="'+escHtml(doc.uploaded_at||'')+ '"'+clickable+'>'
+        +'<div class="doc-icon"><i data-lucide="'+iconName+'" style="width:15px;height:15px;"></i></div>'
+        +'<div class="doc-info"><div class="doc-name">'+escHtml(doc.file_name)+'</div>'
+        +'<div class="doc-meta">'+escHtml(doc.document_type||'Document')+' \u00B7 '+dateStr+'</div>';
+      if (docIsAudio && doc.extracted_events) {
+        var ext = doc.extracted_events;
+        if (typeof ext==='string') { try{ ext=JSON.parse(ext); }catch(e){ ext=null; } }
+        if (ext && ext.transcript) {
+          var snip = ext.transcript.length>200 ? ext.transcript.substring(0,200)+'\u2026' : ext.transcript;
+          html += '<div style="font-size:12px;color:var(--text-muted);margin-top:4px;line-height:1.5;font-style:italic;">'+escHtml(snip)+'</div>';
+        }
+      }
+      html += '</div><span class="doc-status '+statusClass+'">'+statusLabel+'</span><div class="doc-actions">';
+      if (docIsAudio && (doc.extraction_status==='pending'||doc.extraction_status==='failed')) {
+        html += '<button class="doc-action-btn" title="Retry transcription" onclick="event.stopPropagation();retryTranscription(\''+doc.id+'\',\''+escHtml(doc.storage_path)+'\')"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>';
+      }
+      if (docIsAudio) {
+        html += '<button class="doc-action-btn" title="Play" onclick="event.stopPropagation();playAudioDocument(\''+doc.id+'\')"><i data-lucide="play" style="width:14px;height:14px;"></i></button>';
+      } else {
+        html += '<button class="doc-action-btn" title="View" onclick="event.stopPropagation();viewDocument(\''+doc.id+'\')"><i data-lucide="eye" style="width:14px;height:14px;"></i></button>';
+      }
+      html += '<button class="doc-action-btn" title="Download" onclick="event.stopPropagation();downloadDocument(\''+doc.id+'\')"><i data-lucide="download" style="width:14px;height:14px;"></i></button>'
+        +'</div></div>';
+    });
+  }
+  html += '<button class="add-person-btn" style="border-style:dashed;margin:12px 0 4px;" onclick="openUploadById(\''+currentPersonId+'\')">'
+    +'<i data-lucide="upload-cloud" style="width:15px;height:15px;"></i> Upload document</button>'
+    +'<button class="add-person-btn" style="border-style:dashed;margin:4px 0 4px;color:var(--moss);" onclick="openHealthImportPicker()">'
+    +'<i data-lucide="file-archive" style="width:15px;height:15px;"></i> Import health records (ZIP)</button>'
+    +'<button class="add-person-btn" style="border-style:dashed;margin:4px 0 4px;color:#4A90D9;" onclick="openTerraConnect()">'
+    +'<i data-lucide="watch" style="width:15px;height:15px;"></i> Connect a wearable device</button>';
+  return html;
+}
+
+// ── openRecordsDetail ─────────────────────────────────────────────────────────
+function openRecordsDetail(section) {
+  var view = document.getElementById('view-records');
+  if (!view) return;
+  _recordsDetailSection = section;
+
+  var ehrData    = getEhrData(currentPersonId);
+  var ehrMeds    = ehrData ? ehrData.medications   || [] : [];
+  var ehrConditions = ehrData ? ehrData.conditions || [] : [];
+  var ehrAllergies  = ehrData ? ehrData.allergies  || [] : [];
+  var ehrObs     = ehrData ? ehrData.observations  || [] : [];
+  var allEhrVisits  = ehrData ? (ehrData.visits || ehrData.encounters || []) : [];
+  var twoYearsAgoMs = Date.now() - (2*365*24*60*60*1000);
+  var ehrVisitsRecent = allEhrVisits.filter(function(v){ var t=v.start_date?new Date(v.start_date).getTime():0; return t>=twoYearsAgoMs; });
+  var ehrVisitsOlder  = allEhrVisits.filter(function(v){ var t=v.start_date?new Date(v.start_date).getTime():0; return t>0&&t<twoYearsAgoMs; });
+  var ehrProvider = ehrData ? ehrData.provider || 'EHR' : '';
+  var activeMeds  = liveMeds.filter(function(m){ return m.active; });
+  var labEvents   = liveEvents.filter(function(e){ return e.event_type==='lab_result'; });
+  var apptEvents  = liveEvents.filter(function(e){ return e.event_type==='appointment'; });
+
+  // DB-backed fallback for Conditions / Visits when the live EHR cache is empty
+  // (e.g. first paint before sync completes, or identity-check skipped a write).
+  // health_events stores condition + visit rows with shape: {title, event_date,
+  // notes, source, accepted}. We adapt them into the shape Conditions / Visits
+  // detail views already expect (name, recorded_date, onset_date, status / start_date).
+  if (ehrConditions.length === 0) {
+    ehrConditions = liveEvents
+      .filter(function(e){ return e.event_type==='condition' && e.accepted!==false; })
+      .map(function(e){
+        var status = '';
+        var notes = e.notes || '';
+        var m = /^Status:\s*(.+)$/i.exec(notes);
+        if (m) status = (m[1] || '').trim().toLowerCase();
+        return {
+          name: e.title || '',
+          code: '',
+          status: status,
+          onset_date: e.event_date || '',
+          recorded_date: e.event_date || '',
+          source: 'ehr',
+        };
+      });
+  }
+  if (allEhrVisits.length === 0) {
+    var liveVisitEvents = liveEvents
+      .filter(function(e){ return e.event_type==='visit' && e.accepted!==false; })
+      .map(function(e){
+        return {
+          name: e.title || 'Visit',
+          start_date: e.event_date || '',
+          end_date: '',
+          location: '',
+          reason: e.notes || '',
+          providers: [],
+          source: 'ehr',
+        };
+      });
+    allEhrVisits = liveVisitEvents;
+    ehrVisitsRecent = allEhrVisits.filter(function(v){ var t=v.start_date?new Date(v.start_date).getTime():0; return t>=twoYearsAgoMs; });
+    ehrVisitsOlder  = allEhrVisits.filter(function(v){ var t=v.start_date?new Date(v.start_date).getTime():0; return t>0&&t<twoYearsAgoMs; });
+  }
+
+  var titles = {
+    medications: 'Medications',
+    conditions:  'Conditions',
+    allergies:   'Allergies',
+    visits:      'Appointments &amp; Visits',
+    labs:        'Lab Results',
+    documents:   'Documents'
+  };
+  var title = titles[section] || section;
+
+  var body = '';
+  if (section==='medications') body = _rdMedsContent(activeMeds, ehrMeds, ehrData, ehrProvider);
+  else if (section==='conditions') body = _rdConditionsContent(ehrConditions, ehrData, ehrProvider);
+  else if (section==='allergies')  body = _rdAllergiesContent(liveAllergies, ehrAllergies, ehrData, ehrProvider);
+  else if (section==='visits')     body = _rdVisitsContent(apptEvents, ehrVisitsRecent, ehrVisitsOlder, ehrData, ehrProvider);
+  else if (section==='labs')       body = _rdLabsContent(liveLabs, labEvents, ehrObs, ehrProvider);
+  else if (section==='documents')  body = _rdDocsContent(liveDocs, currentPersonId);
+
+  var html = '<div class="records-detail-view">'
+    // back bar
+    + '<div style="display:flex;align-items:center;gap:10px;padding:12px 0 16px;">'
+    + '<button onclick="renderRecordsView()" style="background:none;border:none;cursor:pointer;padding:4px;display:flex;align-items:center;gap:6px;color:var(--moss);font-size:14px;font-weight:500;">'
+    + '<i data-lucide="arrow-left" style="width:18px;height:18px;"></i> Records</button></div>'
+    // title
+    + '<div style="font-size:22px;font-weight:700;color:var(--text-primary);margin-bottom:18px;">'+title+'</div>'
+    // content
+    + body
+    + '</div>';
+
+  view.innerHTML = html;
+  initIcons();
+}
+
+// ── renderRecordsView ─────────────────────────────────────────────────────────
+function renderRecordsView() {
+  _recordsDetailSection = null;
+  var view = document.getElementById('view-records');
+  if (!view) return;
+
+  var ehrData       = getEhrData(currentPersonId);
+  var ehrMeds       = ehrData ? ehrData.medications    || [] : [];
+  var ehrConditions = ehrData ? ehrData.conditions     || [] : [];
+  var ehrAllergies  = ehrData ? ehrData.allergies      || [] : [];
+  var ehrObs        = ehrData ? ehrData.observations   || [] : [];
+  var allEhrVisits  = ehrData ? (ehrData.visits || ehrData.encounters || []) : [];
+  var twoYearsAgoMs = Date.now() - (2*365*24*60*60*1000);
+  var ehrVisitsRecent = allEhrVisits.filter(function(v){ var t=v.start_date?new Date(v.start_date).getTime():0; return t>=twoYearsAgoMs; });
+  var ehrVisitsOlder  = allEhrVisits.filter(function(v){ var t=v.start_date?new Date(v.start_date).getTime():0; return t>0&&t<twoYearsAgoMs; });
+  var ehrCareTeam   = ehrData ? (ehrData.care_team  || []) : [];
+  var ehrProcedures = ehrData ? ehrData.procedures   || [] : [];
+  var ehrReports    = ehrData ? (ehrData.diagnostic_reports || []) : [];
+  var ehrProvider   = ehrData ? ehrData.provider || 'EHR' : '';
+  var activeMeds    = liveMeds.filter(function(m){ return m.active; });
+  var labEvents     = liveEvents.filter(function(e){ return e.event_type==='lab_result'; });
+  var noteEvents    = liveEvents.filter(function(e){ return e.event_type==='note'; });
+  var apptEvents    = liveEvents.filter(function(e){ return e.event_type==='appointment'; });
+
+  // DB-backed fallback for Conditions / Visits when the live EHR cache is empty
+  // (e.g. first paint before sync completes, or identity-check skipped a write).
+  // Mirrors the Meds/Allergies/Labs pattern, which already merge live (DB) +
+  // ehr (cache) sources. health_events stores condition + visit rows with shape
+  // {title, event_date, notes, source, accepted}; we adapt to the shape the
+  // Records render path + detail views already expect.
+  if (ehrConditions.length === 0) {
+    ehrConditions = liveEvents
+      .filter(function(e){ return e.event_type==='condition' && e.accepted!==false; })
+      .map(function(e){
+        var status = '';
+        var notes = e.notes || '';
+        var m = /^Status:\s*(.+)$/i.exec(notes);
+        if (m) status = (m[1] || '').trim().toLowerCase();
+        return {
+          name: e.title || '',
+          code: '',
+          status: status,
+          onset_date: e.event_date || '',
+          recorded_date: e.event_date || '',
+          source: 'ehr',
+        };
+      });
+  }
+  if (allEhrVisits.length === 0) {
+    allEhrVisits = liveEvents
+      .filter(function(e){ return e.event_type==='visit' && e.accepted!==false; })
+      .map(function(e){
+        return {
+          name: e.title || 'Visit',
+          start_date: e.event_date || '',
+          end_date: '',
+          location: '',
+          reason: e.notes || '',
+          providers: [],
+          source: 'ehr',
+        };
+      });
+    ehrVisitsRecent = allEhrVisits.filter(function(v){ var t=v.start_date?new Date(v.start_date).getTime():0; return t>=twoYearsAgoMs; });
+    ehrVisitsOlder  = allEhrVisits.filter(function(v){ var t=v.start_date?new Date(v.start_date).getTime():0; return t>0&&t<twoYearsAgoMs; });
+  }
+
+  // ── computed counts for tile summaries ───────────────────────────────────
+  var totalMeds       = activeMeds.length + ehrMeds.length;
+  var totalAllergies  = liveAllergies.length + ehrAllergies.length;
+  var totalLabs       = liveLabs.length + labEvents.length + ehrObs.length;
+  var realRe          = /office|outpatient|inpatient|emergency|telemedicine|hospital|surgery|procedure|consult|urgent/i;
+  var routineRe       = /refill|patient message|message|administrative|letter|historical/i;
+  var realCount = apptEvents.length + ehrVisitsRecent.filter(function(v){ var n=v.name||v.type||''; return realRe.test(n)||!routineRe.test(n); }).length;
+  var routineCount = ehrVisitsRecent.filter(function(v){ var n=v.name||v.type||''; return routineRe.test(n)&&!realRe.test(n); }).length;
+
+  // NKA check
+  var nkaRe = /^(no\s+known\s+allergies?|nka|none)$/i;
+  var isNkaOnly = totalAllergies===0 || (
+    liveAllergies.every(function(a){ return nkaRe.test((a.substance||'').trim()); }) &&
+    ehrAllergies.every(function(a){  return nkaRe.test((a.name||'').trim());      })
+  );
+
+  // Needs-attention dot for Conditions tile
+  var needsAttnRe = /need.*vaccin|lacks?|overdue|gap|non-adherence|immuniz.*overdue/i;
+  var hasNeedsAttn = ehrConditions.some(function(c){ return needsAttnRe.test(c.name||''); });
+
+  // ── header ────────────────────────────────────────────────────────────────
+  var html = '<div class="view-header"><div class="view-title">Records</div>'
+    + '<div style="display:flex;gap:8px;margin-top:10px;">';
+  currentPeople.forEach(function(p) {
+    var active = p.id===currentPersonId ? ' active' : '';
+    html += '<button class="person-pill'+active+'" onclick="switchRecordsToRealPerson(\''+p.id+'\',this)">'
+      + '<span class="pip"></span>'+escHtml(p.name.split(' ')[0])+'</button>';
+  });
+  html += '</div></div>';
+  if (ehrData) html += buildEhrStatusBar(ehrData);
+
+  html += '<div class="records-section">';
+
+  // ── 6-tile grid ───────────────────────────────────────────────────────────
+  html += '<div class="records-tile-grid">';
+
+  // helper: one tile
+  function tile(section, icon, iconColor, iconBg, label, summary, interactive, dotAttn) {
+    var cursor  = interactive ? 'cursor:pointer;' : 'cursor:default;';
+    var onclick = interactive ? ' onclick="openRecordsDetail(\''+section+'\')"' : '';
+    var dot     = dotAttn ? '<span class="records-tile-dot"></span>' : '';
+    return '<div class="records-tile"'+onclick+' style="'+cursor+'">'
+      + dot
+      + '<div class="records-tile-icon" style="background:'+iconBg+';color:'+iconColor+';">'
+      + '<i data-lucide="'+icon+'" style="width:18px;height:18px;"></i>'
+      + '</div>'
+      + '<div class="records-tile-label">'+label+'</div>'
+      + '<div class="records-tile-summary">'+summary+'</div>'
+      + '</div>';
+  }
+
+  var visitsSum = realCount + ' visits' + (routineCount>0 ? ' \u00B7 ' + routineCount + ' routine' : '');
+
+  html += tile('medications', 'pill',           'var(--amber)',          '#FFF4DC', 'Medications', totalMeds+' active',                       true,  false);
+  html += tile('conditions',  'heart-pulse',    'var(--moss)',           '#E8F5EE', 'Conditions',  ehrConditions.length>0 ? ehrConditions.length+' from EHR' : 'None on file', true, hasNeedsAttn);
+  html += tile('allergies',   'alert-triangle', 'var(--red, #C0392B)',   '#FEF0EE', 'Allergies',   isNkaOnly ? 'No known' : totalAllergies + (totalAllergies===1?' entry':' entries'), !isNkaOnly, false);
+  html += tile('visits',      'calendar-check', 'var(--moss)',           '#E8F5EE', 'Visits',      visitsSum,                                  true,  false);
+  html += tile('labs',        'flask-conical',  'var(--blue)',           '#E8F0FD', 'Labs',        totalLabs+' results',                       true,  false);
+  html += tile('documents',   'file-text',      'var(--moss)',           '#E8F5EE', 'Documents',   liveDocs.length+' uploaded',                true,  false);
+
+  html += '</div>'; // .records-tile-grid
+
+  // EHR prompt if no connection (below grid)
+  if (!ehrData && !isDemoMode) html += buildEhrPrompt();
+
+  // ── secondary sections (inline, full-width) ───────────────────────────────
+
+  // Care Team
+  if (ehrCareTeam.length > 0) {
+    html += buildCareTeamSection(ehrCareTeam, ehrProvider, allEhrVisits);
+  }
+
+  // Procedures
+  if (ehrProcedures.length > 0) {
+    html += '<div class="record-group"><div class="record-group-header">'
+      + '<div class="record-group-title"><i data-lucide="scissors" style="width:14px;height:14px;color:var(--text-secondary);"></i>Procedures '+ehrBadgeHtml()+'</div>'
+      + '<span class="record-group-count">'+ehrProcedures.length+' from EHR</span></div>';
+    ehrProcedures.forEach(function(p,idx){
+      var did = 'ehr-proc-'+idx;
+      var meta = [];
+      if (p.performed_date) meta.push('Date: '+formatEventDate(p.performed_date));
+      if (p.status)  meta.push('Status: '+escHtml(p.status));
+      if (p.code)    meta.push('Code: '+escHtml(p.code));
+      if (p.reason)  meta.push('Reason: '+escHtml(p.reason));
+      html += '<div class="record-row" data-date="'+escHtml(p.performed_date||'')+'" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\''+did+'\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
+        +'<div class="record-icon" style="background:var(--cream);color:var(--text-secondary);"><i data-lucide="scissors" style="width:15px;height:15px;"></i></div>'
+        +'<div style="flex:1;"><div class="record-label">'+escHtml(p.name)+'</div>'
+        +'<div class="record-meta">'+formatEventDate(p.performed_date)+'</div></div>'
+        +rowProviderBadge(p, ehrProvider, ehrData)
+        +(meta.length?'<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;">'+meta.join('<br>')+'</div>':'')
+        +'</div>';
+    });
+    html += '</div>';
+  }
+
+  // Reports (DiagnosticReport from EHR — labs, imaging, pathology summaries)
+  if (ehrReports.length > 0) {
+    // Sort newest first by effective_date (fall back to issued)
+    var reportsSorted = ehrReports.slice().sort(function(a, b) {
+      var ta = new Date(a.effective_date || a.issued || 0).getTime();
+      var tb = new Date(b.effective_date || b.issued || 0).getTime();
+      return tb - ta;
+    });
+    var reportsRecent = reportsSorted.filter(function(r) {
+      var t = new Date(r.effective_date || r.issued || 0).getTime();
+      return t >= twoYearsAgoMs;
+    });
+    var reportsOlder = reportsSorted.filter(function(r) {
+      var t = new Date(r.effective_date || r.issued || 0).getTime();
+      return t > 0 && t < twoYearsAgoMs;
+    });
+
+    html += '<div class="record-group"><div class="record-group-header">'
+      + '<div class="record-group-title"><i data-lucide="file-text" style="width:14px;height:14px;color:var(--blue);"></i>Reports '+ehrBadgeHtml()+'</div>'
+      + '<span class="record-group-count">'+reportsRecent.length+(reportsRecent.length===1?' report':' reports')+'</span></div>';
+
+    var renderReportRow = function(r, idx, keyPrefix) {
+      var did = 'ehr-report-'+keyPrefix+'-'+idx;
+      var dateStr = r.effective_date || r.issued || '';
+      var categoryLabel = r.category ? escHtml(r.category) : '';
+
+      // Build the expanded body: attribution, conclusion, codes, attachments, meta
+      var performers = Array.isArray(r.performers) ? r.performers.filter(Boolean) : [];
+      var attribution = '';
+      if (performers.length > 0 || dateStr || ehrProvider) {
+        var parts = [];
+        if (performers.length > 0) parts.push(escHtml(performers.join(', ')));
+        if (dateStr) parts.push(formatEventDate(dateStr));
+        if (ehrProvider) parts.push(escHtml(ehrProvider));
+        attribution = '<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;letter-spacing:0.02em;">From your chart \u00B7 '+parts.join(' \u00B7 ')+'</div>';
+      }
+
+      var conclusionHtml = '';
+      if (r.conclusion && r.conclusion.trim()) {
+        conclusionHtml = '<div style="font-size:13px;color:var(--text-primary);line-height:1.6;margin-bottom:10px;white-space:pre-wrap;">'+escHtml(r.conclusion.trim())+'</div>';
+      }
+
+      var codesHtml = '';
+      var conclusionCodes = Array.isArray(r.conclusion_codes) ? r.conclusion_codes.filter(Boolean) : [];
+      if (conclusionCodes.length > 0) {
+        codesHtml = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
+          + conclusionCodes.map(function(c) {
+              return '<span style="display:inline-block;padding:3px 8px;border-radius:10px;background:#E8F0FD;color:var(--blue);font-size:11px;font-weight:500;">'+escHtml(c)+'</span>';
+            }).join('')
+          + '</div>';
+      }
+
+      var attachmentsHtml = '';
+      var attachments = Array.isArray(r.attachments) ? r.attachments : [];
+      attachments.forEach(function(att) {
+        if (att.inline_text && att.inline_text.trim()) {
+          attachmentsHtml += '<div style="font-size:13px;color:var(--text-primary);line-height:1.6;margin-bottom:10px;white-space:pre-wrap;padding:10px 12px;background:var(--cream);border-radius:8px;">'+escHtml(att.inline_text.trim())+'</div>';
+        } else if (att.content_type && att.url) {
+          // Binary attachment (PDF, etc.) — signed fetch coming in the next pass.
+          var typeLabel = att.content_type.indexOf('pdf') !== -1 ? 'PDF' : att.content_type.split('/').pop().toUpperCase();
+          attachmentsHtml += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--cream);border-radius:8px;margin-bottom:10px;font-size:12px;color:var(--text-secondary);">'
+            + '<i data-lucide="paperclip" style="width:14px;height:14px;flex-shrink:0;"></i>'
+            + '<span>'+escHtml(att.title || typeLabel+' attachment')+' \u2014 opening attachments coming soon</span>'
+            + '</div>';
+        }
+      });
+
+      // Small meta line at the bottom of the expanded body
+      var metaItems = [];
+      if (r.status)   metaItems.push('Status: '+escHtml(r.status));
+      if (r.code)     metaItems.push('Code: '+escHtml(r.code));
+      if (r.issued && r.issued !== dateStr) metaItems.push('Issued: '+formatEventDate(r.issued));
+      if (r.result_count && r.result_count > 0) metaItems.push(r.result_count+' result'+(r.result_count===1?'':'s')+' attached');
+      var metaHtml = metaItems.length ? '<div style="font-size:11px;color:var(--text-muted);line-height:1.6;padding-top:6px;border-top:1px solid var(--border);">'+metaItems.join(' \u00B7 ')+'</div>' : '';
+
+      var expandedBody = '';
+      if (attribution || conclusionHtml || codesHtml || attachmentsHtml || metaHtml) {
+        expandedBody = '<div id="'+did+'" style="display:none;width:100%;padding:12px 12px 4px 44px;">'
+          + attribution + conclusionHtml + codesHtml + attachmentsHtml + metaHtml
+          + '</div>';
+      }
+
+      var subLine = [categoryLabel, dateStr ? formatEventDate(dateStr) : ''].filter(Boolean).join(' \u00B7 ');
+      var hasContent = !!(r.conclusion || conclusionCodes.length > 0 || attachments.some(function(a) { return a.inline_text || a.url; }));
+      var chevron = hasContent ? '<i data-lucide="chevron-down" style="width:14px;height:14px;color:var(--text-muted);margin-left:6px;"></i>' : '';
+
+      return '<div class="record-row" data-date="'+escHtml(dateStr)+'" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\''+did+'\');if(d){d.style.display=d.style.display===\'none\'?\'block\':\'none\';if(d.style.display===\'block\')initIcons();}">'
+        + '<div class="record-icon blue"><i data-lucide="file-text" style="width:15px;height:15px;"></i></div>'
+        + '<div style="flex:1;min-width:0;"><div class="record-label" style="display:flex;align-items:center;">'+escHtml(r.name || 'Report')+chevron+'</div>'
+        + (subLine ? '<div class="record-meta">'+subLine+'</div>' : '')
+        + '</div>'
+        + rowProviderBadge(r, ehrProvider, ehrData)
+        + expandedBody
+        + '</div>';
+    };
+
+    if (reportsRecent.length === 0) {
+      html += '<div style="padding:12px 16px;font-size:13px;color:var(--text-muted);">No reports in the last 2 years.</div>';
+    } else {
+      reportsRecent.forEach(function(r, idx) { html += renderReportRow(r, idx, 'r'); });
+    }
+
+    if (reportsOlder.length > 0) {
+      var olderLabel = 'Show '+reportsOlder.length+' older report'+(reportsOlder.length===1?'':'s');
+      html += '<button class="reports-older-toggle" onclick="toggleOlderReports(this)" data-older-count="'+reportsOlder.length+'" style="margin:8px 16px 0;background:none;border:none;color:var(--moss);font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;padding:6px 0;">'+olderLabel+'</button>';
+      html += '<div id="ehr-reports-older" style="display:none;">';
+      reportsOlder.forEach(function(r, idx) { html += renderReportRow(r, idx, 'o'); });
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+
+  // Vitals
+  if (liveVitals.length > 0) {
+    var vitalsByType = {};
+    liveVitals.forEach(function(v){ var vt=v.vital_type; if(!vitalsByType[vt])vitalsByType[vt]=[]; vitalsByType[vt].push(v); });
+    html += '<div class="record-group"><div class="record-group-header">'
+      +'<div class="record-group-title"><i data-lucide="activity" style="width:14px;height:14px;color:var(--moss);"></i>Vitals</div>'
+      +'<span class="record-group-count">'+liveVitals.length+' readings</span></div>';
+    Object.keys(vitalsByType).forEach(function(vt){
+      var readings=vitalsByType[vt], latest=readings[0];
+      var valStr=escHtml(latest.value)+(latest.unit?' '+escHtml(latest.unit):'');
+      var trend=readings.length>1?' <span style="color:var(--text-muted);font-size:11px;">('+readings.length+' readings)</span>':'';
+      html +='<div class="record-row" data-date="'+escHtml(latest.effective_date||'')+'">'
+        +'<div class="record-icon moss"><i data-lucide="activity" style="width:15px;height:15px;"></i></div>'
+        +'<div style="flex:1;"><div class="record-label">'+escHtml(vt)+trend+'</div>'
+        +'<div class="record-meta">'+escHtml(valStr)+' \u00B7 '+formatEventDate(latest.effective_date)+'</div></div>'
+        +appleHealthBadgeHtml(latest.source)+'</div>';
+    });
+    html += '</div>';
+  }
+
+  // Activity
+  var activityEvents = liveEvents.filter(function(e){ return e.event_type==='activity'&&(e.source==='apple_health'||e.source==='terra'); });
+  if (activityEvents.length > 0) {
+    var actCutoff = new Date(); actCutoff.setDate(actCutoff.getDate()-30);
+    var recentAct = activityEvents.filter(function(e){ return new Date(e.event_date)>=actCutoff; });
+    var actByDate = {};
+    recentAct.forEach(function(e){ var d=e.event_date?e.event_date.substring(0,10):''; if(!actByDate[d])actByDate[d]=[]; actByDate[d].push(e); });
+    var actDays = Object.keys(actByDate).sort().reverse().slice(0,30);
+    if (actDays.length > 0) {
+      html += '<div class="record-group"><div class="record-group-header">'
+        +'<div class="record-group-title"><i data-lucide="footprints" style="width:14px;height:14px;color:var(--blue);"></i>Activity</div>'
+        +'<span class="record-group-count">Last '+actDays.length+' days</span></div>';
+      actDays.slice(0,14).forEach(function(day){
+        var ents=actByDate[day], parts=[];
+        ents.forEach(function(e){ parts.push(escHtml(e.title)); });
+        var src=ents[0].source||'apple_health', prov=ents[0].ehr_system?ents[0].ehr_system.replace('terra_',''):'';
+        html +='<div class="record-row" data-date="'+escHtml(day+'T00:00:00Z')+'">'
+          +'<div class="record-icon blue"><i data-lucide="footprints" style="width:15px;height:15px;"></i></div>'
+          +'<div style="flex:1;"><div class="record-label">'+formatEventDate(day+'T00:00:00Z')+'</div>'
+          +'<div class="record-meta">'+parts.join(' \u00B7 ')+'</div></div>'
+          +appleHealthBadgeHtml(src,prov)+'</div>';
+      });
+      if (actDays.length>14) html+='<div style="text-align:center;padding:8px;color:var(--text-secondary);font-size:12px;">+ '+(actDays.length-14)+' more days</div>';
+      html += '</div>';
+    }
+  }
+
+  // Activity Rings
+  var summaryEvents = liveEvents.filter(function(e){ return e.event_type==='activity_summary'&&(e.source==='apple_health'||e.source==='terra'); });
+  if (summaryEvents.length>0 && activityEvents.length===0) {
+    html += '<div class="record-group"><div class="record-group-header">'
+      +'<div class="record-group-title"><i data-lucide="target" style="width:14px;height:14px;color:var(--blue);"></i>Activity Rings</div>'
+      +'<span class="record-group-count">'+summaryEvents.length+' days</span></div>';
+    summaryEvents.slice(0,14).forEach(function(e){
+      var sp=e.ehr_system?e.ehr_system.replace('terra_',''):'';
+      html+='<div class="record-row" data-date="'+escHtml(e.event_date||'')+'">'
+        +'<div class="record-icon blue"><i data-lucide="target" style="width:15px;height:15px;"></i></div>'
+        +'<div style="flex:1;"><div class="record-label">'+formatEventDate(e.event_date)+'</div>'
+        +'<div class="record-meta">'+escHtml(e.title)+'</div></div>'
+        +appleHealthBadgeHtml(e.source,sp)+'</div>';
+    });
+    html += '</div>';
+  }
+
+  // Sleep
+  var sleepEvents = liveEvents.filter(function(e){ return e.event_type==='sleep'&&(e.source==='apple_health'||e.source==='terra'); });
+  if (sleepEvents.length > 0) {
+    var sleepByNight={};
+    sleepEvents.forEach(function(e){ var n=e.event_date?e.event_date.substring(0,10):''; if(!sleepByNight[n])sleepByNight[n]=[]; sleepByNight[n].push(e); });
+    var sleepNights=Object.keys(sleepByNight).sort().reverse().slice(0,14);
+    html += '<div class="record-group"><div class="record-group-header">'
+      +'<div class="record-group-title"><i data-lucide="moon" style="width:14px;height:14px;color:var(--text-secondary);"></i>Sleep</div>'
+      +'<span class="record-group-count">'+sleepNights.length+' nights</span></div>';
+    sleepNights.forEach(function(night){
+      var sess=sleepByNight[night], parts=[];
+      sess.forEach(function(s){ parts.push(escHtml(s.title)); });
+      var src=sess[0].source||'apple_health', prov=sess[0].ehr_system?sess[0].ehr_system.replace('terra_',''):'';
+      html+='<div class="record-row" data-date="'+escHtml(night+'T00:00:00Z')+'">'
+        +'<div class="record-icon" style="background:var(--cream);color:var(--text-secondary);"><i data-lucide="moon" style="width:15px;height:15px;"></i></div>'
+        +'<div style="flex:1;"><div class="record-label">'+formatEventDate(night+'T00:00:00Z')+'</div>'
+        +'<div class="record-meta">'+parts.join(' \u00B7 ')+'</div></div>'
+        +appleHealthBadgeHtml(src,prov)+'</div>';
+    });
+    if (Object.keys(sleepByNight).length>14) html+='<div style="text-align:center;padding:8px;color:var(--text-secondary);font-size:12px;">+ more sleep data available</div>';
+    html += '</div>';
+  }
+
+  // Workouts
+  var workoutEvents = liveEvents.filter(function(e){ return e.event_type==='workout'&&(e.source==='apple_health'||e.source==='terra'); });
+  if (workoutEvents.length > 0) {
+    html += '<div class="record-group"><div class="record-group-header">'
+      +'<div class="record-group-title"><i data-lucide="dumbbell" style="width:14px;height:14px;color:var(--moss);"></i>Workouts</div>'
+      +'<span class="record-group-count">'+workoutEvents.length+' sessions</span></div>';
+    workoutEvents.slice(0,20).forEach(function(w){
+      var wp=w.ehr_system?w.ehr_system.replace('terra_',''):'';
+      html+='<div class="record-row" data-date="'+escHtml(w.event_date||'')+'">'
+        +'<div class="record-icon moss"><i data-lucide="dumbbell" style="width:15px;height:15px;"></i></div>'
+        +'<div style="flex:1;"><div class="record-label">'+escHtml(w.title)+'</div>'
+        +'<div class="record-meta">'+formatEventDate(w.event_date)+'</div></div>'
+        +appleHealthBadgeHtml(w.source,wp)+'</div>';
+    });
+    if (workoutEvents.length>20) html+='<div style="text-align:center;padding:8px;color:var(--text-secondary);font-size:12px;">+ '+(workoutEvents.length-20)+' more workouts</div>';
+    html += '</div>';
+  }
+
+  // Caregiver notes
+  if (noteEvents.length > 0) {
+    html += '<div class="record-group"><div class="record-group-header">'
+      +'<div class="record-group-title"><i data-lucide="pencil-line" style="width:14px;height:14px;color:var(--text-muted);"></i>Caregiver notes</div>'
+      +'<span class="record-group-count">'+noteEvents.length+' notes</span></div>';
+    noteEvents.slice(0,3).forEach(function(ev){
+      html+='<div class="record-row" data-date="'+escHtml(ev.event_date||'')+'" onclick="openEditEvent(\''+ev.id+'\')">'
+        +'<div class="record-icon muted"><i data-lucide="pencil-line" style="width:15px;height:15px;"></i></div>'
+        +'<div style="flex:1;"><div class="record-label">'+escHtml(ev.title)+'</div>'
+        +'<div class="record-meta">'+formatEventDate(ev.event_date)+' \u00B7 you</div></div>'
+        +'<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i></div>';
+    });
+    html += '</div>';
+  }
+
+  // EHR + Terra connection status placeholder
+  if (!isDemoMode && currentPersonId) {
+    html += '<div id="records-ehr-status"></div>';
+    html += '<div id="records-terra-conns"></div>';
+  }
+
+  html += '</div>'; // .records-section
+
+  view.innerHTML = html;
+  initIcons();
+  applyRecordsCollapse();
+
+  // Render EHR connection status inline (mirrors Terra inline pattern).
+  // Also hides the contradictory "Connect health records" prompt below
+  // the tile grid when a connection is confirmed (cache OR DB).
+  if (!isDemoMode && currentPersonId) {
+    var ehrStatusEl = document.getElementById('records-ehr-status');
+    if (ehrStatusEl) {
+      var renderEhrStatusRow = function(providerLabel, lastSyncIso) {
+        var lastSync = lastSyncIso ? formatTimeAgo(lastSyncIso) : '';
+        var rh = '<div class="terra-inline-list">';
+        rh += '<div class="terra-inline-item">';
+        rh += '<span class="terra-status-dot terra-status-dot--active"></span>';
+        rh += 'Connected: ' + escHtml(providerLabel);
+        if (lastSync) rh += ' \u00B7 last synced ' + escHtml(lastSync);
+        rh += ' <button class="terra-inline-disconnect" style="text-decoration:none;border:1px solid var(--border);border-radius:6px;padding:2px 8px;" onclick="syncNowFromRecords()">Sync now</button>';
+        rh += '</div>';
+        rh += '</div>';
+        ehrStatusEl.innerHTML = rh;
+        // Remove the contradictory "Connect health records" prompt — we're connected.
+        var promptEl = document.getElementById('ehr-section-prompt');
+        if (promptEl && promptEl.parentNode) promptEl.parentNode.removeChild(promptEl);
+      };
+
+      var ehrForStatus = getEhrData(currentPersonId);
+      if (ehrForStatus && ehrForStatus.provider) {
+        renderEhrStatusRow(ehrForStatus.provider, ehrForStatus.synced_at);
+      } else {
+        // No local cache — check DB for an orphan connection so we don't
+        // leave the UI silent when records actually are connected.
+        try {
+          db.from('ehr_connections')
+            .select('provider, last_synced_at, hospital_name, status')
+            .eq('person_id', currentPersonId)
+            .eq('status', 'connected')
+            .maybeSingle()
+            .then(function(res){
+              if (!res || !res.data) return;
+              var d = res.data;
+              renderEhrStatusRow(d.hospital_name || d.provider || 'EHR', d.last_synced_at);
+            }).catch(function(){});
+        } catch(e) {}
+      }
+    }
+  }
+
+  // Load Terra connections asynchronously for inline display
+  if (!isDemoMode && currentPersonId) {
+    loadTerraConnections(currentPersonId).then(function(conns) {
+      _currentTerraConns = conns || [];
+      var container = document.getElementById('records-terra-conns');
+      if (!container) return;
+      var active = _currentTerraConns.filter(function(c){ return c.status === 'active'; });
+      if (active.length === 0) { container.innerHTML = ''; return; }
+      var ih = '<div class="terra-inline-list">';
+      for (var ti = 0; ti < active.length; ti++) {
+        var tc = active[ti];
+        var pName = tc.provider ? tc.provider.charAt(0).toUpperCase() + tc.provider.slice(1).toLowerCase() : 'Unknown';
+        var dotCls = tc.status === 'active' ? 'terra-status-dot--active' : 'terra-status-dot--inactive';
+        ih += '<div class="terra-inline-item">';
+        ih += '<span class="terra-status-dot ' + dotCls + '"></span>';
+        ih += 'Connected: ' + escHtml(pName) + ' (' + escHtml(tc.status) + ')';
+        ih += ' <button class="terra-inline-disconnect" onclick="disconnectTerra(\'' + tc.id + '\')">disconnect</button>';
+        ih += '</div>';
+      }
+      ih += '</div>';
+      container.innerHTML = ih;
+    }).catch(function(e) { console.error('Load inline Terra connections:', e); });
+  }
+}
+
+async function switchRecordsToRealPerson(personId, el) {
+  document.querySelectorAll('#view-records .person-pill').forEach(function(p){ p.classList.remove('active'); });
+  el.classList.add('active');
+  await loadPersonData(personId);
+  renderRecordsView();
+}
+
+// ── COLLAPSIBLE RECORDS SECTIONS ─────────────────────────────────────────────
+// Derive a stable section key from a .record-group element.
+// Uses the data-lucide icon name in the title as the primary key (stable, unique).
+function deriveRecordSectionKey(groupEl) {
+  var iconEl = groupEl.querySelector('.record-group-title [data-lucide]');
+  var iconName = iconEl ? iconEl.getAttribute('data-lucide') : '';
+  var titleEl = groupEl.querySelector('.record-group-title');
+  var titleText = titleEl ? (titleEl.textContent || '').trim().toLowerCase() : '';
+  // Map icon → section key. Fallback to title text slug.
+  var iconMap = {
+    'pill': 'medications',
+    'stethoscope': 'conditions',
+    'alert-triangle': 'allergies',
+    'calendar-check': 'visits',
+    'flask-conical': 'labs',
+    'activity': 'vitals',
+    'footprints': 'activity',
+    'target': 'activity_rings',
+    'moon': 'sleep',
+    'dumbbell': 'workouts',
+    'scissors': 'procedures',
+    'pencil-line': 'notes',
+    'file-text': 'documents'
+  };
+  if (iconName && iconMap[iconName]) return iconMap[iconName];
+  // Fallback: slug from first word of title
+  return titleText.replace(/[^a-z0-9]+/g, '_').slice(0, 24) || 'unknown';
+}
+
+// Default expand/collapse rule per spec.
+// Returns true = expanded, false = collapsed.
+function defaultRecordSectionExpanded(key, groupEl) {
+  if (key === 'medications') return true;
+  if (key === 'allergies') return true;
+  if (key === 'documents') return true; // always-expanded CTA section
+  if (key === 'conditions') {
+    // expanded if ≤5 rows, else collapsed
+    var rows = groupEl.querySelectorAll('.record-row').length;
+    return rows <= 5;
+  }
+  // Everything else collapsed by default
+  return false;
+}
+
+function recordsCollapseStorageKey(personId) {
+  return 'wellet_records_expanded_' + (personId || 'unknown');
+}
+
+function loadRecordsCollapseState(personId) {
+  try {
+    var raw = localStorage.getItem(recordsCollapseStorageKey(personId));
+    if (!raw) return {};
+    var obj = JSON.parse(raw);
+    return (obj && typeof obj === 'object') ? obj : {};
+  } catch (e) { return {}; }
+}
+
+function saveRecordsCollapseState(personId, state) {
+  try {
+    localStorage.setItem(recordsCollapseStorageKey(personId), JSON.stringify(state));
+  } catch (e) { /* quota or disabled; ignore */ }
+}
+
+function toggleRecordSection(groupEl, key) {
+  var expanded = !groupEl.classList.contains('collapsed');
+  // Flip
+  if (expanded) {
+    groupEl.classList.add('collapsed');
+    groupEl.setAttribute('aria-expanded', 'false');
+  } else {
+    groupEl.classList.remove('collapsed');
+    groupEl.setAttribute('aria-expanded', 'true');
+  }
+  // Persist
+  var state = loadRecordsCollapseState(currentPersonId);
+  state[key] = !expanded; // new state
+  saveRecordsCollapseState(currentPersonId, state);
+}
+
+// Walk all .record-group elements inside #view-records and make them collapsible.
+function applyRecordsCollapse() {
+  var view = document.getElementById('view-records');
+  if (!view) return;
+  var groups = view.querySelectorAll('.record-group');
+  if (!groups || groups.length === 0) return;
+  var saved = loadRecordsCollapseState(currentPersonId);
+
+  groups.forEach(function(group) {
+    // Skip if already processed (defensive)
+    if (group.classList.contains('collapsible')) return;
+    var header = group.querySelector('.record-group-header');
+    if (!header) return;
+
+    var key = deriveRecordSectionKey(group);
+    group.setAttribute('data-section', key);
+    group.classList.add('collapsible');
+
+    // Wrap body nodes (everything after the header) in a .record-group-body div.
+    var body = document.createElement('div');
+    body.className = 'record-group-body';
+    var next = header.nextSibling;
+    while (next) {
+      var toMove = next;
+      next = next.nextSibling;
+      body.appendChild(toMove);
+    }
+    group.appendChild(body);
+
+    // Add chevron to header (right side, after count chip).
+    var chevron = document.createElement('span');
+    chevron.className = 'record-group-chevron';
+    chevron.innerHTML = '<i data-lucide="chevron-down" style="width:16px;height:16px;"></i>';
+    header.appendChild(chevron);
+
+    // Determine state: saved preference wins, else default rule.
+    var isExpanded;
+    if (typeof saved[key] === 'boolean') {
+      isExpanded = saved[key];
+    } else {
+      isExpanded = defaultRecordSectionExpanded(key, group);
+    }
+    if (!isExpanded) {
+      group.classList.add('collapsed');
+    }
+    group.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+
+    // Click handler on the whole header (but not on child <button>s, which may exist).
+    header.addEventListener('click', function(ev) {
+      // Ignore clicks on buttons or links inside the header
+      var t = ev.target;
+      while (t && t !== header) {
+        if (t.tagName === 'BUTTON' || t.tagName === 'A') return;
+        t = t.parentNode;
+      }
+      toggleRecordSection(group, key);
+    });
+
+    // If this section is date-filterable, mount the search icon and apply any saved filter.
+    if (isDateFilterableSection(key)) {
+      mountRecordsDateSearch(group, key);
+    }
+  });
+
+  // Re-init icons so the chevrons render.
+  initIcons();
+}
+
+// ── DATE-RANGE SEARCH PER SECTION ────────────────────────────────────────────
+// Sections that show time-stamped rows and support date filtering.
+// Skips medications/allergies/conditions (what's-true-now lists).
+function isDateFilterableSection(key) {
+  var filterable = {
+    labs: 1, vitals: 1, visits: 1, immunizations: 1, procedures: 1,
+    activity: 1, activity_rings: 1, sleep: 1, workouts: 1,
+    notes: 1, documents: 1
+  };
+  return !!filterable[key];
+}
+
+function recordsFilterStorageKey(personId) {
+  return 'wellet_records_filter_' + (personId || 'unknown');
+}
+
+function loadRecordsFilterState(personId) {
+  try {
+    var raw = localStorage.getItem(recordsFilterStorageKey(personId));
+    if (!raw) return {};
+    var obj = JSON.parse(raw);
+    return (obj && typeof obj === 'object') ? obj : {};
+  } catch (e) { return {}; }
+}
+
+function saveRecordsFilterState(personId, state) {
+  try {
+    localStorage.setItem(recordsFilterStorageKey(personId), JSON.stringify(state));
+  } catch (e) { /* ignore */ }
+}
+
+// Convert a preset key into {from, to} ISO date strings (YYYY-MM-DD).
+// Returns null for 'all'.
+function presetToRange(preset) {
+  if (!preset || preset === 'all') return null;
+  var now = new Date();
+  var to = now.toISOString().substring(0, 10);
+  var fromDate = new Date(now);
+  if (preset === '30d') fromDate.setDate(fromDate.getDate() - 30);
+  else if (preset === '90d') fromDate.setDate(fromDate.getDate() - 90);
+  else if (preset === '1yr') fromDate.setFullYear(fromDate.getFullYear() - 1);
+  else return null;
+  return { from: fromDate.toISOString().substring(0, 10), to: to, preset: preset };
+}
+
+function formatFilterPillLabel(filter) {
+  if (!filter) return '';
+  if (filter.preset === '30d') return 'Last 30 days';
+  if (filter.preset === '90d') return 'Last 90 days';
+  if (filter.preset === '1yr') return 'Last year';
+  // Custom range
+  var f = filter.from || '\u2014';
+  var t = filter.to || '\u2014';
+  return f + ' \u2192 ' + t;
+}
+
+// Apply filter to a section: show/hide rows, update count to "N of M", auto-expand.
+function applyRecordsDateFilter(groupEl, filter) {
+  if (!groupEl) return;
+  // Rows are .record-row (standard) or .doc-row (documents section).
+  var rows = groupEl.querySelectorAll('.record-row, .doc-row');
+  var total = rows.length;
+  var visible = 0;
+  var fromTs = (filter && filter.from) ? new Date(filter.from + 'T00:00:00').getTime() : null;
+  // 'to' is inclusive — end of day.
+  var toTs = (filter && filter.to) ? new Date(filter.to + 'T23:59:59').getTime() : null;
+
+  rows.forEach(function(row) {
+    var d = row.getAttribute('data-date') || '';
+    if (!filter) {
+      row.style.display = '';
+      visible++;
+      return;
+    }
+    if (!d) {
+      // No date → hide when any filter is active
+      row.style.display = 'none';
+      return;
+    }
+    var ts = new Date(d).getTime();
+    if (isNaN(ts)) {
+      row.style.display = 'none';
+      return;
+    }
+    var inRange = true;
+    if (fromTs !== null && ts < fromTs) inRange = false;
+    if (toTs !== null && ts > toTs) inRange = false;
+    if (inRange) {
+      row.style.display = '';
+      visible++;
+    } else {
+      row.style.display = 'none';
+    }
+  });
+
+  // Update count chip
+  var countEl = groupEl.querySelector('.record-group-count');
+  if (countEl) {
+    if (filter) {
+      // Preserve original label (stored once) by stashing in dataset
+      if (!countEl.dataset.origLabel) countEl.dataset.origLabel = countEl.textContent;
+      countEl.textContent = visible + ' of ' + total;
+    } else if (countEl.dataset.origLabel) {
+      countEl.textContent = countEl.dataset.origLabel;
+    }
+  }
+
+  // Update pill + active button state
+  var searchBtn = groupEl.querySelector('.record-group-search-btn');
+  if (searchBtn) {
+    if (filter) searchBtn.classList.add('active');
+    else searchBtn.classList.remove('active');
+  }
+  var headerRight = groupEl.querySelector('.record-group-header-right');
+  if (headerRight) {
+    var existingPill = headerRight.querySelector('.record-filter-pill');
+    if (existingPill) existingPill.remove();
+    if (filter) {
+      var pill = document.createElement('span');
+      pill.className = 'record-filter-pill';
+      pill.innerHTML = escHtml(formatFilterPillLabel(filter))
+        + '<button class="record-filter-pill-clear" type="button" aria-label="Clear filter">'
+        + '<i data-lucide="x" style="width:10px;height:10px;"></i></button>';
+      // Insert before the search button
+      headerRight.insertBefore(pill, searchBtn || headerRight.firstChild);
+      var clearBtn = pill.querySelector('.record-filter-pill-clear');
+      clearBtn.addEventListener('click', function(ev) {
+        ev.stopPropagation();
+        var sectionKey = groupEl.getAttribute('data-section');
+        clearRecordsDateFilter(groupEl, sectionKey);
+      });
+      initIcons();
+    }
+  }
+
+  // Auto-expand when a filter is applied
+  if (filter && groupEl.classList.contains('collapsed')) {
+    groupEl.classList.remove('collapsed');
+    groupEl.setAttribute('aria-expanded', 'true');
+  }
+}
+
+function clearRecordsDateFilter(groupEl, sectionKey) {
+  applyRecordsDateFilter(groupEl, null);
+  var state = loadRecordsFilterState(currentPersonId);
+  if (state[sectionKey]) {
+    delete state[sectionKey];
+    saveRecordsFilterState(currentPersonId, state);
+  }
+}
+
+function setRecordsDateFilter(groupEl, sectionKey, filter) {
+  applyRecordsDateFilter(groupEl, filter);
+  var state = loadRecordsFilterState(currentPersonId);
+  state[sectionKey] = filter;
+  saveRecordsFilterState(currentPersonId, state);
+}
+
+// Build + mount the search icon and attach popover behavior.
+function mountRecordsDateSearch(groupEl, sectionKey) {
+  var header = groupEl.querySelector('.record-group-header');
+  if (!header) return;
+
+  // Move count chip + chevron into a right-side wrapper so we can inject the search button.
+  var countEl = header.querySelector('.record-group-count');
+  var chevron = header.querySelector('.record-group-chevron');
+  var right = document.createElement('div');
+  right.className = 'record-group-header-right';
+
+  var searchBtn = document.createElement('button');
+  searchBtn.type = 'button';
+  searchBtn.className = 'record-group-search-btn';
+  searchBtn.setAttribute('aria-label', 'Filter by date range');
+  searchBtn.innerHTML = '<i data-lucide="search" style="width:14px;height:14px;"></i>';
+  searchBtn.addEventListener('click', function(ev) {
+    ev.stopPropagation();
+    openRecordsDatePopover(groupEl, sectionKey, searchBtn);
+  });
+
+  right.appendChild(searchBtn);
+  if (countEl) right.appendChild(countEl);
+  if (chevron) right.appendChild(chevron);
+  header.appendChild(right);
+
+  // Apply any saved filter for this section.
+  var saved = loadRecordsFilterState(currentPersonId);
+  if (saved && saved[sectionKey]) {
+    applyRecordsDateFilter(groupEl, saved[sectionKey]);
+  }
+}
+
+// Close any open popover.
+function closeRecordsDatePopover() {
+  var existing = document.querySelector('.record-date-popover');
+  if (existing) existing.remove();
+  var backdrop = document.querySelector('.record-date-popover-backdrop');
+  if (backdrop) backdrop.remove();
+}
+
+function openRecordsDatePopover(groupEl, sectionKey, anchorBtn) {
+  closeRecordsDatePopover();
+
+  var saved = loadRecordsFilterState(currentPersonId);
+  var current = (saved && saved[sectionKey]) ? saved[sectionKey] : null;
+
+  var backdrop = document.createElement('div');
+  backdrop.className = 'record-date-popover-backdrop';
+  backdrop.addEventListener('click', closeRecordsDatePopover);
+  document.body.appendChild(backdrop);
+
+  var pop = document.createElement('div');
+  pop.className = 'record-date-popover';
+  pop.innerHTML =
+    '<div class="popover-title">Filter by date</div>'
+    + '<div class="preset-row">'
+    + '  <button type="button" class="preset-btn" data-preset="30d">Last 30 days</button>'
+    + '  <button type="button" class="preset-btn" data-preset="90d">Last 90 days</button>'
+    + '  <button type="button" class="preset-btn" data-preset="1yr">Last year</button>'
+    + '  <button type="button" class="preset-btn" data-preset="all">All</button>'
+    + '</div>'
+    + '<div class="range-row">'
+    + '  <div class="range-field"><label for="rdp-from">From</label><input type="date" id="rdp-from" /></div>'
+    + '  <div class="range-field"><label for="rdp-to">To</label><input type="date" id="rdp-to" /></div>'
+    + '</div>'
+    + '<div class="action-row">'
+    + '  <button type="button" class="popover-btn secondary" data-act="clear">Clear</button>'
+    + '  <button type="button" class="popover-btn primary" data-act="apply">Apply</button>'
+    + '</div>';
+  document.body.appendChild(pop);
+
+  // Position below the anchor button, right-aligned to it.
+  var rect = anchorBtn.getBoundingClientRect();
+  var popWidth = 268;
+  var left = Math.min(window.innerWidth - popWidth - 12, Math.max(12, rect.right - popWidth));
+  var top = rect.bottom + window.scrollY + 6;
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+
+  // Pre-fill current state.
+  var fromInput = pop.querySelector('#rdp-from');
+  var toInput = pop.querySelector('#rdp-to');
+  if (current) {
+    if (current.from) fromInput.value = current.from;
+    if (current.to) toInput.value = current.to;
+    if (current.preset) {
+      var activeBtn = pop.querySelector('.preset-btn[data-preset="' + current.preset + '"]');
+      if (activeBtn) activeBtn.classList.add('active');
+    }
+  }
+
+  // Preset buttons — fill inputs and mark active.
+  pop.querySelectorAll('.preset-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      pop.querySelectorAll('.preset-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var preset = btn.getAttribute('data-preset');
+      if (preset === 'all') {
+        fromInput.value = '';
+        toInput.value = '';
+      } else {
+        var range = presetToRange(preset);
+        if (range) {
+          fromInput.value = range.from;
+          toInput.value = range.to;
+        }
+      }
+    });
+  });
+
+  // Apply / Clear.
+  pop.querySelector('[data-act="apply"]').addEventListener('click', function() {
+    var from = fromInput.value || '';
+    var to = toInput.value || '';
+    var activePreset = pop.querySelector('.preset-btn.active');
+    var presetKey = activePreset ? activePreset.getAttribute('data-preset') : null;
+    if (!from && !to) {
+      // Treat as All → clear
+      clearRecordsDateFilter(groupEl, sectionKey);
+    } else {
+      var filter = { from: from, to: to };
+      if (presetKey && presetKey !== 'all') filter.preset = presetKey;
+      setRecordsDateFilter(groupEl, sectionKey, filter);
+    }
+    closeRecordsDatePopover();
+  });
+  pop.querySelector('[data-act="clear"]').addEventListener('click', function() {
+    clearRecordsDateFilter(groupEl, sectionKey);
+    closeRecordsDatePopover();
+  });
+
+  initIcons();
+}
+
+// ── DOCUMENT LIST & EXTRACTION ───────────────────────────────────────────────
+function getDocTypeIcon(type) {
+  var map = {
+    'Visit summary': 'clipboard-list',
+    'Doctor visit recording': 'mic',
+    'Lab results': 'flask-conical',
+    'Prescription': 'pill',
+    'Imaging': 'scan',
+    'Other document': 'file-text'
+  };
+  return map[type] || 'file-text';
+}
+
+function getDocStatusClass(status) {
+  if (status === 'completed') return 'extracted';
+  if (status === 'failed') return 'failed';
+  return 'analyzing';
+}
+
+function getDocStatusLabel(status) {
+  if (status === 'completed') return 'Extracted';
+  if (status === 'failed') return 'Failed';
+  return 'Analyzing\u2026';
+}
+
+function relativeTime(dateStr) {
+  if (!dateStr) return '';
+  var now = Date.now();
+  var then = new Date(dateStr).getTime();
+  var diff = now - then;
+  if (diff < 0) return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  var mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return mins + ' min ago';
+  var hours = Math.floor(mins / 60);
+  if (hours < 24) return hours + ' hour' + (hours !== 1 ? 's' : '') + ' ago';
+  var days = Math.floor(hours / 24);
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return days + ' days ago';
+  var weeks = Math.floor(days / 7);
+  if (weeks === 1) return '1 week ago';
+  if (weeks < 5) return weeks + ' weeks ago';
+  var months = Math.floor(days / 30);
+  if (months === 1) return '1 month ago';
+  if (months < 12) return months + ' months ago';
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// ── DOCUMENT VIEWER / DOWNLOAD ──────────────────────────────────────────────
+function getFileExtension(fileName) {
+  if (!fileName) return '';
+  var parts = fileName.split('.');
+  return parts.length > 1 ? parts.pop().toLowerCase() : '';
+}
+
+function isImageFile(fileName) {
+  var ext = getFileExtension(fileName);
+  return ['jpg','jpeg','png','gif','webp'].indexOf(ext) !== -1;
+}
+
+function isPdfFile(fileName) {
+  return getFileExtension(fileName) === 'pdf';
+}
+
+function isAudioFile(fileName) {
+  var ext = getFileExtension(fileName);
+  return ['m4a','mp3','wav','ogg','webm'].indexOf(ext) !== -1;
+}
+
+function isZipFile(fileName) {
+  return getFileExtension(fileName) === 'zip';
+}
+
+async function retryTranscription(docId, storagePath) {
+  var doc = liveDocs.find(function(d) { return d.id === docId; });
+  if (!doc) return;
+
+  try {
+    var session = await db.auth.getSession();
+    var token = session.data.session.access_token;
+
+    // Update status to pending in DB so UI reflects immediately
+    await db.from('documents').update({ extraction_status: 'pending' }).eq('id', docId);
+    doc.extraction_status = 'pending';
+    renderRecordsView();
+    showToast('Retrying transcription\u2026');
+
+    var fnResponse = await fetch('https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/transcribe-audio', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({
+        document_id: docId,
+        storage_path: storagePath
+      })
+    });
+
+    if (fnResponse.ok) {
+      var fnResult = await fnResponse.json();
+      console.log('Retry transcription success:', fnResult);
+    } else {
+      var fnErrBody = await fnResponse.text();
+      console.error('Retry transcription returned:', fnResponse.status, fnErrBody);
+    }
+
+    // Poll for extraction status in the records view
+    var pollAttempts = 0;
+    var pollMax = 20;
+    var retryPollTimer = setInterval(async function() {
+      pollAttempts++;
+      // After 2 minutes, reassure user
+      if (pollAttempts === 40) {
+        showToast('Still working \u2014 longer recordings take more time');
+      }
+      if (pollAttempts > pollMax) {
+        clearInterval(retryPollTimer);
+        showToast('Transcription is taking longer than expected');
+        return;
+      }
+      var result = await db.from('documents').select('*').eq('id', docId).single();
+      if (!result.data) return;
+      var updatedDoc = result.data;
+      var idx = liveDocs.findIndex(function(d) { return d.id === docId; });
+      if (idx >= 0) liveDocs[idx] = updatedDoc;
+      if (updatedDoc.extraction_status === 'completed') {
+        clearInterval(retryPollTimer);
+        showToast('Transcription complete');
+        renderRecordsView();
+      } else if (updatedDoc.extraction_status === 'failed') {
+        clearInterval(retryPollTimer);
+        showToast('Transcription failed');
+        renderRecordsView();
+      }
+    }, 3000);
+  } catch (err) {
+    console.error('Retry transcription error:', err);
+    showToast('Could not retry transcription');
+  }
+}
+
+async function viewDocument(docId) {
+  var doc = liveDocs.find(function(d) { return d.id === docId; });
+  if (!doc) return;
+
+  var result = await db.storage.from('documents').createSignedUrl(doc.storage_path, 3600);
+  if (!result.data || !result.data.signedUrl) {
+    showToast('Could not load document');
+    return;
+  }
+  var signedUrl = result.data.signedUrl;
+
+  if (isAudioFile(doc.file_name)) {
+    // Audio files: play and show extraction results if available
+    playAudioDocument(docId);
+    if (doc.extraction_status === 'completed') {
+      showExtractionResults(docId);
+    }
+  } else if (isImageFile(doc.file_name)) {
+    // Show in image viewer overlay
+    document.getElementById('doc-viewer-title').textContent = doc.file_name;
+    document.getElementById('doc-viewer-sub').textContent =
+      (doc.document_type || 'Document') + ' · ' + formatEventDate(doc.uploaded_at);
+    document.getElementById('doc-viewer-img').src = signedUrl;
+
+    // Download button
+    var dlBtn = document.getElementById('doc-viewer-download-btn');
+    dlBtn.onclick = function() { triggerDownload(signedUrl, doc.file_name); };
+
+    // Extraction link
+    var extLink = document.getElementById('doc-viewer-extraction-link');
+    if (doc.extraction_status === 'completed') {
+      extLink.style.display = 'flex';
+      extLink.onclick = function() {
+        closeSheet('doc-viewer-overlay');
+        showExtractionResults(doc.id);
+      };
+    } else {
+      extLink.style.display = 'none';
+    }
+
+    document.getElementById('doc-viewer-overlay').classList.add('show');
+    initIcons();
+  } else if (isPdfFile(doc.file_name)) {
+    window.open(signedUrl, '_blank');
+  } else {
+    triggerDownload(signedUrl, doc.file_name);
+  }
+}
+
+async function downloadDocument(docId) {
+  var doc = liveDocs.find(function(d) { return d.id === docId; });
+  if (!doc) return;
+
+  var result = await db.storage.from('documents').createSignedUrl(doc.storage_path, 3600);
+  if (!result.data || !result.data.signedUrl) {
+    showToast('Could not download document');
+    return;
+  }
+  triggerDownload(result.data.signedUrl, doc.file_name);
+}
+
+function triggerDownload(url, fileName) {
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = fileName || 'document';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+var _audioPlayer = null;
+
+async function playAudioDocument(docId) {
+  var doc = liveDocs.find(function(d) { return d.id === docId; });
+  if (!doc) return;
+
+  // Stop if already playing this doc
+  if (_audioPlayer && _audioPlayer._docId === docId) {
+    _audioPlayer.pause();
+    _audioPlayer = null;
+    return;
+  }
+  // Stop any previous playback
+  if (_audioPlayer) { _audioPlayer.pause(); _audioPlayer = null; }
+
+  var result = await db.storage.from('documents').createSignedUrl(doc.storage_path, 3600);
+  if (!result.data || !result.data.signedUrl) {
+    showToast('Could not load audio');
+    return;
+  }
+
+  _audioPlayer = new Audio(result.data.signedUrl);
+  _audioPlayer._docId = docId;
+  _audioPlayer.play().catch(function() { showToast('Could not play audio'); });
+  _audioPlayer.onended = function() { _audioPlayer = null; };
+}
+
+async function playTranscriptAudio() {
+  if (!_currentExtDoc) return;
+  var btn = document.getElementById('ext-play-btn');
+
+  // Toggle playback
+  if (_audioPlayer && _audioPlayer._docId === _currentExtDoc.id) {
+    _audioPlayer.pause();
+    _audioPlayer = null;
+    btn.innerHTML = '<i data-lucide="play" style="width:12px;height:12px;"></i> Play';
+    initIcons();
+    return;
+  }
+  if (_audioPlayer) { _audioPlayer.pause(); _audioPlayer = null; }
+
+  var result = await db.storage.from('documents').createSignedUrl(_currentExtDoc.storage_path, 3600);
+  if (!result.data || !result.data.signedUrl) {
+    showToast('Could not load audio');
+    return;
+  }
+
+  _audioPlayer = new Audio(result.data.signedUrl);
+  _audioPlayer._docId = _currentExtDoc.id;
+  btn.innerHTML = '<i data-lucide="square" style="width:12px;height:12px;"></i> Stop';
+  initIcons();
+  _audioPlayer.play().catch(function() { showToast('Could not play audio'); });
+  _audioPlayer.onended = function() {
+    _audioPlayer = null;
+    btn.innerHTML = '<i data-lucide="play" style="width:12px;height:12px;"></i> Play';
+    initIcons();
+  };
+}
+
+var _currentExtDoc = null; // document being viewed in extraction overlay
+var _currentExtItems = []; // extracted items array
+var _addedExtItems = {};   // track which items have been added { index: true }
+
+function showExtractionResults(docId) {
+  var doc = liveDocs.find(function(d) { return d.id === docId; });
+  if (!doc) return;
+  _currentExtDoc = doc;
+  _addedExtItems = {};
+
+  var extracted = doc.extracted_events;
+  if (typeof extracted === 'string') {
+    try { extracted = JSON.parse(extracted); } catch (e) { extracted = null; }
+  }
+  if (!extracted) {
+    showToast('No extraction data available');
+    return;
+  }
+
+  _currentExtItems = extracted.items || [];
+
+  // Set header
+  var isAudio = isAudioFile(doc.file_name);
+  document.getElementById('ext-sheet-title').textContent = doc.document_type || 'Document';
+  document.getElementById('ext-sheet-sub').textContent = (isAudio ? 'Transcribed from ' : 'Extracted from ') + escHtml(doc.file_name);
+
+  // Set summary
+  var summaryEl = document.getElementById('ext-summary');
+  if (extracted.summary) {
+    summaryEl.textContent = extracted.summary;
+    summaryEl.style.display = 'block';
+  } else {
+    summaryEl.style.display = 'none';
+  }
+
+  // Show transcript section for audio files
+  var transcriptEl = document.getElementById('ext-transcript');
+  if (isAudio && extracted.transcript) {
+    document.getElementById('ext-transcript-text').textContent = extracted.transcript;
+    transcriptEl.style.display = 'block';
+  } else {
+    transcriptEl.style.display = 'none';
+  }
+
+  // Render items
+  renderExtractedItems();
+
+  // Show/hide add all button
+  var addAllBtn = document.getElementById('ext-add-all-btn');
+  addAllBtn.style.display = _currentExtItems.length > 0 ? 'flex' : 'none';
+
+  document.getElementById('extraction-overlay').classList.add('show');
+  initIcons();
+}
+
+var _editingExtIdx = -1;
+
+function renderExtractedItems() {
+  var container = document.getElementById('ext-items-list');
+  var html = '';
+
+  _currentExtItems.forEach(function(item, idx) {
+    var typeInfo = getEventTypeInfo(item.type);
+    var isAdded = _addedExtItems[idx];
+    var isEditing = (_editingExtIdx === idx);
+
+    html += '<div class="ext-item"'
+      + (isEditing ? ' style="flex-wrap:wrap;"' : '') + '>'
+      + '<div class="ext-item-icon" style="background:' + getExtItemBg(item.type) + ';color:' + typeInfo.color + ';">'
+      + '<i data-lucide="' + typeInfo.icon + '" style="width:15px;height:15px;"></i></div>';
+
+    if (isEditing) {
+      html += '<div class="ext-item-body">'
+        + '<input class="ext-edit-input ext-title-input" id="ext-edit-title-' + idx + '" value="' + escHtml(item.title) + '" placeholder="Title">'
+        + '<input class="ext-edit-input" id="ext-edit-detail-' + idx + '" value="' + escHtml(item.detail || '') + '" placeholder="Detail" style="margin-top:6px;">'
+        + '<div class="ext-edit-row">'
+        + '<button class="ext-save-btn" onclick="saveExtractedEdit(' + idx + ')">Save</button>'
+        + '<button class="ext-cancel-btn" onclick="cancelExtractedEdit()">' + t('common.cancel') + '</button>'
+        + '</div></div>';
+    } else {
+      html += '<div class="ext-item-body">'
+        + '<div class="ext-item-title">' + escHtml(item.title) + '</div>'
+        + '<div class="ext-item-detail">' + escHtml(item.detail || '') + '</div>'
+        + '</div>';
+
+      html += '<div class="ext-item-actions">';
+      if (isAdded) {
+        html += '<div class="ext-add-btn added"><i data-lucide="check" style="width:12px;height:12px;"></i> Added</div>';
+      } else {
+        html += '<button class="ext-add-btn" onclick="addExtractedItem(' + idx + ')">'
+          + '<i data-lucide="plus" style="width:12px;height:12px;"></i> Add</button>';
+      }
+      if (!isAdded) {
+        html += '<button class="ext-edit-btn" title="Edit" onclick="startExtractedEdit(' + idx + ')">'
+          + '<i data-lucide="pencil" style="width:13px;height:13px;"></i></button>';
+      }
+      html += '</div>';
+    }
+
+    html += '</div>';
+  });
+
+  if (_currentExtItems.length === 0) {
+    html = '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">No items were extracted from this document.</div>';
+  }
+
+  container.innerHTML = html;
+  initIcons();
+
+  if (_editingExtIdx >= 0) {
+    var titleInput = document.getElementById('ext-edit-title-' + _editingExtIdx);
+    if (titleInput) titleInput.focus();
+  }
+}
+
+function startExtractedEdit(idx) {
+  _editingExtIdx = idx;
+  renderExtractedItems();
+}
+
+function cancelExtractedEdit() {
+  _editingExtIdx = -1;
+  renderExtractedItems();
+}
+
+function saveExtractedEdit(idx) {
+  var titleInput = document.getElementById('ext-edit-title-' + idx);
+  var detailInput = document.getElementById('ext-edit-detail-' + idx);
+  if (!titleInput) return;
+  var newTitle = titleInput.value.trim();
+  var newDetail = detailInput ? detailInput.value.trim() : '';
+  if (!newTitle) { showToast('Title cannot be empty'); return; }
+  _currentExtItems[idx].title = newTitle;
+  _currentExtItems[idx].detail = newDetail;
+  _editingExtIdx = -1;
+  renderExtractedItems();
+  showToast('Updated');
+}
+
+function getExtItemBg(type) {
+  var map = {
+    appointment: 'var(--mint)',
+    medication: 'var(--amber-bg)',
+    lab_result: '#EEF3FC',
+    note: 'var(--cream)',
+    pattern: '#FEF0EE'
+  };
+  return map[type] || 'var(--cream)';
+}
+
+async function addExtractedItem(idx) {
+  if (_addedExtItems[idx]) return;
+  var item = _currentExtItems[idx];
+  if (!item || !currentPersonId) return;
+
+  var today = new Date().toISOString().split('T')[0];
+
+  if (item.type === 'medication') {
+    var parts = (item.detail || '').match(/(\d+\s*mg|\d+\s*mcg)/i);
+    var dose = parts ? parts[1] : null;
+    var extMed = { name: item.title, dose: dose, frequency: null, prescriber: null, active: true, source: 'extraction' };
+    var extMedDedup = await findDuplicateMedication(currentPersonId, extMed);
+    var extMedResult = await reconcileMedication(currentPersonId, extMed, extMedDedup);
+    if (!extMedResult && extMedDedup.action !== 'skip') { showToast('Error adding medication'); return; }
+  } else {
+    var extEvent = { event_type: item.type || 'note', event_date: (item.date || today) + 'T00:00:00Z', title: item.title, notes: item.detail || null, source: 'extraction' };
+    var extEvDedup = await findDuplicateHealthEvent(currentPersonId, extEvent);
+    var extEvResult = await reconcileHealthEvent(currentPersonId, extEvent, extEvDedup);
+    if (!extEvResult && extEvDedup.action !== 'skip') { showToast('Error adding event'); return; }
+  }
+
+  _addedExtItems[idx] = true;
+  renderExtractedItems();
+  showToast('Added to records');
+
+  // Check if all items are added
+  var allAdded = _currentExtItems.every(function(_, i) { return _addedExtItems[i]; });
+  if (allAdded) {
+    var addAllBtn = document.getElementById('ext-add-all-btn');
+    addAllBtn.innerHTML = '<i data-lucide="check" style="width:15px;height:15px;"></i> All items added';
+    addAllBtn.disabled = true;
+    addAllBtn.style.background = 'var(--mint)';
+    addAllBtn.style.color = 'var(--moss)';
+    initIcons();
+  }
+}
+
+async function addAllExtractedFromOverlay() {
+  if (!_currentExtItems.length || !currentPersonId) return;
+
+  var btn = document.getElementById('ext-add-all-btn');
+  btn.disabled = true;
+  btn.textContent = 'Adding\u2026';
+
+  var today = new Date().toISOString().split('T')[0];
+  var bulkSkipped = 0;
+
+  for (var bi = 0; bi < _currentExtItems.length; bi++) {
+    if (_addedExtItems[bi]) continue;
+    var bItem = _currentExtItems[bi];
+    if (bItem.type === 'medication') {
+      var bParts = (bItem.detail || '').match(/(\d+\s*mg|\d+\s*mcg)/i);
+      var bDose = bParts ? bParts[1] : null;
+      var bMed = { name: bItem.title, dose: bDose, frequency: null, prescriber: null, active: true, source: 'extraction' };
+      var bMedDedup = await findDuplicateMedication(currentPersonId, bMed);
+      await reconcileMedication(currentPersonId, bMed, bMedDedup);
+      if (bMedDedup.action === 'skip') bulkSkipped++;
+    } else {
+      var bEv = { event_type: bItem.type || 'note', event_date: (bItem.date || today) + 'T00:00:00Z', title: bItem.title, notes: bItem.detail || null, source: 'extraction' };
+      var bEvDedup = await findDuplicateHealthEvent(currentPersonId, bEv);
+      await reconcileHealthEvent(currentPersonId, bEv, bEvDedup);
+      if (bEvDedup.action === 'skip') bulkSkipped++;
+    }
+    _addedExtItems[bi] = true;
+  }
+
+  renderExtractedItems();
+  btn.innerHTML = '<i data-lucide="check" style="width:15px;height:15px;"></i> All items added';
+  btn.style.background = 'var(--mint)';
+  btn.style.color = 'var(--moss)';
+  initIcons();
+
+  if (bulkSkipped > 0) {
+    showToast('Items added (' + bulkSkipped + ' duplicate' + (bulkSkipped !== 1 ? 's' : '') + ' skipped)');
+  } else {
+    showToast('All items added to records');
+  }
+
+  // Reload data in background
+  await loadPersonData(currentPersonId);
+  renderUpdateMe();
+  renderTimeline();
+  renderRecordsView();
+}
+
+var _pollTimer = null;
+var _pollAttempts = 0;
+
+// ── P3: POST-UPLOAD EXTRACTION SUMMARY ───────────────────────────────────────────────
+function renderUploadExtractedSummary(items) {
+  // items shape: [{type, text, color}, ...] or [{type, title, detail}, ...]
+  var section = document.getElementById('upload-extracted-section');
+  var container = document.getElementById('extracted-items');
+  if (!section || !container) return;
+  if (!items || items.length === 0) { section.style.display = 'none'; return; }
+  // Show demo items if extraction returns generic structure
+  var colorMap = { medication: 'amber', appointment: 'green', lab_result: 'blue', condition: 'amber', alert: 'amber' };
+  var html = '';
+  // Limit to first 5 items
+  var shown = items.slice(0, 5);
+  shown.forEach(function(item) {
+    var col = item.color || colorMap[item.type] || 'green';
+    var text = item.text || (item.title + (item.detail ? ' — ' + item.detail : ''));
+    html += '<div class="extracted-item"><span class="extracted-dot extracted-dot--' + escHtml(col) + '"></span><span>' + escHtml(text) + '</span></div>';
+  });
+  container.innerHTML = html;
+  section.style.display = 'block';
+  // Also update the done subtitle
+  var subEl = document.getElementById('upload-done-sub');
+  if (subEl) subEl.style.display = 'none';
+}
+
+function pollExtractionStatus(docId, isAudio) {
+  _pollAttempts = 0;
+  if (_pollTimer) clearInterval(_pollTimer);
+  var maxAttempts = isAudio ? 20 : 10;
+  var _pollPhase = 'transcribing';
+
+  var statusEl = document.getElementById('upload-ext-status');
+  statusEl.innerHTML = '<div class="upload-ext-pulse"><i data-lucide="loader" style="width:14px;height:14px;animation:spin 1.2s linear infinite;"></i> '
+    + (isAudio ? 'Transcribing your recording\u2026' : 'Reading your document\u2026') + '</div>';
+  initIcons();
+
+  _pollTimer = setInterval(async function() {
+    _pollAttempts++;
+
+    // After ~15 seconds (5 polls), switch to extraction phase message
+    if (_pollAttempts === 5 && _pollPhase === 'transcribing') {
+      _pollPhase = 'extracting';
+      statusEl.innerHTML = '<div class="upload-ext-pulse"><i data-lucide="loader" style="width:14px;height:14px;animation:spin 1.2s linear infinite;"></i> '
+        + 'Reading transcript for medications, conditions, and follow\u2011ups\u2026</div>';
+      initIcons();
+    }
+
+    // After 2 minutes (40 polls at 3s), show reassurance
+    if (_pollAttempts === 40) {
+      statusEl.innerHTML = '<div class="upload-ext-pulse"><i data-lucide="loader" style="width:14px;height:14px;animation:spin 1.2s linear infinite;"></i> '
+        + 'Still working \u2014 longer recordings take more time</div>';
+      initIcons();
+    }
+
+    if (_pollAttempts > maxAttempts) {
+      clearInterval(_pollTimer);
+      _pollTimer = null;
+      statusEl.innerHTML = '<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Analysis is taking longer than expected. Check back in Records.</div>';
+      return;
+    }
+
+    var { data: doc } = await db.from('documents').select('*').eq('id', docId).single();
+    if (!doc) return;
+
+    if (doc.extraction_status === 'completed') {
+      clearInterval(_pollTimer);
+      _pollTimer = null;
+
+      var extracted = doc.extracted_events;
+      if (typeof extracted === 'string') {
+        try { extracted = JSON.parse(extracted); } catch (e) { extracted = null; }
+      }
+      var itemCount = extracted && extracted.items ? extracted.items.length : 0;
+
+      // Update the step4 UI
+      var iconEl = document.getElementById('upload-done-icon');
+      iconEl.innerHTML = '<i data-lucide="sparkles" style="width:24px;height:24px;color:var(--moss);"></i>';
+      document.getElementById('upload-done-title').textContent = 'Document analyzed';
+      document.getElementById('upload-done-sub').textContent = 'Wellet extracted health information from your document.';
+
+      if (itemCount > 0) {
+        // P3: Render extracted summary in upload-step4
+        renderUploadExtractedSummary(extracted.items || []);
+        statusEl.innerHTML = '';
+        var doneBtn = document.getElementById('upload-done-btn');
+        doneBtn.textContent = '';
+        doneBtn.innerHTML = 'View in timeline →';
+        doneBtn.onclick = function() {
+          closeUpload();
+          switchNavTo('home');
+          // Update liveDocs with the fresh doc
+          var existingIdx = liveDocs.findIndex(function(d) { return d.id === doc.id; });
+          if (existingIdx >= 0) { liveDocs[existingIdx] = doc; } else { liveDocs.unshift(doc); }
+          // Show extraction review sheet after navigation
+          setTimeout(function() { showExtractionResults(doc.id); }, 300);
+        };
+      } else {
+        statusEl.innerHTML = '<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">No items were found to extract.</div>';
+      }
+      initIcons();
+
+    } else if (doc.extraction_status === 'failed') {
+      clearInterval(_pollTimer);
+      _pollTimer = null;
+      statusEl.innerHTML = '<div style="font-size:12px;color:var(--red);margin-top:4px;">Extraction failed. The document was saved to your records.</div>';
+    }
+  }, 3000);
+}
+
+// ── HEALTH RECORD IMPORT (ZIP) ──────────────────────────────────────────────
+var _hiFile = null;
+var _hiXhr = null;
+var _hiJobId = null;
+var _hiPollTimer = null;
+var _hiCallback = null; // optional callback when import completes (used by onboarding)
+
+function openHealthImport(file, callback) {
+  _hiFile = file;
+  _hiCallback = callback || null;
+  _hiJobId = null;
+  // Show confirm step, hide others
+  document.getElementById('hi-step-confirm').style.display = 'block';
+  document.getElementById('hi-step-processing').style.display = 'none';
+  document.getElementById('hi-step-summary').style.display = 'none';
+  document.getElementById('hi-step-failed').style.display = 'none';
+  document.getElementById('hi-file-name').textContent = file.name;
+  var sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+  document.getElementById('hi-file-size').textContent = sizeMB + ' MB';
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var name = person ? person.name.split(' ')[0] : 'your family member';
+  document.getElementById('hi-confirm-sub').textContent = 'Wellet will unpack this file and store ' + escHtml(name) + '\'s documents securely.';
+  openSheetAccessible('health-import-overlay');
+  initIcons();
+}
+
+function closeHealthImport() {
+  if (_hiPollTimer) { clearInterval(_hiPollTimer); _hiPollTimer = null; }
+  if (_hiXhr) { _hiXhr.abort(); _hiXhr = null; }
+  closeSheet('health-import-overlay');
+  _hiFile = null;
+  // Reset the file input so the same file can be re-selected
+  document.getElementById('upload-file-input').value = '';
+}
+
+function cancelHealthImport() {
+  if (_hiXhr) { _hiXhr.abort(); _hiXhr = null; }
+  if (_hiPollTimer) { clearInterval(_hiPollTimer); _hiPollTimer = null; }
+  closeHealthImport();
+  showToast('Import cancelled');
+}
+
+async function uploadBlobToStorage(blob, storagePath, token, contentType) {
+  var response = await fetch(SUPABASE_URL + '/storage/v1/object/documents/' + storagePath, {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'apikey': SUPABASE_ANON_KEY,
+      'x-upsert': 'true',
+      'Content-Type': contentType || 'application/octet-stream'
+    },
+    body: blob
+  });
+  if (!response.ok) {
+    var errMsg = 'Upload failed (HTTP ' + response.status + ')';
+    try { errMsg = (await response.json()).message || errMsg; } catch(_e) {}
+    throw new Error(errMsg);
+  }
+}
+
+async function startHealthImport() {
+  if (!currentUser || !_hiFile) return;
+  var file = _hiFile;
+  var personId = currentPersonId;
+  var userId = currentUser.id;
+
+  // Switch to processing step
+  document.getElementById('hi-step-confirm').style.display = 'none';
+  document.getElementById('hi-step-processing').style.display = 'block';
+  document.getElementById('hi-progress-bar').style.width = '2%';
+  document.getElementById('hi-progress-title').textContent = 'Unpacking health records...';
+  document.getElementById('hi-progress-sub').textContent = 'Reading ' + escHtml(file.name);
+
+  try {
+    var session = await db.auth.getSession();
+    var uploadToken = session.data.session.access_token;
+    var timestamp = Date.now();
+
+    // ── Phase 1 (0-20%): Unzip client-side ──────────────────────────────
+    var arrayBuffer = await file.arrayBuffer();
+    document.getElementById('hi-progress-bar').style.width = '8%';
+
+    var zip;
+    try {
+      zip = await JSZip.loadAsync(arrayBuffer);
+    } catch (zipErr) {
+      throw new Error('Could not open ZIP file. Please make sure this is the export file from your health portal.');
+    }
+
+    var xmlFiles = [];
+    var pdfFiles = [];
+    zip.forEach(function(relativePath, zipEntry) {
+      if (zipEntry.dir) return;
+      var lower = relativePath.toLowerCase();
+      if (lower.endsWith('.xml')) xmlFiles.push({ path: relativePath, entry: zipEntry });
+      if (lower.endsWith('.pdf')) pdfFiles.push({ path: relativePath, entry: zipEntry });
+    });
+
+    var totalFiles = xmlFiles.length + pdfFiles.length;
+    if (totalFiles === 0) {
+      throw new Error('No health record files found in this ZIP. Expected XML or PDF files from a health portal export.');
+    }
+
+    document.getElementById('hi-progress-bar').style.width = '20%';
+    var compressedMB = (file.size / (1024 * 1024)).toFixed(1);
+    document.getElementById('hi-progress-title').textContent = 'Found ' + totalFiles + ' document' + (totalFiles !== 1 ? 's' : '');
+    document.getElementById('hi-progress-sub').textContent = compressedMB + ' MB compressed — uploading files individually';
+
+    // ── Phase 2 (20-70%): Upload files individually ─────────────────────
+    document.getElementById('hi-cancel-btn').style.display = 'none';
+
+    // Create the health_export_jobs row first
+    var jobInsert = await db.from('health_export_jobs').insert({
+      user_id: userId,
+      person_id: personId,
+      file_name: file.name,
+      file_size_bytes: file.size,
+      status: 'uploading'
+    }).select().single();
+
+    if (jobInsert.error) {
+      throw new Error('Failed to create import job: ' + jobInsert.error.message);
+    }
+    _hiJobId = jobInsert.data.id;
+
+    var filesUploaded = 0;
+    var xmlStoragePaths = [];
+    var pdfCount = 0;
+
+    // Upload PDFs + create documents rows (no edge function needed)
+    for (var pi = 0; pi < pdfFiles.length; pi++) {
+      var pdf = pdfFiles[pi];
+      var pdfBlob = await pdf.entry.async('blob');
+      var pdfSafeName = pdf.path.split('/').pop().replace(/[^a-zA-Z0-9._-]/g, '_');
+      var pdfPath = userId + '/' + timestamp + '_' + pdfSafeName;
+
+      await uploadBlobToStorage(pdfBlob, pdfPath, uploadToken, 'application/pdf');
+
+      await db.from('documents').insert({
+        person_id: personId,
+        file_name: pdfSafeName,
+        storage_path: pdfPath,
+        document_type: 'Health record PDF',
+        extraction_status: 'stored'
+      });
+
+      pdfCount++;
+      filesUploaded++;
+      var uploadPct = Math.round(20 + (filesUploaded / totalFiles) * 50);
+      document.getElementById('hi-progress-bar').style.width = uploadPct + '%';
+      document.getElementById('hi-progress-sub').textContent = 'Uploaded ' + filesUploaded + ' of ' + totalFiles + ' files';
+    }
+
+    // Upload XMLs to storage
+    for (var xi = 0; xi < xmlFiles.length; xi++) {
+      var xml = xmlFiles[xi];
+      var xmlBlob = await xml.entry.async('blob');
+      var xmlSafeName = xml.path.split('/').pop().replace(/[^a-zA-Z0-9._-]/g, '_');
+      var xmlPath = userId + '/' + timestamp + '_' + xmlSafeName;
+
+      await uploadBlobToStorage(xmlBlob, xmlPath, uploadToken, 'text/xml');
+      xmlStoragePaths.push(xmlPath);
+
+      filesUploaded++;
+      var xmlUploadPct = Math.round(20 + (filesUploaded / totalFiles) * 50);
+      document.getElementById('hi-progress-bar').style.width = xmlUploadPct + '%';
+      document.getElementById('hi-progress-sub').textContent = 'Uploaded ' + filesUploaded + ' of ' + totalFiles + ' files';
+    }
+
+    // ── Phase 3 (70-100%): Call edge function for XML analysis ──────────
+    document.getElementById('hi-progress-bar').style.width = '70%';
+    document.getElementById('hi-progress-title').textContent = 'Analyzing health records...';
+    document.getElementById('hi-progress-sub').textContent = 'Extracting medications, allergies, and lab results';
+
+    var token = (await db.auth.getSession()).data.session.access_token;
+    var fnResponse = await fetch(SUPABASE_URL + '/functions/v1/process-health-export', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({
+        job_id: _hiJobId,
+        xml_paths: xmlStoragePaths
+      })
+    });
+
+    if (fnResponse.ok) {
+      var result = await fnResponse.json();
+      // Merge client-side PDF count into the summary
+      if (result.summary) {
+        result.summary.pdf_stored = (result.summary.pdf_stored || 0) + pdfCount;
+        result.summary.pdf_count = (result.summary.pdf_count || 0) + pdfCount;
+      }
+      document.getElementById('hi-progress-bar').style.width = '100%';
+      showHealthImportSummary(result.summary);
+    } else {
+      var errBody = await fnResponse.text();
+      console.error('Health import edge function error:', fnResponse.status, errBody);
+      // Fall back to polling in case the function timed out but is still processing
+      pollHealthImportJob(_hiJobId);
+    }
+
+  } catch (err) {
+    console.error('Health import error:', err);
+    document.getElementById('hi-step-processing').style.display = 'none';
+    document.getElementById('hi-step-failed').style.display = 'block';
+    document.getElementById('hi-fail-detail').textContent = err.message || 'Something went wrong. Please try again.';
+    initIcons();
+  }
+}
+
+function pollHealthImportJob(jobId) {
+  var attempts = 0;
+  var maxAttempts = 30; // 90 seconds
+  document.getElementById('hi-progress-title').textContent = 'Processing health records...';
+  document.getElementById('hi-progress-sub').textContent = 'This may take a minute for larger files';
+
+  _hiPollTimer = setInterval(async function() {
+    attempts++;
+    if (attempts > maxAttempts) {
+      clearInterval(_hiPollTimer);
+      _hiPollTimer = null;
+      document.getElementById('hi-progress-sub').textContent = 'Processing is taking longer than expected. Check back in Records.';
+      return;
+    }
+
+    var { data: job } = await db.from('health_export_jobs').select('*').eq('id', jobId).single();
+    if (!job) return;
+
+    if (job.status === 'completed' || job.status === 'complete') {
+      clearInterval(_hiPollTimer);
+      _hiPollTimer = null;
+      document.getElementById('hi-progress-bar').style.width = '100%';
+      showHealthImportSummary(job.summary);
+    } else if (job.status === 'failed') {
+      clearInterval(_hiPollTimer);
+      _hiPollTimer = null;
+      document.getElementById('hi-step-processing').style.display = 'none';
+      document.getElementById('hi-step-failed').style.display = 'block';
+      var errMsg = 'Import processing failed.';
+      if (job.errors && job.errors.length > 0) {
+        errMsg = job.errors[0].message || errMsg;
+      }
+      document.getElementById('hi-fail-detail').textContent = errMsg;
+      initIcons();
+    } else {
+      // Still processing — update progress bar
+      var pct = Math.min(55 + attempts * 1.5, 95);
+      document.getElementById('hi-progress-bar').style.width = pct + '%';
+    }
+  }, 3000);
+}
+
+function showHealthImportSummary(summary) {
+  document.getElementById('hi-step-processing').style.display = 'none';
+  document.getElementById('hi-step-summary').style.display = 'block';
+
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var name = person ? person.name.split(' ')[0] : 'Your family member';
+
+  document.getElementById('hi-summary-title').textContent = escHtml(name) + '\'s records are in Wellet';
+
+  var lines = [];
+  if (summary) {
+    if (summary.pdf_stored > 0) {
+      lines.push('<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
+        + '<i data-lucide="check-circle" style="width:16px;height:16px;color:var(--moss);flex-shrink:0;"></i>'
+        + '<span>' + escHtml(summary.pdf_stored + ' PDF' + (summary.pdf_stored !== 1 ? 's' : '') + ' stored') + '</span></div>');
+    }
+    if (summary.medications_found > 0) {
+      var medDetail = escHtml(summary.medications_found + ' medication' + (summary.medications_found !== 1 ? 's' : '') + ' extracted');
+      if (summary.medications_new > 0 && summary.medications_new < summary.medications_found) {
+        medDetail += ' (' + escHtml(String(summary.medications_new)) + ' new, ' + escHtml(String(summary.medications_found - summary.medications_new)) + ' already in Wellet)';
+      }
+      lines.push('<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
+        + '<i data-lucide="check-circle" style="width:16px;height:16px;color:var(--moss);flex-shrink:0;"></i>'
+        + '<span>' + medDetail + '</span></div>');
+    }
+    if (summary.allergies_found > 0) {
+      var allergyDetail = escHtml(summary.allergies_found + ' allerg' + (summary.allergies_found !== 1 ? 'ies' : 'y') + ' found');
+      if (summary.allergies_new > 0 && summary.allergies_new < summary.allergies_found) {
+        allergyDetail += ' (' + escHtml(String(summary.allergies_new)) + ' new)';
+      }
+      lines.push('<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
+        + '<i data-lucide="check-circle" style="width:16px;height:16px;color:var(--moss);flex-shrink:0;"></i>'
+        + '<span>' + allergyDetail + '</span></div>');
+    }
+    if (summary.lab_results_found > 0) {
+      lines.push('<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
+        + '<i data-lucide="check-circle" style="width:16px;height:16px;color:var(--moss);flex-shrink:0;"></i>'
+        + '<span>' + escHtml(String(summary.lab_results_found)) + ' lab result' + (summary.lab_results_found !== 1 ? 's' : '') + ' imported</span></div>');
+    }
+    if (summary.vitals_found > 0) {
+      lines.push('<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
+        + '<i data-lucide="check-circle" style="width:16px;height:16px;color:var(--moss);flex-shrink:0;"></i>'
+        + '<span>' + escHtml(String(summary.vitals_found)) + ' vital sign reading' + (summary.vitals_found !== 1 ? 's' : '') + '</span></div>');
+    }
+    if (summary.conditions_found > 0) {
+      lines.push('<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
+        + '<i data-lucide="check-circle" style="width:16px;height:16px;color:var(--moss);flex-shrink:0;"></i>'
+        + '<span>' + escHtml(String(summary.conditions_found)) + ' condition' + (summary.conditions_found !== 1 ? 's' : '') + ' added to timeline</span></div>');
+    }
+    if (summary.source_system && summary.source_system !== 'unknown') {
+      var sourceNames = { mychart: 'Epic MyChart', cerner: 'Cerner', generic: 'health record' };
+      lines.push('<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
+        + '<i data-lucide="hospital" style="width:16px;height:16px;color:var(--text-muted);flex-shrink:0;"></i>'
+        + '<span>Source: ' + escHtml(sourceNames[summary.source_system] || summary.source_system) + '</span></div>');
+    }
+  }
+
+  if (lines.length === 0) {
+    lines.push('<div style="padding:4px 0;">' + escHtml('Your file has been stored securely.') + '</div>');
+  }
+
+  lines.push('<div style="padding:6px 0 0;color:var(--text-secondary);font-size:13px;">'
+    + escHtml('Your documents are saved and Ask Wellet can answer questions about them.') + '</div>');
+
+  document.getElementById('hi-summary-detail').innerHTML = lines.join('');
+
+  var doneBtn = document.getElementById('hi-done-btn');
+  doneBtn.onclick = function() {
+    closeHealthImport();
+    if (_hiCallback) {
+      _hiCallback(summary);
+      _hiCallback = null;
+    }
+  };
+
+  initIcons();
+
+  // Reload person data in background
+  loadPersonData(currentPersonId).then(function() {
+    renderRecordsView();
+  });
+}
+
+function openHealthImportPicker() {
+  // Create a temporary file input for ZIP/PDF picking
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.zip,.pdf,application/zip,application/pdf';
+  input.style.display = 'none';
+  input.onchange = function() {
+    if (input.files && input.files[0]) {
+      var file = input.files[0];
+      if (isZipFile(file.name)) {
+        openHealthImport(file);
+      } else if (isPdfFile(file.name)) {
+        // Single PDF — use the regular upload flow with pre-set type
+        _uploadDocType = 'Health record PDF';
+        var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+        openUpload(person ? person.name : 'Person');
+        // Set the file directly and show step 2
+        _uploadFile = file;
+        document.getElementById('upload-file-name').textContent = file.name;
+        var sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+        document.getElementById('upload-file-size').textContent = sizeMB + ' MB';
+        document.getElementById('upload-file-meta').textContent = 'Ready to save \u00b7 Wellet will read and summarize this';
+        document.getElementById('upload-step1').style.display = 'none';
+        document.getElementById('upload-step2').style.display = 'block';
+        initIcons();
+      }
+    }
+    input.remove();
+  };
+  document.body.appendChild(input);
+  input.click();
+}
+
+// ── ADD HEALTH EVENT ──────────────────────────────────────────────────────────
+function openAddEvent(personId) {
+  var pid = personId || currentPersonId;
+  var person = currentPeople.find(function(p){ return p.id === pid; });
+  document.getElementById('add-event-person-label').textContent = 'Adding to ' + (person ? person.name + '\'s' : 'your') + ' timeline';
+  // Set today's date as default
+  var today = new Date().toISOString().split('T')[0];
+  document.getElementById('event-date-input').value = today;
+  document.getElementById('event-title-input').value = '';
+  document.getElementById('event-notes-input').value = '';
+  document.getElementById('event-type-select').value = 'appointment';
+  // Store personId for submission
+  document.getElementById('add-event-overlay').dataset.personId = pid;
+  openSheetAccessible('add-event-overlay');
+  initIcons();
+}
+
+async function submitHealthEvent() {
+  var overlay = document.getElementById('add-event-overlay');
+  var personId = overlay.dataset.personId || currentPersonId;
+  var type = document.getElementById('event-type-select').value;
+  var date = document.getElementById('event-date-input').value;
+  var title = document.getElementById('event-title-input').value.trim();
+  var notes = document.getElementById('event-notes-input').value.trim();
+
+  if (!title) { showToast('Please enter a title'); return; }
+  if (!date) { showToast('Please select a date'); return; }
+
+  var btn = overlay.querySelector('.btn-primary');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  var newEvent = {
+    event_type: type,
+    event_date: date + 'T00:00:00Z',
+    title: title,
+    notes: notes || null,
+    source: 'manual'
+  };
+
+  var dedup = await findDuplicateHealthEvent(personId, newEvent);
+  var result = await reconcileHealthEvent(personId, newEvent, dedup);
+
+  btn.disabled = false;
+  btn.innerHTML = '<i data-lucide="check" style="width:15px;height:15px;"></i> Save event';
+  initIcons();
+
+  if (!result && dedup.action !== 'skip') {
+    showToast('Error saving event');
+    return;
+  }
+
+  closeSheet('add-event-overlay');
+  if (dedup.action === 'skip') {
+    showToast('Already in records — no duplicate added');
+  } else if (dedup.action === 'update') {
+    showToast('Existing record updated');
+  } else {
+    showToast('Event saved to timeline');
+  }
+
+  // Reload data and re-render
+  await loadPersonData(personId);
+  renderUpdateMe();
+  renderTimeline();
+  renderRecordsView();
+  renderPatterns();
+}
+
+// ── MEDICATION DETAIL (demo + real) ──────────────────────────────────────────
+var _demoMedDetails = {
+  'lisinopril': { name: 'Lisinopril 20mg', dose: '20mg', frequency: 'Once daily', condition: 'Hypertension', prescriber: 'Dr. Johnson', started: 'Apr 2022', source: 'Manual entry', status: 'Active', notes: 'Take in the morning. Monitor blood pressure weekly.' },
+  'hctz': { name: 'Hydrochlorothiazide 25mg', dose: '25mg (was 12.5mg)', frequency: 'Once daily', condition: 'Hypertension', prescriber: 'Dr. Johnson', started: 'Apr 2022', changed: 'Feb 18, 2026', source: 'Manual entry', status: 'Active — dose changed', notes: 'Dose increased from 12.5mg to 25mg on Feb 18. Watch for dizziness or electrolyte changes.' },
+  'gleevec': { name: 'Gleevec (Imatinib) 400mg', dose: '400mg', frequency: 'Once daily', condition: 'CML (Chronic Myeloid Leukemia)', prescriber: 'Dr. Edwards', started: '2019', source: 'Manual entry', status: 'Active', notes: 'Take with food and a full glass of water. Avoid grapefruit.' },
+  'levodopa': { name: 'Levodopa/Carbidopa 25-100mg', dose: '25-100mg', frequency: '3x daily', condition: "Parkinson's disease", prescriber: 'Dr. Martinez', started: 'Jun 2023', source: 'Duke Health (Epic)', status: 'Active', notes: 'Imported from EHR. Space doses evenly throughout the day.' },
+  'lisinopril-ehr': { name: 'Lisinopril 20mg', dose: '20mg', frequency: 'Once daily', condition: 'Hypertension', prescriber: 'Dr. Johnson', started: 'Apr 2020', source: 'Duke Health (Epic)', status: 'Active', notes: 'Imported from EHR. Matches manually entered Lisinopril.' },
+  'citalopram': { name: 'Citalopram 10mg', dose: '10mg', frequency: 'Once daily', condition: '', prescriber: '', started: '', source: 'Manual entry', status: 'Active', notes: '' },
+  'metoprolol': { name: 'Metoprolol 50mg', dose: '50mg', frequency: 'Once daily', condition: '', prescriber: 'Dr. Johnson', started: '', source: 'Manual entry', status: 'Active', notes: '' },
+  'zepbound': { name: 'Zepbound 12.5mg', dose: '12.5mg', frequency: 'Weekly injection', condition: '', prescriber: '', started: '', source: 'Manual entry', status: 'Active', notes: '' },
+  'atorvastatin': { name: 'Atorvastatin 20mg', dose: '20mg', frequency: 'Once daily', condition: 'High cholesterol', prescriber: 'Dr. Chen', started: '2018', source: 'Manual entry', status: 'Active', notes: 'Take in the evening for best effect.' },
+  'levothyroxine': { name: 'Levothyroxine 50mcg', dose: '50mcg', frequency: 'Once daily', condition: 'Hypothyroidism', prescriber: 'Dr. Chen', started: '2020', source: 'Manual entry', status: 'Active', notes: 'Take on an empty stomach, 30 min before breakfast.' },
+  'vitamin-d': { name: 'Vitamin D3 2000IU', dose: '2000 IU', frequency: 'Once daily', condition: 'Supplement', prescriber: '', started: '', source: 'Manual entry', status: 'Active', notes: '' }
+};
+
+function openMedDetail(medKey) {
+  var med = _demoMedDetails[medKey];
+  if (!med) return;
+  document.getElementById('med-detail-name').textContent = med.name;
+  document.getElementById('med-detail-status').textContent = med.status || 'Active';
+  var rows = '';
+  var fields = [
+    { label: 'Dose', value: med.dose, icon: 'flask-conical' },
+    { label: 'Frequency', value: med.frequency, icon: 'clock' },
+    { label: 'Condition', value: med.condition, icon: 'stethoscope' },
+    { label: 'Prescriber', value: med.prescriber, icon: 'user' },
+    { label: 'Started', value: med.started, icon: 'calendar' },
+    { label: 'Source', value: med.source, icon: 'link' }
+  ];
+  if (med.changed) fields.splice(2, 0, { label: 'Last changed', value: med.changed, icon: 'refresh-cw' });
+  fields.forEach(function(f) {
+    if (!f.value) return;
+    rows += '<div style="display:flex;align-items:flex-start;gap:10px;">'
+      + '<i data-lucide="' + f.icon + '" style="width:15px;height:15px;color:var(--text-muted);margin-top:2px;flex-shrink:0;"></i>'
+      + '<div><div style="font-size:11px;color:var(--text-muted);font-weight:500;text-transform:uppercase;letter-spacing:0.5px;">' + f.label + '</div>'
+      + '<div style="font-size:14px;color:var(--text-primary);margin-top:1px;">' + escHtml(f.value) + '</div></div></div>';
+  });
+  if (med.notes) {
+    rows += '<div style="background:var(--mint);border-radius:10px;padding:12px 14px;margin-top:4px;">'
+      + '<div style="font-size:11px;color:var(--moss-dark);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;"><i data-lucide="info" style="width:12px;height:12px;vertical-align:-2px;"></i> Notes</div>'
+      + '<div style="font-size:13px;color:var(--text-primary);line-height:1.4;">' + escHtml(med.notes) + '</div></div>';
+  }
+  document.getElementById('med-detail-body').innerHTML = rows;
+  openSheetAccessible('med-detail-overlay');
+  initIcons();
+}
+
+// ── ADD MEDICATION ────────────────────────────────────────────────────────────
+function openAddMed() {
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  document.getElementById('add-med-person-label').textContent = 'Adding to ' + (person ? person.name + '\'s' : 'your') + ' records';
+  document.getElementById('med-name-input').value = '';
+  document.getElementById('med-dose-input').value = '';
+  document.getElementById('med-freq-input').value = '';
+  document.getElementById('med-prescriber-input').value = '';
+  var toggle = document.getElementById('med-active-toggle');
+  if (toggle) toggle.classList.add('on');
+  openSheetAccessible('add-med-overlay');
+  initIcons();
+}
+
+async function submitMedication() {
+  var name = document.getElementById('med-name-input').value.trim();
+  var dose = document.getElementById('med-dose-input').value.trim();
+  var freq = document.getElementById('med-freq-input').value.trim();
+  var prescriber = document.getElementById('med-prescriber-input').value.trim();
+  var activeToggle = document.getElementById('med-active-toggle');
+  var active = activeToggle ? activeToggle.classList.contains('on') : true;
+
+  if (!name) { showToast('Please enter a medication name'); return; }
+
+  if (isDemoMode) {
+    closeSheet('add-med-overlay');
+    showToast('Medication added to demo records');
+    return;
+  }
+
+  var btn = document.querySelector('#add-med-overlay .btn-primary');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  var newMed = {
+    name: name,
+    dose: dose || null,
+    frequency: freq || null,
+    prescriber: prescriber || null,
+    active: active,
+    source: 'manual'
+  };
+
+  var medDedup = await findDuplicateMedication(currentPersonId, newMed);
+  var medResult = await reconcileMedication(currentPersonId, newMed, medDedup);
+
+  btn.disabled = false;
+  btn.innerHTML = '<i data-lucide="check" style="width:15px;height:15px;"></i> Save medication';
+  initIcons();
+
+  if (!medResult && medDedup.action !== 'skip') {
+    showToast('Error saving medication');
+    return;
+  }
+
+  closeSheet('add-med-overlay');
+  if (medDedup.action === 'skip') {
+    showToast('Already in records — no duplicate added');
+  } else if (medDedup.action === 'update') {
+    showToast('Existing medication updated');
+  } else {
+    showToast('Medication saved to records');
+  }
+
+  await loadPersonData(currentPersonId);
+  renderRecordsView();
+  renderUpdateMe();
+  renderPatterns();
+}
+
+// ── EDIT/DELETE EVENT ────────────────────────────────────────────────────────
+function openEditEvent(eventId) {
+  var ev = liveEvents.find(function(e) { return e.id === eventId; });
+  if (!ev) return;
+  _editingEventId = eventId;
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  document.getElementById('edit-event-person-label').textContent = 'Editing ' + (person ? person.name.split(' ')[0] + '\u2019s' : 'your') + ' event';
+  document.getElementById('edit-event-type-select').value = ev.event_type || 'note';
+  var dateVal = ev.event_date ? ev.event_date.substring(0, 10) : '';
+  document.getElementById('edit-event-date-input').value = dateVal;
+  document.getElementById('edit-event-title-input').value = ev.title || '';
+  document.getElementById('edit-event-notes-input').value = ev.notes || '';
+  // Reset delete area to default button state
+  var deleteArea = document.getElementById('edit-event-delete-area');
+  deleteArea.innerHTML = '<button class="btn-danger" id="edit-event-delete-btn" onclick="confirmDeleteEvent()">'
+    + '<i data-lucide="trash-2" style="width:15px;height:15px;"></i> Delete event</button>';
+  openSheetAccessible('edit-event-overlay');
+  initIcons();
+}
+
+async function saveEditEvent() {
+  var title = document.getElementById('edit-event-title-input').value.trim();
+  var date = document.getElementById('edit-event-date-input').value;
+  var type = document.getElementById('edit-event-type-select').value;
+  var notes = document.getElementById('edit-event-notes-input').value.trim();
+  if (!title) { showToast('Please enter a title'); return; }
+  if (!date) { showToast('Please select a date'); return; }
+
+  var btn = document.getElementById('edit-event-save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving\u2026';
+
+  var { error } = await db.from('health_events').update({
+    event_type: type,
+    event_date: date + 'T00:00:00Z',
+    title: title,
+    notes: notes || null
+  }).eq('id', _editingEventId);
+
+  btn.disabled = false;
+  btn.innerHTML = '<i data-lucide="check" style="width:15px;height:15px;"></i> Save changes';
+  initIcons();
+
+  if (error) { showToast('Error saving: ' + error.message); return; }
+
+  closeSheet('edit-event-overlay');
+  showToast('Event updated');
+  await loadPersonData(currentPersonId);
+  renderUpdateMe();
+  renderTimeline();
+  renderRecordsView();
+  renderPatterns();
+}
+
+function confirmDeleteEvent() {
+  var deleteArea = document.getElementById('edit-event-delete-area');
+  deleteArea.innerHTML = '<div style="font-size:13px;color:var(--red);font-weight:500;text-align:center;margin-bottom:4px;">Delete this event? This cannot be undone.</div>'
+    + '<div class="delete-confirm-row">'
+    + '<button class="btn-cancel-sm" onclick="cancelDeleteEvent()">' + t('common.cancel') + '</button>'
+    + '<button class="btn-delete-sm" onclick="deleteEvent()">' + t('common.delete') + '</button>'
+    + '</div>';
+}
+
+function cancelDeleteEvent() {
+  var deleteArea = document.getElementById('edit-event-delete-area');
+  deleteArea.innerHTML = '<button class="btn-danger" id="edit-event-delete-btn" onclick="confirmDeleteEvent()">'
+    + '<i data-lucide="trash-2" style="width:15px;height:15px;"></i> Delete event</button>';
+  initIcons();
+}
+
+async function deleteEvent() {
+  var eventId = _editingEventId;
+  // Remove from local arrays immediately for responsive UI
+  var removed = liveEvents.find(function(e){ return e.id === eventId; });
+  liveEvents = liveEvents.filter(function(e){ return e.id !== eventId; });
+  closeSheet('edit-event-overlay');
+  renderUpdateMe();
+  renderTimeline();
+  renderRecordsView();
+  renderPatterns();
+
+  // Delayed delete with undo
+  if (_undoTimer) clearTimeout(_undoTimer);
+  _undoTimer = setTimeout(async function() {
+    var { error } = await db.from('health_events').delete().eq('id', eventId);
+    if (error) {
+      showToast('Error deleting: ' + error.message);
+      if (removed) liveEvents.push(removed);
+      renderTimeline();
+    }
+    _undoTimer = null;
+  }, 5000);
+  showToast('Event deleted', { duration: 5000, undo: function() {
+    clearTimeout(_undoTimer);
+    _undoTimer = null;
+    if (removed) liveEvents.push(removed);
+    renderUpdateMe();
+    renderTimeline();
+    renderRecordsView();
+    renderPatterns();
+    showToast('Event restored');
+  }});
+}
+
+// ── EDIT/DELETE MEDICATION ───────────────────────────────────────────────────
+function openEditMed(medId) {
+  var med = liveMeds.find(function(m) { return m.id === medId; });
+  if (!med) return;
+  _editingMedId = medId;
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  document.getElementById('edit-med-person-label').textContent = 'Editing ' + (person ? person.name.split(' ')[0] + '\u2019s' : 'your') + ' medication';
+  document.getElementById('edit-med-name-input').value = med.name || '';
+  document.getElementById('edit-med-dose-input').value = med.dose || '';
+  document.getElementById('edit-med-freq-input').value = med.frequency || '';
+  document.getElementById('edit-med-prescriber-input').value = med.prescriber || '';
+  var toggle = document.getElementById('edit-med-active-toggle');
+  if (toggle) {
+    if (med.active) { toggle.classList.add('on'); } else { toggle.classList.remove('on'); }
+  }
+  // Reset delete area
+  var deleteArea = document.getElementById('edit-med-delete-area');
+  deleteArea.innerHTML = '<button class="btn-danger" id="edit-med-delete-btn" onclick="confirmDeleteMed()">'
+    + '<i data-lucide="trash-2" style="width:15px;height:15px;"></i> Delete medication</button>';
+  openSheetAccessible('edit-med-overlay');
+  initIcons();
+}
+
+async function saveEditMed() {
+  var name = document.getElementById('edit-med-name-input').value.trim();
+  var dose = document.getElementById('edit-med-dose-input').value.trim();
+  var freq = document.getElementById('edit-med-freq-input').value.trim();
+  var prescriber = document.getElementById('edit-med-prescriber-input').value.trim();
+  var activeToggle = document.getElementById('edit-med-active-toggle');
+  var active = activeToggle ? activeToggle.classList.contains('on') : true;
+
+  if (!name) { showToast('Please enter a medication name'); return; }
+
+  var btn = document.getElementById('edit-med-save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving\u2026';
+
+  var { error } = await db.from('medications').update({
+    name: name,
+    dose: dose || null,
+    frequency: freq || null,
+    prescriber: prescriber || null,
+    active: active
+  }).eq('id', _editingMedId);
+
+  btn.disabled = false;
+  btn.innerHTML = '<i data-lucide="check" style="width:15px;height:15px;"></i> Save changes';
+  initIcons();
+
+  if (error) { showToast('Error saving: ' + error.message); return; }
+
+  closeSheet('edit-med-overlay');
+  showToast('Medication updated');
+  await loadPersonData(currentPersonId);
+  renderRecordsView();
+  renderUpdateMe();
+  renderPatterns();
+}
+
+function confirmDeleteMed() {
+  var deleteArea = document.getElementById('edit-med-delete-area');
+  deleteArea.innerHTML = '<div style="font-size:13px;color:var(--red);font-weight:500;text-align:center;margin-bottom:4px;">Delete this medication? This cannot be undone.</div>'
+    + '<div class="delete-confirm-row">'
+    + '<button class="btn-cancel-sm" onclick="cancelDeleteMed()">' + t('common.cancel') + '</button>'
+    + '<button class="btn-delete-sm" onclick="deleteMed()">' + t('common.delete') + '</button>'
+    + '</div>';
+}
+
+function cancelDeleteMed() {
+  var deleteArea = document.getElementById('edit-med-delete-area');
+  deleteArea.innerHTML = '<button class="btn-danger" id="edit-med-delete-btn" onclick="confirmDeleteMed()">'
+    + '<i data-lucide="trash-2" style="width:15px;height:15px;"></i> Delete medication</button>';
+  initIcons();
+}
+
+async function deleteMed() {
+  var medId = _editingMedId;
+  var removed = liveMeds.find(function(m){ return m.id === medId; });
+  liveMeds = liveMeds.filter(function(m){ return m.id !== medId; });
+  closeSheet('edit-med-overlay');
+  renderRecordsView();
+  renderUpdateMe();
+  renderPatterns();
+
+  if (_undoTimer) clearTimeout(_undoTimer);
+  _undoTimer = setTimeout(async function() {
+    var { error } = await db.from('medications').delete().eq('id', medId);
+    if (error) {
+      showToast('Error deleting: ' + error.message);
+      if (removed) liveMeds.push(removed);
+      renderRecordsView();
+    }
+    _undoTimer = null;
+  }, 5000);
+  showToast('Medication deleted', { duration: 5000, undo: function() {
+    clearTimeout(_undoTimer);
+    _undoTimer = null;
+    if (removed) liveMeds.push(removed);
+    renderRecordsView();
+    renderUpdateMe();
+    renderPatterns();
+    showToast('Medication restored');
+  }});
+}
+
+// ── RENDER PATTERNS (dynamic for authenticated users) ────────────────────────
+function renderPatterns() {
+  var pane = document.getElementById('tab-patterns');
+  if (!pane) return;
+  if (isDemoMode) return; // keep demo HTML untouched
+
+  // No events — friendly empty state
+  if (liveEvents.length === 0 && liveMeds.length === 0) {
+    pane.innerHTML = '<div class="patterns-section">'
+      + '<p class="section-label">' + t('patterns.noticed') + '</p>'
+      + '<div style="text-align:center;padding:48px 24px;">'
+      + '<div style="font-size:32px;margin-bottom:12px;opacity:0.3;"><i data-lucide="bar-chart-3" style="width:32px;height:32px;"></i></div>'
+      + '<div style="font-size:14px;color:var(--text-muted);line-height:1.6;">Add health events to see patterns emerge here.</div>'
+      + '</div></div>';
+    initIcons();
+    return;
+  }
+
+  var html = '<div class="patterns-section"><p class="section-label" data-i18n="patterns.noticed">What Wellet has noticed</p>';
+
+  // 1. Event Type Breakdown
+  var typeCounts = { appointment: 0, medication: 0, lab_result: 0, note: 0, pattern: 0 };
+  liveEvents.forEach(function(ev) {
+    if (typeCounts.hasOwnProperty(ev.event_type)) typeCounts[ev.event_type]++;
+    else typeCounts['note']++;
+  });
+  var totalEvents = liveEvents.length;
+  var typeLabels = { appointment: 'Appointments', medication: 'Medication changes', lab_result: 'Lab results', note: 'Notes', pattern: 'Patterns noticed' };
+  var typeColors = { appointment: 'var(--moss)', medication: 'var(--amber)', lab_result: 'var(--blue)', note: 'var(--text-muted)', pattern: 'var(--red)' };
+
+  html += '<div class="insight-card">'
+    + '<div class="insight-row"><div class="insight-count">' + totalEvents + '</div><div><div class="insight-label">Health events logged</div></div></div>'
+    + '<div class="insight-sub">Breakdown by type</div>';
+
+  var typeKeys = ['appointment', 'medication', 'lab_result', 'note', 'pattern'];
+  typeKeys.forEach(function(key) {
+    if (typeCounts[key] > 0) {
+      var pct = totalEvents > 0 ? Math.round((typeCounts[key] / totalEvents) * 100) : 0;
+      html += '<div class="pattern-bar-row">'
+        + '<div class="pattern-bar-label">' + escHtml(typeLabels[key]) + '</div>'
+        + '<div class="pattern-bar-track"><div class="pattern-bar-fill" style="width:' + pct + '%;background:' + typeColors[key] + ';"></div></div>'
+        + '<div class="pattern-bar-count">' + typeCounts[key] + '</div>'
+        + '</div>';
+    }
+  });
+  html += '</div>';
+
+  // 2. Monthly Activity (last 6 months)
+  var now = new Date();
+  var monthBuckets = [];
+  var maxCount = 0;
+  for (var mi = 5; mi >= 0; mi--) {
+    var mDate = new Date(now.getFullYear(), now.getMonth() - mi, 1);
+    var mKey = mDate.getFullYear() + '-' + String(mDate.getMonth() + 1).padStart(2, '0');
+    var mLabel = mDate.toLocaleDateString('en-US', { month: 'short' });
+    var count = 0;
+    liveEvents.forEach(function(ev) {
+      var d = new Date(ev.event_date);
+      var evKey = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      if (evKey === mKey) count++;
+    });
+    if (count > maxCount) maxCount = count;
+    monthBuckets.push({ label: mLabel, count: count });
+  }
+
+  if (maxCount > 0) {
+    html += '<div class="insight-card">'
+      + '<div class="insight-row"><div class="insight-count">' + monthBuckets[monthBuckets.length - 1].count + '</div><div><div class="insight-label">Events this month</div></div></div>'
+      + '<div class="insight-sub">Activity over the last 6 months</div>'
+      + '<div class="monthly-bar-row">';
+    monthBuckets.forEach(function(b) {
+      var h = maxCount > 0 ? Math.max(2, Math.round((b.count / maxCount) * 60)) : 2;
+      html += '<div class="monthly-bar-col">'
+        + '<div class="monthly-bar-count">' + b.count + '</div>'
+        + '<div class="monthly-bar" style="height:' + h + 'px;"></div>'
+        + '<div class="monthly-bar-label">' + b.label + '</div>'
+        + '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  // 3. "Wellet is witnessing" narrative card
+  var thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  var recentEvents = liveEvents.filter(function(ev) { return new Date(ev.event_date) >= thirtyDaysAgo; });
+  var recentAppts = recentEvents.filter(function(ev) { return ev.event_type === 'appointment'; }).length;
+  var recentMedChanges = recentEvents.filter(function(ev) { return ev.event_type === 'medication'; }).length;
+  var recentLabs = recentEvents.filter(function(ev) { return ev.event_type === 'lab_result'; }).length;
+  var recentNotes = recentEvents.filter(function(ev) { return ev.event_type === 'note'; }).length;
+  var activeMedCount = liveMeds.filter(function(m) { return m.active; }).length;
+
+  var narrativeParts = [];
+  if (recentAppts > 0) narrativeParts.push(recentAppts + ' appointment' + (recentAppts > 1 ? 's' : '') + ' in the last 30 days');
+  if (recentMedChanges > 0) narrativeParts.push(recentMedChanges + ' medication change' + (recentMedChanges > 1 ? 's' : '') + ' this month');
+  if (recentLabs > 0) narrativeParts.push(recentLabs + ' lab result' + (recentLabs > 1 ? 's' : '') + ' recorded recently');
+  if (recentNotes > 0) narrativeParts.push(recentNotes + ' caregiver note' + (recentNotes > 1 ? 's' : '') + ' logged');
+  if (activeMedCount > 0) narrativeParts.push(activeMedCount + ' active medication' + (activeMedCount > 1 ? 's' : '') + ' in the picture');
+  if (narrativeParts.length === 0) narrativeParts.push('Events are being recorded \u2014 patterns will become clearer over time');
+
+  var narrative = narrativeParts.join('. ') + '.';
+
+  html += '<div class="insight-card" style="border-color:var(--mint-deep);background:var(--mint);">'
+    + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">'
+    + '<i data-lucide="eye" style="width:13px;height:13px;color:var(--moss);"></i>'
+    + '<span style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--moss-dark);font-weight:500;">Wellet is witnessing</span>'
+    + '</div>'
+    + '<p style="font-size:13px;line-height:1.65;color:var(--text-secondary);">' + escHtml(narrative) + '</p>'
+    + '</div>';
+
+  html += '</div>';
+  pane.innerHTML = html;
+  initIcons();
+}
+
+// ── SAVE PERSON AFTER ONBOARDING ──────────────────────────────────────────────
+// DOB + sex are optional at insert time so existing EHR-only flows keep working;
+// the upcoming manual-onboarding UI (issue #66) will populate obState.dateOfBirth
+// and obState.sex, which we snapshot into the manual_* columns so a later EHR
+// connection can't wipe caregiver-entered values.
+async function savePersonToSupabase() {
+  if (!currentUser) return null;
+  var name = obState.personName || 'My loved one';
+  var relationship = obState.situation || null;
+  var initials = name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2);
+  if (initials.length < 2) initials = name.slice(0,2).toUpperCase();
+
+  // Normalize optional demographic fields. Only include them in the payload
+  // when present so we don't overwrite EHR-sourced values with nulls on
+  // subsequent edits. Sex is constrained to the four allowed enum values.
+  var ALLOWED_SEX = ['female', 'male', 'intersex', 'prefer_not_to_say'];
+  var dob = obState.dateOfBirth || null;
+  var sex = obState.sex && ALLOWED_SEX.indexOf(obState.sex) !== -1 ? obState.sex : null;
+
+  var payload = {
+    user_id: currentUser.id,
+    name: name,
+    relationship: relationship,
+    avatar_initials: initials,
+    sort_order: currentPeople.length
+  };
+  if (dob) {
+    payload.date_of_birth = dob;
+    payload.manual_date_of_birth = dob;
+  }
+  if (sex) {
+    payload.sex = sex;
+    payload.manual_sex = sex;
+  }
+
+  const { data, error } = await db.from('people').insert(payload).select().single();
+
+  if (error) { console.error('Error saving person:', error); return null; }
+  currentPeople.push(data);
+  currentPersonId = data.id;
+  return data;
+}
+
+// ── SETTINGS ACCOUNT ──────────────────────────────────────────────────────────
+function updateSettingsAccount() {
+  var section = document.getElementById('settings-account-section');
+  var danger = document.getElementById('settings-danger-section');
+  if (!section) return;
+  if (currentUser && !isDemoMode) {
+    section.style.display = 'block';
+    if (danger) danger.style.display = 'block';
+    var emailEl = document.getElementById('settings-user-email');
+    if (emailEl) emailEl.textContent = currentUser.email || 'Signed in';
+  } else {
+    section.style.display = 'none';
+    if (danger) danger.style.display = 'none';
+  }
+}
+
+// ── SCREEN TRANSITIONS ────────────────────────────────────────────────────────
+function showAuthScreen() {
+  document.documentElement.style.setProperty('--person-bg', '#F7F5F0');
+  document.getElementById('loading-screen').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('landing').style.display = 'none';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('onboarding').style.display = 'none';
+  // Reset auth sub-states to default (show form, hide sent/gate)
+  document.getElementById('auth-form-state').style.display = 'block';
+  document.getElementById('auth-sent-state').style.display = 'none';
+  document.getElementById('auth-gate-state').style.display = 'none';
+  // Hide bug report button when logged out
+  var bugBtn = document.getElementById('bug-report-btn');
+  if (bugBtn) bugBtn.style.display = 'none';
+  window.scrollTo(0, 0);
+  initIcons();
+}
+
+function enterDemoMode() {
+  // Called from auth screen - goes straight to demo
+  // Skip welcome audio if guided demo is active (narration handles its own audio)
+  if (new URLSearchParams(window.location.search).get('demo') !== 'guided') {
+    try { new Audio('welcome-to-wellet.mp3').play(); } catch(e) {}
+  }
+  showApp();
+  switchNavTo('home');
+  document.querySelectorAll('.tab')[0].click();
+}
+
+function showApp() {
+  // Demo mode
+  isDemoMode = true;
+  document.getElementById('loading-screen').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('landing').style.display = 'none';
+  document.getElementById('onboarding').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  // Show exit-demo button in header
+  var backBtn = document.getElementById('demo-back-btn');
+  if (backBtn) {
+    backBtn.style.display = '';
+    backBtn.title = 'Exit demo';
+    backBtn.setAttribute('aria-label', 'Exit demo');
+    backBtn.onclick = function() { exitDemoMode(); };
+  }
+  // Hide bug report button in demo (no auth session to attach)
+  var bugBtn = document.getElementById('bug-report-btn');
+  if (bugBtn) bugBtn.style.display = 'none';
+  // Restore demo HTML if it was replaced
+  restoreDemoHTML();
+  window.scrollTo(0, 0);
+  initIcons();
+}
+
+function exitDemoMode() {
+  isDemoMode = false;
+  var backBtn = document.getElementById('demo-back-btn');
+  if (backBtn) backBtn.style.display = 'none';
+  showAuthScreen();
+}
+
+function showLanding() {
+  document.getElementById('loading-screen').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('landing').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('onboarding').style.display = 'none';
+  // Hide bug report button on landing (logged out)
+  var bugBtn = document.getElementById('bug-report-btn');
+  if (bugBtn) bugBtn.style.display = 'none';
+  window.scrollTo(0, 0); initIcons();
+}
+
+function showOnboarding() {
+  // Dismiss welcome overlay if it's still visible
+  var welcomeEl = document.getElementById('welcome-overlay');
+  if (welcomeEl && welcomeEl.classList.contains('show')) { closeSheet('welcome-overlay'); }
+  document.getElementById('loading-screen').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('landing').style.display = 'none';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('onboarding').style.display = 'flex';
+  document.getElementById('ob-chat-screen').style.display = 'flex';
+  // Clear any old wizard localStorage
+  try { localStorage.removeItem('wellet_ob_ehr_return'); } catch(e) {}
+  history.pushState({ type: 'onboarding' }, '');
+  window.scrollTo(0, 0);
+  initIcons();
+  // Decide: first-time user vs. resume mid-onboarding vs. add-another-person.
+  //
+  // Source of truth is the server — specifically `currentPeople.length`, which
+  // loadUserData() populates from public.people before calling showOnboarding().
+  // If this authenticated user has zero people on the server they are, by
+  // definition, a first-time user regardless of what localStorage says. This
+  // prevents "Welcome back, <name>" from greeting a user whose account was
+  // wiped server-side but who still has `wellet_ob_chat` cached locally.
+  var peopleCount = Array.isArray(currentPeople) ? currentPeople.length : 0;
+  var hasState = obLoadChatState();
+  var hasMeaningfulState = hasState && obChat.phase !== 'welcome' && obChat.phase !== 'done';
+  // Only resume when the server confirms the user actually has saved people.
+  if (hasMeaningfulState && peopleCount > 0) {
+    obResumeChat();
+  } else {
+    // First-time user OR stale localStorage after a server-side wipe.
+    // Nuke cached chat state so obInit() starts from a clean slate.
+    if (peopleCount === 0 && hasState) {
+      obClearChatState();
+    }
+    obInit();
+  }
+}
+
+function obResumeChat() {
+  // Resume from saved state — show condensed history then current phase
+  var chat = document.getElementById('ob-chat-area');
+  chat.innerHTML = '';
+  // Replay key context
+  if (obChat.userName) {
+    obAddBubble('wellet', 'Welcome back, ' + escHtml(obChat.userName) + '! Let\u2019s pick up where we left off.');
+  }
+  // Sync obState for savePersonToSupabase compatibility
+  obState.userName = obChat.userName;
+  obState.personName = obChat.personName;
+  obState.dateOfBirth = obChat.dateOfBirth || null;
+  obState.sex = obChat.sex || null;
+  var relMap = { aging_parent: 'parent', partner: 'partner', child: 'child', self: 'self', other: 'other' };
+  obState.situation = relMap[obChat.situation] || obChat.situation;
+  // Restore currentPersonId if person was created in this onboarding session
+  if (obChat.personId) {
+    currentPersonId = obChat.personId;
+  }
+
+  if (obChat.phase === 'name') {
+    obTypeThen('What\u2019s your name?', function(){
+      document.getElementById('ob-input').disabled = false;
+      document.getElementById('ob-send-btn').disabled = false;
+      document.getElementById('ob-input').placeholder = 'Your first name\u2026';
+      document.getElementById('ob-input').focus();
+    }, 600);
+  } else if (obChat.phase === 'person_name') {
+    obTypeThen('And what should I call the person you\u2019re caring for?', function(){
+      document.getElementById('ob-input').disabled = false;
+      document.getElementById('ob-send-btn').disabled = false;
+      document.getElementById('ob-input').placeholder = 'Their name\u2026';
+      document.getElementById('ob-input').focus();
+    }, 600);
+  } else if (obChat.phase === 'person_dob') {
+    var _dobPersonName = (obChat.situation === 'self') ? 'your' : ((obChat.personName ? escHtml(obChat.personName) + '\u2019s' : 'their'));
+    obTypeThen('Welcome back \u2014 what\u2019s ' + _dobPersonName + ' date of birth?', obShowDobPrompt, 600);
+  } else if (obChat.phase === 'person_sex') {
+    obTypeThen('Welcome back. One more quick detail \u2014 biological sex?', obShowSexChips, 600);
+  } else if (obChat.phase === 'connect' || obChat.phase === 'freetext') {
+    var personName = obChat.personName || 'your loved one';
+    obTypeThen('What would you like to add to ' + escHtml(personName) + '\u2019s record?', obShowConnectChips, 600);
+  } else if (obChat.phase === 'wrapup') {
+    obShowTourOffer();
+  }
+}
+
+// ── DEMO HTML SNAPSHOTS ───────────────────────────────────────────────────────
+var _demoHTMLSaved = false;
+var _demoUpdateHTML = '';
+var _demoTimelineHTML = '';
+var _demoPatternsHTML = '';
+var _demoPeopleHTML = '';
+var _demoRecordsHTML = '';
+var _demoSwitcherHTML = '';
+var _demoAskHTML = '';
+var _demoSignalsHTML = '';
+
+function saveDemoHTML() {
+  if (_demoHTMLSaved) return;
+  var u = document.getElementById('tab-update');
+  var tl = document.getElementById('tab-timeline');
+  var pt = document.getElementById('tab-patterns');
+  var pv = document.getElementById('view-people');
+  var rv = document.getElementById('view-records');
+  var sw = document.getElementById('header-person-switcher');
+  if (u) _demoUpdateHTML = u.innerHTML;
+  if (tl) _demoTimelineHTML = tl.innerHTML;
+  if (pt) _demoPatternsHTML = pt.innerHTML;
+  if (pv) _demoPeopleHTML = pv.innerHTML;
+  if (rv) _demoRecordsHTML = rv.innerHTML;
+  if (sw) _demoSwitcherHTML = sw.innerHTML;
+  var sig = document.getElementById('view-signals');
+  if (sig) _demoSignalsHTML = sig.innerHTML;
+  var ak = document.getElementById('view-ask');
+  if (ak) _demoAskHTML = ak.innerHTML;
+  _demoHTMLSaved = true;
+}
+
+function restoreDemoHTML() {
+  if (!_demoHTMLSaved) return;
+  var u = document.getElementById('tab-update');
+  var tl = document.getElementById('tab-timeline');
+  var pt = document.getElementById('tab-patterns');
+  var pv = document.getElementById('view-people');
+  var rv = document.getElementById('view-records');
+  var sw = document.getElementById('header-person-switcher');
+  if (u) u.innerHTML = _demoUpdateHTML;
+  if (tl) tl.innerHTML = _demoTimelineHTML;
+  if (pt) pt.innerHTML = _demoPatternsHTML;
+  if (pv) pv.innerHTML = _demoPeopleHTML;
+  if (rv) rv.innerHTML = _demoRecordsHTML;
+  if (sw) sw.innerHTML = _demoSwitcherHTML;
+  var sig = document.getElementById('view-signals');
+  if (sig && _demoSignalsHTML) sig.innerHTML = _demoSignalsHTML;
+  var ak = document.getElementById('view-ask');
+  if (ak && _demoAskHTML) ak.innerHTML = _demoAskHTML;
+  initIcons();
+}
+
+window.addEventListener('load', function() {
+  saveDemoHTML();
+  // Safety timeout: if initApp hasn't resolved in 8s, show auth screen anyway
+  var _initResolved = false;
+  setTimeout(function() {
+    if (!_initResolved && document.getElementById('loading-screen').style.display !== 'none') {
+      console.warn('initApp timeout — falling back to auth screen');
+      showAuthScreen();
+    }
+  }, 8000);
+  initApp().then(function() { _initResolved = true; }).catch(function(e) {
+    console.error('initApp failed:', e);
+    _initResolved = true;
+    showAuthScreen();
+  });
+});
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function getEventTypeInfo(type) {
+  var map = {
+    appointment: { dot:'appt', border:'moss-border', icon:'calendar-check', color:'var(--moss)', label:'Appointment' },
+    medication:  { dot:'med',  border:'amber-border', icon:'pill', color:'var(--amber)', label:'Medication' },
+    lab_result:  { dot:'lab',  border:'blue-border', icon:'flask-conical', color:'var(--blue)', label:'Lab result' },
+    note:        { dot:'note', border:'', icon:'pencil-line', color:'var(--text-muted)', label:'Note' },
+    pattern:     { dot:'alert', border:'red-border', icon:'activity', color:'var(--red)', label:'Pattern noticed' }
+  };
+  return map[type] || map['note'];
+}
+
+function formatEventDate(dateStr) {
+  if (!dateStr) return '';
+  var d = new Date(dateStr);
+  var diff = Date.now() - d.getTime();
+  var days = Math.floor(diff / 86400000);
+  // Recent events get relative time
+  if (diff >= 0 && days < 30) return relativeTime(dateStr);
+  // Older events get absolute date
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function escHtml(t) {
+  if (!t) return '';
+  return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ── LIGHT MARKDOWN RENDERER ────────────────────────────────────────────────
+// Safe subset: escapes HTML first, then re-introduces a limited set of inline
+// and block elements. Used for chat bubbles so Wellet responses don't show
+// raw **asterisks** or - dashes. Intentionally minimal: no raw HTML passthrough,
+// no images, no tables, no nested lists. Kept ~100 lines to stay auditable.
+function renderMarkdownSafe(src) {
+  if (src === null || src === undefined) return '';
+  var text = String(src);
+  // 1) Escape HTML up front so nothing user/LLM-supplied can inject tags.
+  text = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+             .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  // Normalise line endings.
+  text = text.replace(/\r\n?/g, '\n');
+
+  // 2) Protect inline code `...` first so its contents aren't processed further.
+  var _codeStash = [];
+  text = text.replace(/`([^`\n]+)`/g, function(_m, inner) {
+    _codeStash.push(inner);
+    return '\u0000CODE' + (_codeStash.length - 1) + '\u0000';
+  });
+
+  // 3) Split into lines and group list items + paragraphs.
+  var lines = text.split('\n');
+  var out = [];
+  var i = 0;
+  function isBulletLine(l) { return /^\s*[-*\u2022]\s+\S/.test(l); }
+  function isNumberedLine(l) { return /^\s*\d+[.)]\s+\S/.test(l); }
+  function stripBullet(l) { return l.replace(/^\s*[-*\u2022]\s+/, ''); }
+  function stripNumber(l) { return l.replace(/^\s*\d+[.)]\s+/, ''); }
+  while (i < lines.length) {
+    var line = lines[i];
+    // Heading (### / ##) — map to small, emphasized headings.
+    var hMatch = /^(#{2,4})\s+(.*\S)\s*$/.exec(line);
+    if (hMatch) {
+      var lvl = hMatch[1].length; // 2,3,4
+      var tag = lvl === 2 ? 'h4' : (lvl === 3 ? 'h5' : 'h6');
+      out.push('<' + tag + ' class="md-h">' + hMatch[2] + '</' + tag + '>');
+      i++; continue;
+    }
+    // Bulleted list block
+    if (isBulletLine(line)) {
+      var items = [];
+      while (i < lines.length && isBulletLine(lines[i])) {
+        items.push('<li>' + stripBullet(lines[i]) + '</li>');
+        i++;
+      }
+      out.push('<ul class="md-ul">' + items.join('') + '</ul>');
+      continue;
+    }
+    // Numbered list block
+    if (isNumberedLine(line)) {
+      var nItems = [];
+      while (i < lines.length && isNumberedLine(lines[i])) {
+        nItems.push('<li>' + stripNumber(lines[i]) + '</li>');
+        i++;
+      }
+      out.push('<ol class="md-ol">' + nItems.join('') + '</ol>');
+      continue;
+    }
+    // Blank line — paragraph separator; collapse multiple.
+    if (/^\s*$/.test(line)) { i++; continue; }
+    // Paragraph: collect consecutive non-list, non-heading, non-blank lines.
+    var para = [line];
+    i++;
+    while (i < lines.length && !/^\s*$/.test(lines[i])
+           && !isBulletLine(lines[i]) && !isNumberedLine(lines[i])
+           && !/^#{2,4}\s+/.test(lines[i])) {
+      para.push(lines[i]); i++;
+    }
+    out.push('<p class="md-p">' + para.join('<br>') + '</p>');
+  }
+  var html = out.join('');
+
+  // 4) Inline transforms on the assembled HTML.
+  // Bold **text** or __text__
+  html = html.replace(/\*\*([^*\n][^*\n]*?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/__([^_\n][^_\n]*?)__/g, '<strong>$1</strong>');
+  // Italic *text* or _text_ — run AFTER bold so ** doesn't trigger.
+  // Negative lookarounds (where supported) would be cleaner, but stick to
+  // simple patterns: require a non-space just inside the delimiters.
+  html = html.replace(/(^|[^*])\*([^*\s][^*\n]*?)\*(?!\*)/g, '$1<em>$2</em>');
+  html = html.replace(/(^|[^_\w])_([^_\s][^_\n]*?)_(?!\w)/g, '$1<em>$2</em>');
+  // Bare URL autolink (http/https). Avoid breaking already-linked text.
+  html = html.replace(/(^|[\s(])((?:https?:\/\/)[^\s<)]+[^\s<).,;:!?])/g,
+    function(_m, pre, url) { return pre + '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + url + '</a>'; });
+
+  // 5) Restore inline code blocks.
+  html = html.replace(/\u0000CODE(\d+)\u0000/g, function(_m, idx) {
+    return '<code class="md-code">' + _codeStash[Number(idx)] + '</code>';
+  });
+
+  return html;
+}
+
+// ── RECONCILIATION: DEDUP ON SAVE ─────────────────────────────────────────────
+// Source priority: higher number = more authoritative
+var _SOURCE_PRIORITY = { manual: 1, extraction: 2, 'Onboarding upload': 2, upload: 2, apple_health: 3, terra: 3, ehr: 4 };
+
+function _normStr(s) {
+  return (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+function _dateOnly(isoStr) {
+  if (!isoStr) return '';
+  return String(isoStr).substring(0, 10);
+}
+
+function _sourcePriority(src) {
+  return _SOURCE_PRIORITY[_normStr(src)] || 1;
+}
+
+// Common short-form aliases for diagnoses (conservative list)
+var _DIAGNOSIS_ALIASES = {
+  't2dm': 'type 2 diabetes mellitus',
+  'type 2 diabetes': 'type 2 diabetes mellitus',
+  'diabetes mellitus type 2': 'type 2 diabetes mellitus',
+  'dm2': 'type 2 diabetes mellitus',
+  't1dm': 'type 1 diabetes mellitus',
+  'type 1 diabetes': 'type 1 diabetes mellitus',
+  'diabetes mellitus type 1': 'type 1 diabetes mellitus',
+  'htn': 'essential hypertension',
+  'hypertension': 'essential hypertension',
+  'chf': 'congestive heart failure',
+  'copd': 'chronic obstructive pulmonary disease',
+  'ckd': 'chronic kidney disease',
+  'afib': 'atrial fibrillation',
+  'a-fib': 'atrial fibrillation',
+  'cad': 'coronary artery disease',
+  'mi': 'myocardial infarction',
+  'cva': 'cerebrovascular accident',
+  'tia': 'transient ischemic attack',
+  'gerd': 'gastroesophageal reflux disease',
+  'uti': 'urinary tract infection',
+  'bph': 'benign prostatic hyperplasia',
+  'ra': 'rheumatoid arthritis',
+  'oa': 'osteoarthritis',
+  'dvt': 'deep vein thrombosis',
+  'pe': 'pulmonary embolism'
+};
+
+function _normDiagnosis(name) {
+  var n = _normStr(name);
+  return _DIAGNOSIS_ALIASES[n] || n;
+}
+
+// Check if two diagnosis names are likely the same condition
+function _diagnosisMatch(a, b) {
+  var na = _normDiagnosis(a);
+  var nb = _normDiagnosis(b);
+  if (na === nb) return true;
+  // Check if one contains the other (e.g. "hypertension" vs "essential hypertension")
+  if (na.length > 3 && nb.length > 3) {
+    if (na.indexOf(nb) !== -1 || nb.indexOf(na) !== -1) return true;
+  }
+  return false;
+}
+
+// Check if two medication names are likely the same drug
+function _medNameMatch(a, b) {
+  var na = _normStr(a);
+  var nb = _normStr(b);
+  if (na === nb) return true;
+  // Strip dosage info for comparison (e.g. "Lisinopril 20mg" -> "lisinopril")
+  var nameOnlyA = na.replace(/\s*\d+\s*(mg|mcg|ml|iu|units?|%)\b.*/i, '').trim();
+  var nameOnlyB = nb.replace(/\s*\d+\s*(mg|mcg|ml|iu|units?|%)\b.*/i, '').trim();
+  if (nameOnlyA && nameOnlyB && nameOnlyA === nameOnlyB) return true;
+  return false;
+}
+
+// Extract dosage from a string (returns lowercase trimmed dosage or null)
+function _extractDose(str) {
+  if (!str) return null;
+  var m = String(str).match(/(\d+(?:\.\d+)?)\s*(mg|mcg|ml|iu|units?|%)/i);
+  return m ? m[0].toLowerCase().trim() : null;
+}
+
+/**
+ * findDuplicates — query existing records for a person and find near-matches.
+ * Returns { action: 'insert' | 'skip' | 'update', existing: row|null, note: string }
+ *
+ * For health_events: checks health_events table
+ * For medications: checks medications table
+ */
+async function findDuplicateHealthEvent(personId, newEvent) {
+  if (!personId || !newEvent || !newEvent.title) return { action: 'insert', existing: null, note: '' };
+
+  var evType = _normStr(newEvent.event_type || 'note');
+
+  // Conditions / diagnoses: match on normalized name
+  if (evType === 'condition' || evType === 'diagnosis') {
+    var { data: existing } = await db.from('health_events')
+      .select('id, title, notes, source, event_date, event_type')
+      .eq('person_id', personId)
+      .in('event_type', ['condition', 'diagnosis']);
+
+    if (existing && existing.length > 0) {
+      for (var i = 0; i < existing.length; i++) {
+        if (_diagnosisMatch(existing[i].title, newEvent.title)) {
+          // Same condition already exists — skip, but merge extra detail if incoming has more info
+          var incomingPriority = _sourcePriority(newEvent.source);
+          var existingPriority = _sourcePriority(existing[i].source);
+          if (incomingPriority > existingPriority && newEvent.notes && !existing[i].notes) {
+            return {
+              action: 'update',
+              existing: existing[i],
+              note: 'Merged additional detail from ' + (newEvent.source || 'unknown') + ' source'
+            };
+          }
+          return {
+            action: 'skip',
+            existing: existing[i],
+            note: 'Duplicate condition: "' + newEvent.title + '" matches existing "' + existing[i].title + '"'
+          };
+        }
+      }
+    }
+    return { action: 'insert', existing: null, note: '' };
+  }
+
+  // Labs: match on title + same day
+  if (evType === 'lab' || evType === 'lab_result') {
+    var newDate = _dateOnly(newEvent.event_date);
+    var { data: existingLabs } = await db.from('health_events')
+      .select('id, title, notes, source, event_date, value, unit, event_type')
+      .eq('person_id', personId)
+      .in('event_type', ['lab', 'lab_result']);
+
+    if (existingLabs && existingLabs.length > 0) {
+      for (var j = 0; j < existingLabs.length; j++) {
+        if (_normStr(existingLabs[j].title) === _normStr(newEvent.title) && _dateOnly(existingLabs[j].event_date) === newDate) {
+          // Same lab on same day
+          var labInPriority = _sourcePriority(newEvent.source);
+          var labExPriority = _sourcePriority(existingLabs[j].source);
+          if (labInPriority > labExPriority) {
+            return {
+              action: 'update',
+              existing: existingLabs[j],
+              note: 'Updated lab value from higher-priority source (' + (newEvent.source || 'unknown') + ')'
+            };
+          }
+          return {
+            action: 'skip',
+            existing: existingLabs[j],
+            note: 'Duplicate lab: "' + newEvent.title + '" on ' + newDate
+          };
+        }
+      }
+    }
+    return { action: 'insert', existing: null, note: '' };
+  }
+
+  // Appointments: match on same day + similar title/provider
+  if (evType === 'appointment') {
+    var apptDate = _dateOnly(newEvent.event_date);
+    var { data: existingAppts } = await db.from('health_events')
+      .select('id, title, notes, source, event_date, event_type')
+      .eq('person_id', personId)
+      .eq('event_type', 'appointment');
+
+    if (existingAppts && existingAppts.length > 0) {
+      for (var k = 0; k < existingAppts.length; k++) {
+        if (_dateOnly(existingAppts[k].event_date) === apptDate) {
+          // Same day — check if title/provider is similar
+          var nA = _normStr(existingAppts[k].title);
+          var nB = _normStr(newEvent.title);
+          if (nA === nB || nA.indexOf(nB) !== -1 || nB.indexOf(nA) !== -1) {
+            return {
+              action: 'skip',
+              existing: existingAppts[k],
+              note: 'Duplicate appointment on ' + apptDate + ': "' + newEvent.title + '"'
+            };
+          }
+        }
+      }
+    }
+    return { action: 'insert', existing: null, note: '' };
+  }
+
+  // Vitals / Activity / Sleep / Workouts: match on event_type + same day
+  if (evType === 'vital' || evType === 'activity' || evType === 'sleep' || evType === 'workout' || evType === 'activity_summary') {
+    var vDate = _dateOnly(newEvent.event_date);
+    var { data: existingVitals } = await db.from('health_events')
+      .select('id, title, notes, source, event_date, event_type')
+      .eq('person_id', personId)
+      .eq('event_type', evType);
+
+    if (existingVitals && existingVitals.length > 0) {
+      for (var v = 0; v < existingVitals.length; v++) {
+        if (_dateOnly(existingVitals[v].event_date) === vDate && _normStr(existingVitals[v].title) === _normStr(newEvent.title)) {
+          var vInPriority = _sourcePriority(newEvent.source);
+          var vExPriority = _sourcePriority(existingVitals[v].source);
+          if (vInPriority > vExPriority) {
+            return {
+              action: 'update',
+              existing: existingVitals[v],
+              note: 'Merged ' + evType + ' data from ' + (newEvent.source || 'unknown') + ' for ' + vDate
+            };
+          }
+          return {
+            action: 'skip',
+            existing: existingVitals[v],
+            note: 'Duplicate ' + evType + ' on ' + vDate + ': "' + newEvent.title + '"'
+          };
+        }
+      }
+    }
+    return { action: 'insert', existing: null, note: '' };
+  }
+
+  // Notes and other types: match on exact title + same day (conservative)
+  var noteDate = _dateOnly(newEvent.event_date);
+  var { data: existingNotes } = await db.from('health_events')
+    .select('id, title, notes, source, event_date, event_type')
+    .eq('person_id', personId)
+    .eq('event_type', evType);
+
+  if (existingNotes && existingNotes.length > 0) {
+    for (var n = 0; n < existingNotes.length; n++) {
+      if (_normStr(existingNotes[n].title) === _normStr(newEvent.title) && _dateOnly(existingNotes[n].event_date) === noteDate) {
+        return {
+          action: 'skip',
+          existing: existingNotes[n],
+          note: 'Duplicate ' + evType + ': "' + newEvent.title + '" on ' + noteDate
+        };
+      }
+    }
+  }
+
+  return { action: 'insert', existing: null, note: '' };
+}
+
+/**
+ * findDuplicateMedication — check if a medication already exists for this person.
+ * Returns { action: 'insert' | 'skip' | 'update', existing: row|null, note: string }
+ */
+async function findDuplicateMedication(personId, newMed) {
+  if (!personId || !newMed || !newMed.name) return { action: 'insert', existing: null, note: '' };
+
+  var { data: existingMeds } = await db.from('medications')
+    .select('id, name, dose, frequency, prescriber, source, active')
+    .eq('person_id', personId);
+
+  if (!existingMeds || existingMeds.length === 0) return { action: 'insert', existing: null, note: '' };
+
+  for (var i = 0; i < existingMeds.length; i++) {
+    if (_medNameMatch(existingMeds[i].name, newMed.name)) {
+      // Same medication found
+      var incomingPriority = _sourcePriority(newMed.source);
+      var existingPriority = _sourcePriority(existingMeds[i].source);
+
+      // Check if dosage differs
+      var existingDose = _extractDose(existingMeds[i].dose);
+      var incomingDose = _extractDose(newMed.dose);
+
+      if (incomingDose && existingDose && incomingDose !== existingDose) {
+        // Dosage differs — be conservative. Only update if incoming source is more authoritative.
+        // Note: We do NOT silently merge dosage differences unless the incoming source is strictly
+        // more authoritative. The user said "dosing errors are a line" — so when in doubt, keep both.
+        if (incomingPriority > existingPriority) {
+          return {
+            action: 'update',
+            existing: existingMeds[i],
+            note: 'Dose updated from ' + (existingDose || 'unspecified') + ' to ' + incomingDose + ' (source: ' + (newMed.source || 'unknown') + ', higher priority than ' + (existingMeds[i].source || 'unknown') + ')'
+          };
+        }
+        // Same or lower priority with different dose — keep both (conservative)
+        return { action: 'insert', existing: null, note: '' };
+      }
+
+      // Same med, same or no dose info — skip the duplicate
+      return {
+        action: 'skip',
+        existing: existingMeds[i],
+        note: 'Duplicate medication: "' + newMed.name + '" already exists'
+      };
+    }
+  }
+
+  return { action: 'insert', existing: null, note: '' };
+}
+
+/**
+ * reconcileHealthEvent — given a dedup result, perform the appropriate action.
+ * Returns the inserted/updated row data, or null if skipped.
+ */
+async function reconcileHealthEvent(personId, newEvent, dedupResult) {
+  if (dedupResult.action === 'skip') {
+    console.log('[Reconcile] Skipping health event:', dedupResult.note);
+    return null;
+  }
+
+  if (dedupResult.action === 'update' && dedupResult.existing) {
+    // Build update payload — merge notes with reconciliation info
+    var updatePayload = {};
+    var reconNote = '[Reconciled ' + new Date().toISOString() + '] ' + dedupResult.note;
+    var existingNotes = dedupResult.existing.notes || '';
+    updatePayload.notes = existingNotes ? existingNotes + '\n' + reconNote : reconNote;
+
+    // Merge in any new values from the incoming event
+    if (newEvent.notes && !existingNotes) updatePayload.notes = newEvent.notes + '\n' + reconNote;
+    if (newEvent.value !== undefined && newEvent.value !== null) updatePayload.value = newEvent.value;
+    if (newEvent.value2 !== undefined && newEvent.value2 !== null) updatePayload.value2 = newEvent.value2;
+    if (newEvent.unit) updatePayload.unit = newEvent.unit;
+    updatePayload.source = newEvent.source || dedupResult.existing.source;
+
+    var { data, error } = await db.from('health_events')
+      .update(updatePayload)
+      .eq('id', dedupResult.existing.id)
+      .select().single();
+
+    if (error) {
+      console.error('[Reconcile] Update error:', error);
+      return null;
+    }
+    console.log('[Reconcile] Updated health event:', dedupResult.note);
+    return data;
+  }
+
+  // action === 'insert' — normal insert
+  var { data: insertData, error: insertError } = await db.from('health_events')
+    .insert({
+      person_id: personId,
+      event_type: newEvent.event_type || 'note',
+      event_date: newEvent.event_date,
+      title: newEvent.title,
+      notes: newEvent.notes || null,
+      value: newEvent.value || null,
+      value2: newEvent.value2 || null,
+      unit: newEvent.unit || null,
+      source: newEvent.source || 'manual',
+      ehr_system: newEvent.ehr_system || null
+    }).select().single();
+
+  if (insertError) {
+    console.error('[Reconcile] Insert error:', insertError);
+    return null;
+  }
+  return insertData;
+}
+
+/**
+ * reconcileMedication — given a dedup result, perform the appropriate action.
+ * Returns the inserted/updated row data, or null if skipped.
+ */
+async function reconcileMedication(personId, newMed, dedupResult) {
+  if (dedupResult.action === 'skip') {
+    console.log('[Reconcile] Skipping medication:', dedupResult.note);
+    return null;
+  }
+
+  if (dedupResult.action === 'update' && dedupResult.existing) {
+    var medUpdate = {};
+    if (newMed.dose) medUpdate.dose = newMed.dose;
+    if (newMed.frequency) medUpdate.frequency = newMed.frequency;
+    if (newMed.prescriber) medUpdate.prescriber = newMed.prescriber;
+    medUpdate.source = newMed.source || dedupResult.existing.source;
+
+    var { data, error } = await db.from('medications')
+      .update(medUpdate)
+      .eq('id', dedupResult.existing.id)
+      .select().single();
+
+    if (error) {
+      console.error('[Reconcile] Medication update error:', error);
+      return null;
+    }
+    console.log('[Reconcile] Updated medication:', dedupResult.note);
+    return data;
+  }
+
+  // action === 'insert' — normal insert
+  var { data: insertData, error: insertError } = await db.from('medications')
+    .insert({
+      person_id: personId,
+      name: newMed.name,
+      dose: newMed.dose || null,
+      frequency: newMed.frequency || null,
+      prescriber: newMed.prescriber || null,
+      active: newMed.active !== undefined ? newMed.active : true,
+      source: newMed.source || 'manual'
+    }).select().single();
+
+  if (insertError) {
+    console.error('[Reconcile] Medication insert error:', insertError);
+    return null;
+  }
+  return insertData;
+}
+
+// ── EHR INTEGRATION (Epic SMART on FHIR) ────────────────────────────────────
+var ehrCache = {}; // { personId: { data: {...}, synced_at: '...' } }
+var _ehrConnecting = false;
+var _ehrPendingPersonId = null;
+
+// Reset EHR connecting state on back-button/page restore (bfcache)
+window.addEventListener('pageshow', function(e) {
+  if (e.persisted || performance.getEntriesByType('navigation')[0]?.type === 'back_forward') {
+    _ehrConnecting = false;
+    _ehrPendingPersonId = null;
+    // Close hospital picker if it was open
+    var picker = document.getElementById('hospital-picker-overlay');
+    if (picker && picker.classList.contains('open')) {
+      closeSheet('hospital-picker-overlay');
+    }
+  }
+});
+
+// Demo EHR data for Dad
+var DEMO_EHR_DATA = {
+  conditions: [
+    { type:'condition', source:'ehr', name:"Parkinson's disease", code:'49049000', status:'active', onset_date:'2023-06-15', recorded_date:'2023-06-15' },
+    { type:'condition', source:'ehr', name:'Essential hypertension', code:'59621000', status:'active', onset_date:'2020-03-10', recorded_date:'2020-03-10' }
+  ],
+  medications: [
+    { type:'medication', source:'ehr', name:'Levodopa/Carbidopa 25-100mg', code:'197741', status:'active', dosage:'1 tablet three times daily', frequency:'3x daily', date_asserted:'2023-07-01' },
+    { type:'medication', source:'ehr', name:'Lisinopril 20mg', code:'314077', status:'active', dosage:'1 tablet daily', frequency:'Once daily', date_asserted:'2020-04-01' }
+  ],
+  allergies: [
+    { type:'allergy', source:'ehr', name:'Sulfonamide', code:'387406002', severity:'moderate', reactions:['Skin rash','Hives'], status:'active', recorded_date:'2019-11-20' }
+  ],
+  observations: [
+    { type:'observation', source:'ehr', name:'Complete blood count (CBC)', code:'58410-2', value:'', unit:'', reference_range:'', status:'final', effective_date:'2026-03-28', category:'laboratory' },
+    { type:'observation', source:'ehr', name:'White blood cell count', code:'6690-2', value:'6.8', unit:'10*3/uL', reference_range:'4.5-11.0', status:'final', effective_date:'2026-03-28', category:'laboratory' },
+    { type:'observation', source:'ehr', name:'Hemoglobin', code:'718-7', value:'14.2', unit:'g/dL', reference_range:'13.5-17.5', status:'final', effective_date:'2026-03-28', category:'laboratory' },
+    { type:'observation', source:'ehr', name:'Comprehensive metabolic panel', code:'24323-8', value:'', unit:'', reference_range:'', status:'final', effective_date:'2026-03-15', category:'laboratory' },
+    { type:'observation', source:'ehr', name:'Glucose', code:'2345-7', value:'98', unit:'mg/dL', reference_range:'70-100', status:'final', effective_date:'2026-03-15', category:'laboratory' },
+    { type:'observation', source:'ehr', name:'Creatinine', code:'2160-0', value:'1.0', unit:'mg/dL', reference_range:'0.7-1.3', status:'final', effective_date:'2026-03-15', category:'laboratory' }
+  ],
+  encounters: [
+    { type:'encounter', source:'ehr', name:'Office visit — Neurology', status:'finished', start_date:'2026-03-28', end_date:'2026-03-28', class:'AMB' },
+    { type:'encounter', source:'ehr', name:'Annual physical exam', status:'finished', start_date:'2026-02-15', end_date:'2026-02-15', class:'AMB' }
+  ],
+  procedures: [
+    { type:'procedure', source:'ehr', name:'Electroencephalogram (EEG)', code:'54093003', status:'completed', performed_date:'2026-01-10' }
+  ],
+  provider: 'Duke Health (Epic)',
+  synced_at: new Date().toISOString()
+};
+
+// ── DEMO CARESIGNALS DATA ────────────────────────────────────────────────────
+var DEMO_CARESIGNALS = {
+  medications: [
+    { name: 'Levodopa/Carbidopa 25-100mg', dose: '1 tablet', times: ['08:00','14:00','20:00'], frequency: '3x daily' },
+    { name: 'Lisinopril 20mg', dose: '1 tablet', times: ['08:00'], frequency: 'Once daily' }
+  ],
+  wearable: {
+    device: 'Apple Watch',
+    personName: 'Don',
+    lastSync: '8 min ago',
+    heartRate: { current: 72, min: 58, max: 94, resting: 64, trend: [68,72,71,74,69,72,78,74,71,68,72,72] },
+    steps: { today: 3847, goal: 6000 },
+    sleep: { total: 402, deep: 52, core: 198, rem: 92, awake: 38, bedTime: '10:42 PM', wakeTime: '5:24 AM' },
+    spo2: { current: 96, min: 94, max: 98 },
+    hrv: { current: 28, unit: 'ms' }
+  },
+  sensors: [
+    { id: 'hallway', name: 'Hallway Motion', icon: 'move', lastEvent: '7:42 AM', eventsToday: 12, status: 'active' },
+    { id: 'fridge', name: 'Fridge', icon: 'refrigerator', lastEvent: '7:15 AM', eventsToday: 4, status: 'active' },
+    { id: 'medcabinet', name: 'Medicine Cabinet', icon: 'pill', lastEvent: '8:12 AM', eventsToday: 1, status: 'active' },
+    { id: 'bedroom', name: 'Bedroom Motion', icon: 'bed-double', lastEvent: '6:48 AM', eventsToday: 3, status: 'active' }
+  ],
+  timeline: [
+    { time: '6:48 AM', event: 'Bedroom motion detected', icon: 'bed-double', type: 'sensor' },
+    { time: '7:05 AM', event: 'Hallway motion', icon: 'move', type: 'sensor' },
+    { time: '7:12 AM', event: 'Fridge opened', icon: 'refrigerator', type: 'sensor', note: 'Breakfast' },
+    { time: '7:15 AM', event: 'Fridge closed', icon: 'refrigerator', type: 'sensor' },
+    { time: '7:42 AM', event: 'Hallway motion', icon: 'move', type: 'sensor' },
+    { time: '8:12 AM', event: 'Medicine cabinet opened', icon: 'pill', type: 'med', highlight: true },
+    { time: '8:45 AM', event: 'Hallway motion', icon: 'move', type: 'sensor' }
+  ],
+  patterns: [
+    { title: 'Morning routine is consistent', accent: 'moss', icon: 'check-circle',
+      body: 'Your family member has been waking between 6:30\u20137:00 AM and having breakfast within 30 minutes for the last 7 days. This is a stable pattern.',
+      sources: ['Bedroom sensor', 'Fridge sensor', 'Apple Watch'] },
+    { title: 'Medication adherence improving', accent: 'moss', icon: 'trending-up',
+      body: 'Missed doses decreased from 4 last week to 1 this week. The medicine cabinet sensor confirms morning doses are being taken within the 8:00\u20138:30 AM window.',
+      sources: ['Medicine cabinet', 'Medication log'] },
+    { title: 'Afternoon activity has decreased', accent: 'amber', icon: 'alert-triangle',
+      body: 'Hallway motion events between 1\u20134 PM dropped 35% compared to last week. This may reflect increased fatigue or a change in routine worth mentioning at the next visit.',
+      sources: ['Hallway sensor', 'Apple Watch'] },
+    { title: 'Sleep quality declining slightly', accent: 'amber', icon: 'moon',
+      body: 'Average deep sleep decreased from 1h 20m to 52 minutes over the past week. Total sleep time is unchanged, but sleep is more fragmented.',
+      sources: ['Apple Watch'] }
+  ],
+  weeklyAdherence: [100, 100, 100, 67, 100, 100, 50]
+};
+
+// ── CARESIGNALS HELPERS ──────────────────────────────────────────────────────
+function buildSparkline(values, width, height, color) {
+  var max = Math.max.apply(null, values);
+  var min = Math.min.apply(null, values);
+  var range = max - min || 1;
+  var step = width / (values.length - 1);
+  var points = values.map(function(v, i) {
+    return (i * step) + ',' + (height - ((v - min) / range) * height);
+  }).join(' ');
+  return '<svg width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '">'
+    + '<polyline fill="none" stroke="' + color + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" points="' + points + '"/>'
+    + '</svg>';
+}
+
+function buildProgressRing(percent, size, color) {
+  var r = (size - 6) / 2;
+  var circ = 2 * Math.PI * r;
+  var offset = circ - (percent / 100) * circ;
+  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">'
+    + '<circle cx="' + size/2 + '" cy="' + size/2 + '" r="' + r + '" fill="none" stroke="#eee" stroke-width="4"/>'
+    + '<circle cx="' + size/2 + '" cy="' + size/2 + '" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="4" '
+    + 'stroke-dasharray="' + circ + '" stroke-dashoffset="' + offset + '" stroke-linecap="round" '
+    + 'transform="rotate(-90 ' + size/2 + ' ' + size/2 + ')"/>'
+    + '</svg>';
+}
+
+function fmtMin(m) {
+  if (m < 60) return m + 'm';
+  var h = Math.floor(m / 60);
+  var r = m % 60;
+  return r ? h + 'h ' + r + 'm' : h + 'h';
+}
+
+function buildSleepBar(sleep) {
+  var total = sleep.deep + sleep.core + sleep.rem + sleep.awake;
+  if (!total) return '';
+  var pctDeep = (sleep.deep / total * 100).toFixed(1);
+  var pctCore = (sleep.core / total * 100).toFixed(1);
+  var pctRem = (sleep.rem / total * 100).toFixed(1);
+  var pctAwake = (sleep.awake / total * 100).toFixed(1);
+  var html = '<div class="sleep-bar">'
+    + '<div class="sleep-bar-seg sleep-bar-seg--deep" style="width:' + pctDeep + '%"></div>'
+    + '<div class="sleep-bar-seg sleep-bar-seg--core" style="width:' + pctCore + '%"></div>'
+    + '<div class="sleep-bar-seg sleep-bar-seg--rem" style="width:' + pctRem + '%"></div>'
+    + '<div class="sleep-bar-seg sleep-bar-seg--awake" style="width:' + pctAwake + '%"></div>'
+    + '</div>';
+  html += '<div class="sleep-legend">'
+    + '<span class="sleep-legend-item"><span class="sleep-legend-dot" style="background:#4338CA"></span>' + fmtMin(sleep.deep) + ' deep</span>'
+    + '<span class="sleep-legend-item"><span class="sleep-legend-dot" style="background:#3B6EA5"></span>' + fmtMin(sleep.core) + ' core</span>'
+    + '<span class="sleep-legend-item"><span class="sleep-legend-dot" style="background:#0D9488"></span>' + fmtMin(sleep.rem) + ' REM</span>'
+    + '<span class="sleep-legend-item"><span class="sleep-legend-dot" style="background:#D1D5DB"></span>' + fmtMin(sleep.awake) + ' awake</span>'
+    + '</div>';
+  return html;
+}
+
+function getMedStatus(timeStr, now, cabinetHour) {
+  var parts = timeStr.split(':');
+  var schedH = parseInt(parts[0], 10);
+  var schedM = parseInt(parts[1], 10);
+  var schedMin = schedH * 60 + schedM;
+  var nowMin = now.getHours() * 60 + now.getMinutes();
+  var diff = schedMin - nowMin;
+  if (diff <= 0 && diff > -30) return 'due';
+  if (diff > 0 && diff <= 30) return 'due';
+  if (schedMin < nowMin) {
+    if (cabinetHour >= 0 && Math.abs(schedH - cabinetHour) <= 1) return 'taken';
+    return 'missed';
+  }
+  return 'upcoming';
+}
+
+function formatTime12(timeStr) {
+  var parts = timeStr.split(':');
+  var h = parseInt(parts[0], 10);
+  var m = parts[1];
+  var ampm = h >= 12 ? 'PM' : 'AM';
+  var h12 = h % 12 || 12;
+  return h12 + ':' + m + ' ' + ampm;
+}
+
+// ── RENDER SIGNALS VIEW ──────────────────────────────────────────────────────
+// Client-side cache for Signals data, keyed by personId. TTL 60s.
+var _signalsCache = {};
+var _SIGNALS_CACHE_TTL_MS = 60 * 1000;
+
+function _buildDeviceCardsHtml(activeConns) {
+  var html = '<div class="terra-devices-section">';
+  html += '<div class="terra-devices-title">Connected Devices</div>';
+  for (var ci = 0; ci < activeConns.length; ci++) {
+    var conn = activeConns[ci];
+    var providerName = conn.provider ? conn.provider.charAt(0).toUpperCase() + conn.provider.slice(1).toLowerCase() : 'Unknown';
+    var statusDotClass = conn.status === 'active' ? 'terra-status-dot--active' : 'terra-status-dot--inactive';
+    var connDate = conn.connected_at ? new Date(conn.connected_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+    var lastData = conn.last_data_at ? 'Last data: ' + new Date(conn.last_data_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' at ' + new Date(conn.last_data_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : 'No data yet';
+    html += '<div class="terra-device-card">';
+    html += '<div class="terra-device-icon"><i data-lucide="watch"></i></div>';
+    html += '<div class="terra-device-info">';
+    html += '<div class="terra-device-name"><span class="terra-status-dot ' + statusDotClass + '"></span> ' + escHtml(providerName) + '</div>';
+    html += '<div class="terra-device-meta">' + escHtml(lastData);
+    if (connDate) html += ' \u00b7 Connected ' + escHtml(connDate);
+    html += '</div></div>';
+    html += '<button class="terra-disconnect-btn" onclick="disconnectTerra(\'' + conn.id + '\')">Disconnect</button>';
+    html += '</div>';
+  }
+  html += '<button class="terra-add-btn" onclick="openTerraConnect()"><i data-lucide="plus" style="width:14px;height:14px;"></i> Connect another device</button>';
+  html += '<div class="terra-poweredby">Wearables powered by <a href="https://tryterra.co" target="_blank" rel="noopener noreferrer">Terra</a></div>';
+  html += '</div>';
+  return html;
+}
+
+async function renderSignalsView() {
+  var el = document.getElementById('view-signals');
+  if (!el) return;
+  console.log('[Signals] renderSignalsView called, isDemoMode:', isDemoMode, 'currentPersonId:', currentPersonId);
+
+  var data = isDemoMode ? DEMO_CARESIGNALS : null;
+
+  if (!data) {
+    var sigFirstName = getPersonFirstName();
+    var cacheKey = currentPersonId || '_nopid';
+    var cached = _signalsCache[cacheKey];
+    var cacheFresh = cached && (Date.now() - cached.ts) < _SIGNALS_CACHE_TTL_MS;
+
+    // 1) Paint from cache instantly if we have it, then refresh in background.
+    if (cacheFresh) {
+      console.log('[Signals] paint from cache');
+      _paintSignals(el, sigFirstName, cached.activeConns, cached.terraData);
+    } else {
+      // Show lightweight shell so the header appears immediately instead of a blank screen.
+      el.innerHTML = '<div class="signals-view"><p class="section-label">' + escHtml(sigFirstName) + '\u2019s Signals</p>'
+        + '<div class="terra-loading"><i data-lucide="loader" style="width:20px;height:20px;animation:spin 1s linear infinite;"></i>'
+        + '<div style="margin-top:8px;">Loading devices\u2026</div></div></div>';
+      initIcons();
+    }
+
+    // 2) Fetch connections + data in parallel with a shorter 4s timeout.
+    var conns = [];
+    var terraData = null;
+    if (currentPersonId) {
+      try {
+        var connsTimeout = new Promise(function(resolve) { setTimeout(function() { resolve([]); }, 4000); });
+        var dataTimeout = new Promise(function(resolve) { setTimeout(function() { resolve(null); }, 4000); });
+        var results = await Promise.all([
+          Promise.race([loadTerraConnections(currentPersonId), connsTimeout]),
+          Promise.race([loadTerraData(currentPersonId).catch(function(e){ console.error('[Signals] loadTerraData error:', e); return null; }), dataTimeout])
+        ]);
+        conns = results[0] || [];
+        terraData = results[1] || null;
+      } catch(e) {
+        console.error('Signals load error:', e);
+      }
+    }
+    console.log('[Signals] connections loaded:', conns.length, 'data:', terraData ? 'yes' : 'no');
+    var activeConns = conns.filter(function(c){ return c.status === 'active'; });
+
+    // Update cache
+    _signalsCache[cacheKey] = { ts: Date.now(), activeConns: activeConns, terraData: terraData };
+
+    // 3) Repaint with fresh data (unless the view has since navigated away).
+    if (document.getElementById('view-signals') !== el) return;
+    _paintSignals(el, sigFirstName, activeConns, terraData);
+    return;
+  }
+
+  // Demo-mode path falls through to original renderer below.
+  return _renderSignalsDemo(el, data);
+}
+
+// Invalidate the cache whenever a connection changes (add/disconnect) so the
+// next render reflects reality.
+function invalidateSignalsCache(personId) {
+  if (personId) { delete _signalsCache[personId]; }
+  else { _signalsCache = {}; }
+}
+
+function _paintSignals(el, sigFirstName, activeConns, terraData) {
+  if (!activeConns || activeConns.length === 0) {
+    // No connections \u2014 show empty state with connect CTA.
+    var emptyHtml = '<div class="signals-view">';
+    emptyHtml += '<p class="section-label">' + escHtml(sigFirstName) + '\u2019s Signals</p>';
+    emptyHtml += '<div class="terra-empty">';
+    emptyHtml += '<div class="terra-empty-icon"><i data-lucide="watch"></i></div>';
+    emptyHtml += '<div class="terra-empty-title">No devices connected yet</div>';
+    emptyHtml += '<div class="terra-empty-sub">Connect a wearable to see daily signals \u2014 steps, sleep, heart rate, and more.</div>';
+    emptyHtml += '<button class="terra-add-btn" onclick="openTerraConnect()"><i data-lucide="plus" style="width:14px;height:14px;"></i> Connect a device</button>';
+    emptyHtml += '<div class="terra-poweredby">Wearables powered by <a href="https://tryterra.co" target="_blank" rel="noopener noreferrer">Terra</a></div>';
+    emptyHtml += '</div></div>';
+    el.innerHTML = emptyHtml;
+    initIcons();
+    return;
+  }
+
+  // Build device cards (always shown at top)
+  var chDevices = _buildDeviceCardsHtml(activeConns);
+
+  var hasData = terraData && (terraData.vitals.length > 0 || terraData.events.length > 0);
+      var ch = '<div class="signals-view">';
+      ch += '<p class="section-label">' + escHtml(sigFirstName) + '\u2019s Signals</p>';
+      ch += chDevices;
+
+      if (!hasData) {
+        // Connected but no data yet
+        var waitingDevice = activeConns[0].provider ? activeConns[0].provider.charAt(0).toUpperCase() + activeConns[0].provider.slice(1).toLowerCase() : 'device';
+        ch += '<div class="signals-waiting">';
+        ch += '<i data-lucide="loader" style="width:18px;height:18px;animation:spin 1s linear infinite;"></i>';
+        ch += '<div class="signals-waiting-text">Waiting for first sync from ' + escHtml(waitingDevice) + '\u2026</div>';
+        ch += '<div class="signals-waiting-sub">Data will appear here once your device syncs.</div>';
+        ch += '</div>';
+      } else {
+        // Build real wearable dashboard
+        var rw = buildRealSignalsData(terraData.vitals, terraData.events, activeConns);
+        var rNow = new Date();
+        var rMonths = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        var rDays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+        var rDateStr = rDays[rNow.getDay()] + ', ' + rMonths[rNow.getMonth()] + ' ' + rNow.getDate();
+
+        // ── Medications Section (real data from liveMeds) ──
+        var rActiveMeds = liveMeds.filter(function(m) { return m.active; });
+        if (rActiveMeds.length > 0) {
+          ch += '<div class="signals-section">';
+          ch += '<div class="signals-section-title">Today\u2019s Medications</div>';
+          ch += '<div class="signals-section-sub">' + escHtml(rDateStr) + '</div>';
+          ch += '<div class="signals-card">';
+          for (var rmi = 0; rmi < rActiveMeds.length; rmi++) {
+            var rMed = rActiveMeds[rmi];
+            var rRem = _medReminders[rMed.id];
+            var rTimes = (rRem && rRem.active && rRem.times && rRem.times.length > 0) ? rRem.times : [];
+            ch += '<div class="med-item">';
+            ch += '<div class="med-icon-wrap"><i data-lucide="pill"></i></div>';
+            ch += '<div class="med-info">';
+            ch += '<div class="med-name">' + escHtml(rMed.name || '') + '</div>';
+            var rDoseFreq = [rMed.dose, rMed.frequency].filter(Boolean).join(' \u00b7 ');
+            if (rDoseFreq) ch += '<div class="med-dose">' + escHtml(rDoseFreq) + '</div>';
+            if (rTimes.length > 0) {
+              ch += '<div class="med-times">';
+              for (var rti = 0; rti < rTimes.length; rti++) {
+                var rStatus = getMedStatus(rTimes[rti], rNow, -1);
+                var rBadgeClass = 'med-badge med-badge--' + rStatus;
+                var rStatusIcon = '';
+                var rStatusLabel = '';
+                if (rStatus === 'taken') { rStatusIcon = '\u2705'; rStatusLabel = 'Taken'; }
+                else if (rStatus === 'missed') { rStatusIcon = '\u26a0\ufe0f'; rStatusLabel = 'Missed'; }
+                else if (rStatus === 'due') { rStatusIcon = '\ud83d\udd14'; rStatusLabel = 'Due now'; }
+                else { rStatusIcon = '\u23f0'; rStatusLabel = 'Upcoming'; }
+                ch += '<span class="' + rBadgeClass + '">' + rStatusIcon + ' ' + formatTime12(rTimes[rti]) + ' \u00b7 ' + rStatusLabel + '</span>';
+              }
+              ch += '</div>';
+            }
+            ch += '</div></div>';
+          }
+          ch += '</div></div>';
+        }
+
+        // ── Wearable Data Section ──
+        ch += '<div class="signals-section">';
+        ch += '<div class="signals-section-title">' + escHtml(rw.device) + ' \u00b7 ' + escHtml(rw.personName);
+        if (rw.lastSync) ch += '<span class="wearable-sync">' + escHtml(rw.lastSync) + '</span>';
+        ch += '</div>';
+        ch += '<div class="signals-section-sub">Live wearable data</div>';
+        ch += '<div class="wearable-grid">';
+
+        // Heart rate card
+        if (rw.heartRate) {
+          ch += '<div class="wearable-card">';
+          ch += '<div class="signals-label">' + t('signals.heartRate') + '</div>';
+          ch += '<div class="signals-metric">' + rw.heartRate.current + ' <span style="font-size:14px;font-weight:400;color:var(--text-secondary);">bpm</span></div>';
+          if (rw.heartRate.trend && rw.heartRate.trend.length >= 2) {
+            ch += '<div class="wearable-sparkline">' + buildSparkline(rw.heartRate.trend, 120, 28, 'var(--red)') + '</div>';
+          }
+          ch += '<div class="signals-metric-sm">' + rw.heartRate.min + '\u2013' + rw.heartRate.max + ' range</div>';
+          if (rw.heartRate.resting) ch += '<div class="signals-metric-sm">Resting: ' + rw.heartRate.resting + ' bpm</div>';
+          ch += '</div>';
+        }
+
+        // Steps card
+        if (rw.steps) {
+          var rStepsPct = Math.round(rw.steps.today / rw.steps.goal * 100);
+          ch += '<div class="wearable-card">';
+          ch += '<div class="signals-label">' + t('signals.steps') + '</div>';
+          ch += '<div class="signals-metric">' + rw.steps.today.toLocaleString() + '</div>';
+          ch += '<div class="progress-ring-wrap">';
+          ch += buildProgressRing(rStepsPct, 40, 'var(--moss)');
+          ch += '<div class="progress-ring-label">' + rStepsPct + '% of goal</div>';
+          ch += '</div>';
+          if (rw.calories) ch += '<div class="signals-metric-sm">' + rw.calories.toLocaleString() + ' active cal</div>';
+          if (rw.distance) ch += '<div class="signals-metric-sm">' + rw.distance + ' mi</div>';
+          ch += '</div>';
+        }
+
+        // Sleep card
+        if (rw.sleep) {
+          var rSleepH = Math.floor(rw.sleep.total / 60);
+          var rSleepM = rw.sleep.total % 60;
+          ch += '<div class="wearable-card">';
+          ch += '<div class="signals-label">' + t('signals.sleep') + '</div>';
+          ch += '<div class="signals-metric">' + rSleepH + 'h ' + rSleepM + 'm</div>';
+          ch += buildSleepBar(rw.sleep);
+          if (rw.sleep.bedTime || rw.sleep.wakeTime) {
+            ch += '<div class="signals-metric-sm">' + escHtml(rw.sleep.bedTime) + (rw.sleep.wakeTime ? ' \u2013 ' + escHtml(rw.sleep.wakeTime) : '') + '</div>';
+          }
+          ch += '</div>';
+        }
+
+        // SpO2 card
+        if (rw.spo2) {
+          ch += '<div class="wearable-card">';
+          ch += '<div class="signals-label">' + t('signals.bloodOxygen') + '</div>';
+          ch += '<div class="signals-metric">' + rw.spo2.current + '<span style="font-size:14px;font-weight:400;">%</span></div>';
+          ch += '<div style="display:flex;align-items:center;gap:4px;margin-top:4px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--moss);display:inline-block;"></span>';
+          ch += '<span class="signals-metric-sm">' + rw.spo2.min + '\u2013' + rw.spo2.max + '% range</span></div>';
+          ch += '</div>';
+        }
+
+        // HRV card
+        if (rw.hrv) {
+          ch += '<div class="wearable-card">';
+          ch += '<div class="signals-label">HRV</div>';
+          ch += '<div class="signals-metric">' + rw.hrv.current + ' <span style="font-size:14px;font-weight:400;color:var(--text-secondary);">' + escHtml(rw.hrv.unit) + '</span></div>';
+          ch += '<div class="signals-metric-sm">Heart rate variability</div>';
+          ch += '</div>';
+        }
+
+    ch += '</div>'; // close wearable-grid
+    ch += '</div>'; // close signals-section
+  }
+
+  ch += '</div>'; // close signals-view
+  el.innerHTML = ch;
+  initIcons();
+}
+
+// Demo-mode renderer (unchanged legacy path)
+function _renderSignalsDemo(el, data) {
+  var now = new Date();
+  var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var dateStr = days[now.getDay()] + ', ' + months[now.getMonth()] + ' ' + now.getDate();
+  var dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+  var cabinetHour = -1;
+  var cabinetTimeStr = '';
+  for (var si = 0; si < data.sensors.length; si++) {
+    if (data.sensors[si].id === 'medcabinet') {
+      cabinetTimeStr = data.sensors[si].lastEvent;
+      var cParts = cabinetTimeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+      if (cParts) {
+        cabinetHour = parseInt(cParts[1], 10);
+        if (cParts[3].toUpperCase() === 'PM' && cabinetHour !== 12) cabinetHour += 12;
+        if (cParts[3].toUpperCase() === 'AM' && cabinetHour === 12) cabinetHour = 0;
+      }
+      break;
+    }
+  }
+
+  var html = '<div class="signals-view">';
+
+  // ── Section 1: Medication Tracker ──────────────────────────────────────
+  html += '<div class="signals-section">';
+  html += '<div class="signals-section-title">Today\u2019s Medications</div>';
+  html += '<div class="signals-section-sub">' + escHtml(dateStr) + '</div>';
+  html += '<div class="signals-card">';
+  for (var mi = 0; mi < data.medications.length; mi++) {
+    var med = data.medications[mi];
+    html += '<div class="med-item">';
+    html += '<div class="med-icon-wrap"><i data-lucide="pill"></i></div>';
+    html += '<div class="med-info">';
+    html += '<div class="med-name">' + escHtml(med.name) + '</div>';
+    html += '<div class="med-dose">' + escHtml(med.dose) + ' \u00b7 ' + escHtml(med.frequency) + '</div>';
+    html += '<div class="med-times">';
+    for (var ti = 0; ti < med.times.length; ti++) {
+      var status = getMedStatus(med.times[ti], now, cabinetHour);
+      var badgeClass = 'med-badge med-badge--' + status;
+      var statusIcon = '';
+      var statusLabel = '';
+      if (status === 'taken') { statusIcon = '\u2705'; statusLabel = 'Taken'; }
+      else if (status === 'missed') { statusIcon = '\u26a0\ufe0f'; statusLabel = 'Missed'; }
+      else if (status === 'due') { statusIcon = '\ud83d\udd14'; statusLabel = 'Due now'; }
+      else { statusIcon = '\u23f0'; statusLabel = 'Upcoming'; }
+      html += '<span class="' + badgeClass + '">' + statusIcon + ' ' + formatTime12(med.times[ti]) + ' \u00b7 ' + statusLabel + '</span>';
+    }
+    html += '</div></div></div>';
+  }
+  html += '</div>';
+
+  // Adherence signal card
+  if (cabinetHour >= 0) {
+    html += '<div class="adherence-signal">';
+    html += '<i data-lucide="check-circle"></i>';
+    html += '<div class="adherence-signal-text">Medicine cabinet opened at ' + escHtml(cabinetTimeStr) + ' \u2014 matches morning medication window</div>';
+    html += '</div>';
+  }
+
+  // Weekly adherence chart
+  html += '<div class="signals-card" style="margin-top:10px;">';
+  html += '<div class="signals-label">Weekly Adherence</div>';
+  html += '<div class="adherence-chart">';
+  for (var ai = 0; ai < data.weeklyAdherence.length; ai++) {
+    var pct = data.weeklyAdherence[ai];
+    var barH = Math.max(4, pct / 100 * 48);
+    var barClass = 'adherence-bar';
+    if (pct === 100) barClass += ' adherence-bar--full';
+    else if (pct > 0) barClass += ' adherence-bar--partial';
+    else barClass += ' adherence-bar--zero';
+    html += '<div class="adherence-bar-wrap">';
+    html += '<div class="' + barClass + '" style="height:' + barH + 'px"></div>';
+    html += '<div class="adherence-day">' + dayNames[ai] + '</div>';
+    html += '</div>';
+  }
+  html += '</div></div>';
+  html += '</div>';
+
+  // ── Section 2: Wearable Data ──────────────────────────────────────────
+  var w = data.wearable;
+  html += '<div class="signals-section">';
+  html += '<div class="signals-section-title">' + escHtml(w.device) + ' \u00b7 ' + escHtml(w.personName) + '<span class="wearable-sync">' + escHtml(w.lastSync) + '</span></div>';
+  html += '<div class="signals-section-sub">via Health Sharing</div>';
+  html += '<div class="wearable-grid">';
+
+  // Heart rate card
+  html += '<div class="wearable-card">';
+  html += '<div class="signals-label">' + t('signals.heartRate') + '</div>';
+  html += '<div class="signals-metric">' + w.heartRate.current + ' <span style="font-size:14px;font-weight:400;color:var(--text-secondary);">bpm</span></div>';
+  html += '<div class="wearable-sparkline">' + buildSparkline(w.heartRate.trend, 120, 28, 'var(--red)') + '</div>';
+  html += '<div class="signals-metric-sm">' + w.heartRate.min + '\u2013' + w.heartRate.max + ' today</div>';
+  html += '</div>';
+
+  // Steps card
+  var stepsPct = Math.round(w.steps.today / w.steps.goal * 100);
+  html += '<div class="wearable-card">';
+  html += '<div class="signals-label">' + t('signals.steps') + '</div>';
+  html += '<div class="signals-metric">' + w.steps.today.toLocaleString() + '</div>';
+  html += '<div class="progress-ring-wrap">';
+  html += buildProgressRing(stepsPct, 40, 'var(--moss)');
+  html += '<div class="progress-ring-label">' + stepsPct + '% of goal</div>';
+  html += '</div>';
+  html += '</div>';
+
+  // Sleep card
+  var sleepH = Math.floor(w.sleep.total / 60);
+  var sleepM = w.sleep.total % 60;
+  html += '<div class="wearable-card">';
+  html += '<div class="signals-label">' + t('signals.sleep') + '</div>';
+  html += '<div class="signals-metric">' + sleepH + 'h ' + sleepM + 'm</div>';
+  html += buildSleepBar(w.sleep);
+  html += '<div class="signals-metric-sm">' + escHtml(w.sleep.bedTime) + ' \u2013 ' + escHtml(w.sleep.wakeTime) + '</div>';
+  html += '</div>';
+
+  // Blood oxygen card
+  html += '<div class="wearable-card">';
+  html += '<div class="signals-label">' + t('signals.bloodOxygen') + '</div>';
+  html += '<div class="signals-metric">' + w.spo2.current + '<span style="font-size:14px;font-weight:400;">%</span></div>';
+  html += '<div style="display:flex;align-items:center;gap:4px;margin-top:4px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--moss);display:inline-block;"></span><span class="signals-metric-sm">' + w.spo2.min + '\u2013' + w.spo2.max + '% range</span></div>';
+  html += '</div>';
+
+  html += '</div>';
+
+  // Trend alert
+  html += '<div class="trend-alert">';
+  html += '<div class="trend-alert-title"><i data-lucide="trending-up"></i>Resting heart rate trending up</div>';
+  html += '<div class="trend-alert-body">Resting heart rate has increased 8 bpm over the last 2 weeks (56 \u2192 64 bpm). This could reflect medication changes, reduced activity, or stress. Worth noting at the next appointment.</div>';
+  html += '</div>';
+
+  html += '</div>';
+
+  // ── Section 3: Home Sensors ───────────────────────────────────────────
+  html += '<div class="signals-section">';
+  html += '<div class="signals-section-title">Home Sensors</div>';
+  html += '<div class="signals-section-sub">Zigbee \u00b7 ' + data.sensors.length + ' devices</div>';
+  html += '<div class="signals-card">';
+  for (var sei = 0; sei < data.sensors.length; sei++) {
+    var s = data.sensors[sei];
+    html += '<div class="sensor-item">';
+    html += '<div class="sensor-icon-wrap"><i data-lucide="' + escHtml(s.icon) + '"></i></div>';
+    html += '<div class="sensor-info">';
+    html += '<div class="sensor-name">' + escHtml(s.name) + '</div>';
+    html += '<div class="sensor-detail">Last: ' + escHtml(s.lastEvent) + ' \u00b7 ' + s.eventsToday + ' event' + (s.eventsToday !== 1 ? 's' : '') + ' today</div>';
+    html += '</div>';
+    html += '<div class="sensor-status"></div>';
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // Daily routine timeline
+  html += '<div class="signals-card" style="margin-top:10px;">';
+  html += '<div class="signals-label">Today\u2019s Activity</div>';
+  html += '<div class="signals-timeline">';
+  for (var tli = 0; tli < data.timeline.length; tli++) {
+    var ev = data.timeline[tli];
+    var hlClass = ev.highlight ? ' tl-event--highlight' : '';
+    html += '<div class="tl-event' + hlClass + '">';
+    html += '<div class="tl-dot" aria-hidden="true"></div>';
+    html += '<div class="tl-time">' + escHtml(ev.time) + '</div>';
+    html += '<div class="tl-desc"><i data-lucide="' + escHtml(ev.icon) + '"></i>' + escHtml(ev.event);
+    if (ev.note) html += ' <span style="color:var(--text-muted);font-size:11px;">(' + escHtml(ev.note) + ')</span>';
+    html += '</div>';
+    html += '</div>';
+  }
+  html += '</div></div>';
+  html += '</div>';
+
+  // ── Section 4: Pattern Detection ──────────────────────────────────────
+  html += '<div class="signals-section">';
+  html += '<div class="signals-section-title">Patterns</div>';
+  html += '<div class="signals-section-sub">AI analysis across all signals</div>';
+  for (var pi = 0; pi < data.patterns.length; pi++) {
+    var p = data.patterns[pi];
+    html += '<div class="pattern-card pattern-card--' + escHtml(p.accent) + '">';
+    html += '<div class="pattern-title"><i data-lucide="' + escHtml(p.icon) + '"></i>' + escHtml(p.title) + '</div>';
+    html += '<div class="pattern-body">' + escHtml(p.body) + '</div>';
+    html += '<div class="pattern-sources">';
+    for (var psi = 0; psi < p.sources.length; psi++) {
+      html += '<span class="pattern-source">' + escHtml(p.sources[psi]) + '</span>';
+    }
+    html += '</div></div>';
+  }
+  html += '</div>';
+
+  html += '</div>';
+
+  el.innerHTML = html;
+  initIcons();
+}
+
+// Load cached EHR data from localStorage
+function loadEhrCache(personId) {
+  if (!personId) return null;
+  try {
+    var key = 'wellet_ehr_' + personId;
+    var cached = localStorage.getItem(key);
+    if (cached) {
+      var parsed = JSON.parse(cached);
+      ehrCache[personId] = parsed;
+      // Fire practitioner enrichment off the cached care_team so the app
+      // can light up Call/Email/Map links without waiting for a fresh sync.
+      try {
+        if (typeof enrichPractitionersForPerson === 'function' &&
+            parsed && Array.isArray(parsed.care_team) && parsed.care_team.length) {
+          enrichPractitionersForPerson(personId, parsed.care_team, parsed.provider || {});
+        }
+      } catch(_e) {}
+      return parsed;
+    }
+  } catch(e) { console.warn('EHR cache read error:', e); }
+  return null;
+}
+
+// Save EHR data to localStorage
+function saveEhrCache(personId, data) {
+  if (!personId || !data) return;
+  try {
+    var key = 'wellet_ehr_' + personId;
+    ehrCache[personId] = data;
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch(e) { console.warn('EHR cache write error:', e); }
+}
+
+// Clear EHR cache for a person
+function clearEhrCache(personId) {
+  if (!personId) return;
+  try {
+    delete ehrCache[personId];
+    localStorage.removeItem('wellet_ehr_' + personId);
+    // Also clear v2 cache (keyed per-connection) so a wipe is consistent
+    // across both shapes regardless of which path the caller is on.
+    delete ehrCacheV2[personId];
+    localStorage.removeItem('wellet_ehr_v2_' + personId);
+  } catch(e) {}
+}
+
+// ── EHR CACHE V2 (per-connection, gated by localStorage.welletPhase2) ─────────
+// v1 stores ONE flat ehrData per person. v2 stores N connections per person and
+// merges them on read. Both shapes coexist; v1 is untouched so the flag can
+// flip ON or OFF freely without losing data. saveEhrCache() writes BOTH shapes
+// when the response includes _phase2 + connections[] (always true on v55+).
+//
+// Storage key:  wellet_ehr_v2_<personId>
+// Storage shape:
+//   { version: 2,
+//     connections: { <connection_id>: { hospital_name, fhir_base_url,
+//       patient_id, provider, status, conditions, medications, allergies,
+//       observations, immunizations, diagnostic_reports, visits, care_team,
+//       patient, synced_at, last_data_at, result_counts, _diagnostic } } }
+var ehrCacheV2 = {}; // in-memory mirror, lazy-loaded from localStorage
+
+function _v2Key(personId) { return 'wellet_ehr_v2_' + personId; }
+
+function loadEhrCacheV2(personId) {
+  if (!personId) return null;
+  if (ehrCacheV2[personId]) return ehrCacheV2[personId];
+  try {
+    var raw = localStorage.getItem(_v2Key(personId));
+    if (!raw) return null;
+    var parsed = JSON.parse(raw);
+    if (!parsed || parsed.version !== 2 || !parsed.connections) return null;
+    ehrCacheV2[personId] = parsed;
+    return parsed;
+  } catch(e) { console.warn('EHR v2 cache read error:', e); return null; }
+}
+
+// Save the v2 shape for a person. Drops connections that are no longer
+// present in the latest fetch-ehr-data response (server-side disconnect).
+function saveEhrCacheV2(personId, data) {
+  if (!personId || !data || !data._phase2 || !Array.isArray(data.connections)) return;
+  try {
+    var byId = {};
+    for (var i = 0; i < data.connections.length; i++) {
+      var c = data.connections[i];
+      if (!c || !c.connection_id) continue;
+      byId[c.connection_id] = c;
+    }
+    var v2 = { version: 2, connections: byId, _phase2: true };
+    ehrCacheV2[personId] = v2;
+    localStorage.setItem(_v2Key(personId), JSON.stringify(v2));
+  } catch(e) { console.warn('EHR v2 cache write error:', e); }
+}
+
+// Merge all connections for a person into the same flat shape v1 produced,
+// so every existing caller (renderRecordsView, openRecordsDetail, timeline,
+// AskWellet, etc.) keeps working unchanged. Each row is stamped with
+// _connection_id and _hospital_name so later UI (hospital pills, per-row
+// provenance) can read it without another lookup.
+function getMergedEhr(personId) {
+  var v2 = loadEhrCacheV2(personId);
+  if (!v2 || !v2.connections) return null;
+  var ids = Object.keys(v2.connections);
+  if (ids.length === 0) return null;
+
+  // Sort by sort_order ascending if present, otherwise by synced_at descending
+  // (most-recently-synced first). v55 doesn't expose sort_order in the
+  // response yet — fall back to synced_at until it does.
+  ids.sort(function(a, b) {
+    var ca = v2.connections[a] || {};
+    var cb = v2.connections[b] || {};
+    if (ca.sort_order != null && cb.sort_order != null) return ca.sort_order - cb.sort_order;
+    var ta = ca.synced_at ? new Date(ca.synced_at).getTime() : 0;
+    var tb = cb.synced_at ? new Date(cb.synced_at).getTime() : 0;
+    return tb - ta;
+  });
+
+  var ARRAY_KEYS = ['conditions','medications','allergies','observations',
+    'immunizations','diagnostic_reports','visits','care_team'];
+  var merged = {
+    conditions: [], medications: [], allergies: [], observations: [],
+    immunizations: [], diagnostic_reports: [], visits: [], care_team: [],
+    _connections: [],
+  };
+
+  var providerNames = [];
+  var maxSyncedMs = 0;
+  var maxSyncedIso = null;
+  var firstPatient = null;
+  var firstExpectedPatientId = null;
+
+  for (var k = 0; k < ids.length; k++) {
+    var conn = v2.connections[ids[k]];
+    if (!conn) continue;
+
+    if (conn.hospital_name) providerNames.push(conn.hospital_name);
+    if (conn.synced_at) {
+      var t = new Date(conn.synced_at).getTime();
+      if (t > maxSyncedMs) { maxSyncedMs = t; maxSyncedIso = conn.synced_at; }
+    }
+    if (!firstPatient && conn.patient) firstPatient = conn.patient;
+    if (!firstExpectedPatientId && conn.patient_id) firstExpectedPatientId = conn.patient_id;
+
+    // Per-connection summary (used by hospital pills + reconnect banners)
+    merged._connections.push({
+      connection_id: conn.connection_id,
+      hospital_name: conn.hospital_name,
+      fhir_base_url: conn.fhir_base_url,
+      patient_id: conn.patient_id,
+      provider: conn.provider,
+      status: conn.status,
+      synced_at: conn.synced_at,
+      result_counts: conn.result_counts,
+    });
+
+    for (var ak = 0; ak < ARRAY_KEYS.length; ak++) {
+      var key = ARRAY_KEYS[ak];
+      var rows = Array.isArray(conn[key]) ? conn[key] : [];
+      for (var ri = 0; ri < rows.length; ri++) {
+        var row = rows[ri];
+        if (!row) continue;
+        // Stamp source-of-truth without mutating the original cached row.
+        var stamped = {};
+        for (var p in row) { if (Object.prototype.hasOwnProperty.call(row, p)) stamped[p] = row[p]; }
+        if (!stamped._connection_id) stamped._connection_id = conn.connection_id;
+        if (!stamped._hospital_name) stamped._hospital_name = conn.hospital_name;
+        merged[key].push(stamped);
+      }
+    }
+  }
+
+  merged.provider = providerNames.length > 1 ? providerNames.join(', ') : (providerNames[0] || 'EHR');
+  merged.synced_at = maxSyncedIso;
+  if (firstPatient) merged.patient = firstPatient;
+  if (firstExpectedPatientId) merged.expected_patient_id = firstExpectedPatientId;
+  merged._phase2 = true;
+
+  return merged;
+}
+
+function isPhase2Enabled() {
+  try { return localStorage.getItem('welletPhase2') === '1'; } catch(e) { return false; }
+}
+
+// Update the Settings → Developer preview row to reflect current flag state.
+function updatePhase2ToggleUI() {
+  var btn = document.getElementById('phase2-toggle-btn');
+  var desc = document.getElementById('phase2-toggle-desc');
+  if (!btn || !desc) return;
+  var on = isPhase2Enabled();
+  if (on) {
+    btn.textContent = 'Turn off';
+    btn.style.background = 'var(--moss)';
+    btn.style.color = '#fff';
+    btn.style.borderColor = 'var(--moss)';
+    desc.textContent = 'On — Records reads the merged multi-hospital cache.';
+  } else {
+    btn.textContent = 'Turn on';
+    btn.style.background = '#eef2f0';
+    btn.style.color = 'var(--text-primary)';
+    btn.style.borderColor = 'var(--border)';
+    desc.textContent = 'Off — Records reads the single-hospital cache.';
+  }
+}
+
+// Tap handler for the toggle button.
+function togglePhase2Flag() {
+  try {
+    if (isPhase2Enabled()) {
+      localStorage.removeItem('welletPhase2');
+      try { showToast('Multi-hospital preview off'); } catch(e){}
+    } else {
+      localStorage.setItem('welletPhase2', '1');
+      try { showToast('Multi-hospital preview on'); } catch(e){}
+    }
+  } catch(e) { console.warn('phase2 toggle:', e); }
+  updatePhase2ToggleUI();
+  // Re-render the views that read getEhrData() so the change takes effect
+  // immediately without a hard reload.
+  try { if (typeof renderRecordsView === 'function') renderRecordsView(); } catch(e){}
+  try { if (typeof renderTimeline === 'function') renderTimeline(); } catch(e){}
+}
+
+// Check if cached EHR data is stale (older than 24 hours)
+function isEhrCacheStale(personId) {
+  var cached = ehrCache[personId];
+  if (!cached || !cached.synced_at) return true;
+  var age = Date.now() - new Date(cached.synced_at).getTime();
+  return age > 24 * 60 * 60 * 1000;
+}
+
+// Legacy v1 reader — same body as before, kept so the flag can dispatch.
+function _legacyGetEhrData(personId) {
+  if (isDemoMode) {
+    var pills = document.querySelectorAll('#view-records .person-pill, .person-pill.active');
+    var isDad = !personId || personId === 'dad';
+    if (isDad) return DEMO_EHR_DATA;
+    return null;
+  }
+  return ehrCache[personId] || loadEhrCache(personId);
+}
+
+// Get EHR data for current person (demo or real). When the Phase 2 flag is
+// set, route through getMergedEhr() so all existing callers transparently
+// see merged-across-connections data; fall back to v1 if v2 cache is empty
+// (e.g., user just flipped the flag and hasn't synced yet).
+function getEhrData(personId) {
+  if (isPhase2Enabled() && !isDemoMode) {
+    var merged = getMergedEhr(personId);
+    if (merged) return merged;
+  }
+  return _legacyGetEhrData(personId);
+}
+
+// ── Hospital picker state ──
+var _epicEndpoints = null;
+var _epicEndpointsCachedAt = 0;
+var _hospitalPickerDebounce = null;
+
+// Allow-list of FHIR base URLs for orgs where Wellet's confidential client is
+// activated. Picker only shows these so users don't hit Epic's OAuth2 Error
+// at unactivated orgs. URLs are normalized (lowercased, trailing slash stripped)
+// before comparison since Epic's endpoint list is inconsistent.
+// URLs below are taken verbatim from Epic's published R4 bundle
+// (https://open.epic.com/Endpoints/R4). _normFhirUrl() strips trailing
+// slashes and lowercases before comparison so minor formatting drift in
+// either source can't break the gate.
+var ACTIVATED_FHIR_URLS = [
+  // NC Tier 1 (Mom's likely care network)
+  'https://epsoap.conehealth.com/FHIRProxy/api/FHIR/R4/',                            // Cone Health
+  'https://health-apis.duke.edu/FHIR/api/FHIR/R4/',                                  // Duke Health
+  'https://epicrp.firsthealth.org/FHIR-PRD/api/FHIR/R4/',                            // FirstHealth of the Carolinas
+  'https://epicproxy.et0798.epichosted.com/APIProxyPRD/api/FHIR/R4/',                // Novant
+  'https://epicfe.unch.unc.edu/FHIR/api/FHIR/R4/',                                   // UNC Health Care
+  'https://epic-soap.wakemed.org/FHIR/api/FHIR/R4/',                                 // WakeMed
+  'https://epicproxy.et0905.epichosted.com/FHIRProxy/api/FHIR/R4/',                  // Atrium Health
+  'https://spp.caromonthealth.org/FhirProxy/api/FHIR/R4/',                           // CaroMont Health
+  'https://prd-proxy.vidanthealth.com/FHIR/api/FHIR/R4/',                            // ECU Health (Vidant)
+  // CarolinaEast: not in Epic's R4 bundle as of 2026-04-27. Captured via
+  // "Add my health system" form until Epic publishes their R4 endpoint.
+  // National anchors
+  'https://api.ccf.org/mu/api/FHIR/R4/',                                             // Cleveland Clinic
+  'https://ws-interconnect-fhir.partners.org/Interconnect-FHIR-MU-PRD/api/FHIR/R4/', // Mass General Brigham
+  // Mayo Clinic: not in Epic's R4 bundle as of 2026-04-27. Captured via form.
+  'https://unified-api.ucsf.edu/clinical/apex/api/FHIR/R4/',                         // UCSF Health
+  'https://fhir.kp.org/service/ptnt_care/EpicEdiFhirRoutingSvc/v2014/esb-envlbl/212/api/FHIR/R4/' // Kaiser Permanente - Southern California
+];
+
+function _normFhirUrl(u) {
+  if (!u) return '';
+  return String(u).toLowerCase().replace(/\/+$/, '');
+}
+
+var _ACTIVATED_FHIR_SET = (function() {
+  var s = {};
+  for (var i = 0; i < ACTIVATED_FHIR_URLS.length; i++) {
+    s[_normFhirUrl(ACTIVATED_FHIR_URLS[i])] = true;
+  }
+  return s;
+})();
+
+function isActivatedHospital(fhirBaseUrl) {
+  return !!_ACTIVATED_FHIR_SET[_normFhirUrl(fhirBaseUrl)];
+}
+
+// Load Epic endpoint list from open.epic.com (cached 24h in localStorage).
+// Empty arrays are NEVER cached or served from cache — a zero-length result
+// is always treated as a miss so a transient init-time race can't poison the
+// session for 24 hours.
+function loadEpicEndpoints(cb) {
+  // Bump v whenever the loader logic, ACTIVATED_FHIR_URLS, or the cache
+  // shape changes so existing users with stale data refresh.
+  var CACHE_KEY = 'wellet_epic_endpoints_v5';
+  var CACHE_TS_KEY = 'wellet_epic_endpoints_v5_ts';
+  var CACHE_TTL = 24 * 60 * 60 * 1000;
+
+  // Also wipe legacy cache keys on first run so users on v2/v3/v4 don't keep
+  // dragging around an old (possibly-empty or DSTU2) array under a stale key.
+  try {
+    localStorage.removeItem('wellet_epic_endpoints_v2');
+    localStorage.removeItem('wellet_epic_endpoints_v2_ts');
+    localStorage.removeItem('wellet_epic_endpoints_v3');
+    localStorage.removeItem('wellet_epic_endpoints_v3_ts');
+    localStorage.removeItem('wellet_epic_endpoints_v4');
+    localStorage.removeItem('wellet_epic_endpoints_v4_ts');
+  } catch(e) {}
+
+  // Check in-memory cache first — but only if it's non-empty. An empty array
+  // is treated as a miss so a transient init-time race (e.g. callback fired
+  // before isActivatedHospital was defined) can recover on the next call
+  // instead of poisoning the session.
+  if (_epicEndpoints && _epicEndpoints.length > 0 && (Date.now() - _epicEndpointsCachedAt < CACHE_TTL)) {
+    cb(_epicEndpoints);
+    return;
+  }
+
+  // Check localStorage cache — same rule: non-empty only.
+  try {
+    var ts = parseInt(localStorage.getItem(CACHE_TS_KEY) || '0', 10);
+    if (Date.now() - ts < CACHE_TTL) {
+      var cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        var parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          _epicEndpoints = parsed;
+          _epicEndpointsCachedAt = ts;
+          cb(_epicEndpoints);
+          return;
+        }
+      }
+    }
+  } catch(e) {}
+
+  // Fetch from Epic. The cache-buster query param + no-store on the response
+  // belt-and-suspenders defeat any HTTP cache (browser disk, intermediary CDN)
+  // that might still be holding the old DSTU2 response from a prior version
+  // of this edge function. Seen in prod 2026-04-27: a user's tab kept
+  // receiving DSTU2 URLs from disk cache for 24h after we shipped R4.
+  var bust = 'v5_' + Date.now();
+  fetch('https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/epic-endpoints?cb=' + bust, { cache: 'no-store' })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      var endpoints = (data.Entries || data).map(function(e) {
+        return {
+          name: e.OrganizationName || e.Name || '',
+          fhirBaseUrl: e.FHIRPatientFacingURI || e.BaseURL || e.FHIRBaseUrl || '',
+          city: e.City || '',
+          state: e.State || ''
+        };
+      }).filter(function(e) {
+        // Drop entries missing required fields, then gate by activation allow-list
+        // so users only see hospitals where our confidential client is enabled.
+        return e.name && e.fhirBaseUrl && isActivatedHospital(e.fhirBaseUrl);
+      });
+
+      _epicEndpoints = endpoints;
+      _epicEndpointsCachedAt = Date.now();
+
+      // Only persist non-empty results so an upstream blip doesn't poison
+      // the cache for 24h. The next call after a transient empty result
+      // will retry the fetch.
+      if (endpoints.length > 0) {
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify(endpoints));
+          localStorage.setItem(CACHE_TS_KEY, String(Date.now()));
+        } catch(e) {}
+      }
+
+      cb(endpoints);
+    }).catch(function(err) {
+      console.error('Failed to load Epic endpoints:', err);
+      cb([]);
+    });
+}
+
+function renderHospitalList(filtered) {
+  var list = document.getElementById('hospital-picker-list');
+  if (!list) return;
+  if (!filtered || filtered.length === 0) {
+    list.innerHTML = '<li class="hospital-picker-empty">No hospitals found. Try a different search term.</li>';
+    return;
+  }
+  var shown = filtered.slice(0, 50);
+  var html = '';
+  for (var i = 0; i < shown.length; i++) {
+    var h = shown[i];
+    var loc = [h.city, h.state].filter(Boolean).join(', ');
+    html += '<li class="hospital-picker-item" onclick="selectHospital(' + i + ')">'
+      + '<div class="hospital-picker-name">' + escHtml(h.name) + '</div>'
+      + (loc ? '<div class="hospital-picker-loc">' + escHtml(loc) + '</div>' : '')
+      + '</li>';
+  }
+  list.innerHTML = html;
+  // Store filtered list for selection
+  list._filtered = shown;
+}
+
+function selectHospital(idx) {
+  var list = document.getElementById('hospital-picker-list');
+  if (!list || !list._filtered || !list._filtered[idx]) return;
+  var h = list._filtered[idx];
+  closeSheet('hospital-picker-overlay');
+  // If during onboarding (no person yet), store hospital choice and go to name screen
+  if (_obFromEhr && !currentPersonId) {
+    _obEhrPending = { fhirBaseUrl: h.fhirBaseUrl, name: h.name };
+    try { localStorage.setItem('wellet_ob_ehr_hospital', JSON.stringify(_obEhrPending)); } catch(e) {}
+    obShowNameScreen(null);
+    return;
+  }
+  beginEhrOAuth(h.fhirBaseUrl, h.name, false);
+}
+
+function filterHospitals(query) {
+  if (!_epicEndpoints) return [];
+  if (!query) return _epicEndpoints.slice(0, 50);
+  var q = query.toLowerCase();
+  return _epicEndpoints.filter(function(e) {
+    return e.name.toLowerCase().indexOf(q) !== -1
+      || (e.city && e.city.toLowerCase().indexOf(q) !== -1)
+      || (e.state && e.state.toLowerCase().indexOf(q) !== -1);
+  });
+}
+
+// Open the hospital picker overlay
+function startEhrConnect() {
+  if (isDemoMode) {
+    showToast('In the real app, this connects to your provider\u2019s records');
+    return;
+  }
+  if (!currentUser) {
+    showToast('Please sign in first');
+    return;
+  }
+  if (!currentPersonId) {
+    showToast('Please select a person first');
+    return;
+  }
+
+  openSheetAccessible('hospital-picker-overlay');
+  initIcons();
+
+  var input = document.getElementById('hospital-picker-input');
+  if (input) {
+    input.value = '';
+    input.removeEventListener('input', _hospitalPickerInputHandler);
+    input.addEventListener('input', _hospitalPickerInputHandler);
+  }
+
+  // Load endpoints and render initial list
+  var list = document.getElementById('hospital-picker-list');
+  if (list) list.innerHTML = '<li class="hospital-picker-loading">Loading hospitals\u2026</li>';
+
+  loadEpicEndpoints(function(endpoints) {
+    renderHospitalList(endpoints.slice(0, 50));
+  });
+}
+
+function _hospitalPickerInputHandler() {
+  clearTimeout(_hospitalPickerDebounce);
+  _hospitalPickerDebounce = setTimeout(function() {
+    var input = document.getElementById('hospital-picker-input');
+    var query = input ? input.value.trim() : '';
+    var filtered = filterHospitals(query);
+    renderHospitalList(filtered);
+  }, 200);
+}
+
+// ── CONNECT-REQUEST FLOW ────────────────────────────────────────────────────
+var _crContext = {};
+
+function openConnectRequestModal(opts) {
+  opts = opts || {};
+  _crContext = opts;
+
+  // Reset to form view
+  var formView = document.getElementById('cr-form-view');
+  var successView = document.getElementById('cr-success-view');
+  if (formView) formView.style.display = '';
+  if (successView) successView.style.display = 'none';
+
+  // Pre-fill form fields
+  var hospitalEl = document.getElementById('cr-hospital');
+  var cityEl = document.getElementById('cr-city');
+  var stateEl = document.getElementById('cr-state');
+  var issueEl = document.getElementById('cr-issue');
+  var notesEl = document.getElementById('cr-notes');
+  var emailEl = document.getElementById('cr-email');
+  var subEl = document.getElementById('cr-sub');
+
+  if (hospitalEl) hospitalEl.value = opts.hospital_name || '';
+  if (cityEl) cityEl.value = opts.city || '';
+  if (stateEl) stateEl.value = opts.state || '';
+  if (issueEl) issueEl.value = opts.issue_type || 'not_found';
+  if (notesEl) notesEl.value = opts.notes || '';
+  if (emailEl) {
+    var defaultEmail = '';
+    try { if (currentUser && currentUser.email) defaultEmail = currentUser.email; } catch(e) {}
+    emailEl.value = opts.contact_email || defaultEmail;
+  }
+
+  // Contextual subheading
+  if (subEl) {
+    if (opts.issue_type === 'unsupported_version') {
+      subEl.textContent = 'It looks like your hospital isn’t on a supported version yet. Share a few details and we’ll let you know as soon as support is ready.';
+    } else if (opts.issue_type === 'oauth_error') {
+      subEl.textContent = 'Sorry about that — we hit a snag connecting. Send us the details and we’ll take a look.';
+    } else {
+      subEl.textContent = 'We’re adding hospitals every week. Share a few details and we’ll follow up when yours is ready.';
+    }
+  }
+
+  // Reset submit button state
+  var btn = document.getElementById('cr-submit-btn');
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = 'Send';
+  }
+
+  var overlay = document.getElementById('cr-overlay');
+  if (overlay) {
+    overlay.classList.add('show');
+  }
+  initIcons();
+}
+
+function closeConnectRequestModal() {
+  var overlay = document.getElementById('cr-overlay');
+  if (overlay) overlay.classList.remove('show');
+  _crContext = {};
+}
+
+function submitConnectRequest() {
+  var btn = document.getElementById('cr-submit-btn');
+  var hospitalEl = document.getElementById('cr-hospital');
+  var cityEl = document.getElementById('cr-city');
+  var stateEl = document.getElementById('cr-state');
+  var issueEl = document.getElementById('cr-issue');
+  var notesEl = document.getElementById('cr-notes');
+  var emailEl = document.getElementById('cr-email');
+
+  var hospitalName = hospitalEl ? hospitalEl.value.trim() : '';
+  var city = cityEl ? cityEl.value.trim() : '';
+  var state = stateEl ? stateEl.value.trim() : '';
+  var issueType = issueEl ? issueEl.value : 'other';
+  var notes = notesEl ? notesEl.value.trim() : '';
+  var contactEmail = emailEl ? emailEl.value.trim() : '';
+
+  if (!hospitalName) {
+    showToast('Please enter your hospital or health system');
+    if (hospitalEl) hospitalEl.focus();
+    return;
+  }
+
+  var payload = {
+    hospital_name: hospitalName,
+    city: city || null,
+    state: state || null,
+    issue_type: issueType,
+    notes: notes || null,
+    contact_email: contactEmail || null,
+    fhir_base_url: _crContext.fhir_base_url || null,
+    error_code: _crContext.error_code || null,
+    error_message: _crContext.error_message || null,
+    person_id: _crContext.person_id || (typeof currentPersonId !== 'undefined' ? currentPersonId : null),
+    source: _crContext.source || null
+  };
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+  }
+
+  db.auth.getSession().then(function(s) {
+    var headers = {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY
+    };
+    var session = s && s.data && s.data.session;
+    if (session && session.access_token) {
+      headers['Authorization'] = 'Bearer ' + session.access_token;
+    }
+    return fetch(SUPABASE_URL + '/functions/v1/submit-connect-request', {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(payload)
+    });
+  }).then(function(res) {
+    return res.json().then(function(data) {
+      return { status: res.status, data: data };
+    }).catch(function() {
+      return { status: res.status, data: null };
+    });
+  }).then(function(result) {
+    if (result.status >= 200 && result.status < 300) {
+      var formView = document.getElementById('cr-form-view');
+      var successView = document.getElementById('cr-success-view');
+      if (formView) formView.style.display = 'none';
+      if (successView) successView.style.display = '';
+      initIcons();
+    } else {
+      var errMsg = (result.data && result.data.error) ? result.data.error : 'Could not send right now. Please try again.';
+      showToast(errMsg);
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Send';
+      }
+    }
+  }).catch(function(err) {
+    console.error('[connect-request] submit error', err);
+    showToast('Could not send right now. Please try again.');
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Send';
+    }
+  });
+}
+
+// Begin the actual OAuth redirect for a selected hospital (or sandbox)
+function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox) {
+  if (_ehrConnecting) return;
+  var personId = currentPersonId;
+  if (!personId && _obFromEhr) {
+    // Onboarding: no person yet — store choice; chat flow will create person first
+    closeSheet('hospital-picker-overlay');
+    _obEhrPending = { fhirBaseUrl: fhirBaseUrl, name: hospitalName || (isSandbox ? 'Epic Sandbox' : null), sandbox: !!isSandbox };
+    try { localStorage.setItem('wellet_ob_ehr_hospital', JSON.stringify(_obEhrPending)); } catch(e) {}
+    // In chat-first flow, inform user we need to finish names first
+    if (obChat && obChat.phase === 'connect') {
+      obAddBubble('wellet', 'I\u2019ll connect to the portal once we\u2019re set up. Let me finish getting things ready.');
+    }
+    return;
+  }
+  if (!personId) {
+    showToast('Please select a person first');
+    return;
+  }
+
+  _ehrConnecting = true;
+  _ehrPendingPersonId = personId;
+
+  try { localStorage.setItem('wellet_ehr_pending_person', personId); } catch(e) {}
+
+  var label = isSandbox ? 'Epic Sandbox' : (hospitalName || 'your hospital');
+  showToast('Connecting to ' + label + '\u2026');
+
+  // Force a token refresh to avoid stale JWT race condition
+  db.auth.refreshSession().then(function(refreshRes) {
+    var session = refreshRes.data.session;
+    if (!session) {
+      // Fallback to getSession if refresh fails
+      return db.auth.getSession().then(function(s) { return s.data.session; });
+    }
+    return session;
+  }).then(function(session) {
+    if (!session) {
+      showToast('Session expired. Please sign in again.');
+      _ehrConnecting = false;
+      return;
+    }
+    var payload = { action: 'start', person_id: personId };
+    if (isSandbox) {
+      payload.sandbox = true;
+    } else if (fhirBaseUrl) {
+      payload.fhirBaseUrl = fhirBaseUrl;
+      if (hospitalName) payload.hospitalName = hospitalName;
+    }
+    var tok = session.access_token || '';
+    try { console.log('[ehr] sending token fingerprint', tok.slice(0,8) + '...' + tok.slice(-4), 'len=' + tok.length, 'user=' + (session.user && session.user.id)); } catch(e) {}
+    return fetch(SUPABASE_URL + '/functions/v1/epic-auth', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + tok,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify(payload)
+    });
+  }).then(function(res) {
+    if (!res) return;
+    try { console.log('[ehr] epic-auth response status', res.status); } catch(e) {}
+    return res.json();
+  }).then(function(data) {
+    _ehrConnecting = false;
+    if (!data) return;
+    try { console.log('[ehr] epic-auth body', data); } catch(e) {}
+    if (data.error) {
+      if (data.error === 'unsupported_fhir_version') {
+        showToast('This hospital isn’t supported yet — let us know and we’ll get to work on it.');
+        setTimeout(function() {
+          openConnectRequestModal({
+            source: 'unsupported_version',
+            issue_type: 'unsupported_version',
+            hospital_name: hospitalName || '',
+            fhir_base_url: fhirBaseUrl || null,
+            error_code: data.error,
+            error_message: data.message || data.diag || null,
+            person_id: personId
+          });
+        }, 400);
+        return;
+      }
+      // 2026-04-26 hotfix: server-side guard that refuses a SECOND hospital on
+      // a loved one until the rest of the N-connections refactor lands. The
+      // server returns a friendly message in `data.message`. Surface it as a
+      // plain toast — no "let us know" modal, since this is an expected
+      // temporary limitation, not a hospital-support gap.
+      if (data.error === 'multi_hospital_not_yet_supported') {
+        showToast(data.message || 'Multi-hospital support is shipping soon — for now, only one hospital can be connected at a time per loved one.');
+        return;
+      }
+      var msg = 'Error: ' + data.error;
+      if (data.diag) msg += ' (' + data.diag + ')';
+      showToast(msg);
+      // Offer the "Let us know" path for any other start-phase error
+      setTimeout(function() {
+        openConnectRequestModal({
+          source: 'start_error',
+          issue_type: 'oauth_error',
+          hospital_name: hospitalName || '',
+          fhir_base_url: fhirBaseUrl || null,
+          error_code: data.error,
+          error_message: data.message || data.diag || null,
+          person_id: personId
+        });
+      }, 400);
+      return;
+    }
+    if (data.authorize_url) {
+      // Validate redirect URL — must be HTTPS (production hospitals have diverse hostnames)
+      try {
+        var authUrl = new URL(data.authorize_url);
+        if (authUrl.protocol === 'https:') {
+          window.location.href = data.authorize_url;
+        } else {
+          showToast('Invalid authorize URL');
+        }
+      } catch(e) {
+        showToast('Invalid authorize URL');
+      }
+    }
+  }).catch(function(err) {
+    _ehrConnecting = false;
+    console.error('EHR connect error:', err);
+    showToast('Failed to start EHR connection');
+  });
+}
+
+// Handle the Epic OAuth callback (called on page load if code is present)
+function handleEhrCallback() {
+  var params = new URLSearchParams(window.location.search);
+  var code = params.get('code');
+  if (!code) { console.log('EHR callback: no code param'); return; }
+  // Validate OAuth code format (allow base64 and common auth code chars)
+  if (!/^[a-zA-Z0-9\-_.+=\/]{1,2048}$/.test(code)) { console.warn('EHR callback: code failed validation', code.substring(0, 40)); return; }
+  var state = params.get('state') || '';
+
+  // Get the pending person_id
+  var personId;
+  try { personId = localStorage.getItem('wellet_ehr_pending_person'); } catch(e) {}
+  if (!personId) {
+    console.warn('EHR callback: no pending person_id');
+    return;
+  }
+
+  // Clean up URL — navigate back to root
+  try {
+    window.history.replaceState({}, '', window.location.origin + '/');
+  } catch(e) {}
+
+  // Wait for auth to be ready, then exchange the code
+  var checkAuth = setInterval(function() {
+    if (!currentUser) return;
+    clearInterval(checkAuth);
+
+    showToast('Completing Epic connection\u2026');
+
+    db.auth.getSession().then(function(sessionRes) {
+      var session = sessionRes.data.session;
+      if (!session) return;
+      return fetch(SUPABASE_URL + '/functions/v1/epic-auth', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + session.access_token,
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({ action: 'callback', code: code, state: state, person_id: personId })
+      });
+    }).then(function(res) {
+      if (!res) return;
+      return res.json();
+    }).then(function(data) {
+      if (!data) return;
+      if (data.error) {
+        // Surface server error messages (e.g., unsupported_fhir_version, server_misconfigured)
+        var msg = data.message || data.error || 'Unknown error';
+        showToast('EHR connection failed: ' + msg);
+        try { localStorage.removeItem('wellet_ehr_pending_person'); } catch(e) {}
+        // Offer the "Let us know" path
+        var cbIssue = (data.error === 'unsupported_fhir_version') ? 'unsupported_version' : 'oauth_error';
+        var cbHospital = data.hospital_name || '';
+        var cbFhir = data.fhir_base_url || null;
+        setTimeout(function() {
+          openConnectRequestModal({
+            source: 'oauth_callback',
+            issue_type: cbIssue,
+            hospital_name: cbHospital,
+            fhir_base_url: cbFhir,
+            error_code: data.error,
+            error_message: msg,
+            person_id: personId
+          });
+        }, 400);
+        return;
+      }
+      try { localStorage.removeItem('wellet_ehr_pending_person'); } catch(e) {}
+      // Make sure the connected person is the one shown on return — otherwise we
+      // default to currentPeople[0] (typically Mom/Cheryl) and it looks like the
+      // import landed on the wrong person.
+      setCurrentPersonId(personId);
+      if (typeof loadPersonData === 'function') {
+        try { loadPersonData(personId); } catch(e) { console.warn('loadPersonData after EHR callback failed:', e); }
+      }
+      if (typeof applyPersonBg === 'function') { try { applyPersonBg(personId); } catch(e) {} }
+      // Sync the visible person pill so the UI also updates
+      try {
+        var pills = document.querySelectorAll('.person-pill[data-person-id]');
+        pills.forEach(function(p){
+          var match = p.getAttribute('data-person-id') === personId;
+          p.classList.toggle('active', match);
+          p.setAttribute('aria-selected', match ? 'true' : 'false');
+        });
+      } catch(e) {}
+      // Check if returning from onboarding EHR connect
+      var fromOnboarding = false;
+      try { fromOnboarding = localStorage.getItem('wellet_ob_ehr_return') === 'true'; localStorage.removeItem('wellet_ob_ehr_return'); } catch(e) {}
+      if (fromOnboarding) {
+        showToast('Health records connected!');
+        var hospital = data.hospital_name || data.provider || 'your hospital';
+        // Mark onboarding state so the chat knows EHR is connected (used by
+        // obShowConnectChips to hide the already-completed option if the user
+        // comes back to it later).
+        if (obChat) { obOnEhrConnected(hospital); }
+        // Close onboarding chat and drop into the authenticated app, then jump
+        // to Records so the user watches their data land.
+        showOwnWellet();
+        fetchEhrData(personId, true);
+        setTimeout(function() { try { switchNavTo('records'); } catch(e) {} }, 300);
+        return;
+      }
+      showToast('Health records connected! Fetching data\u2026');
+      // Take the user straight to Records so they can watch the data land
+      try { switchNavTo('records'); } catch(e) { console.warn('switchNavTo(records) after EHR connect failed:', e); }
+      fetchEhrData(personId, true);
+    }).catch(function(err) {
+      console.error('EHR callback error:', err);
+      showToast('EHR connection failed');
+    });
+  }, 500);
+
+  // Timeout after 15 seconds
+  setTimeout(function() { clearInterval(checkAuth); }, 15000);
+}
+
+// Handle the /epic-callback route specifically
+function handleEpicCallback() {
+  var path = window.location.pathname;
+  if (path === '/epic-callback') {
+    handleEhrCallback();
+  }
+}
+
+// Fetch EHR data from the edge function
+function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
+  // Surface silent bails — these have historically caused "Refresh doesn't do anything" reports.
+  if (isDemoMode) { console.warn('[EHR] fetchEhrData bail: demo mode'); return; }
+  if (!currentUser) { console.warn('[EHR] fetchEhrData bail: no currentUser'); try { showToast('Not signed in \u2014 please reload'); } catch(e){} return; }
+  if (!personId) { console.warn('[EHR] fetchEhrData bail: no personId'); try { showToast('No person selected'); } catch(e){} return; }
+  console.log('[EHR] fetchEhrData START person=' + personId);
+  var retryAttempt = _retryAttempt || 0;
+
+  // Sentinel returned by any earlier silent-bail path so the next .then in
+  // this chain knows the bail was already handled (toast + status restore
+  // already happened) and should NOT show its own "Couldn't reach health
+  // records" toast.
+  var BAILED = '__bailed__';
+
+  db.auth.getSession().then(function(sessionRes) {
+    var session = sessionRes.data.session;
+    if (!session) {
+      console.warn('[EHR] fetchEhrData bail: no session');
+      try { showToast('Session expired \u2014 please reload to sign in'); } catch(e){}
+      try { restoreRecordsEhrStatus(); } catch(e){}
+      return BAILED;
+    }
+    return fetch(SUPABASE_URL + '/functions/v1/fetch-ehr-data', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + session.access_token,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ person_id: personId })
+    });
+  }).then(function(res) {
+    if (res === BAILED) return BAILED;
+    if (!res) return null;
+    // 401 + error envelope = every connection failed token refresh.
+    // Surface this as a reconnect prompt instead of a generic "couldn't
+    // reach health records" toast — the network is fine, the token isn't.
+    if (res.status === 401) {
+      console.warn('[EHR] fetch-ehr-data 401 \u2014 token refresh failed for all connections');
+      try { showToast('Please reconnect your health records to refresh access'); } catch(e){}
+      try { restoreRecordsEhrStatus(); } catch(e){}
+      try { evaluateReconnectBanner(); } catch(e) {}
+      return BAILED;
+    }
+    // A 404 can happen legitimately (no connection) OR transiently right after a
+    // successful OAuth callback (Postgres read-after-write lag on a pooled replica).
+    // We never wipe the cache on 404 anymore — that caused the UI to show
+    // "Connect Health Records" even when the connection row existed in the DB.
+    // Instead: verify with a direct query; retry once after a short delay if a
+    // row exists; surface a gentle toast only if the row is truly missing.
+    if (res.status === 404) {
+      console.warn('[EHR] fetch-ehr-data returned 404 for', personId, 'attempt', retryAttempt);
+      // Look directly at ehr_connections to know whether a connection row exists.
+      db.from('ehr_connections')
+        .select('id, access_token, connected_at')
+        .eq('person_id', personId)
+        .maybeSingle()
+        .then(function(connRes) {
+          var hasConn = connRes && connRes.data && connRes.data.access_token;
+          if (hasConn && retryAttempt < 2) {
+            // Row exists — this was a transient read-after-write race. Retry after a delay.
+            var delay = 1500 + retryAttempt * 1500;
+            console.log('[EHR] connection row exists; retrying fetch in', delay, 'ms');
+            setTimeout(function(){ fetchEhrData(personId, navigateToRecords, retryAttempt + 1); }, delay);
+            return;
+          }
+          if (hasConn) {
+            // Row exists but fetch still 404s after retries. Leave cache alone,
+            // surface a reconnect suggestion.
+            showToast('Records are taking a moment — try again in a few seconds');
+            return;
+          }
+          // No connection row really exists. Only now is it safe to clear cache.
+          console.warn('[EHR] no connection row found; clearing cache for', personId);
+          clearEhrCache(personId);
+          liveMeds = liveMeds.filter(function(m) { return m.source !== 'ehr'; });
+          liveAllergies = liveAllergies.filter(function(a) { return a.source !== 'ehr'; });
+          liveLabs = liveLabs.filter(function(l) { return l.source !== 'ehr'; });
+          if (personId === currentPersonId) { try { renderRecordsView(); } catch(e){} try { renderTimeline(); } catch(e){} }
+          try { updateSettingsEhr(); } catch(e){}
+          try { updateProfileEhr(personId); } catch(e){}
+          try { initIcons(); } catch(e){}
+        });
+      return BAILED;
+    }
+    return res.json();
+  }).then(function(data) {
+    if (data === BAILED) return;
+    if (!data || data.error) {
+      // PHI log removed
+      console.warn('[EHR] fetchEhrData bail: no data or data.error');
+      try { showToast("Couldn\u2019t reach health records \u2014 try again"); } catch(e){}
+      try { restoreRecordsEhrStatus(); } catch(e){}
+      return;
+    }
+    // Identity safety check: the FHIR Patient returned must match the patient_id
+    // stored with this connection. This catches cases where an Epic proxy session
+    // or stale browser session caused the OAuth flow to mint a token against the
+    // wrong patient (which would silently overwrite the wrong person's cache).
+    if (data.expected_patient_id && data.patient && data.patient.id
+        && data.patient.id !== data.expected_patient_id) {
+      console.warn('EHR identity mismatch', {
+        personId: personId,
+        expected: data.expected_patient_id,
+        returned: data.patient.id,
+      });
+      showToast('Identity mismatch — please reconnect this person’s record');
+      // Do NOT cache — this would overwrite the wrong person
+      try { restoreRecordsEhrStatus(); } catch(e){}
+      return;
+    }
+    saveEhrCache(personId, data);
+    // Phase 2 dual-write: when the response carries connections[] (v55+),
+    // also persist the per-connection v2 shape. v1 stays the source of truth
+    // until the flag flips ON; v2 is read-only until then.
+    try { saveEhrCacheV2(personId, data); } catch(e) { console.warn('v2 cache save:', e); }
+    showToast('Health records updated');
+    // Re-render views with EHR data
+    if (personId === currentPersonId) {
+      renderRecordsView();
+      renderTimeline();
+      try { evaluateReconnectBanner(); } catch(e) {}
+    }
+    // Background-fill missing practitioner contact info from public sources
+    // (dukehealth.org, NPPES). Render gets re-triggered as each result lands.
+    try {
+      var ct = (data && data.care_team) || [];
+      var prov = (data && (data.provider || {})) || {};
+      enrichPractitionersForPerson(personId, ct, prov);
+    } catch(e) {}
+    // Navigate to Records view after initial EHR connection
+    if (navigateToRecords) {
+      switchNavTo('records');
+    }
+  }).catch(function(err) {
+    console.error('EHR fetch error:', err);
+    try { showToast("Couldn\u2019t reach health records \u2014 try again"); } catch(e){}
+    try { restoreRecordsEhrStatus(); } catch(e){}
+  });
+}
+
+// Refresh EHR data (manual button click)
+function refreshEhrData() {
+  console.log('[EHR] refreshEhrData tapped; isDemoMode=' + isDemoMode + ' currentPersonId=' + currentPersonId + ' currentUser=' + (currentUser ? currentUser.id : 'null'));
+  if (isDemoMode) {
+    showToast('Demo data refreshed');
+    return;
+  }
+  var personId = currentPersonId;
+  if (!personId) { showToast('No person selected \u2014 tap a person pill first'); return; }
+  if (!currentUser) { showToast('Not signed in \u2014 please reload'); return; }
+  showToast('Refreshing health records\u2026');
+  fetchEhrData(personId);
+}
+
+// Disconnect EHR
+function disconnectEhr() {
+  console.log('[EHR] disconnectEhr called, isDemoMode:', isDemoMode, 'currentPersonId:', currentPersonId);
+  if (isDemoMode) { showToast('Demo mode — disconnect not available'); return; }
+  var personId = currentPersonId;
+  if (!personId) { showToast('No person selected'); return; }
+  if (!confirm('Disconnect health records? Cached data on this device will be removed.')) return;
+
+  showToast('Disconnecting...');
+  clearEhrCache(personId);
+
+  db.auth.getSession().then(function(sessionRes) {
+    var session = sessionRes.data.session;
+    if (!session) { showToast('Not signed in'); return; }
+    return fetch(SUPABASE_URL + '/functions/v1/epic-auth', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + session.access_token,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ action: 'disconnect', person_id: personId })
+    });
+  }).then(function(resp) {
+    console.log('[EHR] disconnect response:', resp && resp.status);
+    showToast('Health records disconnected');
+    // Clear any remaining in-memory data
+    liveMeds = liveMeds.filter(function(m) { return m.source !== 'ehr'; });
+    liveAllergies = liveAllergies.filter(function(a) { return a.source !== 'ehr'; });
+    liveLabs = liveLabs.filter(function(l) { return l.source !== 'ehr'; });
+    renderRecordsView();
+    renderTimeline();
+    updateSettingsEhr();
+    updateProfileEhr(personId);
+    initIcons();
+  }).catch(function(err) {
+    console.error('EHR disconnect error:', err);
+    showToast('Disconnect failed — check console');
+  });
+}
+
+// Update settings EHR status display
+function updateSettingsEhr() {
+  var statusEl = document.getElementById('settings-ehr-status');
+  var labelEl = document.getElementById('settings-ehr-label');
+  var metaEl = document.getElementById('settings-ehr-meta');
+  if (!statusEl) return;
+
+  var ehrData = getEhrData(currentPersonId);
+  if (isDemoMode && ehrData) {
+    statusEl.innerHTML = '<div class="ehr-status-bar">'
+      + '<div class="ehr-status-left"><div class="ehr-status-dot" aria-hidden="true"></div>Connected to ' + escHtml(ehrData.provider) + '</div>'
+      + '<div class="ehr-status-right"><span style="font-size:11px;color:var(--text-muted);">Demo data</span></div>'
+      + '</div>';
+    if (labelEl) labelEl.textContent = 'Health Records Connected';
+    if (metaEl) metaEl.textContent = 'Demo mode \u2014 showing sample EHR data';
+  } else if (ehrData && ehrData.synced_at) {
+    var syncedStr = formatEventDate(ehrData.synced_at);
+    statusEl.innerHTML = '<div class="ehr-status-bar">'
+      + '<div class="ehr-status-left"><div class="ehr-status-dot" aria-hidden="true"></div>Connected to ' + escHtml(ehrData.provider || 'EHR Provider') + '</div>'
+      + '<div class="ehr-status-right">'
+      + '<span style="font-size:11px;color:var(--text-muted);">Synced ' + syncedStr + '</span>'
+      + '<button type="button" class="ehr-refresh-btn" onclick="event.stopPropagation();refreshEhrData();" title="Refresh"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>'
+      + '</div></div>'
+      + '<div style="display:flex;gap:8px;margin-top:8px;">'
+      + '<button type="button" onclick="refreshEhrData()" style="flex:1;padding:10px;font-size:13px;font-family:\'DM Sans\',sans-serif;font-weight:500;background:var(--mint);color:var(--moss);border:none;border-radius:8px;cursor:pointer;"><i data-lucide="refresh-cw" style="width:13px;height:13px;vertical-align:-2px;"></i> Refresh data</button>'
+      + '<button type="button" onclick="disconnectEhr()" style="flex:1;padding:10px;font-size:13px;font-family:\'DM Sans\',sans-serif;font-weight:500;background:#FEF0EE;color:var(--red);border:none;border-radius:8px;cursor:pointer;"><i data-lucide="unplug" style="width:13px;height:13px;vertical-align:-2px;"></i> Disconnect</button>'
+      + '</div>';
+    if (labelEl) labelEl.textContent = 'Manage Health Records';
+    if (metaEl) metaEl.textContent = 'Connected to ' + (ehrData.provider || 'EHR Provider');
+    // Hide the connect row since we're showing disconnect controls
+    var connectRow = labelEl ? labelEl.closest('.settings-row') : null;
+    if (connectRow) connectRow.style.display = 'none';
+    initIcons();
+  } else {
+    statusEl.innerHTML = '';
+    if (labelEl) labelEl.textContent = 'Connect Health Records';
+    if (metaEl) metaEl.textContent = 'Import data from your provider (Epic, Cerner, etc.)';
+    // Re-show the connect row if it was hidden
+    var connectRow = labelEl ? labelEl.closest('.settings-row') : null;
+    if (connectRow) connectRow.style.display = '';
+  }
+}
+
+// Update profile EHR section
+function updateProfileEhr(personId) {
+  var section = document.getElementById('profile-ehr-section');
+  if (!section) return;
+  var pid = personId || currentPersonId;
+  var ehrData = getEhrData(pid);
+
+  if (isDemoMode && ehrData) {
+    section.innerHTML = '<div class="ehr-status-bar">'
+      + '<div class="ehr-status-left"><div class="ehr-status-dot" aria-hidden="true"></div>Connected to ' + escHtml(ehrData.provider) + '</div>'
+      + '<div class="ehr-status-right"><span style="font-size:11px;color:var(--text-muted);">Demo</span></div>'
+      + '</div>';
+  } else if (ehrData && ehrData.synced_at) {
+    section.innerHTML = '<div class="ehr-status-bar">'
+      + '<div class="ehr-status-left"><div class="ehr-status-dot" aria-hidden="true"></div>Connected to ' + escHtml(ehrData.provider || 'EHR Provider') + '</div>'
+      + '<div class="ehr-status-right">'
+      + '<button class="ehr-refresh-btn" onclick="event.stopPropagation();refreshEhrData();" title="Refresh"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>'
+      + '</div></div>';
+    initIcons();
+  } else {
+    section.innerHTML = '<div class="ehr-connect-card" onclick="startEhrConnect()">'
+      + '<div class="ehr-connect-icon"><i data-lucide="hospital" style="width:22px;height:22px;"></i></div>'
+      + '<div class="ehr-connect-title">Connect Health Records</div>'
+      + '<div class="ehr-connect-desc">Import medications, conditions, and lab results from your provider</div>'
+      + '</div>';
+    initIcons();
+  }
+}
+
+// Build EHR badge HTML
+function ehrBadgeHtml(provider) {
+  return '<span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span>';
+}
+
+// Toggle older reports block in Records view
+function toggleOlderReports(btn) {
+  var el = document.getElementById('ehr-reports-older');
+  if (!el) return;
+  var count = btn.getAttribute('data-older-count') || '0';
+  var n = parseInt(count, 10) || 0;
+  var showing = el.style.display === 'block';
+  if (showing) {
+    el.style.display = 'none';
+    btn.textContent = 'Show ' + n + ' older report' + (n === 1 ? '' : 's');
+  } else {
+    el.style.display = 'block';
+    btn.textContent = 'Hide older reports';
+  }
+}
+
+function ehrProviderBadgeHtml(provider) {
+  return '<span class="ehr-provider-badge">From ' + escHtml(provider || 'EHR') + '</span>';
+}
+
+// Per-row hospital pill: when the loved one has 2+ connected hospitals AND
+// the row was tagged with `_hospital_name` by getMergedEhr(), use that name
+// so each row reads "From Duke Health" or "From UNC" instead of the joined
+// global "From Duke Health, UNC". Falls back to the global provider for
+// single-connection people (Mom today) so behavior is unchanged.
+function rowProviderBadge(row, fallbackProvider, ehrData) {
+  try {
+    var multi = ehrData && ehrData._connections && ehrData._connections.length >= 2;
+    if (multi && row && row._hospital_name) {
+      return ehrProviderBadgeHtml(row._hospital_name);
+    }
+  } catch(e) {}
+  return ehrProviderBadgeHtml(fallbackProvider);
+}
+
+function appleHealthBadgeHtml(source, providerName) {
+  if (source === 'apple_health') {
+    return '<span class="ehr-badge" style="background:#E8F5E9;color:#2E7D32;"><i data-lucide="watch" style="width:10px;height:10px;"></i>Apple Health</span>';
+  }
+  if (source === 'terra') {
+    return '<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;background:#E8F0FE;color:#4A90D9;padding:1px 7px;border-radius:8px;"><i data-lucide="watch" style="width:10px;height:10px;"></i> ' + escHtml(providerName || 'Wearable') + '</span>';
+  }
+  if (source === 'ehr') return ehrBadgeHtml();
+  return '';
+}
+
+// Build EHR status bar for Records view
+function buildEhrStatusBar(ehrData) {
+  if (!ehrData || !ehrData.synced_at) return '';
+  var syncedStr = formatEventDate(ehrData.synced_at);
+  // Show the actual patient name/DOB returned by the EHR so the caregiver can
+  // verify the chart matches the person shown. This is the final safeguard
+  // against silent identity mismatches.
+  var patientLine = '';
+  if (ehrData.patient && ehrData.patient.name) {
+    var dob = ehrData.patient.birth_date ? ' \u00B7 DOB ' + escHtml(ehrData.patient.birth_date) : '';
+    patientLine = '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">Chart: ' + escHtml(ehrData.patient.name) + dob + '</div>';
+  }
+  return '<div class="ehr-status-bar">'
+    + '<div class="ehr-status-left"><div class="ehr-status-dot" aria-hidden="true"></div>'
+    + '<div><strong>EHR Connected</strong> \u00B7 ' + escHtml(ehrData.provider || 'Provider')
+    + patientLine + '</div></div>'
+    + '<div class="ehr-status-right">'
+    + '<span style="font-size:11px;color:var(--text-muted);">Synced ' + syncedStr + '</span>'
+    // "Add another hospital" entry point. Opens the same Epic hospital picker
+    // that first-time connect uses. The epic-auth `start` route enforces a
+    // per-loved-one guard until the full N-connections refactor ships, so
+    // attempting a different hospital today returns a friendly 409 that the
+    // picker surfaces. Same hospital re-connect (e.g. expired refresh) is
+    // allowed through.
+    + '<button class="ehr-refresh-btn" onclick="startEhrConnect()" title="Add another hospital"><i data-lucide="plus" style="width:14px;height:14px;"></i></button>'
+    + '<button class="ehr-refresh-btn" onclick="refreshEhrData()" title="Refresh data"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>'
+    + '<button class="ehr-refresh-btn" onclick="disconnectEhr()" title="Disconnect" style="color:var(--red);"><i data-lucide="unplug" style="width:14px;height:14px;"></i></button>'
+    + '</div></div>';
+}
+
+// Toggle the "older visits" container inside Records → Appointments & visits.
+// Called from an inline onclick on the "Show N older visits" button. Keeping
+// this as a named global avoids the fragile nested-quote inline handlers that
+// shipped earlier and were producing literal "+" artifacts in the label.
+function toggleOlderVisits(btn) {
+  var d = document.getElementById('ehr-older-visits');
+  if (!d) return;
+  var count = btn.getAttribute('data-older-count') || '';
+  var open = d.style.display !== 'none';
+  d.style.display = open ? 'none' : 'block';
+  btn.textContent = open ? ('Show ' + count + ' older visits') : 'Hide older visits';
+  try { initIcons(); } catch (e) {}
+}
+
+// Filter the Appointments & Visits detail view by free-text search and/or a
+// selected year-month. Works by toggling .record-row visibility and hiding
+// month headers that end up with no visible children.
+function filterVisits() {
+  var view = document.querySelector('.records-detail-view');
+  if (!view) return;
+  var searchEl = document.getElementById('visits-search-input');
+  var monthEl  = document.getElementById('visits-month-input');
+  var clearBtn = document.getElementById('visits-clear-btn');
+  var noMatch  = document.getElementById('visits-no-match');
+  var q  = (searchEl && searchEl.value || '').trim().toLowerCase();
+  var ym = (monthEl  && monthEl.value  || '').trim(); // 'YYYY-MM'
+  var hasFilter = q.length > 0 || ym.length > 0;
+  if (clearBtn) clearBtn.style.display = hasFilter ? 'inline-block' : 'none';
+
+  // If a month is selected, auto-expand older visits so results outside the
+  // last 2 years still show up.
+  if (ym) {
+    var older = document.getElementById('ehr-older-visits');
+    if (older) older.style.display = 'block';
+  }
+
+  var rows = view.querySelectorAll('.record-row');
+  var visible = 0;
+  rows.forEach(function(row) {
+    var text = (row.textContent || '').toLowerCase();
+    var date = row.getAttribute('data-date') || '';
+    var matchesQ  = !q  || text.indexOf(q) !== -1;
+    var matchesYm = !ym || (date && date.indexOf(ym) === 0);
+    var show = matchesQ && matchesYm;
+    row.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+
+  // Hide month / section headers whose rows are all hidden.
+  var headers = view.querySelectorAll('.records-detail-view > div, .records-detail-view div');
+  // Simpler: walk through direct siblings of the content area. Month labels
+  // are inline <div> strings created right before their rows; we detect them
+  // as divs with uppercase styling and no .record-row children.
+  // To keep this robust we instead iterate section headers by text-transform.
+  // (Pragmatic: hide headers that have NO visible .record-row immediately
+  // following them before the next header.)
+  var content = view;
+  var children = content.children;
+  // Find candidate "header" divs: small divs with letter-spacing style.
+  var candidates = [];
+  for (var i = 0; i < children.length; i++) {
+    var c = children[i];
+    if (c.tagName === 'DIV' && /letter-spacing/.test(c.getAttribute('style')||'') && !c.classList.contains('record-row')) {
+      candidates.push(c);
+    }
+  }
+  candidates.forEach(function(h, idx) {
+    var next = h.nextElementSibling;
+    var anyVisible = false;
+    while (next && !(next.tagName === 'DIV' && /letter-spacing/.test(next.getAttribute('style')||'') && !next.classList.contains('record-row'))) {
+      if (next.classList && next.classList.contains('record-row') && next.style.display !== 'none') {
+        anyVisible = true;
+        break;
+      }
+      next = next.nextElementSibling;
+    }
+    h.style.display = anyVisible ? '' : 'none';
+  });
+
+  if (noMatch) noMatch.style.display = (hasFilter && visible === 0) ? 'block' : 'none';
+}
+
+function clearVisitsFilter() {
+  var s = document.getElementById('visits-search-input');
+  var m = document.getElementById('visits-month-input');
+  if (s) s.value = '';
+  if (m) m.value = '';
+  filterVisits();
+}
+
+// ── Practitioner enrichment cache (in-memory, per personId+ref) ─────────────
+// Populated by enrichPractitionersForPerson() which calls the
+// enrich-practitioner edge function. The function itself caches in Postgres
+// for 30 days; this is a session-scoped read-through so we don't refetch on
+// every renderRecordsView().
+var _enrichedPractitioners = {}; // { personId: { practitioner_ref: enriched } }
+var _enrichInflight = {};        // { personId+ref: true } — dedupe in-flight
+
+function _practitionerEnrichKey(personId, ref) {
+  return (personId || '') + '|' + (ref || '');
+}
+
+function _mergePractitioner(p, enriched) {
+  // Merge enriched contact info onto the EHR-derived practitioner.
+  // EHR-provided phones/emails/address always win (source of truth when
+  // present); enrichment only fills gaps. This keeps Confidential-client
+  // data flowing through the moment Duke prod activates without us having
+  // to gate on enrichment freshness.
+  if (!enriched || !enriched.found) return p;
+  var merged = {};
+  for (var k in p) merged[k] = p[k];
+
+  var hasPhones = Array.isArray(p.phones) && p.phones.length > 0;
+  if (!hasPhones && Array.isArray(enriched.phones) && enriched.phones.length) {
+    merged.phones = enriched.phones.slice();
+  }
+  var hasEmails = Array.isArray(p.emails) && p.emails.length > 0;
+  if (!hasEmails && Array.isArray(enriched.emails) && enriched.emails.length) {
+    merged.emails = enriched.emails.slice();
+  }
+  if (!p.fax && enriched.fax) merged.fax = enriched.fax;
+
+  // Address: enrichment returns array of {street, city, state, zip, label}.
+  // EHR's p.address is a single text string. Convert enrichment's first
+  // address to a single comma-joined string so the existing render path works.
+  if (!p.address && Array.isArray(enriched.addresses) && enriched.addresses.length) {
+    var first = enriched.addresses[0] || {};
+    var pieces = [];
+    if (first.street) pieces.push(first.street);
+    var cityState = [first.city, first.state].filter(Boolean).join(', ');
+    if (cityState) pieces.push(cityState);
+    if (first.zip) pieces.push(first.zip);
+    var addrText = pieces.join(', ');
+    if (addrText) merged.address = addrText;
+    if (first.label && !merged._enriched_address_label) merged._enriched_address_label = first.label;
+  }
+
+  if (!p.specialty && enriched.specialty) merged.specialty = enriched.specialty;
+  merged._enriched_source_name = enriched.source_name || null;
+  merged._enriched_source_url = enriched.source_url || null;
+  return merged;
+}
+
+function _mapsHrefForAddress(addrText) {
+  if (!addrText) return null;
+  var encoded = encodeURIComponent(addrText);
+  // iOS opens maps.apple.com natively, everywhere else falls back to Google
+  var ua = (navigator.userAgent || '').toLowerCase();
+  if (ua.indexOf('iphone') !== -1 || ua.indexOf('ipad') !== -1 || ua.indexOf('ipod') !== -1) {
+    return 'https://maps.apple.com/?q=' + encoded;
+  }
+  return 'https://maps.google.com/?q=' + encoded;
+}
+
+// Fire enrich-practitioner for every practitioner on this person who doesn't
+// already have phones populated (either from EHR or from a prior enrichment).
+// Each result lands in _enrichedPractitioners and triggers a re-render.
+function enrichPractitionersForPerson(personId, careTeam, provider) {
+  if (isDemoMode || !currentUser || !personId) return;
+  if (!careTeam || !careTeam.length) return;
+  _enrichedPractitioners[personId] = _enrichedPractitioners[personId] || {};
+  var personCache = _enrichedPractitioners[personId];
+
+  var rerenderScheduled = false;
+  function scheduleRerender() {
+    if (rerenderScheduled) return;
+    rerenderScheduled = true;
+    setTimeout(function() {
+      rerenderScheduled = false;
+      if (personId === currentPersonId) {
+        try { renderRecordsView(); } catch(e) {}
+      }
+    }, 250);
+  }
+
+  db.auth.getSession().then(function(sessionRes) {
+    var session = sessionRes && sessionRes.data && sessionRes.data.session;
+    if (!session) return;
+
+    careTeam.forEach(function(p) {
+      var ref = p.id ? 'Practitioner/' + p.id : '';
+      // Skip if EHR already gave us phones — nothing to enrich.
+      if (Array.isArray(p.phones) && p.phones.length > 0) return;
+      // Skip if we already have a cached result for this person+ref this session.
+      if (ref && personCache[ref]) return;
+      // Skip if a request is already in flight.
+      var inflightKey = _practitionerEnrichKey(personId, ref || p.name);
+      if (_enrichInflight[inflightKey]) return;
+      if (!p.name) return;
+
+      _enrichInflight[inflightKey] = true;
+
+      // fetch-ehr-data returns `provider` as a string (e.g. 'Duke Health'), but
+      // older code paths and tests sometimes pass an object ({name, hospital_name}).
+      // Accept both shapes so the registry router actually sees a hint for live
+      // Duke connections (without this, hint_org=undefined and the Duke adapter
+      // never gets selected).
+      var hintOrg = (typeof provider === 'string'
+                       ? provider
+                       : (provider && (provider.name || provider.hospital_name))) || '';
+      var payload = {
+        name: p.name,
+        practitioner_ref: ref || undefined,
+        npi: p.npi || undefined,
+        hint_org: hintOrg || undefined
+      };
+
+      fetch(SUPABASE_URL + '/functions/v1/enrich-practitioner', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + session.access_token,
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify(payload)
+      }).then(function(res) {
+        return res.ok ? res.json() : null;
+      }).then(function(data) {
+        delete _enrichInflight[inflightKey];
+        if (!data || !data.found) return;
+        if (ref) personCache[ref] = data;
+        else personCache['name:' + p.name] = data;
+        scheduleRerender();
+      }).catch(function(err) {
+        delete _enrichInflight[inflightKey];
+        console.warn('[enrich-practitioner] failed for', p.name, err);
+      });
+    });
+  }).catch(function(err) { console.warn('[enrich-practitioner] session lookup failed', err); });
+}
+
+// Build the Care team section for Records. Lists every practitioner returned
+// from the EHR (Encounter.participant + CareTeam.participant, deduped server-
+// side) with role, specialty, phones, email, and address. Ordered by most-
+// recent encounter so Betsy sees who Mom actually sees most often at the top.
+// The whole section is collapsible — per Betsy's note: "we need to be able
+// to collapse and expand sections in all of records."
+function buildCareTeamSection(careTeam, provider, visits) {
+  if (!careTeam || !careTeam.length) return '';
+
+  // Merge in any enriched contact info we have for the active person.
+  var personCache = (currentPersonId && _enrichedPractitioners[currentPersonId]) || {};
+  careTeam = careTeam.map(function(p) {
+    var ref = p.id ? 'Practitioner/' + p.id : '';
+    var enriched = (ref && personCache[ref]) || personCache['name:' + (p.name || '')];
+    return enriched ? _mergePractitioner(p, enriched) : p;
+  });
+
+  // ── Compute last-seen date per practitioner by walking visits ────────────
+  // visits[].providers is [{ ref: 'Practitioner/<id>', name }]. Match by id.
+  var lastSeenByRef = {};
+  (visits || []).forEach(function(v) {
+    var t = v.start_date ? new Date(v.start_date).getTime() : 0;
+    if (!t) return;
+    (v.providers || []).forEach(function(pv) {
+      var ref = pv.ref || '';
+      if (!ref) return;
+      if (!lastSeenByRef[ref] || t > lastSeenByRef[ref]) lastSeenByRef[ref] = t;
+    });
+  });
+
+  // Annotate each practitioner with lastSeenMs and sort desc; undated last,
+  // alphabetical tiebreaker so the list stays stable across renders.
+  var annotated = careTeam.map(function(p) {
+    var ref = p.id ? 'Practitioner/' + p.id : '';
+    return { p: p, lastSeenMs: lastSeenByRef[ref] || 0 };
+  });
+  annotated.sort(function(a, b) {
+    if (a.lastSeenMs !== b.lastSeenMs) return b.lastSeenMs - a.lastSeenMs;
+    return (a.p.name || '').localeCompare(b.p.name || '');
+  });
+
+  // Collapse / expand is handled globally by applyRecordsCollapse().
+  var html = '<div class="record-group">'
+    + '<div class="record-group-header">'
+    + '<div class="record-group-title"><i data-lucide="users" style="width:14px;height:14px;color:var(--moss);"></i>Care team ' + ehrBadgeHtml() + '</div>'
+    + '<span class="record-group-count">' + careTeam.length + '</span>'
+    + '</div>';
+
+  annotated.forEach(function(entry) {
+    var p = entry.p;
+    var lastSeenMs = entry.lastSeenMs;
+
+    // Summary line: role · specialty · Last seen <date>
+    var summaryBits = [];
+    if (p.role) summaryBits.push(escHtml(p.role));
+    if (p.specialty && p.specialty !== p.role) summaryBits.push(escHtml(p.specialty));
+    if (lastSeenMs) {
+      summaryBits.push('Last seen ' + formatEventDate(new Date(lastSeenMs).toISOString()));
+    }
+    var summary = summaryBits.join(' \u00B7 ');
+
+    // Contact info — shown inline (no tap needed)
+    var lines = [];
+    var phones = (p.phones || []).filter(Boolean);
+    if (phones.length) {
+      lines.push('<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><i data-lucide="phone" style="width:12px;height:12px;color:var(--text-muted);flex-shrink:0;"></i>'
+        + phones.map(function(ph){
+            var clean = String(ph).replace(/[^0-9+]/g, '');
+            return '<a href="tel:' + escHtml(clean) + '" style="color:var(--moss);text-decoration:none;">' + escHtml(ph) + '</a>';
+          }).join(', ')
+        + '</div>');
+    }
+    if (p.fax) {
+      lines.push('<div style="display:flex;align-items:center;gap:6px;"><i data-lucide="printer" style="width:12px;height:12px;color:var(--text-muted);flex-shrink:0;"></i>Fax: ' + escHtml(p.fax) + '</div>');
+    }
+    var emails = (p.emails || []).filter(Boolean);
+    if (emails.length) {
+      lines.push('<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><i data-lucide="mail" style="width:12px;height:12px;color:var(--text-muted);flex-shrink:0;"></i>'
+        + emails.map(function(em){
+            return '<a href="mailto:' + escHtml(em) + '" style="color:var(--moss);text-decoration:none;word-break:break-all;">' + escHtml(em) + '</a>';
+          }).join(', ')
+        + '</div>');
+    }
+    if (p.address) {
+      var mapsHref = _mapsHrefForAddress(p.address);
+      var addrLabel = p._enriched_address_label ? '<span style="color:var(--text-muted);"> \u00B7 ' + escHtml(p._enriched_address_label) + '</span>' : '';
+      lines.push('<div style="display:flex;align-items:flex-start;gap:6px;"><i data-lucide="map-pin" style="width:12px;height:12px;color:var(--text-muted);margin-top:2px;flex-shrink:0;"></i><span>'
+        + (mapsHref ? '<a href="' + escHtml(mapsHref) + '" target="_blank" rel="noopener" style="color:var(--moss);text-decoration:none;">' + escHtml(p.address) + '</a>' : escHtml(p.address))
+        + addrLabel
+        + '</span></div>');
+    }
+    // Source attribution — only shown when the data came from enrichment
+    if (p._enriched_source_name) {
+      var srcLabel = escHtml(p._enriched_source_name);
+      var srcHtml = p._enriched_source_url
+        ? '<a href="' + escHtml(p._enriched_source_url) + '" target="_blank" rel="noopener" style="color:var(--text-muted);text-decoration:underline;">' + srcLabel + '</a>'
+        : srcLabel;
+      lines.push('<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">From ' + srcHtml + '</div>');
+    }
+
+    // Per spec: hide rows whose value is missing — silence is better than
+    // "No contact info on file." placeholder. The card is still useful with
+    // name, role, and last-seen.
+    var contactBlock = lines.length
+      ? '<div style="width:100%;padding:6px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.8;">' + lines.join('') + '</div>'
+      : '';
+
+    html += '<div class="record-row" style="flex-wrap:wrap;align-items:flex-start;">'
+      + '<div class="record-icon moss"><i data-lucide="user-round" style="width:15px;height:15px;"></i></div>'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div class="record-label">' + escHtml(p.name || 'Unnamed practitioner') + '</div>'
+      + '<div class="record-meta">' + (summary || '\u2014') + '</div>'
+      + '</div>'
+      + ehrProviderBadgeHtml(provider)
+      + contactBlock
+      + '</div>';
+  });
+
+  html += '</div>';
+  return html;
+}
+
+// ── Visit attachments (audio/photo/PDF) ──────────────────────────────────────
+// State: per-person attachment cache. Shape:
+//   { <personId>: { byEventId: { <eventId>: [att,...] },
+//                   byVisitRef: { <visit_ref>: [att,...] } } }
+var visitAttachments = {};
+
+var ATTACH_MAX_BYTES = 25 * 1024 * 1024; // 25 MB, matches bucket limit
+var ATTACH_ALLOWED_MIME = {
+  'audio/mpeg':'audio','audio/mp4':'audio','audio/x-m4a':'audio','audio/wav':'audio',
+  'audio/webm':'audio','audio/aac':'audio','audio/ogg':'audio',
+  'image/jpeg':'photo','image/png':'photo','image/heic':'photo','image/heif':'photo','image/webp':'photo',
+  'application/pdf':'pdf'
+};
+// accept= attribute for the hidden <input type=file>
+var ATTACH_ACCEPT_ATTR = 'audio/*,image/*,application/pdf,.m4a,.heic,.heif';
+
+// Build a stable identifier for an EHR visit. Uses provider + FHIR id so the
+// ref survives a cache refresh (the FHIR id is stable per encounter).
+function visitRefFor(enc, provider) {
+  if (!enc) return null;
+  var id = enc.id || enc.fhir_id || enc.name + '|' + (enc.start_date || '');
+  var prov = (provider || 'ehr').toLowerCase().replace(/\s+/g,'-');
+  return 'ehr:' + prov + ':' + id;
+}
+
+function classifyMime(mime) {
+  return ATTACH_ALLOWED_MIME[mime] || (mime && mime.indexOf('audio/') === 0 ? 'audio'
+    : mime && mime.indexOf('image/') === 0 ? 'photo'
+    : mime === 'application/pdf' ? 'pdf' : 'other');
+}
+
+function attachmentIcon(kind) {
+  if (kind === 'audio') return 'mic';
+  if (kind === 'photo') return 'image';
+  if (kind === 'pdf') return 'file-text';
+  return 'paperclip';
+}
+
+function humanBytes(n) {
+  if (!n && n !== 0) return '';
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// Load every attachment for the given person in one query. Caches into
+// visitAttachments[personId] keyed by event_id AND visit_ref for O(1) lookup.
+async function loadAttachmentsForPerson(personId) {
+  if (!personId || isDemoMode || !currentUser) return;
+  try {
+    var res = await db.from('visit_attachments')
+      .select('*')
+      .eq('person_id', personId)
+      .order('created_at', { ascending: false });
+    if (res.error) { console.error('load attachments', res.error); return; }
+    var byEventId = {};
+    var byVisitRef = {};
+    (res.data || []).forEach(function(a) {
+      if (a.event_id) {
+        (byEventId[a.event_id] = byEventId[a.event_id] || []).push(a);
+      } else if (a.visit_ref) {
+        (byVisitRef[a.visit_ref] = byVisitRef[a.visit_ref] || []).push(a);
+      }
+    });
+    visitAttachments[personId] = { byEventId: byEventId, byVisitRef: byVisitRef };
+  } catch (e) {
+    console.error('load attachments exception', e);
+  }
+}
+
+function getAttachmentsFor(target) {
+  // target = { eventId } or { visitRef }
+  var bucket = visitAttachments[currentPersonId] || { byEventId:{}, byVisitRef:{} };
+  if (target.eventId) return bucket.byEventId[target.eventId] || [];
+  if (target.visitRef) return bucket.byVisitRef[target.visitRef] || [];
+  return [];
+}
+
+// Render the attachment zone inside a visit's expanded detail panel.
+// `scope` is one of 'event' or 'visit'; `key` is the event_id uuid or visit_ref.
+function renderAttachmentZone(scope, key) {
+  var list = getAttachmentsFor(scope === 'event' ? { eventId: key } : { visitRef: key });
+  var safeId = String(key).replace(/[^a-z0-9]/gi, '_');
+  var inputId = 'att-in-' + scope + '-' + safeId;
+  var listId = 'att-list-' + scope + '-' + safeId;
+  // Encode key for safe embedding inside a single-quoted JS string that lives
+  // inside a double-quoted HTML attribute. Backslash-escape the JS quotes first,
+  // then HTML-escape the whole thing.
+  var jsKey = String(key).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  var html = '<div class="visit-attachments" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">'
+    + '<div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;">Attachments</div>'
+    + '<label for="' + inputId + '" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--moss);cursor:pointer;padding:4px 8px;border:1px dashed var(--border);border-radius:12px;">'
+    + '<i data-lucide="paperclip" style="width:12px;height:12px;"></i>Add file'
+    + '</label>'
+    + '<input id="' + inputId + '" type="file" multiple accept="' + ATTACH_ACCEPT_ATTR + '" style="display:none;" onchange="handleAttachmentPick(this, \'' + scope + '\', \'' + escHtml(jsKey) + '\')">'
+    + '</div>'
+    + '<div id="' + listId + '">' + renderAttachmentList(list) + '</div>'
+    + '</div>';
+  return html;
+}
+
+function renderAttachmentList(list) {
+  if (!list || !list.length) {
+    return '<div style="font-size:11px;color:var(--text-muted);font-style:italic;">No files yet \u2014 add a voice memo, photo, or PDF.</div>';
+  }
+  return list.map(function(a) {
+    var icon = attachmentIcon(a.kind);
+    var size = humanBytes(a.size_bytes);
+    return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;">'
+      + '<i data-lucide="' + icon + '" style="width:14px;height:14px;color:var(--text-secondary);flex-shrink:0;"></i>'
+      + '<a onclick="openAttachment(\'' + a.id + '\')" style="color:var(--moss);text-decoration:none;cursor:pointer;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escHtml(a.file_name) + '</a>'
+      + '<span style="color:var(--text-muted);font-size:10px;flex-shrink:0;">' + size + '</span>'
+      + '<button type="button" onclick="deleteAttachment(\'' + a.id + '\')" title="Delete" style="background:none;border:0;cursor:pointer;color:var(--text-muted);padding:2px;">'
+      + '<i data-lucide="trash-2" style="width:12px;height:12px;"></i>'
+      + '</button>'
+      + '</div>';
+  }).join('');
+}
+
+// Called by the hidden file input's onchange.
+async function handleAttachmentPick(inputEl, scope, key) {
+  var files = Array.from(inputEl.files || []);
+  inputEl.value = ''; // reset so the same file can be picked again
+  if (!files.length) return;
+  if (!currentUser || !currentPersonId) {
+    showToast('Please sign in to attach files.'); return;
+  }
+  // Validate + upload sequentially so toasts are coherent.
+  for (var i = 0; i < files.length; i++) {
+    var f = files[i];
+    if (f.size > ATTACH_MAX_BYTES) {
+      showToast(escHtml(f.name) + ' is too big (' + humanBytes(f.size) + '). 25 MB max.');
+      continue;
+    }
+    var kind = classifyMime(f.type);
+    if (kind === 'other') {
+      // Allow by extension fallback (HEIC on some browsers reports empty mime).
+      var ext = (f.name.split('.').pop() || '').toLowerCase();
+      if (ext === 'heic' || ext === 'heif') kind = 'photo';
+      else if (ext === 'm4a') kind = 'audio';
+      else {
+        showToast(escHtml(f.name) + ' \u2014 only audio, photo, or PDF files are allowed.');
+        continue;
+      }
+    }
+    await uploadAttachment(f, kind, scope, key);
+  }
+  // Refresh state and redraw just the affected list.
+  await loadAttachmentsForPerson(currentPersonId);
+  refreshAttachmentList(scope, key);
+}
+
+async function uploadAttachment(file, kind, scope, key) {
+  try {
+    var ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8);
+    // Path: <user_id>/<person_id>/<uuid>.<ext> \u2014 required for storage RLS.
+    var uid = currentUser.id;
+    var rand = (crypto && crypto.randomUUID) ? crypto.randomUUID() : ('f' + Date.now() + Math.random().toString(36).slice(2));
+    var path = uid + '/' + currentPersonId + '/' + rand + '.' + ext;
+    var up = await db.storage.from('visit-attachments').upload(path, file, {
+      contentType: file.type || 'application/octet-stream',
+      upsert: false
+    });
+    if (up.error) { console.error('upload failed', up.error); showToast('Upload failed: ' + up.error.message); return; }
+    var row = {
+      user_id: uid,
+      person_id: currentPersonId,
+      event_id: scope === 'event' ? key : null,
+      visit_ref: scope === 'visit' ? key : null,
+      storage_path: path,
+      file_name: file.name,
+      mime_type: file.type || 'application/octet-stream',
+      size_bytes: file.size,
+      kind: kind
+    };
+    var ins = await db.from('visit_attachments').insert(row);
+    if (ins.error) {
+      console.error('insert failed', ins.error);
+      // Roll back the orphan storage object.
+      try { await db.storage.from('visit-attachments').remove([path]); } catch (e) {}
+      showToast('Couldn\u2019t save attachment: ' + ins.error.message);
+      return;
+    }
+    showToast('Attached ' + file.name);
+  } catch (e) {
+    console.error('uploadAttachment', e);
+    showToast('Upload error.');
+  }
+}
+
+async function openAttachment(id) {
+  try {
+    var att = findAttachmentById(id);
+    if (!att) return;
+    var res = await db.storage.from('visit-attachments').createSignedUrl(att.storage_path, 300);
+    if (res.error || !res.data || !res.data.signedUrl) {
+      showToast('Couldn\u2019t open file.'); return;
+    }
+    window.open(res.data.signedUrl, '_blank', 'noopener');
+  } catch (e) {
+    console.error('openAttachment', e);
+  }
+}
+
+async function deleteAttachment(id) {
+  var att = findAttachmentById(id);
+  if (!att) return;
+  if (!confirm('Delete ' + att.file_name + '?')) return;
+  try {
+    // Delete DB row first (RLS guarantees ownership). Then storage.
+    var del = await db.from('visit_attachments').delete().eq('id', id);
+    if (del.error) { showToast('Delete failed.'); return; }
+    try { await db.storage.from('visit-attachments').remove([att.storage_path]); } catch (e) {}
+    await loadAttachmentsForPerson(currentPersonId);
+    // Figure out which list to refresh.
+    if (att.event_id) refreshAttachmentList('event', att.event_id);
+    else if (att.visit_ref) refreshAttachmentList('visit', att.visit_ref);
+    showToast('Deleted.');
+  } catch (e) {
+    console.error('deleteAttachment', e);
+  }
+}
+
+function findAttachmentById(id) {
+  var bucket = visitAttachments[currentPersonId];
+  if (!bucket) return null;
+  var groups = [bucket.byEventId, bucket.byVisitRef];
+  for (var g = 0; g < groups.length; g++) {
+    var byKey = groups[g];
+    for (var k in byKey) {
+      var arr = byKey[k];
+      for (var i = 0; i < arr.length; i++) if (arr[i].id === id) return arr[i];
+    }
+  }
+  return null;
+}
+
+function refreshAttachmentList(scope, key) {
+  var listId = 'att-list-' + scope + '-' + String(key).replace(/[^a-z0-9]/gi, '_');
+  var el = document.getElementById(listId);
+  if (!el) return;
+  var list = getAttachmentsFor(scope === 'event' ? { eventId: key } : { visitRef: key });
+  el.innerHTML = renderAttachmentList(list);
+  try { initIcons(); } catch (e) {}
+}
+
+// Build the "no EHR connected" prompt
+function buildEhrPrompt() {
+  return '<div class="ehr-section-prompt" id="ehr-section-prompt">'
+    + '<i data-lucide="hospital" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:3px;color:var(--moss);"></i>'
+    + '<a onclick="startEhrConnect()">Connect health records</a> to see medications, conditions, and lab results from your provider.'
+    + '</div>';
+}
+
+// Restore the inline EHR status row from any transient state
+// (e.g. "Syncing health records..." spinner) back to whatever the current
+// records view normally shows. Used by the watchdog and silent-bail paths
+// in fetchEhrData so the spinner never gets stuck if the sync fails or
+// short-circuits before re-rendering.
+function restoreRecordsEhrStatus() {
+  try { renderRecordsView(); } catch(e) { console.warn('restoreRecordsEhrStatus:', e); }
+}
+
+// Trigger an on-demand sync from the inline EHR status row.
+// Updates the row to a loading state, calls fetchEhrData, and re-renders
+// the records view (which the fetch already does on success via
+// renderRecordsView() inside fetchEhrData's success path) so the user gets
+// fresh data and an updated "last synced" timestamp without a page reload.
+// Also installs a 25-second watchdog that restores the status row if the
+// sync silently bails (no session, network failure, identity mismatch, etc.)
+// so the spinner never gets stuck.
+function syncNowFromRecords() {
+  if (!currentPersonId || isDemoMode) return;
+  var statusEl = document.getElementById('records-ehr-status');
+  if (statusEl) {
+    statusEl.innerHTML = '<div class="terra-inline-list">'
+      + '<div class="terra-inline-item" style="opacity:0.7;">'
+      + '<span class="terra-status-dot terra-status-dot--inactive"></span>'
+      + 'Syncing health records\u2026'
+      + '</div></div>';
+  }
+  // Watchdog: if the row is still in the spinning state 25s later, the
+  // sync silently bailed. Restore the row and surface a toast so the user
+  // knows to try again.
+  setTimeout(function() {
+    var el = document.getElementById('records-ehr-status');
+    if (el && el.innerHTML.indexOf('Syncing health records') !== -1) {
+      try { restoreRecordsEhrStatus(); } catch(e){}
+      try { showToast("Sync didn\u2019t finish \u2014 try again"); } catch(e){}
+    }
+  }, 25000);
+  try {
+    fetchEhrData(currentPersonId);
+  } catch(e) {
+    console.warn('syncNowFromRecords:', e);
+    try { restoreRecordsEhrStatus(); } catch(e2){}
+    try { showToast("Sync didn\u2019t finish \u2014 try again"); } catch(e2){}
+  }
+}
+
+// Check for auth callback code on page load (supports both /epic-callback route and ?code= param)
+function checkEhrCallbackOnLoad() {
+  var params = new URLSearchParams(window.location.search);
+  if (window.location.pathname === '/epic-callback' || params.get('code')) {
+    handleEhrCallback();
+  }
+}
+
+// Auto-refresh stale EHR data on person load.
+// Also recovers from "orphan connection" state: if a connection row exists
+// in Postgres but this device has no local cache (common after a client
+// 404 wiped the cache in a previous build), kick off a fetch so the
+// records repopulate instead of showing "Connect Health Records".
+function autoRefreshEhrIfNeeded(personId) {
+  if (isDemoMode || !currentUser || !personId) return;
+  var cached = loadEhrCache(personId);
+  if (cached) {
+    if (isEhrCacheStale(personId)) fetchEhrData(personId);
+    return;
+  }
+  // No cache — check if there is a connection row in the database.
+  db.from('ehr_connections')
+    .select('id, provider, access_token, needs_reconnect')
+    .eq('person_id', personId)
+    .maybeSingle()
+    .then(function(res) {
+      if (!res || !res.data) return;
+      if (res.data.access_token && !res.data.needs_reconnect) {
+        console.log('[EHR] orphan connection detected for', personId, '— fetching data');
+        fetchEhrData(personId);
+      }
+    })
+    .catch(function(err) { console.warn('[EHR] orphan check failed:', err); });
+}
+
+// ── RECONNECT BANNER (Option B) ──────────────────────────────────────────────
+// Renders an amber bar at the top of the app shell when the active loved one's
+// EHR connection needs the family member's attention. Priority order:
+//   1. needs_reconnect = true        — token refresh failed twice
+//   2. scope regression noticed      — care_team or conditions silently went to 0
+//   3. migration available           — on legacy public client, Confidential exists
+//   4. staleness                     — last_synced_at older than 7 days
+// Tapping Reconnect kicks off the standard OAuth flow for that hospital.
+// Tapping Dismiss-for-today hides the banner until tomorrow via localStorage.
+var EHR_LEGACY_PUBLIC_CLIENT_ID = 'a00e2e38-f814-4946-9b7c-a92901a8aebc';
+// Hospitals known to have a Confidential client provisioned. Add hospital_name
+// substrings (lowercase) here as Wellet onboards each one. Until a hospital is
+// listed here, the migration-available trigger will not fire for it.
+var EHR_CONFIDENTIAL_AVAILABLE_HOSPITALS = [
+  // Hospital name substring matching is lowercased and uses indexOf().
+  // Add a hospital here once its Wellet Confidential download has
+  // "Keys enabled" status on fhir.epic.com (both non-prod and prod activated).
+  // Epic's sync window is ~12 hours after activation; the banner will only
+  // do something useful once that sync completes for the hospital below.
+  'duke'  // 4/25/2026: Wellet Confidential prod activated, jwks-prod.json wired up
+];
+
+function _bannerDismissedToday(connectionId) {
+  if (!connectionId) return false;
+  try {
+    var d = new Date();
+    var ymd = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    return localStorage.getItem('wellet.banner.dismissed.' + connectionId + '.' + ymd) === '1';
+  } catch(e) { return false; }
+}
+
+function _bannerDismissForToday(connectionId) {
+  if (!connectionId) return;
+  try {
+    var d = new Date();
+    var ymd = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    localStorage.setItem('wellet.banner.dismissed.' + connectionId + '.' + ymd, '1');
+  } catch(e) {}
+}
+
+function _bannerHide() {
+  var host = document.getElementById('reconnect-banner-host');
+  if (host) { host.classList.remove('show'); host.innerHTML = ''; }
+}
+
+function _bannerRender(state) {
+  var host = document.getElementById('reconnect-banner-host');
+  if (!host) return;
+  var hospital = escHtml(state.hospital_name || 'your hospital');
+  var copy = '';
+  if (state.kind === 'needs_reconnect') {
+    copy = 'Your connection to ' + hospital + ' needs a quick refresh.';
+  } else if (state.kind === 'scope_regression') {
+    copy = hospital + ' stopped sending some records. Reconnect to fix it.';
+  } else if (state.kind === 'migration_available') {
+    copy = 'Reconnect ' + hospital + ' to see your care team\u2019s contact info.';
+  } else if (state.kind === 'stale') {
+    copy = 'It\u2019s been a while since ' + hospital + ' synced. Reconnect to keep things current.';
+  } else {
+    return;
+  }
+  host.innerHTML =
+    '<span class="reconnect-banner__icon"><i data-lucide="alert-circle" style="width:16px;height:16px;"></i></span>'
+    + '<span class="reconnect-banner__copy">' + copy + '</span>'
+    + '<span class="reconnect-banner__actions">'
+    +   '<button type="button" class="reconnect-banner__btn" onclick="reconnectBannerTap()">Reconnect</button>'
+    +   '<button type="button" class="reconnect-banner__dismiss" onclick="reconnectBannerDismiss()">Not now</button>'
+    + '</span>';
+  host.classList.add('show');
+  try { initIcons(); } catch(e) {}
+  // Stash on host so tap handlers can read without another round-trip
+  host.dataset.connectionId = state.connection_id || '';
+  host.dataset.fhirBaseUrl = state.fhir_base_url || '';
+  host.dataset.hospitalName = state.hospital_name || '';
+}
+
+function reconnectBannerTap() {
+  var host = document.getElementById('reconnect-banner-host');
+  if (!host) return;
+  var fhir = host.dataset.fhirBaseUrl || null;
+  var name = host.dataset.hospitalName || null;
+  // Hide eagerly — OAuth redirect is about to happen
+  _bannerHide();
+  try { beginEhrOAuth(fhir, name, false); } catch(e) { console.warn('[banner] reconnect tap failed', e); }
+}
+
+function reconnectBannerDismiss() {
+  var host = document.getElementById('reconnect-banner-host');
+  if (!host) return;
+  _bannerDismissForToday(host.dataset.connectionId);
+  _bannerHide();
+}
+
+// Decide whether to show the banner for the active loved one and which kind.
+// 2026-04-27: Rewritten to handle N connections per loved one. We pull all
+// connected rows, evaluate each independently, and surface the
+// highest-priority issue across the set. Priority order matches the
+// single-connection version: needs_reconnect > scope_regression >
+// migration_available > stale. Connections whose banner was dismissed today
+// are skipped.
+function evaluateReconnectBanner() {
+  if (isDemoMode || !currentUser || !currentPersonId) { _bannerHide(); return; }
+  var personId = currentPersonId;
+  db.from('ehr_connections')
+    .select('id, hospital_name, fhir_base_url, status, needs_reconnect, client_id_used, token_expires_at, last_synced_at, connected_at')
+    .eq('person_id', personId)
+    .eq('status', 'connected')
+    .then(function(res) {
+      var conns = (res && res.data) || [];
+      // Filter out dismissed-today connections up front
+      conns = conns.filter(function(c) { return !_bannerDismissedToday(c.id); });
+      if (conns.length === 0) { _bannerHide(); return; }
+
+      var nowMs = Date.now();
+      var staleMs = 7 * 24 * 60 * 60 * 1000;
+
+      // 1. needs_reconnect — first hit wins
+      for (var i = 0; i < conns.length; i++) {
+        if (conns[i].needs_reconnect === true) {
+          _bannerRender({ kind: 'needs_reconnect', connection_id: conns[i].id, hospital_name: conns[i].hospital_name, fhir_base_url: conns[i].fhir_base_url });
+          return;
+        }
+      }
+
+      // 2. scope regression — today's `ehr_sync_log` schema is person-level
+      //    (no connection_id column yet), so we evaluate one rolling window
+      //    of recent rows for the person and, if it looks regressed, blame
+      //    the most-recently-synced connection. Per-connection regression
+      //    detection will arrive when sync_log gets a connection_id column;
+      //    the daily Duke regression cron is the higher-confidence signal
+      //    in the meantime.
+      db.from('ehr_sync_log')
+        .select('created_at, status, result_counts')
+        .eq('person_id', personId)
+        .eq('status', 200)
+        .order('created_at', { ascending: false })
+        .limit(30)
+        .then(function(logRes) {
+          var rows = (logRes && logRes.data) || [];
+          var regressed = false;
+          if (rows.length >= 5) {
+            var latest = rows[0].result_counts || {};
+            var baseline = {};
+            for (var i = 1; i < rows.length; i++) {
+              var rc = rows[i].result_counts || {};
+              for (var k in rc) {
+                if (typeof rc[k] === 'number') {
+                  if (!(k in baseline) || rc[k] > baseline[k]) baseline[k] = rc[k];
+                }
+              }
+            }
+            var watch = ['care_team', 'conditions', 'medications', 'allergies', 'visits'];
+            for (var w = 0; w < watch.length; w++) {
+              var key = watch[w];
+              if ((baseline[key] || 0) > 0 && (latest[key] || 0) === 0) { regressed = true; break; }
+            }
+          }
+          if (regressed) {
+            // Attribute to the connection that synced most recently.
+            var newest = conns[0];
+            for (var i = 1; i < conns.length; i++) {
+              var a = conns[i].last_synced_at ? new Date(conns[i].last_synced_at).getTime() : 0;
+              var b = newest.last_synced_at ? new Date(newest.last_synced_at).getTime() : 0;
+              if (a > b) newest = conns[i];
+            }
+            _bannerRender({ kind: 'scope_regression', connection_id: newest.id, hospital_name: newest.hospital_name, fhir_base_url: newest.fhir_base_url });
+            return;
+          }
+
+          // 3. migration available — first connection on legacy public client
+          //    where Confidential exists for that hospital
+          for (var i = 0; i < conns.length; i++) {
+            var conn = conns[i];
+            var onLegacy = conn.client_id_used === EHR_LEGACY_PUBLIC_CLIENT_ID;
+            var hospitalLower = (conn.hospital_name || '').toLowerCase();
+            var confidentialAvailable = false;
+            for (var c = 0; c < EHR_CONFIDENTIAL_AVAILABLE_HOSPITALS.length; c++) {
+              if (hospitalLower.indexOf(EHR_CONFIDENTIAL_AVAILABLE_HOSPITALS[c]) !== -1) { confidentialAvailable = true; break; }
+            }
+            if (onLegacy && confidentialAvailable) {
+              _bannerRender({ kind: 'migration_available', connection_id: conn.id, hospital_name: conn.hospital_name, fhir_base_url: conn.fhir_base_url });
+              return;
+            }
+          }
+
+          // 4. staleness — first connection with no successful sync in 7+ days
+          for (var i = 0; i < conns.length; i++) {
+            var conn = conns[i];
+            var lastSyncMs = conn.last_synced_at ? new Date(conn.last_synced_at).getTime() : 0;
+            if (lastSyncMs > 0 && (nowMs - lastSyncMs) > staleMs) {
+              _bannerRender({ kind: 'stale', connection_id: conn.id, hospital_name: conn.hospital_name, fhir_base_url: conn.fhir_base_url });
+              return;
+            }
+          }
+
+          _bannerHide();
+        })
+        .catch(function(err) { console.warn('[banner] sync log read failed', err); _bannerHide(); });
+    })
+    .catch(function(err) { console.warn('[banner] connection read failed', err); _bannerHide(); });
+}
+
+// ── EXISTING UI FUNCTIONS (preserved) ────────────────────────────────────────
+var _responses = {
+  dad: {
+    'What\'s his current BP trend?': 'Dad\'s blood pressure has been <strong>running higher than usual this week</strong> — averaging 142/89. This started around February 18, the same day his Hydrochlorothiazide dose was increased. BP medications can take 2–4 weeks to show full effect, so this may still be adjusting. Dr. Johnson is aware and reviewing at the March 16 visit.',
+    'When is his next appointment?': 'His next appointment is <strong>March 16 at 9:00 AM</strong> with Dr. Johnson (Primary Care). The focus will be blood pressure check and medication review. He also has a dermatology consult with Dr. Simkin on April 7.',
+    'What changed this month?': 'Two things changed in February: his <strong>Hydrochlorothiazide dose was increased</strong> on February 18 (12.5mg → 25mg), and his latest <strong>CML lab came back &lt;0.001</strong> — undetectable and continuing to improve. Blood pressure has been elevated since the dose change.',
+    'What meds is he taking?': 'Dad is currently on <strong>6 active medications</strong>: Lisinopril 20mg (daily, hypertension), Hydrochlorothiazide 25mg (daily, hypertension), Gleevec 400mg (daily, CML), Citalopram 10mg (daily), Zepbound 12.5mg (weekly injection), and Metoprolol 50mg (daily). The Hydrochlorothiazide dose was recently adjusted.',
+    'How is his CML doing?': 'His CML is <strong>continuing to respond well</strong>. The most recent BCR-ABL test on February 28 came back &lt;0.001 — undetectable. That\'s down from &lt;0.003 six months ago. Dr. Edwards is pleased with his response to Gleevec. Next oncology labs are due in about 6 weeks.',
+    default: 'Based on Dad\'s records, I can see he\'s managing several conditions — hypertension, CML, and others. His CML is improving and his next appointment is March 16. Is there something specific you\'d like to know?'
+  },
+  mom: {
+    'Is she stable?': 'Yes — Mom\'s conditions are <strong>stable</strong>. Hypercholesterolemia is well-controlled with Atorvastatin, and her hypothyroidism is managed with Levothyroxine. Her last TSH was 2.4 mIU/L — right in range.',
+    'When is her next appointment?': 'Mom\'s next appointment is <strong>April 4</strong>. Her lipid panel and TSH were both within normal range at the last check.',
+    'What changed this month?': 'No significant changes noted for Mom this month. Her 2 active diagnoses remain stable and her medications are unchanged.',
+    'What meds is she taking?': 'Mom is on <strong>3 active medications</strong>: Atorvastatin 20mg (daily, cholesterol), Levothyroxine 50mcg (daily, thyroid), and Vitamin D3 2000IU (daily). No changes have been logged recently.',
+    default: 'Mom\'s records show she\'s stable overall with 2 active diagnoses and 3 medications. Her next appointment is April 4. What would you like to know?'
+  }
+};
+
+function renderAskView() {
+  // Render ask view for authenticated mode with real people
+  if (isDemoMode) return;
+  var personBar = document.querySelector('#view-ask .ask-person-bar');
+  if (!personBar || !currentPeople.length) return;
+
+  var pillsHtml = '';
+  currentPeople.forEach(function(p) {
+    var active = p.id === currentPersonId ? ' active' : '';
+    pillsHtml += '<button class="ask-person-pill' + active + '" onclick="selectAskRealPerson(this,\'' + p.id + '\')">'
+      + '<span style="width:6px;height:6px;border-radius:50%;background:currentColor;opacity:0.7;display:inline-block;"></span>'
+      + escHtml(p.name.split(' ')[0]) + '</button>';
+  });
+  personBar.innerHTML = pillsHtml;
+
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var firstName = person ? person.name.split(' ')[0] : 'your loved one';
+  var inputEl = document.getElementById('ask-input');
+  if (inputEl) inputEl.placeholder = 'Ask about ' + escHtml(firstName) + '\u2019s health\u2026';
+
+  // Update the welcome bubble with dynamic name
+  var chatArea = document.getElementById('chat-area');
+  if (chatArea) {
+    var firstBubble = chatArea.querySelector('.chat-group.from-wellet .chat-bubble.wellet');
+    if (firstBubble && firstBubble.textContent.indexOf('Ask me anything about') !== -1) {
+      firstBubble.textContent = 'Ask me anything about ' + firstName + '\u2019s health. I\u2019ll answer from what\u2019s in ' + firstName + '\u2019s records.';
+    }
+  }
+
+  var chips = document.getElementById('suggestion-chips');
+  if (chips) {
+    chips.innerHTML =
+      '<button class="chip" onclick="askQuestion(this.textContent)">What medications is ' + escHtml(firstName) + ' taking?</button>'
+      + '<button class="chip" onclick="askQuestion(this.textContent)">Summarize recent health events</button>'
+      + '<button class="chip" onclick="askQuestion(this.textContent)">Are there any patterns to watch?</button>'
+      + '<button class="chip" onclick="askQuestion(this.textContent)">What should I ask the doctor next visit?</button>';
+    chips.style.display = 'flex';
+  }
+}
+
+function selectAskRealPerson(el, personId) {
+  currentPersonId = personId;
+  document.querySelectorAll('#view-ask .ask-person-pill').forEach(function(p){ p.classList.remove('active'); });
+  el.classList.add('active');
+  var person = currentPeople.find(function(p){ return p.id === personId; });
+  var firstName = person ? person.name.split(' ')[0] : 'them';
+  var inputEl = document.getElementById('ask-input');
+  if (inputEl) inputEl.placeholder = 'Ask about ' + firstName + '\u2019s health\u2026';
+  var chips = document.getElementById('suggestion-chips');
+  if (chips) {
+    chips.innerHTML =
+      '<button class="chip" onclick="askQuestion(this.textContent)">What medications is ' + escHtml(firstName) + ' taking?</button>'
+      + '<button class="chip" onclick="askQuestion(this.textContent)">Summarize recent health events</button>'
+      + '<button class="chip" onclick="askQuestion(this.textContent)">Are there any patterns to watch?</button>'
+      + '<button class="chip" onclick="askQuestion(this.textContent)">What should I ask the doctor next visit?</button>';
+    chips.style.display = 'flex';
+  }
+  addWelletMessage('Switched to ' + escHtml(firstName) + '. Ask me anything about their health records.');
+}
+
+function selectAskPerson(el, person) {
+  // Demo mode only
+  _currentAskPerson = person;
+  document.querySelectorAll('.ask-person-pill').forEach(function(p){ p.classList.remove('active'); });
+  el.classList.add('active');
+  var name = person === 'dad' ? 'Dad' : 'Mom';
+  document.getElementById('ask-input').placeholder = 'Ask about ' + name + '\'s health\u2026';
+  var chips = document.getElementById('suggestion-chips');
+  if (person === 'mom') {
+    chips.innerHTML = '<button class="chip" onclick="askQuestion(this.textContent)">Is she stable?</button><button class="chip" onclick="askQuestion(this.textContent)">When is her next appointment?</button><button class="chip" onclick="askQuestion(this.textContent)">What meds is she taking?</button><button class="chip" onclick="askQuestion(this.textContent)">What changed this month?</button>';
+  } else {
+    chips.innerHTML = '<button class="chip" onclick="askQuestion(this.textContent)">What\'s his current BP trend?</button><button class="chip" onclick="askQuestion(this.textContent)">When is his next appointment?</button><button class="chip" onclick="askQuestion(this.textContent)">What changed this month?</button><button class="chip" onclick="askQuestion(this.textContent)">What meds is he taking?</button><button class="chip" onclick="askQuestion(this.textContent)">How is his CML doing?</button>';
+  }
+  addWelletMessage('Switched to ' + name + '. Ask me anything from ' + (person === 'dad' ? 'his' : 'her') + ' records.');
+}
+
+function askQuestion(text) {
+  document.getElementById('ask-input').value = text;
+  sendAskMessage();
+}
+
+function handleAskKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAskMessage(); }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+
+// ── VOICE INPUT (Web Speech API) ──────────────────────────────────────────────
+var _speechRecognition = null;
+var _isListening = false;
+
+function initVoiceInput() {
+  var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var micBtn = document.getElementById('ask-mic');
+  if (!SpeechRecognition || !micBtn) {
+    if (micBtn) micBtn.classList.add('unsupported');
+    return;
+  }
+  _speechRecognition = new SpeechRecognition();
+  _speechRecognition.continuous = false;
+  _speechRecognition.interimResults = true;
+  _speechRecognition.lang = 'en-US';
+  _speechRecognition.maxAlternatives = 1;
+
+  _speechRecognition.onstart = function() {
+    _isListening = true;
+    micBtn.classList.add('listening');
+    micBtn.innerHTML = '<i data-lucide="mic-off" style="width:16px;height:16px;"></i>';
+    initIcons();
+    document.getElementById('ask-input').placeholder = 'Listening\u2026';
+  };
+
+  _speechRecognition.onresult = function(event) {
+    var transcript = '';
+    for (var i = event.resultIndex; i < event.results.length; i++) {
+      transcript += event.results[i][0].transcript;
+    }
+    var input = document.getElementById('ask-input');
+    input.value = transcript;
+    autoResize(input);
+    // If final result, auto-send after a brief pause
+    if (event.results[event.results.length - 1].isFinal) {
+      stopVoiceInput();
+      setTimeout(function() { sendAskMessage(); }, 300);
+    }
+  };
+
+  _speechRecognition.onerror = function(event) {
+    stopVoiceInput();
+    if (event.error === 'not-allowed') {
+      showToast('Microphone access denied. Check browser permissions.');
+    } else if (event.error !== 'aborted' && event.error !== 'no-speech') {
+      showToast('Voice input error: ' + event.error);
+    }
+  };
+
+  _speechRecognition.onend = function() {
+    stopVoiceInput();
+  };
+}
+
+function toggleVoiceInput() {
+  if (!_speechRecognition) {
+    initVoiceInput();
+    if (!_speechRecognition) {
+      showToast('Voice input is not supported in this browser');
+      return;
+    }
+  }
+  if (_isListening) {
+    _speechRecognition.stop();
+  } else {
+    document.getElementById('ask-input').value = '';
+    try { _speechRecognition.start(); } catch(e) { /* already started */ }
+  }
+}
+
+function stopVoiceInput() {
+  _isListening = false;
+  var micBtn = document.getElementById('ask-mic');
+  if (micBtn) {
+    micBtn.classList.remove('listening');
+    micBtn.innerHTML = '<i data-lucide="mic" style="width:16px;height:16px;"></i>';
+    initIcons();
+  }
+  // Restore placeholder
+  var input = document.getElementById('ask-input');
+  if (input && !input.value.trim()) {
+    var firstName = isDemoMode ? (_currentAskPerson === 'mom' ? 'Mom' : 'Dad') :
+      (currentPeople.length ? currentPeople.find(function(p){return p.id===currentPersonId;})?.name.split(' ')[0] || 'them' : 'them');
+    input.placeholder = 'Ask about ' + firstName + '\u2019s health\u2026';
+  }
+}
+
+// ── FUZZY DEMO MATCHING ───────────────────────────────────────────────────────
+var _demoKeywords = {
+  dad: [
+    { keys: ['bp', 'blood pressure', 'pressure', 'hypertension', 'systolic', 'diastolic'], response: 'What\'s his current BP trend?' },
+    { keys: ['appointment', 'next visit', 'doctor visit', 'scheduled', 'upcoming', 'when is'], response: 'When is his next appointment?' },
+    { keys: ['changed', 'change', 'different', 'new', 'update', 'recent', 'this month', 'this week', 'what happened', 'latest'], response: 'What changed this month?' },
+    { keys: ['med', 'medication', 'drug', 'prescription', 'pill', 'taking', 'dose', 'dosage', 'rx'], response: 'What meds is he taking?' },
+    { keys: ['cml', 'leukemia', 'cancer', 'oncology', 'bcr-abl', 'gleevec', 'imatinib'], response: 'How is his CML doing?' }
+  ],
+  mom: [
+    { keys: ['stable', 'doing', 'how is', 'ok', 'okay', 'status', 'overall', 'health'], response: 'Is she stable?' },
+    { keys: ['appointment', 'next visit', 'doctor visit', 'scheduled', 'upcoming', 'when is'], response: 'When is her next appointment?' },
+    { keys: ['changed', 'change', 'different', 'new', 'update', 'recent', 'this month', 'this week', 'what happened', 'latest'], response: 'What changed this month?' },
+    { keys: ['med', 'medication', 'drug', 'prescription', 'pill', 'taking', 'dose', 'dosage', 'rx'], response: 'What meds is she taking?' }
+  ]
+};
+
+function fuzzyMatchDemoResponse(text, person) {
+  var lower = text.toLowerCase();
+  var keywords = _demoKeywords[person] || _demoKeywords['dad'];
+  for (var i = 0; i < keywords.length; i++) {
+    for (var j = 0; j < keywords[i].keys.length; j++) {
+      if (lower.indexOf(keywords[i].keys[j]) !== -1) {
+        return keywords[i].response;
+      }
+    }
+  }
+  return null;
+}
+
+function buildDemoContext(person) {
+  if (person === 'mom') {
+    return 'Patient: Mom (Margaret Bell)\n'
+      + 'Relationship: Mother\n'
+      + 'Conditions: Hypercholesterolemia (controlled), Hypothyroidism (managed)\n'
+      + 'Allergies: None recorded\n\n'
+      + 'Active medications:\n'
+      + '- Atorvastatin 20mg, daily (cholesterol)\n'
+      + '- Levothyroxine 50mcg, daily (thyroid)\n'
+      + '- Vitamin D3 2000IU, daily\n\n'
+      + 'Recent health events:\n'
+      + '- [2026-04-04] Appointment: Annual check-up\n'
+      + '- [2026-03-15] Lab result: Lipid panel — within normal range\n'
+      + '- [2026-03-15] Lab result: TSH 2.4 mIU/L — normal range (0.4-4.0)\n\n'
+      + 'Summary: Mom is stable. Her hypercholesterolemia is well-controlled with Atorvastatin, '
+      + 'and her hypothyroidism is managed with Levothyroxine. Last TSH was 2.4 mIU/L — right in range. '
+      + 'No significant changes this month. Next appointment is April 4.';
+  }
+  // Dad — built from DEMO_EHR_DATA + DEMO_CARESIGNALS
+  var ctx = 'Patient: Dad (John Bell), age 74\n'
+    + 'Relationship: Father\n'
+    + 'Conditions: Parkinson\'s disease (active, onset June 2023), Essential hypertension (active, onset March 2020)\n'
+    + 'Allergies: Sulfonamide (moderate — skin rash, hives)\n'
+    + 'Primary doctor: Dr. Johnson (Primary Care)\n\n'
+    + 'Active medications:\n'
+    + '- Levodopa/Carbidopa 25-100mg, 1 tablet three times daily (Parkinson\'s)\n'
+    + '- Lisinopril 20mg, 1 tablet daily (hypertension)\n'
+    + '- Hydrochlorothiazide 25mg, daily (hypertension — dose increased from 12.5mg on Feb 18)\n'
+    + '- Gleevec (Imatinib) 400mg, daily (CML)\n'
+    + '- Citalopram 10mg, daily\n'
+    + '- Metoprolol 50mg, daily\n'
+    + '- Zepbound 12.5mg, weekly injection\n\n'
+    + 'Recent health events (newest first):\n'
+    + '- [2026-03-28] Office visit — Neurology\n'
+    + '- [2026-03-28] Lab: Complete blood count (CBC) — WBC 6.8 10*3/uL (normal 4.5-11.0), Hemoglobin 14.2 g/dL (normal 13.5-17.5)\n'
+    + '- [2026-03-16] Upcoming appointment: Dr. Johnson — BP check & medication review\n'
+    + '- [2026-03-15] Lab: Comprehensive metabolic panel — Glucose 98 mg/dL (normal 70-100), Creatinine 1.0 mg/dL (normal 0.7-1.3)\n'
+    + '- [2026-02-28] Lab: CML BCR-ABL test — <0.001 (undetectable), down from <0.003 six months ago\n'
+    + '- [2026-02-18] Medication change: Hydrochlorothiazide increased 12.5mg to 25mg\n'
+    + '- [2026-02-15] Annual physical exam\n'
+    + '- [2026-02-14] Physical therapy — knee rehab session #12 (2 months post-op, second peroneal knee release)\n'
+    + '- [2026-01-10] Procedure: Electroencephalogram (EEG)\n\n'
+    + 'EHR provider: Duke Health (Epic)\n\n'
+    + 'Wearable data (Apple Watch, synced via WelletBridge):\n'
+    + '- Heart rate: current 72 bpm, resting 64, range 58-94\n'
+    + '- Steps today: 3,847 of 6,000 goal\n'
+    + '- Sleep last night: 6h 42m total (52min deep, 3h 18m core, 1h 32m REM, 38min awake). Bed 10:42 PM, wake 5:24 AM\n'
+    + '- SpO2: 96% (range 94-98%)\n'
+    + '- HRV: 28ms\n\n'
+    + 'Home sensors (CareSignals):\n'
+    + '- Hallway motion: 12 events today, last at 7:42 AM\n'
+    + '- Fridge: 4 events today, last at 7:15 AM (breakfast)\n'
+    + '- Medicine cabinet: 1 event today at 8:12 AM (morning dose taken)\n'
+    + '- Bedroom motion: 3 events today, last at 6:48 AM\n\n'
+    + 'Patterns observed:\n'
+    + '- Morning routine is consistent: waking 6:30-7:00 AM, breakfast within 30 min, 7 days running\n'
+    + '- Medication adherence improving: missed doses decreased from 4 last week to 1 this week\n'
+    + '- Blood pressure has been running higher since the Feb 18 Hydrochlorothiazide dose change (averaging 142/89). '
+    + 'BP medications can take 2-4 weeks to show full effect. Dr. Johnson reviewing at March 16 visit.\n'
+    + '- CML responding well: BCR-ABL undetectable (<0.001), down from <0.003. Dr. Edwards pleased with Gleevec response. '
+    + 'Next oncology labs due in ~6 weeks.';
+  return ctx;
+}
+
+function sendAskMessage() {
+  var input = document.getElementById('ask-input');
+  var text = input.value.trim();
+  if (!text) return;
+  input.value = ''; input.style.height = 'auto';
+  addUserMessage(text);
+  document.getElementById('suggestion-chips').style.display = 'none';
+  var typingId = showTyping();
+
+  if (!isDemoMode && currentPersonId) {
+    // Real AI call
+    (async function() {
+      var ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU';
+      // Return a usable access token. When force is true, we always go to the
+      // network for a fresh one. When false, we use the cached one only if it
+      // has >2 minutes of life left — otherwise refresh. This avoids the
+      // iOS Safari race where getSession() returns a cached-but-just-expired
+      // token that Supabase's edge verify_jwt then rejects with 401.
+      // Race any async op against a timeout so nothing hangs the UI forever.
+      function withTimeout(p, ms, label) {
+        return new Promise(function(resolve, reject) {
+          var to = setTimeout(function() { reject(new Error('timeout:' + (label||'op') + ':' + ms + 'ms')); }, ms);
+          Promise.resolve(p).then(function(v){ clearTimeout(to); resolve(v); }, function(e){ clearTimeout(to); reject(e); });
+        });
+      }
+      async function getFreshToken(force) {
+        try {
+          if (!force) {
+            var s = await withTimeout(db.auth.getSession(), 4000, 'getSession');
+            var tok = s && s.data && s.data.session && s.data.session.access_token;
+            var expAt = s && s.data && s.data.session && s.data.session.expires_at
+              ? s.data.session.expires_at * 1000 : 0;
+            if (tok && expAt && expAt - Date.now() > 2 * 60 * 1000) return tok;
+          }
+          var r = await withTimeout(db.auth.refreshSession(), 6000, 'refreshSession');
+          if (r && r.data && r.data.session && r.data.session.access_token) {
+            return r.data.session.access_token;
+          }
+          var s2 = await withTimeout(db.auth.getSession(), 4000, 'getSession2');
+          return (s2 && s2.data && s2.data.session && s2.data.session.access_token) || null;
+        } catch(_e) {
+          console.warn('getFreshToken fallback:', _e && _e.message);
+          try {
+            var s3 = await withTimeout(db.auth.getSession(), 3000, 'getSession3');
+            return (s3 && s3.data && s3.data.session && s3.data.session.access_token) || null;
+          } catch(_e2) { return null; }
+        }
+      }
+      async function callAskWellet(tok) {
+        return await withTimeout(fetch(
+          'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/ask-wellet',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + tok,
+              'apikey': ANON_KEY
+            },
+            body: JSON.stringify({
+              question: text,
+              person_id: currentPersonId,
+              context: (typeof _pendingAskContext !== 'undefined' && _pendingAskContext) ? _pendingAskContext : null
+            })
+          }
+        ), 30000, 'ask-wellet-fetch');
+      }
+      try {
+        // Try forced refresh first (gets a token with full lifetime).
+        var token = await getFreshToken(true);
+        // If that fails (iOS race, transient network, etc.), fall back to the
+        // cached session. Most of the time the cached token is still valid for
+        // several more minutes — the edge function will accept it.
+        if (!token) {
+          console.warn('[ask-wellet] forced refresh returned null; falling back to cached session');
+          token = await getFreshToken(false);
+        }
+        if (!token) {
+          removeTyping(typingId);
+          addWelletMessage('Your session expired. Please sign out and sign back in so I can access ' + escHtml((currentPeople.find(function(p){return p.id===currentPersonId;}) || {}).name || 'your records') + '.');
+          return;
+        }
+        var res = await callAskWellet(token);
+        if (res.status === 401) {
+          // Give the auth client a beat, then try one more forced refresh.
+          await new Promise(function(r){ setTimeout(r, 200); });
+          var refreshed = await getFreshToken(true);
+          if (refreshed && refreshed !== token) {
+            res = await callAskWellet(refreshed);
+          }
+        }
+        try { if (typeof _pendingAskContext !== 'undefined') { _pendingAskContext = null; if (typeof _renderAskContextChip === 'function') _renderAskContextChip(); } } catch(_e){}
+        removeTyping(typingId);
+        if (res.ok) {
+          var data = await res.json();
+          addWelletMessage(renderMarkdownSafe(data.answer || data.response || 'I couldn\u2019t find an answer to that.'));
+        } else if (res.status === 401) {
+          console.error('ask-wellet 401 after double refresh; prompting re-auth');
+          addWelletMessage('I\u2019m having trouble verifying your session. Tap the menu and sign out, then sign back in and I\u2019ll be ready.');
+        } else if (res.status === 404) {
+          var errBody404 = '';
+          try { errBody404 = await res.text(); } catch(_e){}
+          console.error('ask-wellet 404', errBody404);
+          addWelletMessage('I couldn\u2019t look up those records just now. Please sign out and sign back in, then try again.');
+        } else {
+          var errBody = '';
+          try { errBody = await res.text(); } catch(_e){}
+          console.error('ask-wellet failed', res.status, errBody);
+          addWelletMessage('Sorry, I had trouble getting a response (code ' + res.status + '). Please try again.');
+        }
+      } catch (e) {
+        console.error('ask-wellet exception', e);
+        removeTyping(typingId);
+        var msg = 'Sorry, something went wrong. Please try again.';
+        if (e && e.message && e.message.indexOf('timeout:') === 0) {
+          msg = 'That took longer than expected. Please check your connection and try again.';
+        }
+        addWelletMessage(msg);
+      }
+    })();
+  } else {
+    // Demo mode — call LLM via demo-ask edge function, canned responses as fallback
+    (async function() {
+      try {
+        var context = buildDemoContext(_currentAskPerson);
+        // If the user long-pressed a specific item, anchor the LLM to it so
+        // questions like "Summarize the history relevant to this visit" make sense.
+        var ctxItem = (typeof _pendingAskContext !== 'undefined' && _pendingAskContext) ? _pendingAskContext : null;
+        var question = text;
+        if (ctxItem) {
+          var kindLabel = (ctxItem.kind || 'item');
+          var focusBits = [];
+          if (ctxItem.name)  focusBits.push('name: ' + ctxItem.name);
+          if (ctxItem.value) focusBits.push('value: ' + ctxItem.value);
+          if (ctxItem.date)  focusBits.push('date: ' + ctxItem.date);
+          if (ctxItem.meta)  focusBits.push('meta: ' + ctxItem.meta);
+          if (ctxItem.selection) focusBits.push('selected text: \u201C' + ctxItem.selection + '\u201D');
+          if (focusBits.length) {
+            context += '\n\nFocus item (the caregiver is asking about this specific ' + kindLabel + '):\n- ' + focusBits.join('\n- ');
+            question = 'Regarding the ' + kindLabel + ' above (\u201C' + (ctxItem.name || 'this item') + '\u201D): ' + text;
+          }
+        }
+        var res = await fetch(
+          'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/demo-ask',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question: question, context: context })
+          }
+        );
+        // Clear one-shot context after send
+        try { if (typeof _pendingAskContext !== 'undefined') { _pendingAskContext = null; if (typeof _renderAskContextChip === 'function') _renderAskContextChip(); } } catch(_e){}
+        removeTyping(typingId);
+        if (res.ok) {
+          var data = await res.json();
+          if (data.answer) {
+            addWelletMessage(renderMarkdownSafe(data.answer));
+          } else {
+            throw new Error('empty');
+          }
+        } else {
+          throw new Error('status ' + res.status);
+        }
+      } catch (e) {
+        // Fallback to canned responses
+        removeTyping(typingId);
+        var responses = _responses[_currentAskPerson] || _responses['dad'];
+        var exactMatch = responses[text];
+        if (exactMatch) {
+          addWelletMessage(exactMatch);
+        } else {
+          var fuzzyKey = fuzzyMatchDemoResponse(text, _currentAskPerson);
+          var reply = fuzzyKey ? responses[fuzzyKey] : responses['default'];
+          addWelletMessage(reply);
+        }
+      }
+    })();
+  }
+}
+
+function addUserMessage(text) {
+  var area = document.getElementById('chat-area');
+  var g = document.createElement('div');
+  g.className = 'chat-group from-user';
+  g.innerHTML = '<div class="chat-bubble user">' + escHtml(text) + '</div>';
+  area.appendChild(g);
+  area.scrollTop = area.scrollHeight;
+}
+
+function addWelletMessage(html) {
+  var area = document.getElementById('chat-area');
+  var g = document.createElement('div');
+  g.className = 'chat-group from-wellet';
+  g.innerHTML = '<div class="chat-bubble wellet">' + html + '</div>';
+  area.appendChild(g);
+  area.scrollTop = area.scrollHeight;
+  initIcons();
+}
+
+function showTyping() {
+  var area = document.getElementById('chat-area');
+  var id = 'typing-' + Date.now();
+  var g = document.createElement('div');
+  g.className = 'chat-group from-wellet'; g.id = id;
+  g.innerHTML = '<div class="chat-bubble wellet" style="padding:12px 16px;"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>';
+  area.appendChild(g);
+  area.scrollTop = area.scrollHeight;
+  return id;
+}
+
+function removeTyping(id) {
+  var el = document.getElementById(id);
+  if (el) el.remove();
+}
+
+function confirmRemove(name, btn) {
+  _cardToRemove = btn.closest('.person-card');
+  _cardToRemoveId = null;
+  document.getElementById('modal-person-name').textContent = name;
+  document.getElementById('remove-modal').classList.add('show');
+  history.pushState({ type: 'modal' }, '');
+  initIcons();
+}
+
+function closeModal() {
+  document.getElementById('remove-modal').classList.remove('show');
+}
+
+function openEmergencySummary() {
+  if (!isDemoMode) {
+    renderEmergencySummary();
+    // Auto-refresh the AI brief if it's older than the most recent EHR sync.
+    // Before this check the brief was cached in localStorage indefinitely, so
+    // a Duke reconnect or a schema fix (both things that populate new rows)
+    // would still show the old empty brief until the user found the inline
+    // refresh icon — which they couldn't find. Here we invalidate whenever
+    // the data under the brief has changed.
+    var pid = currentPersonId;
+    var forceRefresh = false;
+    try {
+      var ehrData = getEhrData(pid);
+      var lastSyncAt = ehrData && ehrData.synced_at ? new Date(ehrData.synced_at).getTime() : 0;
+      var briefCache = JSON.parse(localStorage.getItem('wellet_er_brief_' + pid) || 'null');
+      var briefAt = briefCache && briefCache.timestamp ? briefCache.timestamp : 0;
+      if (lastSyncAt > 0 && briefAt > 0 && lastSyncAt > briefAt) {
+        forceRefresh = true;
+      }
+    } catch (e) { /* localStorage unavailable or parse error — fall through */ }
+    fetchEmergencyBrief(forceRefresh);
+  }
+  openSheetAccessible('emergency-overlay');
+  initIcons();
+}
+
+// Full refresh — re-reads DB counts, re-renders the structured sections, and
+// forces a fresh AI brief. Bound to the refresh icon in the red header so it
+// is always visible without scrolling.
+function refreshEmergencySummary() {
+  if (isDemoMode) return;
+  renderEmergencySummary();
+  fetchEmergencyBrief(true);
+}
+// Add-more-to-Wellet sheet: surfaces the three ways to grow Wellet’s knowledge
+function openAddMoreToWellet() {
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var name = person ? person.name.split(' ')[0] : 'your loved one';
+  var ehrConnected = !!getEhrData(currentPersonId);
+  var ehrLabel = ehrConnected ? 'Other Health Records' : 'Connect Health Records';
+  var ehrDesc = ehrConnected ? 'Link another hospital or clinic.' : 'Pull visits, labs, meds from an Epic or VA system.';
+  var sub = document.getElementById('add-more-sub');
+  if (sub) sub.textContent = 'Give Wellet more to work with for ' + name + '.';
+  var ehrTitle = document.getElementById('add-more-ehr-title');
+  var ehrDescEl = document.getElementById('add-more-ehr-desc');
+  if (ehrTitle) ehrTitle.textContent = ehrLabel;
+  if (ehrDescEl) ehrDescEl.textContent = ehrDesc;
+  openSheetAccessible('add-more-overlay');
+  initIcons();
+}
+function addMoreUpload() {
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var name = person ? person.name.split(' ')[0] : 'your loved one';
+  closeSheet('add-more-overlay');
+  setTimeout(function(){ openUpload(name); }, 180);
+}
+function addMoreEhr() {
+  closeSheet('add-more-overlay');
+  setTimeout(function(){ startEhrConnect(); }, 180);
+}
+function addMoreWearable() {
+  closeSheet('add-more-overlay');
+  setTimeout(function(){ openTerraConnect(); }, 180);
+}
+function openShareFamily() {
+  // Reset share link state
+  document.getElementById('share-link-result').style.display = 'none';
+  document.getElementById('share-options').style.display = '';
+  document.getElementById('share-loading').style.display = 'none';
+
+  var firstName = getPersonFirstName();
+  var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var fullName = isDemoMode ? 'John Bell' : (person ? person.name : 'your loved one');
+
+  // Update subtitle
+  document.getElementById('share-sheet-sub').textContent = 'Send a summary of what\u2019s going on with ' + firstName;
+
+  // Populate preview text with the current summary
+  var previewEl = document.getElementById('share-preview-text');
+  if (!isDemoMode && getSummaryText(currentPersonId)) {
+    previewEl.textContent = getSummaryText(currentPersonId);
+  } else if (isDemoMode) {
+    // Keep the hardcoded demo text already in the HTML
+  } else {
+    previewEl.textContent = firstName + ' has ' + liveEvents.length + ' health event' + (liveEvents.length !== 1 ? 's' : '') + ' logged.';
+  }
+
+  // Populate care circle recipients
+  var recipientsDiv = document.getElementById('share-recipients');
+  var recipientsList = document.getElementById('share-recipients-list');
+  if (!isDemoMode && liveCareCircle && liveCareCircle.length > 0) {
+    recipientsDiv.style.display = '';
+    var rhtml = '';
+    liveCareCircle.forEach(function(m) {
+      var hasEmail = m.email ? true : false;
+      rhtml += '<label style="display:flex;align-items:center;gap:10px;padding:8px 0;cursor:' + (hasEmail ? 'pointer' : 'default') + ';opacity:' + (hasEmail ? '1' : '0.5') + ';">'
+        + '<input type="checkbox" class="share-recipient-cb" value="' + escHtml(m.email || '') + '" data-name="' + escHtml(m.member_name) + '"' + (hasEmail ? ' checked' : ' disabled') + ' style="width:18px;height:18px;accent-color:var(--moss);">'
+        + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-size:14px;font-weight:500;color:var(--text-primary);">' + escHtml(m.member_name) + '</div>'
+        + '<div style="font-size:12px;color:var(--text-muted);">' + (hasEmail ? escHtml(m.email) : 'No email added') + '</div>'
+        + '</div>'
+        + '<div style="font-size:11px;color:var(--text-muted);text-transform:capitalize;">' + escHtml(m.role) + '</div>'
+        + '</label>';
+    });
+    recipientsList.innerHTML = rhtml;
+  } else {
+    recipientsDiv.style.display = '';
+    recipientsList.innerHTML = '<div style="font-size:13px;color:var(--text-muted);padding:4px 0;">No family members added yet.</div>';
+  }
+
+  openSheetAccessible('share-overlay');
+  initIcons();
+}
+
+function openAddContactFromShare() {
+  closeSheet('share-overlay');
+  openContactEdit(null);
+}
+
+var _lastShareUrl = '';
+
+function gatherSharePayload() {
+  var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var firstName = getPersonFirstName();
+  var fullName = isDemoMode ? 'John Bell' : (person ? person.name : 'Patient');
+  var summaryText = document.getElementById('share-preview-text').textContent || '';
+  var includeNotes = document.getElementById('share-toggle-notes').classList.contains('on');
+  var includeMeds = document.getElementById('share-toggle-meds').classList.contains('on');
+
+  // Gather recent events (last 5)
+  var recentEvents = [];
+  if (isDemoMode) {
+    recentEvents = [
+      { title: 'CML lab result', type: 'lab_result', date: '2026-02-28', notes: 'BCR-ABL <0.001 — undetectable' },
+      { title: 'Hydrochlorothiazide dose increased', type: 'medication_change', date: '2026-02-18', notes: '12.5mg to 25mg' },
+      { title: 'Physical therapy', type: 'appointment', date: '2026-02-14', notes: 'Knee rehab session #12' }
+    ];
+  } else {
+    recentEvents = liveEvents.slice(0, 5).map(function(ev) {
+      return { title: ev.title, type: ev.event_type, date: ev.event_date, notes: ev.notes || '' };
+    });
+  }
+
+  // Gather medications
+  var medications = [];
+  if (includeMeds) {
+    if (isDemoMode) {
+      medications = [
+        { name: 'Lisinopril', dose: '20mg', frequency: 'daily' },
+        { name: 'Hydrochlorothiazide', dose: '25mg', frequency: 'daily' },
+        { name: 'Gleevec (Imatinib)', dose: '400mg', frequency: 'daily' },
+        { name: 'Metoprolol', dose: '50mg', frequency: 'daily' },
+        { name: 'Citalopram', dose: '10mg', frequency: 'daily' },
+        { name: 'Zepbound', dose: '12.5mg', frequency: 'weekly' }
+      ];
+    } else {
+      medications = liveMeds.filter(function(m){ return m.active; }).map(function(m) {
+        return { name: m.name, dose: m.dose || '', frequency: m.frequency || '' };
+      });
+    }
+  }
+
+  // Gather upcoming appointments
+  var appointments = [];
+  var now = new Date();
+  if (isDemoMode) {
+    appointments = [
+      { title: 'Dr. Johnson — Primary Care', date: '2026-03-16', notes: 'BP check & medication review' }
+    ];
+  } else {
+    appointments = liveEvents.filter(function(ev) {
+      return ev.event_type === 'appointment' && new Date(ev.event_date) >= now;
+    }).slice(0, 5).map(function(ev) {
+      return { title: ev.title, date: ev.event_date, notes: ev.notes || '' };
+    });
+  }
+
+  return {
+    person_id: isDemoMode ? 'demo' : currentPersonId,
+    person_name: fullName,
+    summary_text: summaryText,
+    recent_events: recentEvents,
+    medications: medications,
+    appointments: appointments,
+    include_notes: includeNotes,
+    include_meds: includeMeds
+  };
+}
+
+async function createShareLink(action) {
+  if (isDemoMode) {
+    // In demo mode, simulate a share link
+    var demoToken = 'demo-' + Date.now().toString(36);
+    var demoUrl = window.location.origin + window.location.pathname.replace('index.html', '') + 'share.html?token=' + demoToken;
+    _lastShareUrl = demoUrl;
+    if (action === 'copy') {
+      showShareLinkResult(demoUrl);
+    } else if (action === 'email') {
+      openShareEmail(demoUrl);
+    }
+    return;
+  }
+
+  // Show loading state
+  document.getElementById('share-options').style.display = 'none';
+  document.getElementById('share-loading').style.display = 'block';
+  initIcons();
+
+  try {
+    var payload = gatherSharePayload();
+    var session = await db.auth.getSession();
+    var token = session.data.session ? session.data.session.access_token : '';
+
+    var resp = await fetch(SUPABASE_URL + '/functions/v1/create-share', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify(payload)
+    });
+
+    var result = await resp.json();
+
+    if (!resp.ok || result.error) {
+      throw new Error(result.error || 'Failed to create share');
+    }
+
+    // Validate share URL is relative or same-origin before using
+    var shareUrl = result.share_url || '';
+    if (shareUrl.startsWith('/') && !shareUrl.startsWith('//')) {
+      _lastShareUrl = shareUrl;
+    } else {
+      try {
+        var parsedShare = new URL(shareUrl, window.location.origin);
+        if (parsedShare.origin === window.location.origin) {
+          _lastShareUrl = shareUrl;
+        } else {
+          throw new Error('External share URL rejected');
+        }
+      } catch(e) {
+        throw new Error('Invalid share URL returned');
+      }
+    }
+
+    // Also store in shares table directly as fallback
+    // (edge function handles this, but track locally)
+    document.getElementById('share-loading').style.display = 'none';
+
+    if (action === 'copy') {
+      showShareLinkResult(_lastShareUrl);
+    } else if (action === 'email') {
+      document.getElementById('share-options').style.display = '';
+      openShareEmail(_lastShareUrl);
+    }
+  } catch (err) {
+    console.error('Share error:', err);
+    document.getElementById('share-loading').style.display = 'none';
+    document.getElementById('share-options').style.display = '';
+
+    // Fallback: create share directly via Supabase client
+    try {
+      var fallbackPayload = gatherSharePayload();
+      var fbToken = generateShareToken();
+      var expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      var { data, error } = await db.from('shares').insert({
+        token: fbToken,
+        user_id: currentUser.id,
+        person_id: fallbackPayload.person_id,
+        person_name: fallbackPayload.person_name,
+        summary_text: fallbackPayload.summary_text,
+        recent_events: fallbackPayload.recent_events,
+        medications: fallbackPayload.medications,
+        appointments: fallbackPayload.appointments,
+        include_notes: fallbackPayload.include_notes,
+        include_meds: fallbackPayload.include_meds,
+        expires_at: expiresAt
+      }).select().single();
+
+      if (error) throw error;
+
+      var fallbackUrl = window.location.origin + window.location.pathname.replace('index.html', '') + 'share.html?token=' + fbToken;
+      _lastShareUrl = fallbackUrl;
+
+      if (action === 'copy') {
+        showShareLinkResult(fallbackUrl);
+      } else if (action === 'email') {
+        openShareEmail(fallbackUrl);
+      }
+    } catch (fbErr) {
+      console.error('Fallback share error:', fbErr);
+      showToast('Could not create share link. Please try again.');
+    }
+  }
+}
+
+function generateShareToken() {
+  var chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  var arr = new Uint32Array(24);
+  crypto.getRandomValues(arr);
+  var token = '';
+  for (var i = 0; i < 24; i++) {
+    token += chars.charAt(arr[i] % chars.length);
+  }
+  return token;
+}
+
+function showShareLinkResult(url) {
+  document.getElementById('share-link-input').value = url;
+  document.getElementById('share-link-result').style.display = 'block';
+  document.getElementById('share-options').style.display = '';
+  initIcons();
+  copyShareLink();
+}
+
+function copyShareLink() {
+  var input = document.getElementById('share-link-input');
+  var url = input.value;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(function() {
+      showToast('Link copied to clipboard');
+    });
+  } else {
+    input.select();
+    document.execCommand('copy');
+    showToast('Link copied to clipboard');
+  }
+}
+
+async function openShareEmail(url) {
+  var firstName = getPersonFirstName();
+  var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var fullName = isDemoMode ? 'John Bell' : (person ? person.name : firstName);
+
+  // Gather selected recipients
+  var recipients = [];
+  var cbs = document.querySelectorAll('.share-recipient-cb:checked');
+  cbs.forEach(function(cb) {
+    if (cb.value) recipients.push({ email: cb.value, name: cb.getAttribute('data-name') || '' });
+  });
+
+  // Demo mode or no recipients: fall back to mailto
+  if (isDemoMode || recipients.length === 0) {
+    var subject = encodeURIComponent('Health update for ' + firstName + ' \u2014 from Wellet');
+    var body = encodeURIComponent('Hi,\n\nHere\u2019s a health summary for ' + firstName + ':\n\n' + url + '\n\nThis link will expire in 7 days.\n\nSent from Wellet \u2014 mywellet.com');
+    var to = recipients.map(function(r){ return r.email; }).join(',');
+    window.location.href = 'mailto:' + to + '?subject=' + subject + '&body=' + body;
+    showToast('Opened in Mail');
+    return;
+  }
+
+  // Show loading on the email option
+  var emailOpt = document.querySelector('#share-options .share-option:nth-child(2)');
+  var origHtml = emailOpt ? emailOpt.innerHTML : '';
+  if (emailOpt) {
+    emailOpt.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:4px 0;"><i data-lucide="loader" style="width:17px;height:17px;animation:spin 1.2s linear infinite;color:var(--amber);"></i><span style="font-size:14px;color:var(--text-secondary);">Sending emails\u2026</span></div>';
+    initIcons();
+  }
+
+  try {
+    var payload = gatherSharePayload();
+    var session = await db.auth.getSession();
+    var token = session.data.session ? session.data.session.access_token : '';
+    var senderName = currentUser && currentUser.email ? currentUser.email.split('@')[0] : 'A Wellet user';
+
+    var resp = await fetch(SUPABASE_URL + '/functions/v1/send-share-email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({
+        to: recipients,
+        person_name: fullName,
+        sender_name: senderName,
+        share_url: url,
+        summary_text: payload.summary_text,
+        include_meds: payload.include_meds,
+        medications: payload.medications
+      })
+    });
+
+    var result = await resp.json();
+
+    if (emailOpt) emailOpt.innerHTML = origHtml;
+    initIcons();
+
+    if (!resp.ok || result.error) {
+      throw new Error(result.error || 'Failed to send email');
+    }
+
+    showToast('Email sent to ' + recipients.length + ' recipient' + (recipients.length !== 1 ? 's' : ''));
+  } catch (err) {
+    console.error('Email send error:', err);
+    if (emailOpt) emailOpt.innerHTML = origHtml;
+    initIcons();
+    // Fallback to mailto
+    var subject = encodeURIComponent('Health update for ' + firstName + ' \u2014 from Wellet');
+    var body = encodeURIComponent('Hi,\n\nHere\u2019s a health summary for ' + firstName + ':\n\n' + url + '\n\nThis link will expire in 7 days.\n\nSent from Wellet \u2014 mywellet.com');
+    var to = recipients.map(function(r){ return r.email; }).join(',');
+    window.location.href = 'mailto:' + to + '?subject=' + subject + '&body=' + body;
+    showToast('Opened in Mail (fallback)');
+  }
+}
+function openExportVisit() {
+  var firstName = getPersonFirstName();
+  var subEl = document.getElementById('export-sheet-sub');
+  if (subEl) subEl.textContent = 'Generate a printable PDF to bring to ' + firstName + '\u2019s next appointment';
+  // Reset loading state
+  var loadingEl = document.getElementById('export-loading');
+  var actionsEl = document.getElementById('export-actions');
+  if (loadingEl) loadingEl.style.display = 'none';
+  if (actionsEl) actionsEl.style.display = 'block';
+  openSheetAccessible('export-overlay');
+  initIcons();
+}
+// ── FOCUS TRAP FOR BOTTOM SHEETS ──
+var _sheetTrigger = null;
+
+function openSheetAccessible(id, triggerEl) {
+  _sheetTrigger = triggerEl || document.activeElement;
+  var sheet = document.getElementById(id);
+  sheet.classList.add('show');
+  sheet.setAttribute('role', 'dialog');
+  sheet.setAttribute('aria-modal', 'true');
+  // Push history state for back button support
+  history.pushState({ type: 'sheet', id: id }, '');
+  var heading = sheet.querySelector('h2, h3, .qa-sheet-title, .er-header-title, .settings-title');
+  if (heading) {
+    if (!heading.id) heading.id = id + '-title';
+    sheet.setAttribute('aria-labelledby', heading.id);
+  }
+  setTimeout(function() {
+    var first = sheet.querySelector('button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])');
+    if (first) first.focus();
+  }, 100);
+  sheet._trapHandler = function(e) {
+    if (e.key === 'Tab') {
+      var focusable = sheet.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])');
+      if (focusable.length === 0) return;
+      var first = focusable[0];
+      var last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault(); last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault(); first.focus();
+      }
+    }
+    if (e.key === 'Escape') {
+      closeSheetAccessible(id);
+    }
+  };
+  sheet.addEventListener('keydown', sheet._trapHandler);
+}
+
+function closeSheetAccessible(id) {
+  var sheet = document.getElementById(id);
+  sheet.classList.remove('show');
+  if (sheet._trapHandler) {
+    sheet.removeEventListener('keydown', sheet._trapHandler);
+    sheet._trapHandler = null;
+  }
+  if (_sheetTrigger) {
+    _sheetTrigger.focus();
+    _sheetTrigger = null;
+  }
+}
+
+function closeSheet(id) {
+  var sheet = document.getElementById(id);
+  sheet.classList.remove('show');
+  if (sheet._trapHandler) {
+    sheet.removeEventListener('keydown', sheet._trapHandler);
+    sheet._trapHandler = null;
+  }
+  if (_sheetTrigger) { _sheetTrigger.focus(); _sheetTrigger = null; }
+}
+function setFormat(btn) {
+  btn.closest('.format-toggle').querySelectorAll('.format-btn').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+}
+function showToast(msg, opts) {
+  var toast = document.createElement('div');
+  toast.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#2C2A26;color:white;padding:10px 18px;border-radius:20px;font-size:13px;font-family:DM Sans,sans-serif;z-index:300;opacity:1;transition:opacity 0.4s;display:flex;align-items:center;gap:10px;max-width:90vw;';
+  var span = document.createElement('span');
+  span.textContent = msg;
+  toast.appendChild(span);
+  if (opts && opts.undo) {
+    var undoBtn = document.createElement('button');
+    undoBtn.textContent = 'Undo';
+    undoBtn.style.cssText = 'background:none;border:none;color:var(--mint);font-weight:600;font-size:13px;cursor:pointer;font-family:DM Sans,sans-serif;padding:0;white-space:nowrap;';
+    undoBtn.onclick = function() { opts.undo(); toast.remove(); };
+    toast.appendChild(undoBtn);
+  }
+  document.body.appendChild(toast);
+  var dur = (opts && opts.duration) || 2000;
+  setTimeout(function() { toast.style.opacity='0'; setTimeout(function() { toast.remove(); }, 400); }, dur);
+  return toast;
+}
+var _undoTimer = null;
+
+// ── ALPHA FEATURE NOTICE ─────────────────────────────────────────────────
+function showAlphaFeatureNotice(featureName, message) {
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(44,42,38,0.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var card = document.createElement('div');
+  card.style.cssText = 'background:white;border-radius:20px;padding:28px 24px 24px;max-width:340px;width:100%;text-align:center;font-family:DM Sans,sans-serif;';
+  card.innerHTML = '<div style="width:52px;height:52px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">'
+    + '<i data-lucide="construction" style="width:24px;height:24px;color:var(--moss);"></i></div>'
+    + '<div style="font-family:DM Serif Display,serif;font-size:18px;margin-bottom:8px;">' + escHtml(featureName) + '</div>'
+    + '<div style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:20px;">' + escHtml(message) + '</div>'
+    + '<button onclick="this.closest(\'.alpha-notice-overlay\').remove()" style="background:var(--moss);color:white;border:none;border-radius:12px;padding:12px 28px;font-size:14px;font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;">Got it</button>';
+  overlay.classList.add('alpha-notice-overlay');
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+  initIcons();
+}
+
+// ── DOCUMENT UPLOAD (real Supabase Storage + AI extraction) ─────────────
+var _uploadPersonName = '';
+var _uploadDocType = null;
+var _uploadFile = null;
+var _activeUploadXhr = null;
+
+function cancelActiveUpload() {
+  if (_activeUploadXhr) {
+    _activeUploadXhr.abort();
+    _activeUploadXhr = null;
+  }
+  if (_transcriptionTimeoutTimer) { clearTimeout(_transcriptionTimeoutTimer); _transcriptionTimeoutTimer = null; }
+  closeUpload();
+  showToast('Upload cancelled');
+}
+
+var _transcriptionTimeoutTimer = null;
+
+function formatTimeRemaining(seconds) {
+  if (seconds < 5) return 'a few seconds';
+  if (seconds < 60) return '~' + Math.ceil(seconds / 5) * 5 + ' seconds';
+  var mins = Math.round(seconds / 60);
+  return '~' + mins + ' minute' + (mins !== 1 ? 's' : '');
+}
+
+function estimateTranscriptionTime(fileSizeBytes) {
+  var sizeMB = fileSizeBytes / (1024 * 1024);
+  if (sizeMB > 10) return null;
+  var estimatedMinutes = sizeMB;
+  var estSeconds = estimatedMinutes * 4;
+  return Math.max(3, Math.round(estSeconds));
+}
+
+function openUploadById(personId) {
+  var person = currentPeople.find(function(p){ return p.id === personId; });
+  var name = person ? person.name : 'Person';
+  currentPersonId = personId;
+  openUpload(name);
+}
+function openUpload(personName) {
+  _uploadPersonName = personName;
+  _uploadFile = null;
+  _uploadDocType = null;
+  document.getElementById('upload-person-name').textContent = personName;
+  document.getElementById('upload-step1').style.display = 'block';
+  document.getElementById('upload-step2').style.display = 'none';
+  document.getElementById('upload-step3').style.display = 'none';
+  document.getElementById('upload-step4').style.display = 'none';
+  openSheetAccessible('upload-overlay');
+  initIcons();
+}
+function closeUpload() {
+  closeSheet('upload-overlay');
+  // Reset file input so same file can be re-selected
+  document.getElementById('upload-file-input').value = '';
+  _uploadFile = null;
+  // Clear extraction polling if active
+  if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+  if (_transcriptionTimeoutTimer) { clearTimeout(_transcriptionTimeoutTimer); _transcriptionTimeoutTimer = null; }
+  document.getElementById('upload-ext-status').innerHTML = '';
+}
+
+function triggerFileUpload(type) {
+  _uploadDocType = type || 'Other document';
+  if (isDemoMode) {
+    // In demo mode, simulate the upload
+    simulateDemoUpload(type);
+    return;
+  }
+  // Trigger real file picker
+  document.getElementById('upload-file-input').click();
+}
+
+function handleFileSelected(input) {
+  if (!input.files || !input.files[0]) return;
+  _uploadFile = input.files[0];
+
+  // ZIP files → health record import flow
+  if (isZipFile(_uploadFile.name)) {
+    closeUpload();
+    openHealthImport(_uploadFile);
+    return;
+  }
+
+  // Auto-select Doctor visit recording when audio file is picked
+  if (isAudioFile(_uploadFile.name)) {
+    _uploadDocType = 'Doctor visit recording';
+  }
+
+  // Show step 2 with real file info
+  document.getElementById('upload-file-name').textContent = _uploadFile.name;
+  var sizeMB = (_uploadFile.size / (1024 * 1024)).toFixed(1);
+  document.getElementById('upload-file-size').textContent = sizeMB + ' MB';
+
+  var isAudio = isAudioFile(_uploadFile.name);
+  var fileIcon = document.querySelector('#upload-step2 .upload-file-icon');
+  if (isAudio) {
+    fileIcon.innerHTML = '<i data-lucide="mic" style="width:22px;height:22px;"></i>';
+    document.getElementById('upload-file-meta').textContent = 'Ready to save \u00b7 Wellet will transcribe and extract health data';
+  } else {
+    fileIcon.innerHTML = '<i data-lucide="file-check" style="width:22px;height:22px;"></i>';
+    document.getElementById('upload-file-meta').textContent = 'Ready to save \u00b7 Wellet will read and summarize this';
+  }
+
+  document.getElementById('upload-step1').style.display = 'none';
+  document.getElementById('upload-step2').style.display = 'block';
+
+  // Auto-select tag based on document type
+  document.querySelectorAll('#upload-step2 .upload-tag').forEach(function(t){ t.classList.remove('selected'); });
+  var tagMap = {
+    'Visit summary': 'Labs', 'Lab results': 'Labs',
+    'Prescription': 'Medications', 'Imaging': 'Imaging'
+  };
+  if (tagMap[_uploadDocType]) {
+    document.querySelectorAll('#upload-step2 .upload-tag').forEach(function(t){
+      if (t.textContent === tagMap[_uploadDocType]) t.classList.add('selected');
+    });
+  }
+  initIcons();
+}
+
+function simulateDemoUpload(type) {
+  var names = {
+    'Visit summary': 'visit_summary_mar2026.pdf',
+    'Doctor visit recording': 'dr_appointment_apr2026.m4a',
+    'Lab results': 'lab_results_feb28.pdf',
+    'Prescription': 'rx_hydrochlorothiazide.pdf',
+    'Imaging': 'mri_report_feb27.pdf',
+    'Other document': 'document.pdf'
+  };
+  var name = names[type] || 'uploaded_document.pdf';
+  document.getElementById('upload-file-name').textContent = name;
+  document.getElementById('upload-file-size').textContent = '';
+  document.getElementById('upload-file-meta').textContent = 'Ready to save \u00b7 Wellet will read and summarize this';
+  document.getElementById('upload-step1').style.display = 'none';
+  document.getElementById('upload-step2').style.display = 'block';
+  document.querySelectorAll('#upload-step2 .upload-tag').forEach(function(t){ t.classList.remove('selected'); });
+  var tagMap = {
+    'Visit summary': 'Labs', 'Lab results': 'Labs',
+    'Prescription': 'Medications', 'Imaging': 'Imaging'
+  };
+  if (tagMap[type]) {
+    document.querySelectorAll('#upload-step2 .upload-tag').forEach(function(t){
+      if (t.textContent === tagMap[type]) t.classList.add('selected');
+    });
+  }
+  initIcons();
+}
+
+function backToUploadStep1() {
+  _uploadFile = null;
+  document.getElementById('upload-file-input').value = '';
+  document.getElementById('upload-step1').style.display = 'block';
+  document.getElementById('upload-step2').style.display = 'none';
+}
+function toggleTag(el) { el.classList.toggle('selected'); }
+
+async function confirmUpload() {
+  if (isDemoMode || !currentUser || !_uploadFile) {
+    // Demo mode or no file — just show toast
+    closeUpload();
+    showToast('Document saved to records');
+    return;
+  }
+
+  // Real upload flow
+  var file = _uploadFile;
+  var personId = currentPersonId;
+  var docType = _uploadDocType || 'Other document';
+  
+  // Get selected tags
+  var tags = [];
+  document.querySelectorAll('#upload-step2 .upload-tag.selected').forEach(function(t){
+    tags.push(t.textContent);
+  });
+
+  var isAudio = isAudioFile(file.name);
+
+  // Show uploading state
+  document.getElementById('upload-step2').style.display = 'none';
+  document.getElementById('upload-step3').style.display = 'block';
+  document.getElementById('upload-progress-bar').style.width = '10%';
+  document.getElementById('upload-progress-title').textContent = isAudio ? 'Uploading recording...' : 'Uploading document...';
+  document.getElementById('upload-progress-sub').textContent = 'Storing ' + file.name;
+  document.getElementById('upload-cancel-btn').style.display = 'inline-block';
+
+  // Show initial upload time estimate
+  var uploadEstSec = Math.ceil(file.size / (2 * 1024 * 1024));
+  document.getElementById('upload-time-estimate').textContent = formatTimeRemaining(uploadEstSec) + ' remaining';
+  initIcons();
+
+  try {
+    // 1. Upload file to Supabase Storage
+    var userId = currentUser.id;
+    var timestamp = Date.now();
+    var safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    var storagePath = userId + '/' + timestamp + '_' + safeName;
+
+    document.getElementById('upload-progress-bar').style.width = '15%';
+
+    // Upload via XMLHttpRequest for real progress + timeout (fixes silent hang with SDK)
+    var session = await db.auth.getSession();
+    var uploadToken = session.data.session.access_token;
+    var uploadUrl = SUPABASE_URL + '/storage/v1/object/documents/' + storagePath;
+
+    await new Promise(function(resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      _activeUploadXhr = xhr;
+      var uploadTimedOut = false;
+      var lastProgressTime = Date.now();
+
+      // Abort if no progress for 20 seconds (stall detection)
+      var stallCheck = setInterval(function() {
+        if (Date.now() - lastProgressTime > 20000) {
+          clearInterval(stallCheck);
+          uploadTimedOut = true;
+          xhr.abort();
+          reject(new Error('Upload stalled — no progress for 20 seconds. Please try again.'));
+        }
+      }, 5000);
+
+      // Hard timeout at 90 seconds for large files
+      var uploadTimeout = setTimeout(function() {
+        clearInterval(stallCheck);
+        uploadTimedOut = true;
+        xhr.abort();
+        reject(new Error('Upload timed out. Please check your connection and try again.'));
+      }, 90000);
+
+      var uploadStartTime = Date.now();
+      xhr.upload.onprogress = function(e) {
+        lastProgressTime = Date.now();
+        if (e.lengthComputable) {
+          var pct = Math.round(15 + (e.loaded / e.total) * 35);
+          document.getElementById('upload-progress-bar').style.width = pct + '%';
+          var uploadedMB = (e.loaded / (1024 * 1024)).toFixed(1);
+          var totalMB = (e.total / (1024 * 1024)).toFixed(1);
+          document.getElementById('upload-progress-sub').textContent = 'Uploading ' + uploadedMB + ' / ' + totalMB + ' MB';
+
+          // Update time remaining based on actual speed
+          var elapsed = (Date.now() - uploadStartTime) / 1000;
+          if (e.loaded > 0 && elapsed > 0.5) {
+            var speed = e.loaded / elapsed;
+            var remaining = (e.total - e.loaded) / speed;
+            document.getElementById('upload-time-estimate').textContent = remaining < 2
+              ? 'Almost done...'
+              : formatTimeRemaining(remaining) + ' remaining';
+          }
+        }
+      };
+
+      xhr.onload = function() {
+        clearTimeout(uploadTimeout);
+        clearInterval(stallCheck);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve();
+        } else {
+          var errMsg = 'Storage upload failed (HTTP ' + xhr.status + ')';
+          try { errMsg = JSON.parse(xhr.responseText).message || errMsg; } catch(_e) {}
+          reject(new Error(errMsg));
+        }
+      };
+
+      xhr.onerror = function() {
+        clearTimeout(uploadTimeout);
+        clearInterval(stallCheck);
+        if (!uploadTimedOut) {
+          reject(new Error('Upload failed — network error. Please check your connection.'));
+        }
+      };
+
+      xhr.onabort = function() {
+        clearTimeout(uploadTimeout);
+        clearInterval(stallCheck);
+        if (!uploadTimedOut) {
+          reject(new Error('Upload was cancelled.'));
+        }
+      };
+
+      xhr.open('POST', uploadUrl, true);
+      xhr.setRequestHeader('Authorization', 'Bearer ' + uploadToken);
+      xhr.setRequestHeader('apikey', SUPABASE_ANON_KEY);
+      xhr.setRequestHeader('x-upsert', 'true');
+      xhr.setRequestHeader('cache-control', '3600');
+      xhr.send(file);
+    });
+    _activeUploadXhr = null;
+    document.getElementById('upload-cancel-btn').style.display = 'none';
+
+    document.getElementById('upload-progress-bar').style.width = '50%';
+    document.getElementById('upload-progress-title').textContent = 'Saving record...';
+    document.getElementById('upload-progress-sub').textContent = 'Creating document entry';
+    document.getElementById('upload-time-estimate').textContent = '';
+
+    // 2. Insert document record
+    var insertResult = await db.from('documents').insert({
+      person_id: personId,
+      file_name: file.name,
+      storage_path: storagePath,
+      document_type: docType,
+      extraction_status: 'pending'
+    }).select().single();
+
+    if (insertResult.error) {
+      throw new Error('Document record failed: ' + insertResult.error.message);
+    }
+
+    var docRecord = insertResult.data;
+    document.getElementById('upload-progress-bar').style.width = '75%';
+
+    if (isAudio) {
+      var estTransSec = estimateTranscriptionTime(file.size);
+      document.getElementById('upload-progress-title').textContent = 'Transcribing your recording...';
+      if (estTransSec) {
+        document.getElementById('upload-progress-sub').textContent = 'This usually takes about ' + Math.ceil(estTransSec) + ' seconds';
+        document.getElementById('upload-time-estimate').textContent = '';
+      } else {
+        document.getElementById('upload-progress-sub').textContent = 'This may take a minute or two for longer recordings';
+        document.getElementById('upload-time-estimate').textContent = '';
+      }
+      // Timeout: if transcription exceeds 2 minutes, reassure user
+      if (_transcriptionTimeoutTimer) clearTimeout(_transcriptionTimeoutTimer);
+      _transcriptionTimeoutTimer = setTimeout(function() {
+        var titleEl = document.getElementById('upload-progress-title');
+        if (titleEl && titleEl.textContent.indexOf('Transcribing') !== -1) {
+          document.getElementById('upload-time-estimate').textContent = 'Still working \u2014 longer recordings take more time';
+        }
+      }, 120000);
+    } else {
+      document.getElementById('upload-progress-title').textContent = 'Analyzing document...';
+      document.getElementById('upload-progress-sub').textContent = 'Wellet is reading your document';
+      document.getElementById('upload-time-estimate').textContent = '';
+    }
+
+    // 3. Call Edge Function for AI extraction/transcription
+    var edgeFnUrl = isAudio
+      ? 'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/transcribe-audio'
+      : 'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/parse-document';
+
+    try {
+      var session = await db.auth.getSession();
+      var token = session.data.session.access_token;
+
+      var fnResponse = await fetch(edgeFnUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token,
+          'apikey': SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({
+          document_id: docRecord.id,
+          file_name: file.name,
+          document_type: docType,
+          storage_path: storagePath
+        })
+      });
+
+      if (fnResponse.ok) {
+        var fnResult = await fnResponse.json();
+        console.log('Edge function success:', fnResult);
+      } else {
+        var fnErrBody = await fnResponse.text();
+        console.error('Edge function returned:', fnResponse.status, fnErrBody);
+      }
+    } catch (fnErr) {
+      // Edge function failure is non-blocking — doc is still saved
+      console.warn('AI extraction call failed (non-blocking):', fnErr);
+    }
+
+    if (_transcriptionTimeoutTimer) { clearTimeout(_transcriptionTimeoutTimer); _transcriptionTimeoutTimer = null; }
+    document.getElementById('upload-time-estimate').textContent = '';
+    document.getElementById('upload-progress-bar').style.width = '100%';
+
+    // 4. Show success state + start extraction polling
+    setTimeout(function() {
+      document.getElementById('upload-step3').style.display = 'none';
+      document.getElementById('upload-step4').style.display = 'block';
+      // Reset step4 to default state
+      document.getElementById('upload-done-icon').innerHTML = isAudio
+        ? '<i data-lucide="mic" style="width:24px;height:24px;color:var(--moss);"></i>'
+        : '<i data-lucide="check-circle" style="width:24px;height:24px;color:var(--moss);"></i>';
+      document.getElementById('upload-done-title').textContent = isAudio ? 'Recording saved' : 'Document saved';
+      document.getElementById('upload-done-sub').textContent = isAudio
+        ? 'Wellet is transcribing your recording and will extract health data automatically.'
+        : 'Wellet is reading your document and will extract health information automatically.';
+      var doneBtn = document.getElementById('upload-done-btn');
+      doneBtn.textContent = 'Done';
+      doneBtn.onclick = function() { closeUpload(); };
+      initIcons();
+      // Start polling for extraction status (audio gets more attempts since transcription takes longer)
+      pollExtractionStatus(docRecord.id, isAudio);
+    }, 500);
+
+    showToast('Document saved to records');
+
+    // Reload documents for current person
+    await loadPersonData(personId);
+    renderRecordsView();
+    
+  } catch (err) {
+    if (_transcriptionTimeoutTimer) { clearTimeout(_transcriptionTimeoutTimer); _transcriptionTimeoutTimer = null; }
+    console.error('Upload error:', err);
+    document.getElementById('upload-progress-title').textContent = 'Upload failed';
+    document.getElementById('upload-progress-sub').textContent = err.message || 'Something went wrong. Please try again.';
+    document.getElementById('upload-progress-bar').style.width = '0%';
+    document.getElementById('upload-time-estimate').textContent = '';
+    // Allow closing after error
+    setTimeout(function() {
+      document.getElementById('upload-step3').style.display = 'none';
+      document.getElementById('upload-step1').style.display = 'block';
+      showToast('Upload failed — please try again');
+    }, 2000);
+  }
+}
+
+function switchRecordsPerson(el, person) {
+  document.querySelectorAll('#view-records .person-pill').forEach(function(p){ p.classList.remove('active'); });
+  el.classList.add('active');
+  document.getElementById('records-dad').style.display = person === 'dad' ? 'block' : 'none';
+  document.getElementById('records-mom').style.display = person === 'mom' ? 'block' : 'none';
+  initIcons();
+}
+
+function openContactEdit(name, role, email, phone, notif) {
+  var isNew = !name;
+  if (isNew) { _editingContactId = null; }
+  document.getElementById('contact-sheet-title').textContent = isNew ? 'Add family member' : 'Edit contact';
+  document.getElementById('contact-name-input').value = name || '';
+  document.getElementById('contact-email-input').value = email || '';
+  document.getElementById('contact-phone-input').value = phone || '';
+  document.getElementById('contact-remove-btn').style.display = isNew ? 'none' : 'flex';
+  ['Primary','Secondary','Emergency'].forEach(function(r) {
+    var el = document.getElementById('role-' + r.toLowerCase());
+    if (el) el.classList.toggle('selected', r === role);
+  });
+  closeSettings();
+  openSheetAccessible('contact-overlay');
+  initIcons();
+}
+
+function switchDemo(which, btn) {
+  document.querySelectorAll('.demo-tab').forEach(function(t){ t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
+  btn.classList.add('active');
+  btn.setAttribute('aria-selected', 'true');
+  document.getElementById('demo-dad').style.display = which === 'dad' ? 'block' : 'none';
+  document.getElementById('demo-vet').style.display = which === 'vet' ? 'block' : 'none';
+}
+
+function selectRole(role) {
+  ['Primary','Secondary','Emergency'].forEach(function(r) {
+    var el = document.getElementById('role-' + r.toLowerCase());
+    if (el) el.classList.toggle('selected', r === role);
+  });
+}
+
+// ── GENERATE SUMMARY (Feature 2) ─────────────────────────────────────────────
+
+// Build a compact EHR context payload for the summary generator. The browser
+// already has this data loaded from fetch-ehr-data, so we pass it through
+// instead of having the edge function re-query Epic.
+function buildEhrSummaryContext(personId) {
+  var ehr = getEhrData(personId);
+  if (!ehr) return null;
+  var thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  function inWindow(d) {
+    var t = d ? new Date(d).getTime() : 0;
+    return t && t >= thirtyDaysAgo;
+  }
+  // Visits: last 10, with a lightweight shape (date, reason, provider, location)
+  var visits = (ehr.visits || []).slice(0, 10).map(function(v) {
+    var provs = (v.providers || []).map(function(p){ return p.name || ''; }).filter(Boolean);
+    return {
+      start_date: v.start_date || '',
+      name: v.name || v.type || '',
+      reason: v.reason || '',
+      location: v.location || '',
+      provider: provs[0] || '',
+      is_recent: inWindow(v.start_date),
+    };
+  });
+  var meds = (ehr.medications || []).slice(0, 20).map(function(m) {
+    return {
+      name: m.name || m.display || '',
+      dose: m.dose || '',
+      frequency: m.frequency || '',
+      is_recent: inWindow(m.start_date || m.authored_on || ''),
+    };
+  });
+  var conditions = (ehr.conditions || []).slice(0, 20).map(function(c) {
+    return {
+      name: c.name || c.display || '',
+      status: c.clinical_status || c.status || '',
+      recorded_date: c.recorded_date || c.onset_date || '',
+      is_recent: inWindow(c.recorded_date || c.onset_date || ''),
+    };
+  });
+  // Labs in last 30 days only — keeps context tight
+  var labs = (ehr.observations || []).filter(function(o) {
+    return (o.category === 'laboratory' || /lab/i.test(o.category || '')) && inWindow(o.effective_date || o.issued);
+  }).slice(0, 12).map(function(o) {
+    return {
+      name: o.name || o.display || '',
+      value: o.value_display || (o.value != null ? String(o.value) + (o.unit ? ' ' + o.unit : '') : ''),
+      date: o.effective_date || o.issued || '',
+      interpretation: o.interpretation || '',
+    };
+  });
+  return {
+    provider: ehr.provider || 'EHR',
+    patient_name: (ehr.patient && ehr.patient.name) || '',
+    birth_date: (ehr.patient && ehr.patient.birth_date) || '',
+    visits: visits,
+    medications: meds,
+    conditions: conditions,
+    recent_labs: labs,
+    synced_at: ehr.synced_at || '',
+  };
+}
+
+async function fetchUpdateMeSummary(forceRefresh) {
+  if (isDemoMode || !currentPersonId || !currentUser) return;
+  var pid = currentPersonId;
+  // Clear cache on force refresh
+  if (forceRefresh) { delete summaryCache[pid]; }
+  // Already cached?
+  if (summaryCache[pid] !== undefined) { renderUpdateMe(); return; }
+
+  var ehrContext = buildEhrSummaryContext(pid);
+
+  try {
+    var session = await db.auth.getSession();
+    var token = session.data.session.access_token;
+    var res = await fetch(
+      'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/generate-summary',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token,
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU'
+        },
+        body: JSON.stringify({ person_id: pid, ehr_context: ehrContext })
+      }
+    );
+    if (res.ok) {
+      var data = await res.json();
+      if (data.empty || !data.summary) {
+        summaryCache[pid] = 'empty';
+      } else {
+        // Store the full response so we have sources + window_class for the card.
+        // Back-compat: code that reads summaryCache[pid] as a string will now get an object
+        // (see the .text accessor in formatters).
+        summaryCache[pid] = {
+          text: data.summary,
+          window_class: data.window_class || 'quiet',
+          sources: data.sources || null,
+          generated_at: new Date().toISOString(),
+        };
+      }
+    } else {
+      summaryCache[pid] = 'empty';
+    }
+  } catch (e) {
+    console.warn('Summary fetch error:', e);
+    summaryCache[pid] = 'empty';
+  }
+  // Only re-render if still on same person
+  if (currentPersonId === pid) { renderUpdateMe(); }
+}
+
+// ── CAREGIVER RESOURCES ─────────────────────────────────────────────────────
+var _resourcesCache = [];
+var _savedResourceIds = {};
+var _resourcesLoaded = false;
+
+// Condition slug mapping: maps user-entered condition strings to resource slugs
+var CONDITION_SLUG_MAP = {
+  'alzheimer': 'alzheimers', 'alzheimers': 'alzheimers', "alzheimer's": 'alzheimers', "alzheimer's disease": 'alzheimers',
+  'dementia': 'dementia', 'lewy body': 'dementia', 'vascular dementia': 'dementia',
+  'parkinson': 'parkinsons', 'parkinsons': 'parkinsons', "parkinson's": 'parkinsons', "parkinson's disease": 'parkinsons',
+  'cancer': 'cancer', 'lymphoma': 'cancer', 'leukemia': 'cancer', 'cml': 'cancer', 'aml': 'cancer', 'melanoma': 'cancer', 'lung cancer': 'cancer', 'breast cancer': 'cancer', 'prostate cancer': 'cancer', 'colon cancer': 'cancer',
+  'stroke': 'stroke',
+  'als': 'als', 'amyotrophic lateral sclerosis': 'als',
+  'heart disease': 'heart_disease', 'heart failure': 'heart_disease', 'chf': 'heart_disease', 'congestive heart failure': 'heart_disease', 'coronary artery disease': 'heart_disease', 'atrial fibrillation': 'heart_disease', 'afib': 'heart_disease',
+  'diabetes': 'diabetes', 'type 1 diabetes': 'diabetes', 'type 2 diabetes': 'diabetes',
+  'depression': 'mental_health', 'anxiety': 'mental_health', 'bipolar': 'mental_health', 'schizophrenia': 'mental_health', 'ptsd': 'mental_health', 'mental health': 'mental_health',
+  'ms': 'ms', 'multiple sclerosis': 'ms',
+  'kidney disease': 'kidney', 'kidney': 'kidney', 'ckd': 'kidney', 'chronic kidney disease': 'kidney', 'renal failure': 'kidney',
+  'copd': 'lung', 'lung disease': 'lung', 'pulmonary fibrosis': 'lung', 'emphysema': 'lung'
+};
+
+function conditionToSlugs(condStr) {
+  if (!condStr) return [];
+  var slugs = {};
+  var parts = condStr.split(',').map(function(c){ return c.trim().toLowerCase(); }).filter(Boolean);
+  for (var i = 0; i < parts.length; i++) {
+    var slug = CONDITION_SLUG_MAP[parts[i]];
+    if (slug) { slugs[slug] = true; }
+    // Also try partial matching
+    if (!slug) {
+      var keys = Object.keys(CONDITION_SLUG_MAP);
+      for (var k = 0; k < keys.length; k++) {
+        if (parts[i].indexOf(keys[k]) >= 0 || keys[k].indexOf(parts[i]) >= 0) {
+          slugs[CONDITION_SLUG_MAP[keys[k]]] = true;
+          break;
+        }
+      }
+    }
+  }
+  return Object.keys(slugs);
+}
+
+async function loadResources() {
+  if (_resourcesLoaded && _resourcesCache.length > 0) return;
+  var { data, error } = await db.from('caregiver_resources').select('*').eq('vetted', true).order('name');
+  if (error) { console.error('Error loading resources:', error); return; }
+  _resourcesCache = data || [];
+  _resourcesLoaded = true;
+}
+
+async function loadSavedResources() {
+  if (!currentUser) return;
+  var { data, error } = await db.from('user_saved_resources').select('*').eq('user_id', currentUser.id);
+  if (error) { console.error('Error loading saved resources:', error); return; }
+  _savedResourceIds = {};
+  (data || []).forEach(function(s) {
+    if (!s.dismissed) { _savedResourceIds[s.resource_id] = s; }
+  });
+}
+
+function getResourceTags(resource) {
+  var tags = [];
+  if (resource.has_support_groups) tags.push({ label: 'Support Groups', cls: '' });
+  if (resource.phone) tags.push({ label: '24/7 Helpline', cls: 'helpline' });
+  if (resource.is_free) tags.push({ label: 'Free', cls: 'free' });
+  if (resource.has_zip_search) tags.push({ label: 'Local Search', cls: '' });
+  if ((resource.categories || []).indexOf('financial-aid') >= 0) tags.push({ label: 'Financial Aid', cls: 'free' });
+  if ((resource.categories || []).indexOf('counseling') >= 0) tags.push({ label: 'Counseling', cls: '' });
+  if ((resource.categories || []).indexOf('respite') >= 0) tags.push({ label: 'Respite Care', cls: '' });
+  // Limit to 3 tags
+  return tags.slice(0, 3);
+}
+
+function renderResourceCard(resource, isSaved) {
+  var tags = getResourceTags(resource);
+  var tagsHtml = '';
+  for (var t = 0; t < tags.length; t++) {
+    tagsHtml += '<span class="resource-tag ' + tags[t].cls + '">' + escHtml(tags[t].label) + '</span>';
+  }
+
+  var bookmarkIcon = isSaved ? 'bookmark-check' : 'bookmark';
+  var bookmarkClass = isSaved ? 'resource-card-bookmark saved' : 'resource-card-bookmark';
+
+  var html = '<div class="resource-card" data-resource-id="' + resource.id + '">'
+    + '<div class="resource-card-header">'
+    + '<div class="resource-card-name">' + escHtml(resource.name) + '</div>'
+    + '<button class="' + bookmarkClass + '" onclick="toggleResourceBookmark(\'' + resource.id + '\')" title="' + (isSaved ? 'Remove bookmark' : 'Save for later') + '">'
+    + '<i data-lucide="' + bookmarkIcon + '" style="width:18px;height:18px;"></i>'
+    + '</button>'
+    + '</div>'
+    + '<div class="resource-card-desc">' + escHtml(resource.description) + '</div>'
+    + '<div class="resource-card-tags">' + tagsHtml + '</div>'
+    + '<div class="resource-card-actions">'
+    + '<a class="resource-btn resource-btn-visit" href="' + escHtml(resource.url) + '" target="_blank" rel="noopener noreferrer">'
+    + '<i data-lucide="external-link" style="width:14px;height:14px;"></i> Visit'
+    + '</a>';
+  if (resource.phone) {
+    html += '<a class="resource-btn resource-btn-call" href="tel:' + escHtml(resource.phone.replace(/[^0-9+]/g, '')) + '">'
+      + '<i data-lucide="phone" style="width:14px;height:14px;"></i> ' + escHtml(resource.phone)
+      + '</a>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+async function renderResourcesView() {
+  var el = document.getElementById('view-resources');
+  if (!el) return;
+  console.log('[Resources] renderResourcesView called, isDemoMode:', isDemoMode, 'currentUser:', !!currentUser);
+
+  // Show loading state
+  el.innerHTML = '<div class="resources-view" style="text-align:center;padding:60px 20px;">'
+    + '<div style="color:var(--text-muted);font-size:13px;">Loading resources\u2026</div></div>';
+
+  try {
+    await loadResources();
+    console.log('[Resources] loaded, cache size:', _resourcesCache.length);
+    if (!isDemoMode) { await loadSavedResources(); }
+  } catch(e) {
+    console.error('Resources load error:', e);
+    el.innerHTML = '<div class="resources-view" style="text-align:center;padding:60px 20px;">'
+      + '<div style="color:var(--text-muted);font-size:13px;">Could not load resources. Pull down to retry.</div></div>';
+    return;
+  }
+
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var personName = person ? person.name.split(' ')[0] : 'your loved one';
+  var personConditions = person ? person.conditions : '';
+  var slugs = conditionToSlugs(personConditions);
+
+  // Categorize resources
+  var saved = [];
+  var recommended = [];
+  var general = [];
+
+  for (var i = 0; i < _resourcesCache.length; i++) {
+    var r = _resourcesCache[i];
+    var isSaved = !!_savedResourceIds[r.id];
+
+    if (isSaved) {
+      saved.push(r);
+      continue;
+    }
+
+    // Check if resource matches any of the person's conditions
+    var isMatch = false;
+    if (slugs.length > 0 && r.conditions) {
+      for (var s = 0; s < slugs.length; s++) {
+        if (r.conditions.indexOf(slugs[s]) >= 0 && r.conditions.indexOf('general') < 0 && r.conditions.indexOf('bereavement') < 0) {
+          isMatch = true;
+          break;
+        }
+      }
+    }
+
+    if (isMatch) {
+      recommended.push(r);
+    } else if (r.conditions && r.conditions.indexOf('general') >= 0) {
+      general.push(r);
+    }
+  }
+
+  var html = '<div class="resources-view">';
+  html += '<div class="resources-view-title">Resources</div>';
+  html += '<div class="resources-view-sub">Vetted organizations that support caregivers like you. Bookmark any to save for later.</div>';
+
+  // Saved section
+  if (saved.length > 0) {
+    html += '<div class="resources-section">';
+    html += '<div class="resources-section-title"><i data-lucide="bookmark" style="width:13px;height:13px;"></i> Saved</div>';
+    for (var si = 0; si < saved.length; si++) {
+      html += renderResourceCard(saved[si], true);
+    }
+    html += '</div>';
+  }
+
+  // Recommended section
+  if (recommended.length > 0) {
+    html += '<div class="resources-section">';
+    html += '<div class="resources-section-title"><i data-lucide="sparkles" style="width:13px;height:13px;"></i> Recommended for ' + escHtml(personName) + '</div>';
+    for (var ri = 0; ri < recommended.length; ri++) {
+      html += renderResourceCard(recommended[ri], false);
+    }
+    html += '</div>';
+  }
+
+  // General section
+  if (general.length > 0) {
+    html += '<div class="resources-section">';
+    html += '<div class="resources-section-title"><i data-lucide="heart-handshake" style="width:13px;height:13px;"></i> General caregiving</div>';
+    for (var gi = 0; gi < general.length; gi++) {
+      html += renderResourceCard(general[gi], false);
+    }
+    html += '</div>';
+  }
+
+  // Empty state
+  if (saved.length === 0 && recommended.length === 0 && general.length === 0) {
+    html += '<div class="resources-empty">'
+      + '<div class="resources-empty-icon"><i data-lucide="heart-handshake" style="width:24px;height:24px;"></i></div>'
+      + '<div class="resources-empty-title">Resources coming soon</div>'
+      + '<div class="resources-empty-body">We\u2019re building a curated list of support organizations for caregivers. Check back soon.</div>'
+      + '</div>';
+  }
+
+  html += '</div>';
+  el.innerHTML = html;
+  initIcons();
+}
+
+async function toggleResourceBookmark(resourceId) {
+  if (!currentUser) { showToast('Sign in to save resources'); return; }
+
+  var existing = _savedResourceIds[resourceId];
+  if (existing) {
+    // Remove bookmark
+    var { error } = await db.from('user_saved_resources').delete().eq('id', existing.id);
+    if (error) { showToast('Error removing bookmark'); return; }
+    delete _savedResourceIds[resourceId];
+    showToast('Bookmark removed');
+  } else {
+    // Add bookmark
+    var row = {
+      user_id: currentUser.id,
+      resource_id: resourceId,
+      care_recipient_id: currentPersonId || null,
+      source_trigger: 'resources_tab'
+    };
+    var { data, error } = await db.from('user_saved_resources').insert(row).select().single();
+    if (error) { showToast('Error saving bookmark'); return; }
+    _savedResourceIds[resourceId] = data;
+    showToast('Saved for later');
+  }
+
+  // Re-render to move card between sections
+  renderResourcesView();
+}
+
+// ── DIAGNOSIS ENTRY TRIGGER ─────────────────────────────────────────────────
+var _previousConditions = '';
+
+function captureConditionsBefore() {
+  var input = document.getElementById('profile-conditions-input');
+  _previousConditions = input ? input.value.trim() : '';
+}
+
+async function checkConditionTrigger() {
+  var input = document.getElementById('profile-conditions-input');
+  var newVal = input ? input.value.trim() : '';
+  if (!newVal || newVal === _previousConditions) return;
+
+  // Find newly added conditions
+  var oldParts = _previousConditions ? _previousConditions.split(',').map(function(c){ return c.trim().toLowerCase(); }).filter(Boolean) : [];
+  var newParts = newVal.split(',').map(function(c){ return c.trim().toLowerCase(); }).filter(Boolean);
+  var added = [];
+  for (var i = 0; i < newParts.length; i++) {
+    if (oldParts.indexOf(newParts[i]) < 0) { added.push(newParts[i]); }
+  }
+  if (added.length === 0) return;
+
+  // Load resources if needed
+  await loadResources();
+
+  // Find matching resources for new conditions
+  var matches = [];
+  for (var a = 0; a < added.length; a++) {
+    var slug = CONDITION_SLUG_MAP[added[a]];
+    if (!slug) {
+      // Try partial match
+      var keys = Object.keys(CONDITION_SLUG_MAP);
+      for (var k = 0; k < keys.length; k++) {
+        if (added[a].indexOf(keys[k]) >= 0 || keys[k].indexOf(added[a]) >= 0) {
+          slug = CONDITION_SLUG_MAP[keys[k]];
+          break;
+        }
+      }
+    }
+    if (!slug) continue;
+
+    for (var ri = 0; ri < _resourcesCache.length; ri++) {
+      var r = _resourcesCache[ri];
+      if (r.conditions && r.conditions.indexOf(slug) >= 0 && r.conditions.indexOf('general') < 0) {
+        matches.push({ resource: r, condition: added[a] });
+      }
+    }
+  }
+
+  // Limit to 2 suggestions
+  matches = matches.slice(0, 2);
+  if (matches.length === 0) return;
+
+  var person = currentPeople.find(function(p){ return p.id === _profileEditPersonId; });
+  var personName = person ? person.name.split(' ')[0] : 'your loved one';
+
+  // Show trigger card after the profile save toast
+  setTimeout(function() {
+    showDxTriggerToast(matches, personName);
+  }, 600);
+}
+
+function showDxTriggerToast(matches, personName) {
+  // Remove any existing trigger
+  var existing = document.getElementById('dx-trigger-container');
+  if (existing) existing.remove();
+
+  var container = document.createElement('div');
+  container.id = 'dx-trigger-container';
+  container.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:736px;z-index:100;';
+
+  var html = '';
+  for (var i = 0; i < matches.length; i++) {
+    var m = matches[i];
+    var offering = '';
+    if (m.resource.has_support_groups) offering = 'support groups';
+    else if (m.resource.phone) offering = 'a helpline';
+    else offering = 'caregiver resources';
+
+    html += '<div class="dx-trigger-card" data-resource-id="' + m.resource.id + '">'
+      + '<div class="dx-trigger-text">You added <strong>' + escHtml(m.condition) + '</strong> to ' + escHtml(personName) + '\u2019s profile. '
+      + 'The <strong>' + escHtml(m.resource.name) + '</strong> has ' + escHtml(offering) + ' \u2014 want me to save this for later?</div>'
+      + '<div class="dx-trigger-actions">'
+      + '<button class="dx-trigger-btn dx-trigger-save" onclick="saveDxResource(\'' + m.resource.id + '\', this)">Save for later</button>'
+      + '<button class="dx-trigger-btn dx-trigger-dismiss" onclick="dismissDxTrigger(this)">Not now</button>'
+      + '</div></div>';
+  }
+
+  container.innerHTML = html;
+  document.body.appendChild(container);
+  initIcons();
+
+  // Auto-dismiss after 15 seconds
+  setTimeout(function() {
+    var el = document.getElementById('dx-trigger-container');
+    if (el) { el.style.transition = 'opacity 0.3s'; el.style.opacity = '0'; setTimeout(function(){ if (el.parentNode) el.remove(); }, 300); }
+  }, 15000);
+}
+
+async function saveDxResource(resourceId, btn) {
+  if (!currentUser) { showToast('Sign in to save resources'); return; }
+
+  var row = {
+    user_id: currentUser.id,
+    resource_id: resourceId,
+    care_recipient_id: currentPersonId || null,
+    source_trigger: 'diagnosis_entry'
+  };
+  var { error } = await db.from('user_saved_resources').upsert(row, { onConflict: 'user_id,resource_id' });
+  if (error) { showToast('Error saving resource'); return; }
+
+  // Update local cache
+  _savedResourceIds[resourceId] = row;
+
+  // Remove this card
+  var card = btn.closest('.dx-trigger-card');
+  if (card) { card.style.transition = 'opacity 0.2s'; card.style.opacity = '0'; setTimeout(function(){ card.remove(); cleanupDxContainer(); }, 200); }
+  showToast('Saved for later');
+}
+
+function dismissDxTrigger(btn) {
+  var card = btn.closest('.dx-trigger-card');
+  if (card) { card.style.transition = 'opacity 0.2s'; card.style.opacity = '0'; setTimeout(function(){ card.remove(); cleanupDxContainer(); }, 200); }
+}
+
+function cleanupDxContainer() {
+  var container = document.getElementById('dx-trigger-container');
+  if (container && container.children.length === 0) { container.remove(); }
+}
+
+// ── PROFILE EDITING (Feature 3) ─────────────────────────────────────────────
+var _profileEditPersonId = null;
+
+function openProfileEdit(personId) {
+  var pid = personId || currentPersonId;
+  _profileEditPersonId = pid;
+  var person = currentPeople.find(function(p){ return p.id === pid; });
+  if (!person) return;
+
+  document.getElementById('profile-sheet-sub').textContent = 'Editing profile for ' + person.name;
+  document.getElementById('profile-name-input').value = person.name || '';
+  document.getElementById('profile-relationship-input').value = person.relationship || '';
+  document.getElementById('profile-dob-input').value = person.date_of_birth || '';
+  document.getElementById('profile-phone-input').value = person.phone || '';
+  document.getElementById('profile-conditions-input').value = person.conditions || '';
+  document.getElementById('profile-allergies-input').value = person.allergies || '';
+  document.getElementById('profile-blood-type-input').value = person.blood_type || '';
+  document.getElementById('profile-doctor-input').value = person.primary_doctor || '';
+  document.getElementById('profile-ec-name-input').value = person.emergency_contact_name || '';
+  document.getElementById('profile-ec-phone-input').value = person.emergency_contact_phone || '';
+  document.getElementById('profile-insurance-input').value = person.insurance_info || '';
+
+  updateProfileEhr(pid);
+  captureConditionsBefore();
+  openSheetAccessible('profile-overlay');
+  initIcons();
+}
+
+async function saveProfile() {
+  var pid = _profileEditPersonId;
+  if (!pid) return;
+
+  var btn = document.querySelector('#profile-overlay .btn-primary');
+  btn.disabled = true;
+  btn.textContent = 'Saving\u2026';
+
+  var updates = {
+    name: document.getElementById('profile-name-input').value.trim() || undefined,
+    relationship: document.getElementById('profile-relationship-input').value.trim() || null,
+    date_of_birth: document.getElementById('profile-dob-input').value || null,
+    phone: document.getElementById('profile-phone-input').value.trim() || null,
+    conditions: document.getElementById('profile-conditions-input').value.trim() || null,
+    allergies: document.getElementById('profile-allergies-input').value.trim() || null,
+    blood_type: document.getElementById('profile-blood-type-input').value || null,
+    primary_doctor: document.getElementById('profile-doctor-input').value.trim() || null,
+    emergency_contact_name: document.getElementById('profile-ec-name-input').value.trim() || null,
+    emergency_contact_phone: document.getElementById('profile-ec-phone-input').value.trim() || null,
+    insurance_info: document.getElementById('profile-insurance-input').value.trim() || null
+  };
+  // Remove undefined keys
+  Object.keys(updates).forEach(function(k){ if (updates[k] === undefined) delete updates[k]; });
+
+  var { error } = await db.from('people').update(updates).eq('id', pid);
+
+  btn.disabled = false;
+  btn.innerHTML = '<i data-lucide="check" style="width:15px;height:15px;"></i> Save profile';
+  initIcons();
+
+  if (error) {
+    showToast('Error saving: ' + error.message);
+    return;
+  }
+
+  // Update local cache
+  var idx = currentPeople.findIndex(function(p){ return p.id === pid; });
+  if (idx >= 0) { Object.assign(currentPeople[idx], updates); }
+
+  closeSheet('profile-overlay');
+  showToast('Profile saved');
+  // Re-render to reflect any name changes
+  renderPersonSwitcher();
+  renderPeopleView();
+  renderUpdateMe();
+  // Check if new conditions were added and show resource suggestions
+  checkConditionTrigger();
+}
+
+// ── EMERGENCY SUMMARY (Feature 3 - dynamic) ────────────────────────────
+var _emergencyBriefCache = {}; // { personId: { text, timestamp } }
+
+function renderEmergencySummary() {
+  // Only override demo content for authenticated users
+  if (isDemoMode) return;
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  if (!person) return;
+
+  var name = person.name;
+
+  // Populate patient banner
+  var nameEl = document.getElementById('er-patient-name');
+  if (nameEl) nameEl.textContent = escHtml(name);
+
+  var dobEl = document.getElementById('er-patient-dob');
+  if (dobEl) {
+    if (person.date_of_birth) {
+      var dob = new Date(person.date_of_birth);
+      var age = Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+      var dobStr = dob.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      dobEl.textContent = 'DOB: ' + dobStr + ' · Age ' + age;
+    } else {
+      dobEl.textContent = '';
+    }
+  }
+
+  var container = document.getElementById('emrg-dynamic-content');
+  if (!container) return;
+
+  // Build patient section
+  var html = '<div class="emrg-section">'
+    + '<div class="emrg-section-title"><i data-lucide="user" style="width:12px;height:12px;"></i> Patient</div>'
+    + '<div class="emrg-row"><span class="emrg-label">Name</span><span class="emrg-val">' + escHtml(name) + '</span></div>';
+
+  if (person.date_of_birth) {
+    var dob2 = new Date(person.date_of_birth);
+    var age2 = Math.floor((Date.now() - dob2.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+    var dobStr2 = dob2.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    html += '<div class="emrg-row"><span class="emrg-label">Date of birth</span><span class="emrg-val">' + escHtml(dobStr2) + ' (Age ' + age2 + ')</span></div>';
+  }
+
+  if (person.emergency_contact_name) {
+    var ecVal = escHtml(person.emergency_contact_name);
+    if (person.emergency_contact_phone) ecVal += ' · ' + escHtml(person.emergency_contact_phone);
+    html += '<div class="emrg-row"><span class="emrg-label">Emergency contact</span><span class="emrg-val">' + ecVal + '</span></div>';
+  } else if (liveCareCircle.length > 0) {
+    var primary = liveCareCircle.find(function(c){ return c.role === 'Primary'; }) || liveCareCircle[0];
+    var ecVal2 = escHtml(primary.member_name);
+    if (primary.phone) ecVal2 += ' · ' + escHtml(primary.phone);
+    html += '<div class="emrg-row"><span class="emrg-label">Emergency contact</span><span class="emrg-val">' + ecVal2 + '</span></div>';
+  }
+
+  // Show all care circle members if available
+  if (liveCareCircle.length > 0) {
+    liveCareCircle.forEach(function(member) {
+      var memberVal = escHtml(member.member_name) + ' (' + escHtml(member.role) + ')';
+      if (member.phone) memberVal += ' · ' + escHtml(member.phone);
+      html += '<div class="emrg-row"><span class="emrg-label">Care circle</span><span class="emrg-val">' + memberVal + '</span></div>';
+    });
+  }
+
+  // Profile-entered allergies (free text) — kept for manual profile users.
+  // EHR-sourced allergies get their own dedicated section below so each
+  // entry can show substance + severity + reaction separately, which is
+  // what an ER needs.
+  if (person.allergies) {
+    html += '<div class="emrg-row"><span class="emrg-label">Allergies (profile)</span><span class="emrg-val" style="color:#dc2626;font-weight:700;">' + escHtml(person.allergies) + '</span></div>';
+  }
+  if (person.blood_type) {
+    html += '<div class="emrg-row"><span class="emrg-label">Blood type</span><span class="emrg-val">' + escHtml(person.blood_type) + '</span></div>';
+  }
+  if (person.insurance_info) {
+    html += '<div class="emrg-row"><span class="emrg-label">Insurance</span><span class="emrg-val">' + escHtml(person.insurance_info) + '</span></div>';
+  }
+  html += '</div>';
+
+  // EHR-sourced allergies — dedicated section with severity + reaction.
+  // The old Emergency Summary modal only read `person.allergies` (free text
+  // profile field), so Penicillin (imported from Duke) never appeared even
+  // though it was safety-critical. liveAllergies is the rows from the
+  // allergies table, keyed to person_id.
+  if (liveAllergies && liveAllergies.length > 0) {
+    html += '<div class="emrg-section"><div class="emrg-section-title" style="color:#dc2626;"><i data-lucide="alert-triangle" style="width:12px;height:12px;"></i> Allergies</div>';
+    liveAllergies.forEach(function(a) {
+      var label = escHtml(a.substance || 'Unknown');
+      var val = '';
+      var parts = [];
+      if (a.severity) parts.push(escHtml(a.severity));
+      if (a.reaction) parts.push(escHtml(a.reaction));
+      val = parts.join(' · ');
+      html += '<div class="emrg-row"><span class="emrg-label" style="color:#dc2626;font-weight:700;">' + label + '</span><span class="emrg-val">' + (val || 'On file') + '</span></div>';
+    });
+    html += '</div>';
+  }
+
+  // Conditions section
+  if (person.conditions) {
+    var condList = person.conditions.split(',').map(function(c){ return c.trim(); }).filter(Boolean);
+    if (condList.length > 0) {
+      html += '<div class="emrg-section"><div class="emrg-section-title"><i data-lucide="stethoscope" style="width:12px;height:12px;"></i> Active conditions</div>';
+      condList.forEach(function(cond) {
+        html += '<div class="emrg-row"><span class="emrg-label">' + escHtml(cond) + '</span><span class="emrg-val">Active</span></div>';
+      });
+      html += '</div>';
+    }
+  }
+
+  // Medications section
+  var activeMeds = liveMeds.filter(function(m){ return m.active; });
+  if (activeMeds.length > 0) {
+    html += '<div class="emrg-section"><div class="emrg-section-title"><i data-lucide="pill" style="width:12px;height:12px;"></i> Current medications</div>';
+    activeMeds.forEach(function(med) {
+      var valStr = '';
+      if (med.dose) valStr += escHtml(med.dose);
+      if (med.frequency) valStr += (valStr ? ' · ' : '') + escHtml(med.frequency);
+      html += '<div class="emrg-row"><span class="emrg-label">' + escHtml(med.name) + '</span><span class="emrg-val">' + (valStr || 'Active') + '</span></div>';
+    });
+    html += '</div>';
+  }
+
+  // Recent surgeries/procedures (last 12 months from health events)
+  var twelveMonthsAgo = new Date();
+  twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
+  var recentProcedures = liveEvents.filter(function(ev) {
+    if (!ev.event_date) return false;
+    var evDate = new Date(ev.event_date);
+    if (evDate < twelveMonthsAgo) return false;
+    var titleLower = (ev.title || '').toLowerCase();
+    var descLower = (ev.description || '').toLowerCase();
+    var combined = titleLower + ' ' + descLower;
+    return combined.indexOf('surgery') !== -1 || combined.indexOf('procedure') !== -1
+      || combined.indexOf('operation') !== -1 || combined.indexOf('biopsy') !== -1
+      || combined.indexOf('endoscopy') !== -1 || combined.indexOf('colonoscopy') !== -1
+      || combined.indexOf('catheter') !== -1 || combined.indexOf('implant') !== -1
+      || combined.indexOf('removal') !== -1 || combined.indexOf('repair') !== -1
+      || combined.indexOf('release') !== -1 || combined.indexOf('replacement') !== -1
+      || ev.event_type === 'appointment';
+  });
+  // Also include any events the user explicitly tagged as procedures
+  if (recentProcedures.length > 0) {
+    html += '<div class="emrg-section"><div class="emrg-section-title"><i data-lucide="scissors" style="width:12px;height:12px;"></i> Recent procedures (12 months)</div>';
+    recentProcedures.slice(0, 10).forEach(function(ev) {
+      var dateStr = formatEventDate(ev.event_date);
+      html += '<div class="emrg-row"><span class="emrg-label">' + escHtml(ev.title) + '</span><span class="emrg-val">' + escHtml(dateStr) + '</span></div>';
+    });
+    html += '</div>';
+  }
+
+  // Doctor / Care team section
+  if (person.primary_doctor) {
+    html += '<div class="emrg-section"><div class="emrg-section-title"><i data-lucide="users" style="width:12px;height:12px;"></i> Care team</div>'
+      + '<div class="emrg-row"><span class="emrg-label">Primary doctor</span><span class="emrg-val">' + escHtml(person.primary_doctor) + '</span></div>'
+      + '</div>';
+  }
+
+  if (!person.date_of_birth && !person.allergies && activeMeds.length === 0) {
+    html += '<div style="padding:16px 20px;font-size:13px;color:var(--text-secondary);font-style:italic;">Add profile information to make this summary more complete.</div>';
+  }
+
+  container.innerHTML = html;
+  initIcons();
+}
+
+// ── EMERGENCY BRIEF (AI-generated, cached in localStorage) ─────────────
+async function fetchEmergencyBrief(forceRefresh) {
+  if (isDemoMode || !currentPersonId || !currentUser) return;
+  var pid = currentPersonId;
+
+  var loadingEl = document.getElementById('er-ai-loading');
+  var textEl = document.getElementById('er-ai-text');
+  var cachedNoteEl = document.getElementById('er-ai-cached-note');
+
+  // Check localStorage cache first (critical for offline ER scenarios)
+  var cacheKey = 'wellet_er_brief_' + pid;
+  var cached = null;
+  try { cached = JSON.parse(localStorage.getItem(cacheKey)); } catch(e) {}
+
+  if (!forceRefresh && cached && cached.text) {
+    textEl.textContent = cached.text;
+    // Show cached note if older than 1 hour
+    var cacheAge = Date.now() - (cached.timestamp || 0);
+    if (cacheAge > 3600000) {
+      cachedNoteEl.style.display = 'flex';
+    } else {
+      cachedNoteEl.style.display = 'none';
+    }
+    initIcons();
+    return;
+  }
+
+  // Also check in-memory cache
+  if (!forceRefresh && _emergencyBriefCache[pid]) {
+    textEl.textContent = _emergencyBriefCache[pid].text;
+    cachedNoteEl.style.display = 'none';
+    return;
+  }
+
+  // Show loading state
+  if (loadingEl) loadingEl.style.display = 'flex';
+  if (textEl) textEl.textContent = '';
+  if (cachedNoteEl) cachedNoteEl.style.display = 'none';
+  initIcons();
+
+  try {
+    var session = await db.auth.getSession();
+    var token = session.data.session.access_token;
+    var res = await fetch(
+      'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/generate-emergency-summary',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token,
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU'
+        },
+        body: JSON.stringify({ person_id: pid })
+      }
+    );
+    if (res.ok) {
+      var data = await res.json();
+      if (data.empty || !data.summary) {
+        if (loadingEl) loadingEl.style.display = 'none';
+        textEl.textContent = 'Add health events and profile information to generate an AI emergency brief.';
+        textEl.style.fontStyle = 'italic';
+        textEl.style.color = 'var(--text-muted)';
+        return;
+      }
+      var briefText = data.summary;
+      // Store in both memory and localStorage
+      _emergencyBriefCache[pid] = { text: briefText, timestamp: Date.now() };
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({ text: briefText, timestamp: Date.now() }));
+      } catch(e) { /* localStorage full or unavailable */ }
+      if (loadingEl) loadingEl.style.display = 'none';
+      textEl.style.fontStyle = '';
+      textEl.style.color = '';
+      textEl.textContent = briefText;
+      cachedNoteEl.style.display = 'none';
+    } else {
+      // Network error — try to show cached version
+      if (cached && cached.text) {
+        if (loadingEl) loadingEl.style.display = 'none';
+        textEl.textContent = cached.text;
+        cachedNoteEl.style.display = 'flex';
+        initIcons();
+      } else {
+        if (loadingEl) loadingEl.style.display = 'none';
+        textEl.textContent = 'Unable to generate brief. Check your connection and try again.';
+        textEl.style.fontStyle = 'italic';
+        textEl.style.color = 'var(--text-muted)';
+      }
+    }
+  } catch (e) {
+    console.warn('Emergency brief fetch error:', e);
+    // Offline fallback — show cached version if available
+    if (cached && cached.text) {
+      if (loadingEl) loadingEl.style.display = 'none';
+      textEl.textContent = cached.text;
+      cachedNoteEl.style.display = 'flex';
+      initIcons();
+    } else {
+      if (loadingEl) loadingEl.style.display = 'none';
+      textEl.textContent = 'Unable to generate brief. Check your connection and try again.';
+      textEl.style.fontStyle = 'italic';
+      textEl.style.color = 'var(--text-muted)';
+    }
+  }
+}
+
+function shareEmergencySummary() {
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var name = person ? person.name : 'Patient';
+
+  // Build a text summary from the structured data visible on screen
+  var lines = [];
+  lines.push('EMERGENCY SUMMARY — ' + escHtml(name));
+  lines.push('Generated by Wellet · ' + new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }));
+  lines.push('');
+
+  // Gather data from the rendered content
+  if (person) {
+    if (person.date_of_birth) {
+      var dob = new Date(person.date_of_birth);
+      var age = Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+      lines.push('DOB: ' + dob.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) + ' (Age ' + age + ')');
+    }
+    if (person.allergies) lines.push('ALLERGIES: ' + person.allergies);
+    if (person.blood_type) lines.push('Blood type: ' + person.blood_type);
+    if (person.conditions) lines.push('CONDITIONS: ' + person.conditions);
+
+    var activeMeds = liveMeds.filter(function(m){ return m.active; });
+    if (activeMeds.length > 0) {
+      lines.push('');
+      lines.push('MEDICATIONS:');
+      activeMeds.forEach(function(med) {
+        var line = '  ' + med.name;
+        if (med.dose) line += ' ' + med.dose;
+        if (med.frequency) line += ' ' + med.frequency;
+        lines.push(line);
+      });
+    }
+
+    if (person.primary_doctor) {
+      lines.push('');
+      lines.push('Primary doctor: ' + person.primary_doctor);
+    }
+    if (person.emergency_contact_name) {
+      lines.push('Emergency contact: ' + person.emergency_contact_name + (person.emergency_contact_phone ? ' ' + person.emergency_contact_phone : ''));
+    }
+  }
+
+  // Append AI brief if available
+  var aiText = document.getElementById('er-ai-text');
+  if (aiText && aiText.textContent && aiText.style.fontStyle !== 'italic') {
+    lines.push('');
+    lines.push('--- AI BRIEF ---');
+    lines.push(aiText.textContent);
+  }
+
+  var shareText = lines.join('\n');
+
+  // Use Web Share API if available, otherwise copy to clipboard
+  if (navigator.share) {
+    navigator.share({
+      title: 'Emergency Summary — ' + name,
+      text: shareText
+    }).catch(function() {});
+  } else {
+    navigator.clipboard.writeText(shareText).then(function() {
+      showToast('Summary copied to clipboard');
+    }).catch(function() {
+      // Fallback for older browsers
+      var ta = document.createElement('textarea');
+      ta.value = shareText;
+      ta.style.cssText = 'position:fixed;opacity:0;';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+      showToast('Summary copied to clipboard');
+    });
+  }
+}
+
+// ── CARE CIRCLE (Feature 4) ─────────────────────────────────────────────────
+function renderCareCircle() {
+  if (isDemoMode) return;
+  var container = document.getElementById('care-circle-list');
+  if (!container) return;
+
+  if (liveCareCircle.length === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:16px 0 8px;font-size:13px;color:var(--text-secondary);font-style:italic;">No care circle members yet.</div>';
+    return;
+  }
+
+  var html = '';
+  liveCareCircle.forEach(function(member) {
+    var initials = (member.member_name || '?').split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2);
+    var roleClass = (member.role || '').toLowerCase();
+    if (roleClass !== 'primary' && roleClass !== 'secondary' && roleClass !== 'emergency') roleClass = 'secondary';
+    var roleLabel = member.role || 'Member';
+    var inviteStatus = member.invite_status || 'pending';
+    var inviteBadge = '';
+    var inviteBtn = '';
+    if (inviteStatus === 'accepted') {
+      inviteBadge = '<span style="font-size:10px;color:var(--moss);background:var(--mint);padding:2px 8px;border-radius:10px;font-weight:500;white-space:nowrap;">Joined</span>';
+    } else if (inviteStatus === 'invited') {
+      inviteBadge = '<span style="font-size:10px;color:#8B6914;background:#FFF8E1;padding:2px 8px;border-radius:10px;font-weight:500;white-space:nowrap;">Invited</span>';
+    } else if (member.email) {
+      inviteBtn = '<button class="contact-edit-btn" onclick="event.stopPropagation();sendCareCircleInvite(\'' + member.id + '\')" title="Send invite" style="color:var(--moss);"><i data-lucide="send" style="width:14px;height:14px;"></i></button>';
+    }
+    html += '<div class="contact-card">'
+      + '<div class="contact-avatar">' + escHtml(initials) + '</div>'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div class="contact-name">' + escHtml(member.member_name) + '</div>'
+      + '<div class="contact-meta">' + (member.email ? escHtml(member.email) : '') + (member.email && member.phone ? ' \u00b7 ' : '') + (member.phone ? escHtml(member.phone) : '') + '</div>'
+      + '</div>'
+      + inviteBadge
+      + '<span class="contact-role ' + roleClass + '">' + escHtml(roleLabel) + '</span>'
+      + inviteBtn
+      + '<button class="contact-edit-btn" onclick="openContactEditById(\'' + member.id + '\')" title="Edit"><i data-lucide="pencil" style="width:14px;height:14px;"></i></button>'
+      + '</div>';
+  });
+  container.innerHTML = html;
+  initIcons();
+}
+
+async function sendCareCircleInvite(memberId) {
+  var member = liveCareCircle.find(function(c){ return c.id === memberId; });
+  if (!member || !member.email) { showToast('No email address for this member'); return; }
+
+  showToast('Generating invite\u2026');
+
+  try {
+    var session = (await db.auth.getSession()).data.session;
+    var res = await fetch(SUPABASE_URL + '/functions/v1/care-circle-invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+      body: JSON.stringify({ action: 'create', member_id: memberId })
+    });
+    var data = await res.json();
+    if (!res.ok || !data.success) { showToast('Error: ' + (data.error || 'Could not create invite')); return; }
+
+    // Open mailto with pre-filled invite
+    var personName = data.person_name || 'your loved one';
+    var subject = encodeURIComponent('Join my care circle on Wellet');
+    var body = encodeURIComponent(
+      'Hi ' + data.member_name + ',\n\n'
+      + 'I\'m using Wellet to help manage ' + personName + '\'s health information \u2014 medications, appointments, and care updates all in one place.\n\n'
+      + 'I\'d like you to join our care circle so we can stay on the same page.\n\n'
+      + 'Click here to join:\n'
+      + data.invite_link + '\n\n'
+      + 'Wellet is free to use. Once you join, you\'ll be able to see ' + personName + '\'s health timeline, medications, and care updates.\n\n'
+      + 'Thank you!'
+    );
+    window.open('mailto:' + encodeURIComponent(data.member_email) + '?subject=' + subject + '&body=' + body, '_self');
+
+    // Update local state
+    member.invite_status = 'invited';
+    member.invited_at = new Date().toISOString();
+    renderCareCircle();
+    showToast('Invite ready \u2014 send from your email');
+  } catch(e) {
+    showToast('Error: ' + e.message);
+  }
+}
+
+function openContactEditById(memberId) {
+  var member = liveCareCircle.find(function(c){ return c.id === memberId; });
+  if (!member) return;
+  openContactEdit(member.member_name, member.role, member.email, member.phone);
+  _editingContactId = memberId;
+}
+
+async function saveContact() {
+  var name = document.getElementById('contact-name-input').value.trim();
+  var email = document.getElementById('contact-email-input').value.trim();
+  var phone = document.getElementById('contact-phone-input').value.trim();
+  var role = 'secondary';
+  ['primary','secondary','emergency'].forEach(function(r) {
+    var el = document.getElementById('role-' + r);
+    if (el && el.classList.contains('selected')) role = r;
+  });
+
+  if (!name) { showToast('Please enter a name'); return; }
+
+  var btn = document.querySelector('#contact-overlay .btn-primary');
+  btn.disabled = true;
+  btn.textContent = 'Saving\u2026';
+
+  var error;
+  if (isDemoMode) {
+    // Demo mode: just close
+    closeSheet('contact-overlay');
+    showToast('Contact saved');
+    return;
+  }
+
+  if (_editingContactId) {
+    var res = await db.from('care_circle_members').update({
+      member_name: name, email: email || null, phone: phone || null, role: role
+    }).eq('id', _editingContactId).select();
+    error = res.error;
+  } else {
+    var res = await db.from('care_circle_members').insert({
+      person_id: currentPersonId,
+      user_id: currentUser.id,
+      member_name: name,
+      email: email || null,
+      phone: phone || null,
+      role: role
+    }).select();
+    error = res.error;
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<i data-lucide="check" style="width:15px;height:15px;"></i> Save contact';
+  initIcons();
+
+  if (error) { showToast('Error saving: ' + error.message); return; }
+
+  closeSheet('contact-overlay');
+  showToast('Contact saved');
+  _editingContactId = null;
+
+  // Reload and re-render
+  var { data: circle } = await db.from('care_circle_members').select('*').eq('person_id', currentPersonId).order('created_at', { ascending: true });
+  liveCareCircle = circle || [];
+  renderCareCircle();
+}
+
+async function removeContact() {
+  if (isDemoMode || !_editingContactId) {
+    closeSheet('contact-overlay');
+    showToast('Contact removed');
+    return;
+  }
+
+  var { error } = await db.from('care_circle_members').delete().eq('id', _editingContactId);
+  if (error) { showToast('Error removing: ' + error.message); return; }
+
+  closeSheet('contact-overlay');
+  showToast('Contact removed from care circle');
+  _editingContactId = null;
+
+  var { data: circle } = await db.from('care_circle_members').select('*').eq('person_id', currentPersonId).order('created_at', { ascending: true });
+  liveCareCircle = circle || [];
+  renderCareCircle();
+}
+
+// ── HEADER MENU ──────────────────────────────────────────────────────────────
+function toggleHeaderMenu() {
+  var menu = document.getElementById('header-menu');
+  var btn = document.getElementById('header-menu-btn');
+  var isOpen = menu.classList.contains('open');
+  if (isOpen) {
+    closeHeaderMenu();
+  } else {
+    menu.classList.add('open');
+    btn.setAttribute('aria-expanded', 'true');
+    initIcons();
+    // Close on outside click
+    setTimeout(function() {
+      document.addEventListener('click', _headerMenuOutsideClick);
+    }, 0);
+  }
+}
+
+function closeHeaderMenu() {
+  var menu = document.getElementById('header-menu');
+  var btn = document.getElementById('header-menu-btn');
+  if (menu) menu.classList.remove('open');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+  document.removeEventListener('click', _headerMenuOutsideClick);
+}
+
+function _headerMenuOutsideClick(e) {
+  var menu = document.getElementById('header-menu');
+  var btn = document.getElementById('header-menu-btn');
+  if (menu && !menu.contains(e.target) && btn && !btn.contains(e.target)) {
+    closeHeaderMenu();
+  }
+}
+
+function openSettings() {
+  // P4: Navigate to full-page settings view
+  updateSettingsAccount();
+  updateSettingsEhr();
+  if (!isDemoMode) { renderCareCircle(); }
+  renderSettingsPlanCard();
+  try { updatePhase2ToggleUI(); } catch(e){}
+  switchNavTo('settings');
+  initIcons();
+}
+function closeSettings() {
+  // Kept for backward compat (closes legacy bottom sheet overlay if open)
+  closeSheet('settings-overlay');
+  switchNavTo('home');
+}
+
+function updateSettingsViewAccount() {
+  // Sync account section in the full-page settings view
+  var section = document.getElementById('sv-account-section');
+  var emailEl = document.getElementById('sv-user-email');
+  if (currentUser) {
+    if (section) section.style.display = 'block';
+    if (emailEl) emailEl.textContent = currentUser.email || 'Signed in';
+  } else {
+    if (section) section.style.display = 'none';
+  }
+}
+
+// ── VISIT PREP (P1B) ──────────────────────────────────────────────────────────
+function generateVisitQuestions() {
+  // Stub: shows coming-soon toast while edge function is wired up.
+  // Real impl: POST to https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/generate-visit-questions
+  // and render results in a .qa-sheet bottom sheet matching the existing sheet pattern.
+  if (isDemoMode) {
+    showToast('In the real app, Wellet generates targeted questions based on recent changes');
+    return;
+  }
+  showToast('Visit questions coming soon — generating from your recent health changes');
+}
+
+// ── VOICE RECORDING (P1C) ─────────────────────────────────────────────────────
+var _vrMediaRecorder = null;
+var _vrChunks = [];
+var _vrTimerInterval = null;
+var _vrSeconds = 0;
+var _vrIsRecording = false;
+var _vrCancelled = false;
+
+function startVoiceRecording() {
+  closeUpload();
+  openSheetAccessible('voice-record-overlay');
+  initIcons();
+  _vrSeconds = 0;
+  _vrIsRecording = false;
+  _vrCancelled = false;
+  _vrChunks = [];
+  var timerEl = document.getElementById('voice-record-timer');
+  var statusEl = document.getElementById('voice-record-status');
+  var stopBtn = document.getElementById('voice-stop-btn');
+  var processingEl = document.getElementById('voice-processing');
+  var processingLabel = document.getElementById('voice-processing-label');
+  var recordBtn = document.getElementById('voice-record-btn');
+  if (timerEl) timerEl.textContent = '0:00';
+  if (statusEl) statusEl.textContent = 'Tap to start recording';
+  if (stopBtn) stopBtn.style.display = 'none';
+  if (processingEl) processingEl.style.display = 'none';
+  if (processingLabel) processingLabel.textContent = 'Transcribing your recording\u2026';
+  if (recordBtn) recordBtn.style.background = '#C0392B';
+}
+
+function stopVoiceRecording() {
+  // Hard cancel: X button or backdrop tap. Discard audio, don't upload.
+  _vrCancelled = true;
+  if (_vrMediaRecorder && _vrMediaRecorder.state !== 'inactive') {
+    try { _vrMediaRecorder.stop(); } catch (e) {}
+  }
+  if (_vrTimerInterval) { clearInterval(_vrTimerInterval); _vrTimerInterval = null; }
+  _vrIsRecording = false;
+  _vrChunks = [];
+  closeSheet('voice-record-overlay');
+}
+
+function toggleVoiceRecording() {
+  if (_vrIsRecording) {
+    finishVoiceRecording();
+  } else {
+    _startMediaRecording();
+  }
+}
+
+function _startMediaRecording() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showToast('Microphone not available on this device');
+    return;
+  }
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+    _vrChunks = [];
+    _vrSeconds = 0;
+    _vrIsRecording = true;
+    var statusEl = document.getElementById('voice-record-status');
+    var stopBtn = document.getElementById('voice-stop-btn');
+    var timerEl = document.getElementById('voice-record-timer');
+    var recordBtn = document.getElementById('voice-record-btn');
+    if (statusEl) statusEl.textContent = 'Recording…';
+    if (stopBtn) stopBtn.style.display = 'block';
+    if (recordBtn) recordBtn.style.background = '#922B21';
+    _vrTimerInterval = setInterval(function() {
+      _vrSeconds++;
+      var m = Math.floor(_vrSeconds / 60);
+      var s = _vrSeconds % 60;
+      if (timerEl) timerEl.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+    }, 1000);
+    _vrCancelled = false;
+    _vrMediaRecorder = new MediaRecorder(stream);
+    _vrMediaRecorder.ondataavailable = function(e) { if (e.data.size > 0) _vrChunks.push(e.data); };
+    _vrMediaRecorder.onstop = function() {
+      stream.getTracks().forEach(function(t) { t.stop(); });
+      if (_vrCancelled) {
+        _vrChunks = [];
+        return;
+      }
+      _uploadVoiceRecording();
+    };
+    _vrMediaRecorder.start();
+  }).catch(function(err) {
+    showToast('Could not access microphone: ' + err.message);
+  });
+}
+
+function finishVoiceRecording() {
+  if (_vrTimerInterval) { clearInterval(_vrTimerInterval); _vrTimerInterval = null; }
+  _vrIsRecording = false;
+  var processingEl = document.getElementById('voice-processing');
+  var stopBtn = document.getElementById('voice-stop-btn');
+  if (processingEl) processingEl.style.display = 'block';
+  if (stopBtn) stopBtn.style.display = 'none';
+  if (_vrMediaRecorder && _vrMediaRecorder.state !== 'inactive') {
+    _vrMediaRecorder.stop();
+  } else {
+    _uploadVoiceRecording();
+  }
+}
+
+async function _uploadVoiceRecording() {
+  var processingEl = document.getElementById('voice-processing');
+  var processingLabel = document.getElementById('voice-processing-label');
+  var stopBtn = document.getElementById('voice-stop-btn');
+  if (processingEl) processingEl.style.display = 'block';
+  if (stopBtn) stopBtn.style.display = 'none';
+  var setProgress = function(msg) {
+    if (processingLabel) processingLabel.textContent = msg;
+  };
+
+  try {
+    if (!_vrChunks || _vrChunks.length === 0) {
+      throw new Error('No audio captured. Try recording again.');
+    }
+    if (!currentPersonId) {
+      throw new Error('No person selected. Open a profile first.');
+    }
+
+    // Build the blob. Prefer the MediaRecorder's mimeType so we preserve codec info.
+    var mimeType = (_vrMediaRecorder && _vrMediaRecorder.mimeType) || _vrChunks[0].type || 'audio/webm';
+    // Normalize (strip codec suffix like "audio/webm;codecs=opus")
+    var baseMime = mimeType.split(';')[0].trim();
+    var extMap = {
+      'audio/webm': 'webm',
+      'audio/mp4': 'm4a',
+      'audio/mpeg': 'mp3',
+      'audio/ogg': 'ogg',
+      'audio/wav': 'wav'
+    };
+    var ext = extMap[baseMime] || 'webm';
+    var blob = new Blob(_vrChunks, { type: baseMime });
+
+    // Require at least ~1 second of audio to avoid empty recordings reaching Whisper.
+    if (blob.size < 2048) {
+      throw new Error('Recording was too short. Try again and speak for a few seconds.');
+    }
+
+    setProgress('Saving recording\u2026');
+
+    var sessionRes = await db.auth.getSession();
+    var session = sessionRes && sessionRes.data && sessionRes.data.session;
+    if (!session) throw new Error('Your session expired. Please sign in again.');
+    var userId = session.user.id;
+    var token = session.access_token;
+
+    var ts = Date.now();
+    var fileName = 'Voice note \u2014 ' + new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + '.' + ext;
+    var storagePath = 'voice/' + userId + '/' + currentPersonId + '/' + ts + '.' + ext;
+
+    var uploadRes = await db.storage.from('documents').upload(storagePath, blob, {
+      contentType: baseMime,
+      upsert: false
+    });
+    if (uploadRes.error) {
+      throw new Error('Upload failed: ' + uploadRes.error.message);
+    }
+
+    setProgress('Creating entry\u2026');
+
+    var insertRes = await db.from('documents').insert({
+      person_id: currentPersonId,
+      file_name: fileName,
+      storage_path: storagePath,
+      document_type: 'voice_note',
+      extraction_status: 'pending'
+    }).select().single();
+    if (insertRes.error || !insertRes.data) {
+      // Roll back the storage upload on DB failure
+      try { await db.storage.from('documents').remove([storagePath]); } catch (e) {}
+      throw new Error('Could not save recording: ' + (insertRes.error && insertRes.error.message || 'unknown'));
+    }
+    var docId = insertRes.data.id;
+
+    setProgress('Transcribing\u2026 this usually takes ' + Math.max(5, Math.ceil(_vrSeconds / 2)) + ' seconds');
+
+    // Call transcribe-audio. Don't block the UI forever — if it takes longer than 60s,
+    // we trust it to finish server-side and let the user see the result when they refresh.
+    var controller = new AbortController();
+    var timeoutId = setTimeout(function() { controller.abort(); }, 60000);
+    var fnRes;
+    try {
+      fnRes = await fetch('https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/transcribe-audio', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token,
+          'apikey': SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({ document_id: docId, storage_path: storagePath }),
+        signal: controller.signal
+      });
+    } catch (netErr) {
+      clearTimeout(timeoutId);
+      // Network/timeout: the doc row is still there; Records will show it as processing/failed.
+      if (processingEl) processingEl.style.display = 'none';
+      closeSheet('voice-record-overlay');
+      if (typeof renderRecordsView === 'function') renderRecordsView();
+      showToast('Recording saved. Transcription is still processing \u2014 check Records in a moment.');
+      return;
+    }
+    clearTimeout(timeoutId);
+
+    if (processingEl) processingEl.style.display = 'none';
+    closeSheet('voice-record-overlay');
+
+    if (fnRes.ok) {
+      showToast('Recording saved and transcribed');
+    } else {
+      // Edge function already marked the doc as failed; user can retry from Records.
+      showToast('Recording saved. Transcription failed \u2014 you can retry from Records.');
+    }
+
+    // Refresh the views that show the new note.
+    try { if (typeof renderRecordsView === 'function') renderRecordsView(); } catch (e) {}
+    try { if (typeof renderTimeline === 'function') renderTimeline(); } catch (e) {}
+    try { if (typeof renderUpdateMe === 'function') renderUpdateMe(); } catch (e) {}
+  } catch (err) {
+    console.error('voice recording upload failed:', err);
+    if (processingEl) processingEl.style.display = 'none';
+    if (stopBtn) stopBtn.style.display = 'block';
+    showToast(err && err.message ? err.message : 'Could not save recording');
+  } finally {
+    _vrChunks = [];
+  }
+}
+
+// ── BUG REPORT SHEET ────────────────────────────────────────────────────────
+var _bugScreenshotFile = null;
+
+function openBugReportSheet() {
+  closeSettings();
+  if (typeof closeHeaderMenu === 'function') closeHeaderMenu();
+  document.getElementById('bug-report-text').value = '';
+  document.getElementById('bug-report-screenshot').value = '';
+  document.getElementById('bug-report-screenshot-label').textContent = 'Attach a screenshot (optional)';
+  _bugScreenshotFile = null;
+  openSheetAccessible('bug-report-overlay');
+  initIcons();
+}
+
+function onBugScreenshotPick(event) {
+  var file = event.target.files && event.target.files[0];
+  var label = document.getElementById('bug-report-screenshot-label');
+  if (!file) {
+    _bugScreenshotFile = null;
+    label.textContent = 'Attach a screenshot (optional)';
+    return;
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    showToast('Screenshot too large (max 8 MB)');
+    event.target.value = '';
+    return;
+  }
+  _bugScreenshotFile = file;
+  label.textContent = file.name + ' \u2022 ' + Math.round(file.size / 1024) + ' KB';
+}
+
+async function submitBugReport() {
+  var text = document.getElementById('bug-report-text').value.trim();
+  if (!text) { showToast('Tell me what happened \u2014 even one sentence helps'); return; }
+
+  var btn = document.getElementById('bug-report-submit');
+  btn.disabled = true;
+  btn.innerHTML = 'Sending\u2026';
+
+  try {
+    var sessionRes = await db.auth.getSession();
+    var session = sessionRes.data.session;
+    if (!session) {
+      showToast('Please sign in first');
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="bug" style="width:15px;height:15px;"></i> Send bug report';
+      initIcons();
+      return;
+    }
+
+    var screenshotPath = null;
+    if (_bugScreenshotFile && currentUser) {
+      var ext = (_bugScreenshotFile.name.split('.').pop() || 'png').toLowerCase();
+      if (!/^(png|jpe?g|webp)$/.test(ext)) ext = 'png';
+      var filename = currentUser.id + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 10) + '.' + ext;
+      var up = await db.storage.from('bug-screenshots').upload(filename, _bugScreenshotFile, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: _bugScreenshotFile.type || ('image/' + ext)
+      });
+      if (up.error) {
+        console.error('Screenshot upload error:', up.error);
+      } else {
+        screenshotPath = filename;
+      }
+    }
+
+    var activeView = document.querySelector('.app-view.active');
+    var viewContext = activeView ? activeView.id : (isDemoMode ? 'demo' : 'auth');
+    var personContext = null;
+    if (currentPersonId) {
+      for (var i = 0; i < currentPeople.length; i++) {
+        if (currentPeople[i].id === currentPersonId) {
+          personContext = currentPeople[i].name + ' (' + (currentPeople[i].relationship || 'unknown') + ')';
+          break;
+        }
+      }
+    }
+    var sessionId = null;
+    try { sessionId = localStorage.getItem('wellet_session_id') || null; } catch(_){}
+
+    var res = await fetch(SUPABASE_URL + '/functions/v1/send-bug-report', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({
+        description: text,
+        screenshot_path: screenshotPath,
+        url: window.location.href,
+        user_agent: navigator.userAgent,
+        person_context: personContext,
+        view_context: viewContext,
+        session_id: sessionId,
+        app_version: 'af8f356'
+      })
+    });
+
+    if (!res.ok) {
+      var data = await res.json().catch(function(){ return {}; });
+      throw new Error(data.error || ('Server returned ' + res.status));
+    }
+
+    closeSheet('bug-report-overlay');
+    showToast('Report sent \u2014 thank you. Betsy will see this.');
+  } catch (err) {
+    console.error('Bug report error:', err);
+    showToast('Could not send: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="bug" style="width:15px;height:15px;"></i> Send bug report';
+    initIcons();
+    _bugScreenshotFile = null;
+  }
+}
+
+// ── FEEDBACK SHEET ─────────────────────────────────────────────────────────────
+function openFeedbackSheet() {
+  closeSettings();
+  document.getElementById('feedback-text').value = '';
+  openSheetAccessible('feedback-overlay');
+  initIcons();
+}
+
+async function submitFeedback() {
+  var text = document.getElementById('feedback-text').value.trim();
+  if (!text) { showToast('Please enter your feedback'); return; }
+
+  var btn = document.querySelector('#feedback-overlay .btn-primary');
+  btn.disabled = true;
+  btn.textContent = 'Sending\u2026';
+
+  try {
+    var session = await db.auth.getSession();
+    var token = session.data.session ? session.data.session.access_token : '';
+    var page = document.querySelector('.app-view.active');
+    var pageName = page ? page.id : 'unknown';
+
+    var res = await fetch(SUPABASE_URL + '/functions/v1/send-feedback', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ message: text, page: pageName })
+    });
+
+    if (!res.ok) throw new Error('Send failed');
+  } catch (err) {
+    console.error('Feedback error:', err);
+    // Fallback: save directly to table
+    if (currentUser) {
+      await db.from('feedback').insert({
+        user_id: currentUser.id,
+        email: currentUser.email,
+        message: text,
+        page: 'unknown'
+      });
+    }
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<i data-lucide="send" style="width:15px;height:15px;"></i> Send to Betsy';
+  initIcons();
+  closeSheet('feedback-overlay');
+  showToast('Thank you \u2014 your feedback means everything');
+}
+
+// ── ALPHA WELCOME ─────────────────────────────────────────────────────────────
+function showAlphaWelcome() {
+  var key = 'wellet_welcome_shown_' + (currentUser ? currentUser.id : 'anon');
+  if (localStorage.getItem(key)) return;
+  localStorage.setItem(key, 'true');
+  setTimeout(function() {
+    openSheetAccessible('welcome-overlay');
+    initIcons();
+  }, 600);
+}
+
+function dismissWelcome() {
+  closeSheet('welcome-overlay');
+}
+
+// ── ACTIVATION TRACKING ───────────────────────────────────────────────────────
+async function trackActivation() {
+  // When a user signs in, check if their email is on the waitlist and mark as activated
+  if (!currentUser || !currentUser.email) return;
+  try {
+    await db.from('waitlist')
+      .update({ status: 'activated', activated_at: new Date().toISOString() })
+      .eq('email', currentUser.email)
+      .in('status', ['signed_up', 'invited']);
+  } catch (e) {
+    console.error('Activation tracking error:', e);
+  }
+}
+
+function switchTab(el, id) {
+  document.querySelectorAll('#header-tab-bar .tab').forEach(function(t){ t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
+  document.querySelectorAll('.tab-pane').forEach(function(p){ p.classList.remove('active'); });
+  el.classList.add('active');
+  el.setAttribute('aria-selected', 'true');
+  document.getElementById('tab-'+id).classList.add('active');
+}
+
+function switchNavTo(view, skipPush) {
+  document.querySelectorAll('.app-view').forEach(function(v){ v.classList.remove('active'); });
+  var viewEl = document.getElementById('view-' + view);
+  if (!viewEl) { console.warn('switchNavTo: no view for', view); return; }
+  viewEl.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
+  // Find the nav button whose data-nav-key matches this view and activate it.
+  // Resilient to nav-layout changes (4-button / 6-button / menu re-org).
+  var _navMatch = document.querySelector('.nav-item[data-nav-key="nav.' + view + '"]');
+  if (_navMatch) _navMatch.classList.add('active');
+  var isHome = view === 'home';
+  document.getElementById('header-person-switcher').style.display = isHome ? 'flex' : 'none';
+  document.getElementById('header-tab-bar').style.display = isHome ? 'flex' : 'none';
+  if (view === 'signals') { renderSignalsView(); }
+  if (view === 'resources') { renderResourcesView(); }
+  if (view === 'people' && !isDemoMode) { renderPeopleView(); }
+  if (view === 'ask' && !isDemoMode) { renderAskView(); }
+  if (view === 'settings') { updateSettingsViewAccount(); }
+  // Push history state for back button support
+  if (!skipPush && view !== _currentNavView) {
+    history.pushState({ type: 'tab', view: view }, '');
+  }
+  _currentNavView = view;
+  // Let guided demo handle its own scrolling; otherwise scroll to top
+  if (new URLSearchParams(window.location.search).get('demo') !== 'guided') {
+    window.scrollTo(0, 0);
+  }
+  initIcons();
+}
+
+function switchPerson(el, personKey) {
+  var pills = document.querySelectorAll('.person-pill');
+  var idx = 0;
+  pills.forEach(function(p, i){ p.classList.remove('active'); p.setAttribute('aria-selected', 'false'); if (p === el) idx = i; });
+  el.classList.add('active');
+  el.setAttribute('aria-selected', 'true');
+  var bg = _personBgPalette[idx % _personBgPalette.length];
+  document.documentElement.style.setProperty('--person-bg', bg);
+  // Toggle demo home content
+  if (isDemoMode) {
+    var dadBlock = document.getElementById('demo-home-dad');
+    var momBlock = document.getElementById('demo-home-mom');
+    if (dadBlock && momBlock) {
+      dadBlock.style.display = personKey === 'mom' ? 'none' : 'block';
+      momBlock.style.display = personKey === 'mom' ? 'block' : 'none';
+      initIcons();
+    }
+  }
+}
+
+// ── CHAT-FIRST ONBOARDING ENGINE ─────────────────────────────────────────────
+var _obUploadedFiles = [];
+var _obExtractedData = null;
+var _obUploadPaths = [];
+var _obFromEhr = false;
+var _obEhrPending = null;
+var _obVaConsentGiven = false;
+var _obVaUploadMode = false;
+
+// Legacy stubs for any external references
+function obUploadEhrZip() { document.getElementById('ob-file-ehr').click(); }
+function obUploadPhoto() { document.getElementById('ob-file-photo').click(); }
+function obUploadFile() { document.getElementById('ob-file-doc').click(); }
+
+function obConnectEhr() {
+  if (isDemoMode) {
+    showToast('In the real app, this connects to your provider\u2019s records');
+    return;
+  }
+  if (!currentUser) {
+    showToast('Please sign in first');
+    return;
+  }
+  if (!currentPersonId) {
+    showToast('Setting up your profile\u2026 please try again in a moment.');
+    return;
+  }
+  _obFromEhr = true;
+  try { localStorage.setItem('wellet_ob_ehr_return', 'true'); } catch(e) {}
+  openSheetAccessible('hospital-picker-overlay');
+  initIcons();
+  var input = document.getElementById('hospital-picker-input');
+  if (input) {
+    input.value = '';
+    input.removeEventListener('input', _hospitalPickerInputHandler);
+    input.addEventListener('input', _hospitalPickerInputHandler);
+  }
+  var list = document.getElementById('hospital-picker-list');
+  if (list) list.innerHTML = '<li class="hospital-picker-loading">Loading hospitals\u2026</li>';
+  loadEpicEndpoints(function(endpoints) {
+    renderHospitalList(endpoints.slice(0, 50));
+  });
+}
+
+// ── CHAT ONBOARDING STATE ────────────────────────────────────────────────────
+var obChat = {
+  userName: null,
+  personName: null,
+  situation: null,
+  dateOfBirth: null,
+  sex: null,
+  ehrConnected: false,
+  ehrHospital: null,
+  docsUploaded: 0,
+  photosUploaded: 0,
+  deviceConnected: false,
+  deviceProvider: null,
+  freeTextGiven: false,
+  extractedItems: [],
+  phase: 'welcome'
+};
+
+var _obChatSituations = [
+  { id: 'aging_parent', label: 'An aging parent' },
+  { id: 'partner',      label: 'My partner or spouse' },
+  { id: 'child',        label: 'My child' },
+  { id: 'self',         label: 'Myself' },
+  { id: 'other',        label: 'Someone else' }
+];
+
+var _obChatLanguages = [
+  { id: 'en', label: 'English' },
+  { id: 'es', label: 'Espa\u00F1ol' }
+];
+
+// Allowed values mirror the Supabase CHECK constraint on people.sex / manual_sex.
+var _obChatSexOptions = [
+  { id: 'female',             label: 'Female' },
+  { id: 'male',               label: 'Male' },
+  { id: 'intersex',           label: 'Intersex' },
+  { id: 'prefer_not_to_say',  label: 'Prefer not to say' }
+];
+
+var _obChatConnectOptions = [
+  { id: 'ehr',      label: 'I have a MyChart login' },
+  { id: 'va_health', label: 'They get care through the VA' },
+  { id: 'docs',     label: 'I have documents to upload' },
+  { id: 'photo',    label: 'I can take a photo' },
+  { id: 'device',   label: 'I have a health device' },
+  { id: 'freetext', label: 'I\u2019ll just tell you' },
+  { id: 'explore',  label: 'Let me explore first' }
+];
+
+function obSaveChatState() {
+  try { localStorage.setItem('wellet_ob_chat', JSON.stringify(obChat)); } catch(e) {}
+}
+
+function obLoadChatState() {
+  try {
+    var saved = localStorage.getItem('wellet_ob_chat');
+    if (saved) {
+      var parsed = JSON.parse(saved);
+      for (var key in parsed) { if (obChat.hasOwnProperty(key)) obChat[key] = parsed[key]; }
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
+function obClearChatState() {
+  obChat = { userName: null, personName: null, situation: null, dateOfBirth: null, sex: null, ehrConnected: false, ehrHospital: null, docsUploaded: 0, photosUploaded: 0, deviceConnected: false, deviceProvider: null, freeTextGiven: false, extractedItems: [], phase: 'welcome' };
+  try { localStorage.removeItem('wellet_ob_chat'); } catch(e) {}
+}
+
+function obSkipToChat() {
+  // Legacy stub — chat is now the primary flow
+  obInit();
+}
+
+function obBackToUpload() {
+  // Legacy stub — no upload screen to go back to
+}
+
+function obShowScreen(screenId) {
+  // Simplified — only chat screen exists now
+  document.getElementById('ob-chat-screen').style.display = 'flex';
+  window.scrollTo(0, 0);
+  initIcons();
+}
+
+// Chat-first file handler — uploads and extracts inline within chat
+async function obChatHandleFiles(input, type) {
+  if (!input.files || input.files.length === 0) return;
+  var files = Array.from(input.files);
+
+  // Route EHR uploads by extension: XML=CCDA, ZIP=Apple Health, PDF=VA Blue Button
+  if (type === 'ehr' && files.length === 1) {
+    var fname = (files[0].name || '').toLowerCase();
+    if (fname.endsWith('.xml')) { return obHandleVaCcda(files[0], input); }
+    if (fname.endsWith('.pdf')) { return obHandleVaBlueButtonPdf(files[0], input); }
+    // .zip falls through to existing Apple Health handler
+  }
+
+  _obUploadedFiles = _obUploadedFiles.concat(files);
+  var fileCount = files.length;
+
+  if (type === 'photo') {
+    obChat.photosUploaded += fileCount;
+  } else {
+    obChat.docsUploaded += fileCount;
+  }
+  obSaveChatState();
+
+  var readingMsg = type === 'photo'
+    ? 'Reading your photo\u2026'
+    : 'Got it \u2014 reading ' + fileCount + ' document' + (fileCount > 1 ? 's' : '') + '\u2026';
+  obTypeThen(readingMsg, null, 500);
+
+  if (!currentUser) {
+    setTimeout(function() {
+      obAddBubble('wellet', 'I\u2019ll process these once you\u2019re signed in. Let\u2019s keep going.');
+      obShowConnectChips();
+    }, 800);
+    input.value = '';
+    return;
+  }
+
+  var uploadedPaths = [];
+  for (var i = 0; i < files.length; i++) {
+    var file = files[i];
+    var ext = file.name.split('.').pop().toLowerCase();
+    var storagePath = currentUser.id + '/onboarding/' + Date.now() + '_' + i + '.' + ext;
+    try {
+      var result = await db.storage.from('documents').upload(storagePath, file, { upsert: true });
+      if (!result.error) {
+        uploadedPaths.push(storagePath);
+        _obUploadPaths.push(storagePath);
+      }
+    } catch(e) {
+      console.error('Upload exception:', e);
+    }
+  }
+
+  var extractedData = null;
+  try {
+    var extractRes = await fetch(SUPABASE_URL + '/functions/v1/extract-onboarding-v2', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + (await db.auth.getSession()).data.session.access_token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ paths: uploadedPaths, user_id: currentUser.id })
+    });
+    if (extractRes.ok) {
+      extractedData = await extractRes.json();
+      _obExtractedData = extractedData;
+    }
+  } catch(e) {
+    // PHI log removed
+  }
+
+  // Save extracted health events progressively
+  if (extractedData && currentPersonId) {
+    await obSaveExtractedData(extractedData);
+  }
+
+  // Show inline extraction card
+  var sourceLabel = type === 'photo' ? 'your photo' : 'your documents';
+  obShowExtractionCard(extractedData, sourceLabel);
+
+  input.value = '';
+}
+
+// Legacy handler kept for add-more inputs
+async function obHandleFiles(input, type) {
+  obChatHandleFiles(input, type);
+}
+
+// Legacy stubs for wizard functions that no longer exist
+function obRevealExtraction(data) { obShowExtractionCard(data, 'your uploads'); }
+function obAddMorePhoto() { document.getElementById('ob-file-photo').click(); }
+function obAddMoreFile() { document.getElementById('ob-file-doc').click(); }
+async function obHandleAddMore(input, type) { obChatHandleFiles(input, type); }
+
+// ─── VA CCDA / Blue Button PDF handlers ──────────────────────────────────────
+
+async function obHandleVaCcda(file, inputEl) {
+  // Require consent checkbox state captured during obStartVaCcdaFlow
+  if (!_obVaConsentGiven) {
+    obAddBubble('wellet', 'Before I read this, please confirm you have permission to handle this person\u2019s records.');
+    if (inputEl) inputEl.value = '';
+    return;
+  }
+
+  if (file.size > 20 * 1024 * 1024) {
+    obAddBubble('wellet', 'That file is larger than 20 MB \u2014 probably not a VA Health Summary. Can you double-check and try again?');
+    if (inputEl) inputEl.value = '';
+    return;
+  }
+
+  if (!currentUser) {
+    obAddBubble('wellet', 'I\u2019ll read this as soon as you finish signing in. Hold on.');
+    if (inputEl) inputEl.value = '';
+    return;
+  }
+
+  obTypeThen('Reading the VA Health Summary\u2026', null, 300);
+
+  // Read file
+  var xmlText;
+  try {
+    xmlText = await file.text();
+  } catch (e) {
+    obAddBubble('wellet', 'I couldn\u2019t read that file. Try downloading the VA Health Summary again and uploading fresh.');
+    if (inputEl) inputEl.value = '';
+    return;
+  }
+
+  // Validate CCDA
+  var doc;
+  try {
+    doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+    if (doc.getElementsByTagName('parsererror').length > 0 || !doc.documentElement) throw new Error('parse');
+    var root = doc.documentElement.localName || doc.documentElement.nodeName;
+    if (root !== 'ClinicalDocument') throw new Error('not-ccda');
+  } catch (e) {
+    obAddBubble('wellet', 'This doesn\u2019t look like a VA Health Summary XML. If you downloaded a PDF instead, upload that \u2014 I can read those too.');
+    if (inputEl) inputEl.value = '';
+    return;
+  }
+
+  // 1. Upload raw file
+  var timestamp = Date.now();
+  var rawPath = currentUser.id + '/va-ccda-' + timestamp + '.xml';
+  try {
+    await supabase.storage.from('ehr-uploads').upload(rawPath, file, { contentType: 'application/xml', upsert: false });
+  } catch (e) {
+    console.error('raw upload failed', e);
+    // Non-fatal — continue with parse
+  }
+
+  // 2. Ensure person exists
+  if (!currentPersonId) {
+    try {
+      var personName = obChat.personName || 'My Veteran';
+      var _pRes = await supabase.from('people').insert({
+        user_id: currentUser.id,
+        name: personName,
+        relationship: obChat.situation || null,
+        care_status: 'active',
+        situation: 'va-enrolled'
+      }).select().single();
+      if (_pRes.error) throw _pRes.error;
+      currentPersonId = _pRes.data.id;
+    } catch (e) {
+      obAddBubble('wellet', 'I hit a snag creating the record for your Veteran. Can you try again?');
+      if (inputEl) inputEl.value = '';
+      return;
+    }
+  }
+
+  // 3. Create ehr_source_events row
+  var effectiveTime = doc.querySelector('ClinicalDocument > effectiveTime');
+  var sourceDateIso = null;
+  if (effectiveTime) {
+    var v = effectiveTime.getAttribute('value');
+    if (v && v.length >= 8) {
+      sourceDateIso = v.substring(0,4) + '-' + v.substring(4,6) + '-' + v.substring(6,8) + 'T00:00:00Z';
+    }
+  }
+
+  var sourceEvent;
+  try {
+    var _seRes = await supabase.from('ehr_source_events').insert({
+      user_id: currentUser.id,
+      person_id: currentPersonId,
+      source_type: 'va-ccda',
+      source_label: 'VA Health Summary',
+      source_date: sourceDateIso,
+      raw_file_path: rawPath,
+      raw_file_size_bytes: file.size,
+      parse_status: 'parsing'
+    }).select().single();
+    if (_seRes.error) throw _seRes.error;
+    sourceEvent = _seRes.data;
+  } catch (e) {
+    console.error('source event insert failed', e);
+    obAddBubble('wellet', 'I saved the file but couldn\u2019t start reading it. Try again in a moment?');
+    if (inputEl) inputEl.value = '';
+    return;
+  }
+
+  // 4. Parse sections
+  var parsed = parseCcdaSections(doc);
+
+  // 5. Diff-and-merge insert each category
+  var counts = { conditions: 0, medications: 0, allergies: 0, labs: 0, vitals: 0, immunizations: 0, procedures: 0 };
+  try {
+    counts.medications   = await mergeVaRecords('medications',   parsed.medications,   sourceEvent.id);
+    counts.allergies     = await mergeVaRecords('allergies',     parsed.allergies,     sourceEvent.id);
+    counts.labs          = await mergeVaRecords('lab_results',   parsed.labs,          sourceEvent.id);
+    counts.vitals        = await mergeVaRecords('vitals',        parsed.vitals,        sourceEvent.id);
+    counts.conditions    = await mergeVaRecords('health_events', parsed.conditions,    sourceEvent.id);
+    counts.immunizations = await mergeVaRecords('health_events', parsed.immunizations, sourceEvent.id);
+    counts.procedures    = await mergeVaRecords('health_events', parsed.procedures,    sourceEvent.id);
+  } catch (e) {
+    console.error('merge failed', e);
+    await supabase.from('ehr_source_events').update({ parse_status: 'failed', parse_error: String(e).slice(0,500) }).eq('id', sourceEvent.id);
+    obAddBubble('wellet', 'I got partway through reading it and hit a snag. Your file is saved \u2014 try uploading again or email me at betsy.eble@gmail.com.');
+    if (inputEl) inputEl.value = '';
+    return;
+  }
+
+  await supabase.from('ehr_source_events').update({
+    parse_status: 'complete',
+    record_counts: counts
+  }).eq('id', sourceEvent.id);
+
+  // 6. Success bubble
+  var summaryParts = [];
+  if (counts.conditions)    summaryParts.push(counts.conditions    + ' condition'    + (counts.conditions    !== 1 ? 's' : ''));
+  if (counts.medications)   summaryParts.push(counts.medications   + ' medication'   + (counts.medications   !== 1 ? 's' : ''));
+  if (counts.allergies)     summaryParts.push(counts.allergies     + ' allerg'       + (counts.allergies     !== 1 ? 'ies' : 'y'));
+  if (counts.labs)          summaryParts.push(counts.labs          + ' lab result'   + (counts.labs          !== 1 ? 's' : ''));
+  if (counts.vitals)        summaryParts.push(counts.vitals        + ' vital'        + (counts.vitals        !== 1 ? 's' : ''));
+  if (counts.immunizations) summaryParts.push(counts.immunizations + ' immunization' + (counts.immunizations !== 1 ? 's' : ''));
+  if (counts.procedures)    summaryParts.push(counts.procedures    + ' procedure'    + (counts.procedures    !== 1 ? 's' : ''));
+
+  var _vaCcdaPersonName = obChat.personName || 'your Veteran';
+  var summaryText = summaryParts.length ? summaryParts.join(', ') : 'nothing new';
+  obAddBubble('wellet',
+    'Done. I read ' + escHtml(_vaCcdaPersonName) + '\u2019s VA Health Summary and added ' + summaryText + '.' +
+    '<br><br>You can re-upload anytime \u2014 I\u2019ll only add what\u2019s new.'
+  );
+
+  if (inputEl) inputEl.value = '';
+  setTimeout(obShowConnectChips, 900);
+}
+
+// ─── CCDA section parser ──────────────────────────────────────────────────────
+
+function parseCcdaSections(doc) {
+  var result = { conditions: [], medications: [], allergies: [], labs: [], vitals: [], immunizations: [], procedures: [] };
+
+  function getSection(code) {
+    var sections = doc.querySelectorAll('section');
+    for (var i = 0; i < sections.length; i++) {
+      var codeEl = sections[i].querySelector(':scope > code');
+      if (codeEl && codeEl.getAttribute('code') === code) return sections[i];
+    }
+    return null;
+  }
+
+  function xmlText(el, selector) {
+    if (!el) return '';
+    var found = el.querySelector(selector);
+    return found ? (found.textContent || '').trim() : '';
+  }
+
+  function isoDate(yyyymmdd) {
+    if (!yyyymmdd) return null;
+    var s = yyyymmdd.replace(/[^0-9]/g, '');
+    if (s.length < 8) return null;
+    return s.substring(0,4) + '-' + s.substring(4,6) + '-' + s.substring(6,8);
+  }
+
+  // --- Medications (10160-0) ---
+  var medSec = getSection('10160-0');
+  if (medSec) {
+    var entries = medSec.querySelectorAll('entry');
+    entries.forEach(function(entry) {
+      var sa = entry.querySelector('substanceAdministration');
+      if (!sa) return;
+      var mat = sa.querySelector('manufacturedMaterial');
+      var nameEl = mat ? mat.querySelector('code') : null;
+      var name = nameEl ? (nameEl.getAttribute('displayName') || '') : '';
+      if (!name && mat) name = xmlText(mat, 'name');
+      if (!name) return;
+      var doseQ = sa.querySelector('doseQuantity');
+      var dose = doseQ ? ((doseQ.getAttribute('value') || '') + ' ' + (doseQ.getAttribute('unit') || '')).trim() : null;
+      var etLow  = sa.querySelector('effectiveTime[xsi\\:type="IVL_TS"] low, effectiveTime low');
+      var etHigh = sa.querySelector('effectiveTime[xsi\\:type="IVL_TS"] high, effectiveTime high');
+      var startDate = etLow  ? isoDate(etLow.getAttribute('value'))  : null;
+      var endDate   = etHigh ? isoDate(etHigh.getAttribute('value')) : null;
+      var active = !endDate;
+      var fp = name.toLowerCase().trim() + '|' + (startDate || '');
+      result.medications.push({ name: name, dose: dose || null, start_date: startDate, end_date: endDate, active: active, source: 'va-ccda', ehr_system: 'VA', fingerprint: fp });
+    });
+  }
+
+  // --- Allergies (48765-2) ---
+  var allerSec = getSection('48765-2');
+  if (allerSec) {
+    var allerEntries = allerSec.querySelectorAll('entry');
+    allerEntries.forEach(function(entry) {
+      var playEl = entry.querySelector('playingEntity > code, playingEntity code');
+      var substance = playEl ? (playEl.getAttribute('displayName') || xmlText(entry, 'playingEntity name')) : xmlText(entry, 'playingEntity name');
+      if (!substance) return;
+      var reactionEl = entry.querySelector('entryRelationship observation value');
+      var reaction = reactionEl ? (reactionEl.getAttribute('displayName') || '') : null;
+      var severityEl = entry.querySelector('entryRelationship[typeCode="SUBJ"] observation value');
+      var severity = severityEl ? (severityEl.getAttribute('displayName') || '') : null;
+      var fp = substance.toLowerCase().trim();
+      result.allergies.push({ substance: substance, reaction: reaction || null, severity: severity || null, source: 'va-ccda', ehr_system: 'VA', fingerprint: fp });
+    });
+  }
+
+  // --- Problems / Conditions (11450-4) ---
+  var probSec = getSection('11450-4');
+  if (probSec) {
+    var probEntries = probSec.querySelectorAll('entry');
+    probEntries.forEach(function(entry) {
+      var obs = entry.querySelector('observation');
+      if (!obs) return;
+      var valueEl = obs.querySelector('value');
+      var title = valueEl ? (valueEl.getAttribute('displayName') || xmlText(obs, 'text')) : xmlText(obs, 'text');
+      if (!title) return;
+      var onsetEl = obs.querySelector('effectiveTime low');
+      var eventDate = onsetEl ? isoDate(onsetEl.getAttribute('value')) : null;
+      var fp = title.toLowerCase().trim();
+      result.conditions.push({ event_type: 'condition', title: title, event_date: eventDate, source: 'va-ccda', ehr_system: 'VA', fingerprint: fp });
+    });
+  }
+
+  // --- Immunizations (11369-6) ---
+  var imSec = getSection('11369-6');
+  if (imSec) {
+    var imEntries = imSec.querySelectorAll('entry');
+    imEntries.forEach(function(entry) {
+      var sa = entry.querySelector('substanceAdministration');
+      if (!sa) return;
+      var codeEl = sa.querySelector('manufacturedMaterial code');
+      var title = codeEl ? (codeEl.getAttribute('displayName') || '') : '';
+      if (!title) return;
+      var etEl = sa.querySelector('effectiveTime');
+      var eventDate = etEl ? isoDate(etEl.getAttribute('value')) : null;
+      var fp = title.toLowerCase().trim() + '|' + (eventDate || '');
+      result.immunizations.push({ event_type: 'immunization', title: title, event_date: eventDate, source: 'va-ccda', ehr_system: 'VA', fingerprint: fp });
+    });
+  }
+
+  // --- Labs / Results (30954-2) ---
+  var labSec = getSection('30954-2');
+  if (labSec) {
+    var labOrgs = labSec.querySelectorAll('organizer');
+    labOrgs.forEach(function(org) {
+      var obs = org.querySelectorAll('observation');
+      obs.forEach(function(ob) {
+        var codeEl = ob.querySelector(':scope > code');
+        var testName = codeEl ? (codeEl.getAttribute('displayName') || '') : '';
+        if (!testName) return;
+        var loincCode = codeEl ? (codeEl.getAttribute('code') || '') : '';
+        var valEl = ob.querySelector(':scope > value');
+        var value = valEl ? (valEl.getAttribute('value') || valEl.textContent || '').trim() : null;
+        var unit = valEl ? (valEl.getAttribute('unit') || null) : null;
+        var etEl = ob.querySelector('effectiveTime');
+        var effectiveDate = etEl ? isoDate(etEl.getAttribute('value')) : null;
+        var rrEl = ob.querySelector('referenceRange observationRange text');
+        var referenceRange = rrEl ? rrEl.textContent.trim() : null;
+        var statusEl = ob.querySelector('statusCode');
+        var status = statusEl ? (statusEl.getAttribute('code') || null) : null;
+        var fp = loincCode + '|' + (effectiveDate || '') + '|' + (value || '');
+        result.labs.push({ test_name: testName, loinc_code: loincCode || null, value: value, unit: unit, reference_range: referenceRange, status: status, effective_date: effectiveDate, source: 'va-ccda', ehr_system: 'VA', fingerprint: fp });
+      });
+    });
+    // Also handle flat observations not in an organizer
+    var flatObs = labSec.querySelectorAll(':scope > entry > observation');
+    flatObs.forEach(function(ob) {
+      var codeEl = ob.querySelector(':scope > code');
+      var testName = codeEl ? (codeEl.getAttribute('displayName') || '') : '';
+      if (!testName) return;
+      var loincCode = codeEl ? (codeEl.getAttribute('code') || '') : '';
+      var valEl = ob.querySelector(':scope > value');
+      var value = valEl ? (valEl.getAttribute('value') || valEl.textContent || '').trim() : null;
+      var unit = valEl ? (valEl.getAttribute('unit') || null) : null;
+      var etEl = ob.querySelector('effectiveTime');
+      var effectiveDate = etEl ? isoDate(etEl.getAttribute('value')) : null;
+      var fp = loincCode + '|' + (effectiveDate || '') + '|' + (value || '');
+      result.labs.push({ test_name: testName, loinc_code: loincCode || null, value: value, unit: unit, reference_range: null, status: null, effective_date: effectiveDate, source: 'va-ccda', ehr_system: 'VA', fingerprint: fp });
+    });
+  }
+
+  // --- Vitals (8716-3) ---
+  var vitSec = getSection('8716-3');
+  if (vitSec) {
+    var vitOrgs = vitSec.querySelectorAll('organizer');
+    vitOrgs.forEach(function(org) {
+      var obs = org.querySelectorAll('observation');
+      var etEl = org.querySelector('effectiveTime');
+      var effectiveDate = etEl ? isoDate(etEl.getAttribute('value')) : null;
+      obs.forEach(function(ob) {
+        var codeEl = ob.querySelector(':scope > code');
+        var vitalType = codeEl ? (codeEl.getAttribute('displayName') || '') : '';
+        if (!vitalType) return;
+        var loincCode = codeEl ? (codeEl.getAttribute('code') || '') : '';
+        var valEl = ob.querySelector(':scope > value');
+        var value = valEl ? (valEl.getAttribute('value') || valEl.textContent || '').trim() : null;
+        var unit = valEl ? (valEl.getAttribute('unit') || null) : null;
+        if (!effectiveDate) {
+          var obEt = ob.querySelector('effectiveTime');
+          effectiveDate = obEt ? isoDate(obEt.getAttribute('value')) : null;
+        }
+        var fp = loincCode + '|' + (effectiveDate || '');
+        result.vitals.push({ vital_type: vitalType, loinc_code: loincCode || null, value: value, unit: unit, effective_date: effectiveDate, source: 'va-ccda', ehr_system: 'VA', fingerprint: fp });
+      });
+    });
+  }
+
+  // --- Procedures (47519-4) ---
+  var procSec = getSection('47519-4');
+  if (procSec) {
+    var procEntries = procSec.querySelectorAll('entry');
+    procEntries.forEach(function(entry) {
+      var proc = entry.querySelector('procedure, act');
+      if (!proc) return;
+      var codeEl = proc.querySelector(':scope > code');
+      var title = codeEl ? (codeEl.getAttribute('displayName') || xmlText(proc, 'text')) : xmlText(proc, 'text');
+      if (!title) return;
+      var etEl = proc.querySelector('effectiveTime');
+      var eventDate = etEl ? isoDate(etEl.getAttribute('value') || etEl.getAttribute('nullFlavor')) : null;
+      if (etEl && !eventDate) {
+        var lowEl = etEl.querySelector('low');
+        eventDate = lowEl ? isoDate(lowEl.getAttribute('value')) : null;
+      }
+      var fp = title.toLowerCase().trim() + '|' + (eventDate || '');
+      result.procedures.push({ event_type: 'procedure', title: title, event_date: eventDate, source: 'va-ccda', ehr_system: 'VA', fingerprint: fp });
+    });
+  }
+
+  return result;
+}
+
+async function mergeVaRecords(table, items, sourceEventId) {
+  if (!items || items.length === 0) return 0;
+  var count = 0;
+  for (var i = 0; i < items.length; i++) {
+    var item = items[i];
+    if (!item.fingerprint) continue;
+    try {
+      var existRes = await supabase
+        .from(table)
+        .select('id, source_fingerprint')
+        .eq('person_id', currentPersonId)
+        .eq('source_fingerprint', item.fingerprint)
+        .limit(1);
+      if (existRes.data && existRes.data.length > 0) continue; // already exists
+      var insertObj = {};
+      for (var key in item) {
+        if (key !== 'fingerprint') insertObj[key] = item[key];
+      }
+      insertObj.person_id = currentPersonId;
+      insertObj.ehr_source_event_id = sourceEventId;
+      insertObj.source_fingerprint = item.fingerprint;
+      var insertRes = await supabase.from(table).insert(insertObj);
+      if (!insertRes.error) count++;
+      else console.error('merge insert error', table, insertRes.error);
+    } catch(e) {
+      console.error('mergeVaRecords exception', table, e);
+    }
+  }
+  return count;
+}
+
+// ─── VA Blue Button PDF handler ───────────────────────────────────────────────
+
+async function obHandleVaBlueButtonPdf(file, inputEl) {
+  if (!_obVaConsentGiven) {
+    obAddBubble('wellet', 'Before I read this, please confirm you have permission to handle this person\u2019s records.');
+    if (inputEl) inputEl.value = '';
+    return;
+  }
+
+  if (file.size > 20 * 1024 * 1024) {
+    obAddBubble('wellet', 'That PDF is larger than 20 MB. Can you double-check and try again?');
+    if (inputEl) inputEl.value = '';
+    return;
+  }
+
+  if (!currentUser) {
+    obAddBubble('wellet', 'I\u2019ll read this as soon as you finish signing in. Hold on.');
+    if (inputEl) inputEl.value = '';
+    return;
+  }
+
+  obTypeThen('Reading the Blue Button PDF\u2026 this may take a moment.', null, 300);
+
+  // Lazy-load pdf.js from CDN
+  if (!window.pdfjsLib) {
+    await new Promise(function(resolve, reject) {
+      var s = document.createElement('script');
+      s.type = 'module';
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs';
+      s.onload = function() { resolve(); };
+      s.onerror = function() { reject(new Error('pdf.js load failed')); };
+      document.head.appendChild(s);
+    }).catch(function() {
+      // Try alternate import
+    });
+    // If ESM import, the global may be under a different key — try dynamic import
+    if (!window.pdfjsLib) {
+      try {
+        var pdfMod = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs');
+        window.pdfjsLib = pdfMod.default || pdfMod;
+      } catch(e) {
+        obAddBubble('wellet', 'I couldn\u2019t load the PDF reader. Please try an XML download from VA.gov instead.');
+        if (inputEl) inputEl.value = '';
+        return;
+      }
+    }
+  }
+
+  // Upload raw PDF
+  var timestamp = Date.now();
+  var rawPath = currentUser.id + '/va-bluebutton-' + timestamp + '.pdf';
+  try {
+    await supabase.storage.from('ehr-uploads').upload(rawPath, file, { contentType: 'application/pdf', upsert: false });
+  } catch(e) {
+    console.error('pdf raw upload failed', e);
+  }
+
+  // Extract text from all pages
+  var fullText = '';
+  try {
+    var arrayBuffer = await file.arrayBuffer();
+    var loadingTask = window.pdfjsLib.getDocument({ data: arrayBuffer });
+    var pdfDoc = await loadingTask.promise;
+    for (var pg = 1; pg <= pdfDoc.numPages; pg++) {
+      var page = await pdfDoc.getPage(pg);
+      var textContent = await page.getTextContent();
+      var pageText = textContent.items.map(function(item) { return item.str || ''; }).join(' ');
+      fullText += pageText + '\n';
+    }
+  } catch(e) {
+    obAddBubble('wellet', 'I couldn\u2019t read that PDF. Try downloading the VA Health Summary as XML instead.');
+    if (inputEl) inputEl.value = '';
+    return;
+  }
+
+  // Parse sections from text
+  var parsed = parsePdfSections(fullText);
+
+  // Ensure person
+  if (!currentPersonId) {
+    try {
+      var _pdfPersonName = obChat.personName || 'My Veteran';
+      var _pdfPRes = await supabase.from('people').insert({
+        user_id: currentUser.id,
+        name: _pdfPersonName,
+        relationship: obChat.situation || null,
+        care_status: 'active',
+        situation: 'va-enrolled'
+      }).select().single();
+      if (_pdfPRes.error) throw _pdfPRes.error;
+      currentPersonId = _pdfPRes.data.id;
+    } catch(e) {
+      obAddBubble('wellet', 'I hit a snag creating the record. Can you try again?');
+      if (inputEl) inputEl.value = '';
+      return;
+    }
+  }
+
+  // Create source event
+  var _pdfSeRes = await supabase.from('ehr_source_events').insert({
+    user_id: currentUser.id,
+    person_id: currentPersonId,
+    source_type: 'va-bluebutton-pdf',
+    source_label: 'VA Blue Button PDF',
+    source_date: null,
+    raw_file_path: rawPath,
+    raw_file_size_bytes: file.size,
+    parse_status: 'parsing'
+  }).select().single();
+  if (_pdfSeRes.error) {
+    console.error('source event insert failed', _pdfSeRes.error);
+  }
+  var _pdfSourceEvent = _pdfSeRes.data;
+  var _pdfSourceEventId = _pdfSourceEvent ? _pdfSourceEvent.id : null;
+
+  // Merge
+  var counts = { conditions: 0, medications: 0, allergies: 0, immunizations: 0 };
+  if (_pdfSourceEventId) {
+    counts.medications   = await mergeVaRecords('medications',   parsed.medications,   _pdfSourceEventId);
+    counts.allergies     = await mergeVaRecords('allergies',     parsed.allergies,     _pdfSourceEventId);
+    counts.conditions    = await mergeVaRecords('health_events', parsed.conditions,    _pdfSourceEventId);
+    counts.immunizations = await mergeVaRecords('health_events', parsed.immunizations, _pdfSourceEventId);
+    await supabase.from('ehr_source_events').update({ parse_status: 'complete', record_counts: counts }).eq('id', _pdfSourceEventId);
+  }
+
+  var summaryParts = [];
+  if (counts.conditions)    summaryParts.push(counts.conditions    + ' condition'    + (counts.conditions    !== 1 ? 's' : ''));
+  if (counts.medications)   summaryParts.push(counts.medications   + ' medication'   + (counts.medications   !== 1 ? 's' : ''));
+  if (counts.allergies)     summaryParts.push(counts.allergies     + ' allerg'       + (counts.allergies     !== 1 ? 'ies' : 'y'));
+  if (counts.immunizations) summaryParts.push(counts.immunizations + ' immunization' + (counts.immunizations !== 1 ? 's' : ''));
+
+  var _pdfPersonNameDisplay = obChat.personName || 'your Veteran';
+  var summaryText = summaryParts.length ? summaryParts.join(', ') : 'nothing new';
+  obAddBubble('wellet',
+    'Done. I read ' + escHtml(_pdfPersonNameDisplay) + '\u2019s Blue Button PDF and added ' + summaryText + '.' +
+    '<br><br>For more complete data (labs, vitals, procedures), try downloading as XML (CCDA) from VA.gov.'
+  );
+
+  if (inputEl) inputEl.value = '';
+  setTimeout(obShowConnectChips, 900);
+}
+
+function parsePdfSections(text) {
+  var result = { conditions: [], medications: [], allergies: [], immunizations: [] };
+
+  function extractSection(headerPattern) {
+    var match = text.match(headerPattern);
+    if (!match) return [];
+    var start = match.index + match[0].length;
+    // Find next ALL-CAPS section header
+    var rest = text.substring(start);
+    var nextHeader = rest.match(/\n[A-Z][A-Z ]{3,}\n/);
+    var end = nextHeader ? nextHeader.index : rest.length;
+    var block = rest.substring(0, end);
+    return block.split('\n')
+      .map(function(l){ return l.trim(); })
+      .filter(function(l){ return l.length > 2; });
+  }
+
+  var medLines = extractSection(/ACTIVE MEDICATIONS|MEDICATIONS/i);
+  medLines.forEach(function(line) {
+    var fp = line.toLowerCase().trim();
+    result.medications.push({ name: line, active: true, source: 'va-bluebutton-pdf', ehr_system: 'VA', fingerprint: fp });
+  });
+
+  var allerLines = extractSection(/KNOWN ALLERGIES|ALLERGIES/i);
+  allerLines.forEach(function(line) {
+    var fp = line.toLowerCase().trim();
+    result.allergies.push({ substance: line, source: 'va-bluebutton-pdf', ehr_system: 'VA', fingerprint: fp });
+  });
+
+  var condLines = extractSection(/HEALTH CONDITIONS|PROBLEM LIST|PROBLEMS/i);
+  condLines.forEach(function(line) {
+    var fp = line.toLowerCase().trim();
+    result.conditions.push({ event_type: 'condition', title: line, source: 'va-bluebutton-pdf', ehr_system: 'VA', fingerprint: fp });
+  });
+
+  var imLines = extractSection(/IMMUNIZATIONS|VACCINES/i);
+  imLines.forEach(function(line) {
+    var fp = line.toLowerCase().trim();
+    result.immunizations.push({ event_type: 'immunization', title: line, source: 'va-bluebutton-pdf', ehr_system: 'VA', fingerprint: fp });
+  });
+
+  return result;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+function obContinueFromProcessing() { obShowConnectChips(); }
+function obShowNameScreen() { /* no-op in chat-first flow */ }
+function obConfirmPersonName() { /* no-op */ }
+// Legacy stubs for wizard functions
+function obToggleSummary(id, btn) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var show = el.style.display === 'none';
+  el.style.display = show ? 'block' : 'none';
+  btn.textContent = show ? 'Hide details' : 'Show details';
+}
+
+async function obFinishWithNames() { /* Legacy — handled by chat flow now */ }
+function obShowHealthRecordsStep() { /* Legacy */ }
+function obStartHealthImport() { /* Legacy */ }
+function obHealthFileSelected() { /* Legacy */ }
+function obSkipHealthImport() { showOwnWellet(); }
+
+// ── UNIFIED CHAT ONBOARDING ENGINE ───────────────────────────────────────────
+// obState kept for compatibility with savePersonToSupabase
+var obState = { step: 0, situation: null, userName: null, personName: null, dateOfBirth: null, sex: null };
+
+function obInit() {
+  obClearChatState();
+  _obUploadedFiles = [];
+  _obUploadPaths = [];
+  _obExtractedData = null;
+  _obFromEhr = false;
+  _obEhrPending = null;
+  // Clear currentPersonId so add-person flow doesn't leak the previous person
+  currentPersonId = null;
+  var chat = document.getElementById('ob-chat-area');
+  chat.innerHTML = '';
+  chat.scrollTop = 0;
+  document.getElementById('ob-input').value = '';
+  document.getElementById('ob-input').disabled = true;
+  document.getElementById('ob-send-btn').disabled = true;
+  window.scrollTo(0, 0);
+  document.getElementById('onboarding').scrollTop = 0;
+  obChat.phase = 'welcome';
+  obSaveChatState();
+  // If we've already captured language (returning visitor mid-flow), skip the language picker.
+  var _alreadyAskedLang = !!(obChat && obChat.languageAsked);
+  setTimeout(function() {
+    if (_alreadyAskedLang) {
+      obTypeThen('Hi \u2014 I\u2019m Wellet. I help you stay on top of your loved one\u2019s health so you can stop being the memory. Who are you here for?', obShowSituationChips, 900);
+    } else {
+      obTypeThen('Hi \u2014 I\u2019m Wellet. / Hola \u2014 soy Wellet. Which language would you prefer? / \u00BFEn qu\u00E9 idioma prefieres continuar?', obShowLanguageChips, 900);
+    }
+  }, 400);
+}
+
+function obShowLanguageChips() {
+  var chat = document.getElementById('ob-chat-area');
+  var group = document.createElement('div');
+  group.className = 'ob-msg-group from-wellet';
+  group.id = 'ob-language-group';
+  var chipsHTML = '<div class="ob-chips" id="ob-language-chips">';
+  _obChatLanguages.forEach(function(l) {
+    chipsHTML += '<button class="ob-chip" onclick="obSelectLanguage(\'' + l.id + '\',this)">' + escHtml(l.label) + '</button>';
+  });
+  chipsHTML += '</div>';
+  group.innerHTML = chipsHTML;
+  chat.appendChild(group);
+  initIcons();
+  setTimeout(function(){ chat.scrollTop = 0; }, 60);
+}
+
+function obSelectLanguage(id, btn) {
+  document.querySelectorAll('#ob-language-chips .ob-chip').forEach(function(c){ c.disabled = true; c.classList.add('used'); });
+  btn.classList.remove('used'); btn.style.opacity='1'; btn.style.borderColor='var(--moss)'; btn.style.background='var(--mint)'; btn.style.color='var(--moss)';
+  var label = btn.textContent.trim();
+  setTimeout(function(){ obAddBubble('user', label); }, 150);
+  // Persist via the existing setLanguage() so all i18n, nav labels, and <html lang=> stay in sync.
+  try { if (typeof setLanguage === 'function') setLanguage(id); } catch(e) { console.warn('setLanguage failed', e); }
+  obChat.language = id;
+  obChat.languageAsked = true;
+  obSaveChatState();
+  var prompt = id === 'es'
+    ? 'Perfecto. Te ayudo a estar al tanto de la salud de tu ser querido para que puedas dejar de ser la memoria. \u00BFPara qui\u00E9n est\u00E1s aqu\u00ED?'
+    : 'Great. I help you stay on top of your loved one\u2019s health so you can stop being the memory. Who are you here for?';
+  setTimeout(function(){
+    obTypeThen(prompt, obShowSituationChips, 800);
+  }, 400);
+}
+
+function obTypeThen(text, callback, delay) {
+  var chat = document.getElementById('ob-chat-area');
+  var typingGroup = document.createElement('div');
+  typingGroup.className = 'ob-msg-group from-wellet';
+  typingGroup.innerHTML = '<div class="ob-sender">Wellet</div><div class="ob-typing"><span class="ob-dot"></span><span class="ob-dot"></span><span class="ob-dot"></span></div>';
+  chat.appendChild(typingGroup);
+  obScroll();
+  setTimeout(function() {
+    if (typingGroup.parentNode) chat.removeChild(typingGroup);
+    obAddBubble('wellet', text);
+    if (callback) setTimeout(callback, 120);
+  }, delay || 700);
+}
+
+function obAddBubble(from, html, isHTML) {
+  var chat = document.getElementById('ob-chat-area');
+  var group = document.createElement('div');
+  group.className = 'ob-msg-group from-' + from;
+  var sender = from === 'wellet' ? '<div class="ob-sender">Wellet</div>' : '';
+  var content = isHTML ? html : escHtml(html);
+  group.innerHTML = sender + '<div class="ob-bubble ' + from + '">' + content + '</div>';
+  chat.appendChild(group);
+  obScroll();
+}
+
+function obShowSituationChips() {
+  var chat = document.getElementById('ob-chat-area');
+  var group = document.createElement('div');
+  group.className = 'ob-msg-group from-wellet';
+  group.id = 'ob-situation-group';
+  var chipsHTML = '<div class="ob-chips" id="ob-situation-chips">';
+  _obChatSituations.forEach(function(s) {
+    chipsHTML += '<button class="ob-chip" onclick="obSelectSituation(\'' + s.id + '\',this)">' + escHtml(s.label) + '</button>';
+  });
+  chipsHTML += '</div>';
+  group.innerHTML = chipsHTML;
+  chat.appendChild(group);
+  initIcons();
+  setTimeout(function(){ chat.scrollTop = 0; }, 60);
+}
+
+function obSelectSituation(id, btn) {
+  document.querySelectorAll('#ob-situation-chips .ob-chip').forEach(function(c){ c.disabled = true; c.classList.add('used'); });
+  btn.classList.remove('used'); btn.style.opacity='1'; btn.style.borderColor='var(--moss)'; btn.style.background='var(--mint)'; btn.style.color='var(--moss)';
+  var label = btn.textContent.trim();
+  setTimeout(function(){ obAddBubble('user', label); }, 150);
+  obChat.situation = id;
+  obChat.phase = 'name';
+  obSaveChatState();
+  // Map situation to relationship for savePersonToSupabase
+  var relMap = { aging_parent: 'parent', partner: 'partner', child: 'child', self: 'self', other: 'other' };
+  obState.situation = relMap[id] || id;
+
+  setTimeout(function(){
+    obTypeThen('Got it. What\u2019s your name?', function(){
+      document.getElementById('ob-input').disabled = false;
+      document.getElementById('ob-send-btn').disabled = false;
+      document.getElementById('ob-input').placeholder = 'Your first name\u2026';
+      document.getElementById('ob-input').focus();
+    }, 800);
+  }, 400);
+}
+
+// ── DOB + SEX PROMPTS (manual onboarding, Cheryl flow #66) ───────────────────
+// Rendered as chat bubbles (not a wizard) to match the conversational onboarding.
+// Values land in obChat/obState so savePersonToSupabase can write them to
+// people.date_of_birth / people.sex and mirror to the manual_* fallback columns.
+
+function obShowDobPrompt() {
+  var chat = document.getElementById('ob-chat-area');
+  var group = document.createElement('div');
+  group.className = 'ob-msg-group from-wellet';
+  group.id = 'ob-dob-group';
+  var html = '<div class="ob-dob-wrap" style="display:flex;flex-direction:column;gap:8px;max-width:320px;">';
+  html += '<input type="date" id="ob-dob-input" class="ob-dob-input" max="' + escHtml(_obTodayISO()) + '" style="padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:15px;font-family:inherit;background:#fff;color:var(--ink);" />';
+  html += '<div class="ob-dob-actions" style="display:flex;gap:8px;flex-wrap:wrap;">';
+  html += '<button class="ob-chip" id="ob-dob-save" onclick="obSaveDob()">Save</button>';
+  html += '<button class="ob-chip ob-chip-ghost" onclick="obSkipDob()" style="background:transparent;">Skip for now</button>';
+  html += '</div></div>';
+  group.innerHTML = html;
+  chat.appendChild(group);
+  initIcons();
+  setTimeout(function(){
+    var el = document.getElementById('ob-dob-input');
+    if (el) el.focus();
+    chat.scrollTop = chat.scrollHeight;
+  }, 60);
+}
+
+function _obTodayISO() {
+  var d = new Date();
+  var m = String(d.getMonth() + 1).padStart(2, '0');
+  var day = String(d.getDate()).padStart(2, '0');
+  return d.getFullYear() + '-' + m + '-' + day;
+}
+
+function _obFormatDobDisplay(iso) {
+  // iso is YYYY-MM-DD; display as e.g. "June 3, 1952" without timezone drift.
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso || '';
+  var parts = iso.split('-');
+  var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var y = parseInt(parts[0], 10);
+  var m = parseInt(parts[1], 10);
+  var d = parseInt(parts[2], 10);
+  if (!y || !m || !d || m < 1 || m > 12) return iso;
+  return months[m - 1] + ' ' + d + ', ' + y;
+}
+
+async function obSaveDob() {
+  var el = document.getElementById('ob-dob-input');
+  var iso = el ? el.value : '';
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    showToast('Please pick a date (or tap Skip for now).');
+    return;
+  }
+  // Sanity check: not in the future, not before 1900.
+  var today = _obTodayISO();
+  if (iso > today) { showToast('That date is in the future — please double-check.'); return; }
+  if (iso < '1900-01-01') { showToast('That date looks too far back — please double-check.'); return; }
+
+  _obDisableDobGroup();
+  obChat.dateOfBirth = iso;
+  obState.dateOfBirth = iso;
+  obSaveChatState();
+  obAddBubble('user', _obFormatDobDisplay(iso));
+  setTimeout(function(){ obAskSex(); }, 300);
+}
+
+async function obSkipDob() {
+  _obDisableDobGroup();
+  obChat.dateOfBirth = null;
+  obState.dateOfBirth = null;
+  obSaveChatState();
+  obAddBubble('user', 'Skip for now');
+  setTimeout(function(){ obAskSex(); }, 300);
+}
+
+function _obDisableDobGroup() {
+  var group = document.getElementById('ob-dob-group');
+  if (!group) return;
+  var inp = group.querySelector('#ob-dob-input');
+  if (inp) inp.disabled = true;
+  group.querySelectorAll('button').forEach(function(b){ b.disabled = true; b.classList.add('used'); });
+}
+
+function obAskSex() {
+  obChat.phase = 'person_sex';
+  obSaveChatState();
+  var whose = (obChat.situation === 'self') ? 'your' : (obChat.personName ? escHtml(obChat.personName) + '\u2019s' : 'their');
+  obTypeThen('And ' + whose + ' biological sex? This helps Wellet read lab ranges and dosing correctly.', obShowSexChips, 700);
+}
+
+function obShowSexChips() {
+  var chat = document.getElementById('ob-chat-area');
+  var group = document.createElement('div');
+  group.className = 'ob-msg-group from-wellet';
+  group.id = 'ob-sex-group';
+  var chipsHTML = '<div class="ob-chips" id="ob-sex-chips">';
+  _obChatSexOptions.forEach(function(s) {
+    chipsHTML += '<button class="ob-chip" onclick="obSelectSex(\'' + s.id + '\',this)">' + escHtml(s.label) + '</button>';
+  });
+  chipsHTML += '</div>';
+  chipsHTML += '<div class="ob-sex-actions" style="margin-top:8px;">';
+  chipsHTML += '<button class="ob-chip ob-chip-ghost" onclick="obSkipSex()" style="background:transparent;">Skip for now</button>';
+  chipsHTML += '</div>';
+  group.innerHTML = chipsHTML;
+  chat.appendChild(group);
+  initIcons();
+  setTimeout(function(){ chat.scrollTop = chat.scrollHeight; }, 60);
+}
+
+async function obSelectSex(id, btn) {
+  // Allowed values mirror the Supabase CHECK constraint. Anything else is rejected.
+  var allowed = ['female','male','intersex','prefer_not_to_say'];
+  if (allowed.indexOf(id) === -1) { showToast('Please pick one of the listed options.'); return; }
+  document.querySelectorAll('#ob-sex-chips .ob-chip').forEach(function(c){ c.disabled = true; c.classList.add('used'); });
+  var skipBtn = document.querySelector('#ob-sex-group .ob-sex-actions .ob-chip');
+  if (skipBtn) skipBtn.disabled = true;
+  if (btn) { btn.classList.remove('used'); btn.style.opacity='1'; btn.style.borderColor='var(--moss)'; btn.style.background='var(--mint)'; btn.style.color='var(--moss)'; }
+  var label = btn ? btn.textContent.trim() : id;
+  setTimeout(function(){ obAddBubble('user', label); }, 150);
+  obChat.sex = id;
+  obState.sex = id;
+  obSaveChatState();
+  setTimeout(function(){ obAdvanceAfterDobSex(); }, 400);
+}
+
+async function obSkipSex() {
+  document.querySelectorAll('#ob-sex-chips .ob-chip').forEach(function(c){ c.disabled = true; c.classList.add('used'); });
+  var skipBtn = document.querySelector('#ob-sex-group .ob-sex-actions .ob-chip');
+  if (skipBtn) { skipBtn.disabled = true; skipBtn.classList.add('used'); }
+  obChat.sex = null;
+  obState.sex = null;
+  obSaveChatState();
+  obAddBubble('user', 'Skip for now');
+  setTimeout(function(){ obAdvanceAfterDobSex(); }, 300);
+}
+
+async function obAdvanceAfterDobSex() {
+  obChat.phase = 'connect';
+  obSaveChatState();
+  // Create the person row now that DOB/sex (if provided) are on obState.
+  await obCreatePerson();
+  var nameDisplay = obChat.personName || obChat.userName || 'your loved one';
+  var prompt = (obChat.situation === 'self')
+    ? 'Thanks. Let\u2019s get your health into one place. What do you have handy right now? You can always come back and add more later.'
+    : 'Thanks. Let\u2019s get ' + escHtml(nameDisplay) + '\u2019s health into one place. What do you have handy right now? You can always come back and add more later.';
+  setTimeout(function(){ obTypeThen(prompt, obShowConnectChips, 700); }, 200);
+}
+
+async function obSend() {
+  var input = document.getElementById('ob-input');
+  var val = input.value.trim();
+  if (!val) return;
+  input.value = '';
+  input.style.height = 'auto';
+  obAddBubble('user', val);
+  input.disabled = true;
+  document.getElementById('ob-send-btn').disabled = true;
+
+  var phase = obChat.phase;
+
+  if (phase === 'name') {
+    // User typed their name
+    obChat.userName = val;
+    obState.userName = val;
+    obSaveChatState();
+
+    if (obChat.situation === 'self') {
+      // Skip asking for loved one's name — use their name for both
+      obChat.personName = val;
+      obState.personName = val;
+      obChat.phase = 'person_dob';
+      obSaveChatState();
+      setTimeout(function(){
+        obTypeThen('Nice to meet you, ' + escHtml(val) + '. A couple of quick details so your records match up correctly. What\u2019s your date of birth?', obShowDobPrompt, 850);
+      }, 300);
+    } else {
+      obChat.phase = 'person_name';
+      obSaveChatState();
+      setTimeout(function(){
+        obTypeThen('Nice to meet you, ' + escHtml(val) + '. And what should I call the person you\u2019re caring for?', function(){
+          document.getElementById('ob-input').disabled = false;
+          document.getElementById('ob-send-btn').disabled = false;
+          document.getElementById('ob-input').placeholder = 'Their name\u2026';
+          document.getElementById('ob-input').focus();
+        }, 850);
+      }, 300);
+    }
+  } else if (phase === 'person_name') {
+    // User typed loved one's name
+    obChat.personName = val;
+    obState.personName = val;
+    obChat.phase = 'person_dob';
+    obSaveChatState();
+    setTimeout(function(){
+      obTypeThen('Thanks. A couple of quick details about ' + escHtml(val) + ' so their records match up correctly. What\u2019s their date of birth?', obShowDobPrompt, 850);
+    }, 300);
+  } else if (phase === 'freetext') {
+    // User is typing free-text health info
+    obChat.freeTextGiven = true;
+    obSaveChatState();
+    setTimeout(function(){
+      obTypeThen('Got it \u2014 I\u2019ve noted that down. That\u2019s a great start.', function(){
+        // Save free text as a health event
+        obSaveFreeText(val);
+        setTimeout(function(){
+          obTypeThen('Want to add anything else?', obShowConnectChips, 600);
+        }, 300);
+      }, 800);
+    }, 300);
+  } else if (phase === 'person_dob' || phase === 'person_sex') {
+    // User typed instead of using the picker/chips — nudge them back.
+    setTimeout(function(){
+      obTypeThen('Use the picker above, or tap \u201cSkip for now.\u201d', null, 400);
+    }, 200);
+  } else {
+    // Fallback — any text in connect phase, treat as free text
+    obChat.freeTextGiven = true;
+    obSaveChatState();
+    obSaveFreeText(val);
+    setTimeout(function(){
+      obTypeThen('Got it, I\u2019ve noted that. Anything else you\u2019d like to connect?', obShowConnectChips, 700);
+    }, 300);
+  }
+}
+
+async function obCreatePerson() {
+  if (!currentUser) return;
+  try {
+    var person = await savePersonToSupabase();
+    if (person) {
+      currentPersonId = person.id;
+      // Store in obChat so it survives page reloads
+      obChat.personId = person.id;
+      obSaveChatState();
+    } else {
+      console.error('obCreatePerson: savePersonToSupabase returned null');
+      showToast('Could not create person record. Please try again.');
+    }
+  } catch(e) {
+    console.error('obCreatePerson error:', e);
+    showToast('Could not create person record. Please try again.');
+  }
+}
+
+async function obSaveFreeText(text) {
+  if (!currentUser || !currentPersonId) return;
+  try {
+    var evt = { event_type: 'note', event_date: new Date().toISOString(), title: 'Onboarding note', notes: text, source: 'manual' };
+    var dup = await findDuplicateHealthEvent(currentPersonId, evt);
+    await reconcileHealthEvent(currentPersonId, evt, dup);
+  } catch(e) { /* PHI log removed */ }
+}
+
+async function obSaveExtractedData(data) {
+  if (!currentUser || !currentPersonId || !data) return;
+  if (data.conditions) {
+    for (var c = 0; c < data.conditions.length; c++) {
+      try {
+        var evt = { event_type: 'condition', event_date: new Date().toISOString(), title: data.conditions[c], source: 'Onboarding upload' };
+        var dup = await findDuplicateHealthEvent(currentPersonId, evt);
+        await reconcileHealthEvent(currentPersonId, evt, dup);
+      } catch(e) { /* PHI log removed */ }
+    }
+  }
+  if (data.medications) {
+    for (var m = 0; m < data.medications.length; m++) {
+      try {
+        var medName = data.medications[m].name || data.medications[m];
+        var med = { name: medName, active: true, source: 'Onboarding upload' };
+        var medDup = await findDuplicateMedication(currentPersonId, med);
+        await reconcileMedication(currentPersonId, med, medDup);
+      } catch(e) { /* PHI log removed */ }
+    }
+  }
+  // Associate uploaded files with person
+  if (_obUploadPaths.length > 0) {
+    for (var i = 0; i < _obUploadPaths.length; i++) {
+      var fname = _obUploadedFiles[i] ? _obUploadedFiles[i].name : 'document';
+      try {
+        await db.from('documents').insert({
+          person_id: currentPersonId,
+          user_id: currentUser.id,
+          file_name: fname,
+          storage_path: _obUploadPaths[i],
+          document_type: 'Onboarding upload',
+          extraction_status: 'pending'
+        });
+      } catch(e) { /* PHI log removed */ }
+    }
+  }
+}
+
+function obShowConnectChips() {
+  var chat = document.getElementById('ob-chat-area');
+  var group = document.createElement('div');
+  group.className = 'ob-msg-group from-wellet';
+  var chipCount = 0;
+  var chipsHTML = '<div class="ob-connect-chips" id="ob-connect-chips">';
+  _obChatConnectOptions.forEach(function(opt) {
+    // Skip already-completed options (except freetext which is always available)
+    var skip = false;
+    if (opt.id === 'ehr' && obChat.ehrConnected) skip = true;
+    if (opt.id === 'device' && obChat.deviceConnected) skip = true;
+    if (skip) return;
+    chipsHTML += '<button class="ob-connect-chip" onclick="obSelectConnect(\'' + opt.id + '\',this)">' + escHtml(opt.label) + '</button>';
+    chipCount++;
+  });
+  // If user has completed at least one action, add a "That's everything" option
+  if (obHasCompletedAction()) {
+    chipsHTML += '<button class="ob-connect-chip" onclick="obSelectConnect(\'done\',this)" style="border-color:var(--moss);color:var(--moss);">That\u2019s everything</button>';
+  }
+  chipsHTML += '</div>';
+  group.innerHTML = chipsHTML;
+  chat.appendChild(group);
+  initIcons();
+  obScroll();
+  document.getElementById('ob-input').disabled = true;
+  document.getElementById('ob-send-btn').disabled = true;
+}
+
+function obSelectConnect(id, btn) {
+  // Disable all chips in this group
+  var chipGroup = btn.closest('.ob-connect-chips');
+  if (chipGroup) {
+    chipGroup.querySelectorAll('.ob-connect-chip').forEach(function(c){ c.disabled = true; c.classList.add('used'); });
+  }
+  btn.classList.remove('used'); btn.style.opacity='1'; btn.style.borderColor='var(--moss)'; btn.style.background='var(--mint)'; btn.style.color='var(--moss)';
+  var label = btn.textContent.trim();
+  setTimeout(function(){ obAddBubble('user', label); }, 150);
+
+  if (id === 'va_health') {
+    obStartVaCcdaFlow();
+    return;
+  }
+
+  if (id === 'ehr') {
+    obStartEhrConnect();
+  } else if (id === 'docs') {
+    obStartDocUpload();
+  } else if (id === 'photo') {
+    obStartPhotoCapture();
+  } else if (id === 'device') {
+    obStartDeviceConnect();
+  } else if (id === 'freetext') {
+    obStartFreeText();
+  } else if (id === 'explore') {
+    obStartExplore();
+  } else if (id === 'done') {
+    obChat.phase = 'wrapup';
+    obSaveChatState();
+    setTimeout(obShowTourOffer, 400);
+  }
+}
+
+function obStartEhrConnect() {
+  var personName = obChat.personName || 'your loved one';
+  setTimeout(function(){
+    obTypeThen('Great \u2014 I can connect directly to ' + escHtml(personName) + '\u2019s patient portal. This pulls in lab results, visit notes, medications, and more.', function(){
+      // Trigger existing EHR connect flow
+      obConnectEhr();
+    }, 800);
+  }, 400);
+}
+
+function obStartVaCcdaFlow() {
+  _obVaConsentGiven = false;
+  _obVaUploadMode = true;
+  setTimeout(function(){
+    obTypeThen('Thank you for what you do. Wellet is <strong>free for the first year</strong> for anyone caring for a VA-enrolled Veteran (and for Veterans themselves) \u2014 and <strong>always 30% off</strong> after that. No code, no hoops. I just noted it on your account.', function(){
+    obTypeThen('Perfect. The VA has a file called the VA Health Summary that has the full picture \u2014 conditions, medications, allergies, labs, vaccines, procedures. I can read it in a few seconds.', function(){
+      obTypeThen('Here\u2019s how to get it on VA.gov:', function(){
+        obAddBubble('wellet',
+          '<ol style="margin:0 0 0 1.2em;padding:0;line-height:1.7">' +
+          '<li>Sign in at <a href="https://www.va.gov/my-health/" target="_blank" rel="noopener">VA.gov/my-health</a> with your Veteran\u2019s Login.gov or ID.me</li>' +
+          '<li>Go to <strong>Medical Records</strong></li>' +
+          '<li>Choose <strong>Download your VA health records</strong></li>' +
+          '<li>Select <strong>VA Health Summary</strong> \u2014 pick <strong>XML (CCDA)</strong> if available, or <strong>PDF</strong> works too</li>' +
+          '</ol>'
+        );
+        obTypeThen('When you have the file, tap the button below to upload it. I\u2019ll read it and show you everything.', function(){
+          obAddBubble('wellet',
+            '<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;margin-bottom:10px;">' +
+            '<input type="checkbox" id="va-consent-cb" style="margin-top:3px;flex-shrink:0;" ' +
+            'onclick="_obVaConsentGiven = this.checked; var btn = document.getElementById(\u0027va-upload-btn\u0027); if(btn) btn.disabled = !this.checked;">' +
+            '<span>I have permission to handle this person\u2019s health records. If I\u2019m using their VA.gov login to download the Health Summary, they know and have agreed.</span>' +
+            '</label>' +
+            '<button id="va-upload-btn" disabled onclick="_obVaUploadMode=true; document.getElementById(\u0027ob-file-ehr\u0027).click();" ' +
+            'style="display:block;width:100%;padding:10px 16px;border-radius:8px;border:none;background:var(--moss);color:#fff;font-weight:600;cursor:pointer;opacity:0.5;" ' +
+            'onmouseenter="if(!this.disabled)this.style.opacity=\u00270.85\u0027" onmouseleave="if(!this.disabled)this.style.opacity=\u00271\u0027">' +
+            'Upload VA Health Summary' +
+            '</button>'
+          );
+          document.addEventListener('change', function onVaConsentChange(e){
+            if (e.target && e.target.id === 'va-consent-cb') {
+              var btn = document.getElementById('va-upload-btn');
+              if (btn) btn.style.opacity = e.target.checked ? '1' : '0.5';
+              document.removeEventListener('change', onVaConsentChange);
+            }
+          });
+          obTypeThen('If your Veteran has an iPhone, Wellet Connect on their phone can sync VA records automatically \u2014 you\u2019d never need their password. <a href="javascript:obExplainWelletConnect()">Tell me more about Wellet Connect</a>', null, 600);
+        }, 500);
+      }, 400);
+    }, 400);
+    }, 500);
+  }, 400);
+}
+
+function obExplainWelletConnect() {
+  obAddBubble('wellet', 'Wellet Connect is an app I\u2019m building for your Veteran\u2019s iPhone. They sign in once with Login.gov, and their VA records flow into your Wellet. It\u2019s in TestFlight now \u2014 I can add you to the list.');
+}
+
+function obStartDocUpload() {
+  setTimeout(function(){
+    document.getElementById('ob-file-doc').click();
+  }, 400);
+}
+
+function obStartPhotoCapture() {
+  setTimeout(function(){
+    document.getElementById('ob-file-camera').click();
+  }, 400);
+}
+
+function obStartDeviceConnect() {
+  var personName = obChat.personName || 'your loved one';
+  setTimeout(function(){
+    obTypeThen('I can connect to wearables, smartwatches, and other health devices to pull in vitals, activity, and sleep data.', function(){
+      if (!currentPersonId) {
+        obAddBubble('wellet', 'I\u2019ll set this up once your account is ready. Let\u2019s keep going.');
+        setTimeout(obShowConnectChips, 600);
+        return;
+      }
+      openTerraConnect();
+    }, 800);
+  }, 400);
+}
+
+function obStartFreeText() {
+  var personName = obChat.personName || 'your loved one';
+  obChat.phase = 'freetext';
+  obSaveChatState();
+  setTimeout(function(){
+    obTypeThen('No problem. Tell me what\u2019s going on with ' + escHtml(personName) + ' \u2014 conditions, medications, recent visits, anything that\u2019s top of mind. I\u2019ll organize it.', function(){
+      document.getElementById('ob-input').disabled = false;
+      document.getElementById('ob-send-btn').disabled = false;
+      document.getElementById('ob-input').placeholder = 'Tell me about their health\u2026';
+      document.getElementById('ob-input').focus();
+    }, 800);
+  }, 400);
+}
+
+function obStartExplore() {
+  setTimeout(function(){
+    obTypeThen('No problem \u2014 your Wellet is ready. I\u2019m here whenever you want to add records, connect a portal, or just ask a question.', function(){
+      obChat.phase = 'done';
+      obSaveChatState();
+      var chat = document.getElementById('ob-chat-area');
+      var wrap = document.createElement('div');
+      wrap.className = 'ob-cta-wrap';
+      wrap.innerHTML = '<button class="ob-cta" onclick="obFinishAndOpen()"><i data-lucide="arrow-right" style="width:16px;height:16px;"></i>&nbsp; Open my Wellet</button>';
+      chat.appendChild(wrap);
+      obScroll();
+      initIcons();
+    }, 800);
+  }, 400);
+}
+
+function obShowExtractionCard(data, sourceLabel) {
+  var chat = document.getElementById('ob-chat-area');
+  var conditions = (data && data.conditions) || [];
+  var medications = (data && data.medications) || [];
+  var allergies = (data && data.allergies) || [];
+  var labs = (data && data.labs) || [];
+  var appointments = (data && data.appointments) || [];
+
+  var hasItems = conditions.length || medications.length || allergies.length || labs.length || appointments.length;
+  if (!hasItems) {
+    obTypeThen('I received your files but couldn\u2019t find specific health details to extract. No worries \u2014 they\u2019re saved and I\u2019ll keep trying.', function(){
+      setTimeout(function(){ obTypeThen('Want to add anything else?', obShowConnectChips, 600); }, 300);
+    }, 700);
+    return;
+  }
+
+  // Accumulate items into obChat state
+  conditions.forEach(function(c) { obChat.extractedItems.push({ type: 'condition', value: c }); });
+  medications.forEach(function(m) {
+    var name = m.name || m;
+    obChat.extractedItems.push({ type: 'medication', value: name });
+  });
+  allergies.forEach(function(a) { obChat.extractedItems.push({ type: 'allergy', value: a }); });
+  obSaveChatState();
+
+  var cardId = 'ob-extract-card-' + Date.now();
+  var html = '<div class="ob-extract-card" id="' + cardId + '">'
+    + '<div class="ob-extract-card-title"><i data-lucide="clipboard-list" style="width:14px;height:14px;"></i> Found in ' + escHtml(sourceLabel) + '</div>';
+  if (conditions.length) {
+    html += '<div class="ob-extract-card-row"><strong>Conditions:</strong> ' + conditions.map(function(c){ return escHtml(c); }).join(', ') + '</div>';
+  }
+  if (medications.length) {
+    html += '<div class="ob-extract-card-row"><strong>Medications:</strong> ' + medications.map(function(m){ var n = m.name || m; return escHtml(n); }).join(', ') + '</div>';
+  }
+  if (allergies.length) {
+    html += '<div class="ob-extract-card-row"><strong>Allergies:</strong> ' + allergies.map(function(a){ return escHtml(a); }).join(', ') + '</div>';
+  }
+  if (labs.length) {
+    html += '<div class="ob-extract-card-row"><strong>Labs:</strong> ' + labs.map(function(l){ return escHtml(typeof l === 'string' ? l : l.name || JSON.stringify(l)); }).join(', ') + '</div>';
+  }
+  if (appointments.length) {
+    html += '<div class="ob-extract-card-row"><strong>Appointments:</strong> ' + appointments.map(function(a){ return escHtml(typeof a === 'string' ? a : a.title || JSON.stringify(a)); }).join(', ') + '</div>';
+  }
+  html += '<div class="ob-extract-card-actions">'
+    + '<button class="ob-extract-card-btn secondary" onclick="obEditExtraction(\'' + cardId + '\')">Edit</button>'
+    + '<button class="ob-extract-card-btn primary" onclick="obConfirmExtraction(\'' + cardId + '\')">Looks good</button>'
+    + '</div></div>';
+
+  // Show celebration message with inline card
+  var totalItems = conditions.length + medications.length + allergies.length;
+  var celebMsg = 'Here\u2019s what I found:';
+
+  var group = document.createElement('div');
+  group.className = 'ob-msg-group from-wellet';
+  group.innerHTML = '<div class="ob-sender">Wellet</div><div class="ob-bubble wellet">' + celebMsg + '</div>' + html;
+  chat.appendChild(group);
+  initIcons();
+  obScroll();
+}
+
+function obConfirmExtraction(cardId) {
+  var card = document.getElementById(cardId);
+  if (!card) return;
+  var actions = card.querySelector('.ob-extract-card-actions');
+  if (actions) {
+    actions.innerHTML = '<span style="color:var(--moss);font-size:13px;font-weight:500;display:flex;align-items:center;gap:4px;"><i data-lucide="check" style="width:14px;height:14px;"></i> Saved</span>';
+    initIcons();
+  }
+  setTimeout(function(){
+    obTypeThen('Anything else you\u2019d like to connect?', obShowConnectChips, 600);
+  }, 400);
+}
+
+function obEditExtraction(cardId) {
+  var card = document.getElementById(cardId);
+  if (!card) return;
+  var rows = card.querySelectorAll('.ob-extract-card-row');
+  var editHtml = '<div class="ob-extract-card-edit">';
+  var items = obChat.extractedItems;
+  for (var i = 0; i < items.length; i++) {
+    editHtml += '<div class="ob-extract-card-edit-item">'
+      + '<input type="checkbox" checked data-idx="' + i + '">'
+      + '<input type="text" value="' + escHtml(items[i].value) + '" data-idx="' + i + '">'
+      + '<span style="font-size:11px;color:var(--text-muted);">' + escHtml(items[i].type) + '</span>'
+      + '</div>';
+  }
+  editHtml += '</div>';
+  var actions = card.querySelector('.ob-extract-card-actions');
+  if (actions) {
+    actions.innerHTML = '<button class="ob-extract-card-btn primary" onclick="obSaveEditedExtraction(\'' + cardId + '\')">Save changes</button>';
+  }
+  // Insert edit form before actions
+  rows.forEach(function(r){ r.style.display = 'none'; });
+  var editDiv = document.createElement('div');
+  editDiv.innerHTML = editHtml;
+  card.insertBefore(editDiv.firstChild, actions);
+}
+
+function obSaveEditedExtraction(cardId) {
+  var card = document.getElementById(cardId);
+  if (!card) return;
+  var editItems = card.querySelectorAll('.ob-extract-card-edit-item');
+  var keptItems = [];
+  editItems.forEach(function(item) {
+    var cb = item.querySelector('input[type="checkbox"]');
+    var txt = item.querySelector('input[type="text"]');
+    var idx = parseInt(cb.dataset.idx);
+    if (cb.checked && obChat.extractedItems[idx]) {
+      obChat.extractedItems[idx].value = txt.value;
+      keptItems.push(obChat.extractedItems[idx]);
+    }
+  });
+  obChat.extractedItems = keptItems;
+  obSaveChatState();
+
+  var actions = card.querySelector('.ob-extract-card-actions');
+  if (actions) {
+    actions.innerHTML = '<span style="color:var(--moss);font-size:13px;font-weight:500;display:flex;align-items:center;gap:4px;"><i data-lucide="check" style="width:14px;height:14px;"></i> Saved</span>';
+    initIcons();
+  }
+  setTimeout(function(){
+    obTypeThen('Got it \u2014 updated. Anything else you\u2019d like to connect?', obShowConnectChips, 600);
+  }, 400);
+}
+
+function obHasCompletedAction() {
+  return obChat.ehrConnected || obChat.docsUploaded > 0 || obChat.photosUploaded > 0 || obChat.deviceConnected || obChat.freeTextGiven;
+}
+
+function obShowTourOffer() {
+  var chat = document.getElementById('ob-chat-area');
+  var group = document.createElement('div');
+  group.className = 'ob-msg-group from-wellet';
+  var personName = obChat.personName || 'your loved one';
+  var userName = obChat.userName || 'there';
+  group.innerHTML = '<div class="ob-sender">Wellet</div>'
+    + '<div class="ob-bubble wellet">You\u2019re all set, ' + escHtml(userName) + '. I\u2019ve organized everything into ' + escHtml(personName) + '\u2019s record. A few things you can do from here:</div>'
+    + '<div class="ob-chips" style="margin-top:6px;">'
+    + '<button class="ob-chip" onclick="obTourYes()" style="border-color:var(--moss);color:var(--moss);">Show me around</button>'
+    + '<button class="ob-chip" onclick="obTourNo()">Open my Wellet</button>'
+    + '</div>';
+  chat.appendChild(group);
+  obScroll();
+  document.getElementById('ob-input').disabled = true;
+  document.getElementById('ob-send-btn').disabled = true;
+}
+
+function obTourYes() {
+  document.querySelectorAll('#ob-chat-area .ob-chips:last-of-type .ob-chip').forEach(function(c){ c.disabled=true; c.classList.add('used'); });
+  obAddBubble('user', 'Show me around');
+  setTimeout(function(){
+    obTypeThen('Great \u2014 let me show you around. It only takes a minute.', function(){
+      setTimeout(function(){
+        obChat.phase = 'done';
+        obSaveChatState();
+        showOwnWellet();
+        startTour();
+      }, 600);
+    }, 800);
+  }, 200);
+}
+
+function obTourNo() {
+  document.querySelectorAll('#ob-chat-area .ob-chips:last-of-type .ob-chip').forEach(function(c){ c.disabled=true; c.classList.add('used'); });
+  obAddBubble('user', 'Open my Wellet');
+  setTimeout(function(){
+    obTypeThen('Your Wellet is ready \u2014 and I\u2019m here whenever you need me.', function(){
+      obShowAppCTA();
+    }, 700);
+  }, 200);
+}
+
+function obShowAppCTA() {
+  var chat = document.getElementById('ob-chat-area');
+  var wrap = document.createElement('div');
+  wrap.className = 'ob-cta-wrap';
+  wrap.innerHTML = '<button class="ob-cta" onclick="obFinishAndOpen()"><i data-lucide="arrow-right" style="width:16px;height:16px;"></i>&nbsp; Open my Wellet</button>';
+  chat.appendChild(wrap);
+  obScroll();
+  initIcons();
+}
+
+async function obFinishAndOpen() {
+  obChat.phase = 'done';
+  obSaveChatState();
+  showOwnWellet();
+}
+
+// Called when EHR connect completes during onboarding.
+// We only update state here — the caller (EHR callback handler) is
+// responsible for navigating the user to Records so they can see their
+// data land immediately.
+function obOnEhrConnected(hospitalName) {
+  if (!obChat) return;
+  obChat.ehrConnected = true;
+  obChat.ehrHospital = hospitalName || 'your hospital';
+  obChat.phase = 'done';
+  obSaveChatState();
+}
+
+// Called when Terra device connect completes during onboarding
+function obOnDeviceConnected(provider) {
+  obChat.deviceConnected = true;
+  obChat.deviceProvider = provider || 'your device';
+  obSaveChatState();
+  var personName = obChat.personName || 'your loved one';
+  obTypeThen('Connected to ' + escHtml(obChat.deviceProvider) + '. I\u2019ll start pulling in ' + escHtml(personName) + '\u2019s health data.', function(){
+    setTimeout(function(){
+      obTypeThen('Anything else you\u2019d like to connect?', obShowConnectChips, 600);
+    }, 400);
+  }, 800);
+}
+
+function obScroll() {
+  var chat = document.getElementById('ob-chat-area');
+  setTimeout(function(){ chat.scrollTop = chat.scrollHeight; }, 50);
+}
+
+var isOwnWellet = false;
+function showOwnWellet() {
+  isOwnWellet = true;
+  isDemoMode = false;
+  // If we have real people data, show the authenticated app
+  if (currentPeople.length > 0) {
+    currentPersonId = currentPeople[currentPeople.length - 1].id;
+    loadPersonData(currentPersonId).then(function() {
+      showAuthenticatedApp();
+    });
+    return;
+  }
+  // Fallback: show empty-state app
+  showApp();
+  var name = obState.personName || 'your loved one';
+  var isSelf = obState.personName && obState.personName === obState.userName;
+  var displayName = isSelf ? obState.userName : name;
+  var possessive = isSelf ? 'your' : name + '\u2019s';
+
+  var switcher = document.getElementById('header-person-switcher');
+  if (switcher) {
+    switcher.innerHTML = '<button class="person-pill active" onclick="switchPerson(this)"><span class="pip"></span>' + displayName + '</button>';
+  }
+
+  var updatePane = document.getElementById('tab-update');
+  if (updatePane) {
+    updatePane.innerHTML = '<div class="update-me-section">'
+      + '<div style="text-align:center;padding:24px 0 8px;">'
+      + '<div style="font-family:\'DM Serif Display\',serif;font-size:20px;margin-bottom:6px;color:var(--text-primary);">Add files to help Wellet get to know ' + escHtml(displayName) + '</div>'
+      + '<div style="font-size:13px;color:var(--text-secondary);line-height:1.5;max-width:300px;margin:0 auto;">Upload a document or connect to health records \u2014 Wellet will read, organize, and remember everything.</div>'
+      + '</div>'
+      + '<div style="display:flex;flex-direction:column;gap:10px;margin:20px 0 16px;">'
+      + '<button class="btn-primary" style="width:100%;padding:14px;font-size:14px;gap:8px;display:flex;align-items:center;justify-content:center;" onclick="openUpload(\'' + escHtml(displayName) + '\')"><i data-lucide="upload" style="width:18px;height:18px;"></i> Upload a document</button>'
+      + '<button style="width:100%;padding:14px;font-size:14px;gap:8px;display:flex;align-items:center;justify-content:center;background:white;border:1.5px solid var(--moss);border-radius:12px;color:var(--moss);font-family:\'DM Sans\',sans-serif;font-weight:500;cursor:pointer;" onclick="startEhrConnect()"><i data-lucide="link" style="width:18px;height:18px;"></i> Connect health records</button>'
+      + '</div>'
+      + '<div class="update-summary-card">'
+      + '<div class="update-summary-header">'
+      + '<span class="update-summary-label">Wellet summary</span>'
+      + '</div>'
+      + '<p class="update-summary-text" style="color:var(--text-secondary);font-style:italic;">As you add documents, appointments, and medications, Wellet will build a personalized summary here.</p>'
+      + '</div>'
+      + '</div>';
+  }
+
+  var timelinePane = document.getElementById('tab-timeline');
+  if (timelinePane) {
+    timelinePane.innerHTML = '<div class="timeline-section">'
+      + '<div style="text-align:center;padding:48px 24px;">'
+      + '<div style="font-size:32px;margin-bottom:12px;opacity:0.3;"><i data-lucide="calendar" style="width:32px;height:32px;"></i></div>'
+      + '<div style="font-size:14px;color:var(--text-muted);line-height:1.6;">Appointments, medications, lab results, and your own notes \u2014 they\u2019ll all show up here in order as you add them.</div>'
+      + '</div></div>';
+  }
+
+  var patternsPane = document.getElementById('tab-patterns');
+  if (patternsPane) {
+    patternsPane.innerHTML = '<div class="patterns-section">'
+      + '<p class="section-label">What Wellet has noticed</p>'
+      + '<div style="text-align:center;padding:48px 24px;">'
+      + '<div style="font-size:32px;margin-bottom:12px;opacity:0.3;"><i data-lucide="eye" style="width:32px;height:32px;"></i></div>'
+      + '<div style="font-size:14px;color:var(--text-muted);line-height:1.6;">Wellet is listening. As your timeline grows, patterns will surface here.</div>'
+      + '</div></div>';
+  }
+
+  switchNavTo('home');
+  document.querySelectorAll('.tab')[0].click();
+  initIcons();
+}
+
+// ── GUIDED TOUR ─────────────────────────────────────────────────────────────
+var tourSteps = [
+  { target: '#header-tab-bar .tab:first-child', title: 'Update Me', text: 'This is your home base \u2014 a plain-English summary of what\u2019s happening right now.', arrow: 'top', offsetY: 8 },
+  { target: '#header-tab-bar .tab:nth-child(2)', title: 'Timeline', text: 'Everything that\u2019s happened, in order. You\u2019ll never have to reconstruct it from memory.', arrow: 'top', offsetY: 8, before: function(){ document.querySelectorAll('.tab')[1].click(); } },
+  { target: '#header-tab-bar .tab:nth-child(3)', title: 'Patterns', text: 'Wellet quietly watches for patterns — like how sleep connects to pain, or whether a medication change made a difference.', arrow: 'top', offsetY: 8, before: function(){ document.querySelectorAll('.tab')[2].click(); } },
+  { target: '.nav-item[data-nav-key="nav.records"]', title: 'Records', text: 'Upload photos of documents, prescriptions, or insurance cards. Wellet reads them and files them automatically.', arrow: 'bottom', offsetY: -8, before: function(){ switchNavTo('records'); } },
+  { target: '.nav-item[data-nav-key="nav.signals"]', title: 'CareSignals', text: 'Wearable data, home sensors, and medication patterns \u2014 Wellet watches for changes across every signal.', arrow: 'bottom', offsetY: -8, before: function(){ switchNavTo('signals'); } },
+  { target: '.nav-item[data-nav-key="nav.ask"]', title: 'Ask Wellet', text: 'Ask anything about your care history. Wellet knows.', arrow: 'bottom', offsetY: -8, before: function(){ switchNavTo('ask'); } }
+];
+var tourCurrent = 0;
+
+function startTour() {
+  // Dismiss welcome overlay if still showing (tour needs to see the UI)
+  var welcomeEl = document.getElementById('welcome-overlay');
+  if (welcomeEl && welcomeEl.classList.contains('show')) { closeSheet('welcome-overlay'); }
+  tourCurrent = 0;
+  showTourStep(0);
+}
+
+function showTourStep(idx) {
+  var old = document.querySelector('.tour-overlay');
+  if (old) old.remove();
+  document.querySelectorAll('.tour-highlight').forEach(function(el){ el.classList.remove('tour-highlight'); });
+  if (idx >= tourSteps.length) { endTour(); return; }
+  var step = tourSteps[idx];
+  tourCurrent = idx;
+  if (step.before) step.before();
+  setTimeout(function(){
+    var targetEl = document.querySelector(step.target);
+    if (!targetEl) { showTourStep(idx + 1); return; }
+    targetEl.classList.add('tour-highlight');
+    var overlay = document.createElement('div');
+    overlay.className = 'tour-overlay';
+    var tooltip = document.createElement('div');
+    tooltip.className = 'tour-tooltip arrow-' + step.arrow;
+    var stepNum = (idx + 1) + ' of ' + tourSteps.length;
+    var btnLabel = idx < tourSteps.length - 1 ? 'Next' : 'Got it';
+    tooltip.innerHTML = '<div class="tour-step-count">' + stepNum + '</div>'
+      + '<h4>' + step.title + '</h4>'
+      + '<p>' + step.text + '</p>'
+      + '<div><button class="tour-btn" onclick="nextTourStep()">' + btnLabel + '</button>'
+      + '<button class="tour-skip" onclick="endTour()">Skip tour</button></div>';
+    overlay.appendChild(tooltip);
+    document.body.appendChild(overlay);
+    var rect = targetEl.getBoundingClientRect();
+    if (step.arrow === 'top') {
+      tooltip.style.top = (rect.bottom + (step.offsetY || 0) + 8) + 'px';
+      tooltip.style.left = Math.max(12, rect.left - 10) + 'px';
+    } else {
+      tooltip.style.bottom = (window.innerHeight - rect.top + (Math.abs(step.offsetY) || 0) + 8) + 'px';
+      tooltip.style.left = Math.max(12, rect.left - 10) + 'px';
+    }
+    requestAnimationFrame(function(){
+      var tr = tooltip.getBoundingClientRect();
+      if (tr.right > window.innerWidth - 12) {
+        tooltip.style.left = (window.innerWidth - tr.width - 12) + 'px';
+      }
+    });
+    initIcons();
+  }, 150);
+}
+
+function nextTourStep() { showTourStep(tourCurrent + 1); }
+function endTour() {
+  var old = document.querySelector('.tour-overlay');
+  if (old) old.remove();
+  document.querySelectorAll('.tour-highlight').forEach(function(el){ el.classList.remove('tour-highlight'); });
+  showOwnWellet();
+}
+
+// Fix mobile viewport when keyboard opens
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', function() {
+    var ob = document.getElementById('onboarding');
+    if (ob && ob.style.display === 'flex') {
+      ob.style.height = window.visualViewport.height + 'px';
+      obScroll();
+    }
+  });
+}
+
+// ── PDF EXPORT HELPERS ──────────────────────────────────────────────────────
+function pdfAddSection(doc, title, y, items) {
+  // Check page break before section title
+  if (y > 265) { doc.addPage(); y = 25; }
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(96, 143, 124);
+  doc.text(title, 20, y);
+  y += 2;
+  doc.setDrawColor(96, 143, 124);
+  doc.line(20, y, 190, y);
+  y += 7;
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(0, 0, 0);
+  for (var i = 0; i < items.length; i++) {
+    if (y > 270) { doc.addPage(); y = 25; }
+    var item = items[i];
+    if (item.label && item.value) {
+      doc.setFont('Helvetica', 'bold');
+      doc.text(item.label + ':', 20, y);
+      doc.setFont('Helvetica', 'normal');
+      var labelWidth = doc.getTextWidth(item.label + ':  ');
+      var lines = doc.splitTextToSize(item.value, 170 - labelWidth);
+      doc.text(lines, 20 + labelWidth, y);
+      y += lines.length * 5 + 2;
+    } else if (item.text) {
+      var lines2 = doc.splitTextToSize(item.text, 170);
+      doc.text(lines2, 20, y);
+      y += lines2.length * 5 + 2;
+    }
+  }
+  y += 4;
+  return y;
+}
+
+function pdfAddFooter(doc) {
+  var pageCount = doc.getNumberOfPages();
+  for (var i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text('Generated by Wellet \u00b7 mywellet.com', 105, 285, { align: 'center' });
+  }
+}
+
+function getPersonFirstName() {
+  if (isDemoMode) return 'John';
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  return person ? person.name.split(' ')[0] : 'Patient';
+}
+
+// ── FEATURE 1: EMERGENCY SUMMARY PDF ────────────────────────────────────────
+function downloadEmergencyPDF() {
+  var doc = new window.jspdf.jsPDF();
+  var y = 25;
+
+  // Header
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.setTextColor(96, 143, 124);
+  doc.text('Emergency Summary', 20, y);
+  y += 8;
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(120, 120, 120);
+  doc.text('Generated ' + new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }), 20, y);
+  y += 12;
+
+  if (isDemoMode) {
+    // Demo mode: use hardcoded demo data
+    y = pdfAddSection(doc, 'Patient', y, [
+      { label: 'Name', value: 'John Bell' },
+      { label: 'Date of birth', value: 'March 4, 1954 (Age 71)' },
+      { label: 'Emergency contact', value: 'Sarah Bell \u00b7 (919) 555-0142' },
+      { label: 'Allergies', value: 'Penicillin (rash)' }
+    ]);
+    y = pdfAddSection(doc, 'Active Diagnoses', y, [
+      { label: 'Hypertension', value: 'Since Apr 2022' },
+      { label: 'CML', value: 'Since 2019 \u00b7 Responding' },
+      { label: 'Stage 3a CKD', value: 'Stable' },
+      { label: 'Glaucoma', value: 'Stable' }
+    ]);
+    y = pdfAddSection(doc, 'Current Medications', y, [
+      { label: 'Lisinopril', value: '20mg \u00b7 daily' },
+      { label: 'Hydrochlorothiazide', value: '25mg \u00b7 daily' },
+      { label: 'Gleevec (Imatinib)', value: '400mg \u00b7 daily' },
+      { label: 'Metoprolol', value: '50mg \u00b7 daily' },
+      { label: 'Citalopram', value: '10mg \u00b7 daily' },
+      { label: 'Zepbound', value: '12.5mg \u00b7 weekly' }
+    ]);
+    y = pdfAddSection(doc, 'Care Team', y, [
+      { label: 'Primary care', value: 'Dr. Johnson' },
+      { label: 'Oncology', value: 'Dr. Edwards \u00b7 Duke' },
+      { label: 'Ophthalmology', value: 'Dr. Patel' }
+    ]);
+  } else {
+    // Auth mode: use live data
+    var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+    if (!person) { showToast('No person selected'); return; }
+
+    // Patient section
+    var patientItems = [{ label: 'Name', value: person.name }];
+    if (person.date_of_birth) {
+      var dob = new Date(person.date_of_birth);
+      var age = Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+      var dobStr = dob.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      patientItems.push({ label: 'Date of birth', value: dobStr + ' (Age ' + age + ')' });
+    }
+    if (person.emergency_contact_name) {
+      var ecVal = person.emergency_contact_name;
+      if (person.emergency_contact_phone) ecVal += ' \u00b7 ' + person.emergency_contact_phone;
+      patientItems.push({ label: 'Emergency contact', value: ecVal });
+    } else if (liveCareCircle.length > 0) {
+      var primary = liveCareCircle.find(function(c){ return c.role === 'Primary'; }) || liveCareCircle[0];
+      var ecVal2 = primary.member_name;
+      if (primary.phone) ecVal2 += ' \u00b7 ' + primary.phone;
+      patientItems.push({ label: 'Emergency contact', value: ecVal2 });
+    }
+    if (person.allergies) patientItems.push({ label: 'Allergies', value: person.allergies });
+    if (person.blood_type) patientItems.push({ label: 'Blood type', value: person.blood_type });
+    if (person.insurance_info) patientItems.push({ label: 'Insurance', value: person.insurance_info });
+    y = pdfAddSection(doc, 'Patient', y, patientItems);
+
+    // Conditions section
+    if (person.conditions) {
+      var condList = person.conditions.split(',').map(function(c){ return c.trim(); }).filter(Boolean);
+      if (condList.length > 0) {
+        var condItems = condList.map(function(c){ return { label: c, value: 'Active' }; });
+        y = pdfAddSection(doc, 'Active Conditions', y, condItems);
+      }
+    }
+
+    // Medications section
+    var activeMeds = liveMeds.filter(function(m){ return m.active; });
+    if (activeMeds.length > 0) {
+      var medItems = activeMeds.map(function(m) {
+        var valStr = '';
+        if (m.dose) valStr += m.dose;
+        if (m.frequency) valStr += (valStr ? ' \u00b7 ' : '') + m.frequency;
+        return { label: m.name, value: valStr || 'Active' };
+      });
+      y = pdfAddSection(doc, 'Current Medications', y, medItems);
+    }
+
+    // Care team
+    var careItems = [];
+    if (person.primary_doctor) careItems.push({ label: 'Primary doctor', value: person.primary_doctor });
+    if (careItems.length > 0) y = pdfAddSection(doc, 'Care Team', y, careItems);
+
+    // Care circle
+    if (liveCareCircle.length > 0) {
+      var circleItems = liveCareCircle.map(function(m) {
+        var val = (m.role || 'Member');
+        if (m.phone) val += ' \u00b7 ' + m.phone;
+        return { label: m.member_name, value: val };
+      });
+      y = pdfAddSection(doc, 'Care Circle', y, circleItems);
+    }
+  }
+
+  pdfAddFooter(doc);
+  var firstName = getPersonFirstName();
+  doc.save(firstName + '-Emergency-Summary.pdf');
+  showToast('Emergency summary downloaded');
+}
+
+// ── FEATURE 2: SHARE WITH FAMILY PDF ────────────────────────────────────────
+function downloadSharePDF() {
+  var doc = new window.jspdf.jsPDF();
+  var y = 25;
+  var firstName = getPersonFirstName();
+  var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var fullName = isDemoMode ? 'John Bell' : (person ? person.name : 'Patient');
+
+  // Header
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.setTextColor(96, 143, 124);
+  doc.text('Health Update', 20, y);
+  y += 8;
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(11);
+  doc.setTextColor(60, 60, 60);
+  doc.text(fullName, 20, y);
+  y += 6;
+  doc.setFontSize(9);
+  doc.setTextColor(120, 120, 120);
+  doc.text(new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }), 20, y);
+  y += 12;
+
+  // Summary text
+  var summaryText = '';
+  var previewEl = document.querySelector('#share-overlay .share-preview-text');
+  if (previewEl) summaryText = previewEl.textContent;
+  if (!summaryText && !isDemoMode && getSummaryText(currentPersonId)) {
+    summaryText = getSummaryText(currentPersonId);
+  }
+  if (!summaryText) {
+    summaryText = 'No summary available at this time.';
+  }
+
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(0, 0, 0);
+  var summaryLines = doc.splitTextToSize(summaryText, 170);
+  doc.text(summaryLines, 20, y);
+  y += summaryLines.length * 5 + 10;
+
+  // Check toggle states
+  var shareOverlay = document.getElementById('share-overlay');
+  var toggles = shareOverlay.querySelectorAll('.share-toggle-row');
+  var includeNotes = false;
+  var includeMeds = false;
+  toggles.forEach(function(row) {
+    var label = row.querySelector('.share-toggle-label');
+    var toggle = row.querySelector('.toggle');
+    if (label && toggle) {
+      if (label.textContent.indexOf('notes') !== -1 && toggle.classList.contains('on')) includeNotes = true;
+      if (label.textContent.indexOf('medications') !== -1 && toggle.classList.contains('on')) includeMeds = true;
+    }
+  });
+
+  // Include medications if toggled on
+  if (includeMeds) {
+    if (isDemoMode) {
+      y = pdfAddSection(doc, 'Current Medications', y, [
+        { label: 'Lisinopril', value: '20mg \u00b7 daily' },
+        { label: 'Hydrochlorothiazide', value: '25mg \u00b7 daily' },
+        { label: 'Gleevec (Imatinib)', value: '400mg \u00b7 daily' },
+        { label: 'Metoprolol', value: '50mg \u00b7 daily' },
+        { label: 'Citalopram', value: '10mg \u00b7 daily' },
+        { label: 'Zepbound', value: '12.5mg \u00b7 weekly' }
+      ]);
+    } else {
+      var activeMeds = liveMeds.filter(function(m){ return m.active; });
+      if (activeMeds.length > 0) {
+        var medItems = activeMeds.map(function(m) {
+          var valStr = '';
+          if (m.dose) valStr += m.dose;
+          if (m.frequency) valStr += (valStr ? ' \u00b7 ' : '') + m.frequency;
+          return { label: m.name, value: valStr || 'Active' };
+        });
+        y = pdfAddSection(doc, 'Current Medications', y, medItems);
+      }
+    }
+  }
+
+  // Include caregiver notes if toggled on
+  if (includeNotes) {
+    if (!isDemoMode) {
+      var noteEvents = liveEvents.filter(function(e){ return e.event_type === 'note'; });
+      if (noteEvents.length > 0) {
+        var noteItems = noteEvents.slice(0, 10).map(function(e) {
+          var dateStr = e.event_date ? new Date(e.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+          return { label: e.title, value: (e.notes || '') + (dateStr ? ' (' + dateStr + ')' : '') };
+        });
+        y = pdfAddSection(doc, 'Caregiver Notes', y, noteItems);
+      }
+    }
+  }
+
+  // Footer
+  var pageCount = doc.getNumberOfPages();
+  for (var i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text('Shared from Wellet \u00b7 mywellet.com', 105, 285, { align: 'center' });
+  }
+
+  doc.save(firstName + '-Health-Update.pdf');
+  showToast('Summary downloaded as PDF');
+}
+
+// ── FEATURE 3: EXPORT FOR VISIT ─────────────────────────────────────────────
+
+// Fetch AI-generated visit questions (demo or live)
+async function fetchVisitQuestions() {
+  if (isDemoMode) {
+    return [
+      'His blood pressure has been running higher lately \u2014 should we adjust the Lisinopril or Hydrochlorothiazide dosage?',
+      'He\'s been on Gleevec (Imatinib) for several years now. Are there any new CML treatment options to consider, or is the current regimen still the best approach?',
+      'With Stage 3a CKD, are there any dietary changes or additional monitoring we should be doing to slow progression?',
+      'He started Zepbound recently \u2014 how is that interacting with his other medications, and what side effects should we watch for?',
+      'Are there any upcoming screenings or preventive care visits we should schedule given his current conditions?'
+    ];
+  }
+
+  try {
+    var session = await db.auth.getSession();
+    var token = session.data.session.access_token;
+    var res = await fetch(
+      'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/generate-visit-questions',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token,
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU'
+        },
+        body: JSON.stringify({ person_id: currentPersonId })
+      }
+    );
+    if (res.ok) {
+      var data = await res.json();
+      if (data.questions && data.questions.length > 0) return data.questions;
+    }
+  } catch (err) {
+    console.error('Visit questions error:', err);
+  }
+  return [];
+}
+
+// Build the Visit Summary PDF
+function buildVisitSummaryPDF(fullName, firstName, medications, recentEvents, patterns, emergencyContact, questions) {
+  var doc = new window.jspdf.jsPDF();
+  var y = 25;
+  var dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+  // Header
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(20);
+  doc.setTextColor(45, 106, 79);
+  doc.text('Visit Summary', 20, y);
+  y += 4;
+  doc.setDrawColor(45, 106, 79);
+  doc.setLineWidth(0.8);
+  doc.line(20, y, 190, y);
+  y += 8;
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(11);
+  doc.setTextColor(60, 60, 60);
+  doc.text(fullName, 20, y);
+  y += 6;
+  doc.setFontSize(9);
+  doc.setTextColor(120, 120, 120);
+  doc.text('Prepared ' + dateStr, 20, y);
+  y += 14;
+
+  // Active Medications
+  if (medications.length > 0) {
+    var medItems = medications.map(function(m) {
+      var val = '';
+      if (m.dose) val += m.dose;
+      if (m.frequency) val += (val ? ' \u00b7 ' : '') + m.frequency;
+      return { label: m.name, value: val || 'Active' };
+    });
+    y = pdfAddSection(doc, 'Active Medications', y, medItems);
+  }
+
+  // Recent Health Events (last 90 days)
+  if (recentEvents.length > 0) {
+    var eventItems = recentEvents.slice(0, 15).map(function(e) {
+      var evDate = e.date || '';
+      var desc = e.title || '';
+      if (e.notes) desc += (desc ? ' \u2014 ' : '') + e.notes;
+      return { label: evDate, value: desc || 'Health event' };
+    });
+    y = pdfAddSection(doc, 'Recent Health Events (Last 90 Days)', y, eventItems);
+  }
+
+  // Patterns & Alerts
+  if (patterns.length > 0) {
+    var patternItems = patterns.map(function(p) {
+      return { text: p };
+    });
+    y = pdfAddSection(doc, 'Patterns & Alerts', y, patternItems);
+  }
+
+  // Questions to Discuss with Your Doctor
+  if (questions.length > 0) {
+    if (y > 230) { doc.addPage(); y = 25; }
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(45, 106, 79);
+    doc.text('Questions to Discuss with Your Doctor', 20, y);
+    y += 2;
+    doc.setDrawColor(45, 106, 79);
+    doc.setLineWidth(0.4);
+    doc.line(20, y, 190, y);
+    y += 8;
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    for (var qi = 0; qi < questions.length; qi++) {
+      if (y > 270) { doc.addPage(); y = 25; }
+      var qLines = doc.splitTextToSize((qi + 1) + '. ' + questions[qi], 165);
+      doc.text(qLines, 22, y);
+      y += qLines.length * 5 + 4;
+    }
+    y += 4;
+  }
+
+  // Emergency Contact
+  if (emergencyContact) {
+    y = pdfAddSection(doc, 'Emergency Contact', y, [
+      { text: emergencyContact }
+    ]);
+  }
+
+  // Footer on every page
+  var pageCount = doc.getNumberOfPages();
+  for (var fi = 1; fi <= pageCount; fi++) {
+    doc.setPage(fi);
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text('Generated by Wellet \u2014 getwellet.com', 105, 285, { align: 'center' });
+  }
+
+  return doc;
+}
+
+async function generateVisitExport() {
+  var loadingEl = document.getElementById('export-loading');
+  var actionsEl = document.getElementById('export-actions');
+
+  // Show loading state
+  if (loadingEl) loadingEl.style.display = 'block';
+  if (actionsEl) actionsEl.style.display = 'none';
+
+  try {
+    var firstName = getPersonFirstName();
+    var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
+    var fullName = isDemoMode ? 'John Bell' : (person ? person.name : 'Patient');
+
+    // Gather medications
+    var medications = [];
+    if (isDemoMode) {
+      medications = [
+        { name: 'Lisinopril', dose: '20mg', frequency: 'daily' },
+        { name: 'Hydrochlorothiazide', dose: '25mg', frequency: 'daily' },
+        { name: 'Gleevec (Imatinib)', dose: '400mg', frequency: 'daily' },
+        { name: 'Metoprolol', dose: '50mg', frequency: 'daily' },
+        { name: 'Citalopram', dose: '10mg', frequency: 'daily' },
+        { name: 'Zepbound', dose: '12.5mg', frequency: 'weekly' }
+      ];
+    } else {
+      medications = liveMeds.filter(function(m){ return m.active; }).map(function(m) {
+        return { name: m.name, dose: m.dose || '', frequency: m.frequency || '' };
+      });
+    }
+
+    // Gather recent health events (last 90 days)
+    var recentEvents = [];
+    var ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    if (isDemoMode) {
+      recentEvents = [
+        { date: 'Mar 10, 2026', title: 'BP reading: 142/89', notes: 'Higher than usual \u2014 monitoring' },
+        { date: 'Mar 4, 2026', title: 'Oncology follow-up', notes: 'Dr. Edwards \u2014 CML responding well to Gleevec' },
+        { date: 'Feb 26, 2026', title: 'Zepbound dose increased', notes: '10mg to 12.5mg weekly' },
+        { date: 'Feb 18, 2026', title: 'BP pattern noticed', notes: 'Readings consistently higher since this date' },
+        { date: 'Feb 10, 2026', title: 'Lab work \u2014 CMP', notes: 'eGFR 42, creatinine 1.6 \u2014 stable CKD' },
+        { date: 'Jan 28, 2026', title: 'Glaucoma check', notes: 'Dr. Patel \u2014 pressures stable at 16/17' },
+        { date: 'Jan 15, 2026', title: 'Primary care visit', notes: 'Dr. Johnson \u2014 routine follow-up, all stable' }
+      ];
+    } else {
+      recentEvents = liveEvents.filter(function(e) {
+        return new Date(e.event_date) >= ninetyDaysAgo;
+      }).map(function(e) {
+        return {
+          date: new Date(e.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          title: e.title || '',
+          notes: e.notes || e.description || ''
+        };
+      });
+    }
+
+    // Gather patterns/alerts
+    var patterns = [];
+    if (isDemoMode) {
+      patterns = [
+        'Blood pressure readings have been consistently higher since February 18 \u2014 averaging 142/89, up from typical 128/78.',
+        'Zepbound dose was recently increased (Feb 26). Monitor for GI side effects and any interaction with existing medications.',
+        'CKD Stage 3a remains stable (eGFR 42 as of Feb 10) \u2014 next kidney function labs recommended within 90 days.'
+      ];
+    } else {
+      // Pull patterns from alert banner if visible
+      var alertBanner = document.querySelector('.alert-banner');
+      if (alertBanner) {
+        var alertTitle = alertBanner.querySelector('.alert-title');
+        var alertBody = alertBanner.querySelector('.alert-body');
+        if (alertTitle && alertTitle.textContent) {
+          var patternText = alertTitle.textContent;
+          if (alertBody && alertBody.textContent) patternText += ' \u2014 ' + alertBody.textContent;
+          patterns.push(patternText);
+        }
+      }
+      // Add medication change patterns from recent events
+      var medChangeEvents = liveEvents.filter(function(e) {
+        return e.event_type === 'medication' && new Date(e.event_date) >= ninetyDaysAgo;
+      });
+      medChangeEvents.forEach(function(e) {
+        var txt = (e.title || 'Medication change');
+        if (e.notes) txt += ' \u2014 ' + e.notes;
+        if (e.event_date) txt += ' (' + new Date(e.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ')';
+        patterns.push(txt);
+      });
+      // Add pattern-type events
+      var patternEvents = liveEvents.filter(function(e) {
+        return e.event_type === 'pattern' && new Date(e.event_date) >= ninetyDaysAgo;
+      });
+      patternEvents.forEach(function(e) {
+        var txt = (e.title || 'Pattern noticed');
+        if (e.notes) txt += ' \u2014 ' + e.notes;
+        patterns.push(txt);
+      });
+    }
+
+    // Gather emergency contact
+    var emergencyContact = '';
+    if (isDemoMode) {
+      emergencyContact = 'Sarah Bell \u00b7 (919) 555-0142 \u00b7 Daughter';
+    } else if (person) {
+      if (person.emergency_contact_name) {
+        emergencyContact = person.emergency_contact_name;
+        if (person.emergency_contact_phone) emergencyContact += ' \u00b7 ' + person.emergency_contact_phone;
+      } else if (liveCareCircle.length > 0) {
+        var primary = liveCareCircle.find(function(c){ return c.role === 'Primary'; }) || liveCareCircle[0];
+        emergencyContact = primary.member_name;
+        if (primary.phone) emergencyContact += ' \u00b7 ' + primary.phone;
+        if (primary.role) emergencyContact += ' \u00b7 ' + primary.role;
+      }
+    }
+
+    // Fetch AI-generated questions
+    var questions = await fetchVisitQuestions();
+
+    // Build and save PDF
+    var doc = buildVisitSummaryPDF(fullName, firstName, medications, recentEvents, patterns, emergencyContact, questions);
+
+    var today = new Date();
+    var yyyy = today.getFullYear();
+    var mm = String(today.getMonth() + 1).padStart(2, '0');
+    var dd = String(today.getDate()).padStart(2, '0');
+    var filename = fullName.replace(/\s+/g, '-') + '-Visit-Summary-' + yyyy + '-' + mm + '-' + dd + '.pdf';
+
+    doc.save(filename);
+    showToast('Visit Summary downloaded');
+    closeSheet('export-overlay');
+  } catch (e) {
+    console.error('Export error:', e);
+    showToast('Export generated \u2014 check your downloads folder');
+    closeSheet('export-overlay');
+  } finally {
+    // Reset loading state
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (actionsEl) actionsEl.style.display = 'block';
+  }
+}
+
+
+// ── NOTIFICATION LAYER ─────────────────────────────────────────────────────
+var _notifList = [];           // [{id, type:'med'|'appt'|'pattern'|'system', title, body, time, personName, seen:bool}]
+var _medReminders = {};        // { medicationId: { times:[], active:true } }  (in-memory for demo, or from DB)
+var _reminderMedId = null;     // currently-editing medication id in reminder sheet
+var _reminderMedName = '';     // name of med being edited
+var _reminderPersonName = '';  // person name for that med
+var _selectedReminderTimes = [];
+var _notifPermission = localStorage.getItem('wellet_notif_perm') || 'default';
+var _seenNotifIds = JSON.parse(localStorage.getItem('wellet_seen_notifs') || '[]');
+var _reminderCheckTimer = null;
+var _lastReminderCheck = {};   // { "medId:08:00": timestamp } to avoid re-firing within same minute
+var _notifPrefs = null;        // notification_preferences row from DB
+var _persistentNotifs = [];    // notifications from DB (pattern_alert, care_circle, system)
+var _patternAlertsSent = {};   // { "personId:alertKey": true } to avoid duplicate pattern alerts
+
+// ── NOTIFICATION PANEL ────────────────────────────────────────────────────
+function openNotifPanel() {
+  renderNotifList();
+  openSheetAccessible('notif-overlay');
+  initIcons();
+  // Mark visible ones as seen
+  _notifList.forEach(function(n) { n.seen = true; });
+  _seenNotifIds = _notifList.filter(function(n) { return !n.id.startsWith('db:'); }).map(function(n) { return n.id; });
+  localStorage.setItem('wellet_seen_notifs', JSON.stringify(_seenNotifIds));
+  markPersistentNotifsRead();
+  updateNotifBadge();
+}
+
+function closeNotifPanel() {
+  closeSheet('notif-overlay');
+}
+
+function markAllNotifRead() {
+  _notifList.forEach(function(n) { n.seen = true; });
+  _seenNotifIds = _notifList.filter(function(n) { return !n.id.startsWith('db:'); }).map(function(n) { return n.id; });
+  localStorage.setItem('wellet_seen_notifs', JSON.stringify(_seenNotifIds));
+  markPersistentNotifsRead();
+  updateNotifBadge();
+  renderNotifList();
+}
+
+// ── NOTIFICATION PREFERENCES ─────────────────────────────────────────────
+async function loadNotifPrefs() {
+  if (isDemoMode || !currentUser) return;
+  var { data, error } = await db
+    .from('notification_preferences')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .limit(1);
+
+  if (error) { console.warn('notif_prefs load error:', error.message); return; }
+
+  if (!data || data.length === 0) {
+    // Create default prefs on first load
+    var { data: inserted, error: insertErr } = await db
+      .from('notification_preferences')
+      .upsert({ user_id: currentUser.id }, { onConflict: 'user_id' })
+      .select()
+      .single();
+    if (insertErr) { console.warn('notif_prefs insert error:', insertErr.message); return; }
+    _notifPrefs = inserted;
+  } else {
+    _notifPrefs = data[0];
+  }
+  applyNotifPrefsToUI();
+}
+
+function applyNotifPrefsToUI() {
+  if (!_notifPrefs) return;
+  var map = {
+    'toggle-weekly-digest': 'weekly_digest',
+    'toggle-care-circle-emails': 'care_circle_emails',
+    'toggle-pattern-alerts': 'pattern_alerts',
+    'toggle-email-reminders': 'email_reminders',
+    'toggle-quiet-hours': 'quiet_hours_enabled'
+  };
+  Object.keys(map).forEach(function(elId) {
+    var el = document.getElementById(elId);
+    if (!el) return;
+    if (_notifPrefs[map[elId]]) {
+      el.classList.add('on');
+    } else {
+      el.classList.remove('on');
+    }
+  });
+  // Quiet hours time pickers
+  var timesRow = document.getElementById('quiet-hours-times');
+  if (timesRow) {
+    timesRow.style.display = _notifPrefs.quiet_hours_enabled ? '' : 'none';
+  }
+  var startEl = document.getElementById('quiet-hours-start');
+  var endEl = document.getElementById('quiet-hours-end');
+  if (startEl && _notifPrefs.quiet_hours_start) startEl.value = _notifPrefs.quiet_hours_start.substring(0, 5);
+  if (endEl && _notifPrefs.quiet_hours_end) endEl.value = _notifPrefs.quiet_hours_end.substring(0, 5);
+}
+
+async function toggleNotifPref(btn, field) {
+  btn.classList.toggle('on');
+  var isOn = btn.classList.contains('on');
+
+  // Show/hide quiet hours time pickers
+  if (field === 'quiet_hours_enabled') {
+    var timesRow = document.getElementById('quiet-hours-times');
+    if (timesRow) timesRow.style.display = isOn ? '' : 'none';
+  }
+
+  if (_notifPrefs) _notifPrefs[field] = isOn;
+
+  if (!isDemoMode && currentUser) {
+    var update = { updated_at: new Date().toISOString() };
+    update[field] = isOn;
+    await db
+      .from('notification_preferences')
+      .update(update)
+      .eq('user_id', currentUser.id);
+  }
+}
+
+async function saveQuietHoursTimes() {
+  var startEl = document.getElementById('quiet-hours-start');
+  var endEl = document.getElementById('quiet-hours-end');
+  if (!startEl || !endEl) return;
+  var start = startEl.value;
+  var end = endEl.value;
+  if (_notifPrefs) {
+    _notifPrefs.quiet_hours_start = start;
+    _notifPrefs.quiet_hours_end = end;
+  }
+  if (!isDemoMode && currentUser) {
+    await db
+      .from('notification_preferences')
+      .update({
+        quiet_hours_start: start,
+        quiet_hours_end: end,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', currentUser.id);
+  }
+}
+
+function isQuietHoursActive() {
+  if (!_notifPrefs || !_notifPrefs.quiet_hours_enabled) return false;
+  var now = new Date();
+  var nowMinutes = now.getHours() * 60 + now.getMinutes();
+  var startParts = (_notifPrefs.quiet_hours_start || '22:00').split(':');
+  var endParts = (_notifPrefs.quiet_hours_end || '07:00').split(':');
+  var startMinutes = parseInt(startParts[0], 10) * 60 + parseInt(startParts[1], 10);
+  var endMinutes = parseInt(endParts[0], 10) * 60 + parseInt(endParts[1], 10);
+
+  if (startMinutes <= endMinutes) {
+    // Same-day range (e.g., 09:00 - 17:00)
+    return nowMinutes >= startMinutes && nowMinutes < endMinutes;
+  } else {
+    // Overnight range (e.g., 22:00 - 07:00)
+    return nowMinutes >= startMinutes || nowMinutes < endMinutes;
+  }
+}
+
+// ── PERSISTENT NOTIFICATIONS (from DB) ───────────────────────────────────
+async function loadPersistentNotifs() {
+  if (isDemoMode || !currentUser) return;
+  var sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  var { data, error } = await db
+    .from('notifications')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .gte('created_at', sevenDaysAgo)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  if (error) { console.warn('notifications load error:', error.message); return; }
+  _persistentNotifs = data || [];
+}
+
+async function insertNotification(type, title, body, personId) {
+  if (isDemoMode || !currentUser) return null;
+  var { data, error } = await db
+    .from('notifications')
+    .insert({
+      user_id: currentUser.id,
+      person_id: personId || null,
+      type: type,
+      title: title,
+      body: body || null
+    })
+    .select()
+    .single();
+  if (error) { console.warn('notification insert error:', error.message); return null; }
+  if (data) _persistentNotifs.unshift(data);
+  return data;
+}
+
+async function markPersistentNotifsRead() {
+  if (isDemoMode || !currentUser) return;
+  var unread = _persistentNotifs.filter(function(n) { return !n.read; });
+  if (unread.length === 0) return;
+  var ids = unread.map(function(n) { return n.id; });
+  await db
+    .from('notifications')
+    .update({ read: true })
+    .in('id', ids);
+  unread.forEach(function(n) { n.read = true; });
+}
+
+// ── DELETE ACCOUNT ──────────────────────────────────────────────────────────
+function openDeleteAccountSheet() {
+  if (isDemoMode || !currentUser) return;
+  closeSettings();
+  if (typeof closeHeaderMenu === 'function') closeHeaderMenu();
+  var input = document.getElementById('delete-account-confirm');
+  if (input) input.value = '';
+  var btn = document.getElementById('delete-account-submit');
+  if (btn) {
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+    btn.innerHTML = '<i data-lucide="trash-2" style="width:15px;height:15px;"></i> Permanently delete my account';
+  }
+  openSheetAccessible('delete-account-overlay');
+  initIcons();
+  setTimeout(function() { if (input) input.focus(); }, 220);
+}
+
+function onDeleteAccountConfirmInput() {
+  var input = document.getElementById('delete-account-confirm');
+  var btn = document.getElementById('delete-account-submit');
+  if (!input || !btn) return;
+  var ok = input.value.trim().toUpperCase() === 'DELETE';
+  btn.disabled = !ok;
+  btn.style.opacity = ok ? '1' : '0.5';
+}
+
+async function submitDeleteAccount() {
+  var btn = document.getElementById('delete-account-submit');
+  var input = document.getElementById('delete-account-confirm');
+  if (!input || input.value.trim().toUpperCase() !== 'DELETE') {
+    showToast('Type DELETE to confirm');
+    return;
+  }
+  if (!btn) return;
+  btn.disabled = true;
+  btn.style.opacity = '0.7';
+  btn.innerHTML = '<i data-lucide="loader-2" style="width:15px;height:15px;animation:spin 1s linear infinite;"></i> Deleting\u2026';
+  initIcons();
+
+  try {
+    var sessionRes = await db.auth.getSession();
+    var token = sessionRes.data.session ? sessionRes.data.session.access_token : null;
+    if (!token) throw new Error('Not signed in');
+    var res = await fetch(SUPABASE_URL + '/functions/v1/delete-account', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ confirmation: 'DELETE' })
+    });
+    var data = {};
+    try { data = await res.json(); } catch(e){}
+    if (!res.ok || data.success !== true) {
+      throw new Error(data.error || ('HTTP ' + res.status));
+    }
+    // Clear local state and sign out
+    try { clearPhiFromStorage(); } catch(e){}
+    try { localStorage.removeItem('wellet_last_person_id'); } catch(e){}
+    try { await db.auth.signOut(); } catch(e){}
+    closeSheet('delete-account-overlay');
+    showToast('Account deleted. Everything has been removed.');
+    // Hard refresh to a clean state
+    setTimeout(function() { window.location.replace('/'); }, 900);
+  } catch (err) {
+    console.error('Delete account error:', err);
+    showToast('Could not delete account: ' + err.message);
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.innerHTML = '<i data-lucide="trash-2" style="width:15px;height:15px;"></i> Permanently delete my account';
+    initIcons();
+  }
+}
+
+// ── WEEKLY DIGEST PREVIEW ────────────────────────────────────────────────
+async function sendWeeklyDigestPreview(btn) {
+  if (isDemoMode || !currentUser) {
+    if (typeof showToast === 'function') showToast('Preview not available in demo mode');
+    return;
+  }
+  if (!btn) btn = document.getElementById('btn-weekly-digest-preview');
+  var originalHtml = btn ? btn.innerHTML : '';
+  try {
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i data-lucide="loader-2" style="width:12px;height:12px;animation:spin 1s linear infinite;"></i><span>Sending…</span>';
+      initIcons();
+    }
+    var session = await db.auth.getSession();
+    var token = session.data.session ? session.data.session.access_token : null;
+    if (!token) throw new Error('not_signed_in');
+    var res = await fetch(SUPABASE_URL + '/functions/v1/generate-weekly-digest', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ mode: 'preview' })
+    });
+    var data = {};
+    try { data = await res.json(); } catch(e){}
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    var msg = 'Preview sent to your email.';
+    if (data.status === 'skipped_empty') {
+      msg = data.reason === 'no_people'
+        ? 'No one in your care circle yet — add someone first.'
+        : 'Nothing new this week, so no preview to send.';
+    }
+    if (typeof showToast === 'function') {
+      showToast(msg);
+    } else {
+      alert(msg);
+    }
+  } catch (e) {
+    console.warn('weekly digest preview error:', e.message);
+    if (typeof showToast === 'function') {
+      showToast('Could not send preview. Try again.');
+    } else {
+      alert('Could not send preview: ' + e.message);
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+      initIcons();
+    }
+  }
+}
+
+// ── SEND NOTIFICATION EMAIL ──────────────────────────────────────────────
+async function sendNotificationEmail(type, recipientEmail, recipientName, personName, details) {
+  if (isDemoMode || !currentUser) return;
+  try {
+    var session = await db.auth.getSession();
+    var token = session.data.session ? session.data.session.access_token : null;
+    if (!token) return;
+    await fetch(SUPABASE_URL + '/functions/v1/send-notification-email', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({
+        type: type,
+        recipient_email: recipientEmail,
+        recipient_name: recipientName,
+        person_name: personName,
+        details: details
+      })
+    });
+  } catch (e) {
+    console.warn('send email error:', e.message);
+  }
+}
+
+function updateNotifBadge() {
+  var unseen = _notifList.filter(function(n) { return !n.seen; }).length;
+  var badge = document.getElementById('notif-bell-badge');
+  if (!badge) return;
+  badge.textContent = unseen > 0 ? String(unseen) : '';
+  badge.setAttribute('data-count', String(unseen));
+}
+
+function renderNotifList() {
+  var container = document.getElementById('notif-list');
+  if (!container) return;
+
+  if (_notifList.length === 0) {
+    container.innerHTML = '<div class="notif-empty">'
+      + '<div class="notif-empty-icon"><i data-lucide="bell-off" style="width:32px;height:32px;"></i></div>'
+      + t('notif.noNotifications') + '<br>Set medication reminders in Records.'
+      + '</div>';
+    document.getElementById('notif-mark-all-btn').style.display = 'none';
+    initIcons();
+    return;
+  }
+
+  document.getElementById('notif-mark-all-btn').style.display = '';
+
+  // Group: Now (within last 30 min), Today, Upcoming
+  var now = new Date();
+  var nowMs = now.getTime();
+  var todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  var todayEnd = todayStart + 86400000;
+
+  var groups = { now: [], today: [], upcoming: [] };
+  _notifList.forEach(function(n) {
+    var t = new Date(n.time).getTime();
+    if (t <= nowMs && t > nowMs - 1800000) {
+      groups.now.push(n);
+    } else if (t >= todayStart && t < todayEnd) {
+      groups.today.push(n);
+    } else {
+      groups.upcoming.push(n);
+    }
+  });
+
+  var html = '';
+  if (groups.now.length > 0) {
+    html += '<div class="notif-group-label">Now</div>';
+    groups.now.forEach(function(n) { html += renderNotifItem(n); });
+  }
+  if (groups.today.length > 0) {
+    html += '<div class="notif-group-label">Today</div>';
+    groups.today.forEach(function(n) { html += renderNotifItem(n); });
+  }
+  if (groups.upcoming.length > 0) {
+    html += '<div class="notif-group-label">Upcoming</div>';
+    groups.upcoming.forEach(function(n) { html += renderNotifItem(n); });
+  }
+
+  container.innerHTML = html;
+  initIcons();
+}
+
+function renderNotifItem(n) {
+  var iconClass, iconName;
+  if (n.type === 'med') { iconClass = 'med'; iconName = 'pill'; }
+  else if (n.type === 'appt') { iconClass = 'appt'; iconName = 'calendar-check'; }
+  else if (n.type === 'pattern') { iconClass = 'pattern'; iconName = 'activity'; }
+  else { iconClass = 'system'; iconName = 'info'; }
+  var unread = n.seen ? '' : ' unread';
+  var timeStr = formatNotifTime(n.time);
+  return '<div class="notif-item' + unread + '">'
+    + '<div class="notif-item-icon ' + iconClass + '"><i data-lucide="' + iconName + '" style="width:15px;height:15px;"></i></div>'
+    + '<div class="notif-item-body">'
+    + '<div class="notif-item-title">' + escHtml(n.title) + '</div>'
+    + '<div class="notif-item-meta">' + escHtml(n.personName) + ' · ' + timeStr + '</div>'
+    + '</div></div>';
+}
+
+function formatNotifTime(dateStr) {
+  var d = new Date(dateStr);
+  var now = new Date();
+  var diff = d.getTime() - now.getTime();
+  if (Math.abs(diff) < 60000) return 'Just now';
+  if (diff > 0 && diff < 3600000) return 'In ' + Math.round(diff / 60000) + ' min';
+  if (diff < 0 && diff > -3600000) return Math.round(Math.abs(diff) / 60000) + ' min ago';
+  var isToday = d.toDateString() === now.toDateString();
+  var tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 1);
+  var isTomorrow = d.toDateString() === tomorrow.toDateString();
+  var timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  if (isToday) return 'Today ' + timeStr;
+  if (isTomorrow) return 'Tomorrow ' + timeStr;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + timeStr;
+}
+
+// ── MEDICATION REMINDER SHEET ─────────────────────────────────────────────
+function openMedReminder(medId, medName, personName) {
+  _reminderMedId = medId;
+  _reminderMedName = medName;
+  _reminderPersonName = personName;
+
+  document.getElementById('med-reminder-title').textContent = 'Remind: ' + medName;
+  document.getElementById('med-reminder-sub').textContent = 'Choose when to remind for ' + personName;
+
+  // Load existing times for this med
+  var existing = _medReminders[medId];
+  _selectedReminderTimes = existing && existing.times ? existing.times.slice() : [];
+
+  // Update checkboxes
+  document.querySelectorAll('#reminder-time-grid .reminder-time-opt').forEach(function(opt) {
+    var time = opt.getAttribute('onclick').match(/'([^']+)'/)[1];
+    if (_selectedReminderTimes.indexOf(time) !== -1) {
+      opt.classList.add('selected');
+    } else {
+      opt.classList.remove('selected');
+    }
+  });
+
+  openSheetAccessible('med-reminder-overlay');
+  initIcons();
+}
+
+function closeMedReminder() {
+  closeSheet('med-reminder-overlay');
+}
+
+function toggleReminderTime(el, time) {
+  el.classList.toggle('selected');
+  var idx = _selectedReminderTimes.indexOf(time);
+  if (idx !== -1) {
+    _selectedReminderTimes.splice(idx, 1);
+  } else {
+    _selectedReminderTimes.push(time);
+  }
+}
+
+async function saveReminder() {
+  _medReminders[_reminderMedId] = {
+    times: _selectedReminderTimes.slice(),
+    active: _selectedReminderTimes.length > 0,
+    medName: _reminderMedName,
+    personName: _reminderPersonName
+  };
+
+  // Save to Supabase if not demo
+  if (!isDemoMode && currentUser) {
+    var existing = await db
+      .from('medication_reminders')
+      .select('id')
+      .eq('medication_id', _reminderMedId)
+      .eq('user_id', currentUser.id)
+      .limit(1);
+
+    if (existing.data && existing.data.length > 0) {
+      await db
+        .from('medication_reminders')
+        .update({
+          reminder_times: _selectedReminderTimes,
+          active: _selectedReminderTimes.length > 0,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existing.data[0].id);
+    } else if (_selectedReminderTimes.length > 0) {
+      await db
+        .from('medication_reminders')
+        .insert({
+          user_id: currentUser.id,
+          person_id: currentPersonId,
+          medication_id: _reminderMedId,
+          reminder_times: _selectedReminderTimes,
+          active: true
+        });
+    }
+  }
+
+  // Request notification permission if needed (not in demo)
+  if (!isDemoMode && _selectedReminderTimes.length > 0 && 'Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission().then(function(perm) {
+      _notifPermission = perm;
+      localStorage.setItem('wellet_notif_perm', perm);
+    });
+  }
+
+  closeMedReminder();
+  showToast(_selectedReminderTimes.length > 0 ? 'Reminder set' : 'Reminder removed');
+
+  // Re-render records to show badge
+  if (isDemoMode) {
+    refreshDemoRecordBadges();
+  } else {
+    renderRecordsView();
+  }
+
+  // Rebuild notification list
+  buildNotifList();
+}
+
+// ── LOAD REMINDERS FROM DB ────────────────────────────────────────────────
+async function loadRemindersFromDB() {
+  if (isDemoMode || !currentUser) return;
+  var result = await db
+    .from('medication_reminders')
+    .select('*')
+    .eq('user_id', currentUser.id);
+
+  if (result.data) {
+    result.data.forEach(function(r) {
+      // Match med name from liveMeds
+      var med = liveMeds.find(function(m) { return m.id === r.medication_id; });
+      var person = currentPeople.find(function(p) { return p.id === r.person_id; });
+      _medReminders[r.medication_id] = {
+        times: r.reminder_times || [],
+        active: r.active,
+        medName: med ? med.name + (med.dose ? ' ' + med.dose : '') : 'Medication',
+        personName: person ? person.name.split(' ')[0] : 'Your loved one'
+      };
+    });
+  }
+}
+
+// ── BUILD NOTIFICATIONS LIST ──────────────────────────────────────────────
+function buildNotifList() {
+  _notifList = [];
+  var now = new Date();
+  var todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  // 1. Medication reminders for today + upcoming
+  Object.keys(_medReminders).forEach(function(medId) {
+    var rem = _medReminders[medId];
+    if (!rem.active || !rem.times || rem.times.length === 0) return;
+
+    rem.times.forEach(function(timeStr) {
+      var parts = timeStr.split(':');
+      var h = parseInt(parts[0], 10);
+      var m = parseInt(parts[1], 10);
+
+      // Today's reminder
+      var reminderDate = new Date(todayStart);
+      reminderDate.setHours(h, m, 0, 0);
+
+      var id = 'med:' + medId + ':' + timeStr + ':' + reminderDate.toDateString();
+      var seen = _seenNotifIds.indexOf(id) !== -1;
+
+      // Only show if within window: from 30 min ago to end of day
+      if (reminderDate.getTime() >= now.getTime() - 1800000 && reminderDate.getTime() < todayStart.getTime() + 86400000) {
+        var doseInfo = rem.medName || 'Medication';
+        _notifList.push({
+          id: id,
+          type: 'med',
+          title: escHtml(rem.personName) + '\u2019s ' + escHtml(doseInfo) + ' \u2014 Time to take',
+          body: '',
+          time: reminderDate.toISOString(),
+          personName: rem.personName || '',
+          seen: seen
+        });
+      }
+    });
+  });
+
+  // 2. Appointment reminders (auto-generated)
+  var appointments = [];
+  if (isDemoMode) {
+    appointments = getDemoAppointments();
+  } else {
+    // Gather future appointments from all loaded events
+    appointments = liveEvents.filter(function(e) {
+      return e.event_type === 'appointment' && new Date(e.event_date) > new Date(now.getTime() - 86400000);
+    }).map(function(e) {
+      var person = currentPeople.find(function(p) { return p.id === e.person_id; });
+      return {
+        title: e.title,
+        date: e.event_date,
+        personName: person ? person.name.split(' ')[0] : 'Your loved one'
+      };
+    });
+  }
+
+  appointments.forEach(function(appt) {
+    var apptDate = new Date(appt.date);
+    var oneDayBefore = new Date(apptDate.getTime() - 86400000);
+    var oneHourBefore = new Date(apptDate.getTime() - 3600000);
+
+    // 1-day-before reminder
+    var id1 = 'appt:1d:' + appt.title + ':' + apptDate.toDateString();
+    if (oneDayBefore.getTime() >= now.getTime() - 1800000 && oneDayBefore.getTime() < now.getTime() + 172800000) {
+      _notifList.push({
+        id: id1,
+        type: 'appt',
+        title: 'Tomorrow: ' + escHtml(appt.personName) + ' has ' + escHtml(appt.title),
+        body: '',
+        time: oneDayBefore.toISOString(),
+        personName: appt.personName,
+        seen: _seenNotifIds.indexOf(id1) !== -1
+      });
+    }
+
+    // 1-hour-before reminder
+    var id2 = 'appt:1h:' + appt.title + ':' + apptDate.toDateString();
+    if (oneHourBefore.getTime() >= now.getTime() - 1800000 && oneHourBefore.getTime() < now.getTime() + 86400000) {
+      _notifList.push({
+        id: id2,
+        type: 'appt',
+        title: escHtml(appt.personName) + '\u2019s ' + escHtml(appt.title) + ' is in 1 hour',
+        body: '',
+        time: oneHourBefore.toISOString(),
+        personName: appt.personName,
+        seen: _seenNotifIds.indexOf(id2) !== -1
+      });
+    }
+  });
+
+  // 3. Persistent notifications from DB (pattern_alert, care_circle, system)
+  _persistentNotifs.forEach(function(pn) {
+    var typeMap = { 'pattern_alert': 'pattern', 'care_circle': 'system', 'system': 'system', 'med_reminder': 'med', 'appointment': 'appt' };
+    var person = pn.person_id ? currentPeople.find(function(p) { return p.id === pn.person_id; }) : null;
+    _notifList.push({
+      id: 'db:' + pn.id,
+      type: typeMap[pn.type] || 'system',
+      title: pn.title,
+      body: pn.body || '',
+      time: pn.created_at,
+      personName: person ? person.name.split(' ')[0] : '',
+      seen: pn.read
+    });
+  });
+
+  // Sort by time
+  _notifList.sort(function(a, b) { return new Date(a.time) - new Date(b.time); });
+
+  updateNotifBadge();
+}
+
+// ── DEMO APPOINTMENTS ─────────────────────────────────────────────────────
+function getDemoAppointments() {
+  var now = new Date();
+  var tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(9, 0, 0, 0);
+
+  var nextWeek = new Date(now);
+  nextWeek.setDate(nextWeek.getDate() + 5);
+  nextWeek.setHours(14, 0, 0, 0);
+
+  return [
+    { title: 'Dr. Johnson \u2014 Primary Care', date: tomorrow.toISOString(), personName: 'Dad' },
+    { title: 'Dr. Edwards \u2014 Oncology follow-up', date: nextWeek.toISOString(), personName: 'Dad' }
+  ];
+}
+
+// ── DEMO MODE NOTIFICATIONS ───────────────────────────────────────────────
+function initDemoNotifications() {
+  // Set up demo medication reminders
+  var now = new Date();
+  var morningTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8, 0, 0);
+  var noonTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0);
+  var eveningTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0, 0);
+
+  _medReminders['demo-lisinopril'] = {
+    times: ['08:00', '18:00'],
+    active: true,
+    medName: 'Lisinopril 20mg',
+    personName: 'Dad'
+  };
+  _medReminders['demo-metformin'] = {
+    times: ['08:00', '12:00', '18:00'],
+    active: true,
+    medName: 'Gleevec 400mg',
+    personName: 'Dad'
+  };
+  _medReminders['demo-hctz'] = {
+    times: ['08:00'],
+    active: true,
+    medName: 'Hydrochlorothiazide 25mg',
+    personName: 'Dad'
+  };
+
+  buildNotifList();
+}
+
+// ── REMINDER CHECK LOOP (60s) ─────────────────────────────────────────────
+function startReminderCheck() {
+  if (_reminderCheckTimer) clearInterval(_reminderCheckTimer);
+  checkRemindersNow();
+  _reminderCheckTimer = setInterval(checkRemindersNow, 60000);
+}
+
+function checkRemindersNow() {
+  var now = new Date();
+  var nowH = String(now.getHours()).padStart(2, '0');
+  var nowM = String(now.getMinutes()).padStart(2, '0');
+  var nowTime = nowH + ':' + nowM;
+  var quiet = isQuietHoursActive();
+
+  Object.keys(_medReminders).forEach(function(medId) {
+    var rem = _medReminders[medId];
+    if (!rem.active || !rem.times) return;
+
+    rem.times.forEach(function(timeStr) {
+      if (timeStr === nowTime) {
+        var key = medId + ':' + timeStr;
+        var lastFired = _lastReminderCheck[key];
+        if (lastFired && now.getTime() - lastFired < 120000) return; // debounce 2 min
+        _lastReminderCheck[key] = now.getTime();
+
+        var title = (rem.personName || 'Your loved one') + '\u2019s ' + (rem.medName || 'medication');
+        var body = 'Time to take ' + (rem.medName || 'medication');
+
+        if (!quiet) {
+          // Fire browser notification if permitted (not in demo)
+          if (!isDemoMode && 'Notification' in window && Notification.permission === 'granted') {
+            try { new Notification(title, { body: body, icon: '/favicon.svg' }); } catch(e) {}
+          }
+          // In-app toast
+          showToast('\ud83d\udc8a ' + title + ' \u2014 time to take');
+        }
+
+        // Add to notif list (always, even during quiet hours)
+        var id = 'med:' + medId + ':' + timeStr + ':' + now.toDateString();
+        var alreadyIn = _notifList.find(function(n) { return n.id === id; });
+        if (!alreadyIn) {
+          _notifList.unshift({
+            id: id,
+            type: 'med',
+            title: title + ' \u2014 Time to take',
+            body: body,
+            time: now.toISOString(),
+            personName: rem.personName || '',
+            seen: false
+          });
+        }
+        updateNotifBadge();
+
+        // Send email reminder if enabled
+        if (_notifPrefs && _notifPrefs.email_reminders && currentUser && currentUser.email) {
+          sendNotificationEmail('med_reminder', currentUser.email, '', rem.personName || '', {
+            title: title,
+            body: body,
+            time: timeStr
+          });
+        }
+      }
+    });
+  });
+
+  // Check appointment reminders
+  checkAppointmentReminders(now);
+}
+
+function checkAppointmentReminders(now) {
+  var quiet = isQuietHoursActive();
+  var appointments = isDemoMode ? getDemoAppointments() : liveEvents.filter(function(e) {
+    return e.event_type === 'appointment' && new Date(e.event_date) > now;
+  }).map(function(e) {
+    var person = currentPeople.find(function(p) { return p.id === e.person_id; });
+    return { title: e.title, date: e.event_date, personName: person ? person.name.split(' ')[0] : 'Your loved one' };
+  });
+
+  appointments.forEach(function(appt) {
+    var apptDate = new Date(appt.date);
+    var diffMs = apptDate.getTime() - now.getTime();
+
+    // 1-hour before (within 2 min window)
+    if (diffMs > 0 && diffMs <= 3600000 && diffMs > 3480000) {
+      var key = 'appt:1h:' + appt.title;
+      if (!_lastReminderCheck[key]) {
+        _lastReminderCheck[key] = now.getTime();
+        var title = appt.personName + '\u2019s ' + appt.title + ' is in 1 hour';
+        if (!quiet) {
+          if (!isDemoMode && 'Notification' in window && Notification.permission === 'granted') {
+            try { new Notification(title, { icon: '/favicon.svg' }); } catch(e) {}
+          }
+          showToast('\ud83d\udcc5 ' + title);
+        }
+        // Send email if enabled
+        if (_notifPrefs && _notifPrefs.email_reminders && currentUser && currentUser.email) {
+          sendNotificationEmail('appointment', currentUser.email, '', appt.personName, {
+            title: appt.title,
+            body: title,
+            time: apptDate.toISOString()
+          });
+        }
+      }
+    }
+
+    // 1-day before (within 2 min window around 24h mark)
+    if (diffMs > 86280000 && diffMs <= 86400000) {
+      var key2 = 'appt:1d:' + appt.title;
+      if (!_lastReminderCheck[key2]) {
+        _lastReminderCheck[key2] = now.getTime();
+        var title2 = 'Tomorrow: ' + appt.personName + ' has ' + appt.title;
+        if (!quiet) {
+          if (!isDemoMode && 'Notification' in window && Notification.permission === 'granted') {
+            try { new Notification(title2, { icon: '/favicon.svg' }); } catch(e) {}
+          }
+          showToast('\ud83d\udcc5 ' + title2);
+        }
+        // Send email if enabled
+        if (_notifPrefs && _notifPrefs.email_reminders && currentUser && currentUser.email) {
+          sendNotificationEmail('appointment', currentUser.email, '', appt.personName, {
+            title: appt.title,
+            body: title2,
+            time: apptDate.toISOString()
+          });
+        }
+      }
+    }
+  });
+}
+
+// ── RECORDS VIEW: ADD REMINDER BUTTONS TO MED CARDS ───────────────────────
+var _origRenderRecordsView = renderRecordsView;
+renderRecordsView = function() {
+  _origRenderRecordsView();
+  addReminderBtnsToRecords();
+};
+
+function addReminderBtnsToRecords() {
+  var view = document.getElementById('view-records');
+  if (!view) return;
+
+  // For authenticated mode, add reminder buttons to dynamically rendered meds
+  if (!isDemoMode) {
+    var medRows = view.querySelectorAll('.record-row');
+    liveMeds.filter(function(m) { return m.active; }).forEach(function(med, i) {
+      var row = medRows[i];
+      if (!row) return;
+      var person = currentPeople.find(function(p) { return p.id === med.person_id; });
+      var personName = person ? person.name.split(' ')[0] : 'Your loved one';
+      var rem = _medReminders[med.id];
+      var badgeHtml = '';
+      if (rem && rem.active && rem.times && rem.times.length > 0) {
+        badgeHtml = '<span class="reminder-badge"><i data-lucide="bell" style="width:10px;height:10px;"></i>' + rem.times.length + ' reminder' + (rem.times.length > 1 ? 's' : '') + '</span>';
+      }
+      // Add reminder button before chevron
+      var chevron = row.querySelector('[data-lucide="chevron-right"]');
+      if (chevron && !row.querySelector('.reminder-badge') && !row.querySelector('.med-remind-btn')) {
+        var btn = document.createElement('button');
+        btn.className = 'med-remind-btn';
+        btn.style.cssText = 'background:var(--mint);border:none;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:500;color:var(--moss-dark);cursor:pointer;font-family:DM Sans,sans-serif;margin-right:4px;display:flex;align-items:center;gap:3px;';
+        btn.innerHTML = (rem && rem.active && rem.times && rem.times.length > 0)
+          ? '<i data-lucide="bell" style="width:10px;height:10px;"></i>' + rem.times.length
+          : '<i data-lucide="bell-plus" style="width:10px;height:10px;"></i>';
+        btn.title = 'Set reminder';
+        (function(mId, mName, pName) {
+          btn.onclick = function(e) { e.stopPropagation(); openMedReminder(mId, mName, pName); };
+        })(med.id, med.name + (med.dose ? ' ' + med.dose : ''), personName);
+        row.insertBefore(btn, chevron);
+      }
+    });
+    initIcons();
+    return;
+  }
+
+  // Demo mode: add to static demo records
+  refreshDemoRecordBadges();
+}
+
+function refreshDemoRecordBadges() {
+  // Demo mode: add reminder buttons to static medication rows in Dad's records
+  var dadRecords = document.getElementById('records-dad');
+  if (!dadRecords) return;
+  var medRows = dadRecords.querySelectorAll('.record-group:first-child .record-row');
+  var demoMeds = [
+    { id: 'demo-lisinopril', name: 'Lisinopril 20mg', person: 'Dad' },
+    { id: 'demo-hctz', name: 'Hydrochlorothiazide 25mg', person: 'Dad' },
+    { id: 'demo-metformin', name: 'Gleevec (Imatinib) 400mg', person: 'Dad' }
+  ];
+
+  medRows.forEach(function(row, i) {
+    if (i >= demoMeds.length) return;
+    var med = demoMeds[i];
+    var rem = _medReminders[med.id];
+
+    // Remove existing reminder btn
+    var existingBtn = row.querySelector('.med-remind-btn');
+    if (existingBtn) existingBtn.remove();
+
+    var chevron = row.querySelector('[data-lucide="chevron-right"]');
+    var badge = row.querySelector('.record-badge');
+    var insertBefore = chevron || badge;
+    if (!insertBefore) return;
+
+    var btn = document.createElement('button');
+    btn.className = 'med-remind-btn';
+    btn.style.cssText = 'background:var(--mint);border:none;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:500;color:var(--moss-dark);cursor:pointer;font-family:DM Sans,sans-serif;margin-right:4px;display:flex;align-items:center;gap:3px;white-space:nowrap;';
+    btn.innerHTML = (rem && rem.active && rem.times && rem.times.length > 0)
+      ? '<i data-lucide="bell" style="width:10px;height:10px;"></i>' + rem.times.length
+      : '<i data-lucide="bell-plus" style="width:10px;height:10px;"></i>';
+    btn.title = 'Set reminder';
+    (function(mId, mName, pName) {
+      btn.onclick = function(e) { e.stopPropagation(); openMedReminder(mId, mName, pName); };
+    })(med.id, med.name, med.person);
+    row.insertBefore(btn, insertBefore);
+  });
+  initIcons();
+}
+
+// ── INITIALIZE NOTIFICATIONS ON APP LOAD ──────────────────────────────────
+var _origEnterDemoMode = enterDemoMode;
+enterDemoMode = function() {
+  _origEnterDemoMode();
+  initDemoNotifications();
+  refreshDemoRecordBadges();
+  startReminderCheck();
+};
+
+var _origShowAuthenticatedApp = showAuthenticatedApp;
+showAuthenticatedApp = function() {
+  _origShowAuthenticatedApp();
+  Promise.all([loadRemindersFromDB(), loadNotifPrefs(), loadPersistentNotifs()]).then(function() {
+    buildNotifList();
+    startReminderCheck();
+  });
+};
+
+// Also refresh demo badges after restoreDemoHTML
+var _origRestoreDemoHTML = restoreDemoHTML;
+restoreDemoHTML = function() {
+  _origRestoreDemoHTML();
+  if (isDemoMode) {
+    setTimeout(function() { refreshDemoRecordBadges(); }, 50);
+  }
+};
+
+// ── END-OF-CARE JOURNEY ─────────────────────────────────────────────────────
+var _bereavementDetected = {};  // { personId: true }
+var _eocPersonId = null;
+var _eocPersonName = '';
+var _eocStep = 1;
+var _eocArchiveChoice = 'pdf';
+var _eocFundChoice = 'donate';
+var _eocNotifyChoice = 'send';
+var _eocClosureChoice = 'archive';
+
+// ── BEREAVEMENT PHRASES ──────────────────────────────────────────────────
+var _bereavementPhrasesHigh = [
+  'passed away', 'passed on', 'died', 'death of', 'we lost him', 'we lost her',
+  'she\'s gone', 'he\'s gone', 'funeral', 'hospice says', 'no longer with us',
+  'rest in peace', 'in heaven now'
+];
+var _bereavementPhrasesUncertain = [
+  'dead', 'gone', 'lost'
+];
+
+function detectBereavement(text) {
+  var lower = text.toLowerCase();
+  for (var i = 0; i < _bereavementPhrasesHigh.length; i++) {
+    if (lower.indexOf(_bereavementPhrasesHigh[i]) !== -1) return 'high';
+  }
+  for (var j = 0; j < _bereavementPhrasesUncertain.length; j++) {
+    var phrase = _bereavementPhrasesUncertain[j];
+    var idx = lower.indexOf(phrase);
+    if (idx !== -1) {
+      var before = idx > 0 ? lower[idx - 1] : ' ';
+      var after = idx + phrase.length < lower.length ? lower[idx + phrase.length] : ' ';
+      if (/\W/.test(before) && /\W/.test(after)) {
+        // Exclude common non-bereavement uses
+        if (lower.indexOf('dead tired') !== -1 || lower.indexOf('deadline') !== -1 || lower.indexOf('dead end') !== -1) continue;
+        return 'uncertain';
+      }
+    }
+  }
+  return null;
+}
+
+// ── LIFE CHANGES ─────────────────────────────────────────────────────────
+function openLifeChanges() {
+  closeSheet('profile-overlay');
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var name = person ? person.name.split(' ')[0] : 'your loved one';
+  var container = document.getElementById('eoc-lc-options');
+  container.innerHTML =
+    '<div class="eoc-lc-row" onclick="startEocFlow(\'' + currentPersonId + '\')">'
+    + '<div class="eoc-lc-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="heart" style="width:18px;height:18px;"></i></div>'
+    + '<div style="flex:1;"><div class="eoc-lc-label">' + escHtml(name) + ' has passed away</div><div class="eoc-lc-sub">Begin the end-of-care journey</div></div>'
+    + '<div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>'
+    + '</div>'
+    + '<div class="eoc-lc-row" onclick="showToast(\'Coming soon — this feature is being built\')">'
+    + '<div class="eoc-lc-icon" style="background:var(--amber-bg);color:var(--amber);"><i data-lucide="building-2" style="width:18px;height:18px;"></i></div>'
+    + '<div style="flex:1;"><div class="eoc-lc-label">' + escHtml(name) + ' moved to a care facility</div><div class="eoc-lc-sub">Update care arrangements</div></div>'
+    + '<div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>'
+    + '</div>'
+    + '<div class="eoc-lc-row" onclick="showToast(\'Coming soon — this feature is being built\')">'
+    + '<div class="eoc-lc-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="arrow-right-left" style="width:18px;height:18px;"></i></div>'
+    + '<div style="flex:1;"><div class="eoc-lc-label">' + escHtml(name) + '\u2019s care has been transferred</div><div class="eoc-lc-sub">Hand off to another caregiver</div></div>'
+    + '<div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>'
+    + '</div>';
+  document.getElementById('eoc-lc-overlay').classList.add('show');
+  initIcons();
+}
+
+function closeLifeChanges() {
+  document.getElementById('eoc-lc-overlay').classList.remove('show');
+}
+
+// ── EOC FLOW ─────────────────────────────────────────────────────────────
+function startEocFlow(personId) {
+  closeLifeChanges();
+  var pid = personId || currentPersonId;
+  _eocPersonId = pid;
+  var person = currentPeople.find(function(p){ return p.id === pid; });
+  _eocPersonName = person ? person.name.split(' ')[0] : 'your loved one';
+  _eocStep = 1;
+  _eocArchiveChoice = 'pdf';
+  _eocFundChoice = 'donate';
+  _eocNotifyChoice = 'send';
+  _eocClosureChoice = 'archive';
+
+  // Set bereaved status
+  if (!isDemoMode && pid) {
+    db.from('people').update({
+      care_status: 'bereaved',
+      care_status_changed_at: new Date().toISOString()
+    }).eq('id', pid).then(function() {
+      var idx = currentPeople.findIndex(function(p){ return p.id === pid; });
+      if (idx >= 0) {
+        currentPeople[idx].care_status = 'bereaved';
+        currentPeople[idx].care_status_changed_at = new Date().toISOString();
+      }
+      renderPersonSwitcher();
+      renderPeopleView();
+    });
+  }
+  _bereavementDetected[pid] = true;
+
+  // Populate step 1
+  document.getElementById('eoc-ack-heading').textContent = _eocPersonName + '\u2019s story matters.';
+  document.getElementById('eoc-ack-body').innerHTML =
+    'The care you gave ' + escHtml(_eocPersonName) + ' \u2014 every appointment noted, every medication managed, every late-night worry \u2014 that mattered. All of it.'
+    + '<br><br>There\u2019s no timeline here. You can come back to these options whenever you\u2019re ready \u2014 tomorrow, next week, or next month.';
+
+  // Populate step 2
+  document.getElementById('eoc-archive-heading').textContent = 'Preserve ' + _eocPersonName + '\u2019s Care History';
+  document.getElementById('eoc-archive-body').textContent = 'Everything you gathered for ' + _eocPersonName + ' can be saved as a personal archive.';
+
+  // Populate step 3
+  document.getElementById('eoc-fund-donate-label').textContent = 'Donate my remaining days to the Wellet Community Fund in ' + _eocPersonName + '\u2019s memory';
+
+  // Populate step 4
+  document.getElementById('eoc-notify-heading').textContent = 'Let ' + _eocPersonName + '\u2019s Care Circle Know';
+  document.getElementById('eoc-notify-body').textContent = 'Would you like to send a message to the people who helped care for ' + _eocPersonName + '?';
+  document.getElementById('eoc-notify-message').value =
+    'I wanted to let you know that ' + _eocPersonName + ' has passed away. Thank you for being part of ' + _eocPersonName + '\u2019s care team. Your support meant more than you know.';
+
+  // Populate step 5
+  document.getElementById('eoc-closure-heading').textContent = _eocPersonName + '\u2019s Profile';
+  document.getElementById('eoc-closure-archive-label').textContent = 'Archive ' + _eocPersonName + '\u2019s profile';
+  document.getElementById('eoc-closure-delete-label').textContent = 'Delete ' + _eocPersonName + '\u2019s profile';
+
+  // Show "keep account" option if last person
+  var activePeople = currentPeople.filter(function(p){ return !p.care_status || p.care_status === 'active'; });
+  var keepWrap = document.getElementById('eoc-closure-keep-wrap');
+  if (activePeople.length <= 1) {
+    keepWrap.style.display = 'block';
+  } else {
+    keepWrap.style.display = 'none';
+  }
+
+  eocGoTo(1);
+  document.getElementById('eoc-overlay').classList.add('show');
+  initIcons();
+}
+
+function closeEocFlow() {
+  document.getElementById('eoc-overlay').classList.remove('show');
+}
+
+function eocGoTo(step) {
+  _eocStep = step;
+  var steps = document.querySelectorAll('.eoc-step');
+  steps.forEach(function(s){ s.classList.remove('active'); });
+  var target = document.getElementById('eoc-step-' + step);
+  if (target) target.classList.add('active');
+
+  // Update progress dots
+  var totalSteps = 5;
+  var progress = document.getElementById('eoc-progress');
+  var dotsHtml = '';
+  for (var i = 1; i <= totalSteps; i++) {
+    var cls = 'eoc-progress-dot';
+    if (i === step) cls += ' active';
+    else if (i < step) cls += ' done';
+    dotsHtml += '<div class="' + cls + '"></div>';
+  }
+  progress.innerHTML = dotsHtml;
+  // Hide progress on done screen
+  progress.style.display = (step === 'done') ? 'none' : 'flex';
+
+  // Scroll sheet to top
+  var sheet = document.querySelector('.eoc-sheet');
+  if (sheet) sheet.scrollTop = 0;
+
+  initIcons();
+}
+
+// Selection helpers
+function eocSelectArchive(el, choice) {
+  _eocArchiveChoice = choice;
+  document.querySelectorAll('#eoc-archive-options .eoc-option').forEach(function(o){ o.classList.remove('selected'); });
+  el.classList.add('selected');
+}
+
+function eocSelectFund(el, choice) {
+  _eocFundChoice = choice;
+  document.querySelectorAll('#eoc-fund-options .eoc-option').forEach(function(o){ o.classList.remove('selected'); });
+  el.classList.add('selected');
+}
+
+function eocSelectNotify(el, choice) {
+  _eocNotifyChoice = choice;
+  document.querySelectorAll('#eoc-notify-options .eoc-option').forEach(function(o){ o.classList.remove('selected'); });
+  el.classList.add('selected');
+}
+
+function eocSelectClosure(el, choice) {
+  _eocClosureChoice = choice;
+  document.querySelectorAll('#eoc-closure-options .eoc-option, #eoc-closure-keep-wrap .eoc-option').forEach(function(o){ o.classList.remove('selected'); });
+  el.classList.add('selected');
+}
+
+// ── ARCHIVE DOWNLOAD ──────────────────────────────────────────────────────
+function eocDownloadArchive() {
+  var btn = document.getElementById('eoc-download-btn');
+  btn.disabled = true;
+  btn.textContent = 'Preparing\u2026';
+
+  // Load person data for archive if not current
+  (async function() {
+    try {
+      if (_eocPersonId !== currentPersonId) {
+        await loadPersonData(_eocPersonId);
+      }
+      if (_eocArchiveChoice === 'pdf' || _eocArchiveChoice === 'both') {
+        eocGeneratePdf();
+      }
+      if (_eocArchiveChoice === 'json' || _eocArchiveChoice === 'both') {
+        eocGenerateJson();
+      }
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="download" style="width:15px;height:15px;display:inline-block;vertical-align:-2px;margin-right:4px;"></i> Download Archive';
+      initIcons();
+      showToast('Archive downloaded');
+      setTimeout(function() { eocGoTo(3); }, 800);
+    } catch(e) {
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="download" style="width:15px;height:15px;display:inline-block;vertical-align:-2px;margin-right:4px;"></i> Download Archive';
+      initIcons();
+      showToast('Error creating archive');
+    }
+  })();
+}
+
+function eocGeneratePdf() {
+  var person = currentPeople.find(function(p){ return p.id === _eocPersonId; });
+  var name = person ? person.name : _eocPersonName;
+  var doc = new jspdf.jsPDF();
+  var y = 30;
+
+  // Cover page
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(24);
+  doc.setTextColor(96, 143, 124);
+  doc.text('Care Archive', 105, y, { align: 'center' });
+  y += 14;
+  doc.setFontSize(18);
+  doc.setTextColor(44, 42, 38);
+  doc.text(name, 105, y, { align: 'center' });
+  y += 10;
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(11);
+  doc.setTextColor(107, 101, 96);
+
+  var dateRange = '';
+  if (liveEvents.length > 0) {
+    var sorted = liveEvents.slice().sort(function(a,b){ return new Date(a.event_date) - new Date(b.event_date); });
+    var first = new Date(sorted[0].event_date).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    var last = new Date(sorted[sorted.length - 1].event_date).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    dateRange = first + ' \u2013 ' + last;
+  } else {
+    dateRange = 'No events recorded';
+  }
+  doc.text(dateRange, 105, y, { align: 'center' });
+  y += 8;
+  if (currentUser && currentUser.email) {
+    doc.text('Caregiver: ' + currentUser.email, 105, y, { align: 'center' });
+    y += 8;
+  }
+  y += 10;
+  doc.setDrawColor(96, 143, 124);
+  doc.line(40, y, 170, y);
+  y += 20;
+
+  // Health Events Timeline
+  if (liveEvents.length > 0) {
+    var eventItems = liveEvents.map(function(ev) {
+      var date = new Date(ev.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      return { label: date, value: (ev.title || '') + (ev.notes ? ' \u2014 ' + ev.notes : '') };
+    });
+    y = pdfAddSection(doc, 'Health Events Timeline', y, eventItems);
+  }
+
+  // Medications
+  if (liveMeds.length > 0) {
+    var medItems = liveMeds.map(function(med) {
+      var status = med.active !== false ? 'Active' : 'Discontinued';
+      return { label: med.name, value: (med.dose || '') + (med.frequency ? ' \u2014 ' + med.frequency : '') + ' (' + status + ')' };
+    });
+    y = pdfAddSection(doc, 'Medications', y, medItems);
+  }
+
+  // Care Circle Members
+  if (liveCareCircle.length > 0) {
+    var circleItems = liveCareCircle.map(function(m) {
+      return { label: m.member_name || 'Member', value: (m.role || 'Member') + (m.email ? ' \u2014 ' + m.email : '') };
+    });
+    y = pdfAddSection(doc, 'Care Circle', y, circleItems);
+  }
+
+  // Closing note
+  if (y > 260) { doc.addPage(); y = 25; }
+  y += 10;
+  doc.setFont('Helvetica', 'italic');
+  doc.setFontSize(10);
+  doc.setTextColor(107, 101, 96);
+  var closingDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  doc.text('This archive was created with Wellet on ' + closingDate + '.', 105, y, { align: 'center' });
+
+  pdfAddFooter(doc);
+  doc.save(name.replace(/\s+/g, '_') + '_Care_Archive.pdf');
+}
+
+function eocGenerateJson() {
+  var person = currentPeople.find(function(p){ return p.id === _eocPersonId; });
+  var exportData = {
+    person: {
+      name: person ? person.name : _eocPersonName,
+      relationship: person ? person.relationship : null,
+      date_of_birth: person ? person.date_of_birth : null,
+      conditions: person ? person.conditions : null,
+      allergies: person ? person.allergies : null,
+      blood_type: person ? person.blood_type : null,
+      primary_doctor: person ? person.primary_doctor : null,
+      emergency_contact_name: person ? person.emergency_contact_name : null,
+      emergency_contact_phone: person ? person.emergency_contact_phone : null,
+      insurance_info: person ? person.insurance_info : null
+    },
+    health_events: liveEvents.map(function(ev) {
+      return {
+        event_type: ev.event_type,
+        event_date: ev.event_date,
+        title: ev.title,
+        value: ev.value,
+        unit: ev.unit,
+        notes: ev.notes,
+        source: ev.source
+      };
+    }),
+    medications: liveMeds.map(function(med) {
+      return {
+        name: med.name,
+        dose: med.dose,
+        frequency: med.frequency,
+        prescriber: med.prescriber,
+        start_date: med.start_date,
+        end_date: med.end_date,
+        active: med.active
+      };
+    }),
+    care_circle: liveCareCircle.map(function(m) {
+      return {
+        member_name: m.member_name,
+        email: m.email,
+        phone: m.phone,
+        role: m.role
+      };
+    }),
+    documents: liveDocs.map(function(d) {
+      return {
+        filename: d.filename,
+        doc_type: d.doc_type,
+        uploaded_at: d.uploaded_at,
+        notes: d.notes
+      };
+    }),
+    exported_at: new Date().toISOString(),
+    exported_by: currentUser ? currentUser.email : 'unknown'
+  };
+
+  var blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = (person ? person.name.replace(/\s+/g, '_') : 'person') + '_Wellet_Export.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ── COMMUNITY FUND ────────────────────────────────────────────────────────
+function eocSubmitFund() {
+  if (_eocFundChoice === 'donate') {
+    var message = document.getElementById('eoc-fund-message').value.trim();
+    if (!isDemoMode && _eocPersonId) {
+      (async function() {
+        try {
+          var session = await db.auth.getSession();
+          var userId = session.data.session.user.id;
+          var person = currentPeople.find(function(p){ return p.id === _eocPersonId; });
+          await db.from('community_fund_pool').insert({
+            donor_id: userId,
+            care_recipient_name: person ? person.name : _eocPersonName,
+            days_donated: 30,
+            donor_note: message || null,
+            is_anonymous: false
+          });
+          showToast('Thank you \u2014 your donation will help another caregiver');
+        } catch(e) {
+          showToast('Donation recorded \u2014 thank you');
+        }
+      })();
+    } else {
+      showToast('Thank you \u2014 your donation will help another caregiver');
+    }
+  } else if (_eocFundChoice === 'refund') {
+    showToast('We\u2019ll process your refund within 5\u20137 business days');
+  }
+  eocGoTo(4);
+}
+
+// ── CARE CIRCLE NOTIFICATION ─────────────────────────────────────────────
+function eocSubmitNotify() {
+  if (_eocNotifyChoice === 'send') {
+    var message = document.getElementById('eoc-notify-message').value.trim();
+    // Store the message as care_status_note
+    if (!isDemoMode && _eocPersonId && message) {
+      db.from('people').update({ care_status_note: message }).eq('id', _eocPersonId);
+    }
+    var count = liveCareCircle.length;
+    if (count > 0) {
+      showToast('Messages will be sent to ' + count + ' Care Circle member' + (count !== 1 ? 's' : ''));
+    } else {
+      showToast('No Care Circle members to notify');
+    }
+  }
+  eocGoTo(5);
+}
+
+// ── ACCOUNT CLOSURE ──────────────────────────────────────────────────────
+function eocSubmitClosure() {
+  var person = currentPeople.find(function(p){ return p.id === _eocPersonId; });
+  var name = person ? person.name.split(' ')[0] : _eocPersonName;
+  var doneBody = '';
+
+  if (_eocClosureChoice === 'archive') {
+    if (!isDemoMode && _eocPersonId) {
+      db.from('people').update({
+        care_status: 'archived',
+        care_status_changed_at: new Date().toISOString()
+      }).eq('id', _eocPersonId).then(function() {
+        var idx = currentPeople.findIndex(function(p){ return p.id === _eocPersonId; });
+        if (idx >= 0) {
+          currentPeople[idx].care_status = 'archived';
+          currentPeople[idx].care_status_changed_at = new Date().toISOString();
+        }
+        renderPersonSwitcher();
+        renderPeopleView();
+        renderAskView();
+        renderArchivedProfiles();
+      });
+    }
+    doneBody = escHtml(name) + '\u2019s care history has been archived. You did something extraordinary.';
+  } else if (_eocClosureChoice === 'delete') {
+    var deleteDate = new Date();
+    deleteDate.setDate(deleteDate.getDate() + 30);
+    var deleteDateStr = deleteDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    if (!isDemoMode && _eocPersonId) {
+      db.from('people').update({
+        care_status: 'closed',
+        care_status_changed_at: new Date().toISOString()
+      }).eq('id', _eocPersonId).then(function() {
+        var idx = currentPeople.findIndex(function(p){ return p.id === _eocPersonId; });
+        if (idx >= 0) {
+          currentPeople[idx].care_status = 'closed';
+          currentPeople[idx].care_status_changed_at = new Date().toISOString();
+        }
+        renderPersonSwitcher();
+        renderPeopleView();
+        renderAskView();
+      });
+    }
+    doneBody = escHtml(name) + '\u2019s profile will be permanently deleted on ' + escHtml(deleteDateStr) + '. Contact us if you change your mind.<br><br>You did something extraordinary.';
+  } else {
+    // keep-account
+    doneBody = 'Your Wellet account remains active. ' + escHtml(name) + '\u2019s care history has been preserved. You did something extraordinary.';
+  }
+
+  document.getElementById('eoc-done-body').innerHTML = doneBody;
+  eocGoTo('done');
+  document.getElementById('eoc-progress').style.display = 'none';
+}
+
+function eocFinish() {
+  closeEocFlow();
+  // Switch to another active person if available
+  var activePeople = currentPeople.filter(function(p){
+    return !p.care_status || p.care_status === 'active';
+  });
+  if (activePeople.length > 0 && activePeople[0].id !== currentPersonId) {
+    (async function() {
+      await loadPersonData(activePeople[0].id);
+      renderPersonSwitcher();
+      renderUpdateMe();
+      renderTimeline();
+      renderPeopleView();
+      renderAskView();
+    })();
+  }
+}
+
+// ── ARCHIVED PROFILES ────────────────────────────────────────────────────
+function renderArchivedProfiles() {
+  var section = document.getElementById('settings-archived-section');
+  var list = document.getElementById('settings-archived-list');
+  if (!section || !list) return;
+
+  var archived = currentPeople.filter(function(p){ return p.care_status === 'archived'; });
+  if (archived.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = 'block';
+  var html = '';
+  archived.forEach(function(p) {
+    var initials = p.avatar_initials || p.name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2);
+    var archivedDate = p.care_status_changed_at
+      ? new Date(p.care_status_changed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : '';
+    html += '<div class="eoc-archived-card">'
+      + '<div class="eoc-archived-avatar">' + escHtml(initials) + '</div>'
+      + '<div class="eoc-archived-info">'
+      + '<div class="eoc-archived-name">' + escHtml(p.name) + '</div>'
+      + '<div class="eoc-archived-meta">Archived' + (archivedDate ? ' ' + archivedDate : '') + '</div>'
+      + '</div>'
+      + '<button class="eoc-restore-btn" onclick="restoreArchivedPerson(\'' + p.id + '\')">Restore</button>'
+      + '</div>';
+  });
+  list.innerHTML = html;
+}
+
+async function restoreArchivedPerson(personId) {
+  if (!isDemoMode) {
+    await db.from('people').update({
+      care_status: 'active',
+      care_status_changed_at: new Date().toISOString()
+    }).eq('id', personId);
+  }
+  var idx = currentPeople.findIndex(function(p){ return p.id === personId; });
+  if (idx >= 0) {
+    currentPeople[idx].care_status = 'active';
+    currentPeople[idx].care_status_changed_at = new Date().toISOString();
+  }
+  renderArchivedProfiles();
+  renderPersonSwitcher();
+  renderPeopleView();
+  renderAskView();
+  showToast('Profile restored');
+}
+
+// ── PATCH: PEOPLE SELECTOR FILTERING ─────────────────────────────────────
+// Override renderPersonSwitcher to hide archived/closed people
+var _origRenderPersonSwitcher = renderPersonSwitcher;
+renderPersonSwitcher = function() {
+  var switcher = document.getElementById('header-person-switcher');
+  if (!switcher) return;
+  var html = '';
+  currentPeople.forEach(function(p) {
+    var status = p.care_status || 'active';
+    if (status === 'archived' || status === 'closed') return;
+    var active = p.id === currentPersonId ? ' active' : '';
+    var bereaved = status === 'bereaved' ? ' bereaved' : '';
+    html += '<button class="person-pill' + active + bereaved + '" onclick="switchToRealPerson(\'' + p.id + '\',this)">'
+      + '<span class="pip"></span>' + escHtml(p.name.split(' ')[0])
+      + (status === 'bereaved' ? '<i data-lucide="heart" class="eoc-heart" style="width:10px;height:10px;display:inline-block;margin-left:3px;opacity:0.5;"></i>' : '')
+      + '</button>';
+  });
+  switcher.innerHTML = html;
+  initIcons();
+};
+
+// Override renderAskView to hide archived/closed in ask person bar
+var _origRenderAskView = renderAskView;
+renderAskView = function() {
+  if (isDemoMode) return;
+  var personBar = document.querySelector('#view-ask .ask-person-bar');
+  if (!personBar || !currentPeople.length) return;
+
+  var pillsHtml = '';
+  currentPeople.forEach(function(p) {
+    var status = p.care_status || 'active';
+    if (status === 'archived' || status === 'closed') return;
+    var active = p.id === currentPersonId ? ' active' : '';
+    pillsHtml += '<button class="ask-person-pill' + active + '" onclick="selectAskRealPerson(this,\'' + p.id + '\')">'
+      + '<span style="width:6px;height:6px;border-radius:50%;background:currentColor;opacity:0.7;display:inline-block;"></span>'
+      + escHtml(p.name.split(' ')[0]) + '</button>';
+  });
+  personBar.innerHTML = pillsHtml;
+
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var firstName = person ? person.name.split(' ')[0] : 'your loved one';
+  var inputEl = document.getElementById('ask-input');
+  if (inputEl) inputEl.placeholder = 'Ask about ' + escHtml(firstName) + '\u2019s health\u2026';
+
+  var chatArea = document.getElementById('chat-area');
+  if (chatArea) {
+    var firstBubble = chatArea.querySelector('.chat-group.from-wellet .chat-bubble.wellet');
+    if (firstBubble && firstBubble.textContent.indexOf('Ask me anything about') !== -1) {
+      firstBubble.textContent = 'Ask me anything about ' + firstName + '\u2019s health. I\u2019ll answer from what\u2019s in ' + firstName + '\u2019s records.';
+    }
+  }
+
+  var chips = document.getElementById('suggestion-chips');
+  if (chips) {
+    chips.innerHTML =
+      '<button class="chip" onclick="askQuestion(this.textContent)">What medications is ' + escHtml(firstName) + ' taking?</button>'
+      + '<button class="chip" onclick="askQuestion(this.textContent)">Summarize recent health events</button>'
+      + '<button class="chip" onclick="askQuestion(this.textContent)">Are there any patterns to watch?</button>'
+      + '<button class="chip" onclick="askQuestion(this.textContent)">What should I ask the doctor next visit?</button>';
+    chips.style.display = 'flex';
+  }
+};
+
+// Override renderPeopleView to show bereaved status and hide closed
+var _origRenderPeopleView = renderPeopleView;
+renderPeopleView = function() {
+  var view = document.getElementById('view-people');
+  if (!view) return;
+
+  var html = '<div class="view-header"><div class="view-title">People</div>'
+    + '<div class="view-subtitle">The people in your care life</div></div>'
+    + '<div class="people-section">'
+    + '<div style="font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin:4px 2px 10px;">Who you are caring for</div>';
+
+  currentPeople.forEach(function(p) {
+    var status = p.care_status || 'active';
+    if (status === 'closed') return;
+    var initials = p.avatar_initials || p.name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2);
+    var statusClass = status === 'bereaved' ? 'bereaved' : (status === 'archived' ? 'bereaved' : 'stable');
+    var statusLabel = status === 'bereaved' ? '<i data-lucide="heart" style="width:13px;height:13px;"></i> In transition'
+      : status === 'archived' ? '<i data-lucide="archive" style="width:13px;height:13px;"></i> Archived'
+      : '<i data-lucide="check-circle" style="width:13px;height:13px;"></i> Active';
+
+    html += '<div class="person-card" id="pcard-' + p.id + '">'
+      + '<div class="person-card-top">'
+      + '<div class="person-card-avatar moss">' + escHtml(initials) + '</div>'
+      + '<div><div class="person-card-name">' + escHtml(p.name) + '</div>'
+      + '<div class="person-card-rel">' + escHtml(p.relationship || '') + '</div></div>'
+      + '<div class="person-card-status ' + statusClass + '">' + statusLabel + '</div>'
+      + '<button class="remove-btn" onclick="confirmRemovePerson(\'' + p.id + '\',\'' + p.name.replace(/'/g,"\\\\'") + '\')" title="Remove person">'
+      + '<i data-lucide="x" style="width:16px;height:16px;"></i></button>'
+      + '</div>'
+      + '<div class="person-card-action">'
+      + '<button class="card-action-btn" onclick="switchToRealPersonNav(\'' + p.id + '\')">' + t('tab.update') + '</button>'
+      + '<button class="card-action-btn" onclick="openAddEvent(\'' + p.id + '\')">Add event</button>'
+      + '<button class="card-action-btn" onclick="openProfileEdit(\'' + p.id + '\')"><i data-lucide="pencil" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:3px;"></i>Edit profile</button>'
+      + '</div></div>';
+  });
+
+  html += '<button class="add-person-btn" onclick="showOnboarding()">'
+    + '<i data-lucide="plus" style="width:16px;height:16px;"></i>'
+    + ' ' + t('people.addPerson') + '</button>';
+
+  // Care Circle section
+  html += '<div style="font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin:22px 2px 10px;">Care Circle</div>'
+    + '<button style="display:flex;align-items:center;gap:10px;width:100%;justify-content:flex-start;padding:14px;background:var(--cream);border:1px solid var(--line);border-radius:12px;font-size:14px;font-weight:500;color:var(--ink);cursor:pointer;" onclick="openCareCircle()">'
+    + '<i data-lucide="heart-handshake" style="width:18px;height:18px;color:var(--moss);flex-shrink:0;"></i>'
+    + '<div style="flex:1;text-align:left;">'
+    + '<div>Care Circle</div>'
+    + '<div style="font-size:12px;font-weight:400;color:var(--muted);margin-top:2px;">Family and friends you share updates with</div>'
+    + '</div>'
+    + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--muted);"></i>'
+    + '</button>';
+
+  html += '</div>';
+
+  view.innerHTML = html;
+  initIcons();
+};
+
+// Opens Settings and scrolls to Care Circle section
+function openCareCircle() {
+  openSettings();
+  setTimeout(function(){
+    var el = document.getElementById('care-circle-list');
+    if (el && el.scrollIntoView) {
+      el.scrollIntoView({behavior:'smooth', block:'start'});
+    }
+  }, 250);
+}
+
+// ── PATCH: openSettings to render archived profiles ──────────────────────
+var _origOpenSettings = openSettings;
+openSettings = function() {
+  _origOpenSettings();
+  renderArchivedProfiles();
+};
+
+// ── PATCH: sendAskMessage for bereavement detection ──────────────────────
+var _origSendAskMessage = sendAskMessage;
+sendAskMessage = function() {
+  var input = document.getElementById('ask-input');
+  var text = input.value.trim();
+  if (!text) return;
+
+  // Get person name
+  var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
+  var firstName = person ? person.name.split(' ')[0] : 'your loved one';
+
+  // Check bereavement detection (only for real mode with a person)
+  if (!isDemoMode && currentPersonId) {
+    var detection = detectBereavement(text);
+    if (detection === 'high') {
+      input.value = ''; input.style.height = 'auto';
+      addUserMessage(text);
+      document.getElementById('suggestion-chips').style.display = 'none';
+      _bereavementDetected[currentPersonId] = true;
+      var compassionateMsg = 'I hear you. ' + escHtml(firstName) + ' was so fortunate to have you in their corner. '
+        + 'There\u2019s no rush for anything right now \u2014 whenever you\u2019re ready, you can find options in '
+        + escHtml(firstName) + '\u2019s profile under Life Changes.';
+      addWelletMessage(compassionateMsg);
+      return;
+    }
+    if (detection === 'uncertain') {
+      input.value = ''; input.style.height = 'auto';
+      addUserMessage(text);
+      document.getElementById('suggestion-chips').style.display = 'none';
+      addWelletMessage('I want to make sure I understand \u2014 has something happened with ' + escHtml(firstName) + '?');
+      return;
+    }
+
+    // If bereaved, add gentle context
+    if (_bereavementDetected[currentPersonId]) {
+      // Let it go through but the edge function should handle gently
+      // (we don't modify the message, just let it flow)
+    }
+  }
+
+  // Call original
+  _origSendAskMessage();
+};
+
+function handleName(val) { /* legacy stub */ }
+
+// ── TERRA WEARABLE CONNECTION ────────────────────────────────────────────────
+
+var _terraPopup = null;
+var _terraPopupPoll = null;
+var _currentTerraConns = [];
+var _TERRA_LS_KEY = 'wellet_terra_auth_signal';
+var _TERRA_PENDING_KEY = 'wellet_terra_pending';
+
+// Mobile Safari and most mobile browsers block popups aggressively. Native
+// mobile OAuth (Plaid, Fitbit, etc.) uses a same-tab redirect instead. Detect
+// mobile so we can route around the popup path.
+function _isMobileDevice() {
+  try {
+    if (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) return true;
+    // Touch-first devices with narrow viewports (iPadOS reports as Mac in UA).
+    var touch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 1);
+    if (touch && window.innerWidth < 900) return true;
+  } catch(e) {}
+  return false;
+}
+
+// Handle successful Terra auth in the parent-window context.
+// Idempotent: safe to call multiple times with the same payload.
+var _terraHandledKey = null;
+function _onTerraAuthSuccessInParent(payload) {
+  if (!payload || !payload.person_id || !payload.terra_user_id) return;
+  var dedupeKey = payload.terra_user_id + ':' + (payload.provider || '');
+  if (_terraHandledKey === dedupeKey) return;
+  _terraHandledKey = dedupeKey;
+  console.log('[Terra] auth success in parent:', payload);
+  storeTerraConnection(payload.person_id, payload.terra_user_id, payload.provider).then(function() {
+    invalidateSignalsCache(payload.person_id);
+    showToast('Wearable connected successfully', 'success');
+    if (typeof renderSignalsView === 'function') { try { renderSignalsView(); } catch(e){} }
+    if (obChat && obChat.phase === 'connect') {
+      obOnDeviceConnected(payload.provider || 'your device');
+    }
+  });
+}
+
+function _onTerraAuthFailureInParent() {
+  showToast('Wearable connection was cancelled', 'error');
+  if (obChat && obChat.phase === 'connect') {
+    obTypeThen('No worries \u2014 we can try again later, or you can connect a different way.', obShowConnectChips, 700);
+  }
+}
+
+// Listen for Terra auth popup messages (primary channel)
+window.addEventListener('message', function(event) {
+  if (!event.data || !event.data.type) return;
+  if (event.data.type === 'terra_auth_success') {
+    _onTerraAuthSuccessInParent({
+      person_id: event.data.person_id,
+      terra_user_id: event.data.terra_user_id,
+      provider: event.data.provider
+    });
+  } else if (event.data.type === 'terra_auth_failure') {
+    _onTerraAuthFailureInParent();
+  }
+});
+
+// BroadcastChannel fallback (works when window.opener is null due to COOP)
+try {
+  var _terraBC = new BroadcastChannel('wellet_terra');
+  _terraBC.addEventListener('message', function(event) {
+    if (!event.data || !event.data.type) return;
+    if (event.data.type === 'terra_auth_success') {
+      _onTerraAuthSuccessInParent(event.data);
+    } else if (event.data.type === 'terra_auth_failure') {
+      _onTerraAuthFailureInParent();
+    }
+  });
+} catch(e) { /* BroadcastChannel unavailable */ }
+
+// localStorage fallback (works cross-tab even when BroadcastChannel isn't available)
+window.addEventListener('storage', function(event) {
+  if (event.key !== _TERRA_LS_KEY || !event.newValue) return;
+  try {
+    var payload = JSON.parse(event.newValue);
+    if (payload.type === 'terra_auth_success') {
+      _onTerraAuthSuccessInParent(payload);
+    } else if (payload.type === 'terra_auth_failure') {
+      _onTerraAuthFailureInParent();
+    }
+  } catch(e) {}
+});
+
+async function openTerraConnect() {
+  if (!currentPersonId) { showToast('Select a person first', 'error'); return; }
+
+  try {
+    var sessionRes = await db.auth.getSession();
+    var session = sessionRes.data.session;
+    if (!session) { showToast('Please sign in first', 'error'); return; }
+    var token = session.access_token;
+
+    // Reset the dedupe key so a new connect attempt can be captured
+    _terraHandledKey = null;
+
+    showToast('Starting wearable connection\u2026');
+    var res = await fetch(SUPABASE_URL + '/functions/v1/terra-auth', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ action: 'generate', person_id: currentPersonId })
+    });
+
+    if (!res.ok) {
+      var errBody = await res.json().catch(function() { return {}; });
+      console.error('[Terra] generate failed:', res.status, errBody);
+      showToast(errBody.error || 'Failed to start wearable connection (' + res.status + ')', 'error');
+      return;
+    }
+
+    var data = await res.json();
+    console.log('[Terra] generate response:', data);
+    if (data.widget_url) {
+      // Mobile: skip the popup entirely (blocked on Safari/most mobile browsers).
+      // Stash the pending context and do a same-tab redirect; handleTerraCallback
+      // will restore the view when Terra sends us back.
+      if (_isMobileDevice()) {
+        try {
+          sessionStorage.setItem(_TERRA_PENDING_KEY, JSON.stringify({
+            person_id: currentPersonId,
+            view: _currentNavView || 'signals',
+            ts: Date.now()
+          }));
+        } catch(e) { console.warn('[Terra] sessionStorage write failed:', e); }
+        showToast('Opening wearable connection\u2026', 'info');
+        // Brief delay so the toast is visible before navigation.
+        setTimeout(function() { window.location.href = data.widget_url; }, 250);
+        return;
+      }
+
+      _terraPopup = window.open(data.widget_url, 'terra_connect', 'width=500,height=700,scrollbars=yes');
+      if (!_terraPopup || _terraPopup.closed) {
+        showToast('Popup blocked \u2014 please allow popups for mywellet.com', 'error');
+        return;
+      }
+      showToast('Complete the connection in the popup window', 'info');
+
+      // Watch for popup close \u2014 if user completes but postMessage gets blocked by
+      // COOP, we'll still refresh connections after close as a backstop.
+      if (_terraPopupPoll) clearInterval(_terraPopupPoll);
+      _terraPopupPoll = setInterval(function() {
+        if (!_terraPopup || _terraPopup.closed) {
+          clearInterval(_terraPopupPoll);
+          _terraPopupPoll = null;
+          _terraPopup = null;
+          // Give the popup a moment to finish any storage writes, then re-check
+          setTimeout(function() {
+            invalidateSignalsCache(currentPersonId);
+            if (typeof renderSignalsView === 'function') { try { renderSignalsView(); } catch(e){} }
+          }, 800);
+        }
+      }, 500);
+    } else {
+      showToast('No widget URL returned \u2014 check Terra config', 'error');
+    }
+  } catch (e) {
+    console.error('[Terra] connect error:', e);
+    showToast('Failed to connect wearable: ' + (e.message || ''), 'error');
+  }
+}
+
+function showSensorSetup() {
+  showToast('Home sensors are coming soon \u2014 we\u2019ll notify you when ready.');
+}
+
+function showAppleHealthConnect() {
+  if (!currentPersonId) { showToast('Select a person first', 'error'); return; }
+  showToast('Apple Health sync requires the Wellet iOS app \u2014 coming soon.');
+}
+
+function handleTerraCallback() {
+  var params = new URLSearchParams(window.location.search);
+  var terraAuth = params.get('terra_auth');
+  if (!terraAuth) return;
+
+  console.log('[Terra] handleTerraCallback fired:', terraAuth, 'search:', window.location.search);
+
+  // A popup may have its opener stripped by COOP \u2014 detect via window.name too.
+  var looksLikePopup = (window.name === 'terra_connect') ||
+                       (window.opener && window.opener !== window);
+
+  var terraUserId = params.get('user_id');
+  var referenceId = params.get('reference_id');
+  var provider = params.get('resource') || 'unknown';
+  var personId = null;
+  if (referenceId) {
+    var parts = referenceId.split(':');
+    personId = parts.length > 1 ? parts[1] : null;
+  }
+
+  // Clean URL early so a reload doesn't re-trigger.
+  try {
+    var clean = window.location.pathname;
+    window.history.replaceState({}, '', clean);
+  } catch(e) {}
+
+  var payload;
+  if (terraAuth === 'success') {
+    payload = {
+      type: 'terra_auth_success',
+      terra_user_id: terraUserId,
+      person_id: personId,
+      provider: provider,
+      ts: Date.now()
+    };
+  } else {
+    payload = { type: 'terra_auth_failure', ts: Date.now() };
+  }
+
+  // 1) postMessage to opener (primary path when COOP allows it)
+  if (looksLikePopup) {
+    try { if (window.opener) window.opener.postMessage(payload, '*'); } catch(e) { console.warn('[Terra] postMessage failed:', e); }
+    // 2) BroadcastChannel (works across same-origin windows regardless of opener)
+    try { var bc = new BroadcastChannel('wellet_terra'); bc.postMessage(payload); bc.close(); } catch(e) {}
+    // 3) localStorage signal (fires a 'storage' event in the parent tab)
+    try { localStorage.setItem('wellet_terra_auth_signal', JSON.stringify(payload)); } catch(e) {}
+    // 4) Direct write from popup: same origin, same Supabase session in localStorage.
+    //    Best-effort store so that even if ALL messaging fails, the connection lands.
+    if (payload.type === 'terra_auth_success' && personId && terraUserId) {
+      try {
+        storeTerraConnection(personId, terraUserId, provider).catch(function(e){
+          console.warn('[Terra] popup-side store failed:', e);
+        });
+      } catch(e) { console.warn('[Terra] popup-side store threw:', e); }
+    }
+    // Give the browser a beat to flush postMessage/storage before closing.
+    setTimeout(function() { try { window.close(); } catch(e) {} }, 400);
+    return;
+  }
+
+  // Not a popup \u2014 this window IS the parent (Terra redirected the top-level
+  // tab, which is how mobile connect returns). Restore any stashed pending
+  // context so person_id is present even if referenceId was malformed.
+  var pending = null;
+  try {
+    var raw = sessionStorage.getItem(_TERRA_PENDING_KEY);
+    if (raw) { pending = JSON.parse(raw); sessionStorage.removeItem(_TERRA_PENDING_KEY); }
+  } catch(e) {}
+
+  if (payload.type === 'terra_auth_success') {
+    // Prefer the URL-derived person_id; fall back to the stashed value.
+    if (!payload.person_id && pending && pending.person_id) {
+      payload.person_id = pending.person_id;
+    }
+    _onTerraAuthSuccessInParent(payload);
+  } else {
+    _onTerraAuthFailureInParent();
+  }
+
+  // Mobile came back via top-level redirect \u2014 send the user back to the
+  // CareSignals view they were on when they started the connect flow.
+  if (pending && pending.view) {
+    try { switchNavTo(pending.view); } catch(e) { console.warn('[Terra] restore view failed:', e); }
+  }
+}
+
+async function storeTerraConnection(personId, terraUserId, provider) {
+  var session = (await db.auth.getSession()).data.session;
+  if (!session) return;
+
+  try {
+    await fetch(SUPABASE_URL + '/functions/v1/terra-auth', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({
+        action: 'store',
+        person_id: personId,
+        terra_user_id: terraUserId,
+        provider: provider
+      })
+    });
+  } catch (e) {
+    console.error('Store Terra connection error:', e);
+  }
+}
+
+async function loadTerraConnections(personId) {
+  var session = (await db.auth.getSession()).data.session;
+  if (!session) return [];
+
+  try {
+    var res = await fetch(SUPABASE_URL + '/functions/v1/terra-auth', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ action: 'list', person_id: personId })
+    });
+
+    if (res.ok) {
+      var data = await res.json();
+      return data.connections || [];
+    }
+  } catch (e) {
+    console.error('Load Terra connections error:', e);
+  }
+  return [];
+}
+
+async function disconnectTerra(connectionId) {
+  var session = (await db.auth.getSession()).data.session;
+  if (!session) return;
+
+  try {
+    await fetch(SUPABASE_URL + '/functions/v1/terra-auth', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ action: 'disconnect', connection_id: connectionId })
+    });
+    showToast('Wearable disconnected', 'info');
+    invalidateSignalsCache(currentPersonId);
+    renderRecordsView();
+    var sigEl = document.getElementById('view-signals');
+    if (sigEl && sigEl.offsetParent !== null) { renderSignalsView(); }
+  } catch (e) {
+    console.error('Disconnect Terra error:', e);
+  }
+}
+
+// ── SHARE HISTORY ────────────────────────────────────────────────────────────
+async function openShareHistory() {
+  var listEl = document.getElementById('share-history-list');
+  listEl.innerHTML = '<div style="text-align:center;padding:24px 0;"><i data-lucide="loader" style="width:16px;height:16px;animation:spin 1.2s linear infinite;color:var(--moss);"></i></div>';
+  openSheetAccessible('share-history-overlay');
+  initIcons();
+
+  if (isDemoMode) {
+    var now = new Date();
+    var demoShares = [
+      { token: 'demo1', person_name: 'John Bell', created_at: new Date(now - 2 * 86400000).toISOString(), expires_at: new Date(now + 5 * 86400000).toISOString() },
+      { token: 'demo2', person_name: 'John Bell', created_at: new Date(now - 10 * 86400000).toISOString(), expires_at: new Date(now - 3 * 86400000).toISOString() }
+    ];
+    renderShareHistory(demoShares);
+    return;
+  }
+
+  try {
+    var { data, error } = await db.from('shares')
+      .select('id, token, person_name, created_at, expires_at')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (error) throw error;
+    renderShareHistory(data || []);
+  } catch (err) {
+    console.error('Share history error:', err);
+    listEl.innerHTML = '<div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:13px;">Could not load share history.</div>';
+  }
+}
+
+function renderShareHistory(shares) {
+  var listEl = document.getElementById('share-history-list');
+  if (!shares || shares.length === 0) {
+    listEl.innerHTML = '<div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:13px;font-style:italic;">No shares yet. Share a health update to see it here.</div>';
+    return;
+  }
+
+  var now = new Date();
+  var html = '';
+  shares.forEach(function(s) {
+    var created = new Date(s.created_at);
+    var expires = new Date(s.expires_at);
+    var isExpired = expires < now;
+    var dateStr = created.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    var shareUrl = window.location.origin + window.location.pathname.replace('index.html', '') + 'share.html?token=' + s.token;
+
+    html += '<div style="border-bottom:1px solid var(--border-light);padding:14px 0;" id="share-row-' + escHtml(s.id || s.token) + '">'
+      + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-size:14px;font-weight:500;color:var(--text-primary);margin-bottom:2px;">' + escHtml(s.person_name) + '</div>'
+      + '<div style="font-size:12px;color:var(--text-muted);">Shared ' + dateStr + '</div>'
+      + '</div>'
+      + '<div style="display:flex;align-items:center;gap:8px;">'
+      + (isExpired
+        ? '<span style="font-size:11px;color:var(--text-muted);background:var(--bg-secondary);padding:2px 8px;border-radius:10px;">Expired</span>'
+        : '<span style="font-size:11px;color:var(--moss);background:var(--mint);padding:2px 8px;border-radius:10px;display:inline-flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;background:var(--moss);border-radius:50%;display:inline-block;"></span> Active</span>')
+      + '</div>'
+      + '</div>'
+      + '<div style="display:flex;gap:8px;margin-top:8px;">'
+      + (isExpired ? '' : '<button onclick="copyHistoryLink(\'' + escHtml(shareUrl) + '\')" style="font-size:12px;color:var(--moss);background:var(--mint);border:none;border-radius:6px;padding:5px 10px;cursor:pointer;font-family:\'DM Sans\',sans-serif;font-weight:500;">Copy link</button>')
+      + (isExpired ? '' : '<button onclick="revokeShare(\'' + escHtml(s.id || s.token) + '\',\'' + escHtml(s.token) + '\')" style="font-size:12px;color:var(--red);background:#FEF0EE;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;font-family:\'DM Sans\',sans-serif;font-weight:500;">Revoke</button>')
+      + '</div>'
+      + '</div>';
+  });
+  listEl.innerHTML = html;
+}
+
+function copyHistoryLink(url) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(function() {
+      showToast('Link copied to clipboard');
+    });
+  }
+}
+
+async function revokeShare(id, token) {
+  if (isDemoMode) {
+    var row = document.getElementById('share-row-' + id);
+    if (row) row.style.opacity = '0.4';
+    showToast('Share link revoked');
+    return;
+  }
+
+  try {
+    var { error } = await db.from('shares').delete().eq('token', token);
+    if (error) throw error;
+    var row = document.getElementById('share-row-' + id);
+    if (row) row.style.opacity = '0.4';
+    showToast('Share link revoked');
+    // Reload after brief delay
+    setTimeout(function() { openShareHistory(); }, 800);
+  } catch (err) {
+    console.error('Revoke error:', err);
+    showToast('Could not revoke share');
+  }
+}
+
+// ── FULL DATA EXPORT ─────────────────────────────────────────────────────────
+async function exportAllData(format) {
+  showToast('Preparing export\u2026');
+
+  try {
+    var people = [];
+    var healthEvents = [];
+    var medications = [];
+    var careCircle = [];
+    var documents = [];
+    var shares = [];
+
+    if (isDemoMode) {
+      people = [{ name: 'John Bell', relationship: 'Father', conditions: 'CML, Hypertension' }];
+      healthEvents = liveEvents.length > 0 ? liveEvents : [{ title: 'Demo event', event_type: 'note', event_date: new Date().toISOString() }];
+      medications = liveMeds.length > 0 ? liveMeds : [{ name: 'Lisinopril', dose: '20mg', frequency: 'daily', active: true }];
+      careCircle = liveCareCircle;
+      documents = liveDocs;
+    } else {
+      // Fetch all data from Supabase
+      var pRes = await db.from('people').select('*').eq('user_id', currentUser.id);
+      people = (pRes.data || []).map(function(p) {
+        return {
+          name: p.name,
+          relationship: p.relationship,
+          date_of_birth: p.date_of_birth,
+          conditions: p.conditions,
+          allergies: p.allergies,
+          blood_type: p.blood_type,
+          primary_doctor: p.primary_doctor,
+          emergency_contact_name: p.emergency_contact_name,
+          emergency_contact_phone: p.emergency_contact_phone,
+          insurance_info: p.insurance_info
+        };
+      });
+
+      var personIds = (pRes.data || []).map(function(p) { return p.id; });
+
+      if (personIds.length > 0) {
+        var evRes = await db.from('health_events').select('event_type, event_date, title, value, unit, notes, source').in('person_id', personIds);
+        healthEvents = evRes.data || [];
+
+        var medRes = await db.from('medications').select('name, dose, frequency, prescriber, start_date, end_date, active').in('person_id', personIds);
+        medications = medRes.data || [];
+
+        var ccRes = await db.from('care_circle_members').select('member_name, email, phone, role').in('person_id', personIds);
+        careCircle = ccRes.data || [];
+
+        var docRes = await db.from('documents').select('filename, doc_type, uploaded_at, extraction_status, notes').in('person_id', personIds);
+        documents = docRes.data || [];
+
+        var shRes = await db.from('shares').select('token, person_name, created_at, expires_at').eq('user_id', currentUser.id);
+        shares = shRes.data || [];
+      }
+    }
+
+    var exportData = {
+      exported_at: new Date().toISOString(),
+      account_email: currentUser ? currentUser.email : 'demo@example.com',
+      people: people,
+      health_events: healthEvents,
+      medications: medications,
+      care_circle: careCircle,
+      documents: documents,
+      shares: shares
+    };
+
+    var dateStr = new Date().toISOString().slice(0, 10);
+
+    if (format === 'csv') {
+      exportDataAsCsv(exportData, dateStr);
+    } else {
+      exportDataAsJson(exportData, dateStr);
+    }
+  } catch (err) {
+    console.error('Export error:', err);
+    showToast('Export failed. Please try again.');
+  }
+}
+
+function exportDataAsJson(data, dateStr) {
+  var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'wellet-data-export-' + dateStr + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('JSON export downloaded');
+}
+
+function exportDataAsCsv(data, dateStr) {
+  var zip = new JSZip();
+
+  // Helper: array of objects to CSV string
+  function toCsv(arr) {
+    if (!arr || arr.length === 0) return '';
+    var keys = Object.keys(arr[0]);
+    var header = keys.map(function(k) { return '"' + String(k).replace(/"/g, '""') + '"'; }).join(',');
+    var rows = arr.map(function(row) {
+      return keys.map(function(k) {
+        var val = row[k];
+        if (val === null || val === undefined) return '';
+        if (typeof val === 'object') val = JSON.stringify(val);
+        return '"' + String(val).replace(/"/g, '""') + '"';
+      }).join(',');
+    });
+    return header + '\n' + rows.join('\n');
+  }
+
+  if (data.people && data.people.length > 0) zip.file('people.csv', toCsv(data.people));
+  if (data.health_events && data.health_events.length > 0) zip.file('health_events.csv', toCsv(data.health_events));
+  if (data.medications && data.medications.length > 0) zip.file('medications.csv', toCsv(data.medications));
+  if (data.care_circle && data.care_circle.length > 0) zip.file('care_circle.csv', toCsv(data.care_circle));
+  if (data.documents && data.documents.length > 0) zip.file('documents.csv', toCsv(data.documents));
+  if (data.shares && data.shares.length > 0) zip.file('shares.csv', toCsv(data.shares));
+
+  // Also include JSON for completeness
+  zip.file('export-metadata.json', JSON.stringify({ exported_at: data.exported_at, account_email: data.account_email }, null, 2));
+
+  zip.generateAsync({ type: 'blob' }).then(function(blob) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'wellet-data-export-' + dateStr + '.zip';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('CSV export downloaded');
+  });
+}
+
+
+// ── TERRA DATA LOADER ───────────────────────────────────────────────────────
+async function loadTerraData(personId) {
+  var session = (await db.auth.getSession()).data.session;
+  if (!session) return null;
+
+  var today = new Date();
+  var weekAgo = new Date(today);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  var weekAgoStr = weekAgo.toISOString();
+
+  var vitalsRes = await db.from('vitals')
+    .select('*')
+    .eq('person_id', personId)
+    .eq('source', 'terra')
+    .gte('effective_date', weekAgoStr)
+    .order('effective_date', { ascending: false });
+
+  var eventsRes = await db.from('health_events')
+    .select('*')
+    .eq('person_id', personId)
+    .eq('source', 'terra')
+    .gte('event_date', weekAgoStr)
+    .order('event_date', { ascending: false });
+
+  var vitals = vitalsRes.data || [];
+  var events = eventsRes.data || [];
+  return { vitals: vitals, events: events };
+}
+
+// ── BUILD REAL SIGNALS DATA ───────────────────────────────────────────────────
+function buildRealSignalsData(vitals, events, connections) {
+  // Helpers to extract numbers from event notes
+  function parseEventNum(note, prefix) {
+    if (!note) return null;
+    var lower = note.toLowerCase();
+    var idx = lower.indexOf(prefix.toLowerCase());
+    if (idx === -1) return null;
+    var sub = note.slice(idx + prefix.length);
+    var m = sub.match(/([\d.]+)/);
+    return m ? parseFloat(m[1]) : null;
+  }
+
+  // Device name from first connection
+  var deviceName = 'Wearable';
+  if (connections && connections.length > 0) {
+    var p = connections[0].provider || '';
+    deviceName = p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
+  }
+
+  // Last sync time
+  var lastSync = '';
+  if (connections && connections.length > 0 && connections[0].last_data_at) {
+    var syncMs = Date.now() - new Date(connections[0].last_data_at).getTime();
+    var syncMin = Math.floor(syncMs / 60000);
+    if (syncMin < 60) lastSync = syncMin + ' min ago';
+    else if (syncMin < 1440) lastSync = Math.floor(syncMin / 60) + 'h ago';
+    else lastSync = Math.floor(syncMin / 1440) + 'd ago';
+  }
+
+  // Heart rate vitals (loinc 8867-4)
+  var hrVitals = vitals.filter(function(v) { return v.loinc_code === '8867-4' || v.name === 'Heart Rate'; });
+  var restingVitals = vitals.filter(function(v) { return v.loinc_code === '40443-4' || v.name === 'Resting Heart Rate'; });
+  var hrvVitals = vitals.filter(function(v) { return v.name && v.name.toLowerCase().indexOf('hrv') !== -1; });
+  var spo2Vitals = vitals.filter(function(v) { return v.name && v.name.toLowerCase().indexOf('spo2') !== -1 || v.name === 'SpO2'; });
+
+  var currentHR = hrVitals.length > 0 ? Math.round(parseFloat(hrVitals[0].value)) : null;
+  var hrTrend = hrVitals.slice(0, 12).map(function(v) { return Math.round(parseFloat(v.value) || 0); }).reverse();
+  if (hrTrend.length < 2) hrTrend = null;
+
+  var hrMin = null, hrMax = null;
+  if (hrVitals.length > 0) {
+    var hrValues = hrVitals.map(function(v) { return parseFloat(v.value); });
+    hrMin = Math.round(Math.min.apply(null, hrValues));
+    hrMax = Math.round(Math.max.apply(null, hrValues));
+  }
+
+  var restingHR = restingVitals.length > 0 ? Math.round(parseFloat(restingVitals[0].value)) : null;
+  var hrv = hrvVitals.length > 0 ? Math.round(parseFloat(hrvVitals[0].value)) : null;
+  var spo2 = spo2Vitals.length > 0 ? Math.round(parseFloat(spo2Vitals[0].value)) : null;
+  var spo2Min = null, spo2Max = null;
+  if (spo2Vitals.length > 0) {
+    var spo2Values = spo2Vitals.map(function(v) { return parseFloat(v.value); });
+    spo2Min = Math.round(Math.min.apply(null, spo2Values));
+    spo2Max = Math.round(Math.max.apply(null, spo2Values));
+  }
+
+  // Today's activity events
+  var todayStr = new Date().toISOString().slice(0, 10);
+  var todayEvents = events.filter(function(ev) {
+    return ev.event_date && ev.event_date.slice(0, 10) === todayStr;
+  });
+  var activityEvents = todayEvents.filter(function(ev) { return ev.event_type === 'activity'; });
+
+  var steps = null, distance = null, calories = null;
+  for (var ai = 0; ai < activityEvents.length; ai++) {
+    var note = activityEvents[ai].notes || activityEvents[ai].description || '';
+    var s = parseEventNum(note, 'Steps:');
+    if (s !== null) steps = Math.round(s);
+    var d = parseEventNum(note, 'Distance:');
+    if (d !== null) distance = d;
+    var c = parseEventNum(note, 'Active Calories:');
+    if (c !== null) calories = Math.round(c);
+  }
+
+  // Sleep — most recent sleep event
+  var sleepEvents = events.filter(function(ev) { return ev.event_type === 'sleep'; });
+  var sleepObj = null;
+  if (sleepEvents.length > 0) {
+    var totalMins = null, deepMins = 0, coreMins = 0, remMins = 0, awakeMins = 0;
+    var bedTime = '', wakeTime = '';
+    for (var si2 = 0; si2 < sleepEvents.length; si2++) {
+      var sev = sleepEvents[si2];
+      var snote = sev.notes || sev.description || '';
+      // Total sleep: "Sleep (7h 12m)"
+      var totMatch = snote.match(/Sleep\s*\((\d+)h\s*(\d+)m\)/i);
+      if (totMatch) { totalMins = parseInt(totMatch[1], 10) * 60 + parseInt(totMatch[2], 10); }
+      var totMatchH = snote.match(/Sleep\s*\((\d+)h\)/i);
+      if (!totMatch && totMatchH) { totalMins = parseInt(totMatchH[1], 10) * 60; }
+      // Deep
+      var deepMatch = snote.match(/Deep[\s\w]*:\s*(\d+)h?\s*(\d+)?m?/i);
+      if (deepMatch) { deepMins = parseInt(deepMatch[1], 10) * (deepMatch[0].indexOf('h') !== -1 ? 60 : 1) + (parseInt(deepMatch[2], 10) || 0); }
+      // REM
+      var remMatch = snote.match(/REM[\s\w]*:\s*(\d+)h?\s*(\d+)?m?/i);
+      if (remMatch) { remMins = parseInt(remMatch[1], 10) * (remMatch[0].indexOf('h') !== -1 ? 60 : 1) + (parseInt(remMatch[2], 10) || 0); }
+      // Awake
+      var awakeMatch = snote.match(/Awake[\s\w]*:\s*(\d+)h?\s*(\d+)?m?/i);
+      if (awakeMatch) { awakeMins = parseInt(awakeMatch[1], 10) * (awakeMatch[0].indexOf('h') !== -1 ? 60 : 1) + (parseInt(awakeMatch[2], 10) || 0); }
+      // Bed/wake times from event timestamps
+      if (!bedTime && sev.event_date) {
+        var evD = new Date(sev.event_date);
+        var endD = sev.end_date ? new Date(sev.end_date) : null;
+        if (!isNaN(evD.getTime())) {
+          var bh = evD.getHours(), bm = evD.getMinutes();
+          var bampm = bh >= 12 ? 'PM' : 'AM';
+          var bh12 = bh % 12 || 12;
+          bedTime = bh12 + ':' + (bm < 10 ? '0' : '') + bm + ' ' + bampm;
+        }
+        if (endD && !isNaN(endD.getTime())) {
+          var wh = endD.getHours(), wm = endD.getMinutes();
+          var wampm = wh >= 12 ? 'PM' : 'AM';
+          var wh12 = wh % 12 || 12;
+          wakeTime = wh12 + ':' + (wm < 10 ? '0' : '') + wm + ' ' + wampm;
+        }
+      }
+    }
+    if (totalMins !== null) {
+      coreMins = Math.max(0, totalMins - deepMins - remMins - awakeMins);
+      sleepObj = {
+        total: totalMins,
+        deep: deepMins,
+        core: coreMins,
+        rem: remMins,
+        awake: awakeMins,
+        bedTime: bedTime || '',
+        wakeTime: wakeTime || ''
+      };
+    }
+  }
+
+  return {
+    device: deviceName,
+    personName: getPersonFirstName(),
+    lastSync: lastSync,
+    heartRate: currentHR !== null ? {
+      current: currentHR,
+      min: hrMin || currentHR,
+      max: hrMax || currentHR,
+      resting: restingHR || currentHR,
+      trend: hrTrend || [currentHR]
+    } : null,
+    steps: steps !== null ? { today: steps, goal: 6000 } : null,
+    sleep: sleepObj,
+    spo2: spo2 !== null ? { current: spo2, min: spo2Min || spo2, max: spo2Max || spo2 } : null,
+    hrv: hrv !== null ? { current: hrv, unit: 'ms' } : null,
+    distance: distance,
+    calories: calories
+  };
+}
+
+// ── RENDER SIGNALS VIEW ──────────────────────────────────────────────────────
+
+
+// ── CARE CIRCLE SHARING ────────────────────────────────────────────────────────
+var _shareRegistry = {};
+var _shareRegistryCounter = 0;
+var _shareCurrentKey = null;
+
+function registerShareItem(item) {
+  var key = 'share_' + (++_shareRegistryCounter);
+  _shareRegistry[key] = item;
+  return key;
+}
+
+function labelForItemKind(item) {
+  if (!item) return 'Item';
+  var k = (item.subKind || item.kind || '').toString().toLowerCase();
+  if (k === 'lab' || k === 'lab_result') return 'Lab result';
+  if (k === 'appointment' || k === 'visit' || k === 'encounter') return 'Visit';
+  if (k === 'medication' || k === 'med') return 'Medication';
+  if (k === 'condition' || k === 'diagnosis') return 'Condition';
+  if (k === 'allergy') return 'Allergy';
+  if (k === 'document' || k === 'doc') return 'Document';
+  if (k === 'note') return 'Note';
+  if (k === 'pattern' || k === 'alert') return 'Pattern';
+  return 'Update';
+}
+
+function formatShareDate(d) {
+  if (!d) return '';
+  try {
+    var dt = new Date(d);
+    if (isNaN(dt.getTime())) return String(d);
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch(e) { return String(d); }
+}
+
+async function fetchCareCircleMembers(personId) {
+  // Returns array of { id, member_name, email, user_id, invite_status }
+  if (!db || !personId) return [];
+  try {
+    var res = await db.from('care_circle_members').select('*').eq('person_id', personId);
+    return (res && res.data) || [];
+  } catch(e) { console.error('fetchCareCircleMembers', e); return []; }
+}
+
+async function openShareSheet(shareKey) {
+  var item = _shareRegistry[shareKey];
+  if (!item) { showToast && showToast('Could not load this item'); return; }
+  _shareCurrentKey = shareKey;
+  var overlay = document.getElementById('share-overlay');
+  var body = document.getElementById('share-sheet-body');
+
+  // Demo mode: show a friendly placeholder
+  if (isDemoMode) {
+    body.innerHTML = '<div class="share-item-preview">'
+      + '<div class="sip-kind">' + escHtml(labelForItemKind(item)) + '</div>'
+      + '<div class="sip-title">' + escHtml(item.title || '') + '</div>'
+      + (item.date ? '<div class="sip-meta">' + escHtml(formatShareDate(item.date)) + '</div>' : '')
+      + '</div>'
+      + '<div class="share-empty-circle">In the real app, this is where you pick which Care Circle members to share with and add a short note. They\u2019ll see it in their Shared with you inbox.</div>'
+      + '<button class="share-send-btn" onclick="closeShareSheet()">Got it</button>';
+    overlay.classList.add('show');
+    history.pushState({ type: 'sheet', id: 'share-overlay' }, '');
+    initIcons();
+    return;
+  }
+
+  body.innerHTML = '<div class="search-loading">Loading\u2026</div>';
+  overlay.classList.add('show');
+  history.pushState({ type: 'sheet', id: 'share-overlay' }, '');
+
+  var members = await fetchCareCircleMembers(currentPersonId);
+  // Only accepted members with a linked user_id can receive in-app shares
+  var eligible = members.filter(function(m) { return m.invite_status === 'accepted' && m.user_id; });
+  var pending = members.filter(function(m) { return m.invite_status !== 'accepted' || !m.user_id; });
+
+  var preview = '<div class="share-item-preview">'
+    + '<div class="sip-kind">' + escHtml(labelForItemKind(item)) + '</div>'
+    + '<div class="sip-title">' + escHtml(item.title || '') + '</div>'
+    + (item.date ? '<div class="sip-meta">' + escHtml(formatShareDate(item.date)) + (item.notes ? ' \u00B7 ' + escHtml(item.notes.substring(0,80)) : '') + '</div>' : '')
+    + '</div>';
+
+  var membersHtml = '';
+  if (eligible.length === 0 && pending.length === 0) {
+    membersHtml = '<div class="share-empty-circle">You haven\u2019t added anyone to your Care Circle yet. Invite a family member from Settings \u2192 Care Circle so you can share updates with them.</div>';
+  } else {
+    membersHtml = '<div class="share-members"><div class="share-member-label">Share with</div>';
+    eligible.forEach(function(m) {
+      membersHtml += '<label class="share-member-row">'
+        + '<input type="checkbox" class="share-member-cb" data-user-id="' + escHtml(m.user_id) + '" checked />'
+        + '<div style="flex:1;"><div class="share-member-name">' + escHtml(m.member_name) + '</div>'
+        + (m.email ? '<div class="share-member-email">' + escHtml(m.email) + '</div>' : '') + '</div>'
+        + '</label>';
+    });
+    pending.forEach(function(m) {
+      membersHtml += '<label class="share-member-row disabled" title="They need to accept the invite before you can share in-app">'
+        + '<input type="checkbox" disabled />'
+        + '<div style="flex:1;"><div class="share-member-name">' + escHtml(m.member_name) + '</div>'
+        + (m.email ? '<div class="share-member-email">' + escHtml(m.email) + '</div>' : '') + '</div>'
+        + '<div class="share-member-status">Invite pending</div>'
+        + '</label>';
+    });
+    membersHtml += '</div>';
+  }
+
+  var noteHtml = '<textarea class="share-note-field" id="share-note-input" placeholder="Add a short note (optional) \u2014 e.g. &ldquo;Mom\u2019s A1C came down, wanted you to see.&rdquo;" maxlength="400"></textarea>';
+
+  var btnHtml = '<button class="share-send-btn" id="share-send-btn" onclick="sendShareNow()"' + (eligible.length === 0 ? ' disabled' : '') + '>'
+    + 'Send' + (eligible.length > 0 ? ' to ' + eligible.length + ' ' + (eligible.length === 1 ? 'person' : 'people') : '')
+    + '</button>';
+
+  body.innerHTML = preview + membersHtml + noteHtml + btnHtml;
+  initIcons();
+}
+
+function closeShareSheet() {
+  var overlay = document.getElementById('share-overlay');
+  overlay.classList.remove('show');
+  _shareCurrentKey = null;
+}
+
+async function sendShareNow() {
+  var item = _shareCurrentKey ? _shareRegistry[_shareCurrentKey] : null;
+  if (!item) return;
+  var btn = document.getElementById('share-send-btn');
+  var noteEl = document.getElementById('share-note-input');
+  var note = noteEl ? noteEl.value.trim() : '';
+  var cbs = document.querySelectorAll('.share-member-cb:checked');
+  var recipientIds = [];
+  cbs.forEach(function(cb) { recipientIds.push(cb.getAttribute('data-user-id')); });
+  if (recipientIds.length === 0) { showToast && showToast('Pick at least one person'); return; }
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending\u2026'; }
+
+  try {
+    var rows = recipientIds.map(function(rid) {
+      return {
+        sender_user_id: currentUser && currentUser.id,
+        recipient_user_id: rid,
+        person_id: currentPersonId,
+        item_kind: item.kind || 'event',
+        item_ref_table: item.ref_table || null,
+        item_ref_id: item.ref_id ? String(item.ref_id) : null,
+        payload: {
+          subKind: item.subKind || null,
+          title: item.title || '',
+          date: item.date || null,
+          notes: item.notes || '',
+          value: item.value || null,
+          unit: item.unit || null,
+          range: item.range || null,
+          status: item.status || null,
+          source: item.source || 'user'
+        },
+        sender_note: note || null
+      };
+    });
+    var res = await db.from('care_circle_shares').insert(rows);
+    if (res.error) throw res.error;
+    showToast && showToast('Shared with ' + recipientIds.length + ' ' + (recipientIds.length === 1 ? 'person' : 'people'));
+    closeShareSheet();
+  } catch(e) {
+    console.error('share failed', e);
+    if (btn) { btn.disabled = false; btn.textContent = 'Try again'; }
+    showToast && showToast('Couldn\u2019t send share \u2014 please try again');
+  }
+}
+
+// ── SHARED WITH YOU INBOX ─────────────────────────────────────────────────────
+// Returns shares involving the current user (either as recipient or sender),
+// each with a `replies` array and derived fields:
+//   direction: 'incoming' | 'outgoing'
+//   hasUnreadReply: bool (new reply from the other side I haven't seen)
+//   lastActivity: ISO timestamp used to bump threads with new replies to top
+async function fetchSharedInbox() {
+  if (!db || !currentUser) return [];
+  try {
+    // Incoming: shares where I'm the recipient and haven't dismissed
+    var incomingRes = await db.from('care_circle_shares')
+      .select('*')
+      .eq('recipient_user_id', currentUser.id)
+      .is('dismissed_at', null)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    var incoming = ((incomingRes && incomingRes.data) || []).map(function(s){ s._direction = 'incoming'; return s; });
+
+    // Outgoing: shares I sent. Only include those that have at least one reply
+    // from the recipient, so the sender's inbox doesn't get cluttered with
+    // every share they've ever made.
+    var outgoingRes = await db.from('care_circle_shares')
+      .select('*')
+      .eq('sender_user_id', currentUser.id)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    var outgoingAll = ((outgoingRes && outgoingRes.data) || []).map(function(s){ s._direction = 'outgoing'; return s; });
+
+    var all = incoming.concat(outgoingAll);
+    if (!all.length) return [];
+
+    // Fetch replies for all shares in one round-trip
+    var shareIds = all.map(function(s){ return s.id; });
+    var repliesRes = await db.from('care_circle_share_replies')
+      .select('*')
+      .in('share_id', shareIds)
+      .order('created_at', { ascending: true });
+    var repliesByShare = {};
+    ((repliesRes && repliesRes.data) || []).forEach(function(r){
+      if (!repliesByShare[r.share_id]) repliesByShare[r.share_id] = [];
+      repliesByShare[r.share_id].push(r);
+    });
+
+    all.forEach(function(s){
+      var replies = repliesByShare[s.id] || [];
+      s.replies = replies;
+      // Last activity = latest of share creation and any reply
+      var last = s.created_at;
+      replies.forEach(function(r){ if (r.created_at > last) last = r.created_at; });
+      s._lastActivity = last;
+      // Unread reply means: there's a reply authored by the OTHER person
+      // that I (current user) haven't marked as read on my side.
+      var myReadField = (s._direction === 'incoming') ? 'read_by_recipient_at' : 'read_by_sender_at';
+      s._hasUnreadReply = replies.some(function(r){
+        return r.author_user_id !== currentUser.id && !r[myReadField];
+      });
+    });
+
+    // Filter outgoing: only keep shares that have at least one reply
+    var outgoingWithReplies = all.filter(function(s){
+      return s._direction === 'outgoing' && s.replies.length > 0;
+    });
+    var combined = incoming.concat(outgoingWithReplies);
+    // Sort by last activity, newest first (bumps threads with new replies up)
+    combined.sort(function(a, b){ return (a._lastActivity < b._lastActivity) ? 1 : -1; });
+    return combined;
+  } catch(e) { console.error('fetchSharedInbox', e); return []; }
+}
+
+// Back-compat alias
+async function fetchSharedWithMe() { return await fetchSharedInbox(); }
+
+async function markShareRead(shareId) {
+  if (!db || !currentUser) return;
+  try { await db.from('care_circle_shares').update({ read_at: new Date().toISOString() }).eq('id', shareId); } catch(e){}
+}
+
+// Mark all unread replies on a share as read by the current user (either side)
+async function markRepliesReadForShare(share) {
+  if (!db || !currentUser || !share) return;
+  var field = (share._direction === 'incoming') ? 'read_by_recipient_at' : 'read_by_sender_at';
+  var unread = (share.replies || []).filter(function(r){
+    return r.author_user_id !== currentUser.id && !r[field];
+  });
+  if (!unread.length) return;
+  var now = new Date().toISOString();
+  var ids = unread.map(function(r){ return r.id; });
+  try {
+    var update = {};
+    update[field] = now;
+    await db.from('care_circle_share_replies').update(update).in('id', ids);
+    unread.forEach(function(r){ r[field] = now; });
+    share._hasUnreadReply = false;
+  } catch(e){ console.warn('markRepliesReadForShare', e); }
+}
+
+async function dismissShare(shareId) {
+  if (!db || !currentUser) return;
+  try { await db.from('care_circle_shares').update({ dismissed_at: new Date().toISOString() }).eq('id', shareId); } catch(e){}
+  var card = document.getElementById('sib-' + shareId);
+  if (card) { card.style.transition = 'opacity 0.2s'; card.style.opacity = '0'; setTimeout(function(){ if (card.parentNode) card.parentNode.removeChild(card); refreshSharedInboxCount(); }, 200); }
+}
+
+// Open/close the reply thread on a share card. Marks replies as read on open.
+async function toggleShareThread(shareId) {
+  var card = document.getElementById('sib-' + shareId);
+  if (!card) return;
+  var share = (_inboxCache && _inboxCache[shareId]) || null;
+  if (card.classList.contains('thread-open')) {
+    card.classList.remove('thread-open');
+    return;
+  }
+  card.classList.add('thread-open');
+  // Also flag the parent share as read if it's an incoming share
+  if (share && share._direction === 'incoming' && !share.read_at) {
+    markShareRead(shareId);
+    share.read_at = new Date().toISOString();
+    card.classList.remove('unread');
+  }
+  if (share) {
+    await markRepliesReadForShare(share);
+    // Remove unread-reply indicators
+    var badge = card.querySelector('.sib-reply-count');
+    if (badge) badge.remove();
+    refreshSharedInboxCount();
+  }
+  // Focus the textarea
+  var ta = card.querySelector('.sib-reply-compose textarea');
+  if (ta) setTimeout(function(){ ta.focus(); }, 50);
+}
+
+async function sendShareReply(shareId) {
+  if (!db || !currentUser) return;
+  var card = document.getElementById('sib-' + shareId);
+  if (!card) return;
+  var ta = card.querySelector('.sib-reply-compose textarea');
+  var btn = card.querySelector('.sib-reply-send');
+  if (!ta) return;
+  var body = (ta.value || '').trim();
+  if (!body) return;
+  btn.disabled = true;
+  try {
+    var res = await db.from('care_circle_share_replies')
+      .insert({ share_id: shareId, author_user_id: currentUser.id, body: body })
+      .select()
+      .single();
+    if (res && res.error) throw res.error;
+    var newReply = (res && res.data) || { id: 'temp-' + Date.now(), share_id: shareId, author_user_id: currentUser.id, body: body, created_at: new Date().toISOString() };
+    // Update cache and append bubble
+    var share = _inboxCache && _inboxCache[shareId];
+    if (share) {
+      share.replies = share.replies || [];
+      share.replies.push(newReply);
+      share._lastActivity = newReply.created_at;
+    }
+    var threadList = card.querySelector('.sib-thread-list');
+    if (threadList) {
+      var emptyEl = threadList.querySelector('.sib-reply-empty');
+      if (emptyEl) emptyEl.remove();
+      var row = document.createElement('div');
+      row.className = 'sib-reply-row mine';
+      row.innerHTML = '<div><div class="sib-reply-bubble">' + escHtml(body) + '</div><div class="sib-reply-time">Just now</div></div>';
+      threadList.appendChild(row);
+      threadList.scrollTop = threadList.scrollHeight;
+    }
+    ta.value = '';
+  } catch(e) {
+    console.error('sendShareReply', e);
+    showToast && showToast('Couldn\u2019t send reply \u2014 try again');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function _formatReplyTime(iso) {
+  try {
+    var d = new Date(iso);
+    var now = new Date();
+    var sameDay = d.toDateString() === now.toDateString();
+    if (sameDay) {
+      return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    }
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  } catch(e) { return ''; }
+}
+
+var _inboxCache = {};
+
+async function renderSharedWithMeInbox(containerId) {
+  var el = document.getElementById(containerId);
+  if (!el) return;
+  if (isDemoMode) { el.innerHTML = ''; return; }
+  var items = await fetchSharedInbox();
+  _inboxCache = {};
+  items.forEach(function(s){ _inboxCache[s.id] = s; });
+  if (!items.length) { el.innerHTML = ''; return; }
+  var html = '<div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin:0 0 8px 4px;">Shared with you</div>';
+  items.forEach(function(s) {
+    var p = s.payload || {};
+    var isOutgoing = s._direction === 'outgoing';
+    var unread = !isOutgoing && !s.read_at;
+    var hasUnreadReply = !!s._hasUnreadReply;
+    var cardUnread = unread || hasUnreadReply;
+    var replies = s.replies || [];
+    var fromLine = isOutgoing
+      ? '<div class="sib-from sib-you-shared">You shared this</div>'
+      : '<div class="sib-from">From a Care Circle member</div>';
+    var replyCountBadge = hasUnreadReply ? ' <span class="sib-reply-count">' + replies.filter(function(r){ return r.author_user_id !== currentUser.id; }).length + '</span>' : '';
+    var threadHtml = '<div class="sib-thread">'
+      + '<div class="sib-thread-list" style="max-height:240px;overflow-y:auto;">'
+      + (replies.length
+          ? replies.map(function(r){
+              var mine = r.author_user_id === currentUser.id;
+              return '<div class="sib-reply-row ' + (mine ? 'mine' : 'theirs') + '">'
+                + '<div>'
+                + '<div class="sib-reply-bubble">' + escHtml(r.body) + '</div>'
+                + '<div class="sib-reply-time">' + escHtml(_formatReplyTime(r.created_at)) + '</div>'
+                + '</div>'
+                + '</div>';
+            }).join('')
+          : '<div class="sib-reply-empty">No replies yet \u2014 be the first.</div>')
+      + '</div>'
+      + '<div class="sib-reply-compose">'
+      + '<textarea placeholder="Write a reply\u2026" rows="1" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendShareReply(\'' + escHtml(s.id) + '\');}"></textarea>'
+      + '<button class="sib-reply-send" onclick="sendShareReply(\'' + escHtml(s.id) + '\')">Send</button>'
+      + '</div>'
+      + '</div>';
+    var actionsHtml;
+    if (isOutgoing) {
+      actionsHtml = '<div class="sib-actions">'
+        + '<button class="primary" onclick="toggleShareThread(\'' + escHtml(s.id) + '\')">View replies' + replyCountBadge + '</button>'
+        + '</div>';
+    } else {
+      actionsHtml = '<div class="sib-actions">'
+        + '<button onclick="dismissShare(\'' + escHtml(s.id) + '\')">Dismiss</button>'
+        + '<button class="primary" onclick="toggleShareThread(\'' + escHtml(s.id) + '\')">Reply' + replyCountBadge + '</button>'
+        + '</div>';
+    }
+    html += '<div class="share-inbox-card' + (cardUnread ? ' unread' : '') + '" id="sib-' + escHtml(s.id) + '">'
+      + fromLine
+      + (s.sender_note && !isOutgoing ? '<div class="sib-note">&ldquo;' + escHtml(s.sender_note) + '&rdquo;</div>' : '')
+      + '<div class="sib-item">'
+      + '<div class="sib-kind">' + escHtml(labelForItemKind({ kind: s.item_kind, subKind: p.subKind })) + '</div>'
+      + '<div class="sib-title">' + escHtml(p.title || '(no title)') + '</div>'
+      + (p.date ? '<div class="sib-meta">' + escHtml(formatShareDate(p.date)) + '</div>' : '')
+      + (p.notes ? '<div class="sib-meta" style="margin-top:6px;">' + escHtml(p.notes) + '</div>' : '')
+      + '</div>'
+      + actionsHtml
+      + threadHtml
+      + '</div>';
+  });
+  el.innerHTML = html;
+}
+
+async function refreshSharedInboxCount() {
+  if (isDemoMode || !db || !currentUser) return;
+  try {
+    // Unread incoming shares
+    var sharesRes = await db.from('care_circle_shares')
+      .select('id', { count: 'exact', head: true })
+      .eq('recipient_user_id', currentUser.id)
+      .is('dismissed_at', null)
+      .is('read_at', null);
+    var shareCount = (sharesRes && sharesRes.count) || 0;
+
+    // Unread replies to me (on either my incoming or outgoing shares)
+    // We need to count replies authored by someone else on shares involving me
+    // that I haven't read yet on my side. Do this via two queries and combine.
+    var replyCount = 0;
+    try {
+      // Shares where I'm recipient: count replies not authored by me with null read_by_recipient_at
+      var myIncomingIdsRes = await db.from('care_circle_shares').select('id').eq('recipient_user_id', currentUser.id).is('dismissed_at', null);
+      var myOutgoingIdsRes = await db.from('care_circle_shares').select('id').eq('sender_user_id', currentUser.id);
+      var inIds = ((myIncomingIdsRes && myIncomingIdsRes.data) || []).map(function(r){ return r.id; });
+      var outIds = ((myOutgoingIdsRes && myOutgoingIdsRes.data) || []).map(function(r){ return r.id; });
+      if (inIds.length) {
+        var incR = await db.from('care_circle_share_replies').select('id', { count: 'exact', head: true }).in('share_id', inIds).neq('author_user_id', currentUser.id).is('read_by_recipient_at', null);
+        replyCount += (incR && incR.count) || 0;
+      }
+      if (outIds.length) {
+        var outR = await db.from('care_circle_share_replies').select('id', { count: 'exact', head: true }).in('share_id', outIds).neq('author_user_id', currentUser.id).is('read_by_sender_at', null);
+        replyCount += (outR && outR.count) || 0;
+      }
+    } catch(e){ console.warn('reply count', e); }
+
+    var count = shareCount + replyCount;
+    var badge = document.getElementById('shared-inbox-badge');
+    if (badge) {
+      badge.textContent = count > 0 ? String(count) : '';
+      badge.style.display = count > 0 ? 'inline-block' : 'none';
+    }
+  } catch(e){}
+}
+
+
+// ── i18n TRANSLATIONS ────────────────────────────────────────────────────────
+var TRANSLATIONS = {
+  en: {
+    // Nav
+    'nav.home': 'Home',
+    'nav.people': 'People',
+    'nav.records': 'Records',
+    'nav.signals': 'CareSignals',
+    'nav.resources': 'Resources',
+    'nav.ask': 'Ask Wellet',
+
+    // Home tabs
+    'tab.update': 'Update Me',
+    'tab.timeline': 'Timeline',
+    'tab.patterns': 'Patterns',
+
+    // Common
+    'common.save': 'Save',
+    'common.cancel': 'Cancel',
+    'common.delete': 'Delete',
+    'common.edit': 'Edit',
+    'common.close': 'Close',
+    'common.loading': 'Loading…',
+    'common.noData': 'No data yet',
+    'common.search': 'Search',
+    'common.upload': 'Upload',
+    'common.add': 'Add',
+    'common.done': 'Done',
+    'common.back': 'Back',
+    'common.next': 'Next',
+    'common.confirm': 'Confirm',
+    'common.remove': 'Remove',
+
+    // Settings
+    'settings.title': 'Settings',
+    'settings.account': 'Account',
+    'settings.language': 'Language',
+    'settings.languageEnglish': 'English',
+    'settings.languageSpanish': 'Espa\u00F1ol',
+    'settings.alpha': 'Alpha',
+    'settings.sendFeedback': 'Send feedback',
+    'settings.sendFeedbackMeta': 'Help shape Wellet \u2014 tell me what works and what doesn\u2019t',
+    'settings.alphaTester': 'Alpha tester',
+    'settings.alphaTesterMeta': 'You\u2019re one of Wellet\u2019s first users',
+    'settings.notifications': 'Notifications',
+    'settings.weeklyDigest': 'Weekly digest',
+    'settings.weeklyDigestMeta': 'Every Sunday at 5 PM',
+    'settings.weeklyDigestPreview': 'Send me a preview',
+    'settings.dangerZone': 'Danger zone',
+    'settings.deleteAccount': 'Delete my account',
+    'settings.deleteAccountMeta': 'Permanently remove everything. This cannot be undone.',
+    'settings.newMessages': 'New messages',
+    'settings.newMessagesMeta': 'From care team portals',
+    'settings.patternChanges': 'Pattern changes',
+    'settings.patternChangesMeta': 'When Wellet notices something',
+    'settings.emailReminders': 'Email me reminders',
+    'settings.emailRemindersMeta': 'Medication & appointment emails',
+    'settings.quietHours': 'Quiet hours',
+    'settings.quietHoursMeta': 'Silence notifications during set times',
+    'settings.privacy': 'Privacy & Security',
+    'settings.appLock': 'App lock',
+    'settings.appLockMeta': 'Face ID / passcode on open',
+    'settings.exportControl': 'Export control',
+    'settings.exportControlMeta': 'Confirm before sharing data',
+    'settings.careCircle': 'Family & care circle',
+    'settings.addFamilyMember': 'Add family member',
+    'settings.healthRecords': 'Health Records',
+    'settings.healthRecordsMeta': 'Connect your EHR to import medical data \u2014 medications, conditions, lab results, and more.',
+    'settings.connectHealthRecords': 'Connect Health Records',
+    'settings.connectHealthRecordsMeta': 'Import data from your provider (Epic, Cerner, etc.)',
+    'settings.appleHealth': 'Apple Health',
+    'settings.appleHealthMeta': 'Synced \u00B7 Last updated 2 hrs ago',
+    'settings.archivedProfiles': 'Archived Profiles',
+    'settings.yourData': 'Your Data',
+    'settings.exportAll': 'Export all data',
+    'settings.exportAllMeta': 'Download everything as JSON',
+    'settings.exportSpreadsheets': 'Export as spreadsheets',
+    'settings.exportSpreadsheetsMeta': 'CSV files in a ZIP archive',
+    'settings.yourPlan': 'Your plan',
+    'settings.signOut': 'Sign out',
+    'settings.signOutMeta': 'Return to login screen',
+    'settings.signedIn': 'Signed in',
+    'settings.magicLink': 'Magic link authentication',
+
+    // Update Me
+    'update.generating': 'Generating your update\u2026',
+    'update.lastUpdated': 'Last updated',
+    'update.shareThis': 'Share this update',
+    'update.recentActivity': 'Recent activity',
+    'update.noActivity': 'No activity logged yet.',
+    'update.uploadPrompt': 'Upload a document',
+
+    // People
+    'people.careCircle': 'Care Circle',
+    'people.addPerson': 'Add a person',
+    'people.invite': 'Invite to care circle',
+    'people.noPeople': 'No people added yet.',
+
+    // Records
+    'records.upload': 'Upload',
+    'records.photoCapture': 'Take a photo',
+    'records.documents': 'Documents',
+    'records.medications': 'Medications',
+    'records.conditions': 'Conditions',
+    'records.allergies': 'Allergies',
+    'records.labs': 'Labs',
+    'records.vitals': 'Vitals',
+    'records.noRecords': 'No records yet.',
+    'records.addMed': 'Add medication',
+    'records.addCondition': 'Add condition',
+    'records.addAllergy': 'Add allergy',
+
+    // Signals
+    'signals.connected': 'Connected Devices',
+    'signals.connectWearable': 'Connect a Wearable',
+    'signals.heartRate': 'Heart Rate',
+    'signals.steps': 'Steps',
+    'signals.sleep': 'Sleep',
+    'signals.bloodOxygen': 'Blood Oxygen',
+    'signals.noSignals': 'No signals data yet.',
+    'signals.today': 'Today',
+    'signals.week': 'This week',
+
+    // Resources
+    'resources.title': 'Resources',
+    'resources.noResources': 'No resources yet.',
+    'resources.caregiverGuides': 'Caregiver Guides',
+    'resources.localServices': 'Local Services',
+
+    // Ask Wellet
+    'ask.placeholder': 'Ask about health\u2026',
+    'ask.thinking': 'Thinking\u2026',
+    'ask.noHistory': 'No conversation yet.',
+    'ask.startPrompt': 'Ask Wellet anything about your loved one\u2019s health.',
+
+    // Notifications
+    'notif.title': 'Notifications',
+    'notif.markAllRead': 'Mark all read',
+    'notif.noNotifications': 'No notifications',
+
+    // Onboarding
+    'onboard.welcome': 'Welcome to Wellet',
+    'onboard.uploadFirst': 'Start by uploading a health document',
+    'onboard.skipToChat': 'I\u2019d rather tell Wellet myself',
+
+    // Sharing
+    'share.title': 'Share Health Summary',
+    'share.copyLink': 'Copy link',
+    'share.sendEmail': 'Send via email',
+    'share.history': 'Share History',
+
+    // Visit Prep
+    'visit.title': 'Visit Prep',
+    'visit.generating': 'Generating questions for your visit\u2026',
+    'visit.download': 'Download Visit Summary',
+
+    // Emergency
+    'emergency.title': 'Emergency Summary',
+    'emergency.download': 'Download PDF',
+
+    // Patterns
+    'patterns.noticed': 'What Wellet has noticed',
+    'patterns.noPatterns': 'No patterns detected yet.'
+  },
+  es: {
+    // Nav
+    'nav.home': 'Inicio',
+    'nav.people': 'Personas',
+    'nav.records': 'Registros',
+    'nav.signals': 'CareSignals',
+    'nav.resources': 'Recursos',
+    'nav.ask': 'Preguntar',
+
+    // Home tabs
+    'tab.update': 'Resumen',
+    'tab.timeline': 'Cronolog\u00EDa',
+    'tab.patterns': 'Patrones',
+
+    // Common
+    'common.save': 'Guardar',
+    'common.cancel': 'Cancelar',
+    'common.delete': 'Eliminar',
+    'common.edit': 'Editar',
+    'common.close': 'Cerrar',
+    'common.loading': 'Cargando\u2026',
+    'common.noData': 'Sin datos a\u00FAn',
+    'common.search': 'Buscar',
+    'common.upload': 'Subir',
+    'common.add': 'Agregar',
+    'common.done': 'Listo',
+    'common.back': 'Volver',
+    'common.next': 'Siguiente',
+    'common.confirm': 'Confirmar',
+    'common.remove': 'Quitar',
+
+    // Settings
+    'settings.title': 'Configuraci\u00F3n',
+    'settings.account': 'Cuenta',
+    'settings.language': 'Idioma',
+    'settings.languageEnglish': 'English',
+    'settings.languageSpanish': 'Espa\u00F1ol',
+    'settings.alpha': 'Alpha',
+    'settings.sendFeedback': 'Enviar comentarios',
+    'settings.sendFeedbackMeta': 'Ayuda a mejorar Wellet \u2014 d\u00EDme qu\u00E9 funciona y qu\u00E9 no',
+    'settings.alphaTester': 'Tester alfa',
+    'settings.alphaTesterMeta': 'Eres uno de los primeros usuarios de Wellet',
+    'settings.notifications': 'Notificaciones',
+    'settings.weeklyDigest': 'Resumen semanal',
+    'settings.weeklyDigestMeta': 'Todos los domingos a las 5 PM',
+    'settings.newMessages': 'Nuevos mensajes',
+    'settings.newMessagesMeta': 'De los portales del equipo de salud',
+    'settings.patternChanges': 'Cambios de patrones',
+    'settings.patternChangesMeta': 'Cuando Wellet nota algo',
+    'settings.emailReminders': 'Recordatorios por correo',
+    'settings.emailRemindersMeta': 'Correos de medicamentos y citas',
+    'settings.quietHours': 'Horas de silencio',
+    'settings.quietHoursMeta': 'Silenciar notificaciones en horarios establecidos',
+    'settings.privacy': 'Privacidad y Seguridad',
+    'settings.appLock': 'Bloqueo de app',
+    'settings.appLockMeta': 'Face ID / c\u00F3digo al abrir',
+    'settings.exportControl': 'Control de exportaci\u00F3n',
+    'settings.exportControlMeta': 'Confirmar antes de compartir datos',
+    'settings.careCircle': 'Familia y c\u00EDrculo de cuidado',
+    'settings.addFamilyMember': 'Agregar familiar',
+    'settings.healthRecords': 'Registros de Salud',
+    'settings.healthRecordsMeta': 'Conecta tu EHR para importar datos m\u00E9dicos \u2014 medicamentos, condiciones, resultados de laboratorio y m\u00E1s.',
+    'settings.connectHealthRecords': 'Conectar Registros de Salud',
+    'settings.connectHealthRecordsMeta': 'Importar datos de tu proveedor (Epic, Cerner, etc.)',
+    'settings.appleHealth': 'Apple Health',
+    'settings.appleHealthMeta': 'Sincronizado \u00B7 \u00DAltima actualizaci\u00F3n hace 2 hrs',
+    'settings.archivedProfiles': 'Perfiles Archivados',
+    'settings.yourData': 'Tus Datos',
+    'settings.exportAll': 'Exportar todos los datos',
+    'settings.exportAllMeta': 'Descargar todo en formato JSON',
+    'settings.exportSpreadsheets': 'Exportar como hojas de c\u00E1lculo',
+    'settings.exportSpreadsheetsMeta': 'Archivos CSV en un ZIP',
+    'settings.yourPlan': 'Tu plan',
+    'settings.signOut': 'Cerrar sesi\u00F3n',
+    'settings.signOutMeta': 'Volver a la pantalla de inicio',
+    'settings.signedIn': 'Sesi\u00F3n iniciada',
+    'settings.magicLink': 'Autenticaci\u00F3n por enlace m\u00E1gico',
+
+    // Update Me
+    'update.generating': 'Generando tu resumen\u2026',
+    'update.lastUpdated': '\u00DAltima actualizaci\u00F3n',
+    'update.shareThis': 'Compartir este resumen',
+    'update.recentActivity': 'Actividad reciente',
+    'update.noActivity': 'A\u00FAn no hay actividad registrada.',
+    'update.uploadPrompt': 'Subir un documento',
+
+    // People
+    'people.careCircle': 'C\u00EDrculo de Cuidado',
+    'people.addPerson': 'Agregar una persona',
+    'people.invite': 'Invitar al c\u00EDrculo de cuidado',
+    'people.noPeople': 'A\u00FAn no hay personas.',
+
+    // Records
+    'records.upload': 'Subir',
+    'records.photoCapture': 'Tomar una foto',
+    'records.documents': 'Documentos',
+    'records.medications': 'Medicamentos',
+    'records.conditions': 'Condiciones',
+    'records.allergies': 'Alergias',
+    'records.labs': 'Laboratorio',
+    'records.vitals': 'Signos Vitales',
+    'records.noRecords': 'A\u00FAn no hay registros.',
+    'records.addMed': 'Agregar medicamento',
+    'records.addCondition': 'Agregar condici\u00F3n',
+    'records.addAllergy': 'Agregar alergia',
+
+    // Signals
+    'signals.connected': 'Dispositivos Conectados',
+    'signals.connectWearable': 'Conectar un Wearable',
+    'signals.heartRate': 'Frecuencia Card\u00EDaca',
+    'signals.steps': 'Pasos',
+    'signals.sleep': 'Sue\u00F1o',
+    'signals.bloodOxygen': 'Ox\u00EDgeno en Sangre',
+    'signals.noSignals': 'A\u00FAn no hay datos de se\u00F1ales.',
+    'signals.today': 'Hoy',
+    'signals.week': 'Esta semana',
+
+    // Resources
+    'resources.title': 'Recursos',
+    'resources.noResources': 'A\u00FAn no hay recursos.',
+    'resources.caregiverGuides': 'Gu\u00EDas para cuidadores',
+    'resources.localServices': 'Servicios locales',
+
+    // Ask Wellet
+    'ask.placeholder': 'Pregunta sobre salud\u2026',
+    'ask.thinking': 'Pensando\u2026',
+    'ask.noHistory': 'A\u00FAn no hay conversaci\u00F3n.',
+    'ask.startPrompt': 'Pregunta a Wellet cualquier cosa sobre la salud de tu ser querido.',
+
+    // Notifications
+    'notif.title': 'Notificaciones',
+    'notif.markAllRead': 'Marcar todo le\u00EDdo',
+    'notif.noNotifications': 'Sin notificaciones',
+
+    // Onboarding
+    'onboard.welcome': 'Bienvenido a Wellet',
+    'onboard.uploadFirst': 'Comienza subiendo un documento de salud',
+    'onboard.skipToChat': 'Prefiero decirle a Wellet yo mismo',
+
+    // Sharing
+    'share.title': 'Compartir Resumen de Salud',
+    'share.copyLink': 'Copiar enlace',
+    'share.sendEmail': 'Enviar por correo',
+    'share.history': 'Historial de compartidos',
+
+    // Visit Prep
+    'visit.title': 'Preparaci\u00F3n para Visita',
+    'visit.generating': 'Generando preguntas para tu visita\u2026',
+    'visit.download': 'Descargar Resumen de Visita',
+
+    // Emergency
+    'emergency.title': 'Resumen de Emergencia',
+    'emergency.download': 'Descargar PDF',
+
+    // Patterns
+    'patterns.noticed': 'Lo que Wellet ha notado',
+    'patterns.noPatterns': 'A\u00FAn no se detectan patrones.'
+  }
+};
+
+var currentLang = localStorage.getItem('wellet_lang') || 'en';
+
+function t(key) {
+  var dict = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
+  return dict[key] || TRANSLATIONS.en[key] || key;
+}
+
+// Apply translations to all data-i18n elements in the DOM
+function applyI18n() {
+  var els = document.querySelectorAll('[data-i18n]');
+  for (var i = 0; i < els.length; i++) {
+    var key = els[i].getAttribute('data-i18n');
+    if (key) els[i].textContent = t(key);
+  }
+  // Settings title has its own id
+  var settingsTitle = document.getElementById('settings-title-el');
+  if (settingsTitle) settingsTitle.textContent = t('settings.title');
+  // Notif panel title
+  var notifTitle = document.getElementById('notif-panel-title');
+  if (notifTitle) notifTitle.textContent = t('notif.title');
+  // Mark all read button
+  var markAllBtn = document.getElementById('notif-mark-all-btn');
+  if (markAllBtn) markAllBtn.textContent = t('notif.markAllRead');
+}
+
+function setLanguage(lang) {
+  currentLang = lang;
+  localStorage.setItem('wellet_lang', lang);
+  document.documentElement.lang = lang;
+  applyI18n();
+  refreshCurrentView();
+  // Update language picker buttons active state
+  var btns = document.querySelectorAll('.lang-pill-btn');
+  for (var i = 0; i < btns.length; i++) {
+    if (btns[i].dataset.lang === lang) {
+      btns[i].classList.add('active');
+    } else {
+      btns[i].classList.remove('active');
+    }
+  }
+}
+
+function refreshCurrentView() {
+  // Update bottom nav labels
+  var navBtns = document.querySelectorAll('.nav-item');
+  for (var ni = 0; ni < navBtns.length; ni++) {
+    var navKey = navBtns[ni].getAttribute('data-nav-key');
+    if (navKey) {
+      var textNode = navBtns[ni].lastChild;
+      if (textNode && textNode.nodeType === 3) textNode.textContent = t(navKey);
+    }
+  }
+
+  // Update tab labels
+  var tabBtns = document.querySelectorAll('.tab[id^="tab-btn-"]');
+  var tabKeys = ['tab.update', 'tab.timeline', 'tab.patterns'];
+  for (var ti = 0; ti < tabBtns.length; ti++) {
+    if (tabKeys[ti]) tabBtns[ti].textContent = t(tabKeys[ti]);
+  }
+
+  // Update notification panel title
+  var notifTitle = document.getElementById('notif-panel-title');
+  if (notifTitle) notifTitle.textContent = t('notif.title');
+
+  // Re-render active view
+  var activeView = document.querySelector('.app-view.active');
+  if (activeView) {
+    var viewId = activeView.id;
+    if (viewId === 'view-home') renderUpdateMe();
+    else if (viewId === 'view-people') renderPeopleView();
+    else if (viewId === 'view-records') renderRecordsView();
+    else if (viewId === 'view-signals') renderSignalsView();
+    else if (viewId === 'view-resources') renderResourcesView();
+    else if (viewId === 'view-ask') renderAskView();
+  }
+}
+
+
+
+// ── VISIT PREP FLOW ─────────────────────────────────────────────────────────
+var _vpVisitType = '';         // selected visit type label
+var _vpContext = '';           // optional context text
+var _vpQuestions = [];         // array of question strings (or grouped objects)
+var _vpCheckedState = {};      // { questionIndex: bool }
+var _vpCurrentStep = 1;
+var _vpIsSaved = false;
+
+function openVisitPrep(resume) {
+  var overlay = document.getElementById('visit-prep-overlay');
+  if (!overlay) return;
+
+  // Reset state for new prep
+  _vpIsSaved = false;
+  _vpVisitType = '';
+  _vpContext = '';
+  _vpCurrentStep = 1;
+
+  var savedBadge = document.getElementById('vp-saved-badge');
+  if (savedBadge) savedBadge.style.display = 'none';
+  var saveBtn = document.getElementById('vp-save-btn');
+  if (saveBtn) { saveBtn.innerHTML = '<i data-lucide="bookmark" style="width:16px;height:16px;"></i> Save for Later'; }
+
+  if (resume && currentPersonId) {
+    // Load saved prep and go to results step
+    var saved = JSON.parse(localStorage.getItem('wellet_visit_prep_' + currentPersonId) || 'null');
+    if (saved && saved.questions && saved.questions.length > 0) {
+      _vpVisitType = saved.visitType || '';
+      _vpContext = saved.context || '';
+      _vpQuestions = saved.questions;
+      _vpCheckedState = saved.checkedState || {};
+      _vpIsSaved = true;
+      vpGoStep(4);
+      vpRenderQuestions();
+      // Show saved badge
+      if (savedBadge) savedBadge.style.display = 'block';
+      if (saveBtn) { saveBtn.innerHTML = '<i data-lucide="bookmark-check" style="width:16px;height:16px;"></i> Saved'; }
+      overlay.classList.add('show');
+      initIcons();
+      return;
+    }
+  }
+
+  // Fresh start: reset step 1 selections
+  _vpQuestions = [];
+  _vpCheckedState = {};
+  var contextInput = document.getElementById('vp-context-input');
+  if (contextInput) contextInput.value = '';
+  // Clear any selected visit type cards
+  var cards = overlay.querySelectorAll('.visit-type-card');
+  for (var i = 0; i < cards.length; i++) { cards[i].classList.remove('selected'); }
+  vpGoStep(1);
+  overlay.classList.add('show');
+  initIcons();
+}
+
+function closeVisitPrep() {
+  var overlay = document.getElementById('visit-prep-overlay');
+  if (overlay) overlay.classList.remove('show');
+}
+
+function vpGoStep(stepNum) {
+  _vpCurrentStep = stepNum;
+  var steps = document.querySelectorAll('.vp-step');
+  for (var i = 0; i < steps.length; i++) { steps[i].classList.remove('active'); }
+  var target = document.getElementById('vp-step-' + stepNum);
+  if (target) target.classList.add('active');
+  // Scroll sheet to top
+  var sheet = document.querySelector('.vp-sheet');
+  if (sheet) sheet.scrollTop = 0;
+  initIcons();
+}
+
+function vpSelectType(visitType, cardEl) {
+  _vpVisitType = visitType;
+  // Update sub text in step 2
+  var sub = document.getElementById('vp-step2-sub');
+  if (sub) sub.textContent = visitType + ' — add anything specific you want to ask about (optional)';
+  // Move to step 2
+  vpGoStep(2);
+}
+
+async function vpGenerateQuestions() {
+  _vpContext = (document.getElementById('vp-context-input') || {}).value || '';
+  // Show loading step
+  var firstName = getPersonFirstName();
+  var loadingText = document.getElementById('vp-loading-text');
+  if (loadingText) loadingText.textContent = 'Wellet is reviewing ' + firstName + '\u2019s records and preparing questions\u2026';
+  vpGoStep(3);
+
+  try {
+    var questions = [];
+    if (isDemoMode) {
+      // Demo: wait briefly then return demo questions
+      await new Promise(function(resolve) { setTimeout(resolve, 1800); });
+      questions = [
+        'Blood pressure has been running higher — should we adjust the current medication dosage?',
+        'Are there any new treatment options to consider given the current regimen?',
+        'What dietary changes or additional monitoring should we do to slow disease progression?',
+        'How are current medications interacting with each other, and what side effects should we watch for?',
+        'Are there any upcoming screenings or preventive care visits we should schedule?'
+      ];
+    } else {
+      var session = await db.auth.getSession();
+      var token = session.data.session ? session.data.session.access_token : '';
+      if (!token) throw new Error('Not authenticated');
+      var res = await fetch(SUPABASE_URL + '/functions/v1/generate-visit-questions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token,
+          'apikey': SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({
+          person_id: currentPersonId,
+          visit_type: _vpVisitType,
+          context: _vpContext
+        })
+      });
+      if (res.ok) {
+        var data = await res.json();
+        if (data.questions && data.questions.length > 0) {
+          questions = data.questions;
+        }
+      }
+      if (questions.length === 0) {
+        questions = [
+          'What is your assessment of the current health status based on recent records?',
+          'Are there any medication adjustments you would recommend?',
+          'What follow-up tests or screenings should we schedule?',
+          'Are there any lifestyle changes that could improve outcomes?',
+          'When should our next appointment be?'
+        ];
+      }
+    }
+
+    _vpQuestions = questions;
+    _vpCheckedState = {};
+    // Restore saved checkbox state if available
+    if (currentPersonId) {
+      var saved = JSON.parse(localStorage.getItem('wellet_visit_prep_' + currentPersonId) || 'null');
+      if (saved && saved.checkedState) { _vpCheckedState = saved.checkedState; }
+    }
+
+    vpRenderQuestions();
+    var resultsSub = document.getElementById('vp-results-sub');
+    if (resultsSub && _vpVisitType) resultsSub.textContent = _vpVisitType + ' — check off each question as you go';
+    vpGoStep(4);
+    initIcons();
+  } catch (err) {
+    console.error('Visit prep error:', err);
+    showToast('Something went wrong. Please try again.');
+    vpGoStep(2);
+  }
+}
+
+function vpRenderQuestions() {
+  var container = document.getElementById('vp-questions-list');
+  if (!container) return;
+  var html = '';
+
+  if (_vpQuestions.length === 0) {
+    html = '<div style="padding:20px 0;text-align:center;color:var(--text-muted);font-size:13px;">No questions generated. Try adding more context.</div>';
+    container.innerHTML = html;
+    return;
+  }
+
+  // Check if questions are grouped objects {category, questions:[]} or flat strings
+  var isGrouped = _vpQuestions.length > 0 && typeof _vpQuestions[0] === 'object' && _vpQuestions[0].category;
+
+  if (isGrouped) {
+    var qIdx = 0;
+    for (var g = 0; g < _vpQuestions.length; g++) {
+      var group = _vpQuestions[g];
+      html += '<div class="vp-question-group-label">' + escHtml(group.category || '') + '</div>';
+      var groupQs = group.questions || [];
+      for (var qi = 0; qi < groupQs.length; qi++) {
+        var q = groupQs[qi];
+        var checked = _vpCheckedState[qIdx] ? ' checked' : '';
+        var textClass = _vpCheckedState[qIdx] ? ' class="vp-question-text checked"' : ' class="vp-question-text"';
+        html += '<div class="vp-question-item">'
+          + '<input type="checkbox" class="vp-question-cb" data-qidx="' + qIdx + '"' + checked + ' onchange="vpToggleCheck(this)">'
+          + '<span' + textClass + ' onclick="vpToggleCheckByIdx(' + qIdx + ')">' + escHtml(q) + '</span>'
+          + '</div>';
+        qIdx++;
+      }
+    }
+  } else {
+    for (var i = 0; i < _vpQuestions.length; i++) {
+      var qText = typeof _vpQuestions[i] === 'string' ? _vpQuestions[i] : (_vpQuestions[i].text || '');
+      var isChecked = _vpCheckedState[i] ? true : false;
+      var cbChecked = isChecked ? ' checked' : '';
+      var spanClass = isChecked ? ' class="vp-question-text checked"' : ' class="vp-question-text"';
+      html += '<div class="vp-question-item">'
+        + '<input type="checkbox" class="vp-question-cb" data-qidx="' + i + '"' + cbChecked + ' onchange="vpToggleCheck(this)">'
+        + '<span' + spanClass + ' onclick="vpToggleCheckByIdx(' + i + ')">' + escHtml(qText) + '</span>'
+        + '</div>';
+    }
+  }
+
+  container.innerHTML = html;
+}
+
+function vpToggleCheck(cbEl) {
+  var idx = parseInt(cbEl.getAttribute('data-qidx'), 10);
+  _vpCheckedState[idx] = cbEl.checked;
+  // Update the text appearance
+  var textEl = cbEl.parentElement.querySelector('.vp-question-text');
+  if (textEl) {
+    if (cbEl.checked) { textEl.classList.add('checked'); } else { textEl.classList.remove('checked'); }
+  }
+  // Auto-save checked state if already saved
+  if (_vpIsSaved && currentPersonId) {
+    var saved = JSON.parse(localStorage.getItem('wellet_visit_prep_' + currentPersonId) || 'null');
+    if (saved) { saved.checkedState = _vpCheckedState; localStorage.setItem('wellet_visit_prep_' + currentPersonId, JSON.stringify(saved)); }
+  }
+}
+
+function vpToggleCheckByIdx(idx) {
+  var cb = document.querySelector('.vp-question-cb[data-qidx="' + idx + '"]');
+  if (cb) { cb.checked = !cb.checked; vpToggleCheck(cb); }
+}
+
+function vpGetFlatQuestions() {
+  // Returns flat array of question strings regardless of grouping
+  var flat = [];
+  if (_vpQuestions.length === 0) return flat;
+  var isGrouped = typeof _vpQuestions[0] === 'object' && _vpQuestions[0].category;
+  if (isGrouped) {
+    for (var g = 0; g < _vpQuestions.length; g++) {
+      var qs = _vpQuestions[g].questions || [];
+      for (var qi = 0; qi < qs.length; qi++) { flat.push(qs[qi]); }
+    }
+  } else {
+    for (var i = 0; i < _vpQuestions.length; i++) {
+      flat.push(typeof _vpQuestions[i] === 'string' ? _vpQuestions[i] : (_vpQuestions[i].text || ''));
+    }
+  }
+  return flat;
+}
+
+async function vpDownloadPDF() {
+  try {
+    var firstName = getPersonFirstName();
+    var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
+    var fullName = isDemoMode ? 'Patient' : (person ? person.name : 'Patient');
+
+    // Gather medications
+    var medications = [];
+    if (isDemoMode) {
+      medications = [{ name: 'See medical records', dose: '', frequency: '' }];
+    } else {
+      medications = liveMeds.filter(function(m){ return m.active; }).map(function(m) {
+        return { name: m.name, dose: m.dose || '', frequency: m.frequency || '' };
+      });
+    }
+
+    // Gather recent events (last 90 days)
+    var ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    var recentEvents = [];
+    if (!isDemoMode) {
+      recentEvents = liveEvents.filter(function(e) {
+        return new Date(e.event_date) >= ninetyDaysAgo;
+      }).map(function(e) {
+        return {
+          date: new Date(e.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          title: e.title || '',
+          notes: e.notes || e.description || ''
+        };
+      });
+    }
+
+    // Patterns
+    var patterns = [];
+    var alertBanner = document.querySelector('.alert-banner');
+    if (alertBanner && !isDemoMode) {
+      var alertTitle = alertBanner.querySelector('.alert-title');
+      var alertBody = alertBanner.querySelector('.alert-body');
+      if (alertTitle && alertTitle.textContent) {
+        var patternText = alertTitle.textContent;
+        if (alertBody && alertBody.textContent) patternText += ' — ' + alertBody.textContent;
+        patterns.push(patternText);
+      }
+    }
+
+    // Emergency contact
+    var emergencyContact = '';
+    if (!isDemoMode && person) {
+      if (person.emergency_contact_name) {
+        emergencyContact = person.emergency_contact_name;
+        if (person.emergency_contact_phone) emergencyContact += ' · ' + person.emergency_contact_phone;
+      } else if (liveCareCircle.length > 0) {
+        var primary = liveCareCircle.find(function(c){ return c.role === 'Primary'; }) || liveCareCircle[0];
+        emergencyContact = primary.member_name;
+        if (primary.phone) emergencyContact += ' · ' + primary.phone;
+        if (primary.role) emergencyContact += ' · ' + primary.role;
+      }
+    }
+
+    var flatQuestions = vpGetFlatQuestions();
+    var doc = buildVisitSummaryPDF(fullName, firstName, medications, recentEvents, patterns, emergencyContact, flatQuestions);
+    var today = new Date();
+    var yyyy = today.getFullYear();
+    var mm = String(today.getMonth() + 1).padStart(2, '0');
+    var dd = String(today.getDate()).padStart(2, '0');
+    var filename = fullName.replace(/\s+/g, '-') + '-Visit-Summary-' + yyyy + '-' + mm + '-' + dd + '.pdf';
+    doc.save(filename);
+    showToast('Visit Summary downloaded');
+  } catch (err) {
+    console.error('Visit prep PDF error:', err);
+    showToast('Could not generate PDF — please try again');
+  }
+}
+
+function vpShareWithCareCircle() {
+  // Build a share message from the questions
+  var flatQuestions = vpGetFlatQuestions();
+  var firstName = getPersonFirstName();
+  var shareText = 'Preparing for ' + (firstName ? firstName + '\u2019s' : 'upcoming') + ' ' + (_vpVisitType || 'doctor visit') + '. Questions to discuss:\n\n';
+  for (var i = 0; i < flatQuestions.length && i < 5; i++) {
+    shareText += (i + 1) + '. ' + flatQuestions[i] + '\n';
+  }
+  // Close visit prep and open share overlay
+  closeVisitPrep();
+  // Set share preview text if element exists
+  var previewEl = document.getElementById('share-preview-text');
+  if (previewEl) previewEl.textContent = shareText;
+  // Open share overlay
+  openShareFamily();
+}
+
+function vpSaveForLater() {
+  if (!currentPersonId) { showToast('No person selected'); return; }
+  var flatQuestions = vpGetFlatQuestions();
+  if (flatQuestions.length === 0) { showToast('No questions to save'); return; }
+
+  var saveData = {
+    visitType: _vpVisitType,
+    context: _vpContext,
+    questions: _vpQuestions,
+    checkedState: _vpCheckedState,
+    savedAt: new Date().toISOString()
+  };
+  localStorage.setItem('wellet_visit_prep_' + currentPersonId, JSON.stringify(saveData));
+  _vpIsSaved = true;
+
+  // Update UI
+  var savedBadge = document.getElementById('vp-saved-badge');
+  if (savedBadge) savedBadge.style.display = 'block';
+  var saveBtn = document.getElementById('vp-save-btn');
+  if (saveBtn) {
+    saveBtn.innerHTML = '<i data-lucide="bookmark-check" style="width:16px;height:16px;"></i> Saved';
+    initIcons();
+  }
+  showToast('Visit prep saved — find it on Update Me');
+  // Refresh Update Me card in the background
+  renderUpdateMe();
+}
+
+// ── FIRST-RUN ONBOARDING TOOLTIPS (P2D) ───────────────────────────────────────
+var _onboardTooltips = [
+  { target: '#tab-btn-update', text: 'Summary is your home base — plain-English updates on what’s changed.' },
+  { target: '#nav-ask', text: 'Ask Wellet anything about the health history you’ve captured.' },
+  { target: '.nav-item[data-nav-key="nav.signals"]', text: 'CareSignals watches wearables, labs, and patterns for you.' }
+];
+var _onboardStep = 0;
+var _onboardEl = null;
+
+function _showOnboardTooltip(idx) {
+  _removeOnboardTooltip();
+  if (idx >= _onboardTooltips.length) {
+    try { localStorage.setItem('wellet_onboarded', 'true'); } catch(e) {}
+    return;
+  }
+  var cfg = _onboardTooltips[idx];
+  var anchor = document.querySelector(cfg.target);
+  if (!anchor) { _showOnboardTooltip(idx + 1); return; }
+  var rect = anchor.getBoundingClientRect();
+  var tip = document.createElement('div');
+  tip.className = 'onboard-tooltip';
+  tip.textContent = cfg.text;
+  tip.style.left = (rect.left + rect.width / 2) + 'px';
+  tip.style.top = (rect.top - 54) + 'px';
+  document.body.appendChild(tip);
+  _onboardEl = tip;
+}
+
+function _removeOnboardTooltip() {
+  if (_onboardEl) { _onboardEl.remove(); _onboardEl = null; }
+}
+
+function _advanceOnboard() {
+  _onboardStep++;
+  if (_onboardStep < _onboardTooltips.length) {
+    _showOnboardTooltip(_onboardStep);
+  } else {
+    _removeOnboardTooltip();
+    try { localStorage.setItem('wellet_onboarded', 'true'); } catch(e) {}
+    document.removeEventListener('click', _advanceOnboard);
+  }
+}
+
+function maybeShowOnboardTooltips() {
+  try {
+    if (localStorage.getItem('wellet_onboarded') === 'true') return;
+  } catch(e) { return; }
+  if (isDemoMode) return;
+  if (document.getElementById('auth-screen') && document.getElementById('auth-screen').style.display !== 'none') return;
+  _onboardStep = 0;
+  setTimeout(function() {
+    _showOnboardTooltip(0);
+    document.addEventListener('click', _advanceOnboard);
+  }, 1200);
+}
+
+// ── BROWSER BACK BUTTON SUPPORT (pushState / popstate) ────────────────────────
+var _navHistoryActive = true;
+var _currentNavView = 'home';
+
+// Set initial state so first back press has somewhere to go
+history.replaceState({ type: 'tab', view: 'home' }, '');
+
+window.addEventListener('popstate', function(e) {
+  var state = e.state;
+  if (!state) {
+    switchNavTo('home', true);
+    return;
+  }
+  if (state.type === 'sheet') {
+    var sheetEl = document.getElementById(state.id);
+    if (sheetEl && sheetEl.classList.contains('show')) {
+      closeSheetAccessible(state.id);
+    }
+  } else if (state.type === 'modal') {
+    closeModal();
+  } else if (state.type === 'tab') {
+    switchNavTo(state.view, true);
+  } else if (state.type === 'onboarding') {
+    var appEl = document.getElementById('app');
+    if (appEl && appEl.style.display !== 'none') {
+      document.getElementById('onboarding').style.display = 'none';
+    }
+  }
+});
+
+// ── PULL-TO-REFRESH ON HOME TAB ────────────────────────────────────────────
+var _ptrStartY = 0;
+var _ptrActive = false;
+var _ptrRefreshing = false;
+var _ptrThreshold = 60;
+
+document.addEventListener('touchstart', function(e) {
+  if (_ptrRefreshing) return;
+  var homeView = document.getElementById('view-home');
+  if (!homeView || !homeView.classList.contains('active')) return;
+  if (window.scrollY > 0) return;
+  _ptrStartY = e.touches[0].clientY;
+  _ptrActive = true;
+}, { passive: true });
+
+document.addEventListener('touchmove', function(e) {
+  if (!_ptrActive || _ptrRefreshing) return;
+  if (window.scrollY > 0) { _ptrActive = false; return; }
+  var delta = e.touches[0].clientY - _ptrStartY;
+  if (delta < 0) return;
+  var indicator = document.getElementById('pull-refresh-indicator');
+  if (!indicator) return;
+  if (delta > 10) {
+    indicator.classList.add('visible');
+    var text = indicator.querySelector('.pull-refresh-text');
+    if (delta >= _ptrThreshold) {
+      if (text) text.textContent = 'Release to refresh';
+    } else {
+      if (text) text.textContent = 'Pull to refresh';
+    }
+  }
+}, { passive: true });
+
+document.addEventListener('touchend', function() {
+  if (!_ptrActive || _ptrRefreshing) return;
+  _ptrActive = false;
+  var indicator = document.getElementById('pull-refresh-indicator');
+  if (!indicator) return;
+  if (!indicator.classList.contains('visible')) return;
+  var text = indicator.querySelector('.pull-refresh-text');
+  if (text && text.textContent === 'Release to refresh') {
+    _ptrRefreshing = true;
+    indicator.classList.add('refreshing');
+    if (text) text.textContent = 'Refreshing\u2026';
+    var doRefresh = function() {
+      if (currentPersonId && !isDemoMode) {
+        loadPersonData(currentPersonId).then(function() {
+          renderUpdateMe();
+          renderTimeline();
+          renderPatterns();
+          initIcons();
+          _ptrFinish();
+        }).catch(function() { _ptrFinish(); });
+      } else if (isDemoMode) {
+        renderUpdateMe();
+        renderTimeline();
+        renderPatterns();
+        initIcons();
+        setTimeout(_ptrFinish, 600);
+      } else {
+        _ptrFinish();
+      }
+    };
+    doRefresh();
+  } else {
+    indicator.classList.remove('visible');
+  }
+}, { passive: true });
+
+function _ptrFinish() {
+  _ptrRefreshing = false;
+  var indicator = document.getElementById('pull-refresh-indicator');
+  if (!indicator) return;
+  var text = indicator.querySelector('.pull-refresh-text');
+  indicator.classList.remove('refreshing');
+  if (text) text.textContent = 'Updated just now';
+  var meta = document.getElementById('header-meta-text');
+  if (meta) meta.textContent = 'Updated just now';
+  setTimeout(function() { indicator.classList.remove('visible'); }, 1200);
+}
+
+// ── OFFLINE BANNER + GRACEFUL DEGRADATION ───────────────────────────────
+var _wasOffline = !navigator.onLine;
+
+function updateOfflineBanner() {
+  var banner = document.getElementById('offline-banner');
+  if (!banner) return;
+  if (!navigator.onLine) {
+    banner.classList.add('visible');
+    _wasOffline = true;
+    initIcons();
+  } else {
+    banner.classList.remove('visible');
+    if (_wasOffline) {
+      _wasOffline = false;
+      // Show "back online" confirmation
+      var toast = document.createElement('div');
+      toast.className = 'back-online-toast';
+      toast.innerHTML = '<i data-lucide="wifi" style="width:14px;height:14px;"></i> Back online';
+      document.body.appendChild(toast);
+      initIcons();
+      setTimeout(function() { toast.remove(); }, 2800);
+    }
+  }
+}
+
+window.addEventListener('online', updateOfflineBanner);
+window.addEventListener('offline', updateOfflineBanner);
+// Check on load
+if (!navigator.onLine) updateOfflineBanner();
+
+// ── SKELETON LOADING STATES ──────────────────────────────────────────────
+function showSkeletons() {
+  var pane = document.getElementById('tab-update');
+  if (!pane) return;
+  // Save existing content reference for restore
+  pane.setAttribute('data-skeleton-active', 'true');
+  var skHtml = '<div class="skeleton-wrap">';
+  // Mimic update card
+  skHtml += '<div class="skeleton-card" style="height:100px;"></div>';
+  // Mimic alert card
+  skHtml += '<div class="skeleton-card" style="height:64px;"></div>';
+  // Mimic quick actions row
+  skHtml += '<div style="display:flex;gap:10px;margin-bottom:14px;">';
+  skHtml += '<div class="skeleton" style="height:36px;flex:1;"></div>';
+  skHtml += '<div class="skeleton" style="height:36px;flex:1;"></div>';
+  skHtml += '<div class="skeleton" style="height:36px;flex:1;"></div>';
+  skHtml += '</div>';
+  // Mimic timeline cards
+  skHtml += '<div class="skeleton-card"></div>';
+  skHtml += '<div class="skeleton-card"></div>';
+  skHtml += '<div class="skeleton-card"></div>';
+  skHtml += '</div>';
+  pane.innerHTML = skHtml;
+}
+
+function hideSkeletons() {
+  var pane = document.getElementById('tab-update');
+  if (pane) pane.removeAttribute('data-skeleton-active');
+}
+
+// ── ANONYMOUS BEHAVIORAL ANALYTICS ───────────────────────────────────────────
+// Zero PHI. No names, no health data, no IPs, no fingerprints.
+// Captures: navigation flows, feature usage, timing, satisfaction pulses,
+//           language, device type, screen size, timezone region.
+
+var _wa = (function() {
+  var sessionId = '';
+  var queue = [];
+  var flushTimer = null;
+  var sessionStart = Date.now();
+  var lastNav = '';
+  var rageClicks = { count: 0, ts: 0, el: '' };
+  var meta = {}; // device/language metadata set once per session
+
+  function init() {
+    sessionId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36);
+    lastNav = 'home';
+    // Collect deidentified metadata once
+    var lang = (navigator.language || 'en').substring(0, 2).toLowerCase();
+    var w = window.innerWidth || 0;
+    var deviceType = w < 768 ? 'mobile' : w < 1024 ? 'tablet' : 'desktop';
+    var screenBucket = w < 768 ? 'small' : w < 1024 ? 'medium' : 'large';
+    // Coarse timezone region (continent only)
+    var tzRegion = 'Unknown';
+    try {
+      var tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      if (tz.indexOf('America') === 0) tzRegion = 'Americas';
+      else if (tz.indexOf('Europe') === 0) tzRegion = 'Europe';
+      else if (tz.indexOf('Asia') === 0) tzRegion = 'Asia';
+      else if (tz.indexOf('Africa') === 0) tzRegion = 'Africa';
+      else if (tz.indexOf('Australia') === 0 || tz.indexOf('Pacific') === 0) tzRegion = 'Oceania';
+    } catch(e) {}
+    meta = { browser_lang: lang, device_type: deviceType, screen_bucket: screenBucket, timezone_region: tzRegion };
+    // Flush on page unload
+    window.addEventListener('beforeunload', flush);
+    flushTimer = setInterval(flush, 30000);
+    document.addEventListener('click', detectRageClick, true);
+    document.addEventListener('visibilitychange', function() {
+      if (document.hidden) {
+        track('session', 'background', { duration_s: Math.round((Date.now() - sessionStart) / 1000) });
+        flush();
+      }
+    });
+    track('session', 'start', {});
+  }
+
+  function track(type, name, data) {
+    if (isDemoMode) return;
+    var evt = {
+      session_id: sessionId,
+      event_type: type,
+      event_name: name,
+      event_data: data || {},
+      person_count: (typeof currentPeople !== 'undefined' && currentPeople) ? currentPeople.length : 0,
+      created_at: new Date().toISOString(),
+      browser_lang: meta.browser_lang || null,
+      device_type: meta.device_type || null,
+      screen_bucket: meta.screen_bucket || null,
+      timezone_region: meta.timezone_region || null
+    };
+    queue.push(evt);
+    if (queue.length >= 20) flush();
+  }
+
+  function flush() {
+    if (queue.length === 0) return;
+    var batch = queue.splice(0, queue.length);
+    if (typeof db !== 'undefined' && db.auth) {
+      db.auth.getSession().then(function(res) {
+        var s = res.data.session;
+        if (!s) return;
+        var uid = s.user.id;
+        var rows = batch.map(function(e) { e.user_id = uid; return e; });
+        db.from('anon_sessions').insert(rows).then(function() {}).catch(function() {});
+      }).catch(function() {});
+    }
+  }
+
+  function detectRageClick(e) {
+    var tag = (e.target.tagName || '').toLowerCase();
+    var id = e.target.id || e.target.className || tag;
+    var now = Date.now();
+    if (id === rageClicks.el && now - rageClicks.ts < 1500) {
+      rageClicks.count++;
+      if (rageClicks.count >= 3) {
+        track('frustration', 'rage_click', { element: String(id).substring(0, 60), view: _currentNavView || 'unknown' });
+        rageClicks.count = 0;
+      }
+    } else {
+      rageClicks = { count: 1, ts: now, el: id };
+    }
+  }
+
+  return { init: init, track: track, flush: flush };
+})();
+
+// ── SATISFACTION PULSE ────────────────────────────────────────────────────────
+var _pulse = (function() {
+  var shown = {};
+  var SESSION_LIMIT = 2;
+  var shownCount = 0;
+
+  function maybeShow(feature, delay) {
+    if (isDemoMode) return;
+    if (shownCount >= SESSION_LIMIT) return;
+    if (shown[feature]) return;
+    shown[feature] = true;
+    setTimeout(function() { showPulse(feature); }, delay || 3000);
+  }
+
+  function showPulse(feature) {
+    shownCount++;
+    var el = document.createElement('div');
+    el.className = 'wellet-pulse-toast';
+    el.innerHTML = '<div class="pulse-q">How helpful was this?</div>' +
+      '<div class="pulse-btns">' +
+      '<button onclick="_pulse.respond(\'' + feature + '\',1,this)" title="Not helpful" aria-label="Not helpful"><i data-lucide="frown"></i></button>' +
+      '<button onclick="_pulse.respond(\'' + feature + '\',2,this)" title="Okay" aria-label="Okay"><i data-lucide="meh"></i></button>' +
+      '<button onclick="_pulse.respond(\'' + feature + '\',3,this)" title="Very helpful" aria-label="Very helpful"><i data-lucide="smile"></i></button>' +
+      '</div>' +
+      '<button class="pulse-dismiss" onclick="this.parentNode.remove()" aria-label="Dismiss"><i data-lucide="x"></i></button>';
+    document.body.appendChild(el);
+    if (typeof initIcons === 'function') initIcons();
+    setTimeout(function() { if (el.parentNode) el.remove(); }, 8000);
+  }
+
+  function respond(feature, rating, btn) {
+    _wa.track('satisfaction', 'pulse_response', { feature: feature, rating: rating });
+    var toast = btn.closest('.wellet-pulse-toast');
+    if (toast) {
+      toast.innerHTML = '<div class="pulse-q" style="padding:8px 0;">Thanks!</div>';
+      setTimeout(function() { toast.remove(); }, 1500);
+    }
+  }
+
+  return { maybeShow: maybeShow, respond: respond };
+})();
+
+// ── INSTRUMENT EXISTING FUNCTIONS ────────────────────────────────────────────
+(function() {
+  var _origSwitchNavTo = switchNavTo;
+  switchNavTo = function(view, skipPush) {
+    var from = _currentNavView || 'home';
+    _origSwitchNavTo(view, skipPush);
+    if (view !== from) _wa.track('nav', 'view_switch', { from: from, to: view });
+  };
+})();
+
+(function() {
+  var _origSwitchTab = switchTab;
+  switchTab = function(el, id) {
+    _origSwitchTab(el, id);
+    _wa.track('nav', 'tab_switch', { tab: id, view: 'home' });
+  };
+})();
+
+(function() {
+  var _origSwitchPerson = switchPerson;
+  switchPerson = function(el, personKey) {
+    _origSwitchPerson(el, personKey);
+    _wa.track('nav', 'person_switch', { person_index: personKey });
+  };
+})();
+
+(function() {
+  var _origOpenSheet = openSheetAccessible;
+  openSheetAccessible = function(id, triggerEl) {
+    _origOpenSheet(id, triggerEl);
+    _wa.track('action', 'sheet_open', { sheet: id });
+  };
+})();
+
+(function() {
+  var _origSendAsk = sendAskMessage;
+  sendAskMessage = function() {
+    _wa.track('feature', 'ask_wellet', { view: _currentNavView || 'ask' });
+    _origSendAsk();
+    _pulse.maybeShow('ask_wellet', 5000);
+  };
+})();
+
+(function() {
+  var _origVisitPrep = openVisitPrep;
+  openVisitPrep = function(resume) {
+    _wa.track('feature', 'visit_prep', { resumed: !!resume });
+    _origVisitPrep(resume);
+    _pulse.maybeShow('visit_prep', 8000);
+  };
+})();
+
+(function() {
+  var _origSubmitEvent = submitHealthEvent;
+  submitHealthEvent = function() {
+    _wa.track('action', 'add_event', { view: _currentNavView || 'home' });
+    return _origSubmitEvent();
+  };
+})();
+
+(function() {
+  var _origSubmitMed = submitMedication;
+  submitMedication = function() {
+    _wa.track('action', 'add_medication', {});
+    return _origSubmitMed();
+  };
+})();
+
+(function() {
+  var _origShare = createShareLink;
+  createShareLink = function(action) {
+    _wa.track('feature', 'share', { action: action || 'unknown' });
+    return _origShare(action);
+  };
+})();
+
+(function() {
+  var _origFeedback = submitFeedback;
+  submitFeedback = function() {
+    _wa.track('action', 'submit_feedback', {});
+    return _origFeedback();
+  };
+})();
+
+(function() {
+  var _origEhr = startEhrConnect;
+  startEhrConnect = function() {
+    _wa.track('feature', 'ehr_connect', {});
+    return _origEhr();
+  };
+})();
+
+// Initialize analytics after app loads
+(function() {
+  var _origInitApp = initApp;
+  initApp = async function() {
+    var result = await _origInitApp();
+    _wa.init();
+    return result;
+  };
+})();
+
