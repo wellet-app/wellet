@@ -1,0 +1,862 @@
+/* ============================================================
+   editorial-sheets.css — PR 6
+   Sheets surface: settings, profile, upload, qa-sheet family
+   (share, export, feedback, delete-account, bug, contact, etc.)
+
+   Scope: parent overlay carries data-editorial="sheet"
+   Goal:  warm linen surface + Fraunces titles + hairline rules,
+          dropping white backgrounds, heavy color tiles, and
+          DM Serif Display.
+   ============================================================ */
+
+/* ---- Backdrop ----
+   Warm ink-9 at low alpha rather than generic black/40 — keeps the
+   edge of the sheet feeling like part of the same world. */
+[data-editorial="sheet"].sheet-overlay,
+[data-editorial="sheet"][class*="-overlay"] {
+  background: rgba(31, 27, 22, 0.42);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+/* ---- The sheet surface itself ---- */
+[data-editorial="sheet"] .qa-sheet,
+[data-editorial="sheet"] .upload-sheet,
+[data-editorial="sheet"] .settings-sheet,
+[data-editorial="sheet"] .profile-sheet,
+[data-editorial="sheet"] .pricing-sheet,
+[data-editorial="sheet"] .upgrade-sheet {
+  background: var(--linen, #F7F5F0);
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -1px 0 rgba(31, 27, 22, 0.06);
+  padding: 0 0 36px;
+}
+
+/* Drop the gray grab handle pill. The hairline-radiused top edge does
+   the "this is a sheet" job already; an extra pill is decoration.
+   Keep the handle row (it carries the close button) but hide just the
+   pill itself. */
+[data-editorial="sheet"] .qa-handle,
+[data-editorial="sheet"] .upload-handle,
+[data-editorial="sheet"] .settings-handle,
+[data-editorial="sheet"] .profile-handle,
+[data-editorial="sheet"] .sheet-handle,
+[data-editorial="sheet"] .grab-handle {
+  display: none !important;
+}
+/* The handle-row (which contains the close button) becomes a quiet
+   spacer; close-btn is positioned absolute via the rule below. */
+[data-editorial="sheet"] .qa-handle-row,
+[data-editorial="sheet"] .upload-handle-row,
+[data-editorial="sheet"] .settings-handle-row,
+[data-editorial="sheet"] .profile-handle-row {
+  position: relative;
+  min-height: 16px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+/* ---- Close button ----
+   Was: square box with a heavy border. Now: bare 18px x in ink-5,
+   tucked top-right. Tap target stays 38x38 via padding. */
+[data-editorial="sheet"] .close-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 38px;
+  height: 38px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: var(--ink-5);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.15s ease;
+  padding: 0;
+  box-shadow: none;
+}
+[data-editorial="sheet"] .close-btn:hover { color: var(--ink-9); }
+[data-editorial="sheet"] .close-btn svg,
+[data-editorial="sheet"] .close-btn i {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.5;
+}
+
+/* ---- Title + subtitle ---- */
+[data-editorial="sheet"] .qa-sheet-title,
+[data-editorial="sheet"] .profile-name,
+[data-editorial="sheet"] .settings-title,
+[data-editorial="sheet"] .upload-sheet-title {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 26px;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--ink-9);
+  padding: 22px 22px 4px;
+  font-variation-settings: "opsz" 36, "SOFT" 60;
+}
+@media (min-width: 768px) {
+  [data-editorial="sheet"] .qa-sheet-title,
+  [data-editorial="sheet"] .profile-name,
+  [data-editorial="sheet"] .settings-title,
+  [data-editorial="sheet"] .upload-sheet-title {
+    font-size: 30px;
+    padding: 26px 28px 4px;
+  }
+}
+[data-editorial="sheet"] .qa-sheet-sub,
+[data-editorial="sheet"] .profile-sub,
+[data-editorial="sheet"] .settings-sub,
+[data-editorial="sheet"] .upload-sheet-sub {
+  font-family: var(--sans);
+  font-weight: 300;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-5);
+  padding: 0 22px 20px;
+  letter-spacing: 0.005em;
+}
+@media (min-width: 768px) {
+  [data-editorial="sheet"] .qa-sheet-sub,
+  [data-editorial="sheet"] .profile-sub,
+  [data-editorial="sheet"] .settings-sub,
+  [data-editorial="sheet"] .upload-sheet-sub {
+    padding: 0 28px 22px;
+    font-size: 15px;
+  }
+}
+
+/* ---- Section labels ---- */
+[data-editorial="sheet"] .section-label,
+[data-editorial="sheet"] .sheet-section-label,
+[data-editorial="sheet"] .qa-sheet-section,
+[data-editorial="sheet"] .settings-section-label {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-5);
+  padding: 18px 22px 8px;
+  font-variation-settings: "opsz" 14, "SOFT" 60;
+}
+@media (min-width: 768px) {
+  [data-editorial="sheet"] .section-label,
+  [data-editorial="sheet"] .sheet-section-label,
+  [data-editorial="sheet"] .qa-sheet-section,
+  [data-editorial="sheet"] .settings-section-label {
+    padding: 22px 28px 10px;
+  }
+}
+
+/* ---- The summary card ("WHAT YOU'RE SHARING") ----
+   Was: mint #DCE7DF block. Now: linen card with hairline border,
+   readable serif-friendly body type. Real markup uses .share-preview
+   with .share-preview-label + .share-preview-text. */
+[data-editorial="sheet"] .share-preview,
+[data-editorial="sheet"] .share-summary-card,
+[data-editorial="sheet"] .qa-summary-card,
+[data-editorial="sheet"] .summary-card {
+  background: transparent !important;
+  border: 1px solid var(--ink-1);
+  border-radius: 6px;
+  padding: 16px 18px !important;
+  margin: 0 22px 20px !important;
+  color: var(--ink-9);
+  box-shadow: none !important;
+}
+@media (min-width: 768px) {
+  [data-editorial="sheet"] .share-preview,
+  [data-editorial="sheet"] .share-summary-card,
+  [data-editorial="sheet"] .qa-summary-card,
+  [data-editorial="sheet"] .summary-card {
+    margin: 0 28px 22px !important;
+  }
+}
+[data-editorial="sheet"] .share-preview-label,
+[data-editorial="sheet"] .share-summary-card .label,
+[data-editorial="sheet"] .qa-summary-card .label,
+[data-editorial="sheet"] .summary-card .label {
+  font-family: var(--serif) !important;
+  font-weight: 400 !important;
+  font-size: 11px !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--ink-5) !important;
+  margin-bottom: 8px !important;
+  font-variation-settings: "opsz" 14, "SOFT" 60 !important;
+}
+[data-editorial="sheet"] .share-preview-text,
+[data-editorial="sheet"] .share-summary-card p,
+[data-editorial="sheet"] .qa-summary-card p,
+[data-editorial="sheet"] .summary-card p,
+[data-editorial="sheet"] .share-summary-card .body,
+[data-editorial="sheet"] .qa-summary-card .body {
+  font-family: var(--sans) !important;
+  font-weight: 300 !important;
+  font-size: 15px !important;
+  line-height: 1.55 !important;
+  color: var(--ink-9) !important;
+  margin: 0 !important;
+  letter-spacing: 0.005em !important;
+}
+
+/* ---- Toggle rows ("Include caregiver notes" etc.) ----
+   Slim row, hairline rule between, plain serif-free label. Real
+   markup is .share-toggle-row. */
+[data-editorial="sheet"] .share-toggle-row,
+[data-editorial="sheet"] .toggle-row,
+[data-editorial="sheet"] .sheet-toggle-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 14px 22px !important;
+  border-bottom: 1px solid var(--ink-1) !important;
+  margin: 0 !important;
+  background: transparent !important;
+}
+@media (min-width: 768px) {
+  [data-editorial="sheet"] .share-toggle-row,
+  [data-editorial="sheet"] .toggle-row,
+  [data-editorial="sheet"] .sheet-toggle-row {
+    padding: 14px 28px !important;
+  }
+}
+[data-editorial="sheet"] .share-toggle-label,
+[data-editorial="sheet"] .toggle-row .label,
+[data-editorial="sheet"] .sheet-toggle-row .label {
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 15px;
+  color: var(--ink-9);
+}
+
+/* ---- Action rows (Copy link / Send via email / Download as PDF) ----
+   Drop the heavy color tiles. Outline icon in moss-deep, label
+   editorial body, sub muted, full-width row, hairline rule between.
+   Real markup uses .share-options containing .share-option rows with
+   .share-option-icon, .share-option-label, .share-option-sub. */
+[data-editorial="sheet"] .share-options {
+  margin: 0 !important;
+  padding: 0 !important;
+  display: block !important;
+  border-top: 1px solid var(--ink-1);
+}
+[data-editorial="sheet"] .share-option,
+[data-editorial="sheet"] .action-row,
+[data-editorial="sheet"] .sheet-action,
+[data-editorial="sheet"] .share-method {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 14px !important;
+  padding: 16px 22px !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--ink-1) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  width: 100% !important;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  box-shadow: none !important;
+}
+@media (min-width: 768px) {
+  [data-editorial="sheet"] .share-option,
+  [data-editorial="sheet"] .action-row,
+  [data-editorial="sheet"] .sheet-action,
+  [data-editorial="sheet"] .share-method {
+    padding: 16px 28px !important;
+  }
+}
+[data-editorial="sheet"] .share-option:hover,
+[data-editorial="sheet"] .action-row:hover,
+[data-editorial="sheet"] .sheet-action:hover,
+[data-editorial="sheet"] .share-method:hover {
+  background: rgba(96, 143, 124, 0.05) !important;
+}
+[data-editorial="sheet"] .share-option-icon,
+[data-editorial="sheet"] .action-row .icon,
+[data-editorial="sheet"] .sheet-action .icon,
+[data-editorial="sheet"] .share-method .icon {
+  width: 36px !important;
+  height: 36px !important;
+  background: transparent !important;
+  border: 1px solid var(--moss) !important;
+  border-radius: 50% !important;
+  color: var(--moss-deep) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  margin-top: 2px;
+}
+[data-editorial="sheet"] .share-option-icon i,
+[data-editorial="sheet"] .share-option-icon svg,
+[data-editorial="sheet"] .action-row .icon i,
+[data-editorial="sheet"] .action-row .icon svg,
+[data-editorial="sheet"] .sheet-action .icon i,
+[data-editorial="sheet"] .sheet-action .icon svg,
+[data-editorial="sheet"] .share-method .icon i,
+[data-editorial="sheet"] .share-method .icon svg {
+  width: 16px !important;
+  height: 16px !important;
+  stroke-width: 1.5 !important;
+  color: var(--moss-deep) !important;
+}
+[data-editorial="sheet"] .share-option-label,
+[data-editorial="sheet"] .action-row .title,
+[data-editorial="sheet"] .sheet-action .title,
+[data-editorial="sheet"] .share-method .title {
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 15px;
+  color: var(--ink-9);
+  margin-bottom: 2px;
+}
+[data-editorial="sheet"] .share-option-sub,
+[data-editorial="sheet"] .action-row .sub,
+[data-editorial="sheet"] .sheet-action .sub,
+[data-editorial="sheet"] .share-method .sub {
+  font-family: var(--sans);
+  font-weight: 300;
+  font-size: 13px;
+  color: var(--ink-5);
+  letter-spacing: 0.005em;
+  line-height: 1.45;
+}
+
+/* ---- "Send to" empty state ---- */
+[data-editorial="sheet"] .send-to-empty,
+[data-editorial="sheet"] .sheet-empty {
+  font-family: var(--sans);
+  font-weight: 300;
+  font-size: 14px;
+  color: var(--ink-5);
+  padding: 0 22px 12px;
+  font-style: normal;
+}
+@media (min-width: 768px) {
+  [data-editorial="sheet"] .send-to-empty,
+  [data-editorial="sheet"] .sheet-empty {
+    padding: 0 28px 12px;
+  }
+}
+
+/* "+ Add family member" link */
+[data-editorial="sheet"] .add-link,
+[data-editorial="sheet"] .add-family-link {
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 14px;
+  color: var(--moss-deep);
+  background: transparent;
+  border: 0;
+  padding: 4px 22px 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+@media (min-width: 768px) {
+  [data-editorial="sheet"] .add-link,
+  [data-editorial="sheet"] .add-family-link {
+    padding: 4px 28px 22px;
+  }
+}
+[data-editorial="sheet"] .add-link:hover,
+[data-editorial="sheet"] .add-family-link:hover {
+  color: var(--moss);
+  text-decoration: underline;
+  text-decoration-color: var(--moss);
+  text-underline-offset: 3px;
+}
+
+/* ---- Footer link ("View share history") ---- */
+[data-editorial="sheet"] .sheet-footer-link {
+  display: flex;
+  justify-content: center;
+  padding: 18px 22px 0;
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 13px;
+}
+[data-editorial="sheet"] .sheet-footer-link button,
+[data-editorial="sheet"] .sheet-footer-link a {
+  color: var(--moss-deep);
+  background: transparent;
+  border: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 13px;
+}
+[data-editorial="sheet"] .sheet-footer-link button:hover,
+[data-editorial="sheet"] .sheet-footer-link a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--moss);
+}
+
+/* ---- Settings rows ----
+   Real markup: .settings-row > .settings-row-left > .settings-row-icon
+   + (label/meta) ; sibling .settings-chevron.
+   Drop the mint/red/green icon tiles in favor of bare moss-deep
+   outline icons + hairline-divided rows. */
+[data-editorial="sheet"] .settings-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 14px !important;
+  padding: 16px 22px !important;
+  border-bottom: 1px solid var(--ink-1) !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+}
+@media (min-width: 768px) {
+  [data-editorial="sheet"] .settings-row {
+    padding: 18px 28px !important;
+  }
+}
+[data-editorial="sheet"] .settings-row-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
+}
+[data-editorial="sheet"] .settings-row-icon {
+  width: 32px !important;
+  height: 32px !important;
+  background: transparent !important;
+  border: 1px solid var(--ink-2) !important;
+  border-radius: 50% !important;
+  color: var(--moss-deep) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
+[data-editorial="sheet"] .settings-row-icon i,
+[data-editorial="sheet"] .settings-row-icon svg {
+  width: 14px !important;
+  height: 14px !important;
+  stroke-width: 1.5 !important;
+  color: var(--moss-deep) !important;
+}
+[data-editorial="sheet"] .settings-row-label {
+  font-family: var(--sans) !important;
+  font-weight: 400 !important;
+  font-size: 15px !important;
+  color: var(--ink-9) !important;
+  margin-bottom: 2px;
+}
+[data-editorial="sheet"] .settings-row-meta {
+  font-family: var(--sans);
+  font-weight: 300;
+  font-size: 13px;
+  color: var(--ink-5);
+  letter-spacing: 0.005em;
+  line-height: 1.45;
+}
+[data-editorial="sheet"] .settings-chevron {
+  color: var(--ink-3) !important;
+  flex-shrink: 0;
+}
+[data-editorial="sheet"] .settings-chevron svg,
+[data-editorial="sheet"] .settings-chevron i {
+  width: 14px !important;
+  height: 14px !important;
+  stroke-width: 1.5 !important;
+}
+
+/* Settings sections + section labels */
+[data-editorial="sheet"] .settings-section {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 18px 0 0 !important;
+  box-shadow: none !important;
+}
+[data-editorial="sheet"] .settings-section-label {
+  font-family: var(--serif) !important;
+  font-weight: 400 !important;
+  font-size: 11px !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--ink-5) !important;
+  padding: 6px 22px 8px !important;
+  font-variation-settings: "opsz" 14, "SOFT" 60 !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+@media (min-width: 768px) {
+  [data-editorial="sheet"] .settings-section-label {
+    padding: 6px 28px 10px !important;
+  }
+}
+
+/* Danger-zone: switch the red signals to warm signal tone */
+[data-editorial="sheet"] .settings-row[onclick*="openDeleteAccountSheet"] .settings-row-icon,
+[data-editorial="sheet"] .settings-row[onclick*="handleLogout"] .settings-row-icon {
+  border-color: var(--signal-warm, #B8835A) !important;
+  color: var(--signal-warm, #B8835A) !important;
+}
+[data-editorial="sheet"] .settings-row[onclick*="openDeleteAccountSheet"] .settings-row-icon i,
+[data-editorial="sheet"] .settings-row[onclick*="openDeleteAccountSheet"] .settings-row-icon svg,
+[data-editorial="sheet"] .settings-row[onclick*="handleLogout"] .settings-row-icon i,
+[data-editorial="sheet"] .settings-row[onclick*="handleLogout"] .settings-row-icon svg {
+  color: var(--signal-warm, #B8835A) !important;
+}
+[data-editorial="sheet"] .settings-row[onclick*="openDeleteAccountSheet"] .settings-row-label,
+[data-editorial="sheet"] .settings-row[onclick*="handleLogout"] .settings-row-label {
+  color: var(--signal-warm, #B8835A) !important;
+}
+
+/* ---- Care-circle person row in Settings ---- */
+[data-editorial="sheet"] .care-circle-row,
+#view-settings[data-editorial="settings"] .care-circle-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--ink-1);
+}
+@media (min-width: 768px) {
+  [data-editorial="sheet"] .care-circle-row,
+  #view-settings[data-editorial="settings"] .care-circle-row {
+    padding: 18px 28px;
+  }
+}
+[data-editorial="sheet"] .care-circle-row .avatar,
+#view-settings[data-editorial="settings"] .care-circle-row .avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--moss-deep);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+[data-editorial="sheet"] .care-circle-row .name,
+#view-settings[data-editorial="settings"] .care-circle-row .name {
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 15px;
+  color: var(--ink-9);
+}
+[data-editorial="sheet"] .care-circle-row .email,
+#view-settings[data-editorial="settings"] .care-circle-row .email {
+  font-family: var(--sans);
+  font-weight: 300;
+  font-size: 13px;
+  color: var(--ink-5);
+}
+[data-editorial="sheet"] .care-circle-row .role-pill,
+#view-settings[data-editorial="settings"] .care-circle-row .role-pill {
+  background: transparent;
+  border: 1px solid var(--moss);
+  color: var(--moss-deep);
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+/* "Invite family member" dashed CTA */
+[data-editorial="sheet"] .invite-cta,
+#view-settings[data-editorial="settings"] .invite-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 12px 22px 18px;
+  padding: 14px 18px;
+  border: 1px dashed var(--ink-2);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-5);
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+@media (min-width: 768px) {
+  [data-editorial="sheet"] .invite-cta,
+  #view-settings[data-editorial="settings"] .invite-cta {
+    margin: 12px 28px 22px;
+  }
+}
+[data-editorial="sheet"] .invite-cta:hover,
+#view-settings[data-editorial="settings"] .invite-cta:hover {
+  border-color: var(--moss);
+  color: var(--moss-deep);
+}
+[data-editorial="sheet"] .invite-cta svg,
+[data-editorial="sheet"] .invite-cta i,
+#view-settings[data-editorial="settings"] .invite-cta svg,
+#view-settings[data-editorial="settings"] .invite-cta i {
+  width: 14px !important;
+  height: 14px !important;
+  stroke-width: 1.5 !important;
+}
+
+/* ---- Primary buttons inside sheets ---- */
+[data-editorial="sheet"] .qa-sheet .btn-primary,
+[data-editorial="sheet"] .upload-sheet .btn-primary,
+[data-editorial="sheet"] .settings-sheet .btn-primary,
+[data-editorial="sheet"] .profile-sheet .btn-primary {
+  background: var(--moss-deep);
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  padding: 14px 18px;
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.005em;
+  margin: 8px 22px 0;
+  width: calc(100% - 44px);
+  cursor: pointer;
+  transition: background 0.15s ease;
+  box-shadow: none;
+}
+@media (min-width: 768px) {
+  [data-editorial="sheet"] .qa-sheet .btn-primary,
+  [data-editorial="sheet"] .upload-sheet .btn-primary,
+  [data-editorial="sheet"] .settings-sheet .btn-primary,
+  [data-editorial="sheet"] .profile-sheet .btn-primary {
+    margin: 8px 28px 0;
+    width: calc(100% - 56px);
+  }
+}
+[data-editorial="sheet"] .qa-sheet .btn-primary:hover,
+[data-editorial="sheet"] .upload-sheet .btn-primary:hover,
+[data-editorial="sheet"] .settings-sheet .btn-primary:hover,
+[data-editorial="sheet"] .profile-sheet .btn-primary:hover {
+  background: var(--moss);
+}
+
+/* Secondary button (Cancel etc.) */
+[data-editorial="sheet"] .qa-sheet .btn-secondary,
+[data-editorial="sheet"] .upload-sheet .btn-secondary,
+[data-editorial="sheet"] .settings-sheet .btn-secondary,
+[data-editorial="sheet"] .profile-sheet .btn-secondary {
+  background: transparent;
+  color: var(--ink-7);
+  border: 1px solid var(--ink-2);
+  border-radius: 8px;
+  padding: 13px 18px;
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 14px;
+  margin: 8px 22px 0;
+  width: calc(100% - 44px);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+@media (min-width: 768px) {
+  [data-editorial="sheet"] .qa-sheet .btn-secondary,
+  [data-editorial="sheet"] .upload-sheet .btn-secondary,
+  [data-editorial="sheet"] .settings-sheet .btn-secondary,
+  [data-editorial="sheet"] .profile-sheet .btn-secondary {
+    margin: 8px 28px 0;
+    width: calc(100% - 56px);
+  }
+}
+[data-editorial="sheet"] .qa-sheet .btn-secondary:hover,
+[data-editorial="sheet"] .upload-sheet .btn-secondary:hover,
+[data-editorial="sheet"] .settings-sheet .btn-secondary:hover,
+[data-editorial="sheet"] .profile-sheet .btn-secondary:hover {
+  border-color: var(--ink-5);
+  color: var(--ink-9);
+}
+
+/* Destructive action — used in delete-account sheet. Quiet warm tone,
+   never red. */
+[data-editorial="sheet"] .qa-sheet-title.destructive,
+[data-editorial="sheet"] .qa-sheet-title[style*="color:var(--red)"] {
+  color: var(--signal-warm, #B8835A) !important;
+}
+[data-editorial="sheet"] .btn-destructive {
+  background: var(--signal-warm, #B8835A);
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  padding: 14px 18px;
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: 14px;
+  margin: 8px 22px 0;
+  width: calc(100% - 44px);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+[data-editorial="sheet"] .btn-destructive:hover {
+  background: #A06F46;
+}
+
+/* ---- Form fields inside sheets ---- */
+[data-editorial="sheet"] .qa-sheet input[type="text"],
+[data-editorial="sheet"] .qa-sheet input[type="email"],
+[data-editorial="sheet"] .qa-sheet input[type="tel"],
+[data-editorial="sheet"] .qa-sheet textarea,
+[data-editorial="sheet"] .upload-sheet input[type="text"],
+[data-editorial="sheet"] .upload-sheet textarea,
+[data-editorial="sheet"] .profile-sheet input[type="text"],
+[data-editorial="sheet"] .profile-sheet input[type="email"],
+[data-editorial="sheet"] .profile-sheet textarea {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--ink-2);
+  border-radius: 0;
+  padding: 10px 0;
+  margin: 0 22px;
+  width: calc(100% - 44px);
+  font-family: var(--sans);
+  font-weight: 300;
+  font-size: 15px;
+  color: var(--ink-9);
+  letter-spacing: 0.005em;
+  box-shadow: none;
+}
+@media (min-width: 768px) {
+  [data-editorial="sheet"] .qa-sheet input[type="text"],
+  [data-editorial="sheet"] .qa-sheet input[type="email"],
+  [data-editorial="sheet"] .qa-sheet input[type="tel"],
+  [data-editorial="sheet"] .qa-sheet textarea,
+  [data-editorial="sheet"] .upload-sheet input[type="text"],
+  [data-editorial="sheet"] .upload-sheet textarea,
+  [data-editorial="sheet"] .profile-sheet input[type="text"],
+  [data-editorial="sheet"] .profile-sheet input[type="email"],
+  [data-editorial="sheet"] .profile-sheet textarea {
+    margin: 0 28px;
+    width: calc(100% - 56px);
+  }
+}
+[data-editorial="sheet"] .qa-sheet input:focus,
+[data-editorial="sheet"] .qa-sheet textarea:focus,
+[data-editorial="sheet"] .upload-sheet input:focus,
+[data-editorial="sheet"] .upload-sheet textarea:focus,
+[data-editorial="sheet"] .profile-sheet input:focus,
+[data-editorial="sheet"] .profile-sheet textarea:focus {
+  outline: none;
+  border-bottom-color: var(--moss-deep);
+}
+[data-editorial="sheet"] .field-label {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-5);
+  padding: 14px 22px 4px;
+  font-variation-settings: "opsz" 14, "SOFT" 60;
+  display: block;
+}
+@media (min-width: 768px) {
+  [data-editorial="sheet"] .field-label {
+    padding: 14px 28px 4px;
+  }
+}
+
+/* ---- Upload sheet — drop zone ---- */
+[data-editorial="sheet"] .upload-sheet .drop-zone,
+[data-editorial="sheet"] .upload-sheet .upload-area {
+  background: transparent;
+  border: 1px dashed var(--ink-2);
+  border-radius: 6px;
+  padding: 36px 18px;
+  margin: 0 22px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+@media (min-width: 768px) {
+  [data-editorial="sheet"] .upload-sheet .drop-zone,
+  [data-editorial="sheet"] .upload-sheet .upload-area {
+    margin: 0 28px 18px;
+    padding: 44px 18px;
+  }
+}
+[data-editorial="sheet"] .upload-sheet .drop-zone:hover,
+[data-editorial="sheet"] .upload-sheet .upload-area:hover {
+  border-color: var(--moss);
+  background: rgba(96, 143, 124, 0.04);
+}
+[data-editorial="sheet"] .upload-sheet .drop-zone-title {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 17px;
+  color: var(--ink-9);
+  margin-bottom: 4px;
+  font-variation-settings: "opsz" 24, "SOFT" 60;
+}
+[data-editorial="sheet"] .upload-sheet .drop-zone-sub {
+  font-family: var(--sans);
+  font-weight: 300;
+  font-size: 13px;
+  color: var(--ink-5);
+}
+
+/* ---- Toggle switch — slim, moss when on ---- */
+[data-editorial="sheet"] .toggle-row .toggle,
+[data-editorial="sheet"] .sheet-toggle-row .toggle,
+[data-editorial="sheet"] .toggle-switch {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  background: var(--ink-2);
+  border-radius: 999px;
+  border: 0;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  flex-shrink: 0;
+}
+[data-editorial="sheet"] .toggle-row .toggle::after,
+[data-editorial="sheet"] .sheet-toggle-row .toggle::after,
+[data-editorial="sheet"] .toggle-switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.15s ease;
+  box-shadow: 0 1px 1px rgba(31, 27, 22, 0.15);
+}
+[data-editorial="sheet"] .toggle-row .toggle.on,
+[data-editorial="sheet"] .toggle-row .toggle[aria-checked="true"],
+[data-editorial="sheet"] .toggle-switch.on,
+[data-editorial="sheet"] .toggle-switch[aria-checked="true"] {
+  background: var(--moss-deep);
+}
+[data-editorial="sheet"] .toggle-row .toggle.on::after,
+[data-editorial="sheet"] .toggle-row .toggle[aria-checked="true"]::after,
+[data-editorial="sheet"] .toggle-switch.on::after,
+[data-editorial="sheet"] .toggle-switch[aria-checked="true"]::after {
+  transform: translateX(16px);
+}

@@ -27,6 +27,7 @@
 <link rel="stylesheet" href="/assets/editorial-updates.css">
 <link rel="stylesheet" href="/assets/editorial-records.css">
 <link rel="stylesheet" href="/assets/editorial-ask.css">
+<link rel="stylesheet" href="/assets/editorial-sheets.css">
 </head>
 <body>
 <div class="page-wrap">
@@ -1337,7 +1338,7 @@
 </div>
 
 <!-- SHARE WITH FAMILY SHEET -->
-<div class="qa-overlay" id="share-overlay">
+<div class="qa-overlay" id="share-overlay" data-editorial="sheet">
   <div class="qa-sheet">
     <div class="qa-handle-row">
       <div class="qa-handle"></div>
@@ -1408,7 +1409,7 @@
 </div>
 
 <!-- SHARE HISTORY SHEET -->
-<div class="qa-overlay" id="share-history-overlay">
+<div class="qa-overlay" id="share-history-overlay" data-editorial="sheet">
   <div class="qa-sheet" style="max-height:75vh;">
     <div class="qa-handle-row">
       <div class="qa-handle"></div>
@@ -1423,7 +1424,7 @@
 </div>
 
 <!-- EXPORT FOR VISIT SHEET -->
-<div class="qa-overlay" id="export-overlay">
+<div class="qa-overlay" id="export-overlay" data-editorial="sheet">
   <div class="qa-sheet">
     <div class="qa-handle-row">
       <div class="qa-handle"></div>
@@ -1458,7 +1459,7 @@
 
 <!-- UPLOAD SHEET -->
 <input type="file" id="upload-file-input" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.txt,.m4a,.mp3,.wav,.ogg,.webm,.zip,application/zip,audio/mp4,audio/mpeg,audio/wav,audio/ogg,audio/webm" style="display:none;" onchange="handleFileSelected(this)">
-<div class="upload-overlay" id="upload-overlay" onclick="if(event.target===this)closeUpload()">
+<div class="upload-overlay" id="upload-overlay" data-editorial="sheet" onclick="if(event.target===this)closeUpload()">
   <div class="upload-sheet">
     <div class="upload-handle-row">
       <div class="upload-handle"></div>
@@ -1668,7 +1669,7 @@
 </div>
 
 <!-- SETTINGS SHEET -->
-<div class="settings-overlay" id="settings-overlay" onclick="if(event.target===this)closeSettings()">
+<div class="settings-overlay" id="settings-overlay" data-editorial="sheet" onclick="if(event.target===this)closeSettings()">
   <div class="settings-sheet">
     <div class="settings-handle-row">
       <div class="settings-handle"></div>
@@ -1952,7 +1953,7 @@
 </div>
 
 <!-- FEEDBACK SHEET -->
-<div class="qa-overlay" id="feedback-overlay">
+<div class="qa-overlay" id="feedback-overlay" data-editorial="sheet">
   <div class="qa-sheet">
     <div class="qa-handle-row">
       <div class="qa-handle"></div>
@@ -1971,7 +1972,7 @@
 </div>
 
 <!-- DELETE ACCOUNT SHEET -->
-<div class="qa-overlay" id="delete-account-overlay">
+<div class="qa-overlay" id="delete-account-overlay" data-editorial="sheet">
   <div class="qa-sheet">
     <div class="qa-handle-row">
       <div class="qa-handle"></div>
@@ -1999,7 +2000,7 @@
 </div>
 
 <!-- BUG REPORT SHEET -->
-<div class="qa-overlay" id="bug-report-overlay">
+<div class="qa-overlay" id="bug-report-overlay" data-editorial="sheet">
   <div class="qa-sheet">
     <div class="qa-handle-row">
       <div class="qa-handle"></div>
@@ -2029,7 +2030,7 @@
 </div>
 
 <!-- ALPHA WELCOME OVERLAY -->
-<div class="qa-overlay" id="welcome-overlay">
+<div class="qa-overlay" id="welcome-overlay" data-editorial="sheet">
   <div class="qa-sheet" style="text-align:center;">
     <div class="qa-handle-row">
       <div class="qa-handle"></div>
@@ -2056,7 +2057,7 @@
 </div>
 
 <!-- CONTACT EDIT SHEET -->
-<div class="qa-overlay" id="contact-overlay">
+<div class="qa-overlay" id="contact-overlay" data-editorial="sheet">
   <div class="qa-sheet">
     <div class="qa-handle-row">
       <div class="qa-handle"></div>
@@ -2154,7 +2155,7 @@
 </div>
 
 <!-- PROFILE EDIT OVERLAY -->
-<div class="profile-overlay" id="profile-overlay">
+<div class="profile-overlay" id="profile-overlay" data-editorial="sheet">
   <div class="profile-sheet">
     <div class="profile-handle-row">
       <div class="profile-handle"></div>
