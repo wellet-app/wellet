@@ -6984,11 +6984,11 @@ function _renderSignalsDemo(el, data) {
       var badgeClass = 'med-badge med-badge--' + status;
       var statusIcon = '';
       var statusLabel = '';
-      if (status === 'taken') { statusIcon = '\u2705'; statusLabel = 'Taken'; }
-      else if (status === 'missed') { statusIcon = '\u26a0\ufe0f'; statusLabel = 'Missed'; }
-      else if (status === 'due') { statusIcon = '\ud83d\udd14'; statusLabel = 'Due now'; }
-      else { statusIcon = '\u23f0'; statusLabel = 'Upcoming'; }
-      html += '<span class="' + badgeClass + '">' + statusIcon + ' ' + formatTime12(med.times[ti]) + ' \u00b7 ' + statusLabel + '</span>';
+      if (status === 'taken') { statusIcon = ''; statusLabel = 'Taken'; }
+      else if (status === 'missed') { statusIcon = ''; statusLabel = 'Missed'; }
+      else if (status === 'due') { statusIcon = ''; statusLabel = 'Due now'; }
+      else { statusIcon = ''; statusLabel = 'Upcoming'; }
+      html += '<span class="' + badgeClass + '">' + formatTime12(med.times[ti]) + ' \u00b7 ' + statusLabel + '</span>';
     }
     html += '</div></div></div>';
   }
@@ -7032,7 +7032,7 @@ function _renderSignalsDemo(el, data) {
   html += '<div class="wearable-card">';
   html += '<div class="signals-label">' + t('signals.heartRate') + '</div>';
   html += '<div class="signals-metric">' + w.heartRate.current + ' <span style="font-size:14px;font-weight:400;color:var(--text-secondary);">bpm</span></div>';
-  html += '<div class="wearable-sparkline">' + buildSparkline(w.heartRate.trend, 120, 28, 'var(--red)') + '</div>';
+  html += '<div class="wearable-sparkline">' + buildSparkline(w.heartRate.trend, 120, 28, 'var(--signal-warm)') + '</div>';
   html += '<div class="signals-metric-sm">' + w.heartRate.min + '\u2013' + w.heartRate.max + ' today</div>';
   html += '</div>';
 

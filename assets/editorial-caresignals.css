@@ -1,0 +1,509 @@
+/* ============================================================
+   editorial-caresignals.css
+   Editorial pass on the CareSignals demo surface.
+   Four sections — Today's Medications, Wearable Data,
+   Home Sensors, Patterns — each redrawn as hairline-divided
+   rows on linen instead of nested white cards.
+
+   Critical fixes from the prior pass:
+   - No red anywhere (sparkline, missed badge, zero adherence bar).
+   - Status badges drop emojis; type-tag small caps in quiet
+     status tones carry meaning.
+   - White cards retired in favor of hairline rows on linen.
+   - Wearable metrics get the editorial lede number treatment
+     (Fraunces) consistent with Patterns.
+   - Trend alert becomes a linen island with a moss-quieter rule,
+     consistent with the Patterns "WELLET IS WITNESSING" block.
+   ============================================================ */
+
+#view-signals .signals-view {
+  background: var(--linen, #F7F5F0);
+  padding: 18px 16px 110px;
+}
+
+/* ----- Section heading ----- */
+#view-signals .signals-section {
+  margin-bottom: 36px;
+}
+#view-signals .signals-section-title {
+  font-family: 'Fraunces', Georgia, serif !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  font-variation-settings: "opsz" 14, "SOFT" 60 !important;
+  font-style: normal !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase !important;
+  color: var(--ink-5, #6E6962) !important;
+  margin: 0 0 6px !important;
+  display: block !important;
+}
+/* Wearable section title carries device + person + sync time inline.
+   Keep the secondary spans on a quieter register. */
+#view-signals .signals-section-title .wearable-sync {
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 300 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: none !important;
+  color: var(--ink-4, #8A857D) !important;
+  margin-left: 8px !important;
+}
+#view-signals .signals-section-sub {
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 300 !important;
+  color: var(--ink-6, #57534C) !important;
+  margin: 0 0 18px !important;
+}
+
+/* ----- Cards become hairline containers ----- */
+#view-signals .signals-card {
+  background: transparent !important;
+  border: 0 !important;
+  border-top: 1px solid var(--ink-1, #E6E1D6) !important;
+  border-radius: 0 !important;
+  padding: 4px 0 0 !important;
+  margin: 0 0 14px !important;
+  box-shadow: none !important;
+}
+
+/* ============================================================
+   Section 1 · Today's Medications
+   ============================================================ */
+#view-signals .med-item {
+  align-items: flex-start !important;
+  gap: 14px !important;
+  padding: 18px 0 !important;
+  border-bottom: 1px solid var(--ink-1, #E6E1D6) !important;
+}
+#view-signals .med-icon-wrap {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+#view-signals .med-icon-wrap i,
+#view-signals .med-icon-wrap svg {
+  width: 16px !important;
+  height: 16px !important;
+  color: var(--moss-quieter, #8AA89A) !important;
+}
+#view-signals .med-name {
+  font-family: 'Fraunces', Georgia, serif !important;
+  font-size: 18px !important;
+  font-weight: 500 !important;
+  font-variation-settings: "opsz" 24, "SOFT" 60 !important;
+  font-style: normal !important;
+  line-height: 1.25 !important;
+  color: var(--ink-9, #1F1B16) !important;
+  margin: 0 0 2px !important;
+}
+#view-signals .med-dose {
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 300 !important;
+  color: var(--ink-6, #57534C) !important;
+  margin: 0 0 8px !important;
+}
+#view-signals .med-times {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 14px 18px !important;
+}
+
+/* Status badges — drop pill backgrounds, become small-caps type tags.
+   Emojis at the start of each badge are masked via text-indent + the
+   first character carries no semantic weight; we let the type tag
+   carry meaning. */
+#view-signals .med-badge {
+  background: transparent !important;
+  border: 0 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  font-family: 'Fraunces', Georgia, serif !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  font-variation-settings: "opsz" 14, "SOFT" 60 !important;
+  font-style: normal !important;
+  letter-spacing: 0.12em !important;
+  text-transform: uppercase !important;
+  animation: none !important;
+  white-space: nowrap;
+}
+/* Quiet status tones */
+#view-signals .med-badge--taken { color: var(--moss-quieter, #8AA89A) !important; }
+#view-signals .med-badge--missed { color: var(--signal-warm, #B8835A) !important; }
+#view-signals .med-badge--due { color: var(--moss-deep, #3F5F52) !important; }
+#view-signals .med-badge--upcoming { color: var(--ink-4, #8A857D) !important; }
+
+/* Adherence "matches morning window" callout — linen island */
+#view-signals .adherence-signal {
+  background: var(--linen-deep, #EFEAE0) !important;
+  border-radius: 0 !important;
+  border-left: 2px solid var(--moss-quieter, #8AA89A) !important;
+  padding: 14px 16px !important;
+  margin-top: 14px !important;
+}
+#view-signals .adherence-signal i,
+#view-signals .adherence-signal svg {
+  color: var(--moss-quieter, #8AA89A) !important;
+  width: 14px !important;
+  height: 14px !important;
+}
+#view-signals .adherence-signal-text {
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 300 !important;
+  line-height: 1.55 !important;
+  color: var(--ink-8, #2A2620) !important;
+}
+
+/* Weekly adherence chart — keep bars but quiet the palette */
+#view-signals .signals-label {
+  font-family: 'Fraunces', Georgia, serif !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  font-variation-settings: "opsz" 14, "SOFT" 60 !important;
+  font-style: normal !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase !important;
+  color: var(--ink-5, #6E6962) !important;
+  margin-bottom: 12px !important;
+  display: block !important;
+}
+#view-signals .adherence-bar--full { background: var(--moss-quieter, #8AA89A) !important; }
+#view-signals .adherence-bar--partial { background: var(--signal-warm, #B8835A) !important; }
+#view-signals .adherence-bar--zero { background: var(--ink-2, #D9D3C5) !important; }
+#view-signals .adherence-day {
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 300 !important;
+  color: var(--ink-5, #6E6962) !important;
+  letter-spacing: 0.04em !important;
+}
+
+/* ============================================================
+   Section 2 · Wearable Data
+   Editorial lede metrics on hairline cells — no white cards.
+   ============================================================ */
+#view-signals .wearable-grid {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 !important;
+  border-top: 1px solid var(--ink-1, #E6E1D6) !important;
+}
+#view-signals .wearable-card {
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--ink-1, #E6E1D6) !important;
+  border-radius: 0 !important;
+  padding: 18px 14px 18px 0 !important;
+  position: relative;
+}
+#view-signals .wearable-card:nth-child(odd) {
+  padding-right: 14px !important;
+}
+#view-signals .wearable-card:nth-child(even) {
+  padding-left: 14px !important;
+  border-left: 1px solid var(--ink-1, #E6E1D6) !important;
+}
+#view-signals .wearable-card .signals-label {
+  margin-bottom: 8px !important;
+  font-size: 10px !important;
+}
+#view-signals .wearable-card .signals-metric {
+  font-family: 'Fraunces', Georgia, serif !important;
+  font-size: 36px !important;
+  font-weight: 300 !important;
+  font-variation-settings: "opsz" 144, "SOFT" 60 !important;
+  font-style: normal !important;
+  line-height: 1 !important;
+  letter-spacing: -0.01em !important;
+  color: var(--ink-9, #1F1B16) !important;
+  margin: 0 !important;
+}
+#view-signals .wearable-card .signals-metric span {
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-weight: 300 !important;
+  font-size: 13px !important;
+  color: var(--ink-5, #6E6962) !important;
+  margin-left: 4px !important;
+}
+#view-signals .signals-metric-sm {
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 300 !important;
+  color: var(--ink-5, #6E6962) !important;
+  margin-top: 6px !important;
+}
+
+/* Heart rate sparkline — JS still passes var(--red) as the line color.
+   We override the rendered SVG path stroke directly. */
+#view-signals .wearable-sparkline {
+  margin-top: 8px !important;
+}
+#view-signals .wearable-sparkline svg path,
+#view-signals .wearable-sparkline svg polyline,
+#view-signals .wearable-sparkline svg line {
+  stroke: var(--signal-warm, #B8835A) !important;
+}
+
+/* Steps progress ring — quiet to moss-quieter */
+#view-signals .progress-ring-wrap {
+  margin-top: 6px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+#view-signals .progress-ring-wrap svg circle:last-child {
+  stroke: var(--moss-quieter, #8AA89A) !important;
+}
+#view-signals .progress-ring-label {
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 300 !important;
+  color: var(--ink-5, #6E6962) !important;
+}
+
+/* SpO2 status dot — moss-quieter instead of bright moss */
+#view-signals .wearable-card span[style*="background:var(--moss)"],
+#view-signals .wearable-card span[style*="background: var(--moss)"] {
+  background: var(--moss-quieter, #8AA89A) !important;
+}
+
+/* Trend alert — linen island, moss-quieter rule, no amber */
+#view-signals .trend-alert {
+  background: var(--linen-deep, #EFEAE0) !important;
+  border: 0 !important;
+  border-left: 2px solid var(--moss-quieter, #8AA89A) !important;
+  border-radius: 0 !important;
+  padding: 18px 18px !important;
+  margin-top: 22px !important;
+}
+#view-signals .trend-alert-title {
+  font-family: 'Fraunces', Georgia, serif !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  font-variation-settings: "opsz" 14, "SOFT" 60 !important;
+  font-style: normal !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase !important;
+  color: var(--moss-deep, #3F5F52) !important;
+  margin-bottom: 8px !important;
+}
+#view-signals .trend-alert-title i,
+#view-signals .trend-alert-title svg {
+  color: var(--moss-quieter, #8AA89A) !important;
+  width: 12px !important;
+  height: 12px !important;
+}
+#view-signals .trend-alert-body {
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 300 !important;
+  line-height: 1.6 !important;
+  color: var(--ink-8, #2A2620) !important;
+  max-width: 60ch;
+}
+
+/* ============================================================
+   Section 3 · Home Sensors
+   ============================================================ */
+#view-signals .sensor-item {
+  align-items: center !important;
+  gap: 14px !important;
+  padding: 16px 0 !important;
+  border-bottom: 1px solid var(--ink-1, #E6E1D6) !important;
+}
+#view-signals .sensor-icon-wrap {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+#view-signals .sensor-icon-wrap i,
+#view-signals .sensor-icon-wrap svg {
+  width: 16px !important;
+  height: 16px !important;
+  color: var(--moss-quieter, #8AA89A) !important;
+}
+#view-signals .sensor-name {
+  font-family: 'Fraunces', Georgia, serif !important;
+  font-size: 16px !important;
+  font-weight: 500 !important;
+  font-variation-settings: "opsz" 24, "SOFT" 60 !important;
+  font-style: normal !important;
+  line-height: 1.3 !important;
+  color: var(--ink-9, #1F1B16) !important;
+  margin: 0 0 2px !important;
+}
+#view-signals .sensor-detail {
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 300 !important;
+  color: var(--ink-6, #57534C) !important;
+}
+#view-signals .sensor-status {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--moss-quieter, #8AA89A);
+}
+
+/* Daily activity timeline — keep structure, quiet the highlight */
+#view-signals .signals-timeline {
+  position: relative;
+  padding-left: 16px;
+}
+#view-signals .tl-event {
+  padding: 10px 0 !important;
+  border-bottom: 1px solid var(--ink-1, #E6E1D6) !important;
+  display: grid !important;
+  grid-template-columns: 64px 1fr !important;
+  gap: 12px !important;
+  align-items: baseline !important;
+}
+#view-signals .tl-event:last-child {
+  border-bottom: 0 !important;
+}
+#view-signals .tl-event--highlight {
+  background: var(--linen-deep, #EFEAE0) !important;
+  margin: 6px -8px !important;
+  padding: 12px 8px !important;
+  border-radius: 0 !important;
+  border-left: 2px solid var(--moss-quieter, #8AA89A) !important;
+  border-bottom: 1px solid var(--ink-1, #E6E1D6) !important;
+}
+#view-signals .tl-event .tl-dot {
+  display: none !important;
+}
+#view-signals .tl-event .tl-time {
+  font-family: 'Fraunces', Georgia, serif !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  font-variation-settings: "opsz" 14, "SOFT" 60 !important;
+  font-style: normal !important;
+  letter-spacing: 0.12em !important;
+  text-transform: uppercase !important;
+  color: var(--ink-5, #6E6962) !important;
+}
+#view-signals .tl-event .tl-desc {
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 300 !important;
+  line-height: 1.45 !important;
+  color: var(--ink-8, #2A2620) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+#view-signals .tl-event .tl-desc i,
+#view-signals .tl-event .tl-desc svg {
+  width: 14px !important;
+  height: 14px !important;
+  color: var(--moss-quieter, #8AA89A) !important;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   Section 4 · Pattern Detection
+   ============================================================ */
+#view-signals .pattern-card {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 20px 0 !important;
+  margin: 0 !important;
+  border-bottom: 1px solid var(--ink-1, #E6E1D6) !important;
+}
+#view-signals .pattern-card:last-of-type {
+  border-bottom: 0 !important;
+}
+/* Drop the colored left rule on accent cards */
+#view-signals .pattern-card--moss,
+#view-signals .pattern-card--amber {
+  border-left: 0 !important;
+}
+#view-signals .pattern-title {
+  font-family: 'Fraunces', Georgia, serif !important;
+  font-size: 18px !important;
+  font-weight: 500 !important;
+  font-variation-settings: "opsz" 24, "SOFT" 60 !important;
+  font-style: normal !important;
+  line-height: 1.3 !important;
+  color: var(--ink-9, #1F1B16) !important;
+  margin: 0 0 6px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+#view-signals .pattern-title i,
+#view-signals .pattern-card--moss .pattern-title i,
+#view-signals .pattern-card--amber .pattern-title i {
+  width: 14px !important;
+  height: 14px !important;
+  color: var(--moss-quieter, #8AA89A) !important;
+}
+#view-signals .pattern-body {
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 300 !important;
+  line-height: 1.6 !important;
+  color: var(--ink-7, #443F38) !important;
+  margin: 0 0 10px !important;
+  max-width: 60ch;
+}
+/* Sources — small caps Fraunces byline, comma-separated, not chips */
+#view-signals .pattern-sources {
+  display: block !important;
+  flex-wrap: nowrap !important;
+}
+#view-signals .pattern-source {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  font-family: 'Fraunces', Georgia, serif !important;
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  font-variation-settings: "opsz" 14, "SOFT" 60 !important;
+  font-style: normal !important;
+  letter-spacing: 0.16em !important;
+  text-transform: uppercase !important;
+  color: var(--ink-5, #6E6962) !important;
+}
+#view-signals .pattern-source + .pattern-source::before {
+  content: "  ·  ";
+  color: var(--ink-3, #BFB8AA);
+  letter-spacing: 0;
+}
+
+/* ============================================================
+   Tablet+
+   ============================================================ */
+@media (min-width: 768px) {
+  #view-signals .signals-view {
+    padding: 28px 32px 120px;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  #view-signals .signals-section {
+    margin-bottom: 48px;
+  }
+  #view-signals .wearable-card .signals-metric {
+    font-size: 44px !important;
+  }
+  #view-signals .med-name,
+  #view-signals .pattern-title {
+    font-size: 20px !important;
+  }
+  #view-signals .pattern-body,
+  #view-signals .trend-alert-body {
+    font-size: 15px !important;
+  }
+}
