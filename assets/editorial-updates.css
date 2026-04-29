@@ -56,6 +56,13 @@
   box-shadow: none;
   padding: 0 0 24px;
   margin: 0 0 4px;
+  position: static;
+  overflow: visible;
+}
+#view-home[data-editorial="updates"] .update-card::before,
+#view-home[data-editorial="updates"] .update-card::after {
+  display: none;
+  content: none;
 }
 
 /* The small label above the lede — eyebrow */
