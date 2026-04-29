@@ -1,0 +1,466 @@
+/* ============================================================================
+   editorial-auth.css — PR 2 of 8 in the editorial UI rollout.
+
+   Re-skins the auth/landing screen (#auth-screen) to the editorial direction:
+     - Fraunces serif lede with quiet italic accents
+     - Hairline-bordered editorial demo card (no white backgrounds, no shadow)
+     - Underline-only serif email input
+     - Moss-deep solid CTA, no gradient, no shadow
+     - DM Sans body in the eight-gray ladder
+
+   Scoping rule: every override below is gated on
+     #auth-screen[data-editorial="auth"]
+   so it ONLY applies after the parent element opts in. The data attribute
+   is added to a single line in index.html alongside this file. If anything
+   regresses, removing the attribute reverts to legacy auth instantly — no
+   class renaming needed.
+
+   Behavior is unchanged: no JS rewires, no route changes, no copy edits.
+   The hero copy rotation still runs (5 variants), the form still calls
+   sendMagicLink(), the demo links still go to ?demo=guided / enterDemoMode.
+
+   Loaded AFTER editorial-foundation.css and wellet.css in <head>.
+   ============================================================================ */
+
+/* --------------------------------------------------------------------------
+   Container — keep cream background (already inherited from wellet.css),
+   widen the comfortable reading column past phone widths. The page-wrap
+   above us is 768px max; we narrow inside that to the editorial frame so
+   long lines never become unreadable on iPad.
+   -------------------------------------------------------------------------- */
+#auth-screen[data-editorial="auth"] {
+  background: var(--cream);
+}
+#auth-screen[data-editorial="auth"] > .auth-header,
+#auth-screen[data-editorial="auth"] > .auth-headline,
+#auth-screen[data-editorial="auth"] > .auth-description,
+#auth-screen[data-editorial="auth"] > .auth-signals,
+#auth-screen[data-editorial="auth"] > .auth-body,
+#auth-screen[data-editorial="auth"] > .auth-privacy,
+#auth-screen[data-editorial="auth"] > .auth-building-badge {
+  max-width: var(--frame-max);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* The masthead row — wordmark left, EARLY ACCESS chip right.
+   Tighten the chip styling and color to the editorial palette. */
+#auth-screen[data-editorial="auth"] .auth-header {
+  padding: 22px var(--gutter) 6px;
+}
+#auth-screen[data-editorial="auth"] .auth-header-wordmark {
+  width: 96px;
+}
+@media (min-width: 768px) {
+  #auth-screen[data-editorial="auth"] .auth-header-wordmark { width: 112px; }
+  #auth-screen[data-editorial="auth"] .auth-header { padding: 30px var(--gutter) 8px; }
+}
+#auth-screen[data-editorial="auth"] .auth-early-badge {
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  color: var(--moss-deep);
+  border: 1px solid var(--moss-deep);
+  border-radius: 4px;
+  padding: 5px 10px;
+  text-transform: uppercase;
+  background: transparent;
+}
+
+/* --------------------------------------------------------------------------
+   Headline — Fraunces serif lede, eight-gray --ink-9, italic in --moss-deep.
+   Replaces the existing DM Serif Display 34px treatment with a tighter,
+   warmer editorial lede tuned via opsz / SOFT axes.
+   -------------------------------------------------------------------------- */
+#auth-screen[data-editorial="auth"] .auth-headline {
+  padding: 14px var(--gutter) 0;
+}
+#auth-screen[data-editorial="auth"] .auth-headline h1 {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 32px;
+  line-height: 1.14;
+  letter-spacing: -0.008em;
+  color: var(--ink-9);
+  margin: 0;
+  font-variation-settings: "opsz" 36, "SOFT" 60, "WONK" 0;
+  max-width: 18ch;
+}
+#auth-screen[data-editorial="auth"] .auth-headline h1 em {
+  font-family: var(--serif);
+  font-style: italic;
+  color: var(--moss-deep);
+  font-variation-settings: "opsz" 36, "SOFT" 75, "WONK" 0;
+}
+@media (min-width: 768px) {
+  #auth-screen[data-editorial="auth"] .auth-headline h1 {
+    font-size: 40px;
+    line-height: 1.12;
+  }
+}
+@media (min-width: 1024px) {
+  #auth-screen[data-editorial="auth"] .auth-headline h1 {
+    font-size: 44px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Subhead — DM Sans 300, --ink-5, narrower comfortable column.
+   -------------------------------------------------------------------------- */
+#auth-screen[data-editorial="auth"] .auth-description {
+  padding: 12px var(--gutter) 0;
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink-5);
+  font-weight: 300;
+  max-width: 42ch;
+}
+@media (min-width: 768px) {
+  #auth-screen[data-editorial="auth"] .auth-description {
+    font-size: 16px;
+    line-height: 1.6;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Demo signal card — drop the white card with shadow and the "card" feel,
+   replace with a hairline-bordered editorial frame (no shadow, no white).
+   Inline grid-template-columns:1fr in the markup keeps it stacked.
+   -------------------------------------------------------------------------- */
+#auth-screen[data-editorial="auth"] .auth-signals {
+  padding: 22px var(--gutter) 0;
+  gap: 0;
+}
+#auth-screen[data-editorial="auth"] .auth-signal-card {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--ink-1);
+  border-bottom: 1px solid var(--ink-1);
+  border-radius: 0;
+  padding: 18px 0 16px;
+  box-shadow: none;
+  transition: background-color 0.18s ease;
+}
+#auth-screen[data-editorial="auth"] .auth-signal-card:hover {
+  background: rgba(96, 143, 124, 0.04);
+  box-shadow: none;
+}
+#auth-screen[data-editorial="auth"] .auth-signal-label {
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.10em;
+  font-weight: 500;
+  color: var(--ink-4);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+#auth-screen[data-editorial="auth"] .auth-signal-dot {
+  width: 6px; height: 6px;
+}
+#auth-screen[data-editorial="auth"] .auth-signal-dot--green {
+  background: var(--moss);
+}
+#auth-screen[data-editorial="auth"] .auth-signal-dot--amber {
+  background: var(--signal-warm);
+}
+#auth-screen[data-editorial="auth"] .auth-signal-text {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 1.35;
+  color: var(--ink-9);
+  letter-spacing: -0.003em;
+  font-variation-settings: "opsz" 24, "SOFT" 60, "WONK" 0;
+}
+#auth-screen[data-editorial="auth"] .auth-signal-text strong {
+  font-weight: 400;
+  color: var(--ink-9);
+}
+@media (min-width: 768px) {
+  #auth-screen[data-editorial="auth"] .auth-signal-text { font-size: 20px; }
+}
+
+/* --------------------------------------------------------------------------
+   Body container — strip the white card, drop margin/border to let the
+   editorial column breathe. The interior buttons + form keep their layout
+   but get the editorial treatment.
+   -------------------------------------------------------------------------- */
+#auth-screen[data-editorial="auth"] .auth-body {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 24px var(--gutter) 6px;
+  margin: 0 auto;
+}
+
+/* The big primary CTA in the form. We don't restyle .btn-primary globally
+   because it's used elsewhere in the app — instead we override only when
+   it sits inside the editorial auth screen. Editorial = solid moss-deep,
+   subtle pill, no gradient, no shadow. */
+#auth-screen[data-editorial="auth"] .auth-body .btn-primary {
+  appearance: none;
+  background: var(--moss-deep);
+  color: #F7F5F0;
+  border: 0;
+  padding: 15px 18px;
+  border-radius: 12px;
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  min-height: var(--touch-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: none;
+  background-image: none;
+  transition: background-color 0.16s ease, transform 0.12s ease;
+}
+#auth-screen[data-editorial="auth"] .auth-body .btn-primary:hover {
+  background: var(--moss);
+}
+#auth-screen[data-editorial="auth"] .auth-body .btn-primary:active {
+  transform: translateY(1px);
+}
+
+/* The "Explore on your own" / demo-link buttons — quiet, underlined,
+   never compete with the primary action. */
+#auth-screen[data-editorial="auth"] .auth-demo-link {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--moss-deep);
+  cursor: pointer;
+  padding: 12px 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-decoration: underline;
+  text-decoration-color: var(--ink-2);
+  text-underline-offset: 3px;
+  min-height: var(--touch-min);
+}
+#auth-screen[data-editorial="auth"] .auth-demo-link:hover {
+  text-decoration-color: var(--moss-deep);
+}
+
+/* The "Sign in to your account" reveal toggle — same treatment. */
+#auth-screen[data-editorial="auth"] #auth-signin-toggle {
+  font-family: var(--sans) !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  color: var(--ink-5) !important;
+  text-decoration: underline !important;
+  text-decoration-color: var(--ink-2);
+  text-underline-offset: 3px;
+}
+#auth-screen[data-editorial="auth"] #auth-signin-toggle:hover {
+  color: var(--moss-deep) !important;
+  text-decoration-color: var(--moss-deep);
+}
+
+/* The horizontal rules bracketing the toggle — quieter ink-1 hairlines. */
+#auth-screen[data-editorial="auth"] #auth-form-state hr {
+  border-top: 1px solid var(--ink-1) !important;
+}
+
+/* --------------------------------------------------------------------------
+   Sign-in reveal — the email field becomes a serif underline-only input
+   instead of a bordered pill. The label drops to a quiet uppercase eyebrow.
+   -------------------------------------------------------------------------- */
+#auth-screen[data-editorial="auth"] .auth-input-label {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  margin-bottom: 8px;
+}
+#auth-screen[data-editorial="auth"] .auth-input {
+  appearance: none;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--ink-2);
+  border-radius: 0;
+  padding: 10px 0 12px;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 22px;
+  color: var(--ink-9);
+  letter-spacing: -0.003em;
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  font-variation-settings: "opsz" 28, "SOFT" 60, "WONK" 0;
+  min-height: var(--touch-min);
+}
+#auth-screen[data-editorial="auth"] .auth-input::placeholder {
+  color: var(--ink-3);
+  font-style: italic;
+  font-variation-settings: "opsz" 28, "SOFT" 75, "WONK" 0;
+}
+#auth-screen[data-editorial="auth"] .auth-input:hover {
+  border-bottom-color: var(--ink-4);
+}
+#auth-screen[data-editorial="auth"] .auth-input:focus {
+  border-color: transparent;
+  border-bottom-color: var(--moss-deep);
+  box-shadow: 0 1px 0 0 var(--moss-deep);
+}
+
+/* The "Send magic link" button has an inline style override of background
+   set to var(--text-primary) — neutralize that with our editorial moss-deep. */
+#auth-screen[data-editorial="auth"] #auth-send-btn {
+  background: var(--moss-deep) !important;
+}
+#auth-screen[data-editorial="auth"] #auth-send-btn:hover {
+  background: var(--moss) !important;
+}
+
+/* --------------------------------------------------------------------------
+   "Check your email" sent state — keep the icon ring but quiet the colors.
+   -------------------------------------------------------------------------- */
+#auth-screen[data-editorial="auth"] .auth-sent-icon,
+#auth-screen[data-editorial="auth"] .auth-gate-icon,
+#auth-screen[data-editorial="auth"] .auth-gate-success-icon {
+  background: rgba(96, 143, 124, 0.10);
+  color: var(--moss-deep);
+}
+#auth-screen[data-editorial="auth"] .auth-sent-title,
+#auth-screen[data-editorial="auth"] .auth-gate-title,
+#auth-screen[data-editorial="auth"] .auth-gate-success-title {
+  font-family: var(--serif);
+  font-weight: 400;
+  color: var(--ink-9);
+  font-variation-settings: "opsz" 36, "SOFT" 60, "WONK" 0;
+}
+#auth-screen[data-editorial="auth"] .auth-sent-body,
+#auth-screen[data-editorial="auth"] .auth-gate-body,
+#auth-screen[data-editorial="auth"] .auth-gate-success-body {
+  font-family: var(--sans);
+  font-weight: 300;
+  color: var(--ink-5);
+}
+
+/* The waitlist ("private alpha") gate input — same editorial underline
+   treatment as the magic-link input. */
+#auth-screen[data-editorial="auth"] .auth-gate-input {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--ink-2);
+  border-radius: 0;
+  padding: 10px 0 12px;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 20px;
+  color: var(--ink-9);
+  outline: none;
+}
+#auth-screen[data-editorial="auth"] .auth-gate-input:focus {
+  border-bottom-color: var(--moss-deep);
+  box-shadow: 0 1px 0 0 var(--moss-deep);
+  background: transparent;
+}
+#auth-screen[data-editorial="auth"] .auth-gate-link,
+#auth-screen[data-editorial="auth"] .auth-gate-back {
+  font-family: var(--sans);
+  color: var(--moss-deep);
+  text-decoration: underline;
+  text-decoration-color: var(--ink-2);
+  text-underline-offset: 3px;
+}
+#auth-screen[data-editorial="auth"] .auth-gate-link:hover,
+#auth-screen[data-editorial="auth"] .auth-gate-back:hover {
+  text-decoration-color: var(--moss-deep);
+}
+
+/* --------------------------------------------------------------------------
+   Footer privacy line — quiet eyebrow, single underline accent on the
+   "your data stays private" toggle.
+   -------------------------------------------------------------------------- */
+#auth-screen[data-editorial="auth"] .auth-privacy {
+  padding: 18px var(--gutter) 32px;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink-5);
+  text-align: center;
+}
+#auth-screen[data-editorial="auth"] .auth-privacy p {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink-5);
+  line-height: 1.6;
+  margin: 0;
+}
+#auth-screen[data-editorial="auth"] .auth-privacy-toggle {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--moss-deep);
+  cursor: pointer;
+  padding: 4px 6px;
+  text-decoration: underline;
+  text-decoration-color: var(--ink-2);
+  text-underline-offset: 3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+#auth-screen[data-editorial="auth"] .auth-privacy-toggle strong {
+  font-weight: 400;
+}
+#auth-screen[data-editorial="auth"] .auth-privacy-detail {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink-5);
+  line-height: 1.6;
+  margin-top: 12px;
+  text-align: left;
+  border-top: 1px solid var(--ink-1);
+  padding-top: 12px;
+}
+#auth-screen[data-editorial="auth"] .auth-privacy-detail strong {
+  font-weight: 500;
+  color: var(--ink-7);
+}
+
+/* --------------------------------------------------------------------------
+   The "we're building Wellet" small status badge above the hero. Neutralize
+   any pill background to a hairline border with a quiet moss dot.
+   -------------------------------------------------------------------------- */
+#auth-screen[data-editorial="auth"] .auth-building-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  margin: 14px var(--gutter) 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+#auth-screen[data-editorial="auth"] .auth-building-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--moss);
+  display: inline-block;
+}
+
+/* ============================================================================
+   END editorial-auth.css
+   ============================================================================ */
