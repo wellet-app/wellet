@@ -7491,12 +7491,15 @@ function togglePhase2Flag() {
   try { if (typeof renderTimeline === 'function') renderTimeline(); } catch(e){}
 }
 
-// Check if cached EHR data is stale (older than 24 hours)
+// Check if cached EHR data is stale (older than 30 minutes).
+// Tight threshold so reopening the app picks up new chart activity from a
+// loved one's hospital — we'd rather sync once on re-open than show stale
+// "Updated 8 hr ago" timestamps under the logo.
 function isEhrCacheStale(personId) {
   var cached = ehrCache[personId];
   if (!cached || !cached.synced_at) return true;
   var age = Date.now() - new Date(cached.synced_at).getTime();
-  return age > 24 * 60 * 60 * 1000;
+  return age > 30 * 60 * 1000;
 }
 
 // Legacy v1 reader — same body as before, kept so the flag can dispatch.
