@@ -63,6 +63,55 @@
   opacity: 0.78;
 }
 
+/* ----- Timeline rail — vertical line + place markers ----- */
+#tab-timeline .tl-item {
+  display: flex;
+  gap: 14px;
+  align-items: stretch;          /* connector stretches to card height */
+  margin: 0;
+  position: relative;
+}
+#tab-timeline .tl-line-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 18px;
+  flex-shrink: 0;
+  padding-top: 26px;             /* aligns dot with the type-tag row */
+  position: relative;
+}
+#tab-timeline .tl-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--linen, #F7F5F0) !important;
+  border: 1.5px solid var(--ink-4, #8C857B) !important;
+  flex-shrink: 0;
+  z-index: 1;
+}
+/* Quiet, unified rail — retire bright per-type dot fills/borders */
+#tab-timeline .tl-dot.appt,
+#tab-timeline .tl-dot.med,
+#tab-timeline .tl-dot.lab,
+#tab-timeline .tl-dot.note,
+#tab-timeline .tl-dot.alert {
+  background: var(--linen, #F7F5F0) !important;
+  border-color: var(--ink-4, #8C857B) !important;
+}
+#tab-timeline .tl-connector {
+  width: 1px;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: var(--ink-2, #D8D3CA);
+  margin-top: 4px;
+  margin-bottom: -1px;           /* meet the next dot cleanly */
+}
+/* The card occupies the remaining row width */
+#tab-timeline .tl-card {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* Retire all colored left borders */
 #tab-timeline .tl-card.amber-border,
 #tab-timeline .tl-card.blue-border,
