@@ -149,10 +149,15 @@ Deno.serve(async (req) => {
 
     // ── Call Twilio Messages API ──────────────────────────────────────
     const url = `${TWILIO_API_BASE}/Accounts/${accountSid}/Messages.json`
+    // StatusCallback tells Twilio where to POST delivery state changes.
+    // The receiving function (twilio-status-webhook) verifies the HMAC
+    // signature and updates sms_log with delivered_at / failed_at.
+    const statusCallback = `${supabaseUrl}/functions/v1/twilio-status-webhook`
     const formBody = new URLSearchParams({
       MessagingServiceSid: msgServiceSid,
       To: to,
       Body: body,
+      StatusCallback: statusCallback,
     })
     const basicAuth = btoa(`${accountSid}:${authToken}`)
     const twilioRes = await fetch(url, {
