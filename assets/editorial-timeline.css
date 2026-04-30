@@ -123,6 +123,17 @@
   z-index: 1;
 }
 
+/* The card was previously a flex child (`flex: 1` from wellet.css) and
+   collapsed to content-width when we changed .tl-item to display:block.
+   Force it back to a normal block that fills the row. */
+#tab-timeline .tl-card {
+  display: block !important;
+  flex: none !important;
+  width: auto !important;
+  max-width: 100%;
+  min-width: 0;
+}
+
 /* Retire all colored left borders */
 #tab-timeline .tl-card.amber-border,
 #tab-timeline .tl-card.blue-border,
