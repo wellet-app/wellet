@@ -36,10 +36,10 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
         gdScrollTo('#tab-update .update-card', 200);
       }
     },
-    // 2 — Update Me highlight
+    // 2 — Summary highlight
     {
       audio: '02-update-me.mp3',
-      caption: 'Update Me is your home base. A plain-English summary of what\'s happening right now — no jargon, no portal-hopping.',
+      caption: 'Summary is your home base. A plain-English summary of what\'s happening right now — no jargon, no portal-hopping.',
       duration: 7500,
       action: function() {
         switchNavTo('home');
