@@ -59,11 +59,15 @@
 
 /* ---- Close button ----
    Was: square box with a heavy border. Now: bare 18px x in ink-5,
-   tucked top-right. Tap target stays 38x38 via padding. */
+   tucked top-right. Tap target stays 38x38 via padding.
+
+   Alignment: title sits at padding-left:22px. We want the X icon's
+   visual center to mirror that 22px inset on the right. With a 38px
+   tap target, right = 22 - (38/2) = 3px. */
 [data-editorial="sheet"] .close-btn {
   position: absolute;
-  top: 14px;
-  right: 14px;
+  top: 10px;
+  right: 3px;
   width: 38px;
   height: 38px;
   background: transparent;
@@ -77,6 +81,13 @@
   transition: color 0.15s ease;
   padding: 0;
   box-shadow: none;
+}
+@media (min-width: 768px) {
+  /* Tablet: title padding-left becomes 28px (see rule above), so mirror
+     the right inset accordingly. 28 - 19 = 9px. */
+  [data-editorial="sheet"] .close-btn {
+    right: 9px;
+  }
 }
 [data-editorial="sheet"] .close-btn:hover { color: var(--ink-9); }
 [data-editorial="sheet"] .close-btn svg,
