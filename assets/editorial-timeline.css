@@ -181,6 +181,39 @@
   padding: 2px 8px;
 }
 
+/* ----- Floating Add-event FAB ----- */
+#tab-timeline .tl-add-fab {
+  position: fixed;
+  right: 20px;
+  bottom: calc(76px + env(safe-area-inset-bottom, 0px) + 12px);
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--moss, #608F7C);
+  color: #fff;
+  border: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 50;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+#tab-timeline .tl-add-fab:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+}
+#tab-timeline .tl-add-fab:active {
+  transform: translateY(0);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.16);
+}
+#tab-timeline .tl-add-fab svg,
+#tab-timeline .tl-add-fab i {
+  color: #fff;
+  stroke: #fff;
+}
+
 /* Tablet+ — slightly larger title and breathing room */
 @media (min-width: 768px) {
   #tab-timeline .tl-card {

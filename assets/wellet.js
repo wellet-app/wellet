@@ -1667,10 +1667,11 @@ function renderTimeline() {
   var pane = document.getElementById('tab-timeline');
   if (!pane) return;
 
-  // Add event button + FAB (rendered BELOW the EHR status bar)
-  var addBtn = '<div style="padding:12px 20px 4px;display:flex;justify-content:flex-end;">'
-    + '<button class="btn-primary" style="width:auto;padding:10px 16px;font-size:13px;gap:6px;" onclick="openAddEvent()">'
-    + '<i data-lucide="plus" style="width:14px;height:14px;"></i> Add event</button></div>';
+  // Floating Add-event button (FAB) — rendered once, anchored to the screen.
+  // Replaces the previous right-aligned button that floated in dead space
+  // above the timeline list.
+  var fabHtml = '<button class="tl-add-fab" onclick="openAddEvent()" aria-label="Add event" title="Add event">'
+    + '<i data-lucide="plus" style="width:20px;height:20px;"></i></button>';
 
   // Merge EHR events into timeline. Each item carries a _section hint so the
   // card knows which Records detail pane to open on tap.
@@ -1728,14 +1729,16 @@ function renderTimeline() {
   allEvents.sort(function(a,b) { return new Date(b.event_date) - new Date(a.event_date); });
 
   if (allEvents.length === 0) {
-    // EHR status bar first (above Add event) when connected
-    var emptyHeader = (ehrData ? buildEhrStatusBar(ehrData) : '') + addBtn;
+    // EHR status bar at top when connected; FAB anchors to the screen
+    var emptyHeader = (ehrData ? buildEhrStatusBar(ehrData) : '');
     pane.innerHTML = emptyHeader + '<div class="timeline-section">'
       + '<div style="text-align:center;padding:48px 24px;">'
       + '<div style="font-size:32px;margin-bottom:12px;opacity:0.3;"><i data-lucide="calendar" style="width:32px;height:32px;"></i></div>'
       + '<div style="font-size:14px;color:var(--text-muted);line-height:1.6;">Appointments, medications, lab results, and your own notes \u2014 they\u2019ll all show up here in order as you add them.</div>'
       + (!ehrData && !isDemoMode ? buildEhrPrompt() : '')
       + '</div></div>';
+    // Append FAB once per render (deduped by id)
+    if (!document.querySelector('#tab-timeline .tl-add-fab')) pane.insertAdjacentHTML('beforeend', fabHtml);
     initIcons();
     return;
   }
@@ -1751,10 +1754,9 @@ function renderTimeline() {
     months[key].events.push(ev);
   });
 
-  // EHR status bar FIRST (above Add event), then Add event, then timeline list
+  // EHR status bar FIRST, then timeline list. FAB is appended after.
   var html = '';
   if (ehrData) html += buildEhrStatusBar(ehrData);
-  html += addBtn;
   html += '<div class="timeline-section">';
   Object.keys(months).sort().reverse().forEach(function(k) {
     html += '<div class="tl-month">' + months[k].label + '</div>';
@@ -1795,13 +1797,14 @@ function renderTimeline() {
         notes: ev.notes || '',
         meta: typeInfo.label
       };
+      // Editorial card: type tag + title + body + (date · source). No duplicate
+      // EHR pill in the head, no paper-airplane on every card. Long-press still
+      // opens the Ask context via data-ask-lp.
       html += '<div class="tl-item">'
         + '<div class="tl-line-col"><div class="tl-dot ' + typeInfo.dot + '" aria-hidden="true"></div>' + (isLast ? '' : '<div class="tl-connector"></div>') + '</div>'
         + '<div class="tl-card ' + typeInfo.border + '" data-ask-lp="' + askKeyTl + '"' + clickAttr + '>'
         + '<div class="tl-card-type-row"><i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + typeInfo.color + ';"></i>'
         + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span>'
-        + (isEhr ? ' ' + ehrBadgeHtml() : '')
-        + '<button class="tl-share-btn" onclick="event.stopPropagation();openShareSheet(\'' + shareKey + '\')" title="Share with Care Circle" aria-label="Share"><i data-lucide="send" style="width:12px;height:12px;"></i></button>'
         + '</div>'
         + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
         + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
@@ -1813,6 +1816,8 @@ function renderTimeline() {
   });
   html += '</div>';
   pane.innerHTML = html;
+  // Append FAB once per render (deduped by selector)
+  if (!document.querySelector('#tab-timeline .tl-add-fab')) pane.insertAdjacentHTML('beforeend', fabHtml);
   initIcons();
 }
 
