@@ -1,0 +1,151 @@
+/* ============================================================
+   editorial-upcoming.css
+   Upcoming Appointments block on the Updates surface.
+
+   Editorial language matches Patterns / Timeline / CareSignals:
+   hairline rows on linen, Fraunces titles, type-tag bylines,
+   quiet status tones, no pills, no white cards.
+   ============================================================ */
+
+.upcoming-block {
+  margin: 16px 0 0;
+  padding: 0 20px;
+}
+
+.upcoming-section-label {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 12px;
+  font-weight: 500;
+  font-variation-settings: "opsz" 14, "SOFT" 60;
+  font-style: normal;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-5, #6E6962);
+  margin: 0 0 14px;
+  padding-bottom: 0;
+  border-top: 1px solid var(--ink-1, #E6E1D6);
+  padding-top: 22px;
+}
+
+/* ----- Row ----- */
+.upcoming-row {
+  padding: 18px 0;
+  border-bottom: 1px solid var(--ink-1, #E6E1D6);
+}
+.upcoming-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 8px;
+}
+
+/* Header line: relative tag + absolute date — split between ends */
+.upcoming-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.upcoming-tag {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 11px;
+  font-weight: 500;
+  font-variation-settings: "opsz" 14, "SOFT" 60;
+  font-style: normal;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--moss-deep, #3F5F52);
+}
+/* "Today" reads with a touch more emphasis; "Later" reads quieter */
+.upcoming-row:has(.upcoming-tag:is([data-tag="Today"])) .upcoming-tag,
+.upcoming-row .upcoming-tag {
+  /* Default — moss-deep already set above */
+}
+.upcoming-date {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 300;
+  letter-spacing: 0.04em;
+  color: var(--ink-5, #6E6962);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Title — Fraunces editorial */
+.upcoming-title {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 18px;
+  font-weight: 500;
+  font-variation-settings: "opsz" 24, "SOFT" 60;
+  font-style: normal;
+  line-height: 1.3;
+  color: var(--ink-9, #1F1B16);
+  margin: 0 0 4px;
+  max-width: 60ch;
+}
+
+.upcoming-notes {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.55;
+  color: var(--ink-7, #443F38);
+  margin: 0 0 10px;
+  max-width: 60ch;
+}
+
+/* Action — quiet text link, not a button */
+.upcoming-actions {
+  margin-top: 8px;
+}
+.upcoming-prep-link {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 13px;
+  font-weight: 500;
+  font-variation-settings: "opsz" 14, "SOFT" 60;
+  font-style: normal;
+  letter-spacing: 0.04em;
+  color: var(--moss-deep, #3F5F52);
+  cursor: pointer;
+  border-bottom: 1px solid var(--moss-quieter, #8AA89A);
+  padding-bottom: 1px;
+}
+.upcoming-prep-link:hover {
+  color: var(--moss, #608F7C);
+  border-bottom-color: var(--moss, #608F7C);
+}
+.upcoming-prep-link::after {
+  content: " \2192";
+  letter-spacing: 0.05em;
+}
+
+/* When the upcoming block is present, suppress the generic visit-prep card
+   below it (we already gave the user a contextual Prepare action). */
+.upcoming-block + .visit-prep-card {
+  display: none !important;
+}
+.upcoming-block + .visit-prep-card + .visit-prep-card {
+  display: none !important;
+}
+
+/* ============================================================
+   Tablet+
+   ============================================================ */
+@media (min-width: 768px) {
+  /* At 768+ the parent .tab-pane already supplies 28px horizontal padding,
+     so the upcoming-block should not add its own — otherwise hairlines and
+     copy fall short of the lede above and leave empty space on the right. */
+  .upcoming-block {
+    padding: 0;
+    max-width: none;
+    margin: 24px 0 0;
+  }
+  .upcoming-title {
+    font-size: 20px;
+  }
+  .upcoming-row {
+    padding: 22px 0;
+  }
+}

@@ -1267,8 +1267,8 @@ function renderUpdateMe() {
       var summaryAskKey = 'update_summary_' + currentPersonId;
       window._askCtxRegistry[summaryAskKey] = {
         kind: 'summary',
-        name: 'Update Me for ' + name,
-        title: 'Update Me for ' + name,
+        name: 'Summary for ' + name,
+        title: 'Summary for ' + name,
         date: meta && meta.generated_at ? meta.generated_at : null,
         meta: sourceCount > 0 ? ('Written from ' + sourceCount + ' source' + (sourceCount === 1 ? '' : 's')) : '',
         summary_text: getSummaryText(currentPersonId),
@@ -1333,6 +1333,9 @@ function renderUpdateMe() {
   // Check if user has completed document extractions (even without promoted events)
   var hasCompletedDocs = liveDocs.some(function(d){ return d.extraction_status === 'completed' && d.extracted_events; });
 
+  // Build Upcoming Appointments block (sits above the visit-prep card)
+  var upcomingHtml = buildUpcomingHtml(name);
+
   // Build visit prep card (resume if saved prep exists, otherwise fresh)
   var savedPrep = currentPersonId ? JSON.parse(localStorage.getItem('wellet_visit_prep_' + currentPersonId) || 'null') : null;
   var visitPrepCardHtml = '';
@@ -1379,6 +1382,7 @@ function renderUpdateMe() {
       + addMoreInside
       + '</div>'
       + addMoreOutside
+      + upcomingHtml
       + visitPrepCardHtml
       + '<div class="timeline-section" style="margin-top:16px;">'
       + '<p class="section-label">' + t('update.recentActivity') + '</p>'
@@ -1392,6 +1396,7 @@ function renderUpdateMe() {
       + addMoreInside
       + '</div>'
       + addMoreOutside
+      + upcomingHtml
       + visitPrepCardHtml
       + '<div class="timeline-section" style="margin-top:16px;">'
       + '<p class="section-label">' + t('update.recentActivity') + '</p>'
@@ -1410,6 +1415,7 @@ function renderUpdateMe() {
         + (liveMeds.filter(function(m){ return m.active; }).length > 0 ? 'Currently on <strong>' + liveMeds.filter(function(m){ return m.active; }).length + ' active medication' + (liveMeds.filter(function(m){ return m.active; }).length !== 1 ? 's' : '') + '</strong>.' : '') + '</p>'
       + '<div class="update-meta">' + liveEvents.length + ' health event' + (liveEvents.length !== 1 ? 's' : '') + ' logged</div>'
       + '</div></div>'
+      + upcomingHtml
       + visitPrepCardHtml
       + '<div class="timeline-section" style="margin-top:16px;">'
       + '<p class="section-label">' + t('update.recentActivity') + '</p>'
@@ -14087,7 +14093,7 @@ function showOwnWellet() {
 
 // ── GUIDED TOUR ─────────────────────────────────────────────────────────────
 var tourSteps = [
-  { target: '#header-tab-bar .tab:first-child', title: 'Update Me', text: 'This is your home base \u2014 a plain-English summary of what\u2019s happening right now.', arrow: 'top', offsetY: 8 },
+  { target: '#header-tab-bar .tab:first-child', title: 'Summary', text: 'This is your home base \u2014 a plain-English summary of what\u2019s happening right now.', arrow: 'top', offsetY: 8 },
   { target: '#header-tab-bar .tab:nth-child(2)', title: 'Timeline', text: 'Everything that\u2019s happened, in order. You\u2019ll never have to reconstruct it from memory.', arrow: 'top', offsetY: 8, before: function(){ document.querySelectorAll('.tab')[1].click(); } },
   { target: '#header-tab-bar .tab:nth-child(3)', title: 'Patterns', text: 'Wellet quietly watches for patterns — like how sleep connects to pain, or whether a medication change made a difference.', arrow: 'top', offsetY: 8, before: function(){ document.querySelectorAll('.tab')[2].click(); } },
   { target: '.nav-item[data-nav-key="nav.records"]', title: 'Records', text: 'Upload photos of documents, prescriptions, or insurance cards. Wellet reads them and files them automatically.', arrow: 'bottom', offsetY: -8, before: function(){ switchNavTo('records'); } },
@@ -15415,6 +15421,80 @@ function buildNotifList() {
 }
 
 // ── DEMO APPOINTMENTS ─────────────────────────────────────────────────────
+// ── UPCOMING APPOINTMENTS BLOCK ──────────────────────────────────────────
+// Renders the next 1–3 future appointments as editorial hairline rows on
+// the Updates surface, sitting above the Prepare-for-visit card. Returns
+// empty string when no upcoming appointments exist (caller falls through
+// to the generic visit-prep card).
+function buildUpcomingHtml(personFirstName) {
+  var now = new Date();
+  var rows = [];
+  if (isDemoMode) {
+    rows = getDemoAppointments();
+  } else {
+    rows = (typeof liveEvents !== 'undefined' ? liveEvents : []).filter(function(e) {
+      return e.event_type === 'appointment' && new Date(e.event_date) >= new Date(now.getTime() - 3600000);
+    }).map(function(e) {
+      return { title: e.title, date: e.event_date, notes: e.notes || '' };
+    });
+  }
+  if (!rows || rows.length === 0) return '';
+  rows.sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
+  rows = rows.slice(0, 3);
+
+  var html = '<div class="upcoming-block">';
+  html += '<div class="upcoming-section-label">Upcoming for ' + escHtml(personFirstName) + '</div>';
+  for (var i = 0; i < rows.length; i++) {
+    var ev = rows[i];
+    var d = new Date(ev.date);
+    var rel = formatUpcomingRelative(d, now);
+    var dateLine = formatUpcomingDateLine(d);
+    html += '<div class="upcoming-row">';
+    html += '<div class="upcoming-row-head">';
+    html += '<span class="upcoming-tag">' + escHtml(rel) + '</span>';
+    html += '<span class="upcoming-date">' + escHtml(dateLine) + '</span>';
+    html += '</div>';
+    html += '<div class="upcoming-title">' + escHtml(ev.title) + '</div>';
+    if (ev.notes) {
+      html += '<div class="upcoming-notes">' + escHtml(ev.notes) + '</div>';
+    }
+    html += '<div class="upcoming-actions">';
+    html += '<button class="upcoming-prep-link" onclick="openVisitPrep(false)">Prepare for this visit</button>';
+    html += '</div>';
+    html += '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function formatUpcomingRelative(apptDate, now) {
+  var startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  var startOfAppt = new Date(apptDate.getFullYear(), apptDate.getMonth(), apptDate.getDate());
+  var dayDiff = Math.round((startOfAppt - startOfToday) / 86400000);
+  if (dayDiff <= 0) return 'Today';
+  if (dayDiff === 1) return 'Tomorrow';
+  if (dayDiff < 7) return 'This week';
+  if (dayDiff < 14) return 'Next week';
+  if (dayDiff < 32) return 'This month';
+  return 'Later';
+}
+
+function formatUpcomingDateLine(d) {
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var hh = d.getHours();
+  var mm = d.getMinutes();
+  var hasTime = !(hh === 0 && mm === 0);
+  var line = days[d.getDay()] + ' ' + months[d.getMonth()] + ' ' + d.getDate();
+  if (hasTime) {
+    var ampm = hh >= 12 ? 'PM' : 'AM';
+    var h12 = hh % 12 || 12;
+    var mStr = mm < 10 ? '0' + mm : mm;
+    line += ' \u00b7 ' + h12 + ':' + mStr + ' ' + ampm;
+  }
+  return line;
+}
+
 function getDemoAppointments() {
   var now = new Date();
   var tomorrow = new Date(now);
@@ -17662,7 +17742,7 @@ var TRANSLATIONS = {
     'nav.ask': 'Ask Wellet',
 
     // Home tabs
-    'tab.update': 'Update Me',
+    'tab.update': 'Summary',
     'tab.timeline': 'Timeline',
     'tab.patterns': 'Patterns',
 
@@ -18408,8 +18488,8 @@ function vpSaveForLater() {
     saveBtn.innerHTML = '<i data-lucide="bookmark-check" style="width:16px;height:16px;"></i> Saved';
     initIcons();
   }
-  showToast('Visit prep saved — find it on Update Me');
-  // Refresh Update Me card in the background
+  showToast('Visit prep saved — find it on Summary');
+  // Refresh Summary card in the background
   renderUpdateMe();
 }
 

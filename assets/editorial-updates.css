@@ -29,6 +29,16 @@
   padding: 0 var(--gutter, 22px);
 }
 
+/* At tablet+ widths the editorial reading column should breathe to ~90% of
+   the viewport so hairlines and copy run the full canvas, not get penned
+   into a narrow phone-style column. */
+@media (min-width: 768px) {
+  #view-home[data-editorial="updates"] #tab-update,
+  #view-home[data-editorial="updates"] #tab-timeline {
+    max-width: 95vw;
+  }
+}
+
 /* Pull-to-refresh — keep mechanics, quiet the colors */
 #view-home[data-editorial="updates"] .pull-refresh-indicator {
   color: var(--ink-4);
