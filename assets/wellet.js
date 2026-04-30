@@ -1384,10 +1384,13 @@ function renderUpdateMe() {
       + '</div>'
       + '<button onclick="openShareFamily()" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px 16px;margin-top:10px;background:white;border:1.5px solid var(--moss);border-radius:10px;color:var(--moss);font-family:\'DM Sans\',sans-serif;font-size:13px;font-weight:500;cursor:pointer;"><i data-lucide="share-2" style="width:15px;height:15px;"></i> ' + t('update.shareThis') + '</button>';
   } else {
-    // Not yet fetched — show loading placeholder and trigger fetch
+    // Not yet fetched — show loading placeholder and trigger fetch.
+    // Includes a manual refresh button as an escape hatch in case the
+    // fetch hangs or the post-fetch render misses (race conditions).
     summarySection = '<div class="update-summary-card" id="update-summary-loading-card">'
       + '<div class="update-summary-header">'
       + '<span class="update-summary-label">Wellet summary</span>'
+      + '<button class="update-summary-refresh" onclick="fetchUpdateMeSummary(true)" title="Try again" aria-label="Try again"><i data-lucide="refresh-cw" style="width:13px;height:13px;"></i></button>'
       + '</div>'
       + '<div class="update-summary-loading"><i data-lucide="loader" style="width:13px;height:13px;animation:spin 1.2s linear infinite;"></i> ' + t('update.generating') + '</div>'
       + '</div>';
