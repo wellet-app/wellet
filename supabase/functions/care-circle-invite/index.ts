@@ -4,9 +4,57 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getCorsHeaders } from '../_shared/cors.ts'
+import { logSignupError } from '../_shared/log-signup-error.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+
+// Lightweight E.164 check — same shape as twilio-send-sms.normalizeE164.
+// Returns trimmed E.164 or null. We only accept already-formatted numbers
+// to avoid Twilio billing surprises from accidental country routing.
+function normalizeE164(input: unknown): string | null {
+  if (typeof input !== 'string') return null
+  const trimmed = input.trim()
+  if (!/^\+[1-9]\d{6,14}$/.test(trimmed)) return null
+  return trimmed
+}
+
+// Fire-and-forget invocation of twilio-send-sms. Never throws — SMS failures
+// must NOT block invite creation. Returns a small status object the caller
+// surfaces in the response so the app can show "Text sent" vs "Couldn't text,
+// here's the link to share manually".
+async function sendInviteSms(params: {
+  authHeader: string
+  to: string
+  inviterName: string
+  inviteLink: string
+  memberId: string
+}): Promise<{ sent: boolean; message_sid?: string; error?: string }> {
+  try {
+    const body =
+      `${params.inviterName} invited you to Wellet to help coordinate care ` +
+      `for a loved one. Open: ${params.inviteLink}\n\nReply STOP to opt out.`
+
+    const res = await fetch(`${supabaseUrl}/functions/v1/twilio-send-sms`, {
+      method: 'POST',
+      headers: {
+        // Forward the inviter's JWT — twilio-send-sms requires verify_jwt
+        Authorization: params.authHeader,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: params.to,
+        body,
+        member_id: params.memberId,
+      }),
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) return { sent: false, error: json?.error ?? `http_${res.status}` }
+    return { sent: true, message_sid: json?.message_sid }
+  } catch (e) {
+    return { sent: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req)
@@ -105,6 +153,29 @@ Deno.serve(async (req) => {
 
       const inviteLink = `https://mywellet.com?invite=${token}`
 
+      // ── Best-effort SMS to member.phone if present and well-formed ──
+      // Failure does NOT block the invite. The user can always share the
+      // returned invite_link manually (copy button in the app).
+      let smsResult: { sent: boolean; message_sid?: string; error?: string } | null = null
+      if (member.phone) {
+        const to = normalizeE164(member.phone)
+        if (!to) {
+          smsResult = { sent: false, error: 'invalid_phone_format' }
+        } else {
+          const inviterName =
+            user.user_metadata?.full_name ||
+            user.email?.split('@')[0] ||
+            'Someone'
+          smsResult = await sendInviteSms({
+            authHeader,
+            to,
+            inviterName,
+            inviteLink,
+            memberId: member_id,
+          })
+        }
+      }
+
       return new Response(JSON.stringify({
         success: true,
         invite_link: inviteLink,
@@ -112,6 +183,7 @@ Deno.serve(async (req) => {
         person_name: member.people.name,
         member_name: member.member_name,
         member_email: member.email,
+        sms: smsResult,
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -266,6 +338,14 @@ Deno.serve(async (req) => {
     })
 
   } catch (e) {
+    await logSignupError({
+      source: 'care-circle-invite',
+      severity: 'critical',
+      error: e,
+      httpStatus: 500,
+      request: req,
+      context: { phase: 'top_level_catch' },
+    });
     return new Response(JSON.stringify({ error: e.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
