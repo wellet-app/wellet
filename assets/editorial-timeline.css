@@ -63,56 +63,64 @@
   opacity: 0.78;
 }
 
-/* ----- Timeline rail — vertical line + place markers ----- */
-/* Indent the rail so the dot sits inside the content area, not in the page
-   gutter. The month label keeps its full-width position above. */
-#tab-timeline .tl-item {
-  display: flex;
-  gap: 16px;
-  align-items: stretch;          /* connector stretches to card height */
-  margin: 0;
-  padding-left: 8px;             /* nudge the rail in from the section edge */
-  position: relative;
-}
-#tab-timeline .tl-line-col {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 12px;                   /* tighter column — dot + connector only */
-  flex-shrink: 0;
-  padding-top: 26px;             /* aligns dot with the type-tag row */
-  position: relative;
-}
+/* ----- Timeline rail — continuous vertical line + place markers -----
+   Strategy: hide the per-item rail divs the JS still emits, and draw the
+   rail ourselves with a single ::before on each month section. Each item
+   gets a ::before dot positioned absolutely on top of that line. This
+   guarantees a single unbroken rail per month with reliable dot placement,
+   regardless of card height or flex stretching quirks (iOS Safari).
+
+   Geometry:
+     RAIL_X     = 16px from the left of .timeline-section
+     ITEM_PAD_L = 32px (room for the rail + dot + breathing room)
+     DOT_SIZE   = 9px
+     DOT_TOP    = 24px (vertically aligns with the type-tag row)
+*/
+
+/* Hide the per-item rail divs so they don't fight the new rail */
+#tab-timeline .tl-line-col,
+#tab-timeline .tl-connector,
 #tab-timeline .tl-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--linen, #F7F5F0) !important;
-  border: 1.5px solid var(--ink-4, #8C857B) !important;
-  flex-shrink: 0;
-  z-index: 1;
+  display: none !important;
 }
-/* Quiet, unified rail — retire bright per-type dot fills/borders */
-#tab-timeline .tl-dot.appt,
-#tab-timeline .tl-dot.med,
-#tab-timeline .tl-dot.lab,
-#tab-timeline .tl-dot.note,
-#tab-timeline .tl-dot.alert {
-  background: var(--linen, #F7F5F0) !important;
-  border-color: var(--ink-4, #8C857B) !important;
+
+/* Each month section becomes the rail container */
+#tab-timeline .timeline-section {
+  position: relative;
 }
-#tab-timeline .tl-connector {
+#tab-timeline .timeline-section::before {
+  content: "";
+  position: absolute;
+  left: 16px;
+  /* Start just below the month label and extend through the last item.
+     Negative top value pulls into the section above tl-month margin so the
+     line meets the top of the first item's content. */
+  top: 48px;
+  bottom: 0;
   width: 1px;
-  flex: 1 1 auto;
-  min-height: 0;
   background: var(--ink-2, #D8D3CA);
-  margin-top: 4px;
-  margin-bottom: -1px;           /* meet the next dot cleanly */
+  pointer-events: none;
 }
-/* The card occupies the remaining row width */
-#tab-timeline .tl-card {
-  flex: 1 1 auto;
-  min-width: 0;
+
+/* Items sit to the right of the rail, with a dot drawn on it */
+#tab-timeline .tl-item {
+  display: block;                /* not flex — we use absolute positioning */
+  margin: 0;
+  padding-left: 32px;            /* clears the rail + dot */
+  position: relative;
+}
+#tab-timeline .tl-item::before {
+  content: "";
+  position: absolute;
+  left: 12px;                    /* (rail_x 16) - (dot_size/2 ≈ 4.5) */
+  top: 24px;                     /* aligns with the type-tag row */
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--linen, #F7F5F0);
+  border: 1.5px solid var(--ink-4, #8C857B);
+  box-sizing: border-box;
+  z-index: 1;
 }
 
 /* Retire all colored left borders */

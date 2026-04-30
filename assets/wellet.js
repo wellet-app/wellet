@@ -1036,9 +1036,10 @@ function showAuthenticatedApp() {
   document.getElementById('landing').style.display = 'none';
   document.getElementById('onboarding').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
-  // Show bug report button for signed-in users
+  // Bug report has moved into the three-dot overflow menu — keep the header
+  // pill hidden for signed-in users (it was crowding the share button + bell).
   var bugBtn = document.getElementById('bug-report-btn');
-  if (bugBtn) bugBtn.style.display = '';
+  if (bugBtn) bugBtn.style.display = 'none';
   window.scrollTo(0, 0);
 
   renderPersonSwitcher();
@@ -10978,11 +10979,49 @@ function buildEhrSummaryContext(personId) {
   };
 }
 
+// Daily-cache key: one summary per person per local calendar day. Manual
+// refresh button is the only thing that should regenerate within a day.
+// Reasoning: the model produces meaningfully different prose each call, and
+// the user wants the FIRST one of the day to stick (it tends to be richer
+// because nothing is suppressed by recency-dedup heuristics).
+function _summaryDayKey(pid) {
+  var d = new Date();
+  var y = d.getFullYear();
+  var m = String(d.getMonth() + 1).padStart(2, '0');
+  var dd = String(d.getDate()).padStart(2, '0');
+  return 'wellet_summary_v1_' + pid + '_' + y + '-' + m + '-' + dd;
+}
+function _hydrateSummaryFromStorage(pid) {
+  try {
+    var raw = localStorage.getItem(_summaryDayKey(pid));
+    if (!raw) return false;
+    var parsed = JSON.parse(raw);
+    // Sentinel for "empty" days, otherwise the full summary object
+    if (parsed === 'empty' || (parsed && parsed.text)) {
+      summaryCache[pid] = parsed;
+      return true;
+    }
+  } catch (e) { /* corrupt entry — ignore */ }
+  return false;
+}
+function _persistSummaryToStorage(pid, value) {
+  try { localStorage.setItem(_summaryDayKey(pid), JSON.stringify(value)); } catch (e) {}
+}
+function _clearTodaysSummaryStorage(pid) {
+  try { localStorage.removeItem(_summaryDayKey(pid)); } catch (e) {}
+}
+
 async function fetchUpdateMeSummary(forceRefresh) {
   if (isDemoMode || !currentPersonId || !currentUser) return;
   var pid = currentPersonId;
-  // Clear cache on force refresh
-  if (forceRefresh) { delete summaryCache[pid]; }
+  // Clear in-memory + persisted cache on force refresh (manual refresh button)
+  if (forceRefresh) {
+    delete summaryCache[pid];
+    _clearTodaysSummaryStorage(pid);
+  } else if (summaryCache[pid] === undefined) {
+    // First render of the session — try persisted daily cache before fetching
+    if (_hydrateSummaryFromStorage(pid)) { renderUpdateMe(); return; }
+  }
   // Already cached?
   if (summaryCache[pid] !== undefined) { renderUpdateMe(); return; }
 
@@ -11007,6 +11046,7 @@ async function fetchUpdateMeSummary(forceRefresh) {
       var data = await res.json();
       if (data.empty || !data.summary) {
         summaryCache[pid] = 'empty';
+        _persistSummaryToStorage(pid, 'empty');
       } else {
         // Store the full response so we have sources + window_class for the card.
         // Back-compat: code that reads summaryCache[pid] as a string will now get an object
@@ -11017,13 +11057,16 @@ async function fetchUpdateMeSummary(forceRefresh) {
           sources: data.sources || null,
           generated_at: new Date().toISOString(),
         };
+        _persistSummaryToStorage(pid, summaryCache[pid]);
       }
     } else {
       summaryCache[pid] = 'empty';
+      // Don't persist a server failure — let the next session retry
     }
   } catch (e) {
     console.warn('Summary fetch error:', e);
     summaryCache[pid] = 'empty';
+    // Don't persist network errors either
   }
   // Only re-render if still on same person
   if (currentPersonId === pid) { renderUpdateMe(); }
