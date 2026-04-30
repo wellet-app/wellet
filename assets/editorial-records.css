@@ -460,3 +460,127 @@
     font-size: 18px;
   }
 }
+
+/* ============================================================
+   Records tile grid — quick-jump nav restyled as editorial.
+
+   Legacy `.records-tile-grid` is a 6-up white card grid.
+   In editorial, we keep the 6 navigation entry points but
+   strip the card chrome: hairline rows on linen, Fraunces label,
+   DM Sans summary, moss attention dot.
+
+   Inline `style` on `.records-tile-icon` (background + color)
+   is overridden via `!important` to neutralize the legacy
+   colored chips.
+   ============================================================ */
+
+#view-records[data-editorial="records"] .records-tile-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 6px 0 28px;
+  border-top: 1px solid var(--ink-1);
+}
+
+#view-records[data-editorial="records"] .records-tile {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  gap: 14px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--ink-1);
+  border-radius: 0;
+  padding: 16px 2px;
+  min-height: 0;
+  box-shadow: none;
+  transition: opacity 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+#view-records[data-editorial="records"] .records-tile[onclick] {
+  cursor: pointer;
+}
+#view-records[data-editorial="records"] .records-tile[onclick]:hover {
+  opacity: 0.72;
+  border-color: var(--ink-1);
+  box-shadow: none;
+}
+
+/* Icon — strip the colored chip; render as bare moss-deep glyph. */
+#view-records[data-editorial="records"] .records-tile-icon {
+  width: 28px;
+  height: 28px;
+  background: transparent !important;
+  color: var(--moss-deep) !important;
+  border-radius: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+#view-records[data-editorial="records"] .records-tile-icon svg,
+#view-records[data-editorial="records"] .records-tile-icon [data-lucide] {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.5;
+}
+
+/* Label — Fraunces, ink-9. */
+#view-records[data-editorial="records"] .records-tile-label {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 17px;
+  line-height: 1.25;
+  color: var(--ink-9);
+  letter-spacing: -0.003em;
+  font-variation-settings: "opsz" 18, "SOFT" 60;
+}
+
+/* Summary — DM Sans, ink-5, right aligned, no margin-top trick needed. */
+#view-records[data-editorial="records"] .records-tile-summary {
+  font-family: var(--sans);
+  font-weight: 300;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-5);
+  text-align: right;
+  margin: 0;
+  letter-spacing: 0.005em;
+}
+
+/* Attention dot — moss, inline before label, never amber. */
+#view-records[data-editorial="records"] .records-tile-dot {
+  position: static;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--moss-deep);
+  border: 0;
+  /* Place the dot in the icon column, top-right corner of the icon, as
+     a small signal that pairs with the glyph. */
+  position: absolute;
+  top: 18px;
+  left: 22px;
+}
+
+/* Tablet / desktop bumps */
+@media (min-width: 768px) {
+  #view-records[data-editorial="records"] .records-tile {
+    padding: 18px 2px;
+    grid-template-columns: 30px 1fr auto;
+    gap: 18px;
+  }
+  #view-records[data-editorial="records"] .records-tile-label {
+    font-size: 19px;
+  }
+  #view-records[data-editorial="records"] .records-tile-summary {
+    font-size: 13px;
+  }
+  #view-records[data-editorial="records"] .records-tile-icon svg,
+  #view-records[data-editorial="records"] .records-tile-icon [data-lucide] {
+    width: 20px;
+    height: 20px;
+  }
+}
