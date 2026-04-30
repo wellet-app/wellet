@@ -1267,8 +1267,8 @@ function renderUpdateMe() {
       var summaryAskKey = 'update_summary_' + currentPersonId;
       window._askCtxRegistry[summaryAskKey] = {
         kind: 'summary',
-        name: 'Update Me for ' + name,
-        title: 'Update Me for ' + name,
+        name: 'Summary for ' + name,
+        title: 'Summary for ' + name,
         date: meta && meta.generated_at ? meta.generated_at : null,
         meta: sourceCount > 0 ? ('Written from ' + sourceCount + ' source' + (sourceCount === 1 ? '' : 's')) : '',
         summary_text: getSummaryText(currentPersonId),
@@ -14093,7 +14093,7 @@ function showOwnWellet() {
 
 // ── GUIDED TOUR ─────────────────────────────────────────────────────────────
 var tourSteps = [
-  { target: '#header-tab-bar .tab:first-child', title: 'Update Me', text: 'This is your home base \u2014 a plain-English summary of what\u2019s happening right now.', arrow: 'top', offsetY: 8 },
+  { target: '#header-tab-bar .tab:first-child', title: 'Summary', text: 'This is your home base \u2014 a plain-English summary of what\u2019s happening right now.', arrow: 'top', offsetY: 8 },
   { target: '#header-tab-bar .tab:nth-child(2)', title: 'Timeline', text: 'Everything that\u2019s happened, in order. You\u2019ll never have to reconstruct it from memory.', arrow: 'top', offsetY: 8, before: function(){ document.querySelectorAll('.tab')[1].click(); } },
   { target: '#header-tab-bar .tab:nth-child(3)', title: 'Patterns', text: 'Wellet quietly watches for patterns — like how sleep connects to pain, or whether a medication change made a difference.', arrow: 'top', offsetY: 8, before: function(){ document.querySelectorAll('.tab')[2].click(); } },
   { target: '.nav-item[data-nav-key="nav.records"]', title: 'Records', text: 'Upload photos of documents, prescriptions, or insurance cards. Wellet reads them and files them automatically.', arrow: 'bottom', offsetY: -8, before: function(){ switchNavTo('records'); } },
@@ -17742,7 +17742,7 @@ var TRANSLATIONS = {
     'nav.ask': 'Ask Wellet',
 
     // Home tabs
-    'tab.update': 'Update Me',
+    'tab.update': 'Summary',
     'tab.timeline': 'Timeline',
     'tab.patterns': 'Patterns',
 
@@ -18488,8 +18488,8 @@ function vpSaveForLater() {
     saveBtn.innerHTML = '<i data-lucide="bookmark-check" style="width:16px;height:16px;"></i> Saved';
     initIcons();
   }
-  showToast('Visit prep saved — find it on Update Me');
-  // Refresh Update Me card in the background
+  showToast('Visit prep saved — find it on Summary');
+  // Refresh Summary card in the background
   renderUpdateMe();
 }
 
