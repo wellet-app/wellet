@@ -1021,6 +1021,11 @@ async function loadPersonData(personId) {
       renderRecordsView();
     }
   });
+
+  // Update the masthead "Updated …" label with the actual last sync time
+  // for this person. Honest replacement of the old static "Updated just now"
+  // string — reads from cache or DB; says nothing if there's no real sync.
+  try { updateHeaderSyncMeta(); } catch(e) { /* non-fatal */ }
 }
 
 // ── SHOW AUTHENTICATED APP ────────────────────────────────────────────────────
@@ -1149,6 +1154,94 @@ function formatTimeAgo(iso) {
   var d = Math.round(hr / 24);
   if (d < 7) return d + ' day' + (d === 1 ? '' : 's') + ' ago';
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// ── HEADER SYNC META ────────────────────────────────────────────────────
+// Updates the small "Updated …" label in the masthead to honestly reflect
+// the actual last successful sync. Reads from the local EHR cache first
+// (fast, no round-trip), and falls back to ehr_connections.last_synced_at
+// if the cache is empty (e.g. cold load on a fresh device).
+//
+// Behavior:
+//   • Demo mode → empty (no real sync to report)
+//   • No currentPersonId → empty
+//   • No connection / never synced → empty (we'd rather say nothing
+//     than lie). The user sees "Connect health records" elsewhere.
+//   • Has a synced_at → "Updated " + formatTimeAgo(iso)
+//
+// Safe to call frequently; idempotent. The ehr_connections fallback is
+// gated behind a local-cache miss to avoid a DB hit on every render.
+function updateHeaderSyncMeta() {
+  var el = document.getElementById('header-meta-text');
+  if (!el) return;
+  if (isDemoMode || !currentPersonId) { el.textContent = ''; return; }
+
+  // Try local cache first — fast path, no DB round-trip.
+  try {
+    var cached = getEhrData(currentPersonId);
+    if (cached && cached.synced_at) {
+      var ago = formatTimeAgo(cached.synced_at);
+      el.textContent = ago ? 'Updated ' + ago : '';
+      return;
+    }
+  } catch (e) { /* fall through to DB lookup */ }
+
+  // Cache miss — read the most recent last_synced_at from any connected
+  // EHR row for this person. Pick MAX so multi-hospital connections show
+  // the freshest signal.
+  try {
+    if (typeof db === 'undefined' || !db) return;
+    db.from('ehr_connections')
+      .select('last_synced_at')
+      .eq('person_id', currentPersonId)
+      .eq('status', 'connected')
+      .order('last_synced_at', { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle()
+      .then(function(res) {
+        var iso = res && res.data && res.data.last_synced_at;
+        if (!iso) { el.textContent = ''; return; }
+        var ago = formatTimeAgo(iso);
+        el.textContent = ago ? 'Updated ' + ago : '';
+      })
+      .catch(function() { /* leave empty rather than guess */ });
+  } catch (e) { /* leave empty rather than guess */ }
+}
+
+// ── TRY EPIC REFRESH ────────────────────────────────────────────────────
+// Calls epic-auth's `refresh` action to silently mint a new access_token
+// from the stored refresh_token. Used by the Reconnect banner to attempt
+// a fix without forcing the user through a full Duke MyChart redirect.
+//
+// Returns a Promise that resolves to:
+//   { ok: true }                            — refresh succeeded
+//   { ok: false, reason: 'no_refresh_token' } — 409, only OAuth can fix
+//   { ok: false, reason: 'error' }          — anything else (network,
+//                                              5xx, server thinks the
+//                                              token is dead)
+// Never rejects — callers branch on `result.ok`.
+function tryEpicRefresh(personId) {
+  return db.auth.getSession().then(function(s) {
+    var session = s && s.data && s.data.session;
+    if (!session) return { ok: false, reason: 'no_session' };
+    return fetch(SUPABASE_URL + '/functions/v1/epic-auth', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + session.access_token,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ action: 'refresh', person_id: personId })
+    }).then(function(res) {
+      if (res.ok) return { ok: true };
+      if (res.status === 409) return { ok: false, reason: 'no_refresh_token' };
+      return { ok: false, reason: 'error' };
+    }).catch(function() {
+      return { ok: false, reason: 'error' };
+    });
+  }).catch(function() {
+    return { ok: false, reason: 'error' };
+  });
 }
 
 // ── FORMAT WELLET SUMMARY ───────────────────────────────────────────────
@@ -8147,6 +8240,9 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
     // also persist the per-connection v2 shape. v1 stays the source of truth
     // until the flag flips ON; v2 is read-only until then.
     try { saveEhrCacheV2(personId, data); } catch(e) { console.warn('v2 cache save:', e); }
+    // Fresh sync just landed — update the masthead label so it says e.g.
+    // "Updated just now" (truthfully this time) instead of staying stale.
+    try { if (personId === currentPersonId) updateHeaderSyncMeta(); } catch(e) {}
     showToast('Health records updated');
     // Re-render views with EHR data
     if (personId === currentPersonId) {
@@ -9143,16 +9239,53 @@ function _bannerRender(state) {
   host.dataset.connectionId = state.connection_id || '';
   host.dataset.fhirBaseUrl = state.fhir_base_url || '';
   host.dataset.hospitalName = state.hospital_name || '';
+  host.dataset.kind = state.kind || '';
 }
 
+// 2026-04-30: refresh-first Reconnect.
+// For 'stale' and 'needs_reconnect' we try a silent token refresh against
+// epic-auth before sending the user through the full OAuth round-trip. If
+// the refresh succeeds, we reload data and confirm with a toast — no redirect
+// at all. If the refresh fails (or the kind is one that refresh can't help
+// with: scope_regression, migration_available), we fall through to OAuth
+// with a heads-up toast so the redirect doesn't feel abrupt.
 function reconnectBannerTap() {
   var host = document.getElementById('reconnect-banner-host');
   if (!host) return;
   var fhir = host.dataset.fhirBaseUrl || null;
   var name = host.dataset.hospitalName || null;
-  // Hide eagerly — OAuth redirect is about to happen
-  _bannerHide();
-  try { beginEhrOAuth(fhir, name, false); } catch(e) { console.warn('[banner] reconnect tap failed', e); }
+  var kind = host.dataset.kind || '';
+  var hospitalLabel = name || 'your hospital';
+
+  function fallthroughToOAuth() {
+    try { showToast('Need to verify with ' + hospitalLabel); } catch(e) {}
+    _bannerHide();
+    try { beginEhrOAuth(fhir, name, false); } catch(e) { console.warn('[banner] reconnect tap failed', e); }
+  }
+
+  // Refresh wouldn't help for these — straight to OAuth.
+  if (kind === 'scope_regression' || kind === 'migration_available') {
+    fallthroughToOAuth();
+    return;
+  }
+
+  // Stale or needs_reconnect: try silent refresh first.
+  if (!currentPersonId) { fallthroughToOAuth(); return; }
+  try { showToast('Refreshing connection\u2026'); } catch(e) {}
+  tryEpicRefresh(currentPersonId).then(function(result) {
+    if (result && result.ok) {
+      _bannerHide();
+      try { showToast('Reconnected'); } catch(e) {}
+      try { loadPersonData(currentPersonId); } catch(e) { console.warn('[banner] reload after refresh failed', e); }
+      try { updateHeaderSyncMeta(); } catch(e) {}
+      return;
+    }
+    // Refresh failed — fall through to OAuth.
+    fallthroughToOAuth();
+  }).catch(function(err) {
+    console.warn('[banner] tryEpicRefresh threw', err);
+    fallthroughToOAuth();
+  });
 }
 
 function reconnectBannerDismiss() {
@@ -18630,16 +18763,16 @@ document.addEventListener('touchend', function() {
           renderTimeline();
           renderPatterns();
           initIcons();
-          _ptrFinish();
-        }).catch(function() { _ptrFinish(); });
+          _ptrFinish(true);
+        }).catch(function() { _ptrFinish(false); });
       } else if (isDemoMode) {
         renderUpdateMe();
         renderTimeline();
         renderPatterns();
         initIcons();
-        setTimeout(_ptrFinish, 600);
+        setTimeout(function() { _ptrFinish(true); }, 600);
       } else {
-        _ptrFinish();
+        _ptrFinish(false);
       }
     };
     doRefresh();
@@ -18648,15 +18781,20 @@ document.addEventListener('touchend', function() {
   }
 }, { passive: true });
 
-function _ptrFinish() {
+// success=true  → sync completed; pull pill says "Updated just now" briefly,
+//                 then the masthead label is reconciled to the real synced_at.
+// success=false → sync failed or skipped; pull pill says "Couldn't refresh"
+//                 briefly, masthead is reconciled to the real (possibly
+//                 older) synced_at — never lies about when the last sync was.
+function _ptrFinish(success) {
   _ptrRefreshing = false;
   var indicator = document.getElementById('pull-refresh-indicator');
   if (!indicator) return;
   var text = indicator.querySelector('.pull-refresh-text');
   indicator.classList.remove('refreshing');
-  if (text) text.textContent = 'Updated just now';
-  var meta = document.getElementById('header-meta-text');
-  if (meta) meta.textContent = 'Updated just now';
+  if (text) text.textContent = success === false ? "Couldn't refresh" : 'Updated just now';
+  // Honest masthead update: reflect actual last successful sync.
+  try { updateHeaderSyncMeta(); } catch(e) {}
   setTimeout(function() { indicator.classList.remove('visible'); }, 1200);
 }
 
