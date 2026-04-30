@@ -1392,6 +1392,24 @@ function renderUpdateMe() {
       + '<div class="update-summary-loading"><i data-lucide="loader" style="width:13px;height:13px;animation:spin 1.2s linear infinite;"></i> ' + t('update.generating') + '</div>'
       + '</div>';
     fetchUpdateMeSummary(false);
+    // Watchdog: if the loader is still on screen 12 seconds after we asked
+    // for a summary AND the cache has actually been populated, force a
+    // re-render. Catches races where renderUpdateMe got a stale closure or
+    // currentPersonId temporarily flickered during the fetch.
+    try {
+      var _wdPid = currentPersonId;
+      setTimeout(function() {
+        if (currentPersonId !== _wdPid) return;
+        var stillLoading = document.getElementById('update-summary-loading-card');
+        var haveData = summaryCache[_wdPid] !== undefined;
+        if (stillLoading && haveData) {
+          console.log('[summary-watchdog] cache populated but loader still up — re-rendering');
+          renderUpdateMe();
+        } else if (stillLoading && !haveData) {
+          console.warn('[summary-watchdog] still loading after 12s and cache empty — fetch may have failed silently');
+        }
+      }, 12000);
+    } catch (_e) {}
   }
 
   // Build empty-state vs populated content
