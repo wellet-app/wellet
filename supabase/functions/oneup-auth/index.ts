@@ -6,6 +6,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders } from '../_shared/cors.ts';
+import { logSignupError } from '../_shared/log-signup-error.ts';
 
 const ONEUP_CLIENT_ID = Deno.env.get('ONEUP_CLIENT_ID') ?? '';
 const ONEUP_CLIENT_SECRET = Deno.env.get('ONEUP_CLIENT_SECRET') ?? '';
@@ -297,6 +298,14 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('oneup-auth error:', err);
+    await logSignupError({
+      source: 'oneup-auth',
+      severity: 'critical',
+      error: err,
+      httpStatus: 500,
+      request: req,
+      context: { phase: 'top_level_catch' },
+    });
     return jsonResponse({ error: err.message || 'Internal server error' }, 500);
   }
 });

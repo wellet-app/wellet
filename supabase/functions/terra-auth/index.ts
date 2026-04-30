@@ -10,6 +10,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { logSignupError } from "../_shared/log-signup-error.ts";
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -220,6 +221,14 @@ Deno.serve(async (req) => {
     return json({ error: "Unknown action: " + action }, 400);
   } catch (e) {
     console.error("terra-auth error:", e);
+    await logSignupError({
+      source: 'terra-auth',
+      severity: 'critical',
+      error: e,
+      httpStatus: 500,
+      request: req,
+      context: { phase: 'top_level_catch' },
+    });
     return json({ error: (e as Error).message }, 500);
   }
 });

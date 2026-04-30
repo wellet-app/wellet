@@ -11,6 +11,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "./_shared/cors.ts";
+import { logSignupError } from "../_shared/log-signup-error.ts";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 
@@ -302,6 +303,14 @@ Deno.serve(async (req) => {
     return json({ error: "Unknown action: " + action }, 400);
   } catch (e) {
     console.error("manage-subscription error:", e);
+    await logSignupError({
+      source: 'manage-subscription',
+      severity: 'critical',
+      error: e,
+      httpStatus: 500,
+      request: req,
+      context: { phase: 'top_level_catch' },
+    });
     return json({ error: (e as Error).message }, 500);
   }
 });

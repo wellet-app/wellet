@@ -10,6 +10,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders } from '../_shared/cors.ts';
+import { logSignupError } from '../_shared/log-signup-error.ts';
 
 // ── Configuration ────────────────────────────────────────────────────────────
 // Wellet Confidential (2026-04-24) — Client IDs issued by Epic on app registration.
@@ -832,6 +833,14 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('epic-auth error:', err);
+    await logSignupError({
+      source: 'epic-auth',
+      severity: 'critical',
+      error: err,
+      httpStatus: 500,
+      request: req,
+      context: { phase: 'top_level_catch' },
+    });
     return jsonResponse({ error: (err as Error).message || 'Internal server error' }, 500);
   }
 });
