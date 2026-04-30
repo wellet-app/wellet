@@ -600,6 +600,25 @@
   .chat-bubble.wellet .md-ol { list-style: decimal; }
   .chat-bubble.wellet .md-code { background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 4px; font-family: 'SF Mono', ui-monospace, Menlo, monospace; font-size: 12.5px; }
   .chat-bubble.wellet a { color: var(--moss-dark, #4a6b5e); text-decoration: underline; word-break: break-word; }
+  /* [data] citation marker rendered inline as a small link to Records */
+  .chat-bubble.wellet a.cite-data {
+    display: inline-block;
+    margin-left: 2px;
+    padding: 0 5px;
+    font-size: 10px;
+    line-height: 1.4;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    text-transform: lowercase;
+    text-decoration: none;
+    color: var(--moss-dark, #4a6b5e);
+    background: var(--mint, rgba(74,107,94,0.10));
+    border: 1px solid var(--border-medium, rgba(0,0,0,0.10));
+    border-radius: 999px;
+    vertical-align: baseline;
+    white-space: nowrap;
+  }
+  .chat-bubble.wellet a.cite-data:hover { background: var(--moss); color: white; border-color: var(--moss); }
   .chat-sender { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
   .chat-group { display: flex; flex-direction: column; }
   .chat-group.from-wellet { align-items: flex-start; }

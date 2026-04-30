@@ -6208,6 +6208,12 @@ function renderMarkdownSafe(src) {
   html = html.replace(/(^|[\s(])((?:https?:\/\/)[^\s<)]+[^\s<).,;:!?])/g,
     function(_m, pre, url) { return pre + '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + url + '</a>'; });
 
+  // [data] citation markers — LLM emits these to flag a claim grounded in
+  // the loved one's records. Render as a small inline link that jumps to the
+  // Records view so the reader can verify the source.
+  html = html.replace(/\[data\]/g,
+    '<a href="#view-records" class="cite-data" onclick="event.preventDefault();switchNavTo(\'records\');" aria-label="View source in Records">data</a>');
+
   // 5) Restore inline code blocks.
   html = html.replace(/\u0000CODE(\d+)\u0000/g, function(_m, idx) {
     return '<code class="md-code">' + _codeStash[Number(idx)] + '</code>';
@@ -12512,13 +12518,17 @@ function switchNavTo(view, skipPush) {
 }
 
 function switchPerson(el, personKey) {
-  var pills = document.querySelectorAll('.person-pill');
+  // Only the header switcher (#header-person-switcher) participates here —
+  // the in-view Records pills have their own switcher (switchRecordsPerson).
+  var headerPills = document.querySelectorAll('#header-person-switcher .person-pill');
   var idx = 0;
-  pills.forEach(function(p, i){ p.classList.remove('active'); p.setAttribute('aria-selected', 'false'); if (p === el) idx = i; });
+  headerPills.forEach(function(p, i){ p.classList.remove('active'); p.setAttribute('aria-selected', 'false'); if (p === el) idx = i; });
   el.classList.add('active');
   el.setAttribute('aria-selected', 'true');
   var bg = _personBgPalette[idx % _personBgPalette.length];
   document.documentElement.style.setProperty('--person-bg', bg);
+  // Mark the active person on <body> so any view can react via CSS/JS hooks
+  try { document.body.setAttribute('data-active-person', personKey === 'mom' ? 'mom' : 'dad'); } catch(_e) {}
   // Toggle demo home content
   if (isDemoMode) {
     var dadBlock = document.getElementById('demo-home-dad');
@@ -12526,8 +12536,50 @@ function switchPerson(el, personKey) {
     if (dadBlock && momBlock) {
       dadBlock.style.display = personKey === 'mom' ? 'none' : 'block';
       momBlock.style.display = personKey === 'mom' ? 'block' : 'none';
-      initIcons();
     }
+    // Propagate to Records view (its own pills + dad/mom sections)
+    try {
+      var recDad = document.getElementById('records-pill-dad');
+      var recMom = document.getElementById('records-pill-mom');
+      var recDadSec = document.getElementById('records-dad');
+      var recMomSec = document.getElementById('records-mom');
+      if (recDad && recMom) {
+        recDad.classList.toggle('active', personKey !== 'mom');
+        recMom.classList.toggle('active', personKey === 'mom');
+      }
+      if (recDadSec) recDadSec.style.display = personKey === 'mom' ? 'none' : 'block';
+      if (recMomSec) recMomSec.style.display = personKey === 'mom' ? 'block' : 'none';
+    } catch(_e2) {}
+    // Propagate to Ask Wellet (placeholder, suggestion chips, _currentAskPerson)
+    try {
+      _currentAskPerson = personKey === 'mom' ? 'mom' : 'dad';
+      var askPills = document.querySelectorAll('.ask-person-pill');
+      askPills.forEach(function(p) {
+        var matches = (p.getAttribute('onclick') || '').indexOf("'" + _currentAskPerson + "'") !== -1;
+        p.classList.toggle('active', matches);
+      });
+      var askInput = document.getElementById('ask-input');
+      if (askInput) {
+        askInput.placeholder = 'Ask about ' + (_currentAskPerson === 'mom' ? 'Mom' : 'Dad') + '\u2019s health\u2026';
+      }
+      // Refresh the demo intro bubble (only if it's still the original
+      // greeting — don't overwrite live conversation history).
+      var introBubble = document.getElementById('ask-intro-bubble');
+      if (introBubble && /Ask me anything about (Dad|Mom)/.test(introBubble.textContent)) {
+        var who = _currentAskPerson === 'mom' ? 'Mom' : 'Dad';
+        var poss = _currentAskPerson === 'mom' ? 'her' : 'his';
+        introBubble.textContent = 'Ask me anything about ' + who + '\u2019s health. I\u2019ll answer from what\u2019s in ' + poss + ' records.';
+      }
+      var chips = document.getElementById('suggestion-chips');
+      if (chips) {
+        if (_currentAskPerson === 'mom') {
+          chips.innerHTML = '<button class="chip" onclick="askQuestion(this.textContent)">Is she stable?</button><button class="chip" onclick="askQuestion(this.textContent)">When is her next appointment?</button><button class="chip" onclick="askQuestion(this.textContent)">What meds is she taking?</button><button class="chip" onclick="askQuestion(this.textContent)">What changed this month?</button>';
+        } else {
+          chips.innerHTML = '<button class="chip" onclick="askQuestion(this.textContent)">What\'s his current BP trend?</button><button class="chip" onclick="askQuestion(this.textContent)">When is his next appointment?</button><button class="chip" onclick="askQuestion(this.textContent)">What changed this month?</button><button class="chip" onclick="askQuestion(this.textContent)">What meds is he taking?</button><button class="chip" onclick="askQuestion(this.textContent)">How is his CML doing?</button>';
+        }
+      }
+    } catch(_e3) {}
+    initIcons();
   }
 }
 
