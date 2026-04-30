@@ -12562,6 +12562,14 @@ function switchPerson(el, personKey) {
       if (askInput) {
         askInput.placeholder = 'Ask about ' + (_currentAskPerson === 'mom' ? 'Mom' : 'Dad') + '\u2019s health\u2026';
       }
+      // Refresh the demo intro bubble (only if it's still the original
+      // greeting — don't overwrite live conversation history).
+      var introBubble = document.getElementById('ask-intro-bubble');
+      if (introBubble && /Ask me anything about (Dad|Mom)/.test(introBubble.textContent)) {
+        var who = _currentAskPerson === 'mom' ? 'Mom' : 'Dad';
+        var poss = _currentAskPerson === 'mom' ? 'her' : 'his';
+        introBubble.textContent = 'Ask me anything about ' + who + '\u2019s health. I\u2019ll answer from what\u2019s in ' + poss + ' records.';
+      }
       var chips = document.getElementById('suggestion-chips');
       if (chips) {
         if (_currentAskPerson === 'mom') {
