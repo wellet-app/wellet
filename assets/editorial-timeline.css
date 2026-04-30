@@ -64,18 +64,21 @@
 }
 
 /* ----- Timeline rail — vertical line + place markers ----- */
+/* Indent the rail so the dot sits inside the content area, not in the page
+   gutter. The month label keeps its full-width position above. */
 #tab-timeline .tl-item {
   display: flex;
-  gap: 14px;
+  gap: 16px;
   align-items: stretch;          /* connector stretches to card height */
   margin: 0;
+  padding-left: 8px;             /* nudge the rail in from the section edge */
   position: relative;
 }
 #tab-timeline .tl-line-col {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 18px;
+  width: 12px;                   /* tighter column — dot + connector only */
   flex-shrink: 0;
   padding-top: 26px;             /* aligns dot with the type-tag row */
   position: relative;
