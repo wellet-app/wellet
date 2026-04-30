@@ -1309,6 +1309,9 @@ function renderUpdateMe() {
   var ehrConnected = !!getEhrData(currentPersonId);
   var recentEvents = liveEvents.slice(0, 3);
 
+  // Feature flag — flip to true once timeline detail views are wired up.
+  var SHOW_RECENT_ACTIVITY = false;
+
   var timelineHTML = '';
   if (recentEvents.length === 0) {
     timelineHTML = '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">Your timeline will appear here as you add things.</div>';
@@ -1477,10 +1480,12 @@ function renderUpdateMe() {
       + addMoreOutside
       + upcomingHtml
       + visitPrepCardHtml
-      + '<div class="timeline-section" style="margin-top:16px;">'
-      + '<p class="section-label">' + t('update.recentActivity') + '</p>'
-      + timelineHTML
-      + '</div>';
+      + (SHOW_RECENT_ACTIVITY ? (
+          '<div class="timeline-section" style="margin-top:16px;">'
+          + '<p class="section-label">' + t('update.recentActivity') + '</p>'
+          + timelineHTML
+          + '</div>'
+        ) : '');
   } else if (liveEvents.length === 0 && (hasCompletedDocs || ehrConnected || hasWearable)) {
     // Has document data, EHR, or wearable but no promoted events yet: real summary FIRST, then onboarding CTAs below
     pane.innerHTML = sharedInboxContainer
@@ -1491,29 +1496,28 @@ function renderUpdateMe() {
       + addMoreOutside
       + upcomingHtml
       + visitPrepCardHtml
-      + '<div class="timeline-section" style="margin-top:16px;">'
-      + '<p class="section-label">' + t('update.recentActivity') + '</p>'
-      + timelineHTML
-      + '</div>';
+      + (SHOW_RECENT_ACTIVITY ? (
+          '<div class="timeline-section" style="margin-top:16px;">'
+          + '<p class="section-label">' + t('update.recentActivity') + '</p>'
+          + timelineHTML
+          + '</div>'
+        ) : '');
   } else {
-    // Populated state: show both summary card and status card
+    // Populated state: Wellet Summary does the editorial work; no big-numbers card.
     var alertBannerHtml = buildPatternAlertBanner(name);
     pane.innerHTML = sharedInboxContainer
       + '<div class="update-me-section">'
       + summarySection
       + alertBannerHtml
-      + '<div class="update-card">'
-      + '<div class="update-label">What\u2019s going on with ' + escHtml(name) + ' right now</div>'
-      + '<p class="update-text">' + escHtml(name) + ' has <strong>' + liveEvents.length + ' health event' + (liveEvents.length !== 1 ? 's' : '') + '</strong> logged. '
-        + (liveMeds.filter(function(m){ return m.active; }).length > 0 ? 'Currently on <strong>' + liveMeds.filter(function(m){ return m.active; }).length + ' active medication' + (liveMeds.filter(function(m){ return m.active; }).length !== 1 ? 's' : '') + '</strong>.' : '') + '</p>'
-      + '<div class="update-meta">' + liveEvents.length + ' health event' + (liveEvents.length !== 1 ? 's' : '') + ' logged</div>'
-      + '</div></div>'
+      + '</div>'
       + upcomingHtml
       + visitPrepCardHtml
-      + '<div class="timeline-section" style="margin-top:16px;">'
-      + '<p class="section-label">' + t('update.recentActivity') + '</p>'
-      + timelineHTML
-      + '</div>';
+      + (SHOW_RECENT_ACTIVITY ? (
+          '<div class="timeline-section" style="margin-top:16px;">'
+          + '<p class="section-label">' + t('update.recentActivity') + '</p>'
+          + timelineHTML
+          + '</div>'
+        ) : '');
   }
   initIcons();
   if (!isDemoMode && typeof renderSharedWithMeInbox === 'function') {

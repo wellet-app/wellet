@@ -296,7 +296,7 @@
       </div>
       <div class="header-actions" style="display:flex;align-items:center;gap:6px;">
           <button class="icon-btn" id="demo-back-btn" onclick="showLanding()" title="Back to start" aria-label="Back" style="display:none !important;"><i data-lucide="arrow-left" style="width:16px;height:16px;"></i></button>
-          <button class="icon-btn" id="bug-report-btn" onclick="openBugReportSheet()" title="Report a bug" aria-label="Report a bug" style="display:none;"><i data-lucide="bug" style="width:16px;height:16px;"></i></button>
+          <button class="icon-btn" id="bug-report-btn" onclick="openBugReportSheet()" title="Report a bug" aria-label="Report a bug" style="display:none !important;"><i data-lucide="bug" style="width:16px;height:16px;"></i></button>
           <div class="notif-bell-wrap">
             <button class="icon-btn" id="notif-bell-btn" onclick="openNotifPanel()" title="Reminders" aria-label="Notifications"><i data-lucide="bell" style="width:16px;height:16px;"></i></button>
             <span class="notif-bell-badge" id="notif-bell-badge" data-count="0"></span>
@@ -322,6 +322,10 @@
         <button class="header-menu-item" onclick="closeHeaderMenu();openFeedbackSheet()">
           <span class="header-menu-icon"><i data-lucide="message-square-heart" style="width:16px;height:16px;"></i></span>
           <span>Send feedback</span>
+        </button>
+        <button class="header-menu-item" onclick="closeHeaderMenu();openBugReportSheet()">
+          <span class="header-menu-icon"><i data-lucide="bug" style="width:16px;height:16px;"></i></span>
+          <span>Report a bug</span>
         </button>
         <button class="header-menu-item" onclick="closeHeaderMenu();openSettings()">
           <span class="header-menu-icon"><i data-lucide="settings" style="width:16px;height:16px;"></i></span>
