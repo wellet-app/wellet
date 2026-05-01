@@ -1,0 +1,73 @@
+/* ============================================================
+   Editorial pass · CareSignals view header (PR 10)
+   Scoped to #view-signals[data-editorial="signals"]
+   Adds the missing Fraunces masthead anchor above the existing
+   editorial sections (Today's Medications, Wearable Data,
+   Home Sensors, Patterns). Below-the-fold styling lives in
+   editorial-caresignals.css and is left intact.
+   ============================================================ */
+
+#view-signals[data-editorial="signals"] {
+  /* Override the global .app-view flex layout so the header
+     can flow as a normal block. */
+  display: block;
+}
+
+#view-signals[data-editorial="signals"] .signals-view {
+  display: block;
+}
+
+/* ── View header ─────────────────────────────────────────── */
+#view-signals[data-editorial="signals"] .view-header {
+  display: block;
+  padding: 18px 0 14px;
+  margin: 0 0 8px;
+  border-bottom: 1px solid var(--ink-2, rgba(0,0,0,0.08));
+}
+
+#view-signals[data-editorial="signals"] .view-header__eyebrow {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: var(--type-micro, 11px);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-5, #6b6b6b);
+  margin: 0 0 6px;
+}
+
+#view-signals[data-editorial="signals"] .view-header__title {
+  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-weight: 400;
+  font-size: var(--type-display, 32px);
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+  color: var(--ink-9, #111);
+  margin: 0 0 6px;
+  font-variation-settings: "opsz" 72, "SOFT" 60;
+}
+
+#view-signals[data-editorial="signals"] .view-header__lede {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: var(--type-body, 14px);
+  line-height: 1.4;
+  color: var(--ink-5, #6b6b6b);
+  margin: 0;
+  max-width: 32ch;
+}
+
+/* Hide the now-redundant section-label eyebrow that real-data
+   path emits ("Dad's Signals") since the masthead header
+   replaces it. Keeps the empty-state UI untouched. */
+#view-signals[data-editorial="signals"] .signals-view > .section-label {
+  display: none;
+}
+
+/* Tablet/desktop: bump display size to match other editorial views. */
+@media (min-width: 768px) {
+  #view-signals[data-editorial="signals"] .view-header {
+    padding: 22px 0 16px;
+  }
+  #view-signals[data-editorial="signals"] .view-header__title {
+    font-size: var(--type-display, 40px);
+  }
+}

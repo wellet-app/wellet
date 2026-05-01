@@ -7445,7 +7445,12 @@ async function renderSignalsView() {
       _paintSignals(el, sigFirstName, cached.activeConns, cached.terraData);
     } else {
       // Show lightweight shell so the header appears immediately instead of a blank screen.
-      el.innerHTML = '<div class="signals-view"><p class="section-label">' + escHtml(sigFirstName) + '\u2019s Signals</p>'
+      el.innerHTML = '<div class="signals-view">'
+        + '<header class="view-header">'
+        + '<p class="view-header__eyebrow">Loading\u2026</p>'
+        + '<h1 class="view-header__title">Signals</h1>'
+        + '<p class="view-header__lede">Daily rhythms from ' + escHtml(sigFirstName) + '\u2019s wearables, sensors, and medications \u2014 patterns you might miss.</p>'
+        + '</header>'
         + '<div class="terra-loading"><i data-lucide="loader" style="width:20px;height:20px;animation:spin 1s linear infinite;"></i>'
         + '<div style="margin-top:8px;">Loading devices\u2026</div></div></div>';
       initIcons();
@@ -7481,7 +7486,7 @@ async function renderSignalsView() {
   }
 
   // Demo-mode path falls through to original renderer below.
-  return _renderSignalsDemo(el, data);
+  return _renderSignalsDemo(el, data, getPersonFirstName());
 }
 
 // Invalidate the cache whenever a connection changes (add/disconnect) so the
@@ -7512,8 +7517,31 @@ function _paintSignals(el, sigFirstName, activeConns, terraData) {
   var chDevices = _buildDeviceCardsHtml(activeConns);
 
   var hasData = terraData && (terraData.vitals.length > 0 || terraData.events.length > 0);
+
+  // ── Editorial view header (Fraunces masthead anchor) ──
+  // Eyebrow: most-recent device + how long ago it last sent data.
+  var _hdrConn = activeConns[0];
+  var _hdrProvider = _hdrConn && _hdrConn.provider
+    ? _hdrConn.provider.charAt(0).toUpperCase() + _hdrConn.provider.slice(1).toLowerCase()
+    : 'Device';
+  var _hdrAgo = '';
+  for (var _hi = 0; _hi < activeConns.length; _hi++) {
+    var _hc = activeConns[_hi];
+    if (_hc.last_data_at) {
+      try { _hdrAgo = formatTimeAgo(_hc.last_data_at); } catch(e) {}
+      _hdrProvider = _hc.provider ? _hc.provider.charAt(0).toUpperCase() + _hc.provider.slice(1).toLowerCase() : _hdrProvider;
+      break;
+    }
+  }
+  var _hdrEyebrow = _hdrAgo ? (_hdrProvider + ' \u00b7 Synced ' + _hdrAgo) : (_hdrProvider + ' \u00b7 Connected');
+  var _hdrLede = 'Daily rhythms from ' + escHtml(sigFirstName) + '\u2019s wearables, sensors, and medications \u2014 patterns you might miss.';
+
       var ch = '<div class="signals-view">';
-      ch += '<p class="section-label">' + escHtml(sigFirstName) + '\u2019s Signals</p>';
+      ch += '<header class="view-header">';
+      ch += '<p class="view-header__eyebrow">' + escHtml(_hdrEyebrow) + '</p>';
+      ch += '<h1 class="view-header__title">Signals</h1>';
+      ch += '<p class="view-header__lede">' + _hdrLede + '</p>';
+      ch += '</header>';
       ch += chDevices;
 
       if (!hasData) {
@@ -7648,7 +7676,7 @@ function _paintSignals(el, sigFirstName, activeConns, terraData) {
 }
 
 // Demo-mode renderer (unchanged legacy path)
-function _renderSignalsDemo(el, data) {
+function _renderSignalsDemo(el, data, demoFirstName) {
   var now = new Date();
   var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -7671,6 +7699,14 @@ function _renderSignalsDemo(el, data) {
   }
 
   var html = '<div class="signals-view">';
+
+  // ── Editorial view header (Fraunces masthead anchor) ──
+  var demoName = demoFirstName || 'Dad';
+  html += '<header class="view-header">';
+  html += '<p class="view-header__eyebrow">Apple Watch \u00b7 Synced 8 min ago</p>';
+  html += '<h1 class="view-header__title">Signals</h1>';
+  html += '<p class="view-header__lede">Daily rhythms from ' + escHtml(demoName) + '\u2019s wearables, sensors, and medications \u2014 patterns you might miss.</p>';
+  html += '</header>';
 
   // ── Section 1: Medication Tracker ──────────────────────────────────────
   html += '<div class="signals-section">';
