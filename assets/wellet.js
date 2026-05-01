@@ -1636,9 +1636,11 @@ function renderUpdateMe() {
         ) : '');
   } else if (liveEvents.length === 0 && (hasCompletedDocs || ehrConnected || hasWearable)) {
     // Has document data, EHR, or wearable but no promoted events yet: real summary FIRST, then onboarding CTAs below
+    var chartNoticedEarlyHtml = buildChartNoticedBanner(name, currentPersonId);
     pane.innerHTML = sharedInboxContainer
       + '<div class="update-me-section">'
       + summarySection
+      + chartNoticedEarlyHtml
       + addMoreInside
       + '</div>'
       + addMoreOutside
@@ -1653,10 +1655,12 @@ function renderUpdateMe() {
   } else {
     // Populated state: Wellet Summary does the editorial work; no big-numbers card.
     var alertBannerHtml = buildPatternAlertBanner(name);
+    var chartNoticedHtml = buildChartNoticedBanner(name, currentPersonId);
     pane.innerHTML = sharedInboxContainer
       + '<div class="update-me-section">'
       + summarySection
       + alertBannerHtml
+      + chartNoticedHtml
       + '</div>'
       + upcomingHtml
       + visitPrepCardHtml
@@ -1671,6 +1675,147 @@ function renderUpdateMe() {
   if (!isDemoMode && typeof renderSharedWithMeInbox === 'function') {
     try { renderSharedWithMeInbox('shared-inbox'); } catch(e) { console.warn('[shared-inbox] render failed', e); }
   }
+}
+
+// ── CHART NOTICED BANNERS ────────────────────────────────────────────────
+// Factual coordination signals from the chart — NOT medical interpretation.
+// Compares the current EHR snapshot against the last one we saved for this
+// person and surfaces additions plus connection health. Voice rules: "notices"
+// / "watches for", never "tracks" / "monitors". Never says anything that could
+// be read as a medical judgment (e.g. "BP is high" — that's a line for us).
+// New rows that appeared:    "Wellet noticed a new medication on {name}’s chart"
+// New conditions appeared:   "Wellet noticed a new entry on {name}’s chart"
+// Sync staleness >7 days:    "{name}’s chart hasn’t synced in 9 days"
+// New labs in last 14 days:  "3 new lab results since you last opened Wellet"
+function _chartSnapshotKey(personId) {
+  return 'wellet_chart_snapshot_' + (personId || 'self');
+}
+function _readChartSnapshot(personId) {
+  try {
+    var raw = localStorage.getItem(_chartSnapshotKey(personId));
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+function _writeChartSnapshot(personId, snapshot) {
+  try { localStorage.setItem(_chartSnapshotKey(personId), JSON.stringify(snapshot)); } catch (e) {}
+}
+// Build a comparable signature for a chart row so we can detect what's new
+// without storing PHI verbosely. Name + (date if present) is enough; the EHR
+// frequently rewrites codes between syncs so name is more stable.
+function _chartRowKey(row) {
+  if (!row || !row.name) return null;
+  var d = row.onset_date || row.date_asserted || row.recorded_date || row.effective_date || '';
+  return row.name + '\u00B7' + d;
+}
+function buildChartNoticedBanner(personName, personId) {
+  if (isDemoMode) return ''; // Demo has its own static banner; don't double up.
+  var ehr = null;
+  try { ehr = getEhrData(personId); } catch (e) { return ''; }
+  if (!ehr) return '';
+
+  var name = escHtml(personName || 'your loved one');
+  var meds = (ehr.medications || []).filter(function(m){ return m && m.name; });
+  var conds = (ehr.conditions || []).filter(function(c){ return c && c.name; });
+  var obs = (ehr.observations || []).filter(function(o){ return o && o.name; });
+
+  var prev = _readChartSnapshot(personId);
+  var hasPriorSnapshot = !!prev;
+  var prevMedSet = {};
+  ((prev && prev.meds) || []).forEach(function(k){ prevMedSet[k] = true; });
+  var prevCondSet = {};
+  ((prev && prev.conds) || []).forEach(function(k){ prevCondSet[k] = true; });
+
+  var newMeds = meds.filter(function(m){
+    var k = _chartRowKey(m);
+    return k && !prevMedSet[k];
+  });
+  var newConds = conds.filter(function(c){
+    var k = _chartRowKey(c);
+    return k && !prevCondSet[k];
+  });
+
+  // Recent labs in the last 14 days (factual count, not interpretation).
+  var fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+  var recentLabs = obs.filter(function(o){
+    if (!o.effective_date) return false;
+    var d = new Date(o.effective_date);
+    return !isNaN(d) && d >= fourteenDaysAgo && o.value;
+  });
+
+  // Sync staleness.
+  var staleDays = null;
+  if (ehr.synced_at) {
+    var syncedAt = new Date(ehr.synced_at);
+    if (!isNaN(syncedAt)) {
+      var ageMs = Date.now() - syncedAt.getTime();
+      var days = Math.floor(ageMs / (24 * 60 * 60 * 1000));
+      if (days >= 7) staleDays = days;
+    }
+  }
+
+  // Skip the "new rows" cards on the very first run (no prior snapshot) — we
+  // don't want to greet a brand-new connection by listing every existing med
+  // as "new". Just record the snapshot and show only freshness/lab cards.
+  var cards = [];
+  if (hasPriorSnapshot) {
+    if (newMeds.length === 1) {
+      var m = newMeds[0];
+      var medShort = escHtml(_shortenClinicalName(m.name));
+      cards.push({
+        title: 'Wellet noticed a new medication on ' + name + '\u2019s chart',
+        body: medShort + ' wasn\u2019t on the chart last time we synced. Tap Records to see the details.'
+      });
+    } else if (newMeds.length > 1) {
+      cards.push({
+        title: newMeds.length + ' new medications on ' + name + '\u2019s chart',
+        body: newMeds.slice(0, 3).map(function(x){ return escHtml(_shortenClinicalName(x.name)); }).join(', ')
+          + (newMeds.length > 3 ? ', and ' + (newMeds.length - 3) + ' more' : '')
+          + '. Tap Records to see the details.'
+      });
+    }
+    if (newConds.length >= 1) {
+      var noun = newConds.length === 1 ? 'a new entry' : (newConds.length + ' new entries');
+      cards.push({
+        title: 'Wellet noticed ' + noun + ' on ' + name + '\u2019s chart',
+        body: newConds.slice(0, 3).map(function(x){ return escHtml(_shortenClinicalName(x.name)); }).join(', ')
+          + (newConds.length > 3 ? ', and ' + (newConds.length - 3) + ' more' : '')
+          + '. Tap Records to see the details.'
+      });
+    }
+  }
+
+  if (recentLabs.length >= 2) {
+    cards.push({
+      title: recentLabs.length + ' new lab results on ' + name + '\u2019s chart',
+      body: 'From the last two weeks. Tap Records to see them.'
+    });
+  }
+
+  if (staleDays !== null) {
+    cards.push({
+      title: name + '\u2019s chart hasn\u2019t synced in ' + staleDays + ' days',
+      body: 'Pull down to refresh, or open Records and tap the refresh button.'
+    });
+  }
+
+  // Update snapshot for next render.
+  _writeChartSnapshot(personId, {
+    meds: meds.map(_chartRowKey).filter(Boolean),
+    conds: conds.map(_chartRowKey).filter(Boolean),
+    saved_at: new Date().toISOString()
+  });
+
+  if (cards.length === 0) return '';
+
+  // Cap at 3 to keep the surface quiet.
+  return cards.slice(0, 3).map(function(c){
+    return '<div class="alert-banner">'
+      + '<div class="alert-icon"><i data-lucide="triangle-alert" style="width:16px;height:16px;"></i></div>'
+      + '<div>'
+      + '<div class="alert-title">' + c.title + '</div>'
+      + '<div class="alert-body">' + c.body + '</div>'
+      + '</div></div>';
+  }).join('');
 }
 
 // ── PATTERN ALERT DETECTION & BANNER ─────────────────────────────────────
