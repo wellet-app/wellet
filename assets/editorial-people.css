@@ -45,7 +45,7 @@
   border: 0 !important;
   border-radius: 0 !important;
   cursor: pointer;
-  font-family: 'Fraunces', Georgia, serif !important;
+  font-family: var(--serif) !important;
   font-size: 22px !important;
   font-weight: 400 !important;
   font-variation-settings: "opsz" 24, "SOFT" 60 !important;
@@ -127,7 +127,7 @@
   border: 0 !important;
   border-radius: 0 !important;
   cursor: pointer;
-  font-family: 'Fraunces', Georgia, serif !important;
+  font-family: var(--serif) !important;
   font-size: 20px !important;
   font-weight: 400 !important;
   font-variation-settings: "opsz" 24, "SOFT" 60 !important;
@@ -177,7 +177,7 @@
    Hidden by default; the JS hint controller adds .show on first surface load,
    then auto-dismisses after 4s or first interaction. ---- */
 .gesture-hint {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--serif);
   font-style: normal;                          /* user banned italics */
   font-size: 11px;
   font-weight: 400;

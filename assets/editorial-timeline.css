@@ -15,7 +15,7 @@
 
 /* ----- Month label — Fraunces small caps, no hairline ----- */
 #tab-timeline .tl-month {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--serif);
   font-size: 12px;
   font-weight: 500;
   font-variation-settings: "opsz" 14, "SOFT" 60;
@@ -170,7 +170,7 @@
   flex-shrink: 0;
 }
 #tab-timeline .tl-card-type {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--serif);
   font-size: 11px;
   font-weight: 500;
   font-variation-settings: "opsz" 14, "SOFT" 60;
@@ -218,7 +218,7 @@
 
 /* ----- Title — Fraunces, the editorial voice ----- */
 #tab-timeline .tl-card-title {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--serif);
   font-size: 18px;
   font-weight: 500;
   font-variation-settings: "opsz" 24, "SOFT" 60;
@@ -241,7 +241,7 @@
 
 /* ----- Date — Fraunces small caps, the byline register ----- */
 #tab-timeline .tl-card-date {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--serif);
   font-size: 11px;
   font-weight: 500;
   font-variation-settings: "opsz" 14, "SOFT" 60;

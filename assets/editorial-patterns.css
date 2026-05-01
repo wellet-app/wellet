@@ -15,7 +15,7 @@
 
 /* Section heading "What Wellet has noticed" */
 #tab-patterns .section-label {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--serif);
   font-size: 12px;
   font-weight: 500;
   font-variation-settings: "opsz" 14, "SOFT" 60;
@@ -48,7 +48,7 @@
   margin-bottom: 10px !important;
 }
 #tab-patterns .insight-count {
-  font-family: 'Fraunces', Georgia, serif !important;
+  font-family: var(--serif) !important;
   font-size: 56px !important;
   font-weight: 300 !important;
   font-variation-settings: "opsz" 144, "SOFT" 60 !important;
@@ -59,7 +59,7 @@
   flex-shrink: 0;
 }
 #tab-patterns .insight-label {
-  font-family: 'Fraunces', Georgia, serif !important;
+  font-family: var(--serif) !important;
   font-size: 18px !important;
   font-weight: 500 !important;
   font-variation-settings: "opsz" 24, "SOFT" 60 !important;
@@ -100,7 +100,7 @@
 }
 /* Right-side number — Fraunces small caps, the editorial "value" */
 #tab-patterns .bar-label > span:last-child {
-  font-family: 'Fraunces', Georgia, serif !important;
+  font-family: var(--serif) !important;
   font-weight: 500 !important;
   font-variation-settings: "opsz" 24, "SOFT" 60 !important;
   font-style: normal !important;
@@ -135,7 +135,7 @@
   margin-bottom: 10px !important;
 }
 #tab-patterns .insight-card[style*="mint"] > div:first-child span {
-  font-family: 'Fraunces', Georgia, serif !important;
+  font-family: var(--serif) !important;
   font-size: 11px !important;
   font-weight: 500 !important;
   font-variation-settings: "opsz" 14, "SOFT" 60 !important;

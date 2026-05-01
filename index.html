@@ -1622,7 +1622,7 @@
         <div style="width:52px;height:52px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
           <i data-lucide="loader" id="upload-progress-icon" style="width:24px;height:24px;color:var(--moss);animation:spin 1.2s linear infinite;"></i>
         </div>
-        <div id="upload-progress-title" style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:6px;">Uploading document...</div>
+        <div id="upload-progress-title" style="font-family: var(--serif);font-size:18px;margin-bottom:6px;">Uploading document...</div>
         <div id="upload-progress-sub" style="font-size:13px;color:var(--text-secondary);line-height:1.6;">This will just take a moment</div>
         <div style="margin-top:16px;background:var(--border);border-radius:6px;height:4px;overflow:hidden;">
           <div id="upload-progress-bar" style="height:100%;background:var(--moss);border-radius:6px;width:0%;transition:width 0.3s ease;"></div>
@@ -1672,7 +1672,7 @@
         <div style="width:52px;height:52px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
           <i data-lucide="file-archive" style="width:24px;height:24px;color:var(--moss);"></i>
         </div>
-        <div style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:6px;">Import health records</div>
+        <div style="font-family: var(--serif);font-size:18px;margin-bottom:6px;">Import health records</div>
         <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;" id="hi-confirm-sub">Wellet will unpack this file and store your documents securely.</div>
       </div>
       <div class="upload-file-card" style="margin-bottom:16px;">
@@ -1693,7 +1693,7 @@
       <div style="width:52px;height:52px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
         <i data-lucide="loader" style="width:24px;height:24px;color:var(--moss);animation:spin 1.2s linear infinite;"></i>
       </div>
-      <div id="hi-progress-title" style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:6px;">Uploading health records...</div>
+      <div id="hi-progress-title" style="font-family: var(--serif);font-size:18px;margin-bottom:6px;">Uploading health records...</div>
       <div id="hi-progress-sub" style="font-size:13px;color:var(--text-secondary);line-height:1.6;">This may take a moment for larger files</div>
       <div style="margin-top:16px;background:var(--border);border-radius:6px;height:4px;overflow:hidden;">
         <div id="hi-progress-bar" style="height:100%;background:var(--moss);border-radius:6px;width:0%;transition:width 0.3s ease;"></div>
@@ -1706,7 +1706,7 @@
       <div style="width:52px;height:52px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
         <i data-lucide="check-circle" style="width:24px;height:24px;color:var(--moss);"></i>
       </div>
-      <div id="hi-summary-title" style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:6px;">Health records imported</div>
+      <div id="hi-summary-title" style="font-family: var(--serif);font-size:18px;margin-bottom:6px;">Health records imported</div>
       <div id="hi-summary-detail" style="font-size:13px;color:var(--text-secondary);line-height:1.8;margin-bottom:20px;"></div>
       <button class="btn-primary" style="font-size:14px;padding:13px;width:100%;" id="hi-done-btn" onclick="closeHealthImport()">Done</button>
     </div>
@@ -1716,7 +1716,7 @@
       <div style="width:52px;height:52px;border-radius:50%;background:#FEF0EE;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
         <i data-lucide="alert-circle" style="width:24px;height:24px;color:var(--red);"></i>
       </div>
-      <div style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:6px;">Import failed</div>
+      <div style="font-family: var(--serif);font-size:18px;margin-bottom:6px;">Import failed</div>
       <div id="hi-fail-detail" style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:20px;">Something went wrong while processing your file. Please try again.</div>
       <button class="btn-primary" style="font-size:14px;padding:13px;width:100%;" onclick="closeHealthImport()">Close</button>
     </div>
@@ -1976,7 +1976,7 @@
       <button class="close-btn" aria-label="Close" onclick="closeSheet('pricing-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
     <div style="padding:0 20px 0;">
-      <div style="font-family:'DM Serif Display',serif;font-size:22px;font-weight:400;margin-bottom:4px;">Choose your plan</div>
+      <div style="font-family: var(--serif);font-size:22px;font-weight:400;margin-bottom:4px;">Choose your plan</div>
       <div style="font-size:13px;color:var(--text-secondary);margin-bottom:20px;">All plans include a 14-day free trial.</div>
       <div id="pricing-cards-container"></div>
     </div>
@@ -1993,7 +1993,7 @@
     <div class="qa-sheet-title">Record doctor visit</div>
     <div class="qa-sheet-sub">Tap record, then speak naturally. Wellet will transcribe and summarize.</div>
     <div style="text-align:center; padding:32px 20px 24px;">
-      <div id="voice-record-timer" style="font-size:40px;font-family:'DM Serif Display',serif;color:var(--text-primary);margin-bottom:24px;">0:00</div>
+      <div id="voice-record-timer" style="font-size:40px;font-family: var(--serif);color:var(--text-primary);margin-bottom:24px;">0:00</div>
       <button id="voice-record-btn" onclick="toggleVoiceRecording()" style="width:80px;height:80px;border-radius:50%;background:#C0392B;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:0 4px 20px rgba(192,57,43,0.35);transition:all 0.2s;">
         <i data-lucide="mic" style="width:32px;height:32px;color:white;"></i>
       </button>
@@ -2093,7 +2093,7 @@
     </div>
     <div style="padding:8px 24px 28px;">
       <div style="width:56px;height:56px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;"><i data-lucide="heart-handshake" style="width:28px;height:28px;color:var(--moss);"></i></div>
-      <div style="font-family:'DM Serif Display',serif;font-size:22px;margin-bottom:8px;">Welcome to Wellet</div>
+      <div style="font-family: var(--serif);font-size:22px;margin-bottom:8px;">Welcome to Wellet</div>
       <p style="font-size:14px;line-height:1.65;color:var(--text-secondary);margin-bottom:16px;">You're one of the very first people to use this. Wellet has been in my head for years, but the app you're looking at is less than a month old.</p>
       <p style="font-size:14px;line-height:1.65;color:var(--text-secondary);margin-bottom:20px;"><strong style="color:var(--text-primary);">That means there will be bugs.</strong> I'm asking, begging you: if something breaks or feels off, tap the bug icon in the header and tell me. Every report makes Wellet better for every caregiver who comes next.</p>
       <div style="background:var(--cream);border-radius:12px;padding:16px;text-align:left;margin-bottom:20px;">
@@ -2315,7 +2315,7 @@
       <div class="eoc-handle"></div>
       <button class="close-btn" aria-label="Close" onclick="closeLifeChanges()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
-    <div style="font-family:'DM Serif Display',serif;font-size:20px;font-weight:400;padding:4px 20px 12px;">Life Changes</div>
+    <div style="font-family: var(--serif);font-size:20px;font-weight:400;padding:4px 20px 12px;">Life Changes</div>
     <div style="font-size:13px;color:var(--text-muted);padding:0 20px 16px;line-height:1.5;">If something has changed, we\u2019re here to help you through it.</div>
     <div id="eoc-lc-options"></div>
   </div>
@@ -2773,7 +2773,7 @@
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
         <div class="record-icon amber" style="width:36px;height:36px;"><i data-lucide="pill" style="width:18px;height:18px;"></i></div>
         <div>
-          <div id="med-detail-name" style="font-family:'DM Serif Display',serif;font-size:20px;"></div>
+          <div id="med-detail-name" style="font-family: var(--serif);font-size:20px;"></div>
           <div id="med-detail-status" style="font-size:12px;color:var(--moss);font-weight:500;margin-top:2px;"></div>
         </div>
       </div>
@@ -2862,7 +2862,7 @@
 </div>
 
 </div><!-- end page-wrap -->
-<script src="/assets/wellet.js?v=20260501-1655"></script>
+<script src="/assets/wellet.js?v=20260501-1730"></script>
 <script src="/guided-demo.js"></script>
 <!-- CARE CIRCLE SHARE SHEET -->
 <div class="share-overlay" id="share-overlay" onclick="if(event.target===this)closeShareSheet()">

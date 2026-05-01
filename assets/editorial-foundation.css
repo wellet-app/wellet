@@ -59,9 +59,11 @@
   --gutter: 22px;
 
   /* Font aliases — Fraunces is already loaded in index.html <head>.
-     --serif is the editorial display face. --sans is the body face.
-     Existing --font-display ('Fraunces') is left untouched. */
-  --serif: 'Fraunces', 'DM Serif Display', Georgia, serif;
+     --serif is the editorial display face (every headline, section title,
+     person name, key surface). --sans is the body face (everything else).
+     --font-display in wellet.css is the legacy alias and is kept in sync
+     with --serif so older rules keep working. New work uses --serif. */
+  --serif: 'Fraunces', Georgia, serif;
   --sans:  'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
 }
 

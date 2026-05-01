@@ -158,7 +158,7 @@ function showInviteAcceptUI() {
   overlay.innerHTML = '<div style="background:white;border-radius:20px;padding:32px 24px 24px;max-width:360px;width:100%;text-align:center;font-family:DM Sans,sans-serif;">'
     + '<div style="width:56px;height:56px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">'
     + '<i data-lucide="heart-handshake" style="width:26px;height:26px;color:var(--moss);"></i></div>'
-    + '<div style="font-family:DM Serif Display,serif;font-size:20px;margin-bottom:6px;">You\u2019re invited</div>'
+    + '<div style="font-family: var(--serif);font-size:20px;margin-bottom:6px;">You\u2019re invited</div>'
     + '<div style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:20px;">'
     + inviterName + ' invited you to join the care circle for <strong>' + personName + '</strong> as <strong>' + memberRole + '</strong>.'
     + '</div>'
@@ -181,7 +181,7 @@ function showInviteError(msg) {
   overlay.innerHTML = '<div style="background:white;border-radius:20px;padding:32px 24px 24px;max-width:340px;width:100%;text-align:center;font-family:DM Sans,sans-serif;">'
     + '<div style="width:52px;height:52px;border-radius:50%;background:#FFF0F0;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">'
     + '<i data-lucide="alert-triangle" style="width:24px;height:24px;color:var(--red);"></i></div>'
-    + '<div style="font-family:DM Serif Display,serif;font-size:18px;margin-bottom:8px;">Invalid Invite</div>'
+    + '<div style="font-family: var(--serif);font-size:18px;margin-bottom:8px;">Invalid Invite</div>'
     + '<div style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:20px;">' + escHtml(msg) + '</div>'
     + '<button onclick="this.closest(\'.invite-err\').remove();clearInviteParam()" style="background:var(--moss);color:white;border:none;border-radius:12px;padding:12px 28px;font-size:14px;font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;">OK</button>'
     + '</div>';
@@ -692,7 +692,7 @@ function showPricingSheet() {
   if (vaPerk) {
     html +=
       '<div style="background:linear-gradient(135deg,#EEF0E6 0%,#F2F3EC 100%);border:1.5px solid #8A9A7C;border-radius:14px;padding:14px 16px;margin-bottom:16px;">' +
-      '<div style="font-family:\'DM Serif Display\',serif;font-size:18px;color:#3D6B58;margin-bottom:4px;">Your VA caregiver perk</div>' +
+      '<div style="font-family:var(--serif);font-size:18px;color:#3D6B58;margin-bottom:4px;">Your VA caregiver perk</div>' +
       '<div style="font-size:13px;color:var(--text-secondary);line-height:1.55;">' +
       'Wellet is <strong style="color:var(--moss-dark);">free for your first year</strong>, then <strong style="color:var(--moss-dark);">30% off for life</strong>. ' +
       'It\u2019s applied automatically \u2014 no code, no hoops.' +
@@ -1547,7 +1547,7 @@ function renderUpdateMe() {
   var hasWearable = !!(typeof _currentTerraConns !== 'undefined' && _currentTerraConns && _currentTerraConns.some && _currentTerraConns.some(function(c){ return c.status === 'active'; }));
   var hasAnyWelletSource = ehrConnected || (typeof liveDocs !== 'undefined' && liveDocs.some(function(d){ return d.extraction_status === 'completed' && d.extracted_events; })) || hasWearable;
   var fullOnboardingActions = '<div style="padding:24px 16px 8px;">'
-    + '<div style="font-family:\'Fraunces\',serif;font-size:20px;margin-bottom:6px;color:var(--text-primary);">Help Wellet get to know ' + escHtml(subjectName) + '</div>'
+    + '<div style="font-family:var(--serif);font-size:20px;margin-bottom:6px;color:var(--text-primary);">Help Wellet get to know ' + escHtml(subjectName) + '</div>'
     + '<div style="font-size:13px;color:var(--text-secondary);line-height:1.5;margin-bottom:16px;">Upload a document or connect to health records \u2014 Wellet will read, organize, and remember everything.</div>'
     + '<div class="signals-connect-chips">'
     + '<button class="signals-chip" onclick="openUpload(\'' + escHtml(name) + '\')"><i data-lucide="upload"></i> Upload a Document</button>'
@@ -11065,7 +11065,7 @@ function showAlphaFeatureNotice(featureName, message) {
   card.style.cssText = 'background:white;border-radius:20px;padding:28px 24px 24px;max-width:340px;width:100%;text-align:center;font-family:DM Sans,sans-serif;';
   card.innerHTML = '<div style="width:52px;height:52px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">'
     + '<i data-lucide="construction" style="width:24px;height:24px;color:var(--moss);"></i></div>'
-    + '<div style="font-family:DM Serif Display,serif;font-size:18px;margin-bottom:8px;">' + escHtml(featureName) + '</div>'
+    + '<div style="font-family: var(--serif);font-size:18px;margin-bottom:8px;">' + escHtml(featureName) + '</div>'
     + '<div style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:20px;">' + escHtml(message) + '</div>'
     + '<button onclick="this.closest(\'.alpha-notice-overlay\').remove()" style="background:var(--moss);color:white;border:none;border-radius:12px;padding:12px 28px;font-size:14px;font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;">Got it</button>';
   overlay.classList.add('alpha-notice-overlay');
@@ -14903,7 +14903,7 @@ function showOwnWellet() {
   if (updatePane) {
     updatePane.innerHTML = '<div class="update-me-section">'
       + '<div style="text-align:center;padding:24px 0 8px;">'
-      + '<div style="font-family:\'DM Serif Display\',serif;font-size:20px;margin-bottom:6px;color:var(--text-primary);">Add files to help Wellet get to know ' + escHtml(displayName) + '</div>'
+      + '<div style="font-family:var(--serif);font-size:20px;margin-bottom:6px;color:var(--text-primary);">Add files to help Wellet get to know ' + escHtml(displayName) + '</div>'
       + '<div style="font-size:13px;color:var(--text-secondary);line-height:1.5;max-width:300px;margin:0 auto;">Upload a document or connect to health records \u2014 Wellet will read, organize, and remember everything.</div>'
       + '</div>'
       + '<div style="display:flex;flex-direction:column;gap:10px;margin:20px 0 16px;">'
