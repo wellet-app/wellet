@@ -981,23 +981,56 @@ async function loadUserData() {
 
 async function loadPersonData(personId) {
   setCurrentPersonId(personId);
+
+  // Load active connection ids for this person FIRST. Any EHR-derived row
+  // (health_events, medications, allergies, lab_results, vitals) is filtered
+  // to either NULL connection_id (manually entered, no sync provenance) or
+  // a connection_id that's currently 'connected'. This prevents data from
+  // disconnected / superseded / pending duplicate rows from leaking into the
+  // UI — e.g. an old Duke connection that was replaced by a new Confidential
+  // client should not contribute timeline events anymore.
+  // Documents and care_circle_members are app-owned (no connection_id) and
+  // skip this filter.
+  let activeConnectionIds = [];
+  try {
+    const { data: activeConns } = await db
+      .from('ehr_connections')
+      .select('id')
+      .eq('person_id', personId)
+      .eq('status', 'connected');
+    activeConnectionIds = (activeConns || []).map(function(c) { return c.id; });
+  } catch (connErr) {
+    console.warn('[loadPersonData] active connection lookup failed:', connErr);
+    activeConnectionIds = [];
+  }
+  // Build a Postgrest .or() expression that means
+  //   connection_id IS NULL OR connection_id IN (id1, id2, ...)
+  // If there are no active connections we still keep manual rows.
+  function _scopeToActiveConns(query) {
+    if (activeConnectionIds.length === 0) {
+      return query.is('connection_id', null);
+    }
+    var inList = activeConnectionIds.join(',');
+    return query.or('connection_id.is.null,connection_id.in.(' + inList + ')');
+  }
+
   // Load events
-  const { data: events } = await db
-    .from('health_events')
-    .select('*')
-    .eq('person_id', personId)
-    .order('event_date', { ascending: false });
+  const { data: events } = await _scopeToActiveConns(
+    db.from('health_events')
+      .select('*')
+      .eq('person_id', personId)
+  ).order('event_date', { ascending: false });
   liveEvents = events || [];
 
   // Load meds
-  const { data: meds } = await db
-    .from('medications')
-    .select('*')
-    .eq('person_id', personId)
-    .order('created_at', { ascending: true });
+  const { data: meds } = await _scopeToActiveConns(
+    db.from('medications')
+      .select('*')
+      .eq('person_id', personId)
+  ).order('created_at', { ascending: true });
   liveMeds = meds || [];
 
-  // Load documents
+  // Load documents (app-owned, no connection_id filter)
   const { data: docs } = await db
     .from('documents')
     .select('*')
@@ -1006,27 +1039,27 @@ async function loadPersonData(personId) {
   liveDocs = docs || [];
 
   // Load lab results
-  const { data: labs } = await db
-    .from('lab_results')
-    .select('*')
-    .eq('person_id', personId)
-    .order('effective_date', { ascending: false });
+  const { data: labs } = await _scopeToActiveConns(
+    db.from('lab_results')
+      .select('*')
+      .eq('person_id', personId)
+  ).order('effective_date', { ascending: false });
   liveLabs = labs || [];
 
   // Load vitals
-  const { data: vitals } = await db
-    .from('vitals')
-    .select('*')
-    .eq('person_id', personId)
-    .order('effective_date', { ascending: false });
+  const { data: vitals } = await _scopeToActiveConns(
+    db.from('vitals')
+      .select('*')
+      .eq('person_id', personId)
+  ).order('effective_date', { ascending: false });
   liveVitals = vitals || [];
 
   // Load allergies
-  const { data: allergies } = await db
-    .from('allergies')
-    .select('*')
-    .eq('person_id', personId)
-    .order('created_at', { ascending: false });
+  const { data: allergies } = await _scopeToActiveConns(
+    db.from('allergies')
+      .select('*')
+      .eq('person_id', personId)
+  ).order('created_at', { ascending: false });
   liveAllergies = allergies || [];
 
   // Load care circle members
