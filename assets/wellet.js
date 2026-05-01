@@ -1717,12 +1717,29 @@ function renderTimeline() {
       }
       return { event_type: 'appointment', section: 'visits' };
     }
+    // Build the body sentence for an encounter — "Reason at Location" or
+    // just the location/reason if only one is present.
+    function encounterBody(enc) {
+      var loc = enc.location || '';
+      var rsn = enc.reason || '';
+      if (loc && rsn) return rsn + ' \u2014 ' + loc;
+      return loc || rsn || '';
+    }
     (ehrData.visits || ehrData.encounters || []).forEach(function(enc) {
       var c = classifyEncounter(enc);
-      ehrTimelineItems.push({ event_type:c.event_type, title:enc.name, event_date:enc.start_date, notes:'', source:'ehr', _ehrProvider:ehrData.provider, _section:c.section, _refId: enc.id || null });
+      ehrTimelineItems.push({ event_type:c.event_type, title:enc.name, event_date:enc.start_date, notes:encounterBody(enc), source:'ehr', _ehrProvider:ehrData.provider, _section:c.section, _refId: enc.id || null });
     });
+    // Some EHR sources (notably Epic) emit ambulatory encounters as Conditions
+    // with code.text = "Outpatient" and a location attached. Detect that
+    // shape and route to visits instead of stamping a misleading 'NOTE' tag.
+    var encounterLikeRe = /^(office|outpatient|inpatient|emergency|telemedicine|hospital|surgery|procedure|consult|urgent|visit)\b/i;
     (ehrData.conditions || []).forEach(function(c) {
-      ehrTimelineItems.push({ event_type:'note', title:c.name + ' (diagnosed)', event_date:c.onset_date || c.recorded_date, notes:'', source:'ehr', _ehrProvider:ehrData.provider, _section:'conditions', _refId: c.id || null });
+      var looksLikeEncounter = encounterLikeRe.test(c.name || '') || !!(c.location || c.reason);
+      if (looksLikeEncounter) {
+        ehrTimelineItems.push({ event_type:'appointment', title:c.name, event_date:c.onset_date || c.recorded_date, notes:encounterBody(c), source:'ehr', _ehrProvider:ehrData.provider, _section:'visits', _refId: c.id || null });
+      } else {
+        ehrTimelineItems.push({ event_type:'condition', title:c.name, event_date:c.onset_date || c.recorded_date, notes:'', source:'ehr', _ehrProvider:ehrData.provider, _section:'conditions', _refId: c.id || null });
+      }
     });
     (ehrData.procedures || []).forEach(function(p) {
       ehrTimelineItems.push({ event_type:'appointment', title:p.name, event_date:p.performed_date, notes:'', source:'ehr', _ehrProvider:ehrData.provider, _section:'visits', _refId: p.id || null });
@@ -6130,9 +6147,10 @@ window.addEventListener('load', function() {
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 function getEventTypeInfo(type) {
   var map = {
-    appointment: { dot:'appt', border:'moss-border', icon:'calendar-check', color:'var(--moss)', label:'Appointment' },
+    appointment: { dot:'appt', border:'moss-border', icon:'calendar-check', color:'var(--moss)', label:'Visit' },
     medication:  { dot:'med',  border:'amber-border', icon:'pill', color:'var(--amber)', label:'Medication' },
     lab_result:  { dot:'lab',  border:'blue-border', icon:'flask-conical', color:'var(--blue)', label:'Lab result' },
+    condition:   { dot:'note', border:'', icon:'stethoscope', color:'var(--text-muted)', label:'Diagnosis' },
     note:        { dot:'note', border:'', icon:'pencil-line', color:'var(--text-muted)', label:'Note' },
     pattern:     { dot:'alert', border:'red-border', icon:'activity', color:'var(--red)', label:'Pattern noticed' }
   };
