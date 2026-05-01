@@ -1321,8 +1321,9 @@ function renderUpdateMe() {
       var isLast = i === recentEvents.length - 1;
       var typeInfo = getEventTypeInfo(ev.event_type);
       var dateStr = formatEventDate(ev.event_date);
+      // Rail and dot are drawn via CSS ::before on .timeline-section and
+      // .tl-item — no per-item line-col / connector divs.
       timelineHTML += '<div class="tl-item">'
-        + '<div class="tl-line-col"><div class="tl-dot ' + typeInfo.dot + '" aria-hidden="true"></div>' + (isLast ? '' : '<div class="tl-connector"></div>') + '</div>'
         + '<div class="tl-card ' + typeInfo.border + '">'
         + '<div class="tl-card-type-row"><i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + typeInfo.color + ';"></i>'
         + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span></div>'
@@ -1822,8 +1823,9 @@ function renderTimeline() {
       // Editorial card: type tag + title + body + (date · source). No duplicate
       // EHR pill in the head, no paper-airplane on every card. Long-press still
       // opens the Ask context via data-ask-lp.
+      // Rail and dot are drawn via CSS ::before on .timeline-section and
+      // .tl-item — no per-item line-col / connector divs.
       html += '<div class="tl-item">'
-        + '<div class="tl-line-col"><div class="tl-dot ' + typeInfo.dot + '" aria-hidden="true"></div>' + (isLast ? '' : '<div class="tl-connector"></div>') + '</div>'
         + '<div class="tl-card ' + typeInfo.border + '" data-ask-lp="' + askKeyTl + '"' + clickAttr + '>'
         + '<div class="tl-card-type-row"><i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + typeInfo.color + ';"></i>'
         + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span>'
