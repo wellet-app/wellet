@@ -9542,6 +9542,84 @@ function enrichPractitionersForPerson(personId, careTeam, provider) {
   }).catch(function(err) { console.warn('[enrich-practitioner] session lookup failed', err); });
 }
 
+// ── "Before you call" panel for the Care team section ─────────────────────
+// Surfaces 1–2 factual signals from the loved one's chart that any clinician
+// or pharmacist would want to know up front:
+//   • Allergies on file (filters out NKA / "no known allergies")
+//   • Active blood thinner (anticoagulant) — matters for refills, dental,
+//     and surgical coordination
+// Voice rules: stays factual. "on file", "is on". No interpretation, no
+// dose advice, no flags. Renders ONCE at the top of the Care team section,
+// not per-row, since the facts are the same for every contact.
+// Returns '' when nothing to surface — silence > noise.
+function _detectBloodThinner(meds) {
+  if (!meds || !meds.length) return null;
+  // Common anticoagulants by generic + brand. Aspirin intentionally excluded
+  // (antiplatelet, not anticoagulant — different clinical conversation).
+  var rx = /\b(warfarin|coumadin|eliquis|apixaban|xarelto|rivaroxaban|pradaxa|dabigatran|savaysa|edoxaban|lixiana|heparin|lovenox|enoxaparin|fragmin|dalteparin|arixtra|fondaparinux)\b/i;
+  for (var i = 0; i < meds.length; i++) {
+    var nm = meds[i] && meds[i].name ? String(meds[i].name) : '';
+    if (rx.test(nm)) return _shortenClinicalName(nm);
+  }
+  return null;
+}
+
+function _collectAllergyNames(ehrData) {
+  var nkaRe = /^(no\s+known\s+(drug\s+)?allergies?|nka|nkda|none)$/i;
+  var names = [];
+  var ehrA = (ehrData && ehrData.allergies) ? ehrData.allergies : [];
+  for (var i = 0; i < ehrA.length; i++) {
+    var n = ehrA[i] && ehrA[i].name ? String(ehrA[i].name).trim() : '';
+    if (n && !nkaRe.test(n)) names.push(_shortenClinicalName(n));
+  }
+  // liveAllergies are caregiver-logged with .substance
+  var live = (typeof liveAllergies !== 'undefined' && Array.isArray(liveAllergies)) ? liveAllergies : [];
+  for (var j = 0; j < live.length; j++) {
+    var s = live[j] && live[j].substance ? String(live[j].substance).trim() : '';
+    if (s && !nkaRe.test(s)) names.push(s);
+  }
+  // Dedupe case-insensitively while preserving first-seen casing.
+  var seen = {};
+  var out = [];
+  for (var k = 0; k < names.length; k++) {
+    var key = names[k].toLowerCase();
+    if (!seen[key]) { seen[key] = 1; out.push(names[k]); }
+  }
+  return out;
+}
+
+function buildBeforeYouCallBanner(personName, ehrData) {
+  if (!ehrData) return '';
+  var firstName = personName || 'them';
+  var lines = [];
+
+  var allergies = _collectAllergyNames(ehrData);
+  if (allergies.length) {
+    var listed = allergies.slice(0, 3).map(escHtml).join(', ');
+    var more = allergies.length > 3 ? ' (+' + (allergies.length - 3) + ' more)' : '';
+    lines.push('Allergies on file: ' + listed + more + '.');
+  }
+
+  var bloodThinner = _detectBloodThinner(ehrData.medications || []);
+  if (bloodThinner) {
+    lines.push(escHtml(firstName) + ' is on ' + escHtml(bloodThinner) + ' (blood thinner).');
+  }
+
+  if (!lines.length) return '';
+
+  // Reuse the existing .alert-banner / .alert-icon / .alert-title / .alert-body
+  // markup (defined in assets/wellet.css line 674). In Records this gets the
+  // calm amber-warm card styling — not the editorial Home flatten. A small
+  // info icon, a quiet title "Before you call", and the factual body.
+  var html = '<div class="alert-banner before-you-call">'
+    + '<div class="alert-icon"><i data-lucide="info" style="width:16px;height:16px;"></i></div>'
+    + '<div>'
+    + '<div class="alert-title">Before you call</div>'
+    + '<div class="alert-body">' + lines.join(' ') + '</div>'
+    + '</div></div>';
+  return html;
+}
+
 // Build the Care team section for Records. Lists every practitioner returned
 // from the EHR (Encounter.participant + CareTeam.participant, deduped server-
 // side) with role, specialty, phones, email, and address. Ordered by most-
@@ -9589,6 +9667,15 @@ function buildCareTeamSection(careTeam, provider, visits, ehrData) {
     + '<div class="record-group-title"><i data-lucide="users" style="width:14px;height:14px;color:var(--moss);"></i>Care team ' + ehrBadgeHtml() + '</div>'
     + '<span class="record-group-count">' + careTeam.length + '</span>'
     + '</div>';
+
+  // "Before you call" panel — chart-aware factual context (allergies, blood
+  // thinner). Renders ONCE at the top of the Care team section. Returns ''
+  // when there's nothing to surface, so silence > noise.
+  var _bycPerson = (typeof currentPeople !== 'undefined' && currentPeople)
+    ? currentPeople.find(function(pp){ return pp.id === currentPersonId; })
+    : null;
+  var _bycFirst = _bycPerson ? (_bycPerson.name || '').split(' ')[0] : 'them';
+  html += buildBeforeYouCallBanner(_bycFirst, ehrData);
 
   annotated.forEach(function(entry) {
     var p = entry.p;
