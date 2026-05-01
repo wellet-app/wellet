@@ -10113,6 +10113,73 @@ var _responses = {
   }
 };
 
+// Strip dosage/strength from an EHR med or condition name so it reads naturally
+// in a chip. Examples:
+//   "Lisinopril 20mg"             -> "Lisinopril"
+//   "Levodopa/Carbidopa 25-100mg" -> "Levodopa/Carbidopa"
+//   "Gleevec (Imatinib) 400mg"    -> "Gleevec (Imatinib)"
+// Conservative: only trims at the first space-then-digit boundary, so a name
+// like "Vitamin D3" or "B12" survives intact.
+function _shortenClinicalName(name) {
+  if (!name) return '';
+  var s = String(name).trim();
+  // Cut at first " <digit>" occurrence — that's almost always the dose.
+  var m = s.match(/^(.+?)\s+\d/);
+  if (m && m[1].length >= 3) return m[1].trim();
+  return s;
+}
+
+// Build the "Some places to start" chips for Ask Wellet, personalized from
+// the chart. Pulls up to 2 medications and up to 2 conditions from the loved
+// one's EHR data and turns them into natural caregiver questions, then adds
+// two evergreen prompts ("next appointment" and "what changed this month").
+// If there's no chart data yet, falls back to a generic four. Voice rules:
+// "notices/watches for", never "tracks/monitors".
+function buildAskChips(personId, firstName) {
+  var name = escHtml(firstName || 'them');
+  var ehr = null;
+  try { ehr = getEhrData(personId); } catch (e) { ehr = null; }
+
+  // Layout target: 5 chips total when we have chart data.
+  //   1 medication chip
+  //   1 condition chip
+  //   "What changed this month?"   — surfaces the eyebrow's value as a question
+  //   1 medication chip (second — lower priority)
+  //   "When is {name}’s next appointment?"
+  // The two evergreens stay even if there's only one med or one condition.
+  var chips = [];
+  var meds = ehr ? (ehr.medications || []).filter(function(m){ return m && m.name; }).slice(0, 2) : [];
+  var conds = ehr ? (ehr.conditions || []).filter(function(c){ return c && c.name; }).slice(0, 1) : [];
+
+  if (meds[0]) {
+    chips.push('Why is ' + name + ' on ' + escHtml(_shortenClinicalName(meds[0].name)) + '?');
+  }
+  if (conds[0]) {
+    chips.push('What does ' + name + '\u2019s ' + escHtml(_shortenClinicalName(conds[0].name)) + ' mean?');
+  }
+  chips.push('What changed this month?');
+  if (meds[1]) {
+    chips.push('Why is ' + name + ' on ' + escHtml(_shortenClinicalName(meds[1].name)) + '?');
+  }
+  chips.push('When is ' + name + '\u2019s next appointment?');
+
+  // Generic fallback if we had no chart data at all (just the two evergreens).
+  if (!ehr || (meds.length === 0 && conds.length === 0)) {
+    chips = [
+      'What medications is ' + name + ' taking?',
+      'Summarize recent health events',
+      'Are there any patterns to watch for?',
+      'What should I ask the doctor next visit?'
+    ];
+  }
+
+  // Safety cap.
+  chips = chips.slice(0, 5);
+  return chips.map(function(q) {
+    return '<button class="chip" onclick="askQuestion(this.textContent)">' + q + '</button>';
+  }).join('');
+}
+
 function renderAskView() {
   // Render ask view for authenticated mode with real people
   if (isDemoMode) return;
@@ -10144,11 +10211,7 @@ function renderAskView() {
 
   var chips = document.getElementById('suggestion-chips');
   if (chips) {
-    chips.innerHTML =
-      '<button class="chip" onclick="askQuestion(this.textContent)">What medications is ' + escHtml(firstName) + ' taking?</button>'
-      + '<button class="chip" onclick="askQuestion(this.textContent)">Summarize recent health events</button>'
-      + '<button class="chip" onclick="askQuestion(this.textContent)">Are there any patterns to watch?</button>'
-      + '<button class="chip" onclick="askQuestion(this.textContent)">What should I ask the doctor next visit?</button>';
+    chips.innerHTML = buildAskChips(currentPersonId, firstName);
     chips.style.display = 'flex';
   }
 }
@@ -10163,11 +10226,7 @@ function selectAskRealPerson(el, personId) {
   if (inputEl) inputEl.placeholder = 'Ask about ' + firstName + '\u2019s health\u2026';
   var chips = document.getElementById('suggestion-chips');
   if (chips) {
-    chips.innerHTML =
-      '<button class="chip" onclick="askQuestion(this.textContent)">What medications is ' + escHtml(firstName) + ' taking?</button>'
-      + '<button class="chip" onclick="askQuestion(this.textContent)">Summarize recent health events</button>'
-      + '<button class="chip" onclick="askQuestion(this.textContent)">Are there any patterns to watch?</button>'
-      + '<button class="chip" onclick="askQuestion(this.textContent)">What should I ask the doctor next visit?</button>';
+    chips.innerHTML = buildAskChips(personId, firstName);
     chips.style.display = 'flex';
   }
   addWelletMessage('Switched to ' + escHtml(firstName) + '. Ask me anything about their health records.');
