@@ -38,7 +38,10 @@ Deno.test('medications: active meds persist, names lowercased for fingerprint', 
   assertEquals(medCall.rows[0].name, 'Metformin 500 mg');
   assertEquals(medCall.rows[0].active, true);
   assertEquals(medCall.rows[1].active, false, 'completed meds are inactive');
-  assertEquals(medCall.opts.onConflict, 'person_id,source_fingerprint');
+  // onConflict gained connection_id when multi-connection support shipped
+  // (so the same fingerprint can coexist for different EHR connections per
+  // person). Match the live behavior.
+  assertEquals(medCall.opts.onConflict, 'person_id,connection_id,source_fingerprint');
 });
 
 Deno.test('fingerprint is stable across runs', async () => {
@@ -100,6 +103,26 @@ Deno.test('health_events: conditions, visits, immunizations, diagnostic reports 
   assertEquals(r.health_events, 4);
   const types = calls.find((c) => c.table === 'health_events')!.rows.map((row) => row.event_type);
   assertEquals(types.sort(), ['condition', 'diagnostic_report', 'immunization', 'visit']);
+});
+
+Deno.test('health_events: non-visit encounter types persist as event_type=note', async () => {
+  calls.length = 0;
+  const r = await persistEhrData(fakeAdmin as any, PERSON, {
+    visits: [
+      { id: 'enc-1', name: 'Office Visit', start_date: '2025-11-15T14:00:00Z', location: 'Duke Clinic', reason: 'annual physical' },
+      { id: 'enc-2', name: 'Refill Encounter', start_date: '2025-11-10T00:00:00Z' },
+      { id: 'enc-3', name: 'Patient Message', start_date: '2025-11-09T00:00:00Z' },
+      { id: 'enc-4', name: 'Telephone', start_date: '2025-11-08T00:00:00Z' },
+      { id: 'enc-5', name: 'E-Visit', start_date: '2025-11-07T00:00:00Z' },
+      { id: 'enc-6', name: 'Result Note', start_date: '2025-11-06T00:00:00Z' },
+    ],
+  });
+  assertEquals(r.health_events, 6);
+  const rows = calls.find((c) => c.table === 'health_events')!.rows;
+  const visitTitles = rows.filter((r) => r.event_type === 'visit').map((r) => r.title).sort();
+  const noteTitles = rows.filter((r) => r.event_type === 'note').map((r) => r.title).sort();
+  assertEquals(visitTitles, ['Office Visit']);
+  assertEquals(noteTitles, ['E-Visit', 'Patient Message', 'Refill Encounter', 'Result Note', 'Telephone']);
 });
 
 Deno.test('health_events: rows without dates are skipped', async () => {

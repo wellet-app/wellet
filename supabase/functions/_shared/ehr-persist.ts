@@ -178,7 +178,14 @@ function buildHealthEventRows(
     }
   }
 
-  // Visits → event_type 'visit'. Use encounter.start as event_date.
+  // Visits → event_type 'visit', except non-visit encounter types (refills,
+  // patient messages, phone calls, e-visits, result notes, letters, portal
+  // messages) which Epic returns as Encounter resources but which are not
+  // real visits. Those are persisted as event_type='note' so the timeline
+  // doesn't surface them as Appointments. The detection mirrors the
+  // frontend classifier in assets/wellet.js — keep the regex here in sync
+  // when adding new patterns there.
+  const NON_VISIT_RE = /\b(refill|message|patient message|telephone|phone call|letter|e-?visit|portal|result note)\b/i;
   if (Array.isArray(visits)) {
     for (const v of visits) {
       const title = String(v?.name || v?.reason || 'Visit').trim();
@@ -186,10 +193,12 @@ function buildHealthEventRows(
       if (!iso) continue;
       const vid = String(v?.id || '');
       const location = String(v?.location || '');
+      const encType = String(v?.type || v?.encounter_type || '');
+      const isNonVisit = NON_VISIT_RE.test(title) || NON_VISIT_RE.test(encType);
       rows.push({
         person_id: personId,
         connection_id: connectionId,
-        event_type: 'visit',
+        event_type: isNonVisit ? 'note' : 'visit',
         event_date: iso,
         title,
         notes: [v?.reason, location].filter(Boolean).join(' — ') || null,

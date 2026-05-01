@@ -1790,6 +1790,25 @@ function openTimelineItem(section, refId) {
   } catch(_e) {}
   // Defer so the Records view finishes rendering before we open the detail pane
   setTimeout(function() {
+    // If we have a refId AND a recognized section, route to the per-item detail
+    // screen so the user can see full context + Ask Wellet about that one item.
+    // Falls through to the legacy section-pane + highlight when no refId.
+    try {
+      if (refId) {
+        if (section === 'visits' && typeof openEncounterDetail === 'function') {
+          openEncounterDetail(refId);
+          return;
+        }
+        if (section === 'labs' && typeof openLabDetail === 'function') {
+          openLabDetail(refId);
+          return;
+        }
+        if (section === 'conditions' && typeof openConditionDetail === 'function') {
+          openConditionDetail(refId);
+          return;
+        }
+      }
+    } catch(_e) {}
     try {
       if (typeof openRecordsDetail === 'function' && section) openRecordsDetail(section);
     } catch(_e) {}
