@@ -15,6 +15,7 @@ const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 // ── GLOBAL STATE ─────────────────────────────────────────────────────────────
 var isDemoMode = false;
 var currentUser = null;
+var _userDataLoaded = false; // set true when initApp or onAuthStateChange completes loadUserData; prevents double-load
 var currentPeople = [];   // [{id, name, relationship, avatar_initials}]
 
 // Subtle per-person background tints (barely perceptible, subliminal context)
@@ -267,7 +268,12 @@ async function initApp() {
         return;
       }
       currentUser = session.user;
-      await loadUserData();
+      // Guard against the rare race where onAuthStateChange already ran loadUserData
+      // for this same session (e.g. INITIAL_SESSION fired during getSession's await).
+      if (!_userDataLoaded) {
+        _userDataLoaded = true;
+        await loadUserData();
+      }
       // If there's a pending invite and user is signed in, show accept UI
       if (_pendingInviteToken && _inviteData) {
         showInviteAcceptUI();
@@ -307,8 +313,14 @@ async function initApp() {
         }
         currentUser = session.user;
         resetInactivityTimer();
-        // Only load data if not already loaded by initApp
-        if (event === 'SIGNED_IN') {
+        // Load data if initApp didn't already.
+        // Magic-link path: detectSessionInUrl is async, so initApp's getSession() can
+        // resolve to null and only INITIAL_SESSION delivers the parsed session. In that
+        // case _userDataLoaded is still false and we MUST run loadUserData() here, or
+        // person-load → autoRefreshEhrIfNeeded → fetch-ehr-data never fires.
+        if (event === 'SIGNED_IN' || (event === 'INITIAL_SESSION' && !_userDataLoaded)) {
+          console.log('[auth-boot] onAuthStateChange triggering loadUserData (event=' + event + ', userDataLoaded=' + _userDataLoaded + ')');
+          _userDataLoaded = true;
           await loadUserData();
           if (_pendingInviteToken && _inviteData) {
             await acceptInvite();
@@ -316,6 +328,7 @@ async function initApp() {
         }
       } else if (event === 'SIGNED_OUT') {
         currentUser = null;
+        _userDataLoaded = false;
         if (_inactivityTimer) clearTimeout(_inactivityTimer);
         showAuthScreen();
       }
