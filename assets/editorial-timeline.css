@@ -112,7 +112,15 @@
   display: block !important;     /* not flex/grid — we use absolute positioning */
   grid-template-columns: none !important;
   margin: 0;
-  padding-left: 32px;            /* clears the rail + dot */
+  /* editorial-updates.css sets `padding: 18px 0` on .tl-item (specificity
+     beats ours via the [data-editorial] attribute selector), which zeroes
+     padding-left and lets the card sit underneath the rail. !important
+     forces our 32px gutter back. */
+  padding: 18px 0 18px 32px !important;
+  /* Same source draws a `border-bottom: 1px solid var(--ink-0)` between
+     every item; that's the row-divider behavior the Summary tab wants but
+     it visually conflicts with the rail. Suppress on Timeline. */
+  border-bottom: 0 !important;
   position: relative;
 }
 #tab-timeline .tl-item::before {
