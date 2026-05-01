@@ -102,9 +102,15 @@
   pointer-events: none;
 }
 
-/* Items sit to the right of the rail, with a dot drawn on it */
+/* Items sit to the right of the rail, with a dot drawn on it.
+   editorial-updates.css declares `#view-home[data-editorial="updates"] .tl-item
+   { display: grid; grid-template-columns: 24px 1fr }` for the Summary tab,
+   and #tab-timeline lives inside #view-home, so that rule cascades in and
+   collapses the card content to a 1fr column too narrow for the body text.
+   Override grid — the timeline rail is drawn by ::before, no grid needed. */
 #tab-timeline .tl-item {
-  display: block;                /* not flex — we use absolute positioning */
+  display: block !important;     /* not flex/grid — we use absolute positioning */
+  grid-template-columns: none !important;
   margin: 0;
   padding-left: 32px;            /* clears the rail + dot */
   position: relative;
