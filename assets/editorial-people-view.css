@@ -1,0 +1,328 @@
+/* ============================================================
+   editorial-people-view.css — People surface (#view-people)
+
+   Editorial pass for the Care Circle / People view. Every override
+   is scoped to #view-people[data-editorial="people"] so removing
+   the data attribute reverts to the original card-based layout.
+
+   Pattern: hairline-divided editorial entries instead of bordered
+   cards. Fraunces names carry identity; avatar discs retired.
+   Stats become typeset columns. Action chips become hairline-
+   underlined verbs. Care Circle row becomes a borderless section.
+
+   Foundation tokens come from editorial-foundation.css.
+   Behavior unchanged: no JS edits, no copy edits, no route changes.
+   ============================================================ */
+
+/* ---- Container ---- */
+#view-people[data-editorial="people"] {
+  font-family: var(--sans);
+  font-weight: 300;
+  color: var(--ink-9);
+  letter-spacing: 0.005em;
+  background: transparent;
+  padding: 0 var(--gutter, 22px);
+}
+
+/* ---- View header ----
+   Override the global .view-header flex layout so title + subtitle stack. */
+#view-people[data-editorial="people"] .view-header {
+  border: 0;
+  padding: 18px 0 14px;
+  margin: 0;
+  background: transparent;
+  display: block;
+  gap: 0;
+}
+#view-people[data-editorial="people"] .view-title {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: var(--type-display);
+  line-height: 1.08;
+  color: var(--ink-9);
+  letter-spacing: -0.01em;
+  font-variation-settings: "opsz" 72, "SOFT" 60;
+  margin: 0 0 6px;
+}
+#view-people[data-editorial="people"] .view-subtitle {
+  font-family: var(--sans);
+  font-size: var(--type-body);
+  font-weight: 400;
+  color: var(--ink-5);
+  line-height: 1.4;
+  max-width: 32ch;
+}
+
+/* ---- Eyebrow rows above the lists ----
+   The view has two inline-styled eyebrow divs ("Who you are caring
+   for" and "Care Circle"). The selectors below catch them by their
+   container position so we can override without touching markup. */
+#view-people[data-editorial="people"] .people-section > div[style*="text-transform:uppercase"] {
+  all: unset;
+  display: block;
+  font-family: var(--sans);
+  font-size: var(--type-micro);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-5, #6E665C);
+  margin: 18px 0 6px;
+}
+
+/* ---- Person card → editorial entry ---- */
+#view-people[data-editorial="people"] .person-card {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--ink-2, #C8C0B5);
+  border-radius: 0;
+  padding: 10px 0 14px;
+  margin-bottom: 0;
+}
+#view-people[data-editorial="people"] .person-card:last-of-type {
+  border-bottom: 0;
+}
+
+/* ---- Top row: name + status. Avatar disc is retired. ---- */
+#view-people[data-editorial="people"] .person-card-top {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+#view-people[data-editorial="people"] .person-card-avatar {
+  display: none !important;  /* the Fraunces name carries identity */
+}
+#view-people[data-editorial="people"] .person-card-top > div:not(.person-card-avatar):not(.person-card-status):not(.remove-btn) {
+  flex: 1;
+  min-width: 0;
+}
+#view-people[data-editorial="people"] .person-card-name {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: var(--type-h1);
+  line-height: 1.1;
+  color: var(--ink-9);
+  letter-spacing: -0.005em;
+  font-variation-settings: "opsz" 36, "SOFT" 60;
+  margin: 0;
+}
+#view-people[data-editorial="people"] .person-card-rel {
+  font-family: var(--sans);
+  font-size: var(--type-meta);
+  color: var(--ink-5);
+  margin-top: 2px;
+}
+
+/* ---- Status mark — small uppercase tracked label, no chip bg ---- */
+#view-people[data-editorial="people"] .person-card-status {
+  background: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--sans);
+  font-size: var(--type-micro);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+#view-people[data-editorial="people"] .person-card-status.watching {
+  color: var(--amber-text, #A0621F);
+}
+#view-people[data-editorial="people"] .person-card-status.stable {
+  color: var(--moss-deep, #3F5F52);
+}
+#view-people[data-editorial="people"] .person-card-status.bereaved {
+  color: var(--ink-4, #8A8278);
+  background: transparent !important;
+}
+/* Replace the inline lucide icon with a quiet dot. The icon stays in
+   the DOM but we hide it; a ::before dot takes its place. */
+#view-people[data-editorial="people"] .person-card-status > i,
+#view-people[data-editorial="people"] .person-card-status > svg {
+  display: none !important;
+}
+#view-people[data-editorial="people"] .person-card-status::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  display: inline-block;
+}
+#view-people[data-editorial="people"] .person-card-status.stable::before {
+  background: #8AA89A;  /* moss-quieter — softer than text color */
+}
+
+/* ---- Remove (×) button — quieter ---- */
+#view-people[data-editorial="people"] .remove-btn {
+  margin-left: 8px;
+  color: var(--ink-4);
+  padding: 2px;
+}
+#view-people[data-editorial="people"] .remove-btn:hover {
+  color: var(--red);
+  background: transparent;
+}
+
+/* ---- Stats: pill blocks → typeset columns ---- */
+#view-people[data-editorial="people"] .person-card-stats {
+  display: flex;
+  grid-template-columns: none;
+  gap: 28px;
+  margin: 12px 0;
+}
+#view-people[data-editorial="people"] .person-stat {
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+}
+#view-people[data-editorial="people"] .person-stat-val {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--ink-9);
+  font-variation-settings: "opsz" 36, "SOFT" 60;
+  margin-bottom: 4px;
+}
+#view-people[data-editorial="people"] .person-stat-label {
+  font-family: var(--sans);
+  font-size: var(--type-micro);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-5);
+  margin-top: 0;
+}
+
+/* ---- Action row: filled chips → hairline editorial verbs ---- */
+#view-people[data-editorial="people"] .person-card-action {
+  margin-top: 12px;
+  padding-top: 0;
+  border-top: 0;
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+#view-people[data-editorial="people"] .person-card-action .card-action-btn {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid #8AA89A;  /* moss-quieter */
+  border-radius: 0;
+  padding: 0 0 2px;
+  font-family: var(--sans);
+  font-size: var(--type-meta);
+  font-weight: 500;
+  color: var(--moss-deep);
+  cursor: pointer;
+  min-height: auto;
+  letter-spacing: 0.005em;
+}
+#view-people[data-editorial="people"] .person-card-action .card-action-btn:hover {
+  border-bottom-color: var(--moss-deep);
+  background: transparent;
+}
+
+/* ---- Add another person — Fraunces invitation, not dashed slot ---- */
+#view-people[data-editorial="people"] .add-person-btn {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  width: 100%;
+  margin: 4px 0 8px;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--ink-2, #C8C0B5);
+  border-radius: 0;
+  padding: 14px 0 12px;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: var(--type-h2);
+  color: var(--ink-7);
+  cursor: pointer;
+  text-align: left;
+  font-variation-settings: "opsz" 28, "SOFT" 60;
+  letter-spacing: 0;
+}
+#view-people[data-editorial="people"] .add-person-btn:hover {
+  color: var(--ink-9);
+  background: transparent;
+  border-top-color: var(--ink-3, #A8A097);
+}
+/* Replace the inline lucide plus icon with a quiet circular disc. */
+#view-people[data-editorial="people"] .add-person-btn > i,
+#view-people[data-editorial="people"] .add-person-btn > svg {
+  display: none !important;
+}
+#view-people[data-editorial="people"] .add-person-btn::before {
+  content: "+";
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--ink-3, #A8A097);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--ink-5);
+  flex-shrink: 0;
+}
+
+/* ---- Care Circle row — borderless editorial entry ---- */
+/* The Care Circle button is an inline-styled <button> immediately
+   after the second eyebrow. We override the inline styles via
+   high-specificity scoped rules. */
+#view-people[data-editorial="people"] .people-section > button[onclick*="openCareCircle"] {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 8px 0 14px !important;
+  display: flex !important;
+  align-items: baseline !important;
+  gap: 14px !important;
+  width: 100% !important;
+  cursor: pointer;
+  text-align: left;
+}
+/* The inline button has a structure of: <i> <div>...</div> <i>.
+   Style each child via selectors that match its position. */
+#view-people[data-editorial="people"] .people-section > button[onclick*="openCareCircle"] > i:first-child,
+#view-people[data-editorial="people"] .people-section > button[onclick*="openCareCircle"] > svg:first-child {
+  color: var(--moss-deep) !important;
+  align-self: center;
+  flex-shrink: 0;
+}
+#view-people[data-editorial="people"] .people-section > button[onclick*="openCareCircle"] > div {
+  flex: 1;
+  text-align: left !important;
+}
+/* The first inner div is the title "Care Circle" — hide it since the eyebrow
+   already names this section. The sub-line carries the meaning. */
+#view-people[data-editorial="people"] .people-section > button[onclick*="openCareCircle"] > div > div:first-child {
+  display: none;
+}
+/* The second inner div is the sub — promote it to read like a primary line. */
+#view-people[data-editorial="people"] .people-section > button[onclick*="openCareCircle"] > div > div:last-child {
+  font-family: var(--serif) !important;
+  font-weight: 400 !important;
+  font-size: var(--type-h2) !important;
+  color: var(--ink-9) !important;
+  font-variation-settings: "opsz" 28, "SOFT" 60;
+  letter-spacing: 0 !important;
+  margin-top: 0 !important;
+}
+/* The trailing chevron icon. */
+#view-people[data-editorial="people"] .people-section > button[onclick*="openCareCircle"] > i:last-child,
+#view-people[data-editorial="people"] .people-section > button[onclick*="openCareCircle"] > svg:last-child {
+  color: var(--ink-4) !important;
+  align-self: center;
+  flex-shrink: 0;
+}

@@ -17254,7 +17254,7 @@ renderPeopleView = function() {
   if (!view) return;
 
   var html = '<div class="view-header"><div class="view-title">People</div>'
-    + '<div class="view-subtitle">The people in your care life</div></div>'
+    + '<div class="view-subtitle">The people you care for, and the family who helps.</div></div>'
     + '<div class="people-section">'
     + '<div style="font-size:var(--type-micro);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin:4px 2px 10px;">Who you are caring for</div>';
 
