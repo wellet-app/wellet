@@ -3582,6 +3582,389 @@ function openRecordsDetail(section) {
   initIcons();
 }
 
+// ── PER-ITEM DETAIL SCREENS ───────────────────────────────────────────────────
+// Tap an encounter / lab / condition card on the Timeline or in the Records
+// list → dedicated detail screen with all the structured fields, linked notes,
+// and a one-tap "Ask Wellet about this" hook. Replaces the old behavior of
+// routing to the Records list view and scroll-highlighting the matching row
+// (which only let you see the listing, not the detail underneath).
+//
+// The detail screen swaps #view-records innerHTML the same way openRecordsDetail
+// does. Back goes to the section list (openRecordsDetail(section)) so users
+// retain the breadcrumb of where they came from.
+
+// Look up an encounter / lab / condition by id from the current EHR cache,
+// with a fallback to liveEvents (DB-backed) when the cache hasn't loaded yet.
+function _findEhrItemById(kind, refId) {
+  if (!refId) return null;
+  var ehrData = getEhrData(currentPersonId) || {};
+  if (kind === 'encounter') {
+    var visits = ehrData.visits || ehrData.encounters || [];
+    for (var i = 0; i < visits.length; i++) {
+      if (visits[i].id === refId) return visits[i];
+    }
+    // Conditions sometimes carry encounter-shaped rows (Epic Outpatient).
+    var conds = ehrData.conditions || [];
+    for (var j = 0; j < conds.length; j++) {
+      if (conds[j].id === refId && (conds[j].location || conds[j].reason)) {
+        return { id: conds[j].id, name: conds[j].name, start_date: conds[j].onset_date || conds[j].recorded_date,
+                 location: conds[j].location || '', reason: conds[j].reason || '', providers: [], documents: [] };
+      }
+    }
+    return null;
+  }
+  if (kind === 'lab') {
+    var obs = ehrData.observations || [];
+    for (var k = 0; k < obs.length; k++) {
+      if (obs[k].id === refId) return Object.assign({ _isReport: false }, obs[k]);
+    }
+    var reports = ehrData.diagnostic_reports || [];
+    for (var m = 0; m < reports.length; m++) {
+      if (reports[m].id === refId) return Object.assign({ _isReport: true }, reports[m]);
+    }
+    return null;
+  }
+  if (kind === 'condition') {
+    var conds2 = ehrData.conditions || [];
+    for (var n = 0; n < conds2.length; n++) {
+      if (conds2[n].id === refId) return conds2[n];
+    }
+    return null;
+  }
+  return null;
+}
+
+function _detailBackBar(parentSection, parentLabel) {
+  return '<div style="display:flex;align-items:center;gap:10px;padding:12px 0 16px;">'
+    + '<button onclick="openRecordsDetail(\'' + parentSection + '\')" style="background:none;border:none;cursor:pointer;padding:4px;display:flex;align-items:center;gap:6px;color:var(--moss);font-size:14px;font-weight:500;">'
+    + '<i data-lucide="arrow-left" style="width:18px;height:18px;"></i> ' + escHtml(parentLabel) + '</button></div>';
+}
+
+function _detailRow(label, value) {
+  if (!value) return '';
+  return '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);">'
+    +   '<div style="font-size:13px;color:var(--text-secondary);font-weight:500;flex-shrink:0;">' + escHtml(label) + '</div>'
+    +   '<div style="font-size:13px;color:var(--text-primary);text-align:right;flex:1;min-width:0;word-break:break-word;">' + escHtml(value) + '</div>'
+    + '</div>';
+}
+
+function _detailAskCta(askKey) {
+  return '<div style="margin-top:18px;text-align:center;">'
+    + '<button onclick="openAskWithContext(\'' + askKey + '\')" '
+    + 'style="background:var(--moss);color:white;border:none;border-radius:999px;padding:10px 22px;'
+    + 'font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">'
+    + '<i data-lucide="message-circle" style="width:14px;height:14px;"></i> Ask Wellet about this</button>'
+    + '</div>';
+}
+
+// openEncounterDetail(refId)
+// Tap an encounter / appointment card → full visit detail. Date, providers,
+// location, reason, status, and any linked DocumentReference inline text
+// (After Visit Summary, Provider Note) rendered inline so the family member
+// doesn't have to chase down a portal link.
+function openEncounterDetail(refId) {
+  var view = document.getElementById('view-records');
+  if (!view) return;
+  var enc = _findEhrItemById('encounter', refId);
+  if (!enc) {
+    // Fall back to the visits list if the id isn't in cache (cache may have
+    // rotated, or the id came from a stale liveEvents row).
+    if (typeof openRecordsDetail === 'function') openRecordsDetail('visits');
+    return;
+  }
+
+  var providers = (enc.providers || []).map(function(p){ return p.name; }).filter(Boolean).join(', ');
+  var dateLabel = enc.start_date ? formatEventDate(enc.start_date) : '';
+  var endLabel  = enc.end_date && enc.end_date !== enc.start_date ? formatEventDate(enc.end_date) : '';
+  var classLabel = enc.class || '';
+  if (classLabel) classLabel = classLabel.charAt(0).toUpperCase() + classLabel.slice(1);
+
+  // Pull DocumentReferences attached to this encounter.
+  // Each doc has: id, type_display, description, inline_text (decoded),
+  // url (signed-fetch TBD), encounter_id.
+  var docs = Array.isArray(enc.documents) ? enc.documents : [];
+  var docsHtml = '';
+  if (docs.length > 0) {
+    docsHtml += '<div style="margin-top:22px;">'
+      + '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px;">Notes &amp; documents</div>';
+    docs.forEach(function(d) {
+      var label = d.type_display || d.description || 'Document';
+      docsHtml += '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;">'
+        + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
+        +   '<i data-lucide="file-text" style="width:14px;height:14px;color:var(--moss);"></i>'
+        +   '<div style="font-size:13px;font-weight:600;color:var(--text-primary);">' + escHtml(label) + '</div>'
+        + '</div>';
+      if (d.inline_text && d.inline_text.trim()) {
+        docsHtml += '<div style="font-size:13px;color:var(--text-primary);line-height:1.6;white-space:pre-wrap;padding:8px 10px;background:var(--cream);border-radius:8px;margin-top:6px;">' + escHtml(d.inline_text.trim()) + '</div>';
+      } else {
+        docsHtml += '<div style="font-size:12px;color:var(--text-muted);font-style:italic;">No inline text on this document.</div>';
+      }
+      docsHtml += '</div>';
+    });
+    docsHtml += '</div>';
+  }
+
+  // Register Ask Wellet context BEFORE building HTML so the button has a key.
+  if (!window._askCtxRegistry) window._askCtxRegistry = {};
+  var askKey = 'enc_' + (enc.id || Object.keys(window._askCtxRegistry).length);
+  window._askCtxRegistry[askKey] = {
+    kind: 'encounter',
+    name: enc.name || 'Visit',
+    date: enc.start_date || '',
+    meta: {
+      providers: providers,
+      location: enc.location || '',
+      reason: enc.reason || '',
+      class: classLabel
+    },
+    notes: docs.filter(function(d){ return d.inline_text; }).map(function(d){ return d.inline_text; }).join('\n\n')
+  };
+
+  var html = '<div class="records-detail-view">'
+    + _detailBackBar('visits', 'Appointments &amp; Visits')
+    // Title block
+    + '<div style="font-size:22px;font-weight:700;color:var(--text-primary);line-height:1.3;margin-bottom:4px;">' + escHtml(enc.name || 'Visit') + '</div>'
+    + (dateLabel ? '<div style="font-size:14px;color:var(--text-secondary);margin-bottom:18px;">' + escHtml(dateLabel) + (endLabel ? ' \u2014 ' + escHtml(endLabel) : '') + '</div>' : '')
+    // Structured fields card
+    + '<div data-ask-lp="' + askKey + '" style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:6px 16px;">'
+    +   _detailRow('Provider', providers)
+    +   _detailRow('Location', enc.location || '')
+    +   _detailRow('Reason', enc.reason || '')
+    +   _detailRow('Visit type', classLabel)
+    +   _detailRow('Status', enc.status || '')
+    + '</div>'
+    + docsHtml
+    + _detailAskCta(askKey)
+    + '</div>';
+
+  _recordsDetailSection = 'visits:' + (enc.id || '');
+  view.innerHTML = html;
+  initIcons();
+  // Long-press anywhere on the structured fields card opens the Ask sheet too.
+  try {
+    var card = view.querySelector('[data-ask-lp="' + askKey + '"]');
+    if (card && typeof attachAskLongPress === 'function') {
+      attachAskLongPress(card, window._askCtxRegistry[askKey]);
+    }
+  } catch (_e) {}
+}
+
+// openLabDetail(refId)
+// Tap a lab / observation / diagnostic-report card → detail with value, units,
+// reference range, status, and a tiny trend (last few results for the same
+// test name). Diagnostic reports also surface conclusion + inline attachments.
+function openLabDetail(refId) {
+  var view = document.getElementById('view-records');
+  if (!view) return;
+  var item = _findEhrItemById('lab', refId);
+  if (!item) {
+    if (typeof openRecordsDetail === 'function') openRecordsDetail('labs');
+    return;
+  }
+
+  var isReport = !!item._isReport;
+  var dateStr = item.effective_date || item.issued || '';
+  var dateLabel = dateStr ? formatEventDate(dateStr) : '';
+
+  // Build value string + range track for plain Observations.
+  var valStr = '';
+  var range = '';
+  var unit = item.unit || '';
+  var trackHtml = '';
+  var statusBadge = '';
+  if (!isReport) {
+    if (item.value != null && item.value !== '') {
+      valStr = String(item.value) + (unit ? ' ' + unit : '');
+    }
+    range = item.ref || item.reference_range || '';
+    var valNum = parseFloat(item.value);
+    if (!isNaN(valNum) && range && typeof buildRangeTrack === 'function') {
+      try { trackHtml = buildRangeTrack(valNum, range, unit); } catch(_e) {}
+    }
+    if (typeof classifyLabValue === 'function') {
+      var cls = classifyLabValue(valNum, range);
+      if (cls === 'high') statusBadge = '<span class="record-badge amber">High</span>';
+      else if (cls === 'low') statusBadge = '<span class="record-badge amber">Low</span>';
+      else if (cls === 'normal') statusBadge = '<span class="record-badge moss">Normal</span>';
+    }
+    if (/critical/i.test(item.status || '')) {
+      statusBadge = '<span class="record-badge" style="background:#FEF0EE;color:var(--red);">Critical</span>';
+    }
+  }
+
+  // Build a small trend list: previous results for the same test name.
+  var trendHtml = '';
+  if (!isReport && item.name) {
+    var ehrData = getEhrData(currentPersonId) || {};
+    var allObs = (ehrData.observations || []).filter(function(o){
+      return o.name === item.name && o.id !== item.id && o.value != null && o.value !== '';
+    }).sort(function(a, b) {
+      return new Date(b.effective_date || 0) - new Date(a.effective_date || 0);
+    }).slice(0, 5);
+    if (allObs.length > 0) {
+      trendHtml += '<div style="margin-top:22px;">'
+        + '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px;">Recent results</div>'
+        + '<div style="background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;">';
+      allObs.forEach(function(o, i) {
+        trendHtml += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;' + (i < allObs.length - 1 ? 'border-bottom:1px solid var(--border);' : '') + '">'
+          +   '<div style="font-size:13px;color:var(--text-primary);">' + escHtml(formatEventDate(o.effective_date || '')) + '</div>'
+          +   '<div style="font-size:13px;color:var(--text-primary);font-weight:500;">' + escHtml(String(o.value) + (o.unit ? ' ' + o.unit : '')) + '</div>'
+          + '</div>';
+      });
+      trendHtml += '</div></div>';
+    }
+  }
+
+  // Diagnostic report inline attachments
+  var reportBody = '';
+  if (isReport) {
+    if (item.conclusion && item.conclusion.trim()) {
+      reportBody += '<div style="margin-top:22px;">'
+        + '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px;">Conclusion</div>'
+        + '<div style="font-size:13px;color:var(--text-primary);line-height:1.6;white-space:pre-wrap;padding:10px 12px;background:var(--cream);border-radius:8px;">' + escHtml(item.conclusion.trim()) + '</div>'
+        + '</div>';
+    }
+    var attachments = Array.isArray(item.attachments) ? item.attachments : [];
+    var inlineAtt = attachments.filter(function(a){ return a && a.inline_text && a.inline_text.trim(); });
+    if (inlineAtt.length > 0) {
+      reportBody += '<div style="margin-top:22px;">'
+        + '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px;">Report</div>';
+      inlineAtt.forEach(function(a) {
+        reportBody += '<div style="font-size:13px;color:var(--text-primary);line-height:1.6;white-space:pre-wrap;padding:10px 12px;background:var(--cream);border-radius:8px;margin-bottom:10px;">' + escHtml(a.inline_text.trim()) + '</div>';
+      });
+      reportBody += '</div>';
+    }
+  }
+
+  // Register Ask Wellet context
+  if (!window._askCtxRegistry) window._askCtxRegistry = {};
+  var askKey = 'lab_' + (item.id || Object.keys(window._askCtxRegistry).length);
+  window._askCtxRegistry[askKey] = {
+    kind: 'lab',
+    name: item.name || 'Lab result',
+    value: valStr,
+    date: dateStr,
+    ref: range,
+    status: item.status || '',
+    notes: isReport ? (item.conclusion || '') : ''
+  };
+
+  var infoLine = (typeof lookupLabInfo === 'function') ? lookupLabInfo(item.name) : '';
+
+  var html = '<div class="records-detail-view">'
+    + _detailBackBar('labs', 'Lab Results')
+    + '<div style="font-size:22px;font-weight:700;color:var(--text-primary);line-height:1.3;margin-bottom:4px;">' + escHtml(item.name || 'Lab result') + '</div>'
+    + (dateLabel ? '<div style="font-size:14px;color:var(--text-secondary);margin-bottom:18px;">' + escHtml(dateLabel) + '</div>' : '')
+    + '<div data-ask-lp="' + askKey + '" style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px;">'
+    + (valStr ? '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;">'
+        + '<div style="font-size:24px;font-weight:700;color:var(--text-primary);">' + escHtml(valStr) + '</div>'
+        + (statusBadge || '')
+        + '</div>' : '')
+    + (range ? '<div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">Reference range: ' + escHtml(range) + '</div>' : '')
+    + (trackHtml || '')
+    + (infoLine ? '<div style="font-size:12px;color:var(--text-secondary);margin-top:10px;line-height:1.5;">' + escHtml(infoLine) + '</div>' : '')
+    + '</div>'
+    + reportBody
+    + trendHtml
+    + _detailAskCta(askKey)
+    + '</div>';
+
+  _recordsDetailSection = 'labs:' + (item.id || '');
+  view.innerHTML = html;
+  initIcons();
+  try {
+    var card = view.querySelector('[data-ask-lp="' + askKey + '"]');
+    if (card && typeof attachAskLongPress === 'function') {
+      attachAskLongPress(card, window._askCtxRegistry[askKey]);
+    }
+  } catch (_e) {}
+}
+
+// openConditionDetail(refId)
+// Tap a condition card → detail with onset, status, last recorded date, and
+// any linked encounter history (encounters with the same condition / location).
+function openConditionDetail(refId) {
+  var view = document.getElementById('view-records');
+  if (!view) return;
+  var cond = _findEhrItemById('condition', refId);
+  if (!cond) {
+    if (typeof openRecordsDetail === 'function') openRecordsDetail('conditions');
+    return;
+  }
+
+  var onsetLabel = cond.onset_date ? formatEventDate(cond.onset_date) : '';
+  var recordedLabel = cond.recorded_date ? formatEventDate(cond.recorded_date) : '';
+  var statusLabel = cond.status || '';
+  if (statusLabel) statusLabel = statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1).toLowerCase();
+  var verifLabel = cond.verification_status || '';
+  if (verifLabel) verifLabel = verifLabel.charAt(0).toUpperCase() + verifLabel.slice(1).toLowerCase();
+
+  // Find encounters that reference this condition (rough heuristic: same name
+  // appears in encounter.reason). Cheap, surfaces real visit history when present.
+  var ehrData = getEhrData(currentPersonId) || {};
+  var allEnc = ehrData.visits || ehrData.encounters || [];
+  var related = [];
+  if (cond.name) {
+    var needle = cond.name.toLowerCase();
+    related = allEnc.filter(function(v) {
+      var hay = (v.reason || '') + ' ' + (v.name || '');
+      return hay.toLowerCase().indexOf(needle) !== -1;
+    }).slice(0, 5);
+  }
+  var relatedHtml = '';
+  if (related.length > 0) {
+    relatedHtml += '<div style="margin-top:22px;">'
+      + '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px;">Related visits</div>'
+      + '<div style="background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;">';
+    related.forEach(function(v, i) {
+      relatedHtml += '<div onclick="openEncounterDetail(\'' + (v.id || '') + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;' + (i < related.length - 1 ? 'border-bottom:1px solid var(--border);' : '') + '">'
+        +   '<div style="min-width:0;flex:1;">'
+        +     '<div style="font-size:13px;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escHtml(v.name || 'Visit') + '</div>'
+        +     '<div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">' + escHtml(v.start_date ? formatEventDate(v.start_date) : '') + (v.location ? ' \u00B7 ' + escHtml(v.location) : '') + '</div>'
+        +   '</div>'
+        +   '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);flex-shrink:0;"></i>'
+        + '</div>';
+    });
+    relatedHtml += '</div></div>';
+  }
+
+  // Register Ask Wellet context
+  if (!window._askCtxRegistry) window._askCtxRegistry = {};
+  var askKey = 'cond_' + (cond.id || Object.keys(window._askCtxRegistry).length);
+  window._askCtxRegistry[askKey] = {
+    kind: 'condition',
+    name: cond.name || 'Condition',
+    date: cond.onset_date || cond.recorded_date || '',
+    status: statusLabel,
+    meta: { verification: verifLabel }
+  };
+
+  var html = '<div class="records-detail-view">'
+    + _detailBackBar('conditions', 'Conditions')
+    + '<div style="font-size:22px;font-weight:700;color:var(--text-primary);line-height:1.3;margin-bottom:4px;">' + escHtml(cond.name || 'Condition') + '</div>'
+    + (onsetLabel ? '<div style="font-size:14px;color:var(--text-secondary);margin-bottom:18px;">Onset ' + escHtml(onsetLabel) + '</div>' : '<div style="margin-bottom:18px;"></div>')
+    + '<div data-ask-lp="' + askKey + '" style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:6px 16px;">'
+    +   _detailRow('Onset', onsetLabel)
+    +   _detailRow('First recorded', recordedLabel)
+    +   _detailRow('Status', statusLabel)
+    +   _detailRow('Verification', verifLabel)
+    +   _detailRow('Code', cond.code || '')
+    + '</div>'
+    + relatedHtml
+    + _detailAskCta(askKey)
+    + '</div>';
+
+  _recordsDetailSection = 'conditions:' + (cond.id || '');
+  view.innerHTML = html;
+  initIcons();
+  try {
+    var card = view.querySelector('[data-ask-lp="' + askKey + '"]');
+    if (card && typeof attachAskLongPress === 'function') {
+      attachAskLongPress(card, window._askCtxRegistry[askKey]);
+    }
+  } catch (_e) {}
+}
+
 // ── renderRecordsView ─────────────────────────────────────────────────────────
 function renderRecordsView() {
   _recordsDetailSection = null;
