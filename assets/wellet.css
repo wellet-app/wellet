@@ -1733,6 +1733,43 @@
   }
   .offline-banner.visible { display: flex; }
   .offline-banner i { width: 14px; height: 14px; }
+
+  /* ── EXPIRED SESSION BANNER ── */
+  /* Surfaces when the Supabase auth session has fully expired but cached EHR
+     data still renders. Amber treatment (helping, not alarming). Sits above
+     masthead so the user sees it the moment they return to the app. */
+  .expired-banner {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 510;
+    background: #C97B2C; color: white;
+    font-size: 13px; font-weight: 500; font-family: 'DM Sans', sans-serif;
+    padding: 8px 16px; display: none; align-items: center; justify-content: center;
+    gap: 10px; flex-wrap: wrap;
+  }
+  .expired-banner.visible { display: flex; }
+  .expired-banner i { width: 14px; height: 14px; flex-shrink: 0; }
+  .expired-banner-text {
+    flex: 1 1 auto; min-width: 0; max-width: 520px;
+    text-align: left;
+  }
+  .expired-banner-cta {
+    background: white; color: #8B5A1F;
+    border: none; border-radius: 999px;
+    padding: 4px 14px; font-size: 12px; font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer; flex-shrink: 0;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+  .expired-banner-cta:hover { background: #FFF7EE; }
+  .expired-banner-cta:active { transform: scale(0.97); }
+  /* When the expired banner is visible, push the page-wrap content down so
+     the masthead doesn't sit underneath it. ~38px is the banner's typical
+     rendered height; tweak together with banner padding if changed. */
+  body.has-expired-banner .page-wrap { padding-top: 38px; }
+  @media (max-width: 480px) {
+    .expired-banner { font-size: 12px; padding: 6px 12px; gap: 8px; }
+    .expired-banner-text { font-size: 12px; }
+    body.has-expired-banner .page-wrap { padding-top: 56px; }
+  }
   .back-online-toast {
     position: fixed; top: 0; left: 0; right: 0; z-index: 500;
     background: var(--moss); color: white; text-align: center;

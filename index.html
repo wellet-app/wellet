@@ -44,6 +44,13 @@
   <span>You're offline — some features may be limited</span>
 </div>
 
+<!-- EXPIRED SESSION BANNER -->
+<div id="expired-session-banner" class="expired-banner" role="alert" aria-live="polite">
+  <i data-lucide="clock-alert"></i>
+  <span class="expired-banner-text">Session expired — sign back in to refresh your loved one's records</span>
+  <button type="button" class="expired-banner-cta" onclick="openExpiredSessionSignIn()">Sign in</button>
+</div>
+
 <!-- LOADING SCREEN -->
 <div id="loading-screen">
   <div class="loading-logo">
@@ -2855,7 +2862,7 @@
 </div>
 
 </div><!-- end page-wrap -->
-<script src="/assets/wellet.js?v=20260501-1015"></script>
+<script src="/assets/wellet.js?v=20260501-1030"></script>
 <script src="/guided-demo.js"></script>
 <!-- CARE CIRCLE SHARE SHEET -->
 <div class="share-overlay" id="share-overlay" onclick="if(event.target===this)closeShareSheet()">

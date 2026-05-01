@@ -284,7 +284,14 @@ async function initApp() {
         showAuthScreen();
         showInviteAcceptUI();
       } else {
+        // No live session. If we have cached EHR data, the user used to be
+        // signed in — show the auth screen with the expired-session banner
+        // above it so they know WHY they need to sign in again rather than
+        // staring at a generic auth screen.
+        // (v2 of this can render the cached app behind the banner; v1 keeps
+        // it simple by reusing the existing auth screen.)
         showAuthScreen();
+        renderExpiredSessionBanner();
       }
     }
   } catch (e) {
@@ -321,6 +328,9 @@ async function initApp() {
         if (event === 'SIGNED_IN' || (event === 'INITIAL_SESSION' && !_userDataLoaded)) {
           console.log('[auth-boot] onAuthStateChange triggering loadUserData (event=' + event + ', userDataLoaded=' + _userDataLoaded + ')');
           _userDataLoaded = true;
+          // Clear the expired-session banner now that we have a live session;
+          // a fresh fetch-ehr-data will fire from loadPersonData().
+          try { renderExpiredSessionBanner(); } catch (e) {}
           await loadUserData();
           if (_pendingInviteToken && _inviteData) {
             await acceptInvite();
@@ -331,6 +341,9 @@ async function initApp() {
         _userDataLoaded = false;
         if (_inactivityTimer) clearTimeout(_inactivityTimer);
         showAuthScreen();
+        // SIGNED_OUT after a session lived for a while: if cached EHR is
+        // still around, show the expired-session banner over the auth screen.
+        renderExpiredSessionBanner();
       }
     } catch (authErr) {
       console.error('onAuthStateChange error:', authErr);
@@ -815,6 +828,8 @@ async function sendMagicLink() {
   btn.textContent = 'Sending…';
   var sentEmail = document.getElementById('auth-sent-email');
   if (sentEmail) sentEmail.textContent = email;
+  // Remember the email for the expired-session banner to pre-fill next time.
+  try { localStorage.setItem('wellet_last_signin_email', email); } catch (e) {}
   var { error } = await db.auth.signInWithOtp({
     email: email,
     options: { emailRedirectTo: 'https://mywellet.com' }
@@ -1220,6 +1235,70 @@ function updateHeaderSyncMeta() {
       })
       .catch(function() { /* leave empty rather than guess */ });
   } catch (e) { /* leave empty rather than guess */ }
+}
+
+// ── EXPIRED SESSION BANNER ──────────────────────────────────────────────
+// State: Wellet boot found NO live Supabase session, but localStorage still
+// has cached EHR data and a saved person_id. Without this banner the user
+// would stare at "Updated 22 hr ago" with no way to know why nothing's
+// refreshing. The banner surfaces the real reason (session expired) and
+// gives one-tap recovery via the existing magic-link flow.
+//
+// Detection runs at boot end and on SIGNED_OUT.
+// Recovery: SIGNED_IN handler clears the banner; subsequent
+// autoRefreshEhrIfNeeded fires naturally because currentUser is now truthy.
+var _expiredBannerVisible = false;
+
+function shouldShowExpiredBanner() {
+  // Only when there's no live user but we DO have cached data to render.
+  if (currentUser) return false;
+  if (isDemoMode) return false;
+  var savedId = (typeof getSavedPersonId === 'function') ? getSavedPersonId() : null;
+  if (!savedId) return false;
+  try {
+    var cached = loadEhrCache(savedId);
+    return !!(cached && (cached.synced_at || (cached.visits && cached.visits.length) ||
+              (cached.medications && cached.medications.length) ||
+              (cached.conditions && cached.conditions.length)));
+  } catch (e) { return false; }
+}
+
+function renderExpiredSessionBanner() {
+  var banner = document.getElementById('expired-session-banner');
+  if (!banner) return;
+  var show = shouldShowExpiredBanner();
+  if (show && !_expiredBannerVisible) {
+    banner.classList.add('visible');
+    document.body.classList.add('has-expired-banner');
+    _expiredBannerVisible = true;
+    try { initIcons(); } catch (e) {}
+  } else if (!show && _expiredBannerVisible) {
+    banner.classList.remove('visible');
+    document.body.classList.remove('has-expired-banner');
+    _expiredBannerVisible = false;
+  }
+  // Header label gets a matching nudge — replace the stale "Updated …"
+  // with an actionable "Sign in to refresh" while the banner is up.
+  if (show) {
+    var meta = document.getElementById('header-meta-text');
+    if (meta) meta.textContent = 'Sign in to refresh';
+  }
+}
+
+// Click handler for the banner CTA. Routes the user to the existing magic-link
+// flow on the auth screen. We pre-fill the email if we know it.
+function openExpiredSessionSignIn() {
+  // Try to remember the last-used email so the user doesn't have to retype.
+  var lastEmail = null;
+  try { lastEmail = localStorage.getItem('wellet_last_signin_email') || null; } catch (e) {}
+  showAuthScreen();
+  // Pre-fill auth-email if we have a hint.
+  try {
+    if (lastEmail) {
+      var emailInput = document.getElementById('auth-email');
+      if (emailInput) emailInput.value = lastEmail;
+    }
+  } catch (e) {}
 }
 
 // ── TRY EPIC REFRESH ────────────────────────────────────────────────────
