@@ -6169,6 +6169,8 @@ window.addEventListener('load', function() {
 function getEventTypeInfo(type) {
   var map = {
     appointment: { dot:'appt', border:'moss-border', icon:'calendar-check', color:'var(--moss)', label:'Visit' },
+    visit:       { dot:'appt', border:'moss-border', icon:'calendar-check', color:'var(--moss)', label:'Visit' },
+    refill:      { dot:'med',  border:'amber-border', icon:'pill', color:'var(--amber)', label:'Refill' },
     medication:  { dot:'med',  border:'amber-border', icon:'pill', color:'var(--amber)', label:'Medication' },
     lab_result:  { dot:'lab',  border:'blue-border', icon:'flask-conical', color:'var(--blue)', label:'Lab result' },
     condition:   { dot:'note', border:'', icon:'stethoscope', color:'var(--text-muted)', label:'Diagnosis' },
