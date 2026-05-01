@@ -11853,6 +11853,21 @@ async function renderResourcesView() {
   var personConditions = person ? person.conditions : '';
   var slugs = conditionToSlugs(personConditions);
 
+  // Tier 2: build a clean, human-readable list of conditions for the
+  // "why these first" editor's note above the recommended section.
+  // Source-of-truth is the original personConditions string — already
+  // user-facing — not the slugs. Cap at 2 conditions so the note
+  // stays one line.
+  function _formatCondList(condStr) {
+    if (!condStr) return '';
+    var raw = condStr.split(',').map(function(c){ return c.trim(); }).filter(Boolean);
+    if (raw.length === 0) return '';
+    if (raw.length === 1) return raw[0];
+    if (raw.length === 2) return raw[0] + ' and ' + raw[1];
+    return raw[0] + ', ' + raw[1] + ', and more';
+  }
+  var _condPhrase = _formatCondList(personConditions);
+
   // Categorize resources
   var saved = [];
   var recommended = [];
@@ -11885,24 +11900,42 @@ async function renderResourcesView() {
     }
   }
 
+  // Total resource count for the scope-honest eyebrow.
+  var _totalCount = (saved.length + recommended.length + general.length);
+  if (_totalCount === 0) { _totalCount = _resourcesCache.length; }
+  var _eyebrow = _totalCount > 0
+    ? ('Curated \u00b7 ' + _totalCount + ' organization' + (_totalCount === 1 ? '' : 's'))
+    : 'Curated';
+
   var html = '<div class="resources-view">';
+  html += '<header class="view-header">';
+  html += '<p class="view-header__eyebrow">' + escHtml(_eyebrow) + '</p>';
+  html += '<h1 class="view-header__title">Resources</h1>';
+  html += '<p class="view-header__lede">Vetted help for the people doing the caring \u2014 bookmark any to save for later.</p>';
+  html += '</header>';
+  // Legacy title/sub kept in markup for back-compat; CSS hides them.
   html += '<div class="resources-view-title">Resources</div>';
   html += '<div class="resources-view-sub">Vetted organizations that support caregivers like you. Bookmark any to save for later.</div>';
 
   // Saved section
   if (saved.length > 0) {
     html += '<div class="resources-section">';
-    html += '<div class="resources-section-title"><i data-lucide="bookmark" style="width:13px;height:13px;"></i> Saved</div>';
+    html += '<div class="resources-section-title">Saved</div>';
     for (var si = 0; si < saved.length; si++) {
       html += renderResourceCard(saved[si], true);
     }
     html += '</div>';
   }
 
-  // Recommended section
+  // Recommended section. Tier 2: editor's note above explains WHY
+  // these came up first — pulled from the loved one's chart conditions.
   if (recommended.length > 0) {
+    if (_condPhrase) {
+      html += '<p class="resources-why">Because ' + escHtml(personName) + '\u2019s chart lists '
+        + escHtml(_condPhrase) + ', we surfaced these first.</p>';
+    }
     html += '<div class="resources-section">';
-    html += '<div class="resources-section-title"><i data-lucide="sparkles" style="width:13px;height:13px;"></i> Recommended for ' + escHtml(personName) + '</div>';
+    html += '<div class="resources-section-title">Recommended for ' + escHtml(personName) + '</div>';
     for (var ri = 0; ri < recommended.length; ri++) {
       html += renderResourceCard(recommended[ri], false);
     }
@@ -11912,7 +11945,7 @@ async function renderResourcesView() {
   // General section
   if (general.length > 0) {
     html += '<div class="resources-section">';
-    html += '<div class="resources-section-title"><i data-lucide="heart-handshake" style="width:13px;height:13px;"></i> General caregiving</div>';
+    html += '<div class="resources-section-title">General caregiving</div>';
     for (var gi = 0; gi < general.length; gi++) {
       html += renderResourceCard(general[gi], false);
     }

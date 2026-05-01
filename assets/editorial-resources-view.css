@@ -1,0 +1,261 @@
+/* ============================================================
+   Editorial pass · Resources view (PR 11)
+   Scoped to #view-resources[data-editorial="resources"]
+   Replaces utility-card directory styling with editorial
+   list rows: Fraunces masthead, section eyebrows, hairline
+   row dividers, and hairline-underlined verb actions.
+   ============================================================ */
+
+#view-resources[data-editorial="resources"] {
+  display: block;
+}
+
+#view-resources[data-editorial="resources"] .resources-view {
+  display: block;
+  padding: 0 20px 100px;
+}
+
+/* ── View header (Fraunces masthead anchor) ───────────────── */
+#view-resources[data-editorial="resources"] .view-header {
+  display: block;
+  padding: 18px 0 14px;
+  margin: 0 0 4px;
+  border-bottom: 1px solid var(--ink-2, rgba(20,33,28,0.08));
+}
+#view-resources[data-editorial="resources"] .view-header__eyebrow {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: var(--type-micro, 11px);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-5, #6b6b6b);
+  margin: 0 0 6px;
+}
+#view-resources[data-editorial="resources"] .view-header__title {
+  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-weight: 400;
+  font-size: var(--type-display, 32px);
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+  color: var(--ink-9, #14211c);
+  margin: 0 0 6px;
+  font-variation-settings: "opsz" 72, "SOFT" 60;
+}
+#view-resources[data-editorial="resources"] .view-header__lede {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: var(--type-body, 14px);
+  line-height: 1.4;
+  color: var(--ink-5, #6b6b6b);
+  margin: 0;
+  max-width: 36ch;
+}
+
+/* Tier 2: conditions-aware "Why these first" note above the
+   recommended section. Italic Fraunces, slightly smaller than
+   the lede; reads as an editor's note. */
+#view-resources[data-editorial="resources"] .resources-why {
+  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: var(--type-body, 14px);
+  line-height: 1.45;
+  color: var(--ink-7, #3b4a44);
+  margin: 22px 0 6px;
+  max-width: 38ch;
+}
+
+/* ── Sections ─────────────────────────────────────────────── */
+#view-resources[data-editorial="resources"] .resources-section {
+  margin: 0 0 6px;
+}
+#view-resources[data-editorial="resources"] .resources-section-title,
+#view-resources[data-editorial="resources"] .resources-section-eyebrow {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: var(--type-micro, 11px);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-5, #6b6b6b);
+  margin: 22px 0 4px;
+  display: block;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+/* Hide the inline lucide icons from old markup — eyebrows go bare. */
+#view-resources[data-editorial="resources"] .resources-section-title svg,
+#view-resources[data-editorial="resources"] .resources-section-title i[data-lucide] {
+  display: none;
+}
+
+/* ── Resource rows (replace card chrome) ──────────────────── */
+#view-resources[data-editorial="resources"] .resource-card {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--ink-2, rgba(20,33,28,0.08));
+  border-radius: 0;
+  padding: 14px 0 16px;
+  margin: 0;
+}
+
+#view-resources[data-editorial="resources"] .resource-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+#view-resources[data-editorial="resources"] .resource-card-name {
+  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-weight: 400;
+  font-size: var(--type-h2, 17px);
+  line-height: 1.2;
+  color: var(--ink-9, #14211c);
+  flex: 1;
+}
+#view-resources[data-editorial="resources"] .resource-card-bookmark {
+  background: none;
+  border: 0;
+  padding: 2px;
+  color: var(--ink-3, #b7bfba);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+#view-resources[data-editorial="resources"] .resource-card-bookmark.saved {
+  color: var(--moss-deep, #2f4a3a);
+}
+
+#view-resources[data-editorial="resources"] .resource-card-desc {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: var(--type-body, 14px);
+  line-height: 1.45;
+  color: var(--ink-7, #3b4a44);
+  margin: 0 0 10px;
+  max-width: 42ch;
+}
+
+/* Tags become inline metadata, not chips. Dot-prefixed. */
+#view-resources[data-editorial="resources"] .resource-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 10px;
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: var(--type-micro, 11px);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-5, #6b6b6b);
+}
+#view-resources[data-editorial="resources"] .resource-tag {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+#view-resources[data-editorial="resources"] .resource-tag::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--moss-quieter, #8AA89A);
+}
+#view-resources[data-editorial="resources"] .resource-tag.helpline::before {
+  background: #9F7AEA;
+}
+#view-resources[data-editorial="resources"] .resource-tag.free::before {
+  background: #C9A24E;
+}
+
+/* Verbs: hairline-underlined moss links, not pill buttons. */
+#view-resources[data-editorial="resources"] .resource-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  align-items: center;
+}
+#view-resources[data-editorial="resources"] .resource-btn {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--moss-quieter, #8AA89A);
+  border-radius: 0;
+  padding: 0 0 1px;
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: var(--type-meta, 12px);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--moss-deep, #2f4a3a);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  transition: border-color 0.15s, color 0.15s;
+}
+#view-resources[data-editorial="resources"] .resource-btn:hover {
+  color: var(--ink-9, #14211c);
+  border-bottom-color: var(--moss-deep, #2f4a3a);
+}
+#view-resources[data-editorial="resources"] .resource-btn-call {
+  color: var(--ink-7, #3b4a44);
+  border-bottom-color: var(--ink-3, #b7bfba);
+}
+#view-resources[data-editorial="resources"] .resource-btn svg,
+#view-resources[data-editorial="resources"] .resource-btn i[data-lucide] {
+  width: 12px !important;
+  height: 12px !important;
+}
+
+/* Empty state stays editorial. */
+#view-resources[data-editorial="resources"] .resources-empty {
+  text-align: left;
+  padding: 28px 0 20px;
+}
+#view-resources[data-editorial="resources"] .resources-empty-icon {
+  display: none;
+}
+#view-resources[data-editorial="resources"] .resources-empty-title {
+  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-weight: 400;
+  font-size: var(--type-h1, 24px);
+  line-height: 1.2;
+  margin: 0 0 6px;
+}
+#view-resources[data-editorial="resources"] .resources-empty-body {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: var(--type-body, 14px);
+  line-height: 1.45;
+  color: var(--ink-5, #6b6b6b);
+  max-width: 36ch;
+  margin: 0;
+}
+
+/* Hide redundant legacy title block — masthead replaces it. */
+#view-resources[data-editorial="resources"] .resources-view-title,
+#view-resources[data-editorial="resources"] .resources-view-sub {
+  display: none;
+}
+
+/* Tablet/desktop bumps. */
+@media (min-width: 768px) {
+  #view-resources[data-editorial="resources"] .view-header {
+    padding: 22px 0 16px;
+  }
+  #view-resources[data-editorial="resources"] .view-header__title {
+    font-size: var(--type-display, 40px);
+  }
+  #view-resources[data-editorial="resources"] .resource-card-name {
+    font-size: var(--type-h1, 28px);
+    font-size: clamp(20px, 2.4vw, 24px);
+  }
+}
