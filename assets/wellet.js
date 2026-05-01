@@ -4071,7 +4071,30 @@ function renderRecordsView() {
   var hasNeedsAttn = ehrConditions.some(function(c){ return needsAttnRe.test(c.name||''); });
 
   // ── header ────────────────────────────────────────────────────────────────
-  var html = '<div class="view-header"><div class="view-title">Records</div>'
+  // Lived-time eyebrow — quiet caption above the title that tells the reader
+  // when the chart was last refreshed and how much real data is sitting in it.
+  // Stays quiet when there's no EHR (we'd rather say nothing than lie); the
+  // connect prompt under the tile grid is the affordance in that case. In
+  // demo mode getEhrData() returns DEMO_EHR_DATA which already has provider
+  // and synced_at, so the eyebrow renders honestly there too.
+  var recordsEyebrow = '';
+  if (ehrData) {
+    var eyebrowParts = [];
+    var providerLabel = ehrProvider && ehrProvider !== 'EHR' ? ehrProvider : 'health records';
+    var ago = ehrData.synced_at ? formatTimeAgo(ehrData.synced_at) : '';
+    eyebrowParts.push('Synced from ' + escHtml(providerLabel));
+    if (ago) eyebrowParts.push(escHtml(ago));
+    if (ehrConditions.length > 0) {
+      eyebrowParts.push(ehrConditions.length + (ehrConditions.length===1 ? ' condition' : ' conditions'));
+    }
+    if (ehrMeds.length > 0) {
+      eyebrowParts.push(ehrMeds.length + (ehrMeds.length===1 ? ' medication' : ' medications'));
+    }
+    recordsEyebrow = '<div class="records-eyebrow">' + eyebrowParts.join(' \u00B7 ') + '</div>';
+  }
+  var html = '<div class="view-header">'
+    + recordsEyebrow
+    + '<div class="view-title">Records</div>'
     + '<div style="display:flex;gap:8px;margin-top:10px;">';
   currentPeople.forEach(function(p) {
     var active = p.id===currentPersonId ? ' active' : '';
@@ -11531,7 +11554,36 @@ function switchRecordsPerson(el, person) {
   el.classList.add('active');
   document.getElementById('records-dad').style.display = person === 'dad' ? 'block' : 'none';
   document.getElementById('records-mom').style.display = person === 'mom' ? 'block' : 'none';
+  try { updateRecordsEyebrow(person); } catch(e) {}
   initIcons();
+}
+
+// ── RECORDS LIVED-TIME EYEBROW (demo path) ─────────────────────────────
+// In demo mode the Records header markup lives statically in index.html.
+// This helper fills the empty `#records-eyebrow` div with an honest line:
+//   "Synced from Duke Health (Epic) \u00B7 just now \u00B7 N conditions \u00B7 N medications"
+// Mom in demo has no chart wired (returns null from getEhrData), so we
+// stay quiet for her — honest about what the demo is showing.
+//
+// The authenticated path already builds the eyebrow inline in
+// renderRecordsView(); this function is the demo-only counterpart.
+function updateRecordsEyebrow(person) {
+  var el = document.getElementById('records-eyebrow');
+  if (!el) return;
+  // Real-mode renderRecordsView already wrote its own eyebrow into the
+  // header during render, so we only touch the static demo container.
+  if (!isDemoMode) return;
+  var personId = person || 'dad';
+  var ehr = (typeof getEhrData === 'function') ? getEhrData(personId) : null;
+  if (!ehr) { el.textContent = ''; return; }
+  // Demo: keep the line short and honest. The static demo HTML has
+  // hand-curated rows that don't match DEMO_EHR_DATA counts, so we omit
+  // counts here — only the real-data path adds them.
+  var providerLabel = ehr.provider || 'health records';
+  var ago = ehr.synced_at ? formatTimeAgo(ehr.synced_at) : '';
+  var parts = ['Demo \u00B7 ' + providerLabel];
+  if (ago) parts.push(ago);
+  el.textContent = parts.join(' \u00B7 ');
 }
 
 function openContactEdit(name, role, email, phone, notif) {
@@ -16686,6 +16738,8 @@ enterDemoMode = function() {
   _origEnterDemoMode();
   initDemoNotifications();
   refreshDemoRecordBadges();
+  // Lived-time eyebrow on the static demo Records header.
+  try { updateRecordsEyebrow('dad'); } catch (e) {}
   startReminderCheck();
 };
 

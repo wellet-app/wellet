@@ -34,6 +34,7 @@
 
 /* ---- View header ---- */
 #view-records[data-editorial="records"] .view-header {
+  display: block;
   border: 0;
   padding: 26px 0 18px;
   margin: 0;
@@ -48,6 +49,20 @@
   letter-spacing: -0.005em;
   font-variation-settings: "opsz" 36, "SOFT" 60;
   margin: 0;
+}
+
+/* Lived-time eyebrow — quiet caption above the masthead. Mirrors the
+   pattern in editorial-resources-view.css and editorial-signals-view.css
+   so the three list surfaces share a single visual register. */
+#view-records[data-editorial="records"] .records-eyebrow {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: var(--type-micro, 11px);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-5, #6b6b6b);
+  margin: 0 0 6px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Person pills — from PR 8 we'll move these to switcher; for now
