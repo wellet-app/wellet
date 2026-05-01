@@ -1708,7 +1708,16 @@ function renderTimeline() {
       var nm = String(enc.name || '').toLowerCase();
       var cls = String(enc.class || '').toLowerCase();
       var typ = String(enc.type || enc.encounter_type || '').toLowerCase();
-      // Non-visit encounter types commonly seen in Epic
+      var loc = String(enc.location || '').trim();
+      var rsn = String(enc.reason || '').trim();
+      // Heuristic: if Epic gives us a real clinical location or reason, treat
+      // this as a visit no matter what the type-coding says. Patient messages
+      // and refills don't carry a location/reason in practice.
+      if (loc || rsn) {
+        return { event_type: 'appointment', section: 'visits' };
+      }
+      // No location/reason — fall back to type-coding heuristics.
+      // Non-visit encounter types commonly seen in Epic.
       if (/\b(refill|message|patient message|telephone|phone call|letter|e\-?visit|portal|result note)\b/.test(nm + ' ' + typ)) {
         return { event_type: 'note', section: 'visits' };
       }
