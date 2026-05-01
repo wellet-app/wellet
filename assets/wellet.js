@@ -1708,16 +1708,9 @@ function renderTimeline() {
       var nm = String(enc.name || '').toLowerCase();
       var cls = String(enc.class || '').toLowerCase();
       var typ = String(enc.type || enc.encounter_type || '').toLowerCase();
-      var loc = String(enc.location || '').trim();
-      var rsn = String(enc.reason || '').trim();
-      // Heuristic: if Epic gives us a real clinical location or reason, treat
-      // this as a visit no matter what the type-coding says. Patient messages
-      // and refills don't carry a location/reason in practice.
-      if (loc || rsn) {
-        return { event_type: 'appointment', section: 'visits' };
-      }
-      // No location/reason — fall back to type-coding heuristics.
-      // Non-visit encounter types commonly seen in Epic.
+      // Non-visit encounter types commonly seen in Epic. We check name + type-
+      // coding only — Epic attaches a location to patient messages too, so
+      // location is NOT a reliable positive signal for "real visit".
       if (/\b(refill|message|patient message|telephone|phone call|letter|e\-?visit|portal|result note)\b/.test(nm + ' ' + typ)) {
         return { event_type: 'note', section: 'visits' };
       }
@@ -1734,8 +1727,12 @@ function renderTimeline() {
       if (loc && rsn) return rsn + ' \u2014 ' + loc;
       return loc || rsn || '';
     }
+    // Track encounter ids we've already added so the conditions-as-encounters
+    // pass below doesn't double-list the same row.
+    var seenEncounterIds = Object.create(null);
     (ehrData.visits || ehrData.encounters || []).forEach(function(enc) {
       var c = classifyEncounter(enc);
+      if (enc.id) seenEncounterIds[enc.id] = true;
       ehrTimelineItems.push({ event_type:c.event_type, title:enc.name, event_date:enc.start_date, notes:encounterBody(enc), source:'ehr', _ehrProvider:ehrData.provider, _section:c.section, _refId: enc.id || null });
     });
     // Some EHR sources (notably Epic) emit ambulatory encounters as Conditions
@@ -1743,6 +1740,9 @@ function renderTimeline() {
     // shape and route to visits instead of stamping a misleading 'NOTE' tag.
     var encounterLikeRe = /^(office|outpatient|inpatient|emergency|telemedicine|hospital|surgery|procedure|consult|urgent|visit)\b/i;
     (ehrData.conditions || []).forEach(function(c) {
+      // If this id already came through the encounters/visits array, skip —
+      // Epic sometimes returns the same row in both buckets.
+      if (c.id && seenEncounterIds[c.id]) return;
       var looksLikeEncounter = encounterLikeRe.test(c.name || '') || !!(c.location || c.reason);
       if (looksLikeEncounter) {
         ehrTimelineItems.push({ event_type:'appointment', title:c.name, event_date:c.onset_date || c.recorded_date, notes:encounterBody(c), source:'ehr', _ehrProvider:ehrData.provider, _section:'visits', _refId: c.id || null });
@@ -1774,7 +1774,19 @@ function renderTimeline() {
     });
   }
 
-  var allEvents = liveEvents.concat(ehrTimelineItems.filter(function(e){ return e.event_date; }));
+  // Backstop dedupe: even after ID-based skipping, Epic occasionally returns
+  // the same clinical event twice (different ids, same title + date). Collapse
+  // by source+section+title+date so the Timeline shows one card per event.
+  var ehrFiltered = ehrTimelineItems.filter(function(e){ return e.event_date; });
+  var seenSig = Object.create(null);
+  var ehrDeduped = [];
+  ehrFiltered.forEach(function(e){
+    var sig = [e.source||'', e._section||'', e.event_type||'', String(e.title||'').trim().toLowerCase(), String(e.event_date||'').slice(0,10)].join('|');
+    if (seenSig[sig]) return;
+    seenSig[sig] = true;
+    ehrDeduped.push(e);
+  });
+  var allEvents = liveEvents.concat(ehrDeduped);
   allEvents.sort(function(a,b) { return new Date(b.event_date) - new Date(a.event_date); });
 
   if (allEvents.length === 0) {
