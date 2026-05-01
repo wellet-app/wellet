@@ -59,7 +59,7 @@
 }
 #auth-screen[data-editorial="auth"] .auth-early-badge {
   font-family: var(--sans);
-  font-size: 10px;
+  font-size: var(--type-micro);
   font-weight: 500;
   letter-spacing: 0.14em;
   color: var(--moss-deep);
@@ -81,7 +81,7 @@
 #auth-screen[data-editorial="auth"] .auth-headline h1 {
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 32px;
+  font-size: var(--type-display);
   line-height: 1.14;
   letter-spacing: -0.008em;
   color: var(--ink-9);
@@ -97,13 +97,13 @@
 }
 @media (min-width: 768px) {
   #auth-screen[data-editorial="auth"] .auth-headline h1 {
-    font-size: 40px;
+    font-size: var(--type-display);
     line-height: 1.12;
   }
 }
 @media (min-width: 1024px) {
   #auth-screen[data-editorial="auth"] .auth-headline h1 {
-    font-size: 44px;
+    font-size: var(--type-display);
   }
 }
 
@@ -113,7 +113,7 @@
 #auth-screen[data-editorial="auth"] .auth-description {
   padding: 12px var(--gutter) 0;
   font-family: var(--sans);
-  font-size: 15px;
+  font-size: var(--type-body);
   line-height: 1.55;
   color: var(--ink-5);
   font-weight: 300;
@@ -121,7 +121,7 @@
 }
 @media (min-width: 768px) {
   #auth-screen[data-editorial="auth"] .auth-description {
-    font-size: 16px;
+    font-size: var(--type-body);
     line-height: 1.6;
   }
 }
@@ -151,7 +151,7 @@
 }
 #auth-screen[data-editorial="auth"] .auth-signal-label {
   font-family: var(--sans);
-  font-size: 11px;
+  font-size: var(--type-micro);
   letter-spacing: 0.10em;
   font-weight: 500;
   color: var(--ink-4);
@@ -170,7 +170,7 @@
 #auth-screen[data-editorial="auth"] .auth-signal-text {
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 18px;
+  font-size: var(--type-h2);
   line-height: 1.35;
   color: var(--ink-9);
   letter-spacing: -0.003em;
@@ -181,7 +181,7 @@
   color: var(--ink-9);
 }
 @media (min-width: 768px) {
-  #auth-screen[data-editorial="auth"] .auth-signal-text { font-size: 20px; }
+  #auth-screen[data-editorial="auth"] .auth-signal-text { font-size: var(--type-h2); }
 }
 
 /* --------------------------------------------------------------------------
@@ -210,7 +210,7 @@
   padding: 15px 18px;
   border-radius: 12px;
   font-family: var(--sans);
-  font-size: 15px;
+  font-size: var(--type-body);
   font-weight: 500;
   letter-spacing: 0.01em;
   cursor: pointer;
@@ -237,7 +237,7 @@
   background: transparent;
   border: 0;
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--type-meta);
   font-weight: 400;
   color: var(--moss-deep);
   cursor: pointer;
@@ -258,7 +258,7 @@
 /* The "Sign in to your account" reveal toggle — same treatment. */
 #auth-screen[data-editorial="auth"] #auth-signin-toggle {
   font-family: var(--sans) !important;
-  font-size: 13px !important;
+  font-size: var(--type-meta) !important;
   font-weight: 400 !important;
   color: var(--ink-5) !important;
   text-decoration: underline !important;
@@ -281,7 +281,7 @@
    -------------------------------------------------------------------------- */
 #auth-screen[data-editorial="auth"] .auth-input-label {
   font-family: var(--sans);
-  font-size: 11px;
+  font-size: var(--type-micro);
   font-weight: 400;
   letter-spacing: 0.10em;
   text-transform: uppercase;
@@ -298,7 +298,7 @@
   padding: 10px 0 12px;
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 22px;
+  font-size: var(--type-h1);
   color: var(--ink-9);
   letter-spacing: -0.003em;
   outline: none;
@@ -364,7 +364,7 @@
   padding: 10px 0 12px;
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 20px;
+  font-size: var(--type-h2);
   color: var(--ink-9);
   outline: none;
 }
@@ -393,13 +393,13 @@
 #auth-screen[data-editorial="auth"] .auth-privacy {
   padding: 18px var(--gutter) 32px;
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--type-meta);
   color: var(--ink-5);
   text-align: center;
 }
 #auth-screen[data-editorial="auth"] .auth-privacy p {
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--type-meta);
   color: var(--ink-5);
   line-height: 1.6;
   margin: 0;
@@ -409,7 +409,7 @@
   background: transparent;
   border: 0;
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--type-meta);
   color: var(--moss-deep);
   cursor: pointer;
   padding: 4px 6px;
@@ -425,7 +425,7 @@
 }
 #auth-screen[data-editorial="auth"] .auth-privacy-detail {
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--type-meta);
   color: var(--ink-5);
   line-height: 1.6;
   margin-top: 12px;
@@ -447,7 +447,7 @@
   align-items: center;
   gap: 7px;
   font-family: var(--sans);
-  font-size: 11px;
+  font-size: var(--type-micro);
   letter-spacing: 0.10em;
   text-transform: uppercase;
   color: var(--ink-4);

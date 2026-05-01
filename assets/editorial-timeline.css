@@ -16,7 +16,7 @@
 /* ----- Month label — Fraunces small caps, no hairline ----- */
 #tab-timeline .tl-month {
   font-family: var(--serif);
-  font-size: 12px;
+  font-size: var(--type-meta);
   font-weight: 500;
   font-variation-settings: "opsz" 14, "SOFT" 60;
   font-style: normal;
@@ -171,7 +171,7 @@
 }
 #tab-timeline .tl-card-type {
   font-family: var(--serif);
-  font-size: 11px;
+  font-size: var(--type-micro);
   font-weight: 500;
   font-variation-settings: "opsz" 14, "SOFT" 60;
   font-style: normal;
@@ -219,7 +219,7 @@
 /* ----- Title — Fraunces, the editorial voice ----- */
 #tab-timeline .tl-card-title {
   font-family: var(--serif);
-  font-size: 18px;
+  font-size: var(--type-h2);
   font-weight: 500;
   font-variation-settings: "opsz" 24, "SOFT" 60;
   font-style: normal;
@@ -232,7 +232,7 @@
 /* ----- Body — DM Sans 300, the calm read ----- */
 #tab-timeline .tl-card-body {
   font-family: 'DM Sans', system-ui, sans-serif;
-  font-size: 14px;
+  font-size: var(--type-body);
   font-weight: 300;
   line-height: 1.55;
   color: var(--ink-7, #443F38);
@@ -242,7 +242,7 @@
 /* ----- Date — Fraunces small caps, the byline register ----- */
 #tab-timeline .tl-card-date {
   font-family: var(--serif);
-  font-size: 11px;
+  font-size: var(--type-micro);
   font-weight: 500;
   font-variation-settings: "opsz" 14, "SOFT" 60;
   font-style: normal;
@@ -256,7 +256,7 @@
 #tab-timeline .tl-card .ehr-pill,
 #tab-timeline .tl-card-type-row .ehr-pill {
   font-family: 'DM Sans', system-ui, sans-serif;
-  font-size: 10px;
+  font-size: var(--type-micro);
   font-weight: 400;
   letter-spacing: 0.04em;
   color: var(--ink-5, #6E6962);
@@ -305,14 +305,14 @@
     padding: 22px 0 !important;
   }
   #tab-timeline .tl-card-title {
-    font-size: 20px;
+    font-size: var(--type-h2);
     font-variation-settings: "opsz" 28, "SOFT" 60;
   }
   #tab-timeline .tl-card-body {
-    font-size: 15px;
+    font-size: var(--type-body);
   }
   #tab-timeline .tl-month {
-    font-size: 13px;
+    font-size: var(--type-meta);
     margin: 36px 0 18px;
   }
 }

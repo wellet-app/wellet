@@ -16,7 +16,7 @@
 /* Section heading "What Wellet has noticed" */
 #tab-patterns .section-label {
   font-family: var(--serif);
-  font-size: 12px;
+  font-size: var(--type-meta);
   font-weight: 500;
   font-variation-settings: "opsz" 14, "SOFT" 60;
   font-style: normal;
@@ -60,7 +60,7 @@
 }
 #tab-patterns .insight-label {
   font-family: var(--serif) !important;
-  font-size: 18px !important;
+  font-size: var(--type-h2) !important;
   font-weight: 500 !important;
   font-variation-settings: "opsz" 24, "SOFT" 60 !important;
   font-style: normal !important;
@@ -71,7 +71,7 @@
 /* Body — DM Sans 300, calm read */
 #tab-patterns .insight-sub {
   font-family: 'DM Sans', system-ui, sans-serif !important;
-  font-size: 14px !important;
+  font-size: var(--type-body) !important;
   font-weight: 300 !important;
   line-height: 1.55 !important;
   color: var(--ink-7, #443F38) !important;
@@ -88,7 +88,7 @@
 }
 #tab-patterns .bar-label {
   font-family: 'DM Sans', system-ui, sans-serif !important;
-  font-size: 13px !important;
+  font-size: var(--type-meta) !important;
   font-weight: 300 !important;
   color: var(--ink-6, #57534C) !important;
   margin-bottom: 0 !important;
@@ -104,7 +104,7 @@
   font-weight: 500 !important;
   font-variation-settings: "opsz" 24, "SOFT" 60 !important;
   font-style: normal !important;
-  font-size: 15px !important;
+  font-size: var(--type-body) !important;
   letter-spacing: 0.01em;
   color: var(--ink-9, #1F1B16) !important;
 }
@@ -136,7 +136,7 @@
 }
 #tab-patterns .insight-card[style*="mint"] > div:first-child span {
   font-family: var(--serif) !important;
-  font-size: 11px !important;
+  font-size: var(--type-micro) !important;
   font-weight: 500 !important;
   font-variation-settings: "opsz" 14, "SOFT" 60 !important;
   font-style: normal !important;
@@ -152,7 +152,7 @@
 }
 #tab-patterns .insight-card[style*="mint"] p {
   font-family: 'DM Sans', system-ui, sans-serif !important;
-  font-size: 14px !important;
+  font-size: var(--type-body) !important;
   font-weight: 300 !important;
   line-height: 1.6 !important;
   color: var(--ink-8, #2A2620) !important;
@@ -167,11 +167,11 @@
     line-height: 0.9 !important;
   }
   #tab-patterns .insight-label {
-    font-size: 20px !important;
+    font-size: var(--type-h2) !important;
     font-variation-settings: "opsz" 28, "SOFT" 60 !important;
   }
   #tab-patterns .insight-sub {
-    font-size: 15px !important;
+    font-size: var(--type-body) !important;
   }
   #tab-patterns .insight-card {
     padding: 28px 0 !important;

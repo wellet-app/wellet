@@ -27,7 +27,7 @@
 }
 #view-signals .signals-section-title {
   font-family: var(--serif) !important;
-  font-size: 12px !important;
+  font-size: var(--type-meta) !important;
   font-weight: 500 !important;
   font-variation-settings: "opsz" 14, "SOFT" 60 !important;
   font-style: normal !important;
@@ -41,7 +41,7 @@
    Keep the secondary spans on a quieter register. */
 #view-signals .signals-section-title .wearable-sync {
   font-family: 'DM Sans', system-ui, sans-serif !important;
-  font-size: 11px !important;
+  font-size: var(--type-micro) !important;
   font-weight: 300 !important;
   letter-spacing: 0.04em !important;
   text-transform: none !important;
@@ -50,7 +50,7 @@
 }
 #view-signals .signals-section-sub {
   font-family: 'DM Sans', system-ui, sans-serif !important;
-  font-size: 13px !important;
+  font-size: var(--type-meta) !important;
   font-weight: 300 !important;
   color: var(--ink-6, #57534C) !important;
   margin: 0 0 18px !important;
@@ -93,7 +93,7 @@
 }
 #view-signals .med-name {
   font-family: var(--serif) !important;
-  font-size: 18px !important;
+  font-size: var(--type-h2) !important;
   font-weight: 500 !important;
   font-variation-settings: "opsz" 24, "SOFT" 60 !important;
   font-style: normal !important;
@@ -103,7 +103,7 @@
 }
 #view-signals .med-dose {
   font-family: 'DM Sans', system-ui, sans-serif !important;
-  font-size: 13px !important;
+  font-size: var(--type-meta) !important;
   font-weight: 300 !important;
   color: var(--ink-6, #57534C) !important;
   margin: 0 0 8px !important;
@@ -124,7 +124,7 @@
   padding: 0 !important;
   border-radius: 0 !important;
   font-family: var(--serif) !important;
-  font-size: 11px !important;
+  font-size: var(--type-micro) !important;
   font-weight: 500 !important;
   font-variation-settings: "opsz" 14, "SOFT" 60 !important;
   font-style: normal !important;
@@ -155,7 +155,7 @@
 }
 #view-signals .adherence-signal-text {
   font-family: 'DM Sans', system-ui, sans-serif !important;
-  font-size: 13px !important;
+  font-size: var(--type-meta) !important;
   font-weight: 300 !important;
   line-height: 1.55 !important;
   color: var(--ink-8, #2A2620) !important;
@@ -164,7 +164,7 @@
 /* Weekly adherence chart — keep bars but quiet the palette */
 #view-signals .signals-label {
   font-family: var(--serif) !important;
-  font-size: 11px !important;
+  font-size: var(--type-micro) !important;
   font-weight: 500 !important;
   font-variation-settings: "opsz" 14, "SOFT" 60 !important;
   font-style: normal !important;
@@ -179,7 +179,7 @@
 #view-signals .adherence-bar--zero { background: var(--ink-2, #D9D3C5) !important; }
 #view-signals .adherence-day {
   font-family: 'DM Sans', system-ui, sans-serif !important;
-  font-size: 11px !important;
+  font-size: var(--type-micro) !important;
   font-weight: 300 !important;
   color: var(--ink-5, #6E6962) !important;
   letter-spacing: 0.04em !important;
@@ -212,11 +212,11 @@
 }
 #view-signals .wearable-card .signals-label {
   margin-bottom: 8px !important;
-  font-size: 10px !important;
+  font-size: var(--type-micro) !important;
 }
 #view-signals .wearable-card .signals-metric {
   font-family: var(--serif) !important;
-  font-size: 36px !important;
+  font-size: var(--type-display) !important;
   font-weight: 300 !important;
   font-variation-settings: "opsz" 144, "SOFT" 60 !important;
   font-style: normal !important;
@@ -228,13 +228,13 @@
 #view-signals .wearable-card .signals-metric span {
   font-family: 'DM Sans', system-ui, sans-serif !important;
   font-weight: 300 !important;
-  font-size: 13px !important;
+  font-size: var(--type-meta) !important;
   color: var(--ink-5, #6E6962) !important;
   margin-left: 4px !important;
 }
 #view-signals .signals-metric-sm {
   font-family: 'DM Sans', system-ui, sans-serif !important;
-  font-size: 12px !important;
+  font-size: var(--type-meta) !important;
   font-weight: 300 !important;
   color: var(--ink-5, #6E6962) !important;
   margin-top: 6px !important;
@@ -263,7 +263,7 @@
 }
 #view-signals .progress-ring-label {
   font-family: 'DM Sans', system-ui, sans-serif !important;
-  font-size: 11px !important;
+  font-size: var(--type-micro) !important;
   font-weight: 300 !important;
   color: var(--ink-5, #6E6962) !important;
 }
@@ -284,7 +284,7 @@
 #view-signals .sleep-legend {
   margin-top: 6px !important;
   font-family: 'DM Sans', system-ui, sans-serif !important;
-  font-size: 11px !important;
+  font-size: var(--type-micro) !important;
   font-weight: 300 !important;
   color: var(--ink-5, #6E6962) !important;
   display: flex !important;
@@ -323,7 +323,7 @@
 }
 #view-signals .trend-alert-title {
   font-family: var(--serif) !important;
-  font-size: 11px !important;
+  font-size: var(--type-micro) !important;
   font-weight: 500 !important;
   font-variation-settings: "opsz" 14, "SOFT" 60 !important;
   font-style: normal !important;
@@ -340,7 +340,7 @@
 }
 #view-signals .trend-alert-body {
   font-family: 'DM Sans', system-ui, sans-serif !important;
-  font-size: 14px !important;
+  font-size: var(--type-body) !important;
   font-weight: 300 !important;
   line-height: 1.6 !important;
   color: var(--ink-8, #2A2620) !important;
@@ -372,7 +372,7 @@
 }
 #view-signals .sensor-name {
   font-family: var(--serif) !important;
-  font-size: 16px !important;
+  font-size: var(--type-body) !important;
   font-weight: 500 !important;
   font-variation-settings: "opsz" 24, "SOFT" 60 !important;
   font-style: normal !important;
@@ -382,7 +382,7 @@
 }
 #view-signals .sensor-detail {
   font-family: 'DM Sans', system-ui, sans-serif !important;
-  font-size: 12px !important;
+  font-size: var(--type-meta) !important;
   font-weight: 300 !important;
   color: var(--ink-6, #57534C) !important;
 }
@@ -422,7 +422,7 @@
 }
 #view-signals .tl-event .tl-time {
   font-family: var(--serif) !important;
-  font-size: 11px !important;
+  font-size: var(--type-micro) !important;
   font-weight: 500 !important;
   font-variation-settings: "opsz" 14, "SOFT" 60 !important;
   font-style: normal !important;
@@ -432,7 +432,7 @@
 }
 #view-signals .tl-event .tl-desc {
   font-family: 'DM Sans', system-ui, sans-serif !important;
-  font-size: 14px !important;
+  font-size: var(--type-body) !important;
   font-weight: 300 !important;
   line-height: 1.45 !important;
   color: var(--ink-8, #2A2620) !important;
@@ -469,7 +469,7 @@
 }
 #view-signals .pattern-title {
   font-family: var(--serif) !important;
-  font-size: 18px !important;
+  font-size: var(--type-h2) !important;
   font-weight: 500 !important;
   font-variation-settings: "opsz" 24, "SOFT" 60 !important;
   font-style: normal !important;
@@ -489,7 +489,7 @@
 }
 #view-signals .pattern-body {
   font-family: 'DM Sans', system-ui, sans-serif !important;
-  font-size: 14px !important;
+  font-size: var(--type-body) !important;
   font-weight: 300 !important;
   line-height: 1.6 !important;
   color: var(--ink-7, #443F38) !important;
@@ -507,7 +507,7 @@
   border-radius: 0 !important;
   padding: 0 !important;
   font-family: var(--serif) !important;
-  font-size: 10px !important;
+  font-size: var(--type-micro) !important;
   font-weight: 500 !important;
   font-variation-settings: "opsz" 14, "SOFT" 60 !important;
   font-style: normal !important;
@@ -534,14 +534,14 @@
     margin-bottom: 48px;
   }
   #view-signals .wearable-card .signals-metric {
-    font-size: 44px !important;
+    font-size: var(--type-display) !important;
   }
   #view-signals .med-name,
   #view-signals .pattern-title {
-    font-size: 20px !important;
+    font-size: var(--type-h2) !important;
   }
   #view-signals .pattern-body,
   #view-signals .trend-alert-body {
-    font-size: 15px !important;
+    font-size: var(--type-body) !important;
   }
 }

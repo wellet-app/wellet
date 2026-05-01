@@ -46,7 +46,7 @@
   border-radius: 0 !important;
   cursor: pointer;
   font-family: var(--serif) !important;
-  font-size: 22px !important;
+  font-size: var(--type-h1) !important;
   font-weight: 400 !important;
   font-variation-settings: "opsz" 24, "SOFT" 60 !important;
   letter-spacing: -0.005em !important;
@@ -128,7 +128,7 @@
   border-radius: 0 !important;
   cursor: pointer;
   font-family: var(--serif) !important;
-  font-size: 20px !important;
+  font-size: var(--type-h2) !important;
   font-weight: 400 !important;
   font-variation-settings: "opsz" 24, "SOFT" 60 !important;
   letter-spacing: -0.005em !important;
@@ -165,11 +165,11 @@
 @media (min-width: 768px) {
   .person-switcher .person-pill,
   .person-switcher .person-pill.active {
-    font-size: 26px !important;
+    font-size: var(--type-h1) !important;
   }
   .ask-person-bar .ask-person-pill,
   .ask-person-bar .ask-person-pill.active {
-    font-size: 24px !important;
+    font-size: var(--type-h1) !important;
   }
 }
 
@@ -179,7 +179,7 @@
 .gesture-hint {
   font-family: var(--serif);
   font-style: normal;                          /* user banned italics */
-  font-size: 11px;
+  font-size: var(--type-micro);
   font-weight: 400;
   font-variation-settings: "opsz" 14, "SOFT" 60;
   letter-spacing: 0.04em;

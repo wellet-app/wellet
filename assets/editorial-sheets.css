@@ -104,7 +104,7 @@
 [data-editorial="sheet"] .upload-sheet-title {
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 26px;
+  font-size: var(--type-h1);
   line-height: 1.15;
   letter-spacing: -0.01em;
   color: var(--ink-9);
@@ -116,7 +116,7 @@
   [data-editorial="sheet"] .profile-name,
   [data-editorial="sheet"] .settings-title,
   [data-editorial="sheet"] .upload-sheet-title {
-    font-size: 30px;
+    font-size: var(--type-display);
     padding: 26px 28px 4px;
   }
 }
@@ -126,7 +126,7 @@
 [data-editorial="sheet"] .upload-sheet-sub {
   font-family: var(--sans);
   font-weight: 300;
-  font-size: 14px;
+  font-size: var(--type-body);
   line-height: 1.5;
   color: var(--ink-5);
   padding: 0 22px 20px;
@@ -138,7 +138,7 @@
   [data-editorial="sheet"] .settings-sub,
   [data-editorial="sheet"] .upload-sheet-sub {
     padding: 0 28px 22px;
-    font-size: 15px;
+    font-size: var(--type-body);
   }
 }
 
@@ -149,7 +149,7 @@
 [data-editorial="sheet"] .settings-section-label {
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 11px;
+  font-size: var(--type-micro);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-5);
@@ -195,7 +195,7 @@
 [data-editorial="sheet"] .summary-card .label {
   font-family: var(--serif) !important;
   font-weight: 400 !important;
-  font-size: 11px !important;
+  font-size: var(--type-micro) !important;
   letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
   color: var(--ink-5) !important;
@@ -210,7 +210,7 @@
 [data-editorial="sheet"] .qa-summary-card .body {
   font-family: var(--sans) !important;
   font-weight: 300 !important;
-  font-size: 15px !important;
+  font-size: var(--type-body) !important;
   line-height: 1.55 !important;
   color: var(--ink-9) !important;
   margin: 0 !important;
@@ -243,7 +243,7 @@
 [data-editorial="sheet"] .sheet-toggle-row .label {
   font-family: var(--sans);
   font-weight: 400;
-  font-size: 15px;
+  font-size: var(--type-body);
   color: var(--ink-9);
 }
 
@@ -326,7 +326,7 @@
 [data-editorial="sheet"] .share-method .title {
   font-family: var(--sans);
   font-weight: 400;
-  font-size: 15px;
+  font-size: var(--type-body);
   color: var(--ink-9);
   margin-bottom: 2px;
 }
@@ -336,7 +336,7 @@
 [data-editorial="sheet"] .share-method .sub {
   font-family: var(--sans);
   font-weight: 300;
-  font-size: 13px;
+  font-size: var(--type-meta);
   color: var(--ink-5);
   letter-spacing: 0.005em;
   line-height: 1.45;
@@ -347,7 +347,7 @@
 [data-editorial="sheet"] .sheet-empty {
   font-family: var(--sans);
   font-weight: 300;
-  font-size: 14px;
+  font-size: var(--type-body);
   color: var(--ink-5);
   padding: 0 22px 12px;
   font-style: normal;
@@ -364,7 +364,7 @@
 [data-editorial="sheet"] .add-family-link {
   font-family: var(--sans);
   font-weight: 400;
-  font-size: 14px;
+  font-size: var(--type-body);
   color: var(--moss-deep);
   background: transparent;
   border: 0;
@@ -395,7 +395,7 @@
   padding: 18px 22px 0;
   font-family: var(--sans);
   font-weight: 400;
-  font-size: 13px;
+  font-size: var(--type-meta);
 }
 [data-editorial="sheet"] .sheet-footer-link button,
 [data-editorial="sheet"] .sheet-footer-link a {
@@ -408,7 +408,7 @@
   cursor: pointer;
   font-family: var(--sans);
   font-weight: 400;
-  font-size: 13px;
+  font-size: var(--type-meta);
 }
 [data-editorial="sheet"] .sheet-footer-link button:hover,
 [data-editorial="sheet"] .sheet-footer-link a:hover {
@@ -468,14 +468,14 @@
 [data-editorial="sheet"] .settings-row-label {
   font-family: var(--sans) !important;
   font-weight: 400 !important;
-  font-size: 15px !important;
+  font-size: var(--type-body) !important;
   color: var(--ink-9) !important;
   margin-bottom: 2px;
 }
 [data-editorial="sheet"] .settings-row-meta {
   font-family: var(--sans);
   font-weight: 300;
-  font-size: 13px;
+  font-size: var(--type-meta);
   color: var(--ink-5);
   letter-spacing: 0.005em;
   line-height: 1.45;
@@ -503,7 +503,7 @@
 [data-editorial="sheet"] .settings-section-label {
   font-family: var(--serif) !important;
   font-weight: 400 !important;
-  font-size: 11px !important;
+  font-size: var(--type-micro) !important;
   letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
   color: var(--ink-5) !important;
@@ -598,14 +598,14 @@
 [data-editorial="sheet"] .upload-option-label {
   font-family: var(--sans);
   font-weight: 400;
-  font-size: 15px;
+  font-size: var(--type-body);
   color: var(--ink-9);
   margin-bottom: 2px;
 }
 [data-editorial="sheet"] .upload-option-sub {
   font-family: var(--sans);
   font-weight: 300;
-  font-size: 13px;
+  font-size: var(--type-meta);
   color: var(--ink-5);
   letter-spacing: 0.005em;
   line-height: 1.45;
@@ -618,7 +618,7 @@
   margin: 18px 0 0;
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 11px;
+  font-size: var(--type-micro);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-5);
@@ -678,7 +678,7 @@
 [data-editorial="sheet"] .upload-drop-label {
   font-family: var(--serif) !important;
   font-weight: 400 !important;
-  font-size: 17px !important;
+  font-size: var(--type-h2) !important;
   color: var(--ink-9) !important;
   margin-bottom: 4px !important;
   font-variation-settings: "opsz" 24, "SOFT" 60 !important;
@@ -686,7 +686,7 @@
 [data-editorial="sheet"] .upload-drop-sub {
   font-family: var(--sans) !important;
   font-weight: 300 !important;
-  font-size: 13px !important;
+  font-size: var(--type-meta) !important;
   color: var(--ink-5) !important;
 }
 
@@ -694,7 +694,7 @@
 [data-editorial="sheet"] .upload-title {
   font-family: var(--serif) !important;
   font-weight: 400 !important;
-  font-size: 26px !important;
+  font-size: var(--type-h1) !important;
   line-height: 1.15 !important;
   letter-spacing: -0.01em !important;
   color: var(--ink-9) !important;
@@ -704,7 +704,7 @@
 [data-editorial="sheet"] .upload-person {
   font-family: var(--sans) !important;
   font-weight: 300 !important;
-  font-size: 14px !important;
+  font-size: var(--type-body) !important;
   color: var(--ink-5) !important;
   padding: 0 22px 18px !important;
   letter-spacing: 0.005em !important;
@@ -715,12 +715,12 @@
 }
 @media (min-width: 768px) {
   [data-editorial="sheet"] .upload-title {
-    font-size: 30px !important;
+    font-size: var(--type-display) !important;
     padding: 26px 28px 4px !important;
   }
   [data-editorial="sheet"] .upload-person {
     padding: 0 28px 22px !important;
-    font-size: 15px !important;
+    font-size: var(--type-body) !important;
   }
 }
 
@@ -750,7 +750,7 @@
 [data-editorial="sheet"] #share-recipients > div:first-child {
   font-family: var(--serif) !important;
   font-weight: 400 !important;
-  font-size: 11px !important;
+  font-size: var(--type-micro) !important;
   letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
   color: var(--ink-5) !important;
@@ -800,7 +800,7 @@
   justify-content: center;
   font-family: var(--sans);
   font-weight: 500;
-  font-size: 13px;
+  font-size: var(--type-meta);
   letter-spacing: 0.04em;
   flex-shrink: 0;
 }
@@ -808,14 +808,14 @@
 #view-settings[data-editorial="settings"] .care-circle-row .name {
   font-family: var(--sans);
   font-weight: 400;
-  font-size: 15px;
+  font-size: var(--type-body);
   color: var(--ink-9);
 }
 [data-editorial="sheet"] .care-circle-row .email,
 #view-settings[data-editorial="settings"] .care-circle-row .email {
   font-family: var(--sans);
   font-weight: 300;
-  font-size: 13px;
+  font-size: var(--type-meta);
   color: var(--ink-5);
 }
 [data-editorial="sheet"] .care-circle-row .role-pill,
@@ -825,7 +825,7 @@
   color: var(--moss-deep);
   font-family: var(--sans);
   font-weight: 400;
-  font-size: 11px;
+  font-size: var(--type-micro);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   padding: 4px 10px;
@@ -847,7 +847,7 @@
   color: var(--ink-5);
   font-family: var(--sans);
   font-weight: 400;
-  font-size: 14px;
+  font-size: var(--type-body);
   cursor: pointer;
   transition: border-color 0.15s ease, color 0.15s ease;
 }
@@ -883,7 +883,7 @@
   padding: 14px 18px;
   font-family: var(--sans);
   font-weight: 500;
-  font-size: 14px;
+  font-size: var(--type-body);
   letter-spacing: 0.005em;
   margin: 8px 22px 0;
   width: calc(100% - 44px);
@@ -919,7 +919,7 @@
   padding: 13px 18px;
   font-family: var(--sans);
   font-weight: 400;
-  font-size: 14px;
+  font-size: var(--type-body);
   margin: 8px 22px 0;
   width: calc(100% - 44px);
   cursor: pointer;
@@ -956,7 +956,7 @@
   padding: 14px 18px;
   font-family: var(--sans);
   font-weight: 500;
-  font-size: 14px;
+  font-size: var(--type-body);
   margin: 8px 22px 0;
   width: calc(100% - 44px);
   cursor: pointer;
@@ -985,7 +985,7 @@
   width: calc(100% - 44px);
   font-family: var(--sans);
   font-weight: 300;
-  font-size: 15px;
+  font-size: var(--type-body);
   color: var(--ink-9);
   letter-spacing: 0.005em;
   box-shadow: none;
@@ -1016,7 +1016,7 @@
 [data-editorial="sheet"] .field-label {
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 11px;
+  font-size: var(--type-micro);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-5);
@@ -1057,7 +1057,7 @@
 [data-editorial="sheet"] .upload-sheet .drop-zone-title {
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 17px;
+  font-size: var(--type-h2);
   color: var(--ink-9);
   margin-bottom: 4px;
   font-variation-settings: "opsz" 24, "SOFT" 60;
@@ -1065,7 +1065,7 @@
 [data-editorial="sheet"] .upload-sheet .drop-zone-sub {
   font-family: var(--sans);
   font-weight: 300;
-  font-size: 13px;
+  font-size: var(--type-meta);
   color: var(--ink-5);
 }
 

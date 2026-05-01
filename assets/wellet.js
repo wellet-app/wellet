@@ -158,17 +158,17 @@ function showInviteAcceptUI() {
   overlay.innerHTML = '<div style="background:white;border-radius:20px;padding:32px 24px 24px;max-width:360px;width:100%;text-align:center;font-family:DM Sans,sans-serif;">'
     + '<div style="width:56px;height:56px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">'
     + '<i data-lucide="heart-handshake" style="width:26px;height:26px;color:var(--moss);"></i></div>'
-    + '<div style="font-family: var(--serif);font-size:20px;margin-bottom:6px;">You\u2019re invited</div>'
-    + '<div style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:20px;">'
+    + '<div style="font-family: var(--serif);font-size:var(--type-h2);margin-bottom:6px;">You\u2019re invited</div>'
+    + '<div style="font-size:var(--type-body);color:var(--text-secondary);line-height:1.6;margin-bottom:20px;">'
     + inviterName + ' invited you to join the care circle for <strong>' + personName + '</strong> as <strong>' + memberRole + '</strong>.'
     + '</div>'
-    + '<div style="font-size:12px;color:var(--text-muted);line-height:1.5;margin-bottom:20px;padding:12px;background:var(--cream);border-radius:10px;">'
+    + '<div style="font-size:var(--type-meta);color:var(--text-muted);line-height:1.5;margin-bottom:20px;padding:12px;background:var(--cream);border-radius:10px;">'
     + 'When you join, you\u2019ll be able to see ' + personName + '\u2019s health timeline, medications, and care updates.</div>'
     + (currentUser
-      ? '<button onclick="acceptInvite()" style="background:var(--moss);color:white;border:none;border-radius:12px;padding:13px 32px;font-size:15px;font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;width:100%;margin-bottom:10px;">Join Care Circle</button>'
-      : '<div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;">Sign in or create an account to join</div>'
-      + '<button onclick="dismissInviteUI();showAuthForInvite()" style="background:var(--moss);color:white;border:none;border-radius:12px;padding:13px 32px;font-size:15px;font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;width:100%;margin-bottom:10px;">Sign in to join</button>')
-    + '<button onclick="dismissInviteUI();clearInviteParam()" style="background:none;border:none;color:var(--text-muted);font-size:13px;cursor:pointer;font-family:DM Sans,sans-serif;padding:6px;">Not now</button>'
+      ? '<button onclick="acceptInvite()" style="background:var(--moss);color:white;border:none;border-radius:12px;padding:13px 32px;font-size:var(--type-body);font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;width:100%;margin-bottom:10px;">Join Care Circle</button>'
+      : '<div style="font-size:var(--type-meta);color:var(--text-secondary);margin-bottom:14px;">Sign in or create an account to join</div>'
+      + '<button onclick="dismissInviteUI();showAuthForInvite()" style="background:var(--moss);color:white;border:none;border-radius:12px;padding:13px 32px;font-size:var(--type-body);font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;width:100%;margin-bottom:10px;">Sign in to join</button>')
+    + '<button onclick="dismissInviteUI();clearInviteParam()" style="background:none;border:none;color:var(--text-muted);font-size:var(--type-meta);cursor:pointer;font-family:DM Sans,sans-serif;padding:6px;">Not now</button>'
     + '</div>';
   overlay.style.display = 'flex';
   initIcons();
@@ -181,9 +181,9 @@ function showInviteError(msg) {
   overlay.innerHTML = '<div style="background:white;border-radius:20px;padding:32px 24px 24px;max-width:340px;width:100%;text-align:center;font-family:DM Sans,sans-serif;">'
     + '<div style="width:52px;height:52px;border-radius:50%;background:#FFF0F0;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">'
     + '<i data-lucide="alert-triangle" style="width:24px;height:24px;color:var(--red);"></i></div>'
-    + '<div style="font-family: var(--serif);font-size:18px;margin-bottom:8px;">Invalid Invite</div>'
-    + '<div style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:20px;">' + escHtml(msg) + '</div>'
-    + '<button onclick="this.closest(\'.invite-err\').remove();clearInviteParam()" style="background:var(--moss);color:white;border:none;border-radius:12px;padding:12px 28px;font-size:14px;font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;">OK</button>'
+    + '<div style="font-family: var(--serif);font-size:var(--type-h2);margin-bottom:8px;">Invalid Invite</div>'
+    + '<div style="font-size:var(--type-body);color:var(--text-secondary);line-height:1.6;margin-bottom:20px;">' + escHtml(msg) + '</div>'
+    + '<button onclick="this.closest(\'.invite-err\').remove();clearInviteParam()" style="background:var(--moss);color:white;border:none;border-radius:12px;padding:12px 28px;font-size:var(--type-body);font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;">OK</button>'
     + '</div>';
   document.body.appendChild(overlay);
   initIcons();
@@ -692,8 +692,8 @@ function showPricingSheet() {
   if (vaPerk) {
     html +=
       '<div style="background:linear-gradient(135deg,#EEF0E6 0%,#F2F3EC 100%);border:1.5px solid #8A9A7C;border-radius:14px;padding:14px 16px;margin-bottom:16px;">' +
-      '<div style="font-family:var(--serif);font-size:18px;color:#3D6B58;margin-bottom:4px;">Your VA caregiver perk</div>' +
-      '<div style="font-size:13px;color:var(--text-secondary);line-height:1.55;">' +
+      '<div style="font-family:var(--serif);font-size:var(--type-h2);color:#3D6B58;margin-bottom:4px;">Your VA caregiver perk</div>' +
+      '<div style="font-size:var(--type-meta);color:var(--text-secondary);line-height:1.55;">' +
       'Wellet is <strong style="color:var(--moss-dark);">free for your first year</strong>, then <strong style="color:var(--moss-dark);">30% off for life</strong>. ' +
       'It\u2019s applied automatically \u2014 no code, no hoops.' +
       '</div>' +
@@ -710,7 +710,7 @@ function showPricingSheet() {
     if (isCurrentPlan) html += '<div class="pricing-plan-badge" style="background:var(--text-secondary);">Current</div>';
     html += '</div>';
     html += '<div class="pricing-plan-price">' + escHtml(p.price) + '<span>' + escHtml(p.priceSub || '') + '</span></div>';
-    if (p.annualNote) html += '<div style="font-size:11px;color:var(--moss-text);margin-bottom:4px;">' + escHtml(p.annualNote) + '</div>';
+    if (p.annualNote) html += '<div style="font-size:var(--type-micro);color:var(--moss-text);margin-bottom:4px;">' + escHtml(p.annualNote) + '</div>';
     html += '<ul class="pricing-plan-features">';
     for (var j = 0; j < p.features.length; j++) {
       html += '<li class="pricing-plan-feature"><div class="pricing-plan-feature-dot"></div><span>' + escHtml(p.features[j]) + '</span></li>';
@@ -1440,7 +1440,7 @@ function renderUpdateMe() {
 
   var timelineHTML = '';
   if (recentEvents.length === 0) {
-    timelineHTML = '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">Your timeline will appear here as you add things.</div>';
+    timelineHTML = '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:var(--type-meta);font-style:italic;">Your timeline will appear here as you add things.</div>';
   } else {
     recentEvents.forEach(function(ev, i) {
       var isLast = i === recentEvents.length - 1;
@@ -1508,7 +1508,7 @@ function renderUpdateMe() {
       + '<div class="update-summary-text" id="update-summary-text">' + formatWelletSummary(summaryCache[currentPersonId]) + '</div>'
       + '<div class="update-summary-byline"><i data-lucide="sparkles"></i><span class="update-summary-byline-main">' + escHtml(bylineDetail) + '</span><span class="update-summary-byline-sep">·</span><span class="update-summary-byline-viewed">' + viewedLine + '</span></div>'
       + '</div>'
-      + '<button onclick="openShareFamily()" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px 16px;margin-top:10px;background:white;border:1.5px solid var(--moss);border-radius:10px;color:var(--moss);font-family:\'DM Sans\',sans-serif;font-size:13px;font-weight:500;cursor:pointer;"><i data-lucide="share-2" style="width:15px;height:15px;"></i> ' + t('update.shareThis') + '</button>';
+      + '<button onclick="openShareFamily()" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px 16px;margin-top:10px;background:white;border:1.5px solid var(--moss);border-radius:10px;color:var(--moss);font-family:\'DM Sans\',sans-serif;font-size:var(--type-meta);font-weight:500;cursor:pointer;"><i data-lucide="share-2" style="width:15px;height:15px;"></i> ' + t('update.shareThis') + '</button>';
   } else {
     // Not yet fetched — show loading placeholder and trigger fetch.
     // Includes a manual refresh button as an escape hatch in case the
@@ -1547,8 +1547,8 @@ function renderUpdateMe() {
   var hasWearable = !!(typeof _currentTerraConns !== 'undefined' && _currentTerraConns && _currentTerraConns.some && _currentTerraConns.some(function(c){ return c.status === 'active'; }));
   var hasAnyWelletSource = ehrConnected || (typeof liveDocs !== 'undefined' && liveDocs.some(function(d){ return d.extraction_status === 'completed' && d.extracted_events; })) || hasWearable;
   var fullOnboardingActions = '<div style="padding:24px 16px 8px;">'
-    + '<div style="font-family:var(--serif);font-size:20px;margin-bottom:6px;color:var(--text-primary);">Help Wellet get to know ' + escHtml(subjectName) + '</div>'
-    + '<div style="font-size:13px;color:var(--text-secondary);line-height:1.5;margin-bottom:16px;">Upload a document or connect to health records \u2014 Wellet will read, organize, and remember everything.</div>'
+    + '<div style="font-family:var(--serif);font-size:var(--type-h2);margin-bottom:6px;color:var(--text-primary);">Help Wellet get to know ' + escHtml(subjectName) + '</div>'
+    + '<div style="font-size:var(--type-meta);color:var(--text-secondary);line-height:1.5;margin-bottom:16px;">Upload a document or connect to health records \u2014 Wellet will read, organize, and remember everything.</div>'
     + '<div class="signals-connect-chips">'
     + '<button class="signals-chip" onclick="openUpload(\'' + escHtml(name) + '\')"><i data-lucide="upload"></i> Upload a Document</button>'
     + '<button class="signals-chip" onclick="startEhrConnect()"><i data-lucide="link"></i> ' + ehrBtnLabel + '</button>'
@@ -1938,8 +1938,8 @@ function renderTimeline() {
     var emptyHeader = (ehrData ? buildEhrStatusBar(ehrData) : '');
     pane.innerHTML = emptyHeader + '<div class="timeline-section">'
       + '<div style="text-align:center;padding:48px 24px;">'
-      + '<div style="font-size:32px;margin-bottom:12px;opacity:0.3;"><i data-lucide="calendar" style="width:32px;height:32px;"></i></div>'
-      + '<div style="font-size:14px;color:var(--text-muted);line-height:1.6;">Appointments, medications, lab results, and your own notes \u2014 they\u2019ll all show up here in order as you add them.</div>'
+      + '<div style="font-size:var(--type-display);margin-bottom:12px;opacity:0.3;"><i data-lucide="calendar" style="width:32px;height:32px;"></i></div>'
+      + '<div style="font-size:var(--type-body);color:var(--text-muted);line-height:1.6;">Appointments, medications, lab results, and your own notes \u2014 they\u2019ll all show up here in order as you add them.</div>'
       + (!ehrData && !isDemoMode ? buildEhrPrompt() : '')
       + '</div></div>';
     // Append FAB once per render (deduped by id)
@@ -2181,7 +2181,7 @@ function _renderAskContextChip() {
   var label = parts.join(' \u00B7 ');
   slot.style.display = 'block';
   slot.innerHTML =
-      '<div style="display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:6px 10px;background:#E8F5EE;border:1px solid #C8E0D2;border-radius:999px;font-size:12px;color:var(--moss);">'
+      '<div style="display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:6px 10px;background:#E8F5EE;border:1px solid #C8E0D2;border-radius:999px;font-size:var(--type-meta);color:var(--moss);">'
     +   '<i data-lucide="link" style="width:12px;height:12px;flex-shrink:0;"></i>'
     +   '<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">About: ' + escHtml(label) + '</span>'
     +   '<button onclick="clearAskContext()" aria-label="Remove context" style="background:none;border:none;padding:0 0 0 4px;cursor:pointer;color:var(--moss);display:flex;align-items:center;">'
@@ -2616,12 +2616,12 @@ window.renderLabsChart = function(testName) {
   var container = document.getElementById('labs-chart-container');
   if (!container) return;
   if (!testName) {
-    container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:12px;">Select a test to view its trend.</div>';
+    container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:var(--type-meta);">Select a test to view its trend.</div>';
     return;
   }
   var readings = window._labsChartData[testName];
   if (!readings || readings.length < 2) {
-    container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:12px;">Not enough numeric readings to chart.</div>';
+    container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:var(--type-meta);">Not enough numeric readings to chart.</div>';
     return;
   }
   var W = 300, H = 120, padL = 36, padR = 12, padT = 14, padB = 26;
@@ -2668,8 +2668,8 @@ window.renderLabsChart = function(testName) {
   var unitStr = latest.unit ? ' ' + latest.unit : '';
   container.innerHTML = svg
     + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">'
-    + '<span style="font-size:11px;color:var(--text-muted);">'+fcd(earliest.date)+' \u2192 '+fcd(latest.date)+' \u00B7 '+readings.length+' readings</span>'
-    + '<span style="font-size:14px;font-weight:600;color:var(--text-primary);">'+latest.value+unitStr+'</span>'
+    + '<span style="font-size:var(--type-micro);color:var(--text-muted);">'+fcd(earliest.date)+' \u2192 '+fcd(latest.date)+' \u00B7 '+readings.length+' readings</span>'
+    + '<span style="font-size:var(--type-body);font-weight:600;color:var(--text-primary);">'+latest.value+unitStr+'</span>'
     + '</div>';
 };
 
@@ -2678,7 +2678,7 @@ window.renderLabsChart = function(testName) {
 function _rdMedsContent(activeMeds, ehrMeds, ehrData, ehrProvider) {
   var html = '';
   if (activeMeds.length === 0 && ehrMeds.length === 0) {
-    html += '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">No medications added yet.</div>';
+    html += '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:var(--type-meta);font-style:italic;">No medications added yet.</div>';
     if (!ehrData) html += buildEhrPrompt();
   } else {
     activeMeds.forEach(function(med) {
@@ -2701,7 +2701,7 @@ function _rdMedsContent(activeMeds, ehrMeds, ehrData, ehrProvider) {
         + '<div style="flex:1;"><div class="record-label">'+escHtml(med.name)+' '+ehrBadgeHtml()+'</div>'
         + '<div class="record-meta">'+escHtml(med.dosage||med.frequency||'')+'</div></div>'
         + rowProviderBadge(med, ehrProvider, ehrData)
-        + '<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;">'+mp.join('<br>')+'</div>'
+        + '<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.6;">'+mp.join('<br>')+'</div>'
         + '</div>';
     });
   }
@@ -2713,7 +2713,7 @@ function _rdMedsContent(activeMeds, ehrMeds, ehrData, ehrProvider) {
 function _rdConditionsContent(ehrConditions, ehrData, ehrProvider) {
   var html = '';
   if (ehrConditions.length === 0) {
-    html += '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">No conditions on file.</div>';
+    html += '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:var(--type-meta);font-style:italic;">No conditions on file.</div>';
     if (!ehrData) html += buildEhrPrompt();
     return html;
   }
@@ -2740,8 +2740,8 @@ function _rdConditionsContent(ehrConditions, ehrData, ehrProvider) {
   condPrev     = dedup(condPrev);
   condResolved = dedup(condResolved);
 
-  var shdr = 'font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);font-weight:500;margin:14px 0 6px;';
-  html += '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;">'
+  var shdr = 'font-size:var(--type-micro);letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);font-weight:500;margin:14px 0 6px;';
+  html += '<div style="font-size:var(--type-meta);color:var(--text-secondary);margin-bottom:10px;">'
     + condActive.length+' active \u00B7 '+condPrev.length+' preventive \u00B7 '+condResolved.length+' historical'+'</div>';
 
   function condRow(c, idx, pfx) {
@@ -2759,7 +2759,7 @@ function _rdConditionsContent(ehrConditions, ehrData, ehrProvider) {
       + '<div style="flex:1;"><div class="record-label">'+escHtml(c.name)+'</div>'
       + '<div class="record-meta">'+(c.onset_date?'Since '+formatEventDate(c.onset_date):(c.recorded_date?formatEventDate(c.recorded_date):''))+'</div></div>'
       + badge
-      + (meta.length?'<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;">'+meta.join('<br>')+'</div>':'')
+      + (meta.length?'<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.6;">'+meta.join('<br>')+'</div>':'')
       + '</div>';
   }
 
@@ -2812,7 +2812,7 @@ function _rdAllergiesContent(liveAllergies, ehrAllergies, ehrData, ehrProvider) 
       + '<div style="flex:1;"><div class="record-label">'+escHtml(a.name)+' '+ehrBadgeHtml()+'</div>'
       + '<div class="record-meta">'+(rxStr?escHtml(rxStr):'')+(a.severity?' \u00B7 '+escHtml(a.severity):'')+'</div></div>'
       + rowProviderBadge(a, ehrProvider, ehrData)
-      + (meta.length?'<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;">'+meta.join('<br>')+'</div>':'')
+      + (meta.length?'<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.6;">'+meta.join('<br>')+'</div>':'')
       + '</div>';
   });
   return html;
@@ -3003,12 +3003,12 @@ function _rdVisitsContent(apptEvents, ehrVisitsRecent, ehrVisitsOlder, ehrData, 
   html += '<div class="visits-filter-bar" style="display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap;">'
     + '<div style="flex:1;min-width:180px;position:relative;">'
     + '<i data-lucide="search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--text-muted);pointer-events:none;"></i>'
-    + '<input type="text" id="visits-search-input" placeholder="Search by doctor, visit type\u2026" oninput="filterVisits()" style="width:100%;padding:8px 10px 8px 30px;font-size:13px;border:1px solid var(--border);border-radius:20px;background:#fff;color:var(--text-primary);outline:none;box-sizing:border-box;">'
+    + '<input type="text" id="visits-search-input" placeholder="Search by doctor, visit type\u2026" oninput="filterVisits()" style="width:100%;padding:8px 10px 8px 30px;font-size:var(--type-meta);border:1px solid var(--border);border-radius:20px;background:#fff;color:var(--text-primary);outline:none;box-sizing:border-box;">'
     + '</div>'
-    + '<input type="month" id="visits-month-input" onchange="filterVisits()" style="padding:7px 10px;font-size:13px;border:1px solid var(--border);border-radius:20px;background:#fff;color:var(--text-primary);outline:none;">'
-    + '<button type="button" id="visits-clear-btn" onclick="clearVisitsFilter()" style="display:none;background:none;border:none;color:var(--moss);font-size:12px;font-weight:600;cursor:pointer;padding:4px 6px;">Clear</button>'
+    + '<input type="month" id="visits-month-input" onchange="filterVisits()" style="padding:7px 10px;font-size:var(--type-meta);border:1px solid var(--border);border-radius:20px;background:#fff;color:var(--text-primary);outline:none;">'
+    + '<button type="button" id="visits-clear-btn" onclick="clearVisitsFilter()" style="display:none;background:none;border:none;color:var(--moss);font-size:var(--type-meta);font-weight:600;cursor:pointer;padding:4px 6px;">Clear</button>'
     + '</div>'
-    + '<div id="visits-no-match" style="display:none;text-align:center;padding:20px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">No visits match your search.</div>';
+    + '<div id="visits-no-match" style="display:none;text-align:center;padding:20px 16px;color:var(--text-secondary);font-size:var(--type-meta);font-style:italic;">No visits match your search.</div>';
   var realRe    = /office|outpatient|inpatient|emergency|telemedicine|hospital|surgery|procedure|consult|urgent/i;
   var routineRe = /refill|patient message|message|administrative|letter|historical/i;
   function visitClass(enc) {
@@ -3024,7 +3024,7 @@ function _rdVisitsContent(apptEvents, ehrVisitsRecent, ehrVisitsOlder, ehrData, 
     else if (/inpatient|hospital/.test(n)) { bg='#FEF6E8'; fg='#8C6511'; lbl='Inpatient'; }
     else if (/outpatient/.test(n))    { bg='#EDFAF2'; fg='#2A6645'; lbl='Outpatient'; }
     else                              { bg='#EDFAF2'; fg='#2A6645'; lbl='Office Visit'; }
-    return '<span style="font-size:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;padding:2px 7px;border-radius:10px;background:'+bg+';color:'+fg+';margin-right:6px;">'+lbl+'</span>';
+    return '<span style="font-size:var(--type-micro);font-weight:600;letter-spacing:0.04em;text-transform:uppercase;padding:2px 7px;border-radius:10px;background:'+bg+';color:'+fg+';margin-right:6px;">'+lbl+'</span>';
   }
   function visitRow(enc, idx, pfx) {
     var did = 'ehr-enc-'+pfx+'-'+idx;
@@ -3056,7 +3056,7 @@ function _rdVisitsContent(apptEvents, ehrVisitsRecent, ehrVisitsOlder, ehrData, 
 
     var docLinks = '';
     function docLinkHtml(label, doc, iconName) {
-      return '<a onclick="event.stopPropagation();openEhrDocument(\''+encId+'\',\''+escHtml(doc.id)+'\')" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--moss);cursor:pointer;text-decoration:none;font-weight:600;font-size:14px;line-height:1.2;flex:1;min-width:0;">'
+      return '<a onclick="event.stopPropagation();openEhrDocument(\''+encId+'\',\''+escHtml(doc.id)+'\')" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--moss);cursor:pointer;text-decoration:none;font-weight:600;font-size:var(--type-body);line-height:1.2;flex:1;min-width:0;">'
         + '<i data-lucide="'+iconName+'" style="width:18px;height:18px;flex-shrink:0;"></i>'
         + '<span style="flex:1;min-width:0;line-height:1.2;">' + escHtml(label) + '</span>'
         + '<i data-lucide="external-link" style="width:14px;height:14px;flex-shrink:0;opacity:0.6;"></i></a>';
@@ -3071,14 +3071,14 @@ function _rdVisitsContent(apptEvents, ehrVisitsRecent, ehrVisitsOlder, ehrData, 
     var summaryBlock = encId
       ? '<div id="'+did+'-summary" style="margin-bottom:10px;"><div style="color:var(--text-muted);font-style:italic;">Writing a plain-language summary\u2026</div></div>'
       : '';
-    var metaBlock = meta.length ? '<div style="color:var(--text-muted);font-size:11px;">'+meta.join('<br>')+'</div>' : '';
+    var metaBlock = meta.length ? '<div style="color:var(--text-muted);font-size:var(--type-micro);">'+meta.join('<br>')+'</div>' : '';
 
     return '<div class="record-row" data-date="'+escHtml(enc.start_date||'')+'" style="cursor:pointer;flex-wrap:wrap;" onclick="toggleVisitDetail(\''+did+'\',\''+encId+'\')">'
       + '<div class="record-icon moss"><i data-lucide="calendar-check" style="width:15px;height:15px;"></i></div>'
       + '<div style="flex:1;"><div class="record-label">'+typePill(enc)+escHtml(enc.name)+' '+ehrBadgeHtml()+'</div>'
       + '<div class="record-meta">'+formatEventDate(enc.start_date)+(provs.length?' \u00B7 '+escHtml(provs[0]):'')+'</div></div>'
       + rowProviderBadge(enc, ehrProvider, ehrData)
-      + '<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;" onclick="event.stopPropagation()">'
+      + '<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.6;" onclick="event.stopPropagation()">'
       + summaryBlock
       + docLinks
       + metaBlock
@@ -3094,7 +3094,7 @@ function _rdVisitsContent(apptEvents, ehrVisitsRecent, ehrVisitsOlder, ehrData, 
       + '<div style="flex:1;"><div class="record-label">'+escHtml(ev.title)+'</div>'
       + '<div class="record-meta">'+formatEventDate(ev.event_date)+'</div></div>'
       + '<i data-lucide="chevron-down" style="width:16px;height:16px;color:var(--text-muted);"></i>'
-      + '<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;" onclick="event.stopPropagation()">'
+      + '<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.6;" onclick="event.stopPropagation()">'
       + (ev.notes?'<div style="margin-bottom:6px;">'+escHtml(ev.notes)+'</div>':'')
       + '<div><a onclick="openEditEvent(\''+ev.id+'\')" style="color:var(--moss);cursor:pointer;text-decoration:none;font-weight:600;">Edit appointment \u2192</a></div>'
       + renderAttachmentZone('event', ev.id)
@@ -3113,7 +3113,7 @@ function _rdVisitsContent(apptEvents, ehrVisitsRecent, ehrVisitsOlder, ehrData, 
     if (!byMonth[mk]) byMonth[mk] = {lbl:lbl, items:[]};
     byMonth[mk].items.push({enc:enc, idx:idx});
   });
-  var shdr = 'font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);font-weight:500;margin:14px 0 6px;';
+  var shdr = 'font-size:var(--type-micro);letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);font-weight:500;margin:14px 0 6px;';
   Object.keys(byMonth).sort().reverse().forEach(function(mk) {
     var g = byMonth[mk];
     html += '<div style="'+shdr+'">'+escHtml(g.lbl)+'</div>';
@@ -3134,11 +3134,11 @@ function _rdVisitsContent(apptEvents, ehrVisitsRecent, ehrVisitsOlder, ehrData, 
     html += '<div id="ehr-older-visits" style="display:none;">';
     ehrVisitsOlder.forEach(function(enc,idx){ html += visitRow(enc,idx,'o'); });
     html += '</div>';
-    html += '<button type="button" class="ehr-show-older-btn" data-older-count="'+olderCount+'" onclick="toggleOlderVisits(this)" style="display:block;margin:10px auto 0;padding:8px 14px;font-size:12px;color:var(--text-secondary);background:transparent;border:1px dashed var(--border);border-radius:20px;cursor:pointer;">Show '+olderCount+' older visits</button>';
+    html += '<button type="button" class="ehr-show-older-btn" data-older-count="'+olderCount+'" onclick="toggleOlderVisits(this)" style="display:block;margin:10px auto 0;padding:8px 14px;font-size:var(--type-meta);color:var(--text-secondary);background:transparent;border:1px dashed var(--border);border-radius:20px;cursor:pointer;">Show '+olderCount+' older visits</button>';
   }
 
   if (apptEvents.length===0 && ehrVisitsRecent.length===0 && ehrVisitsOlder.length===0) {
-    html += '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">No visits on record.</div>';
+    html += '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:var(--type-meta);font-style:italic;">No visits on record.</div>';
   }
   return html;
 }
@@ -3279,7 +3279,7 @@ function buildRangeTrack(val, range, unit) {
     +   '<div style="position:absolute;top:0;bottom:0;left:'+bandL+'%;width:'+bandW+'%;background:#D4EBDC;border-radius:4px;"></div>'
     +   '<div style="position:absolute;top:-3px;left:calc('+dotX+'% - 7px);width:14px;height:14px;border-radius:50%;background:'+dotColor+';border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,0.08);"></div>'
     + '</div>'
-    + '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);margin-top:4px;">'
+    + '<div style="display:flex;justify-content:space-between;font-size:var(--type-micro);color:var(--text-muted);margin-top:4px;">'
     +   '<span>'+(hasLo?escHtml(loLbl+(unit?' '+unit:'')):'')+'</span>'
     +   '<span>'+(hasHi?escHtml(hiLbl+(unit?' '+unit:'')):'')+'</span>'
     + '</div>'
@@ -3353,7 +3353,7 @@ function _rdLabsContent(liveLabs, labEvents, ehrObs, ehrProvider) {
   });
   if (abnItems.length > 0) {
     html += '<div style="background:#FEF6E8;border:1px solid #F5D78C;border-radius:10px;padding:10px 12px;margin-bottom:14px;">'
-      + '<div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#8C6511;font-weight:600;margin-bottom:6px;">Flagged by lab \u00B7 last 12 months</div>';
+      + '<div style="font-size:var(--type-micro);letter-spacing:0.08em;text-transform:uppercase;color:#8C6511;font-weight:600;margin-bottom:6px;">Flagged by lab \u00B7 last 12 months</div>';
     abnItems.forEach(function(item) {
       var valStr = item.value ? (item.value + (item.unit ? ' ' + item.unit : '')) : '';
       var crit = /critical/i.test(item.status || '');
@@ -3361,7 +3361,7 @@ function _rdLabsContent(liveLabs, labEvents, ehrObs, ehrProvider) {
         ? '<span class="record-badge" style="background:#FEF0EE;color:var(--red);">Critical</span>'
         : '<span class="record-badge amber">Abnormal</span>';
       html += '<div class="record-row" style="padding:4px 0;">'
-        + '<div style="flex:1;"><div class="record-label" style="font-size:13px;">' + escHtml(item.name) + '</div>'
+        + '<div style="flex:1;"><div class="record-label" style="font-size:var(--type-meta);">' + escHtml(item.name) + '</div>'
         + '<div class="record-meta">' + (valStr ? escHtml(valStr) + ' \u00B7 ' : '') + formatEventDate(item.date) + '</div></div>'
         + badge + '</div>';
     });
@@ -3371,12 +3371,12 @@ function _rdLabsContent(liveLabs, labEvents, ehrObs, ehrProvider) {
   // ---- Always-visible "View trends over time" launcher ----
   if (chartable.length > 0) {
     html += '<div id="labs-trends-block" style="margin-bottom:16px;">'
-      + '<button type="button" onclick="toggleLabsTrends()" id="labs-trends-btn" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 14px;border:1px solid var(--moss);border-radius:999px;background:#fff;color:var(--moss);font-size:14px;font-weight:600;cursor:pointer;">'
+      + '<button type="button" onclick="toggleLabsTrends()" id="labs-trends-btn" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 14px;border:1px solid var(--moss);border-radius:999px;background:#fff;color:var(--moss);font-size:var(--type-body);font-weight:600;cursor:pointer;">'
       +   '<i data-lucide="trending-up" style="width:16px;height:16px;"></i> View trends over time'
       + '</button>'
       + '<div id="labs-trends-panel" style="display:none;margin-top:10px;padding:12px;border:1px solid var(--border);border-radius:12px;background:#fff;">'
-      +   '<label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:6px;">Select a test</label>'
-      +   '<select id="labs-chart-picker" onchange="renderLabsChart(this.value)" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:white;font-family:inherit;font-size:14px;">'
+      +   '<label style="font-size:var(--type-meta);color:var(--text-secondary);display:block;margin-bottom:6px;">Select a test</label>'
+      +   '<select id="labs-chart-picker" onchange="renderLabsChart(this.value)" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:white;font-family:inherit;font-size:var(--type-body);">'
       +     '<option value="">Select a test\u2026</option>';
     chartable.forEach(function(name) {
       html += '<option value="' + escHtml(name) + '">' + escHtml(name) + ' (' + chartData[name].length + ' readings)</option>';
@@ -3386,11 +3386,11 @@ function _rdLabsContent(liveLabs, labEvents, ehrObs, ehrProvider) {
 
   // ---- Most recent results (inline cards) ----
   if (topN.length === 0) {
-    html += '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">No lab results on record.</div>';
+    html += '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:var(--type-meta);font-style:italic;">No lab results on record.</div>';
     return html;
   }
 
-  html += '<div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);font-weight:500;margin:0 0 8px;">Most recent results</div>';
+  html += '<div style="font-size:var(--type-micro);letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);font-weight:500;margin:0 0 8px;">Most recent results</div>';
 
   topN.forEach(function(r) {
     var valNum  = parseFloat(r.value);
@@ -3434,17 +3434,17 @@ function _rdLabsContent(liveLabs, labEvents, ehrObs, ehrProvider) {
       +     '<div class="record-icon blue" style="flex-shrink:0;"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>'
       +     '<div style="flex:1;min-width:0;">'
       +       '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">'
-      +         '<div style="font-weight:600;color:var(--text-primary);font-size:14px;">' + escHtml(r.name) + ehrTag + '</div>'
+      +         '<div style="font-weight:600;color:var(--text-primary);font-size:var(--type-body);">' + escHtml(r.name) + ehrTag + '</div>'
       +         (badge || '')
       +       '</div>'
-      +       '<div style="font-size:13px;color:var(--text-primary);margin-top:2px;">'
+      +       '<div style="font-size:var(--type-meta);color:var(--text-primary);margin-top:2px;">'
       +         (valStr ? '<span style="font-weight:600;">' + escHtml(valStr) + '</span>' : '')
       +         '<span style="color:var(--text-muted);">' + (valStr ? ' \u00B7 ' : '') + formatEventDate(r.date) + '</span>'
       +       '</div>'
-      +       (info ? '<div style="font-size:12px;color:var(--text-secondary);margin-top:6px;line-height:1.5;">' + escHtml(info) + '</div>' : '')
+      +       (info ? '<div style="font-size:var(--type-meta);color:var(--text-secondary);margin-top:6px;line-height:1.5;">' + escHtml(info) + '</div>' : '')
       +       track
       +       '<div style="margin-top:10px;text-align:right;">'
-      +         '<a onclick="openAskWithContext(\'' + askKey + '\')" style="color:var(--moss);font-size:12px;font-weight:600;cursor:pointer;text-decoration:none;">Ask Wellet about this \u2192</a>'
+      +         '<a onclick="openAskWithContext(\'' + askKey + '\')" style="color:var(--moss);font-size:var(--type-meta);font-weight:600;cursor:pointer;text-decoration:none;">Ask Wellet about this \u2192</a>'
       +       '</div>'
       +     '</div>'
       +   '</div>'
@@ -3452,7 +3452,7 @@ function _rdLabsContent(liveLabs, labEvents, ehrObs, ehrProvider) {
   });
 
   if (latestAll.length > 10) {
-    html += '<div style="text-align:center;padding:8px 0 4px;color:var(--text-secondary);font-size:12px;">'
+    html += '<div style="text-align:center;padding:8px 0 4px;color:var(--text-secondary);font-size:var(--type-meta);">'
       + 'Showing 10 most recent of ' + latestAll.length + ' tests \u00B7 use View trends for the rest'
       + '</div>';
   }
@@ -3463,7 +3463,7 @@ function _rdLabsContent(liveLabs, labEvents, ehrObs, ehrProvider) {
 function _rdDocsContent(liveDocs, currentPersonId) {
   var html = '';
   if (liveDocs.length === 0) {
-    html += '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">No documents uploaded yet.</div>';
+    html += '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:var(--type-meta);font-style:italic;">No documents uploaded yet.</div>';
   } else {
     liveDocs.forEach(function(doc) {
       var docIsAudio = isAudioFile(doc.file_name);
@@ -3481,7 +3481,7 @@ function _rdDocsContent(liveDocs, currentPersonId) {
         if (typeof ext==='string') { try{ ext=JSON.parse(ext); }catch(e){ ext=null; } }
         if (ext && ext.transcript) {
           var snip = ext.transcript.length>200 ? ext.transcript.substring(0,200)+'\u2026' : ext.transcript;
-          html += '<div style="font-size:12px;color:var(--text-muted);margin-top:4px;line-height:1.5;font-style:italic;">'+escHtml(snip)+'</div>';
+          html += '<div style="font-size:var(--type-meta);color:var(--text-muted);margin-top:4px;line-height:1.5;font-style:italic;">'+escHtml(snip)+'</div>';
         }
       }
       html += '</div><span class="doc-status '+statusClass+'">'+statusLabel+'</span><div class="doc-actions">';
@@ -3589,10 +3589,10 @@ function openRecordsDetail(section) {
   var html = '<div class="records-detail-view">'
     // back bar
     + '<div style="display:flex;align-items:center;gap:10px;padding:12px 0 16px;">'
-    + '<button onclick="renderRecordsView()" style="background:none;border:none;cursor:pointer;padding:4px;display:flex;align-items:center;gap:6px;color:var(--moss);font-size:14px;font-weight:500;">'
+    + '<button onclick="renderRecordsView()" style="background:none;border:none;cursor:pointer;padding:4px;display:flex;align-items:center;gap:6px;color:var(--moss);font-size:var(--type-body);font-weight:500;">'
     + '<i data-lucide="arrow-left" style="width:18px;height:18px;"></i> Records</button></div>'
     // title
-    + '<div style="font-size:22px;font-weight:700;color:var(--text-primary);margin-bottom:18px;">'+title+'</div>'
+    + '<div style="font-size:var(--type-h1);font-weight:700;color:var(--text-primary);margin-bottom:18px;">'+title+'</div>'
     // content
     + body
     + '</div>';
@@ -3655,15 +3655,15 @@ function _findEhrItemById(kind, refId) {
 
 function _detailBackBar(parentSection, parentLabel) {
   return '<div style="display:flex;align-items:center;gap:10px;padding:12px 0 16px;">'
-    + '<button onclick="openRecordsDetail(\'' + parentSection + '\')" style="background:none;border:none;cursor:pointer;padding:4px;display:flex;align-items:center;gap:6px;color:var(--moss);font-size:14px;font-weight:500;">'
+    + '<button onclick="openRecordsDetail(\'' + parentSection + '\')" style="background:none;border:none;cursor:pointer;padding:4px;display:flex;align-items:center;gap:6px;color:var(--moss);font-size:var(--type-body);font-weight:500;">'
     + '<i data-lucide="arrow-left" style="width:18px;height:18px;"></i> ' + escHtml(parentLabel) + '</button></div>';
 }
 
 function _detailRow(label, value) {
   if (!value) return '';
   return '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);">'
-    +   '<div style="font-size:13px;color:var(--text-secondary);font-weight:500;flex-shrink:0;">' + escHtml(label) + '</div>'
-    +   '<div style="font-size:13px;color:var(--text-primary);text-align:right;flex:1;min-width:0;word-break:break-word;">' + escHtml(value) + '</div>'
+    +   '<div style="font-size:var(--type-meta);color:var(--text-secondary);font-weight:500;flex-shrink:0;">' + escHtml(label) + '</div>'
+    +   '<div style="font-size:var(--type-meta);color:var(--text-primary);text-align:right;flex:1;min-width:0;word-break:break-word;">' + escHtml(value) + '</div>'
     + '</div>';
 }
 
@@ -3671,7 +3671,7 @@ function _detailAskCta(askKey) {
   return '<div style="margin-top:18px;text-align:center;">'
     + '<button onclick="openAskWithContext(\'' + askKey + '\')" '
     + 'style="background:var(--moss);color:white;border:none;border-radius:999px;padding:10px 22px;'
-    + 'font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">'
+    + 'font-size:var(--type-meta);font-weight:600;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">'
     + '<i data-lucide="message-circle" style="width:14px;height:14px;"></i> Ask Wellet about this</button>'
     + '</div>';
 }
@@ -3705,18 +3705,18 @@ function openEncounterDetail(refId) {
   var docsHtml = '';
   if (docs.length > 0) {
     docsHtml += '<div style="margin-top:22px;">'
-      + '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px;">Notes &amp; documents</div>';
+      + '<div style="font-size:var(--type-meta);font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px;">Notes &amp; documents</div>';
     docs.forEach(function(d) {
       var label = d.type_display || d.description || 'Document';
       docsHtml += '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;">'
         + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
         +   '<i data-lucide="file-text" style="width:14px;height:14px;color:var(--moss);"></i>'
-        +   '<div style="font-size:13px;font-weight:600;color:var(--text-primary);">' + escHtml(label) + '</div>'
+        +   '<div style="font-size:var(--type-meta);font-weight:600;color:var(--text-primary);">' + escHtml(label) + '</div>'
         + '</div>';
       if (d.inline_text && d.inline_text.trim()) {
-        docsHtml += '<div style="font-size:13px;color:var(--text-primary);line-height:1.6;white-space:pre-wrap;padding:8px 10px;background:var(--cream);border-radius:8px;margin-top:6px;">' + escHtml(d.inline_text.trim()) + '</div>';
+        docsHtml += '<div style="font-size:var(--type-meta);color:var(--text-primary);line-height:1.6;white-space:pre-wrap;padding:8px 10px;background:var(--cream);border-radius:8px;margin-top:6px;">' + escHtml(d.inline_text.trim()) + '</div>';
       } else {
-        docsHtml += '<div style="font-size:12px;color:var(--text-muted);font-style:italic;">No inline text on this document.</div>';
+        docsHtml += '<div style="font-size:var(--type-meta);color:var(--text-muted);font-style:italic;">No inline text on this document.</div>';
       }
       docsHtml += '</div>';
     });
@@ -3742,8 +3742,8 @@ function openEncounterDetail(refId) {
   var html = '<div class="records-detail-view">'
     + _detailBackBar('visits', 'Appointments &amp; Visits')
     // Title block
-    + '<div style="font-size:22px;font-weight:700;color:var(--text-primary);line-height:1.3;margin-bottom:4px;">' + escHtml(enc.name || 'Visit') + '</div>'
-    + (dateLabel ? '<div style="font-size:14px;color:var(--text-secondary);margin-bottom:18px;">' + escHtml(dateLabel) + (endLabel ? ' \u2014 ' + escHtml(endLabel) : '') + '</div>' : '')
+    + '<div style="font-size:var(--type-h1);font-weight:700;color:var(--text-primary);line-height:1.3;margin-bottom:4px;">' + escHtml(enc.name || 'Visit') + '</div>'
+    + (dateLabel ? '<div style="font-size:var(--type-body);color:var(--text-secondary);margin-bottom:18px;">' + escHtml(dateLabel) + (endLabel ? ' \u2014 ' + escHtml(endLabel) : '') + '</div>' : '')
     // Structured fields card
     + '<div data-ask-lp="' + askKey + '" style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:6px 16px;">'
     +   _detailRow('Provider', providers)
@@ -3822,12 +3822,12 @@ function openLabDetail(refId) {
     }).slice(0, 5);
     if (allObs.length > 0) {
       trendHtml += '<div style="margin-top:22px;">'
-        + '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px;">Recent results</div>'
+        + '<div style="font-size:var(--type-meta);font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px;">Recent results</div>'
         + '<div style="background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;">';
       allObs.forEach(function(o, i) {
         trendHtml += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;' + (i < allObs.length - 1 ? 'border-bottom:1px solid var(--border);' : '') + '">'
-          +   '<div style="font-size:13px;color:var(--text-primary);">' + escHtml(formatEventDate(o.effective_date || '')) + '</div>'
-          +   '<div style="font-size:13px;color:var(--text-primary);font-weight:500;">' + escHtml(String(o.value) + (o.unit ? ' ' + o.unit : '')) + '</div>'
+          +   '<div style="font-size:var(--type-meta);color:var(--text-primary);">' + escHtml(formatEventDate(o.effective_date || '')) + '</div>'
+          +   '<div style="font-size:var(--type-meta);color:var(--text-primary);font-weight:500;">' + escHtml(String(o.value) + (o.unit ? ' ' + o.unit : '')) + '</div>'
           + '</div>';
       });
       trendHtml += '</div></div>';
@@ -3839,17 +3839,17 @@ function openLabDetail(refId) {
   if (isReport) {
     if (item.conclusion && item.conclusion.trim()) {
       reportBody += '<div style="margin-top:22px;">'
-        + '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px;">Conclusion</div>'
-        + '<div style="font-size:13px;color:var(--text-primary);line-height:1.6;white-space:pre-wrap;padding:10px 12px;background:var(--cream);border-radius:8px;">' + escHtml(item.conclusion.trim()) + '</div>'
+        + '<div style="font-size:var(--type-meta);font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px;">Conclusion</div>'
+        + '<div style="font-size:var(--type-meta);color:var(--text-primary);line-height:1.6;white-space:pre-wrap;padding:10px 12px;background:var(--cream);border-radius:8px;">' + escHtml(item.conclusion.trim()) + '</div>'
         + '</div>';
     }
     var attachments = Array.isArray(item.attachments) ? item.attachments : [];
     var inlineAtt = attachments.filter(function(a){ return a && a.inline_text && a.inline_text.trim(); });
     if (inlineAtt.length > 0) {
       reportBody += '<div style="margin-top:22px;">'
-        + '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px;">Report</div>';
+        + '<div style="font-size:var(--type-meta);font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px;">Report</div>';
       inlineAtt.forEach(function(a) {
-        reportBody += '<div style="font-size:13px;color:var(--text-primary);line-height:1.6;white-space:pre-wrap;padding:10px 12px;background:var(--cream);border-radius:8px;margin-bottom:10px;">' + escHtml(a.inline_text.trim()) + '</div>';
+        reportBody += '<div style="font-size:var(--type-meta);color:var(--text-primary);line-height:1.6;white-space:pre-wrap;padding:10px 12px;background:var(--cream);border-radius:8px;margin-bottom:10px;">' + escHtml(a.inline_text.trim()) + '</div>';
       });
       reportBody += '</div>';
     }
@@ -3872,16 +3872,16 @@ function openLabDetail(refId) {
 
   var html = '<div class="records-detail-view">'
     + _detailBackBar('labs', 'Lab Results')
-    + '<div style="font-size:22px;font-weight:700;color:var(--text-primary);line-height:1.3;margin-bottom:4px;">' + escHtml(item.name || 'Lab result') + '</div>'
-    + (dateLabel ? '<div style="font-size:14px;color:var(--text-secondary);margin-bottom:18px;">' + escHtml(dateLabel) + '</div>' : '')
+    + '<div style="font-size:var(--type-h1);font-weight:700;color:var(--text-primary);line-height:1.3;margin-bottom:4px;">' + escHtml(item.name || 'Lab result') + '</div>'
+    + (dateLabel ? '<div style="font-size:var(--type-body);color:var(--text-secondary);margin-bottom:18px;">' + escHtml(dateLabel) + '</div>' : '')
     + '<div data-ask-lp="' + askKey + '" style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px;">'
     + (valStr ? '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;">'
-        + '<div style="font-size:24px;font-weight:700;color:var(--text-primary);">' + escHtml(valStr) + '</div>'
+        + '<div style="font-size:var(--type-h1);font-weight:700;color:var(--text-primary);">' + escHtml(valStr) + '</div>'
         + (statusBadge || '')
         + '</div>' : '')
-    + (range ? '<div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">Reference range: ' + escHtml(range) + '</div>' : '')
+    + (range ? '<div style="font-size:var(--type-meta);color:var(--text-secondary);margin-bottom:8px;">Reference range: ' + escHtml(range) + '</div>' : '')
     + (trackHtml || '')
-    + (infoLine ? '<div style="font-size:12px;color:var(--text-secondary);margin-top:10px;line-height:1.5;">' + escHtml(infoLine) + '</div>' : '')
+    + (infoLine ? '<div style="font-size:var(--type-meta);color:var(--text-secondary);margin-top:10px;line-height:1.5;">' + escHtml(infoLine) + '</div>' : '')
     + '</div>'
     + reportBody
     + trendHtml
@@ -3933,13 +3933,13 @@ function openConditionDetail(refId) {
   var relatedHtml = '';
   if (related.length > 0) {
     relatedHtml += '<div style="margin-top:22px;">'
-      + '<div style="font-size:13px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px;">Related visits</div>'
+      + '<div style="font-size:var(--type-meta);font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px;">Related visits</div>'
       + '<div style="background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;">';
     related.forEach(function(v, i) {
       relatedHtml += '<div onclick="openEncounterDetail(\'' + (v.id || '') + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;' + (i < related.length - 1 ? 'border-bottom:1px solid var(--border);' : '') + '">'
         +   '<div style="min-width:0;flex:1;">'
-        +     '<div style="font-size:13px;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escHtml(v.name || 'Visit') + '</div>'
-        +     '<div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">' + escHtml(v.start_date ? formatEventDate(v.start_date) : '') + (v.location ? ' \u00B7 ' + escHtml(v.location) : '') + '</div>'
+        +     '<div style="font-size:var(--type-meta);font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escHtml(v.name || 'Visit') + '</div>'
+        +     '<div style="font-size:var(--type-meta);color:var(--text-secondary);margin-top:2px;">' + escHtml(v.start_date ? formatEventDate(v.start_date) : '') + (v.location ? ' \u00B7 ' + escHtml(v.location) : '') + '</div>'
         +   '</div>'
         +   '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);flex-shrink:0;"></i>'
         + '</div>';
@@ -3960,8 +3960,8 @@ function openConditionDetail(refId) {
 
   var html = '<div class="records-detail-view">'
     + _detailBackBar('conditions', 'Conditions')
-    + '<div style="font-size:22px;font-weight:700;color:var(--text-primary);line-height:1.3;margin-bottom:4px;">' + escHtml(cond.name || 'Condition') + '</div>'
-    + (onsetLabel ? '<div style="font-size:14px;color:var(--text-secondary);margin-bottom:18px;">Onset ' + escHtml(onsetLabel) + '</div>' : '<div style="margin-bottom:18px;"></div>')
+    + '<div style="font-size:var(--type-h1);font-weight:700;color:var(--text-primary);line-height:1.3;margin-bottom:4px;">' + escHtml(cond.name || 'Condition') + '</div>'
+    + (onsetLabel ? '<div style="font-size:var(--type-body);color:var(--text-secondary);margin-bottom:18px;">Onset ' + escHtml(onsetLabel) + '</div>' : '<div style="margin-bottom:18px;"></div>')
     + '<div data-ask-lp="' + askKey + '" style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:6px 16px;">'
     +   _detailRow('Onset', onsetLabel)
     +   _detailRow('First recorded', recordedLabel)
@@ -4139,7 +4139,7 @@ function renderRecordsView() {
         +'<div style="flex:1;"><div class="record-label">'+escHtml(p.name)+'</div>'
         +'<div class="record-meta">'+formatEventDate(p.performed_date)+'</div></div>'
         +rowProviderBadge(p, ehrProvider, ehrData)
-        +(meta.length?'<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.6;">'+meta.join('<br>')+'</div>':'')
+        +(meta.length?'<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.6;">'+meta.join('<br>')+'</div>':'')
         +'</div>';
     });
     html += '</div>';
@@ -4179,12 +4179,12 @@ function renderRecordsView() {
         if (performers.length > 0) parts.push(escHtml(performers.join(', ')));
         if (dateStr) parts.push(formatEventDate(dateStr));
         if (ehrProvider) parts.push(escHtml(ehrProvider));
-        attribution = '<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;letter-spacing:0.02em;">From your chart \u00B7 '+parts.join(' \u00B7 ')+'</div>';
+        attribution = '<div style="font-size:var(--type-micro);color:var(--text-muted);margin-bottom:10px;letter-spacing:0.02em;">From your chart \u00B7 '+parts.join(' \u00B7 ')+'</div>';
       }
 
       var conclusionHtml = '';
       if (r.conclusion && r.conclusion.trim()) {
-        conclusionHtml = '<div style="font-size:13px;color:var(--text-primary);line-height:1.6;margin-bottom:10px;white-space:pre-wrap;">'+escHtml(r.conclusion.trim())+'</div>';
+        conclusionHtml = '<div style="font-size:var(--type-meta);color:var(--text-primary);line-height:1.6;margin-bottom:10px;white-space:pre-wrap;">'+escHtml(r.conclusion.trim())+'</div>';
       }
 
       var codesHtml = '';
@@ -4192,7 +4192,7 @@ function renderRecordsView() {
       if (conclusionCodes.length > 0) {
         codesHtml = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
           + conclusionCodes.map(function(c) {
-              return '<span style="display:inline-block;padding:3px 8px;border-radius:10px;background:#E8F0FD;color:var(--blue);font-size:11px;font-weight:500;">'+escHtml(c)+'</span>';
+              return '<span style="display:inline-block;padding:3px 8px;border-radius:10px;background:#E8F0FD;color:var(--blue);font-size:var(--type-micro);font-weight:500;">'+escHtml(c)+'</span>';
             }).join('')
           + '</div>';
       }
@@ -4201,11 +4201,11 @@ function renderRecordsView() {
       var attachments = Array.isArray(r.attachments) ? r.attachments : [];
       attachments.forEach(function(att) {
         if (att.inline_text && att.inline_text.trim()) {
-          attachmentsHtml += '<div style="font-size:13px;color:var(--text-primary);line-height:1.6;margin-bottom:10px;white-space:pre-wrap;padding:10px 12px;background:var(--cream);border-radius:8px;">'+escHtml(att.inline_text.trim())+'</div>';
+          attachmentsHtml += '<div style="font-size:var(--type-meta);color:var(--text-primary);line-height:1.6;margin-bottom:10px;white-space:pre-wrap;padding:10px 12px;background:var(--cream);border-radius:8px;">'+escHtml(att.inline_text.trim())+'</div>';
         } else if (att.content_type && att.url) {
           // Binary attachment (PDF, etc.) — signed fetch coming in the next pass.
           var typeLabel = att.content_type.indexOf('pdf') !== -1 ? 'PDF' : att.content_type.split('/').pop().toUpperCase();
-          attachmentsHtml += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--cream);border-radius:8px;margin-bottom:10px;font-size:12px;color:var(--text-secondary);">'
+          attachmentsHtml += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--cream);border-radius:8px;margin-bottom:10px;font-size:var(--type-meta);color:var(--text-secondary);">'
             + '<i data-lucide="paperclip" style="width:14px;height:14px;flex-shrink:0;"></i>'
             + '<span>'+escHtml(att.title || typeLabel+' attachment')+' \u2014 opening attachments coming soon</span>'
             + '</div>';
@@ -4218,7 +4218,7 @@ function renderRecordsView() {
       if (r.code)     metaItems.push('Code: '+escHtml(r.code));
       if (r.issued && r.issued !== dateStr) metaItems.push('Issued: '+formatEventDate(r.issued));
       if (r.result_count && r.result_count > 0) metaItems.push(r.result_count+' result'+(r.result_count===1?'':'s')+' attached');
-      var metaHtml = metaItems.length ? '<div style="font-size:11px;color:var(--text-muted);line-height:1.6;padding-top:6px;border-top:1px solid var(--border);">'+metaItems.join(' \u00B7 ')+'</div>' : '';
+      var metaHtml = metaItems.length ? '<div style="font-size:var(--type-micro);color:var(--text-muted);line-height:1.6;padding-top:6px;border-top:1px solid var(--border);">'+metaItems.join(' \u00B7 ')+'</div>' : '';
 
       var expandedBody = '';
       if (attribution || conclusionHtml || codesHtml || attachmentsHtml || metaHtml) {
@@ -4242,14 +4242,14 @@ function renderRecordsView() {
     };
 
     if (reportsRecent.length === 0) {
-      html += '<div style="padding:12px 16px;font-size:13px;color:var(--text-muted);">No reports in the last 2 years.</div>';
+      html += '<div style="padding:12px 16px;font-size:var(--type-meta);color:var(--text-muted);">No reports in the last 2 years.</div>';
     } else {
       reportsRecent.forEach(function(r, idx) { html += renderReportRow(r, idx, 'r'); });
     }
 
     if (reportsOlder.length > 0) {
       var olderLabel = 'Show '+reportsOlder.length+' older report'+(reportsOlder.length===1?'':'s');
-      html += '<button class="reports-older-toggle" onclick="toggleOlderReports(this)" data-older-count="'+reportsOlder.length+'" style="margin:8px 16px 0;background:none;border:none;color:var(--moss);font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;padding:6px 0;">'+olderLabel+'</button>';
+      html += '<button class="reports-older-toggle" onclick="toggleOlderReports(this)" data-older-count="'+reportsOlder.length+'" style="margin:8px 16px 0;background:none;border:none;color:var(--moss);font-family:inherit;font-size:var(--type-meta);font-weight:500;cursor:pointer;padding:6px 0;">'+olderLabel+'</button>';
       html += '<div id="ehr-reports-older" style="display:none;">';
       reportsOlder.forEach(function(r, idx) { html += renderReportRow(r, idx, 'o'); });
       html += '</div>';
@@ -4267,7 +4267,7 @@ function renderRecordsView() {
     Object.keys(vitalsByType).forEach(function(vt){
       var readings=vitalsByType[vt], latest=readings[0];
       var valStr=escHtml(latest.value)+(latest.unit?' '+escHtml(latest.unit):'');
-      var trend=readings.length>1?' <span style="color:var(--text-muted);font-size:11px;">('+readings.length+' readings)</span>':'';
+      var trend=readings.length>1?' <span style="color:var(--text-muted);font-size:var(--type-micro);">('+readings.length+' readings)</span>':'';
       html +='<div class="record-row" data-date="'+escHtml(latest.effective_date||'')+'">'
         +'<div class="record-icon moss"><i data-lucide="activity" style="width:15px;height:15px;"></i></div>'
         +'<div style="flex:1;"><div class="record-label">'+escHtml(vt)+trend+'</div>'
@@ -4299,7 +4299,7 @@ function renderRecordsView() {
           +'<div class="record-meta">'+parts.join(' \u00B7 ')+'</div></div>'
           +appleHealthBadgeHtml(src,prov)+'</div>';
       });
-      if (actDays.length>14) html+='<div style="text-align:center;padding:8px;color:var(--text-secondary);font-size:12px;">+ '+(actDays.length-14)+' more days</div>';
+      if (actDays.length>14) html+='<div style="text-align:center;padding:8px;color:var(--text-secondary);font-size:var(--type-meta);">+ '+(actDays.length-14)+' more days</div>';
       html += '</div>';
     }
   }
@@ -4340,7 +4340,7 @@ function renderRecordsView() {
         +'<div class="record-meta">'+parts.join(' \u00B7 ')+'</div></div>'
         +appleHealthBadgeHtml(src,prov)+'</div>';
     });
-    if (Object.keys(sleepByNight).length>14) html+='<div style="text-align:center;padding:8px;color:var(--text-secondary);font-size:12px;">+ more sleep data available</div>';
+    if (Object.keys(sleepByNight).length>14) html+='<div style="text-align:center;padding:8px;color:var(--text-secondary);font-size:var(--type-meta);">+ more sleep data available</div>';
     html += '</div>';
   }
 
@@ -4358,7 +4358,7 @@ function renderRecordsView() {
         +'<div class="record-meta">'+formatEventDate(w.event_date)+'</div></div>'
         +appleHealthBadgeHtml(w.source,wp)+'</div>';
     });
-    if (workoutEvents.length>20) html+='<div style="text-align:center;padding:8px;color:var(--text-secondary);font-size:12px;">+ '+(workoutEvents.length-20)+' more workouts</div>';
+    if (workoutEvents.length>20) html+='<div style="text-align:center;padding:8px;color:var(--text-secondary);font-size:var(--type-meta);">+ '+(workoutEvents.length-20)+' more workouts</div>';
     html += '</div>';
   }
 
@@ -5281,7 +5281,7 @@ function renderExtractedItems() {
   });
 
   if (_currentExtItems.length === 0) {
-    html = '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:13px;font-style:italic;">No items were extracted from this document.</div>';
+    html = '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:var(--type-meta);font-style:italic;">No items were extracted from this document.</div>';
   }
 
   container.innerHTML = html;
@@ -5472,7 +5472,7 @@ function pollExtractionStatus(docId, isAudio) {
     if (_pollAttempts > maxAttempts) {
       clearInterval(_pollTimer);
       _pollTimer = null;
-      statusEl.innerHTML = '<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Analysis is taking longer than expected. Check back in Records.</div>';
+      statusEl.innerHTML = '<div style="font-size:var(--type-meta);color:var(--text-muted);margin-top:4px;">Analysis is taking longer than expected. Check back in Records.</div>';
       return;
     }
 
@@ -5512,14 +5512,14 @@ function pollExtractionStatus(docId, isAudio) {
           setTimeout(function() { showExtractionResults(doc.id); }, 300);
         };
       } else {
-        statusEl.innerHTML = '<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">No items were found to extract.</div>';
+        statusEl.innerHTML = '<div style="font-size:var(--type-meta);color:var(--text-muted);margin-top:4px;">No items were found to extract.</div>';
       }
       initIcons();
 
     } else if (doc.extraction_status === 'failed') {
       clearInterval(_pollTimer);
       _pollTimer = null;
-      statusEl.innerHTML = '<div style="font-size:12px;color:var(--red);margin-top:4px;">Extraction failed. The document was saved to your records.</div>';
+      statusEl.innerHTML = '<div style="font-size:var(--type-meta);color:var(--red);margin-top:4px;">Extraction failed. The document was saved to your records.</div>';
     }
   }, 3000);
 }
@@ -5840,7 +5840,7 @@ function showHealthImportSummary(summary) {
     lines.push('<div style="padding:4px 0;">' + escHtml('Your file has been stored securely.') + '</div>');
   }
 
-  lines.push('<div style="padding:6px 0 0;color:var(--text-secondary);font-size:13px;">'
+  lines.push('<div style="padding:6px 0 0;color:var(--text-secondary);font-size:var(--type-meta);">'
     + escHtml('Your documents are saved and Ask Wellet can answer questions about them.') + '</div>');
 
   document.getElementById('hi-summary-detail').innerHTML = lines.join('');
@@ -5998,13 +5998,13 @@ function openMedDetail(medKey) {
     if (!f.value) return;
     rows += '<div style="display:flex;align-items:flex-start;gap:10px;">'
       + '<i data-lucide="' + f.icon + '" style="width:15px;height:15px;color:var(--text-muted);margin-top:2px;flex-shrink:0;"></i>'
-      + '<div><div style="font-size:11px;color:var(--text-muted);font-weight:500;text-transform:uppercase;letter-spacing:0.5px;">' + f.label + '</div>'
-      + '<div style="font-size:14px;color:var(--text-primary);margin-top:1px;">' + escHtml(f.value) + '</div></div></div>';
+      + '<div><div style="font-size:var(--type-micro);color:var(--text-muted);font-weight:500;text-transform:uppercase;letter-spacing:0.5px;">' + f.label + '</div>'
+      + '<div style="font-size:var(--type-body);color:var(--text-primary);margin-top:1px;">' + escHtml(f.value) + '</div></div></div>';
   });
   if (med.notes) {
     rows += '<div style="background:var(--mint);border-radius:10px;padding:12px 14px;margin-top:4px;">'
-      + '<div style="font-size:11px;color:var(--moss-dark);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;"><i data-lucide="info" style="width:12px;height:12px;vertical-align:-2px;"></i> Notes</div>'
-      + '<div style="font-size:13px;color:var(--text-primary);line-height:1.4;">' + escHtml(med.notes) + '</div></div>';
+      + '<div style="font-size:var(--type-micro);color:var(--moss-dark);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;"><i data-lucide="info" style="width:12px;height:12px;vertical-align:-2px;"></i> Notes</div>'
+      + '<div style="font-size:var(--type-meta);color:var(--text-primary);line-height:1.4;">' + escHtml(med.notes) + '</div></div>';
   }
   document.getElementById('med-detail-body').innerHTML = rows;
   openSheetAccessible('med-detail-overlay');
@@ -6137,7 +6137,7 @@ async function saveEditEvent() {
 
 function confirmDeleteEvent() {
   var deleteArea = document.getElementById('edit-event-delete-area');
-  deleteArea.innerHTML = '<div style="font-size:13px;color:var(--red);font-weight:500;text-align:center;margin-bottom:4px;">Delete this event? This cannot be undone.</div>'
+  deleteArea.innerHTML = '<div style="font-size:var(--type-meta);color:var(--red);font-weight:500;text-align:center;margin-bottom:4px;">Delete this event? This cannot be undone.</div>'
     + '<div class="delete-confirm-row">'
     + '<button class="btn-cancel-sm" onclick="cancelDeleteEvent()">' + t('common.cancel') + '</button>'
     + '<button class="btn-delete-sm" onclick="deleteEvent()">' + t('common.delete') + '</button>'
@@ -6246,7 +6246,7 @@ async function saveEditMed() {
 
 function confirmDeleteMed() {
   var deleteArea = document.getElementById('edit-med-delete-area');
-  deleteArea.innerHTML = '<div style="font-size:13px;color:var(--red);font-weight:500;text-align:center;margin-bottom:4px;">Delete this medication? This cannot be undone.</div>'
+  deleteArea.innerHTML = '<div style="font-size:var(--type-meta);color:var(--red);font-weight:500;text-align:center;margin-bottom:4px;">Delete this medication? This cannot be undone.</div>'
     + '<div class="delete-confirm-row">'
     + '<button class="btn-cancel-sm" onclick="cancelDeleteMed()">' + t('common.cancel') + '</button>'
     + '<button class="btn-delete-sm" onclick="deleteMed()">' + t('common.delete') + '</button>'
@@ -6301,8 +6301,8 @@ function renderPatterns() {
     pane.innerHTML = '<div class="patterns-section">'
       + '<p class="section-label">' + t('patterns.noticed') + '</p>'
       + '<div style="text-align:center;padding:48px 24px;">'
-      + '<div style="font-size:32px;margin-bottom:12px;opacity:0.3;"><i data-lucide="bar-chart-3" style="width:32px;height:32px;"></i></div>'
-      + '<div style="font-size:14px;color:var(--text-muted);line-height:1.6;">Add health events to see patterns emerge here.</div>'
+      + '<div style="font-size:var(--type-display);margin-bottom:12px;opacity:0.3;"><i data-lucide="bar-chart-3" style="width:32px;height:32px;"></i></div>'
+      + '<div style="font-size:var(--type-body);color:var(--text-muted);line-height:1.6;">Add health events to see patterns emerge here.</div>'
       + '</div></div>';
     initIcons();
     return;
@@ -6393,9 +6393,9 @@ function renderPatterns() {
   html += '<div class="insight-card" style="border-color:var(--mint-deep);background:var(--mint);">'
     + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">'
     + '<i data-lucide="eye" style="width:13px;height:13px;color:var(--moss);"></i>'
-    + '<span style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--moss-dark);font-weight:500;">Wellet is witnessing</span>'
+    + '<span style="font-size:var(--type-micro);letter-spacing:.08em;text-transform:uppercase;color:var(--moss-dark);font-weight:500;">Wellet is witnessing</span>'
     + '</div>'
-    + '<p style="font-size:13px;line-height:1.65;color:var(--text-secondary);">' + escHtml(narrative) + '</p>'
+    + '<p style="font-size:var(--type-meta);line-height:1.65;color:var(--text-secondary);">' + escHtml(narrative) + '</p>'
     + '</div>';
 
   html += '</div>';
@@ -7581,7 +7581,7 @@ function _paintSignals(el, sigFirstName, activeConns, terraData) {
         if (rw.heartRate) {
           ch += '<div class="wearable-card">';
           ch += '<div class="signals-label">' + t('signals.heartRate') + '</div>';
-          ch += '<div class="signals-metric">' + rw.heartRate.current + ' <span style="font-size:14px;font-weight:400;color:var(--text-secondary);">bpm</span></div>';
+          ch += '<div class="signals-metric">' + rw.heartRate.current + ' <span style="font-size:var(--type-body);font-weight:400;color:var(--text-secondary);">bpm</span></div>';
           if (rw.heartRate.trend && rw.heartRate.trend.length >= 2) {
             ch += '<div class="wearable-sparkline">' + buildSparkline(rw.heartRate.trend, 120, 28, 'var(--red)') + '</div>';
           }
@@ -7623,7 +7623,7 @@ function _paintSignals(el, sigFirstName, activeConns, terraData) {
         if (rw.spo2) {
           ch += '<div class="wearable-card">';
           ch += '<div class="signals-label">' + t('signals.bloodOxygen') + '</div>';
-          ch += '<div class="signals-metric">' + rw.spo2.current + '<span style="font-size:14px;font-weight:400;">%</span></div>';
+          ch += '<div class="signals-metric">' + rw.spo2.current + '<span style="font-size:var(--type-body);font-weight:400;">%</span></div>';
           ch += '<div style="display:flex;align-items:center;gap:4px;margin-top:4px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--moss);display:inline-block;"></span>';
           ch += '<span class="signals-metric-sm">' + rw.spo2.min + '\u2013' + rw.spo2.max + '% range</span></div>';
           ch += '</div>';
@@ -7633,7 +7633,7 @@ function _paintSignals(el, sigFirstName, activeConns, terraData) {
         if (rw.hrv) {
           ch += '<div class="wearable-card">';
           ch += '<div class="signals-label">HRV</div>';
-          ch += '<div class="signals-metric">' + rw.hrv.current + ' <span style="font-size:14px;font-weight:400;color:var(--text-secondary);">' + escHtml(rw.hrv.unit) + '</span></div>';
+          ch += '<div class="signals-metric">' + rw.hrv.current + ' <span style="font-size:var(--type-body);font-weight:400;color:var(--text-secondary);">' + escHtml(rw.hrv.unit) + '</span></div>';
           ch += '<div class="signals-metric-sm">Heart rate variability</div>';
           ch += '</div>';
         }
@@ -7737,7 +7737,7 @@ function _renderSignalsDemo(el, data) {
   // Heart rate card
   html += '<div class="wearable-card">';
   html += '<div class="signals-label">' + t('signals.heartRate') + '</div>';
-  html += '<div class="signals-metric">' + w.heartRate.current + ' <span style="font-size:14px;font-weight:400;color:var(--text-secondary);">bpm</span></div>';
+  html += '<div class="signals-metric">' + w.heartRate.current + ' <span style="font-size:var(--type-body);font-weight:400;color:var(--text-secondary);">bpm</span></div>';
   html += '<div class="wearable-sparkline">' + buildSparkline(w.heartRate.trend, 120, 28, 'var(--signal-warm)') + '</div>';
   html += '<div class="signals-metric-sm">' + w.heartRate.min + '\u2013' + w.heartRate.max + ' today</div>';
   html += '</div>';
@@ -7766,7 +7766,7 @@ function _renderSignalsDemo(el, data) {
   // Blood oxygen card
   html += '<div class="wearable-card">';
   html += '<div class="signals-label">' + t('signals.bloodOxygen') + '</div>';
-  html += '<div class="signals-metric">' + w.spo2.current + '<span style="font-size:14px;font-weight:400;">%</span></div>';
+  html += '<div class="signals-metric">' + w.spo2.current + '<span style="font-size:var(--type-body);font-weight:400;">%</span></div>';
   html += '<div style="display:flex;align-items:center;gap:4px;margin-top:4px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--moss);display:inline-block;"></span><span class="signals-metric-sm">' + w.spo2.min + '\u2013' + w.spo2.max + '% range</span></div>';
   html += '</div>';
 
@@ -7809,7 +7809,7 @@ function _renderSignalsDemo(el, data) {
     html += '<div class="tl-dot" aria-hidden="true"></div>';
     html += '<div class="tl-time">' + escHtml(ev.time) + '</div>';
     html += '<div class="tl-desc"><i data-lucide="' + escHtml(ev.icon) + '"></i>' + escHtml(ev.event);
-    if (ev.note) html += ' <span style="color:var(--text-muted);font-size:11px;">(' + escHtml(ev.note) + ')</span>';
+    if (ev.note) html += ' <span style="color:var(--text-muted);font-size:var(--type-micro);">(' + escHtml(ev.note) + ')</span>';
     html += '</div>';
     html += '</div>';
   }
@@ -8966,7 +8966,7 @@ function updateSettingsEhr() {
   if (isDemoMode && ehrData) {
     statusEl.innerHTML = '<div class="ehr-status-bar">'
       + '<div class="ehr-status-left"><div class="ehr-status-dot" aria-hidden="true"></div>Connected to ' + escHtml(ehrData.provider) + '</div>'
-      + '<div class="ehr-status-right"><span style="font-size:11px;color:var(--text-muted);">Demo data</span></div>'
+      + '<div class="ehr-status-right"><span style="font-size:var(--type-micro);color:var(--text-muted);">Demo data</span></div>'
       + '</div>';
     if (labelEl) labelEl.textContent = 'Health Records Connected';
     if (metaEl) metaEl.textContent = 'Demo mode \u2014 showing sample EHR data';
@@ -8975,12 +8975,12 @@ function updateSettingsEhr() {
     statusEl.innerHTML = '<div class="ehr-status-bar">'
       + '<div class="ehr-status-left"><div class="ehr-status-dot" aria-hidden="true"></div>Connected to ' + escHtml(ehrData.provider || 'EHR Provider') + '</div>'
       + '<div class="ehr-status-right">'
-      + '<span style="font-size:11px;color:var(--text-muted);">Synced ' + syncedStr + '</span>'
+      + '<span style="font-size:var(--type-micro);color:var(--text-muted);">Synced ' + syncedStr + '</span>'
       + '<button type="button" class="ehr-refresh-btn" onclick="event.stopPropagation();refreshEhrData();" title="Refresh"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>'
       + '</div></div>'
       + '<div style="display:flex;gap:8px;margin-top:8px;">'
-      + '<button type="button" onclick="refreshEhrData()" style="flex:1;padding:10px;font-size:13px;font-family:\'DM Sans\',sans-serif;font-weight:500;background:var(--mint);color:var(--moss);border:none;border-radius:8px;cursor:pointer;"><i data-lucide="refresh-cw" style="width:13px;height:13px;vertical-align:-2px;"></i> Refresh data</button>'
-      + '<button type="button" onclick="disconnectEhr()" style="flex:1;padding:10px;font-size:13px;font-family:\'DM Sans\',sans-serif;font-weight:500;background:#FEF0EE;color:var(--red);border:none;border-radius:8px;cursor:pointer;"><i data-lucide="unplug" style="width:13px;height:13px;vertical-align:-2px;"></i> Disconnect</button>'
+      + '<button type="button" onclick="refreshEhrData()" style="flex:1;padding:10px;font-size:var(--type-meta);font-family:\'DM Sans\',sans-serif;font-weight:500;background:var(--mint);color:var(--moss);border:none;border-radius:8px;cursor:pointer;"><i data-lucide="refresh-cw" style="width:13px;height:13px;vertical-align:-2px;"></i> Refresh data</button>'
+      + '<button type="button" onclick="disconnectEhr()" style="flex:1;padding:10px;font-size:var(--type-meta);font-family:\'DM Sans\',sans-serif;font-weight:500;background:#FEF0EE;color:var(--red);border:none;border-radius:8px;cursor:pointer;"><i data-lucide="unplug" style="width:13px;height:13px;vertical-align:-2px;"></i> Disconnect</button>'
       + '</div>';
     if (labelEl) labelEl.textContent = 'Manage Health Records';
     if (metaEl) metaEl.textContent = 'Connected to ' + (ehrData.provider || 'EHR Provider');
@@ -9008,7 +9008,7 @@ function updateProfileEhr(personId) {
   if (isDemoMode && ehrData) {
     section.innerHTML = '<div class="ehr-status-bar">'
       + '<div class="ehr-status-left"><div class="ehr-status-dot" aria-hidden="true"></div>Connected to ' + escHtml(ehrData.provider) + '</div>'
-      + '<div class="ehr-status-right"><span style="font-size:11px;color:var(--text-muted);">Demo</span></div>'
+      + '<div class="ehr-status-right"><span style="font-size:var(--type-micro);color:var(--text-muted);">Demo</span></div>'
       + '</div>';
   } else if (ehrData && ehrData.synced_at) {
     section.innerHTML = '<div class="ehr-status-bar">'
@@ -9072,7 +9072,7 @@ function appleHealthBadgeHtml(source, providerName) {
     return '<span class="ehr-badge" style="background:#E8F5E9;color:#2E7D32;"><i data-lucide="watch" style="width:10px;height:10px;"></i>Apple Health</span>';
   }
   if (source === 'terra') {
-    return '<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;background:#E8F0FE;color:#4A90D9;padding:1px 7px;border-radius:8px;"><i data-lucide="watch" style="width:10px;height:10px;"></i> ' + escHtml(providerName || 'Wearable') + '</span>';
+    return '<span style="display:inline-flex;align-items:center;gap:3px;font-size:var(--type-micro);background:#E8F0FE;color:#4A90D9;padding:1px 7px;border-radius:8px;"><i data-lucide="watch" style="width:10px;height:10px;"></i> ' + escHtml(providerName || 'Wearable') + '</span>';
   }
   if (source === 'ehr') return ehrBadgeHtml();
   return '';
@@ -9088,14 +9088,14 @@ function buildEhrStatusBar(ehrData) {
   var patientLine = '';
   if (ehrData.patient && ehrData.patient.name) {
     var dob = ehrData.patient.birth_date ? ' \u00B7 DOB ' + escHtml(ehrData.patient.birth_date) : '';
-    patientLine = '<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">Chart: ' + escHtml(ehrData.patient.name) + dob + '</div>';
+    patientLine = '<div style="font-size:var(--type-micro);color:var(--text-secondary);margin-top:2px;">Chart: ' + escHtml(ehrData.patient.name) + dob + '</div>';
   }
   return '<div class="ehr-status-bar">'
     + '<div class="ehr-status-left"><div class="ehr-status-dot" aria-hidden="true"></div>'
     + '<div><strong>EHR Connected</strong> \u00B7 ' + escHtml(ehrData.provider || 'Provider')
     + patientLine + '</div></div>'
     + '<div class="ehr-status-right">'
-    + '<span style="font-size:11px;color:var(--text-muted);">Synced ' + syncedStr + '</span>'
+    + '<span style="font-size:var(--type-micro);color:var(--text-muted);">Synced ' + syncedStr + '</span>'
     // "Add another hospital" entry point. Opens the same Epic hospital picker
     // that first-time connect uses. As of 2026-04-27 the per-loved-one server
     // guard is lifted — a loved one can connect Duke + UNC + WakeMed + any
@@ -9435,14 +9435,14 @@ function buildCareTeamSection(careTeam, provider, visits, ehrData) {
       var srcHtml = p._enriched_source_url
         ? '<a href="' + escHtml(p._enriched_source_url) + '" target="_blank" rel="noopener" style="color:var(--text-muted);text-decoration:underline;">' + srcLabel + '</a>'
         : srcLabel;
-      lines.push('<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">From ' + srcHtml + '</div>');
+      lines.push('<div style="font-size:var(--type-micro);color:var(--text-muted);margin-top:2px;">From ' + srcHtml + '</div>');
     }
 
     // Per spec: hide rows whose value is missing — silence is better than
     // "No contact info on file." placeholder. The card is still useful with
     // name, role, and last-seen.
     var contactBlock = lines.length
-      ? '<div style="width:100%;padding:6px 0 0 44px;font-size:12px;color:var(--text-secondary);line-height:1.8;">' + lines.join('') + '</div>'
+      ? '<div style="width:100%;padding:6px 0 0 44px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.8;">' + lines.join('') + '</div>'
       : '';
 
     html += '<div class="record-row" style="flex-wrap:wrap;align-items:flex-start;">'
@@ -9551,8 +9551,8 @@ function renderAttachmentZone(scope, key) {
   var jsKey = String(key).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
   var html = '<div class="visit-attachments" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);">'
     + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">'
-    + '<div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;">Attachments</div>'
-    + '<label for="' + inputId + '" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--moss);cursor:pointer;padding:4px 8px;border:1px dashed var(--border);border-radius:12px;">'
+    + '<div style="font-size:var(--type-micro);font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;">Attachments</div>'
+    + '<label for="' + inputId + '" style="display:inline-flex;align-items:center;gap:4px;font-size:var(--type-micro);color:var(--moss);cursor:pointer;padding:4px 8px;border:1px dashed var(--border);border-radius:12px;">'
     + '<i data-lucide="paperclip" style="width:12px;height:12px;"></i>Add file'
     + '</label>'
     + '<input id="' + inputId + '" type="file" multiple accept="' + ATTACH_ACCEPT_ATTR + '" style="display:none;" onchange="handleAttachmentPick(this, \'' + scope + '\', \'' + escHtml(jsKey) + '\')">'
@@ -9564,15 +9564,15 @@ function renderAttachmentZone(scope, key) {
 
 function renderAttachmentList(list) {
   if (!list || !list.length) {
-    return '<div style="font-size:11px;color:var(--text-muted);font-style:italic;">No files yet \u2014 add a voice memo, photo, or PDF.</div>';
+    return '<div style="font-size:var(--type-micro);color:var(--text-muted);font-style:italic;">No files yet \u2014 add a voice memo, photo, or PDF.</div>';
   }
   return list.map(function(a) {
     var icon = attachmentIcon(a.kind);
     var size = humanBytes(a.size_bytes);
-    return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;">'
+    return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:var(--type-meta);">'
       + '<i data-lucide="' + icon + '" style="width:14px;height:14px;color:var(--text-secondary);flex-shrink:0;"></i>'
       + '<a onclick="openAttachment(\'' + a.id + '\')" style="color:var(--moss);text-decoration:none;cursor:pointer;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escHtml(a.file_name) + '</a>'
-      + '<span style="color:var(--text-muted);font-size:10px;flex-shrink:0;">' + size + '</span>'
+      + '<span style="color:var(--text-muted);font-size:var(--type-micro);flex-shrink:0;">' + size + '</span>'
       + '<button type="button" onclick="deleteAttachment(\'' + a.id + '\')" title="Delete" style="background:none;border:0;cursor:pointer;color:var(--text-muted);padding:2px;">'
       + '<i data-lucide="trash-2" style="width:12px;height:12px;"></i>'
       + '</button>'
@@ -10650,16 +10650,16 @@ function openShareFamily() {
       rhtml += '<label style="display:flex;align-items:center;gap:10px;padding:8px 0;cursor:' + (hasEmail ? 'pointer' : 'default') + ';opacity:' + (hasEmail ? '1' : '0.5') + ';">'
         + '<input type="checkbox" class="share-recipient-cb" value="' + escHtml(m.email || '') + '" data-name="' + escHtml(m.member_name) + '"' + (hasEmail ? ' checked' : ' disabled') + ' style="width:18px;height:18px;accent-color:var(--moss);">'
         + '<div style="flex:1;min-width:0;">'
-        + '<div style="font-size:14px;font-weight:500;color:var(--text-primary);">' + escHtml(m.member_name) + '</div>'
-        + '<div style="font-size:12px;color:var(--text-muted);">' + (hasEmail ? escHtml(m.email) : 'No email added') + '</div>'
+        + '<div style="font-size:var(--type-body);font-weight:500;color:var(--text-primary);">' + escHtml(m.member_name) + '</div>'
+        + '<div style="font-size:var(--type-meta);color:var(--text-muted);">' + (hasEmail ? escHtml(m.email) : 'No email added') + '</div>'
         + '</div>'
-        + '<div style="font-size:11px;color:var(--text-muted);text-transform:capitalize;">' + escHtml(m.role) + '</div>'
+        + '<div style="font-size:var(--type-micro);color:var(--text-muted);text-transform:capitalize;">' + escHtml(m.role) + '</div>'
         + '</label>';
     });
     recipientsList.innerHTML = rhtml;
   } else {
     recipientsDiv.style.display = '';
-    recipientsList.innerHTML = '<div style="font-size:13px;color:var(--text-muted);padding:4px 0;">No family members added yet.</div>';
+    recipientsList.innerHTML = '<div style="font-size:var(--type-meta);color:var(--text-muted);padding:4px 0;">No family members added yet.</div>';
   }
 
   openSheetAccessible('share-overlay');
@@ -10909,7 +10909,7 @@ async function openShareEmail(url) {
   var emailOpt = document.querySelector('#share-options .share-option:nth-child(2)');
   var origHtml = emailOpt ? emailOpt.innerHTML : '';
   if (emailOpt) {
-    emailOpt.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:4px 0;"><i data-lucide="loader" style="width:17px;height:17px;animation:spin 1.2s linear infinite;color:var(--amber);"></i><span style="font-size:14px;color:var(--text-secondary);">Sending emails\u2026</span></div>';
+    emailOpt.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:4px 0;"><i data-lucide="loader" style="width:17px;height:17px;animation:spin 1.2s linear infinite;color:var(--amber);"></i><span style="font-size:var(--type-body);color:var(--text-secondary);">Sending emails\u2026</span></div>';
     initIcons();
   }
 
@@ -11038,14 +11038,14 @@ function setFormat(btn) {
 }
 function showToast(msg, opts) {
   var toast = document.createElement('div');
-  toast.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#2C2A26;color:white;padding:10px 18px;border-radius:20px;font-size:13px;font-family:DM Sans,sans-serif;z-index:300;opacity:1;transition:opacity 0.4s;display:flex;align-items:center;gap:10px;max-width:90vw;';
+  toast.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#2C2A26;color:white;padding:10px 18px;border-radius:20px;font-size:var(--type-meta);font-family:DM Sans,sans-serif;z-index:300;opacity:1;transition:opacity 0.4s;display:flex;align-items:center;gap:10px;max-width:90vw;';
   var span = document.createElement('span');
   span.textContent = msg;
   toast.appendChild(span);
   if (opts && opts.undo) {
     var undoBtn = document.createElement('button');
     undoBtn.textContent = 'Undo';
-    undoBtn.style.cssText = 'background:none;border:none;color:var(--mint);font-weight:600;font-size:13px;cursor:pointer;font-family:DM Sans,sans-serif;padding:0;white-space:nowrap;';
+    undoBtn.style.cssText = 'background:none;border:none;color:var(--mint);font-weight:600;font-size:var(--type-meta);cursor:pointer;font-family:DM Sans,sans-serif;padding:0;white-space:nowrap;';
     undoBtn.onclick = function() { opts.undo(); toast.remove(); };
     toast.appendChild(undoBtn);
   }
@@ -11065,9 +11065,9 @@ function showAlphaFeatureNotice(featureName, message) {
   card.style.cssText = 'background:white;border-radius:20px;padding:28px 24px 24px;max-width:340px;width:100%;text-align:center;font-family:DM Sans,sans-serif;';
   card.innerHTML = '<div style="width:52px;height:52px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">'
     + '<i data-lucide="construction" style="width:24px;height:24px;color:var(--moss);"></i></div>'
-    + '<div style="font-family: var(--serif);font-size:18px;margin-bottom:8px;">' + escHtml(featureName) + '</div>'
-    + '<div style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:20px;">' + escHtml(message) + '</div>'
-    + '<button onclick="this.closest(\'.alpha-notice-overlay\').remove()" style="background:var(--moss);color:white;border:none;border-radius:12px;padding:12px 28px;font-size:14px;font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;">Got it</button>';
+    + '<div style="font-family: var(--serif);font-size:var(--type-h2);margin-bottom:8px;">' + escHtml(featureName) + '</div>'
+    + '<div style="font-size:var(--type-body);color:var(--text-secondary);line-height:1.6;margin-bottom:20px;">' + escHtml(message) + '</div>'
+    + '<button onclick="this.closest(\'.alpha-notice-overlay\').remove()" style="background:var(--moss);color:white;border:none;border-radius:12px;padding:12px 28px;font-size:var(--type-body);font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;">Got it</button>';
   overlay.classList.add('alpha-notice-overlay');
   overlay.appendChild(card);
   document.body.appendChild(overlay);
@@ -11799,7 +11799,7 @@ async function renderResourcesView() {
 
   // Show loading state
   el.innerHTML = '<div class="resources-view" style="text-align:center;padding:60px 20px;">'
-    + '<div style="color:var(--text-muted);font-size:13px;">Loading resources\u2026</div></div>';
+    + '<div style="color:var(--text-muted);font-size:var(--type-meta);">Loading resources\u2026</div></div>';
 
   try {
     await loadResources();
@@ -11808,7 +11808,7 @@ async function renderResourcesView() {
   } catch(e) {
     console.error('Resources load error:', e);
     el.innerHTML = '<div class="resources-view" style="text-align:center;padding:60px 20px;">'
-      + '<div style="color:var(--text-muted);font-size:13px;">Could not load resources. Pull down to retry.</div></div>';
+      + '<div style="color:var(--text-muted);font-size:var(--type-meta);">Could not load resources. Pull down to retry.</div></div>';
     return;
   }
 
@@ -12289,7 +12289,7 @@ function renderEmergencySummary() {
   }
 
   if (!person.date_of_birth && !person.allergies && activeMeds.length === 0) {
-    html += '<div style="padding:16px 20px;font-size:13px;color:var(--text-secondary);font-style:italic;">Add profile information to make this summary more complete.</div>';
+    html += '<div style="padding:16px 20px;font-size:var(--type-meta);color:var(--text-secondary);font-style:italic;">Add profile information to make this summary more complete.</div>';
   }
 
   container.innerHTML = html;
@@ -12484,7 +12484,7 @@ function renderCareCircle() {
   if (!container) return;
 
   if (liveCareCircle.length === 0) {
-    container.innerHTML = '<div style="text-align:center;padding:16px 0 8px;font-size:13px;color:var(--text-secondary);font-style:italic;">No care circle members yet.</div>';
+    container.innerHTML = '<div style="text-align:center;padding:16px 0 8px;font-size:var(--type-meta);color:var(--text-secondary);font-style:italic;">No care circle members yet.</div>';
     return;
   }
 
@@ -12498,9 +12498,9 @@ function renderCareCircle() {
     var inviteBadge = '';
     var inviteBtn = '';
     if (inviteStatus === 'accepted') {
-      inviteBadge = '<span style="font-size:10px;color:var(--moss);background:var(--mint);padding:2px 8px;border-radius:10px;font-weight:500;white-space:nowrap;">Joined</span>';
+      inviteBadge = '<span style="font-size:var(--type-micro);color:var(--moss);background:var(--mint);padding:2px 8px;border-radius:10px;font-weight:500;white-space:nowrap;">Joined</span>';
     } else if (inviteStatus === 'invited') {
-      inviteBadge = '<span style="font-size:10px;color:#8B6914;background:#FFF8E1;padding:2px 8px;border-radius:10px;font-weight:500;white-space:nowrap;">Invited</span>';
+      inviteBadge = '<span style="font-size:var(--type-micro);color:#8B6914;background:#FFF8E1;padding:2px 8px;border-radius:10px;font-weight:500;white-space:nowrap;">Invited</span>';
     } else if (member.email) {
       inviteBtn = '<button class="contact-edit-btn" onclick="event.stopPropagation();sendCareCircleInvite(\'' + member.id + '\')" title="Send invite" style="color:var(--moss);"><i data-lucide="send" style="width:14px;height:14px;"></i></button>';
     }
@@ -14202,7 +14202,7 @@ function obShowDobPrompt() {
   group.className = 'ob-msg-group from-wellet';
   group.id = 'ob-dob-group';
   var html = '<div class="ob-dob-wrap" style="display:flex;flex-direction:column;gap:8px;max-width:320px;">';
-  html += '<input type="date" id="ob-dob-input" class="ob-dob-input" max="' + escHtml(_obTodayISO()) + '" style="padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:15px;font-family:inherit;background:#fff;color:var(--ink);" />';
+  html += '<input type="date" id="ob-dob-input" class="ob-dob-input" max="' + escHtml(_obTodayISO()) + '" style="padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:var(--type-body);font-family:inherit;background:#fff;color:var(--ink);" />';
   html += '<div class="ob-dob-actions" style="display:flex;gap:8px;flex-wrap:wrap;">';
   html += '<button class="ob-chip" id="ob-dob-save" onclick="obSaveDob()">Save</button>';
   html += '<button class="ob-chip ob-chip-ghost" onclick="obSkipDob()" style="background:transparent;">Skip for now</button>';
@@ -14722,7 +14722,7 @@ function obConfirmExtraction(cardId) {
   if (!card) return;
   var actions = card.querySelector('.ob-extract-card-actions');
   if (actions) {
-    actions.innerHTML = '<span style="color:var(--moss);font-size:13px;font-weight:500;display:flex;align-items:center;gap:4px;"><i data-lucide="check" style="width:14px;height:14px;"></i> Saved</span>';
+    actions.innerHTML = '<span style="color:var(--moss);font-size:var(--type-meta);font-weight:500;display:flex;align-items:center;gap:4px;"><i data-lucide="check" style="width:14px;height:14px;"></i> Saved</span>';
     initIcons();
   }
   setTimeout(function(){
@@ -14740,7 +14740,7 @@ function obEditExtraction(cardId) {
     editHtml += '<div class="ob-extract-card-edit-item">'
       + '<input type="checkbox" checked data-idx="' + i + '">'
       + '<input type="text" value="' + escHtml(items[i].value) + '" data-idx="' + i + '">'
-      + '<span style="font-size:11px;color:var(--text-muted);">' + escHtml(items[i].type) + '</span>'
+      + '<span style="font-size:var(--type-micro);color:var(--text-muted);">' + escHtml(items[i].type) + '</span>'
       + '</div>';
   }
   editHtml += '</div>';
@@ -14774,7 +14774,7 @@ function obSaveEditedExtraction(cardId) {
 
   var actions = card.querySelector('.ob-extract-card-actions');
   if (actions) {
-    actions.innerHTML = '<span style="color:var(--moss);font-size:13px;font-weight:500;display:flex;align-items:center;gap:4px;"><i data-lucide="check" style="width:14px;height:14px;"></i> Saved</span>';
+    actions.innerHTML = '<span style="color:var(--moss);font-size:var(--type-meta);font-weight:500;display:flex;align-items:center;gap:4px;"><i data-lucide="check" style="width:14px;height:14px;"></i> Saved</span>';
     initIcons();
   }
   setTimeout(function(){
@@ -14903,12 +14903,12 @@ function showOwnWellet() {
   if (updatePane) {
     updatePane.innerHTML = '<div class="update-me-section">'
       + '<div style="text-align:center;padding:24px 0 8px;">'
-      + '<div style="font-family:var(--serif);font-size:20px;margin-bottom:6px;color:var(--text-primary);">Add files to help Wellet get to know ' + escHtml(displayName) + '</div>'
-      + '<div style="font-size:13px;color:var(--text-secondary);line-height:1.5;max-width:300px;margin:0 auto;">Upload a document or connect to health records \u2014 Wellet will read, organize, and remember everything.</div>'
+      + '<div style="font-family:var(--serif);font-size:var(--type-h2);margin-bottom:6px;color:var(--text-primary);">Add files to help Wellet get to know ' + escHtml(displayName) + '</div>'
+      + '<div style="font-size:var(--type-meta);color:var(--text-secondary);line-height:1.5;max-width:300px;margin:0 auto;">Upload a document or connect to health records \u2014 Wellet will read, organize, and remember everything.</div>'
       + '</div>'
       + '<div style="display:flex;flex-direction:column;gap:10px;margin:20px 0 16px;">'
-      + '<button class="btn-primary" style="width:100%;padding:14px;font-size:14px;gap:8px;display:flex;align-items:center;justify-content:center;" onclick="openUpload(\'' + escHtml(displayName) + '\')"><i data-lucide="upload" style="width:18px;height:18px;"></i> Upload a document</button>'
-      + '<button style="width:100%;padding:14px;font-size:14px;gap:8px;display:flex;align-items:center;justify-content:center;background:white;border:1.5px solid var(--moss);border-radius:12px;color:var(--moss);font-family:\'DM Sans\',sans-serif;font-weight:500;cursor:pointer;" onclick="startEhrConnect()"><i data-lucide="link" style="width:18px;height:18px;"></i> Connect health records</button>'
+      + '<button class="btn-primary" style="width:100%;padding:14px;font-size:var(--type-body);gap:8px;display:flex;align-items:center;justify-content:center;" onclick="openUpload(\'' + escHtml(displayName) + '\')"><i data-lucide="upload" style="width:18px;height:18px;"></i> Upload a document</button>'
+      + '<button style="width:100%;padding:14px;font-size:var(--type-body);gap:8px;display:flex;align-items:center;justify-content:center;background:white;border:1.5px solid var(--moss);border-radius:12px;color:var(--moss);font-family:\'DM Sans\',sans-serif;font-weight:500;cursor:pointer;" onclick="startEhrConnect()"><i data-lucide="link" style="width:18px;height:18px;"></i> Connect health records</button>'
       + '</div>'
       + '<div class="update-summary-card">'
       + '<div class="update-summary-header">'
@@ -14923,8 +14923,8 @@ function showOwnWellet() {
   if (timelinePane) {
     timelinePane.innerHTML = '<div class="timeline-section">'
       + '<div style="text-align:center;padding:48px 24px;">'
-      + '<div style="font-size:32px;margin-bottom:12px;opacity:0.3;"><i data-lucide="calendar" style="width:32px;height:32px;"></i></div>'
-      + '<div style="font-size:14px;color:var(--text-muted);line-height:1.6;">Appointments, medications, lab results, and your own notes \u2014 they\u2019ll all show up here in order as you add them.</div>'
+      + '<div style="font-size:var(--type-display);margin-bottom:12px;opacity:0.3;"><i data-lucide="calendar" style="width:32px;height:32px;"></i></div>'
+      + '<div style="font-size:var(--type-body);color:var(--text-muted);line-height:1.6;">Appointments, medications, lab results, and your own notes \u2014 they\u2019ll all show up here in order as you add them.</div>'
       + '</div></div>';
   }
 
@@ -14933,8 +14933,8 @@ function showOwnWellet() {
     patternsPane.innerHTML = '<div class="patterns-section">'
       + '<p class="section-label">What Wellet has noticed</p>'
       + '<div style="text-align:center;padding:48px 24px;">'
-      + '<div style="font-size:32px;margin-bottom:12px;opacity:0.3;"><i data-lucide="eye" style="width:32px;height:32px;"></i></div>'
-      + '<div style="font-size:14px;color:var(--text-muted);line-height:1.6;">Wellet is listening. As your timeline grows, patterns will surface here.</div>'
+      + '<div style="font-size:var(--type-display);margin-bottom:12px;opacity:0.3;"><i data-lucide="eye" style="width:32px;height:32px;"></i></div>'
+      + '<div style="font-size:var(--type-body);color:var(--text-muted);line-height:1.6;">Wellet is listening. As your timeline grows, patterns will surface here.</div>'
       + '</div></div>';
   }
 
@@ -16552,7 +16552,7 @@ function addReminderBtnsToRecords() {
       if (chevron && !row.querySelector('.reminder-badge') && !row.querySelector('.med-remind-btn')) {
         var btn = document.createElement('button');
         btn.className = 'med-remind-btn';
-        btn.style.cssText = 'background:var(--mint);border:none;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:500;color:var(--moss-dark);cursor:pointer;font-family:DM Sans,sans-serif;margin-right:4px;display:flex;align-items:center;gap:3px;';
+        btn.style.cssText = 'background:var(--mint);border:none;border-radius:6px;padding:3px 8px;font-size:var(--type-micro);font-weight:500;color:var(--moss-dark);cursor:pointer;font-family:DM Sans,sans-serif;margin-right:4px;display:flex;align-items:center;gap:3px;';
         btn.innerHTML = (rem && rem.active && rem.times && rem.times.length > 0)
           ? '<i data-lucide="bell" style="width:10px;height:10px;"></i>' + rem.times.length
           : '<i data-lucide="bell-plus" style="width:10px;height:10px;"></i>';
@@ -16598,7 +16598,7 @@ function refreshDemoRecordBadges() {
 
     var btn = document.createElement('button');
     btn.className = 'med-remind-btn';
-    btn.style.cssText = 'background:var(--mint);border:none;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:500;color:var(--moss-dark);cursor:pointer;font-family:DM Sans,sans-serif;margin-right:4px;display:flex;align-items:center;gap:3px;white-space:nowrap;';
+    btn.style.cssText = 'background:var(--mint);border:none;border-radius:6px;padding:3px 8px;font-size:var(--type-micro);font-weight:500;color:var(--moss-dark);cursor:pointer;font-family:DM Sans,sans-serif;margin-right:4px;display:flex;align-items:center;gap:3px;white-space:nowrap;';
     btn.innerHTML = (rem && rem.active && rem.times && rem.times.length > 0)
       ? '<i data-lucide="bell" style="width:10px;height:10px;"></i>' + rem.times.length
       : '<i data-lucide="bell-plus" style="width:10px;height:10px;"></i>';
@@ -17256,7 +17256,7 @@ renderPeopleView = function() {
   var html = '<div class="view-header"><div class="view-title">People</div>'
     + '<div class="view-subtitle">The people in your care life</div></div>'
     + '<div class="people-section">'
-    + '<div style="font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin:4px 2px 10px;">Who you are caring for</div>';
+    + '<div style="font-size:var(--type-micro);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin:4px 2px 10px;">Who you are caring for</div>';
 
   currentPeople.forEach(function(p) {
     var status = p.care_status || 'active';
@@ -17288,12 +17288,12 @@ renderPeopleView = function() {
     + ' ' + t('people.addPerson') + '</button>';
 
   // Care Circle section
-  html += '<div style="font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin:22px 2px 10px;">Care Circle</div>'
-    + '<button style="display:flex;align-items:center;gap:10px;width:100%;justify-content:flex-start;padding:14px;background:var(--cream);border:1px solid var(--line);border-radius:12px;font-size:14px;font-weight:500;color:var(--ink);cursor:pointer;" onclick="openCareCircle()">'
+  html += '<div style="font-size:var(--type-micro);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin:22px 2px 10px;">Care Circle</div>'
+    + '<button style="display:flex;align-items:center;gap:10px;width:100%;justify-content:flex-start;padding:14px;background:var(--cream);border:1px solid var(--line);border-radius:12px;font-size:var(--type-body);font-weight:500;color:var(--ink);cursor:pointer;" onclick="openCareCircle()">'
     + '<i data-lucide="heart-handshake" style="width:18px;height:18px;color:var(--moss);flex-shrink:0;"></i>'
     + '<div style="flex:1;text-align:left;">'
     + '<div>Care Circle</div>'
-    + '<div style="font-size:12px;font-weight:400;color:var(--muted);margin-top:2px;">Family and friends you share updates with</div>'
+    + '<div style="font-size:var(--type-meta);font-weight:400;color:var(--muted);margin-top:2px;">Family and friends you share updates with</div>'
     + '</div>'
     + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--muted);"></i>'
     + '</button>';
@@ -17732,14 +17732,14 @@ async function openShareHistory() {
     renderShareHistory(data || []);
   } catch (err) {
     console.error('Share history error:', err);
-    listEl.innerHTML = '<div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:13px;">Could not load share history.</div>';
+    listEl.innerHTML = '<div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:var(--type-meta);">Could not load share history.</div>';
   }
 }
 
 function renderShareHistory(shares) {
   var listEl = document.getElementById('share-history-list');
   if (!shares || shares.length === 0) {
-    listEl.innerHTML = '<div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:13px;font-style:italic;">No shares yet. Share a health update to see it here.</div>';
+    listEl.innerHTML = '<div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:var(--type-meta);font-style:italic;">No shares yet. Share a health update to see it here.</div>';
     return;
   }
 
@@ -17755,18 +17755,18 @@ function renderShareHistory(shares) {
     html += '<div style="border-bottom:1px solid var(--border-light);padding:14px 0;" id="share-row-' + escHtml(s.id || s.token) + '">'
       + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">'
       + '<div style="flex:1;min-width:0;">'
-      + '<div style="font-size:14px;font-weight:500;color:var(--text-primary);margin-bottom:2px;">' + escHtml(s.person_name) + '</div>'
-      + '<div style="font-size:12px;color:var(--text-muted);">Shared ' + dateStr + '</div>'
+      + '<div style="font-size:var(--type-body);font-weight:500;color:var(--text-primary);margin-bottom:2px;">' + escHtml(s.person_name) + '</div>'
+      + '<div style="font-size:var(--type-meta);color:var(--text-muted);">Shared ' + dateStr + '</div>'
       + '</div>'
       + '<div style="display:flex;align-items:center;gap:8px;">'
       + (isExpired
-        ? '<span style="font-size:11px;color:var(--text-muted);background:var(--bg-secondary);padding:2px 8px;border-radius:10px;">Expired</span>'
-        : '<span style="font-size:11px;color:var(--moss);background:var(--mint);padding:2px 8px;border-radius:10px;display:inline-flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;background:var(--moss);border-radius:50%;display:inline-block;"></span> Active</span>')
+        ? '<span style="font-size:var(--type-micro);color:var(--text-muted);background:var(--bg-secondary);padding:2px 8px;border-radius:10px;">Expired</span>'
+        : '<span style="font-size:var(--type-micro);color:var(--moss);background:var(--mint);padding:2px 8px;border-radius:10px;display:inline-flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;background:var(--moss);border-radius:50%;display:inline-block;"></span> Active</span>')
       + '</div>'
       + '</div>'
       + '<div style="display:flex;gap:8px;margin-top:8px;">'
-      + (isExpired ? '' : '<button onclick="copyHistoryLink(\'' + escHtml(shareUrl) + '\')" style="font-size:12px;color:var(--moss);background:var(--mint);border:none;border-radius:6px;padding:5px 10px;cursor:pointer;font-family:\'DM Sans\',sans-serif;font-weight:500;">Copy link</button>')
-      + (isExpired ? '' : '<button onclick="revokeShare(\'' + escHtml(s.id || s.token) + '\',\'' + escHtml(s.token) + '\')" style="font-size:12px;color:var(--red);background:#FEF0EE;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;font-family:\'DM Sans\',sans-serif;font-weight:500;">Revoke</button>')
+      + (isExpired ? '' : '<button onclick="copyHistoryLink(\'' + escHtml(shareUrl) + '\')" style="font-size:var(--type-meta);color:var(--moss);background:var(--mint);border:none;border-radius:6px;padding:5px 10px;cursor:pointer;font-family:\'DM Sans\',sans-serif;font-weight:500;">Copy link</button>')
+      + (isExpired ? '' : '<button onclick="revokeShare(\'' + escHtml(s.id || s.token) + '\',\'' + escHtml(s.token) + '\')" style="font-size:var(--type-meta);color:var(--red);background:#FEF0EE;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;font-family:\'DM Sans\',sans-serif;font-weight:500;">Revoke</button>')
       + '</div>'
       + '</div>';
   });
@@ -18483,7 +18483,7 @@ async function renderSharedWithMeInbox(containerId) {
   _inboxCache = {};
   items.forEach(function(s){ _inboxCache[s.id] = s; });
   if (!items.length) { el.innerHTML = ''; return; }
-  var html = '<div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin:0 0 8px 4px;">Shared with you</div>';
+  var html = '<div style="font-size:var(--type-meta);font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin:0 0 8px 4px;">Shared with you</div>';
   items.forEach(function(s) {
     var p = s.payload || {};
     var isOutgoing = s._direction === 'outgoing';
@@ -19147,7 +19147,7 @@ function vpRenderQuestions() {
   var html = '';
 
   if (_vpQuestions.length === 0) {
-    html = '<div style="padding:20px 0;text-align:center;color:var(--text-muted);font-size:13px;">No questions generated. Try adding more context.</div>';
+    html = '<div style="padding:20px 0;text-align:center;color:var(--text-muted);font-size:var(--type-meta);">No questions generated. Try adding more context.</div>';
     container.innerHTML = html;
     return;
   }

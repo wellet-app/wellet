@@ -116,9 +116,9 @@ em.fr {
 @media (min-width: 768px) {
   .masthead { padding: 30px 0 22px; padding-left: var(--gutter); padding-right: var(--gutter); }
   .masthead .wordmark svg { width: 112px; }
-  .masthead .where { font-size: 13px; }
-  .masthead .person { font-size: 14px; min-height: var(--touch-min); padding: 10px 6px 10px 12px; }
-  .masthead .person .name { font-size: 17px; }
+  .masthead .where { font-size: var(--type-meta); }
+  .masthead .person { font-size: var(--type-body); min-height: var(--touch-min); padding: 10px 6px 10px 12px; }
+  .masthead .person .name { font-size: var(--type-h2); }
 }
 .masthead .wordmark {
   color: var(--moss-deep);
@@ -132,7 +132,7 @@ em.fr {
 }
 .masthead .where {
   font-family: var(--sans);
-  font-size: 12px;
+  font-size: var(--type-meta);
   color: var(--ink-4);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -144,7 +144,7 @@ em.fr {
   border: 0;
   padding: 4px 0;
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--type-meta);
   font-weight: 400;
   color: var(--ink-7);
   letter-spacing: 0.01em;
@@ -165,7 +165,7 @@ em.fr {
 }
 .masthead .person .name {
   font-family: var(--serif);
-  font-size: 15px;
+  font-size: var(--type-body);
   color: var(--ink-9);
   letter-spacing: -0.002em;
 }
@@ -182,7 +182,7 @@ em.fr {
   background: var(--moss-deep);
   color: #F7F5F0;
   font-family: var(--sans);
-  font-size: 12px;
+  font-size: var(--type-meta);
   line-height: 1.5;
   padding: 10px 14px 12px;
   border-radius: 8px;
@@ -210,7 +210,7 @@ em.fr {
 .lp-hint .lp-dismiss {
   display: inline-block;
   margin-top: 4px;
-  font-size: 11px;
+  font-size: var(--type-micro);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: rgba(247, 245, 240, 0.8);
@@ -263,15 +263,15 @@ em.fr {
 @media (min-width: 768px) {
   .shell-sheet { border-radius: 22px 22px 0 0; }
   .shell-sheet .inner { padding: 12px var(--gutter) 28px; }
-  .shell-sheet h3 { font-size: 26px; }
+  .shell-sheet h3 { font-size: var(--type-h1); }
   .shell-sheet .ps-list li { padding: 18px 0; min-height: var(--touch-min); }
-  .shell-sheet .ps-list .ps-name { font-size: 20px; }
-  .shell-sheet .ps-list .ps-meta { font-size: 14px; }
+  .shell-sheet .ps-list .ps-name { font-size: var(--type-h2); }
+  .shell-sheet .ps-list .ps-meta { font-size: var(--type-body); }
 }
 .shell-sheet h3 {
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 22px;
+  font-size: var(--type-h1);
   line-height: 1.22;
   margin: 8px 0 4px;
   color: var(--ink-9);
@@ -292,14 +292,14 @@ em.fr {
 .shell-sheet .ps-list li:hover { color: var(--moss-deep); }
 .shell-sheet .ps-list .ps-name {
   font-family: var(--serif);
-  font-size: 18px;
+  font-size: var(--type-h2);
   font-weight: 400;
   color: var(--ink-9);
   letter-spacing: -0.002em;
 }
 .shell-sheet .ps-list .ps-meta {
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--type-meta);
   color: var(--ink-5);
 }
 .shell-sheet .ps-list .ps-current {
@@ -313,7 +313,7 @@ em.fr {
 }
 .shell-sheet .ps-list li.add .ps-name {
   font-family: var(--sans);
-  font-size: 14px;
+  font-size: var(--type-body);
   font-weight: 400;
   color: var(--moss-deep);
   text-decoration: underline;
@@ -330,7 +330,7 @@ em.fr {
 }
 .shell-sheet .ps-foot a {
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--type-meta);
   color: var(--ink-5);
   text-decoration: underline;
   text-decoration-color: var(--ink-2);
@@ -365,7 +365,7 @@ em.fr {
 }
 .er-sheet .er-bar .er-eyebrow {
   font-family: var(--sans);
-  font-size: 11px;
+  font-size: var(--type-micro);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--signal-warm);
@@ -376,7 +376,7 @@ em.fr {
   background: transparent;
   border: 0;
   font-family: var(--sans);
-  font-size: 14px;
+  font-size: var(--type-body);
   color: var(--ink-9);
   cursor: pointer;
   padding: 4px 6px;
@@ -392,7 +392,7 @@ em.fr {
 .er-sheet h2.er-name {
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 32px;
+  font-size: var(--type-display);
   line-height: 1.15;
   letter-spacing: -0.01em;
   margin: 8px 0 2px;
@@ -400,14 +400,14 @@ em.fr {
 }
 .er-sheet p.er-sub {
   font-family: var(--sans);
-  font-size: 14px;
+  font-size: var(--type-body);
   color: #5C5650;
   margin: 0 0 6px;
   line-height: 1.5;
 }
 .er-sheet p.er-stamp {
   font-family: var(--sans);
-  font-size: 12px;
+  font-size: var(--type-meta);
   color: #8A847C;
   margin: 0 0 24px;
   letter-spacing: 0.02em;
@@ -418,7 +418,7 @@ em.fr {
 }
 .er-sheet section.er-block .er-label {
   font-family: var(--sans);
-  font-size: 11px;
+  font-size: var(--type-micro);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #5C5650;
@@ -437,7 +437,7 @@ em.fr {
   gap: 14px;
   padding: 9px 0;
   font-family: var(--sans);
-  font-size: 16px;
+  font-size: var(--type-body);
   color: #0F0D0A;
   line-height: 1.4;
   border-bottom: 1px solid #F0EDE7;
@@ -446,13 +446,13 @@ em.fr {
 .er-sheet section.er-block li .er-key {
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 18px;
+  font-size: var(--type-h2);
   color: #0F0D0A;
   letter-spacing: -0.002em;
 }
 .er-sheet section.er-block li .er-val {
   font-family: var(--sans);
-  font-size: 14px;
+  font-size: var(--type-body);
   color: var(--ink-7);
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -469,7 +469,7 @@ em.fr {
   padding: 16px 18px;
   border-radius: 14px;
   font-family: var(--sans);
-  font-size: 15px;
+  font-size: var(--type-body);
   font-weight: 500;
   letter-spacing: 0.01em;
   cursor: pointer;
@@ -482,7 +482,7 @@ em.fr {
 .er-sheet .er-hand:hover { background: var(--ink-7); }
 .er-sheet .er-hand .er-hand-sub {
   display: block;
-  font-size: 11px;
+  font-size: var(--type-micro);
   font-weight: 400;
   color: rgba(255,255,255,0.65);
   letter-spacing: 0.04em;
@@ -507,7 +507,7 @@ em.fr {
   color: #FFFFFF;
   text-align: center;
   font-family: var(--sans);
-  font-size: 12px;
+  font-size: var(--type-meta);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   padding: 10px 22px;
@@ -538,7 +538,7 @@ em.fr {
 }
 @media (min-width: 768px) {
   .shell-nav-inner { padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 10px); }
-  .shell-nav a { padding: 12px 6px; min-height: var(--touch-min); font-size: 12px; }
+  .shell-nav a { padding: 12px 6px; min-height: var(--touch-min); font-size: var(--type-meta); }
   .shell-nav a svg { width: 26px; height: 26px; }
 }
 .shell-nav a {
@@ -550,7 +550,7 @@ em.fr {
   text-decoration: none;
   color: var(--ink-4);
   font-family: var(--sans);
-  font-size: 11px;
+  font-size: var(--type-micro);
   font-weight: 400;
   letter-spacing: 0.02em;
   transition: color 0.12s ease;

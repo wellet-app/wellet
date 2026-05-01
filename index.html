@@ -117,7 +117,7 @@
     <div class="auth-signal-card" onclick="window.location.search='?demo=guided'" style="cursor:pointer;transition:box-shadow 0.15s;">
       <div class="auth-signal-label"><span class="auth-signal-dot auth-signal-dot--green"></span> TODAY</div>
       <p class="auth-signal-text"><strong>Mom took her medications</strong> this morning. Her blood pressure has been trending higher since the dose change on June 18 — worth mentioning at her August 4 appointment.</p>
-      <p style="font-size:12px;color:var(--moss-text);margin-top:6px;font-weight:500;">Try the demo →</p>
+      <p style="font-size:var(--type-meta);color:var(--moss-text);margin-top:6px;font-weight:500;">Try the demo →</p>
     </div>
   </div>
   <div class="auth-body">
@@ -131,7 +131,7 @@
       </button>
       <div style="display:flex;align-items:center;gap:12px;margin-top:14px;">
         <hr style="flex:1;border:none;border-top:1px solid var(--border);">
-        <button id="auth-signin-toggle" onclick="document.getElementById('auth-signin-reveal').style.display='block';this.style.display='none';" style="background:none;border:none;font-family:var(--font-body);font-size:13px;color:var(--moss-text);cursor:pointer;white-space:nowrap;font-weight:500;">Sign in to your account</button>
+        <button id="auth-signin-toggle" onclick="document.getElementById('auth-signin-reveal').style.display='block';this.style.display='none';" style="background:none;border:none;font-family:var(--font-body);font-size:var(--type-meta);color:var(--moss-text);cursor:pointer;white-space:nowrap;font-weight:500;">Sign in to your account</button>
         <hr style="flex:1;border:none;border-top:1px solid var(--border);">
       </div>
       <div id="auth-signin-reveal" style="display:none;margin-top:12px;">
@@ -147,7 +147,7 @@
     <div id="auth-sent-state" class="auth-sent">
       <div class="auth-sent-icon"><i data-lucide="mail-check" style="width:24px;height:24px;"></i></div>
       <div class="auth-sent-title">Check your email</div>
-      <p class="auth-sent-body">We sent a magic link to <strong id="auth-sent-email"></strong>. Click it to open your Wellet — no password needed.<br><br><span style="font-size:13px;color:var(--text-secondary);">Heads up: Wellet is less than a month old. If something breaks once you're in, tap the bug icon in the header and tell me — it goes straight to Betsy.</span></p>
+      <p class="auth-sent-body">We sent a magic link to <strong id="auth-sent-email"></strong>. Click it to open your Wellet — no password needed.<br><br><span style="font-size:var(--type-meta);color:var(--text-secondary);">Heads up: Wellet is less than a month old. If something breaks once you're in, tap the bug icon in the header and tell me — it goes straight to Betsy.</span></p>
       <div style="display:flex;justify-content:center;margin-top:12px;">
         <button class="auth-demo-link" onclick="enterDemoMode()">
           <i data-lucide="play" style="width:14px;height:14px;"></i>
@@ -216,7 +216,7 @@
       <path fill="white" d="M139.93,141.71c.46.5.76,1.14.86,1.81.17,1.09-.14,2.07-.91,2.95s-1.69,1.36-2.84,1.51c-.83.11-1.71.14-2.64.09-1.17-.04-2.31,0-3.43.15-1.24.16-2.36.49-3.36,1-1,.5-1.5.85-2.29,1.37-1.25.83-.64.51-2.68,1.64-1.7.75-1.02.47-2.27.96-2.92,1.15-5.84,1.04-6.2,1.21v12.12c0,.86.13,1.51.38,1.93s.58.63.99.63c.26,0,.55-.09.86-.27.31-.18.6-.43.86-.74l1.44,1.48c-.98,1.1-1.96,1.87-2.92,2.3-.96.43-2.08.65-3.35.65-1.58,0-2.89-.4-3.92-1.21-1.03-.8-1.55-1.95-1.55-3.44v-13c-.74-.07-1.58-.24-2.52-.5v-1.8c.53.12.97.18,1.33.18.96,0,1.82-.27,2.59-.81.77-.54,1.42-1.18,1.96-1.91.54-.73,1.15-1.66,1.82-2.79.48-.89.88-1.52,1.19-1.91h.83v6.8c3.33.07,5-.58,7.3-1.62,1.91-1.06,2.49-1.68,3.33-2.56.36-.38.58-.67,1.77-1.97.66-.72,2.14-1.98,2.76-2.44,1.43-1.1,2.12-1.49,3.27-2.09,1.14-.61,2.11-.76,3.26-.88,2.04-.21,3.13.16,4.06,1.16Z"/>
     </svg>
     <h1>The Notes app. The group text. The 11pm pharmacy call. <em>You're already a caregiver.</em></h1>
-    <p class="hero-subtitle" style="font-size:15px;line-height:1.6;opacity:0.85;font-weight:300;margin-top:10px;">You've been holding all of it. Wellet reads the records, notices the patterns, and remembers what you can't. So you can stop being the memory.</p>
+    <p class="hero-subtitle" style="font-size:var(--type-body);line-height:1.6;opacity:0.85;font-weight:300;margin-top:10px;">You've been holding all of it. Wellet reads the records, notices the patterns, and remembers what you can't. So you can stop being the memory.</p>
   </div>
 
   <div class="demo-preview">
@@ -656,9 +656,9 @@
         <div class="insight-card" style="border-color:var(--mint-deep);background:var(--mint);">
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
             <i data-lucide="eye" style="width:13px;height:13px;color:var(--moss);"></i>
-            <span style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--moss-dark);font-weight:500;">Wellet is witnessing</span>
+            <span style="font-size:var(--type-micro);letter-spacing:.08em;text-transform:uppercase;color:var(--moss-dark);font-weight:500;">Wellet is witnessing</span>
           </div>
-          <p style="font-size:13px;line-height:1.65;color:var(--text-secondary);">CML continues to improve. Fatigue noted by you on February 22 — not yet addressed by care team. PT compliance is excellent. Glaucoma stable at last eye visit.</p>
+          <p style="font-size:var(--type-meta);line-height:1.65;color:var(--text-secondary);">CML continues to improve. Fatigue noted by you on February 22 — not yet addressed by care team. PT compliance is excellent. Glaucoma stable at last eye visit.</p>
         </div>
       </div>
     </div><!-- end tab-patterns -->
@@ -671,7 +671,7 @@
         <div class="view-subtitle">The people in your care life</div>
       </div>
       <div class="people-section" id="people-list">
-        <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin:4px 2px 10px;">Who you are caring for</div>
+        <div style="font-size:var(--type-micro);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin:4px 2px 10px;">Who you are caring for</div>
         <!-- populated by renderPeople() or demo content -->
         <div class="person-card">
           <div class="person-card-top">
@@ -727,12 +727,12 @@
           <i data-lucide="plus" style="width:16px;height:16px;"></i>
           Add another person
         </button>
-        <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin:22px 2px 10px;">Care Circle</div>
-        <button style="display:flex;align-items:center;gap:10px;width:100%;justify-content:flex-start;padding:14px;background:var(--cream);border:1px solid var(--line);border-radius:12px;font-size:14px;font-weight:500;color:var(--ink);cursor:pointer;" onclick="openCareCircle()">
+        <div style="font-size:var(--type-micro);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin:22px 2px 10px;">Care Circle</div>
+        <button style="display:flex;align-items:center;gap:10px;width:100%;justify-content:flex-start;padding:14px;background:var(--cream);border:1px solid var(--line);border-radius:12px;font-size:var(--type-body);font-weight:500;color:var(--ink);cursor:pointer;" onclick="openCareCircle()">
           <i data-lucide="heart-handshake" style="width:18px;height:18px;color:var(--moss);flex-shrink:0;"></i>
           <div style="flex:1;text-align:left;">
             <div>Care Circle</div>
-            <div style="font-size:12px;font-weight:400;color:var(--muted);margin-top:2px;">Family and friends you share updates with</div>
+            <div style="font-size:var(--type-meta);font-weight:400;color:var(--muted);margin-top:2px;">Family and friends you share updates with</div>
           </div>
           <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--muted);"></i>
         </button>
@@ -761,7 +761,7 @@
         <div class="ehr-status-bar">
           <div class="ehr-status-left"><div class="ehr-status-dot" aria-hidden="true"></div><strong>EHR Connected</strong> · Duke Health (Epic)</div>
           <div class="ehr-status-right">
-            <span style="font-size:11px;color:var(--text-muted);">Demo data</span>
+            <span style="font-size:var(--type-micro);color:var(--text-muted);">Demo data</span>
             <button class="ehr-demo-tooltip ehr-refresh-btn" data-tooltip="In the real app, this connects to your provider's records" onclick="showToast('In the real app, this refreshes data from your provider')"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>
           </div>
         </div>
@@ -770,7 +770,7 @@
             <div class="record-group-title"><i data-lucide="pill" style="width:14px;height:14px;color:var(--amber);"></i>Medications</div>
             <div style="display:flex;align-items:center;gap:8px;">
               <span class="record-group-count" id="dad-med-count">8 active</span>
-              <button onclick="openAddMed()" style="background:var(--mint);border:none;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:500;color:var(--moss-dark);cursor:pointer;font-family:'DM Sans',sans-serif;">+ Add</button>
+              <button onclick="openAddMed()" style="background:var(--mint);border:none;border-radius:8px;padding:4px 10px;font-size:var(--type-micro);font-weight:500;color:var(--moss-dark);cursor:pointer;font-family:'DM Sans',sans-serif;">+ Add</button>
             </div>
           </div>
           <div id="dad-meds-list">
@@ -922,7 +922,7 @@
             <div class="record-group-title"><i data-lucide="pill" style="width:14px;height:14px;color:var(--amber);"></i>Medications</div>
             <div style="display:flex;align-items:center;gap:8px;">
               <span class="record-group-count">3 active</span>
-              <button onclick="openAddMed()" style="background:var(--mint);border:none;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:500;color:var(--moss-dark);cursor:pointer;font-family:'DM Sans',sans-serif;">+ Add</button>
+              <button onclick="openAddMed()" style="background:var(--mint);border:none;border-radius:8px;padding:4px 10px;font-size:var(--type-micro);font-weight:500;color:var(--moss-dark);cursor:pointer;font-family:'DM Sans',sans-serif;">+ Add</button>
             </div>
           </div>
           <div class="record-row" onclick="openMedDetail('atorvastatin')" style="cursor:pointer;">
@@ -1239,7 +1239,7 @@
               <div class="settings-row-icon" style="background:#E8F5E9;color:#4CAF50;"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>
               <div><div class="settings-row-label">Multi-hospital preview</div><div class="settings-row-meta" id="phase2-toggle-desc">Off — single-hospital cache. Auto-enables when a 2nd hospital connects.</div></div>
             </div>
-            <button id="phase2-toggle-btn" type="button" onclick="togglePhase2Flag()" style="flex:0 0 auto;background:#eef2f0;border:1px solid var(--border);color:var(--text-primary);font-size:13px;font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;">Turn on</button>
+            <button id="phase2-toggle-btn" type="button" onclick="togglePhase2Flag()" style="flex:0 0 auto;background:#eef2f0;border:1px solid var(--border);color:var(--text-primary);font-size:var(--type-meta);font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;">Turn on</button>
           </div>
         </div>
       </div>
@@ -1419,20 +1419,20 @@
 
     <!-- Send to care circle members -->
     <div id="share-recipients" style="padding:0 20px 16px;display:none;">
-      <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);font-weight:500;margin-bottom:8px;">Send to</div>
+      <div style="font-size:var(--type-micro);letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);font-weight:500;margin-bottom:8px;">Send to</div>
       <div id="share-recipients-list"></div>
-      <button onclick="openAddContactFromShare()" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--moss);font-weight:500;background:none;border:none;cursor:pointer;padding:8px 0;font-family:'DM Sans',sans-serif;"><i data-lucide="plus" style="width:14px;height:14px;"></i> Add family member</button>
+      <button onclick="openAddContactFromShare()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--type-meta);color:var(--moss);font-weight:500;background:none;border:none;cursor:pointer;padding:8px 0;font-family:'DM Sans',sans-serif;"><i data-lucide="plus" style="width:14px;height:14px;"></i> Add family member</button>
     </div>
 
     <!-- Share link result area (hidden initially) -->
     <div id="share-link-result" style="display:none;padding:0 20px;margin-bottom:16px;">
       <div style="background:var(--mint);border:1px solid var(--moss);border-radius:12px;padding:14px 16px;">
-        <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--moss-dark);font-weight:500;margin-bottom:6px;">Share link created</div>
+        <div style="font-size:var(--type-micro);letter-spacing:0.08em;text-transform:uppercase;color:var(--moss-dark);font-weight:500;margin-bottom:6px;">Share link created</div>
         <div style="display:flex;gap:8px;align-items:center;">
-          <input id="share-link-input" type="text" readonly style="flex:1;padding:9px 12px;border:1.5px solid var(--border-medium);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-primary);background:white;">
-          <button onclick="copyShareLink()" style="padding:9px 14px;background:var(--moss);color:white;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;">Copy</button>
+          <input id="share-link-input" type="text" readonly style="flex:1;padding:9px 12px;border:1.5px solid var(--border-medium);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:var(--type-meta);color:var(--text-primary);background:white;">
+          <button onclick="copyShareLink()" style="padding:9px 14px;background:var(--moss);color:white;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:var(--type-meta);font-weight:500;cursor:pointer;white-space:nowrap;">Copy</button>
         </div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:6px;"><i data-lucide="clock" style="width:11px;height:11px;vertical-align:-2px;"></i> Link expires in 7 days</div>
+        <div style="font-size:var(--type-micro);color:var(--text-muted);margin-top:6px;"><i data-lucide="clock" style="width:11px;height:11px;vertical-align:-2px;"></i> Link expires in 7 days</div>
       </div>
     </div>
 
@@ -1454,12 +1454,12 @@
     <!-- Loading state shown while generating share link -->
     <div id="share-loading" style="display:none;padding:20px;text-align:center;">
       <i data-lucide="loader" style="width:18px;height:18px;animation:spin 1.2s linear infinite;color:var(--moss);"></i>
-      <div style="font-size:13px;color:var(--text-muted);margin-top:8px;">Creating share link&hellip;</div>
+      <div style="font-size:var(--type-meta);color:var(--text-muted);margin-top:8px;">Creating share link&hellip;</div>
     </div>
 
     <!-- Share history link -->
     <div style="padding:12px 20px 16px;text-align:center;">
-      <button onclick="closeSheet('share-overlay');openShareHistory()" style="font-size:13px;color:var(--moss);font-weight:500;background:none;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;display:inline-flex;align-items:center;gap:5px;"><i data-lucide="clock" style="width:13px;height:13px;"></i> View share history</button>
+      <button onclick="closeSheet('share-overlay');openShareHistory()" style="font-size:var(--type-meta);color:var(--moss);font-weight:500;background:none;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;display:inline-flex;align-items:center;gap:5px;"><i data-lucide="clock" style="width:13px;height:13px;"></i> View share history</button>
     </div>
   </div>
 </div>
@@ -1474,7 +1474,7 @@
     <div class="qa-sheet-title">Share history</div>
     <div class="qa-sheet-sub">Links you've shared</div>
     <div id="share-history-list" style="padding:0 20px 20px;overflow-y:auto;max-height:50vh;">
-      <div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:13px;">Loading&hellip;</div>
+      <div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:var(--type-meta);">Loading&hellip;</div>
     </div>
   </div>
 </div>
@@ -1492,7 +1492,7 @@
     <div class="export-section" style="padding:0 20px;">
       <div style="background:var(--mint);border-radius:10px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;">
         <i data-lucide="file-text" style="width:20px;height:20px;color:var(--moss);flex-shrink:0;margin-top:1px;"></i>
-        <div style="font-size:12px;line-height:1.55;color:var(--text-secondary);">
+        <div style="font-size:var(--type-meta);line-height:1.55;color:var(--text-secondary);">
           Your Visit Summary will include active medications, recent health events, patterns, emergency contacts, and AI-generated questions to discuss with the doctor.
         </div>
       </div>
@@ -1500,12 +1500,12 @@
 
     <div id="export-loading" style="display:none;padding:24px 20px;text-align:center;">
       <i data-lucide="loader" style="width:22px;height:22px;animation:spin 1.2s linear infinite;color:var(--moss);"></i>
-      <div style="font-size:13px;color:var(--text-muted);margin-top:10px;">Generating your Visit Summary&hellip;</div>
-      <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">This may take a moment while we prepare questions for the doctor.</div>
+      <div style="font-size:var(--type-meta);color:var(--text-muted);margin-top:10px;">Generating your Visit Summary&hellip;</div>
+      <div style="font-size:var(--type-micro);color:var(--text-muted);margin-top:4px;">This may take a moment while we prepare questions for the doctor.</div>
     </div>
 
     <div id="export-actions" style="padding:0 20px;">
-      <button class="btn-primary" style="font-size:14px;padding:13px;" onclick="generateVisitExport()">
+      <button class="btn-primary" style="font-size:var(--type-body);padding:13px;" onclick="generateVisitExport()">
         <i data-lucide="download" style="width:15px;height:15px;"></i>
         Generate Visit Summary
       </button>
@@ -1595,7 +1595,7 @@
           <div>
             <div class="upload-file-name" id="upload-file-name">Document uploaded</div>
             <div class="upload-file-meta" id="upload-file-meta">Ready to save · Wellet will read and summarize this</div>
-            <div class="upload-file-size" id="upload-file-size" style="font-size:11px;color:var(--text-muted);margin-top:2px;"></div>
+            <div class="upload-file-size" id="upload-file-size" style="font-size:var(--type-micro);color:var(--text-muted);margin-top:2px;"></div>
           </div>
         </div>
         <div class="upload-tag-row">
@@ -1609,11 +1609,11 @@
             <button class="upload-tag" onclick="toggleTag(this)">Imaging</button>
           </div>
         </div>
-        <button class="btn-primary" style="font-size:14px;padding:13px;" onclick="confirmUpload()">
+        <button class="btn-primary" style="font-size:var(--type-body);padding:13px;" onclick="confirmUpload()">
           <i data-lucide="check" style="width:15px;height:15px;"></i>
           Save to records
         </button>
-        <button class="btn-cancel" id="upload-change-btn" style="margin-top:8px;width:100%;padding:11px;border-radius:12px;border:1px solid var(--border-medium);background:transparent;font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;color:var(--text-secondary);" onclick="backToUploadStep1()">Choose a different file</button>
+        <button class="btn-cancel" id="upload-change-btn" style="margin-top:8px;width:100%;padding:11px;border-radius:12px;border:1px solid var(--border-medium);background:transparent;font-family:'DM Sans',sans-serif;font-size:var(--type-body);cursor:pointer;color:var(--text-secondary);" onclick="backToUploadStep1()">Choose a different file</button>
       </div>
     </div>
 
@@ -1622,13 +1622,13 @@
         <div style="width:52px;height:52px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
           <i data-lucide="loader" id="upload-progress-icon" style="width:24px;height:24px;color:var(--moss);animation:spin 1.2s linear infinite;"></i>
         </div>
-        <div id="upload-progress-title" style="font-family: var(--serif);font-size:18px;margin-bottom:6px;">Uploading document...</div>
-        <div id="upload-progress-sub" style="font-size:13px;color:var(--text-secondary);line-height:1.6;">This will just take a moment</div>
+        <div id="upload-progress-title" style="font-family: var(--serif);font-size:var(--type-h2);margin-bottom:6px;">Uploading document...</div>
+        <div id="upload-progress-sub" style="font-size:var(--type-meta);color:var(--text-secondary);line-height:1.6;">This will just take a moment</div>
         <div style="margin-top:16px;background:var(--border);border-radius:6px;height:4px;overflow:hidden;">
           <div id="upload-progress-bar" style="height:100%;background:var(--moss);border-radius:6px;width:0%;transition:width 0.3s ease;"></div>
         </div>
-        <div id="upload-time-estimate" style="margin-top:10px;font-size:12px;color:var(--text-muted);min-height:18px;"></div>
-        <button id="upload-cancel-btn" onclick="cancelActiveUpload()" style="margin-top:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;padding:8px 16px;" data-i18n="common.cancel">Cancel</button>
+        <div id="upload-time-estimate" style="margin-top:10px;font-size:var(--type-meta);color:var(--text-muted);min-height:18px;"></div>
+        <button id="upload-cancel-btn" onclick="cancelActiveUpload()" style="margin-top:10px;background:none;border:none;color:var(--text-secondary);font-size:var(--type-meta);cursor:pointer;padding:8px 16px;" data-i18n="common.cancel">Cancel</button>
       </div>
     </div>
 
@@ -1642,16 +1642,16 @@
           <div class="upload-file-icon" id="upload-done-file-icon"><i data-lucide="check-circle" style="width:22px;height:22px;color:var(--moss);"></i></div>
           <div>
             <div class="upload-file-name" id="upload-done-file-name">Document saved</div>
-            <div class="upload-file-meta" style="font-size:12px;color:var(--moss-dark);">Added to your timeline</div>
+            <div class="upload-file-meta" style="font-size:var(--type-meta);color:var(--moss-dark);">Added to your timeline</div>
           </div>
         </div>
         <div class="upload-extracted" id="upload-extracted-section" style="display:none;">
           <div class="upload-extracted-label">What Wellet found</div>
           <div class="upload-extracted-items" id="extracted-items"></div>
         </div>
-        <div id="upload-done-sub" style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">Wellet is reading your document and will extract health information automatically.</div>
+        <div id="upload-done-sub" style="font-size:var(--type-meta);color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">Wellet is reading your document and will extract health information automatically.</div>
         <div class="upload-ext-status" id="upload-ext-status"></div>
-        <button class="btn-primary" style="font-size:14px;padding:13px;margin-top:8px;" id="upload-done-btn" onclick="closeUpload(); switchNavTo('home');">View in timeline →</button>
+        <button class="btn-primary" style="font-size:var(--type-body);padding:13px;margin-top:8px;" id="upload-done-btn" onclick="closeUpload(); switchNavTo('home');">View in timeline →</button>
       </div>
     </div>
 
@@ -1672,20 +1672,20 @@
         <div style="width:52px;height:52px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
           <i data-lucide="file-archive" style="width:24px;height:24px;color:var(--moss);"></i>
         </div>
-        <div style="font-family: var(--serif);font-size:18px;margin-bottom:6px;">Import health records</div>
-        <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;" id="hi-confirm-sub">Wellet will unpack this file and store your documents securely.</div>
+        <div style="font-family: var(--serif);font-size:var(--type-h2);margin-bottom:6px;">Import health records</div>
+        <div style="font-size:var(--type-meta);color:var(--text-secondary);line-height:1.6;margin-bottom:16px;" id="hi-confirm-sub">Wellet will unpack this file and store your documents securely.</div>
       </div>
       <div class="upload-file-card" style="margin-bottom:16px;">
         <div class="upload-file-icon"><i data-lucide="file-archive" style="width:22px;height:22px;"></i></div>
         <div>
           <div class="upload-file-name" id="hi-file-name">health_export.zip</div>
-          <div class="upload-file-size" id="hi-file-size" style="font-size:11px;color:var(--text-muted);margin-top:2px;"></div>
+          <div class="upload-file-size" id="hi-file-size" style="font-size:var(--type-micro);color:var(--text-muted);margin-top:2px;"></div>
         </div>
       </div>
-      <button class="btn-primary" style="font-size:14px;padding:13px;width:100%;" onclick="startHealthImport()">
+      <button class="btn-primary" style="font-size:var(--type-body);padding:13px;width:100%;" onclick="startHealthImport()">
         <i data-lucide="upload-cloud" style="width:15px;height:15px;"></i> Import records
       </button>
-      <button style="margin-top:8px;width:100%;padding:11px;border-radius:12px;border:1px solid var(--border-medium);background:transparent;font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;color:var(--text-secondary);" onclick="closeHealthImport()">Cancel</button>
+      <button style="margin-top:8px;width:100%;padding:11px;border-radius:12px;border:1px solid var(--border-medium);background:transparent;font-family:'DM Sans',sans-serif;font-size:var(--type-body);cursor:pointer;color:var(--text-secondary);" onclick="closeHealthImport()">Cancel</button>
     </div>
 
     <!-- Step 2: Uploading + Processing -->
@@ -1693,12 +1693,12 @@
       <div style="width:52px;height:52px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
         <i data-lucide="loader" style="width:24px;height:24px;color:var(--moss);animation:spin 1.2s linear infinite;"></i>
       </div>
-      <div id="hi-progress-title" style="font-family: var(--serif);font-size:18px;margin-bottom:6px;">Uploading health records...</div>
-      <div id="hi-progress-sub" style="font-size:13px;color:var(--text-secondary);line-height:1.6;">This may take a moment for larger files</div>
+      <div id="hi-progress-title" style="font-family: var(--serif);font-size:var(--type-h2);margin-bottom:6px;">Uploading health records...</div>
+      <div id="hi-progress-sub" style="font-size:var(--type-meta);color:var(--text-secondary);line-height:1.6;">This may take a moment for larger files</div>
       <div style="margin-top:16px;background:var(--border);border-radius:6px;height:4px;overflow:hidden;">
         <div id="hi-progress-bar" style="height:100%;background:var(--moss);border-radius:6px;width:0%;transition:width 0.3s ease;"></div>
       </div>
-      <button id="hi-cancel-btn" onclick="cancelHealthImport()" style="margin-top:16px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;padding:8px 16px;">Cancel</button>
+      <button id="hi-cancel-btn" onclick="cancelHealthImport()" style="margin-top:16px;background:none;border:none;color:var(--text-secondary);font-size:var(--type-meta);cursor:pointer;padding:8px 16px;">Cancel</button>
     </div>
 
     <!-- Step 3: Summary -->
@@ -1706,9 +1706,9 @@
       <div style="width:52px;height:52px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
         <i data-lucide="check-circle" style="width:24px;height:24px;color:var(--moss);"></i>
       </div>
-      <div id="hi-summary-title" style="font-family: var(--serif);font-size:18px;margin-bottom:6px;">Health records imported</div>
-      <div id="hi-summary-detail" style="font-size:13px;color:var(--text-secondary);line-height:1.8;margin-bottom:20px;"></div>
-      <button class="btn-primary" style="font-size:14px;padding:13px;width:100%;" id="hi-done-btn" onclick="closeHealthImport()">Done</button>
+      <div id="hi-summary-title" style="font-family: var(--serif);font-size:var(--type-h2);margin-bottom:6px;">Health records imported</div>
+      <div id="hi-summary-detail" style="font-size:var(--type-meta);color:var(--text-secondary);line-height:1.8;margin-bottom:20px;"></div>
+      <button class="btn-primary" style="font-size:var(--type-body);padding:13px;width:100%;" id="hi-done-btn" onclick="closeHealthImport()">Done</button>
     </div>
 
     <!-- Step: Failed -->
@@ -1716,9 +1716,9 @@
       <div style="width:52px;height:52px;border-radius:50%;background:#FEF0EE;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
         <i data-lucide="alert-circle" style="width:24px;height:24px;color:var(--red);"></i>
       </div>
-      <div style="font-family: var(--serif);font-size:18px;margin-bottom:6px;">Import failed</div>
-      <div id="hi-fail-detail" style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:20px;">Something went wrong while processing your file. Please try again.</div>
-      <button class="btn-primary" style="font-size:14px;padding:13px;width:100%;" onclick="closeHealthImport()">Close</button>
+      <div style="font-family: var(--serif);font-size:var(--type-h2);margin-bottom:6px;">Import failed</div>
+      <div id="hi-fail-detail" style="font-size:var(--type-meta);color:var(--text-secondary);line-height:1.6;margin-bottom:20px;">Something went wrong while processing your file. Please try again.</div>
+      <button class="btn-primary" style="font-size:var(--type-body);padding:13px;width:100%;" onclick="closeHealthImport()">Close</button>
     </div>
 
   </div>
@@ -1807,7 +1807,7 @@
       </div>
       <div class="settings-row" id="weekly-digest-preview-row" style="padding:4px 16px 8px;">
         <div style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-end;">
-          <button id="btn-weekly-digest-preview" onclick="sendWeeklyDigestPreview(this)" style="font-family:'DM Sans',sans-serif;font-size:12px;border:1px solid var(--border);border-radius:999px;padding:6px 12px;background:var(--surface-secondary,#F5F5F5);color:var(--text-primary);cursor:pointer;display:inline-flex;align-items:center;gap:6px;"><i data-lucide="send" style="width:12px;height:12px;"></i><span data-i18n="settings.weeklyDigestPreview">Send me a preview</span></button>
+          <button id="btn-weekly-digest-preview" onclick="sendWeeklyDigestPreview(this)" style="font-family:'DM Sans',sans-serif;font-size:var(--type-meta);border:1px solid var(--border);border-radius:999px;padding:6px 12px;background:var(--surface-secondary,#F5F5F5);color:var(--text-primary);cursor:pointer;display:inline-flex;align-items:center;gap:6px;"><i data-lucide="send" style="width:12px;height:12px;"></i><span data-i18n="settings.weeklyDigestPreview">Send me a preview</span></button>
         </div>
       </div>
       <div class="settings-row">
@@ -1840,10 +1840,10 @@
       </div>
       <div class="settings-row" id="quiet-hours-times" style="display:none;padding:4px 16px 8px;">
         <div style="display:flex;align-items:center;gap:8px;width:100%;">
-          <label style="font-size:12px;color:var(--text-secondary);width:36px;">From</label>
-          <input type="time" id="quiet-hours-start" value="22:00" onchange="saveQuietHoursTimes()" style="font-family:'DM Sans',sans-serif;font-size:13px;border:1px solid var(--border);border-radius:8px;padding:6px 10px;flex:1;color:var(--text-primary);">
-          <label style="font-size:12px;color:var(--text-secondary);width:20px;text-align:center;">to</label>
-          <input type="time" id="quiet-hours-end" value="07:00" onchange="saveQuietHoursTimes()" style="font-family:'DM Sans',sans-serif;font-size:13px;border:1px solid var(--border);border-radius:8px;padding:6px 10px;flex:1;color:var(--text-primary);">
+          <label style="font-size:var(--type-meta);color:var(--text-secondary);width:36px;">From</label>
+          <input type="time" id="quiet-hours-start" value="22:00" onchange="saveQuietHoursTimes()" style="font-family:'DM Sans',sans-serif;font-size:var(--type-meta);border:1px solid var(--border);border-radius:8px;padding:6px 10px;flex:1;color:var(--text-primary);">
+          <label style="font-size:var(--type-meta);color:var(--text-secondary);width:20px;text-align:center;">to</label>
+          <input type="time" id="quiet-hours-end" value="07:00" onchange="saveQuietHoursTimes()" style="font-family:'DM Sans',sans-serif;font-size:var(--type-meta);border:1px solid var(--border);border-radius:8px;padding:6px 10px;flex:1;color:var(--text-primary);">
         </div>
       </div>
     </div>
@@ -1889,7 +1889,7 @@
     <div class="settings-section" style="margin-top:12px;">
       <div class="settings-section-label" data-i18n="settings.healthRecords">Health Records</div>
       <div style="padding:0 0 4px;">
-        <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px;" data-i18n="settings.healthRecordsMeta">Connect your EHR to import medical data — medications, conditions, lab results, and more.</div>
+        <div style="font-size:var(--type-meta);color:var(--text-secondary);line-height:1.5;margin-bottom:10px;" data-i18n="settings.healthRecordsMeta">Connect your EHR to import medical data — medications, conditions, lab results, and more.</div>
         <div id="settings-ehr-status"></div>
         <div class="settings-row" style="cursor:pointer;" onclick="startEhrConnect()">
           <div class="settings-row-left">
@@ -1937,7 +1937,7 @@
     </div>
 
     <div style="padding:20px 20px 0;text-align:center;">
-      <p style="font-size:12px;color:var(--text-muted);line-height:1.6;">Wellet v1.0 · Private by design.<br>Your data is protected with row-level security.</p>
+      <p style="font-size:var(--type-meta);color:var(--text-muted);line-height:1.6;">Wellet v1.0 · Private by design.<br>Your data is protected with row-level security.</p>
     </div>
   </div>
 </div>
@@ -1976,8 +1976,8 @@
       <button class="close-btn" aria-label="Close" onclick="closeSheet('pricing-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
     <div style="padding:0 20px 0;">
-      <div style="font-family: var(--serif);font-size:22px;font-weight:400;margin-bottom:4px;">Choose your plan</div>
-      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:20px;">All plans include a 14-day free trial.</div>
+      <div style="font-family: var(--serif);font-size:var(--type-h1);font-weight:400;margin-bottom:4px;">Choose your plan</div>
+      <div style="font-size:var(--type-meta);color:var(--text-secondary);margin-bottom:20px;">All plans include a 14-day free trial.</div>
       <div id="pricing-cards-container"></div>
     </div>
   </div>
@@ -1993,17 +1993,17 @@
     <div class="qa-sheet-title">Record doctor visit</div>
     <div class="qa-sheet-sub">Tap record, then speak naturally. Wellet will transcribe and summarize.</div>
     <div style="text-align:center; padding:32px 20px 24px;">
-      <div id="voice-record-timer" style="font-size:40px;font-family: var(--serif);color:var(--text-primary);margin-bottom:24px;">0:00</div>
+      <div id="voice-record-timer" style="font-size:var(--type-display);font-family: var(--serif);color:var(--text-primary);margin-bottom:24px;">0:00</div>
       <button id="voice-record-btn" onclick="toggleVoiceRecording()" style="width:80px;height:80px;border-radius:50%;background:#C0392B;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:0 4px 20px rgba(192,57,43,0.35);transition:all 0.2s;">
         <i data-lucide="mic" style="width:32px;height:32px;color:white;"></i>
       </button>
-      <div id="voice-record-status" style="font-size:13px;color:var(--text-muted);">Tap to start recording</div>
+      <div id="voice-record-status" style="font-size:var(--type-meta);color:var(--text-muted);">Tap to start recording</div>
     </div>
     <div style="padding:0 20px;">
       <button id="voice-stop-btn" onclick="finishVoiceRecording()" style="display:none;width:100%;" class="btn-primary">Stop &amp; transcribe</button>
     </div>
     <div id="voice-processing" style="display:none;text-align:center;padding:20px;">
-      <div id="voice-processing-label" style="font-size:13px;color:var(--text-muted);">Transcribing your recording…</div>
+      <div id="voice-processing-label" style="font-size:var(--type-meta);color:var(--text-muted);">Transcribing your recording…</div>
     </div>
   </div>
 </div>
@@ -2019,8 +2019,8 @@
     <div class="qa-sheet-sub">Your feedback goes directly to Betsy. Nothing is too small.</div>
     <div style="padding:0 20px 20px;">
       <label for="feedback-text" class="sr-only">Your feedback</label>
-      <textarea id="feedback-text" rows="5" placeholder="What's working? What's confusing? What do you wish Wellet could do?" style="width:100%;border:1.5px solid var(--border-medium);border-radius:12px;padding:12px 14px;font-size:15px;font-family:'DM Sans',sans-serif;color:var(--text-primary);background:white;resize:vertical;line-height:1.5;outline:none;"></textarea>
-      <button class="btn-primary" style="width:100%;margin-top:12px;font-size:14px;padding:14px;" onclick="submitFeedback()">
+      <textarea id="feedback-text" rows="5" placeholder="What's working? What's confusing? What do you wish Wellet could do?" style="width:100%;border:1.5px solid var(--border-medium);border-radius:12px;padding:12px 14px;font-size:var(--type-body);font-family:'DM Sans',sans-serif;color:var(--text-primary);background:white;resize:vertical;line-height:1.5;outline:none;"></textarea>
+      <button class="btn-primary" style="width:100%;margin-top:12px;font-size:var(--type-body);padding:14px;" onclick="submitFeedback()">
         <i data-lucide="send" style="width:15px;height:15px;"></i> Send to Betsy
       </button>
     </div>
@@ -2037,7 +2037,7 @@
     <div class="qa-sheet-title" style="color:var(--red);">Delete your account</div>
     <div class="qa-sheet-sub">This permanently removes your account and all associated data &mdash; people, records, documents, medications, reminders, and shares. This cannot be undone.</div>
     <div style="padding:0 20px 20px;">
-      <div style="background:#FEF0EE;border:1px solid #F8CDC8;border-radius:12px;padding:14px 16px;font-size:13px;color:#8C2B23;line-height:1.6;margin-bottom:16px;">
+      <div style="background:#FEF0EE;border:1px solid #F8CDC8;border-radius:12px;padding:14px 16px;font-size:var(--type-meta);color:#8C2B23;line-height:1.6;margin-bottom:16px;">
         <strong>What gets deleted:</strong><br>
         &bull; Everyone in your care circle<br>
         &bull; All health records, labs, medications, and vitals<br>
@@ -2045,12 +2045,12 @@
         &bull; Hospital and Terra connections<br>
         &bull; Your sign-in and preferences
       </div>
-      <label for="delete-account-confirm" style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:6px;">Type <strong style="color:var(--red);">DELETE</strong> to confirm:</label>
-      <input type="text" id="delete-account-confirm" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" oninput="onDeleteAccountConfirmInput()" style="width:100%;border:1.5px solid var(--border-medium);border-radius:12px;padding:12px 14px;font-size:15px;font-family:'DM Sans',sans-serif;color:var(--text-primary);background:white;outline:none;letter-spacing:0.08em;">
-      <button class="btn-primary" id="delete-account-submit" disabled style="width:100%;margin-top:14px;font-size:14px;padding:14px;background:var(--red);opacity:0.5;" onclick="submitDeleteAccount()">
+      <label for="delete-account-confirm" style="font-size:var(--type-meta);color:var(--text-secondary);display:block;margin-bottom:6px;">Type <strong style="color:var(--red);">DELETE</strong> to confirm:</label>
+      <input type="text" id="delete-account-confirm" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" oninput="onDeleteAccountConfirmInput()" style="width:100%;border:1.5px solid var(--border-medium);border-radius:12px;padding:12px 14px;font-size:var(--type-body);font-family:'DM Sans',sans-serif;color:var(--text-primary);background:white;outline:none;letter-spacing:0.08em;">
+      <button class="btn-primary" id="delete-account-submit" disabled style="width:100%;margin-top:14px;font-size:var(--type-body);padding:14px;background:var(--red);opacity:0.5;" onclick="submitDeleteAccount()">
         <i data-lucide="trash-2" style="width:15px;height:15px;"></i> Permanently delete my account
       </button>
-      <button class="btn-secondary" style="width:100%;margin-top:8px;font-size:14px;padding:12px;" onclick="closeSheet('delete-account-overlay')">Cancel</button>
+      <button class="btn-secondary" style="width:100%;margin-top:8px;font-size:var(--type-body);padding:12px;" onclick="closeSheet('delete-account-overlay')">Cancel</button>
     </div>
   </div>
 </div>
@@ -2066,19 +2066,19 @@
     <div class="qa-sheet-sub">Wellet is weeks old and full of rough edges. Anything you catch &mdash; big or tiny &mdash; helps me fix it faster. Thank you.</div>
     <div style="padding:0 20px 20px;">
       <label for="bug-report-text" class="sr-only">What happened?</label>
-      <textarea id="bug-report-text" rows="5" maxlength="5000" placeholder="What did you try to do? What happened instead? Even a single sentence helps." style="width:100%;border:1.5px solid var(--border-medium);border-radius:12px;padding:12px 14px;font-size:15px;font-family:'DM Sans',sans-serif;color:var(--text-primary);background:white;resize:vertical;line-height:1.5;outline:none;"></textarea>
+      <textarea id="bug-report-text" rows="5" maxlength="5000" placeholder="What did you try to do? What happened instead? Even a single sentence helps." style="width:100%;border:1.5px solid var(--border-medium);border-radius:12px;padding:12px 14px;font-size:var(--type-body);font-family:'DM Sans',sans-serif;color:var(--text-primary);background:white;resize:vertical;line-height:1.5;outline:none;"></textarea>
 
-      <label for="bug-report-screenshot" style="display:flex;align-items:center;gap:8px;margin-top:12px;padding:10px 14px;border:1.5px dashed var(--border-medium);border-radius:12px;cursor:pointer;font-size:13px;color:var(--text-secondary);">
+      <label for="bug-report-screenshot" style="display:flex;align-items:center;gap:8px;margin-top:12px;padding:10px 14px;border:1.5px dashed var(--border-medium);border-radius:12px;cursor:pointer;font-size:var(--type-meta);color:var(--text-secondary);">
         <i data-lucide="camera" style="width:15px;height:15px;"></i>
         <span id="bug-report-screenshot-label">Attach a screenshot (optional)</span>
       </label>
       <input type="file" id="bug-report-screenshot" accept="image/png,image/jpeg,image/webp" style="display:none;" onchange="onBugScreenshotPick(event)">
 
-      <div style="margin-top:10px;font-size:11px;color:var(--text-secondary);line-height:1.5;">
+      <div style="margin-top:10px;font-size:var(--type-micro);color:var(--text-secondary);line-height:1.5;">
         I'll get your email, the screen you were on, and the browser you're using so I can reproduce the bug. No health data is sent.
       </div>
 
-      <button class="btn-primary" id="bug-report-submit" style="width:100%;margin-top:14px;font-size:14px;padding:14px;" onclick="submitBugReport()">
+      <button class="btn-primary" id="bug-report-submit" style="width:100%;margin-top:14px;font-size:var(--type-body);padding:14px;" onclick="submitBugReport()">
         <i data-lucide="bug" style="width:15px;height:15px;"></i> Send bug report
       </button>
     </div>
@@ -2093,19 +2093,19 @@
     </div>
     <div style="padding:8px 24px 28px;">
       <div style="width:56px;height:56px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;"><i data-lucide="heart-handshake" style="width:28px;height:28px;color:var(--moss);"></i></div>
-      <div style="font-family: var(--serif);font-size:22px;margin-bottom:8px;">Welcome to Wellet</div>
-      <p style="font-size:14px;line-height:1.65;color:var(--text-secondary);margin-bottom:16px;">You're one of the very first people to use this. Wellet has been in my head for years, but the app you're looking at is less than a month old.</p>
-      <p style="font-size:14px;line-height:1.65;color:var(--text-secondary);margin-bottom:20px;"><strong style="color:var(--text-primary);">That means there will be bugs.</strong> I'm asking, begging you: if something breaks or feels off, tap the bug icon in the header and tell me. Every report makes Wellet better for every caregiver who comes next.</p>
+      <div style="font-family: var(--serif);font-size:var(--type-h1);margin-bottom:8px;">Welcome to Wellet</div>
+      <p style="font-size:var(--type-body);line-height:1.65;color:var(--text-secondary);margin-bottom:16px;">You're one of the very first people to use this. Wellet has been in my head for years, but the app you're looking at is less than a month old.</p>
+      <p style="font-size:var(--type-body);line-height:1.65;color:var(--text-secondary);margin-bottom:20px;"><strong style="color:var(--text-primary);">That means there will be bugs.</strong> I'm asking, begging you: if something breaks or feels off, tap the bug icon in the header and tell me. Every report makes Wellet better for every caregiver who comes next.</p>
       <div style="background:var(--cream);border-radius:12px;padding:16px;text-align:left;margin-bottom:20px;">
-        <div style="font-size:13px;font-weight:500;color:var(--text-primary);margin-bottom:10px;">Here's how to get started:</div>
-        <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+        <div style="font-size:var(--type-meta);font-weight:500;color:var(--text-primary);margin-bottom:10px;">Here's how to get started:</div>
+        <div style="font-size:var(--type-meta);color:var(--text-secondary);line-height:1.7;">
           <strong style="color:var(--moss);">1.</strong> Add a family member you're caring for<br>
           <strong style="color:var(--moss);">2.</strong> Upload a document — discharge summary, lab report, anything<br>
           <strong style="color:var(--moss);">3.</strong> Try <strong>Ask Wellet</strong> — ask it anything about the record you uploaded<br>
           <strong style="color:var(--moss);">4.</strong> Tap <strong>Summary</strong> to see what's changed
         </div>
       </div>
-      <button class="btn-primary" style="width:100%;font-size:14px;padding:14px;" onclick="dismissWelcome()">
+      <button class="btn-primary" style="width:100%;font-size:var(--type-body);padding:14px;" onclick="dismissWelcome()">
         Let's go
       </button>
     </div>
@@ -2122,19 +2122,19 @@
     <div class="qa-sheet-title" id="contact-sheet-title">Edit contact</div>
     <div style="padding:0 20px 16px;display:flex;flex-direction:column;gap:10px;">
       <div>
-        <label for="contact-name-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Name</label>
+        <label for="contact-name-input" style="font-size:var(--type-meta);font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Name</label>
         <input class="input-field" id="contact-name-input" style="margin-top:0;" type="text" placeholder="Full name">
       </div>
       <div>
-        <label for="contact-email-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Email</label>
+        <label for="contact-email-input" style="font-size:var(--type-meta);font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Email</label>
         <input class="input-field" id="contact-email-input" style="margin-top:0;" type="email" placeholder="email@example.com">
       </div>
       <div>
-        <label for="contact-phone-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Phone (optional)</label>
+        <label for="contact-phone-input" style="font-size:var(--type-meta);font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Phone (optional)</label>
         <input class="input-field" id="contact-phone-input" style="margin-top:0;" type="tel" placeholder="(000) 000-0000">
       </div>
       <div>
-        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:8px;">Role</div>
+        <div style="font-size:var(--type-meta);font-weight:500;color:var(--text-secondary);margin-bottom:8px;">Role</div>
         <div style="display:flex;gap:8px;">
           <button class="upload-tag" id="role-primary" onclick="selectRole('Primary')">Primary</button>
           <button class="upload-tag" id="role-secondary" onclick="selectRole('Secondary')">Secondary</button>
@@ -2143,7 +2143,7 @@
       </div>
     </div>
     <div style="padding:0 20px;display:flex;flex-direction:column;gap:8px;">
-      <button class="btn-primary" style="font-size:14px;padding:13px;" onclick="saveContact()">
+      <button class="btn-primary" style="font-size:var(--type-body);padding:13px;" onclick="saveContact()">
         <i data-lucide="check" style="width:15px;height:15px;"></i>
         Save contact
       </button>
@@ -2167,16 +2167,16 @@
     <div class="ext-summary" id="ext-summary"></div>
     <div class="ext-transcript" id="ext-transcript" style="display:none;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin:0 20px 8px;">
-        <div style="font-size:13px;font-weight:600;color:var(--text-primary);">Transcript</div>
+        <div style="font-size:var(--type-meta);font-weight:600;color:var(--text-primary);">Transcript</div>
         <button class="ext-add-btn" id="ext-play-btn" onclick="playTranscriptAudio()">
           <i data-lucide="play" style="width:12px;height:12px;"></i> Play
         </button>
       </div>
-      <div id="ext-transcript-text" style="margin:0 20px 14px;background:white;border:1px solid var(--border);border-radius:12px;padding:14px 16px;font-size:13px;line-height:1.65;color:var(--text-secondary);max-height:200px;overflow-y:auto;"></div>
+      <div id="ext-transcript-text" style="margin:0 20px 14px;background:white;border:1px solid var(--border);border-radius:12px;padding:14px 16px;font-size:var(--type-meta);line-height:1.65;color:var(--text-secondary);max-height:200px;overflow-y:auto;"></div>
     </div>
     <div class="ext-items" id="ext-items-list"></div>
     <div class="ext-actions" id="ext-actions">
-      <button class="btn-primary" style="font-size:14px;padding:13px;" id="ext-add-all-btn" onclick="addAllExtractedFromOverlay()">
+      <button class="btn-primary" style="font-size:var(--type-body);padding:13px;" id="ext-add-all-btn" onclick="addAllExtractedFromOverlay()">
         <i data-lucide="plus" style="width:15px;height:15px;"></i>
         Add all to records
       </button>
@@ -2201,7 +2201,7 @@
       <i data-lucide="sparkles" style="width:13px;height:13px;"></i> View AI extraction
     </a>
     <div class="doc-viewer-actions">
-      <button class="btn-primary" style="font-size:14px;padding:13px;" id="doc-viewer-download-btn">
+      <button class="btn-primary" style="font-size:var(--type-body);padding:13px;" id="doc-viewer-download-btn">
         <i data-lucide="download" style="width:15px;height:15px;"></i>
         Download
       </button>
@@ -2300,7 +2300,7 @@
     </div>
 
     <div style="padding:8px 20px 0;display:flex;flex-direction:column;gap:8px;">
-      <button class="btn-primary" style="font-size:14px;padding:13px;" onclick="saveProfile()">
+      <button class="btn-primary" style="font-size:var(--type-body);padding:13px;" onclick="saveProfile()">
         <i data-lucide="check" style="width:15px;height:15px;"></i>
         Save profile
       </button>
@@ -2315,8 +2315,8 @@
       <div class="eoc-handle"></div>
       <button class="close-btn" aria-label="Close" onclick="closeLifeChanges()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
     </div>
-    <div style="font-family: var(--serif);font-size:20px;font-weight:400;padding:4px 20px 12px;">Life Changes</div>
-    <div style="font-size:13px;color:var(--text-muted);padding:0 20px 16px;line-height:1.5;">If something has changed, we\u2019re here to help you through it.</div>
+    <div style="font-family: var(--serif);font-size:var(--type-h2);font-weight:400;padding:4px 20px 12px;">Life Changes</div>
+    <div style="font-size:var(--type-meta);color:var(--text-muted);padding:0 20px 16px;line-height:1.5;">If something has changed, we\u2019re here to help you through it.</div>
     <div id="eoc-lc-options"></div>
   </div>
 </div>
@@ -2559,8 +2559,8 @@
     <div class="qa-sheet-sub" id="add-event-person-label">Adding to your timeline</div>
     <div style="padding:0 20px 16px;display:flex;flex-direction:column;gap:12px;">
       <div>
-        <label for="event-type-select" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Type</label>
-        <select id="event-type-select" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;appearance:none;-webkit-appearance:none;">
+        <label for="event-type-select" style="font-size:var(--type-meta);font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Type</label>
+        <select id="event-type-select" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:var(--type-body);color:var(--text-primary);background:white;appearance:none;-webkit-appearance:none;">
           <option value="appointment">Appointment</option>
           <option value="medication">Medication change</option>
           <option value="lab_result">Lab result</option>
@@ -2569,20 +2569,20 @@
         </select>
       </div>
       <div>
-        <label for="event-date-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Date</label>
-        <input id="event-date-input" type="date" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+        <label for="event-date-input" style="font-size:var(--type-meta);font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Date</label>
+        <input id="event-date-input" type="date" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:var(--type-body);color:var(--text-primary);background:white;">
       </div>
       <div>
-        <label for="event-title-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Title</label>
-        <input id="event-title-input" type="text" placeholder="e.g. Primary care visit with Dr. Smith" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+        <label for="event-title-input" style="font-size:var(--type-meta);font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Title</label>
+        <input id="event-title-input" type="text" placeholder="e.g. Primary care visit with Dr. Smith" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:var(--type-body);color:var(--text-primary);background:white;">
       </div>
       <div>
-        <label for="event-notes-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Notes (optional)</label>
-        <textarea id="event-notes-input" rows="3" placeholder="Any details worth remembering…" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;resize:none;line-height:1.5;"></textarea>
+        <label for="event-notes-input" style="font-size:var(--type-meta);font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Notes (optional)</label>
+        <textarea id="event-notes-input" rows="3" placeholder="Any details worth remembering…" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:var(--type-body);color:var(--text-primary);background:white;resize:none;line-height:1.5;"></textarea>
       </div>
     </div>
     <div style="padding:0 20px 8px;">
-      <button class="btn-primary" style="font-size:14px;padding:13px;" onclick="submitHealthEvent()">
+      <button class="btn-primary" style="font-size:var(--type-body);padding:13px;" onclick="submitHealthEvent()">
         <i data-lucide="check" style="width:15px;height:15px;"></i>
         Save event
       </button>
@@ -2639,28 +2639,28 @@
     <div class="qa-sheet-sub" id="add-med-person-label">Adding to records</div>
     <div style="padding:0 20px 16px;display:flex;flex-direction:column;gap:12px;">
       <div>
-        <label for="med-name-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Medication name</label>
-        <input id="med-name-input" type="text" placeholder="e.g. Lisinopril 20mg" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+        <label for="med-name-input" style="font-size:var(--type-meta);font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Medication name</label>
+        <input id="med-name-input" type="text" placeholder="e.g. Lisinopril 20mg" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:var(--type-body);color:var(--text-primary);background:white;">
       </div>
       <div>
-        <label for="med-dose-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Dose</label>
-        <input id="med-dose-input" type="text" placeholder="e.g. 20mg" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+        <label for="med-dose-input" style="font-size:var(--type-meta);font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Dose</label>
+        <input id="med-dose-input" type="text" placeholder="e.g. 20mg" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:var(--type-body);color:var(--text-primary);background:white;">
       </div>
       <div>
-        <label for="med-freq-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Frequency</label>
-        <input id="med-freq-input" type="text" placeholder="e.g. Once daily" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+        <label for="med-freq-input" style="font-size:var(--type-meta);font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Frequency</label>
+        <input id="med-freq-input" type="text" placeholder="e.g. Once daily" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:var(--type-body);color:var(--text-primary);background:white;">
       </div>
       <div>
-        <label for="med-prescriber-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Prescriber (optional)</label>
-        <input id="med-prescriber-input" type="text" placeholder="e.g. Dr. Johnson" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+        <label for="med-prescriber-input" style="font-size:var(--type-meta);font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Prescriber (optional)</label>
+        <input id="med-prescriber-input" type="text" placeholder="e.g. Dr. Johnson" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:var(--type-body);color:var(--text-primary);background:white;">
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;">
-        <span style="font-size:14px;font-weight:500;">Active</span>
+        <span style="font-size:var(--type-body);font-weight:500;">Active</span>
         <button id="med-active-toggle" class="toggle on" onclick="this.classList.toggle('on')"></button>
       </div>
     </div>
     <div style="padding:0 20px 8px;">
-      <button class="btn-primary" style="font-size:14px;padding:13px;" onclick="submitMedication()">
+      <button class="btn-primary" style="font-size:var(--type-body);padding:13px;" onclick="submitMedication()">
         <i data-lucide="check" style="width:15px;height:15px;"></i>
         Save medication
       </button>
@@ -2679,8 +2679,8 @@
     <div class="qa-sheet-sub" id="edit-event-person-label">Editing event</div>
     <div style="padding:0 20px 16px;display:flex;flex-direction:column;gap:12px;">
       <div>
-        <label for="edit-event-type-select" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Type</label>
-        <select id="edit-event-type-select" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;appearance:none;-webkit-appearance:none;">
+        <label for="edit-event-type-select" style="font-size:var(--type-meta);font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Type</label>
+        <select id="edit-event-type-select" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:var(--type-body);color:var(--text-primary);background:white;appearance:none;-webkit-appearance:none;">
           <option value="appointment">Appointment</option>
           <option value="medication">Medication change</option>
           <option value="lab_result">Lab result</option>
@@ -2689,20 +2689,20 @@
         </select>
       </div>
       <div>
-        <label for="edit-event-date-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Date</label>
-        <input id="edit-event-date-input" type="date" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+        <label for="edit-event-date-input" style="font-size:var(--type-meta);font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Date</label>
+        <input id="edit-event-date-input" type="date" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:var(--type-body);color:var(--text-primary);background:white;">
       </div>
       <div>
-        <label for="edit-event-title-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Title</label>
-        <input id="edit-event-title-input" type="text" placeholder="e.g. Primary care visit with Dr. Smith" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+        <label for="edit-event-title-input" style="font-size:var(--type-meta);font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Title</label>
+        <input id="edit-event-title-input" type="text" placeholder="e.g. Primary care visit with Dr. Smith" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:var(--type-body);color:var(--text-primary);background:white;">
       </div>
       <div>
-        <label for="edit-event-notes-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Notes (optional)</label>
-        <textarea id="edit-event-notes-input" rows="3" placeholder="Any details worth remembering…" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;resize:none;line-height:1.5;"></textarea>
+        <label for="edit-event-notes-input" style="font-size:var(--type-meta);font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Notes (optional)</label>
+        <textarea id="edit-event-notes-input" rows="3" placeholder="Any details worth remembering…" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:var(--type-body);color:var(--text-primary);background:white;resize:none;line-height:1.5;"></textarea>
       </div>
     </div>
     <div style="padding:0 20px 8px;">
-      <button class="btn-primary" style="font-size:14px;padding:13px;" id="edit-event-save-btn" onclick="saveEditEvent()">
+      <button class="btn-primary" style="font-size:var(--type-body);padding:13px;" id="edit-event-save-btn" onclick="saveEditEvent()">
         <i data-lucide="check" style="width:15px;height:15px;"></i>
         Save changes
       </button>
@@ -2727,28 +2727,28 @@
     <div class="qa-sheet-sub" id="edit-med-person-label">Editing medication</div>
     <div style="padding:0 20px 16px;display:flex;flex-direction:column;gap:12px;">
       <div>
-        <label for="edit-med-name-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Medication name</label>
-        <input id="edit-med-name-input" type="text" placeholder="e.g. Lisinopril 20mg" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+        <label for="edit-med-name-input" style="font-size:var(--type-meta);font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Medication name</label>
+        <input id="edit-med-name-input" type="text" placeholder="e.g. Lisinopril 20mg" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:var(--type-body);color:var(--text-primary);background:white;">
       </div>
       <div>
-        <label for="edit-med-dose-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Dose</label>
-        <input id="edit-med-dose-input" type="text" placeholder="e.g. 20mg" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+        <label for="edit-med-dose-input" style="font-size:var(--type-meta);font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Dose</label>
+        <input id="edit-med-dose-input" type="text" placeholder="e.g. 20mg" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:var(--type-body);color:var(--text-primary);background:white;">
       </div>
       <div>
-        <label for="edit-med-freq-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Frequency</label>
-        <input id="edit-med-freq-input" type="text" placeholder="e.g. Once daily" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+        <label for="edit-med-freq-input" style="font-size:var(--type-meta);font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Frequency</label>
+        <input id="edit-med-freq-input" type="text" placeholder="e.g. Once daily" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:var(--type-body);color:var(--text-primary);background:white;">
       </div>
       <div>
-        <label for="edit-med-prescriber-input" style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Prescriber (optional)</label>
-        <input id="edit-med-prescriber-input" type="text" placeholder="e.g. Dr. Johnson" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-primary);background:white;">
+        <label for="edit-med-prescriber-input" style="font-size:var(--type-meta);font-weight:500;color:var(--text-secondary);margin-bottom:5px;display:block;">Prescriber (optional)</label>
+        <input id="edit-med-prescriber-input" type="text" placeholder="e.g. Dr. Johnson" style="width:100%;padding:10px 12px;border:1.5px solid var(--border-medium);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:var(--type-body);color:var(--text-primary);background:white;">
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;">
-        <span style="font-size:14px;font-weight:500;">Active</span>
+        <span style="font-size:var(--type-body);font-weight:500;">Active</span>
         <button id="edit-med-active-toggle" class="toggle on" onclick="this.classList.toggle('on')"></button>
       </div>
     </div>
     <div style="padding:0 20px 8px;">
-      <button class="btn-primary" style="font-size:14px;padding:13px;" id="edit-med-save-btn" onclick="saveEditMed()">
+      <button class="btn-primary" style="font-size:var(--type-body);padding:13px;" id="edit-med-save-btn" onclick="saveEditMed()">
         <i data-lucide="check" style="width:15px;height:15px;"></i>
         Save changes
       </button>
@@ -2773,8 +2773,8 @@
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
         <div class="record-icon amber" style="width:36px;height:36px;"><i data-lucide="pill" style="width:18px;height:18px;"></i></div>
         <div>
-          <div id="med-detail-name" style="font-family: var(--serif);font-size:20px;"></div>
-          <div id="med-detail-status" style="font-size:12px;color:var(--moss);font-weight:500;margin-top:2px;"></div>
+          <div id="med-detail-name" style="font-family: var(--serif);font-size:var(--type-h2);"></div>
+          <div id="med-detail-status" style="font-size:var(--type-meta);color:var(--moss);font-weight:500;margin-top:2px;"></div>
         </div>
       </div>
       <div id="med-detail-body" style="display:flex;flex-direction:column;gap:14px;"></div>
@@ -2862,7 +2862,7 @@
 </div>
 
 </div><!-- end page-wrap -->
-<script src="/assets/wellet.js?v=20260501-1730"></script>
+<script src="/assets/wellet.js?v=20260501-1830"></script>
 <script src="/guided-demo.js"></script>
 <!-- CARE CIRCLE SHARE SHEET -->
 <div class="share-overlay" id="share-overlay" onclick="if(event.target===this)closeShareSheet()">
@@ -2948,7 +2948,7 @@
       <div class="vp-title">Anything specific?</div>
       <div class="vp-sub" id="vp-step2-sub">Optional — add context to get more targeted questions</div>
       <button class="vp-back-link" onclick="vpGoStep(1)"><i data-lucide="arrow-left" style="width:14px;height:14px;"></i> Back</button>
-      <div style="margin-bottom:6px;font-size:12px;font-weight:500;color:var(--text-secondary);">What would you like to ask about?</div>
+      <div style="margin-bottom:6px;font-size:var(--type-meta);font-weight:500;color:var(--text-secondary);">What would you like to ask about?</div>
       <textarea class="vp-textarea" id="vp-context-input" placeholder="e.g. She's been more tired than usual, or I want to ask about switching medications" rows="4"></textarea>
       <button class="vp-generate-btn" onclick="vpGenerateQuestions()">
         <i data-lucide="sparkles" style="width:16px;height:16px;"></i>

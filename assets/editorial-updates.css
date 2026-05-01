@@ -45,7 +45,7 @@
 }
 #view-home[data-editorial="updates"] .pull-refresh-text {
   font-family: var(--sans);
-  font-size: 12px;
+  font-size: var(--type-meta);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-4);
@@ -79,7 +79,7 @@
 #view-home[data-editorial="updates"] .update-card .update-label {
   font-family: var(--sans);
   font-weight: 400;
-  font-size: 12px;
+  font-size: var(--type-meta);
   color: var(--ink-4);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -95,7 +95,7 @@
 #view-home[data-editorial="updates"] .update-card .update-text {
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 19px;
+  font-size: var(--type-h2);
   line-height: 1.4;
   color: var(--ink-9);
   letter-spacing: 0;
@@ -117,7 +117,7 @@
 #view-home[data-editorial="updates"] .update-card .update-meta {
   font-family: var(--sans);
   font-weight: 300;
-  font-size: 13px;
+  font-size: var(--type-meta);
   color: var(--ink-5);
   margin: 0;
   letter-spacing: 0.005em;
@@ -138,7 +138,7 @@
 
 @media (min-width: 768px) {
   #view-home[data-editorial="updates"] .update-card .update-text {
-    font-size: 22px;
+    font-size: var(--type-h1);
     line-height: 1.38;
   }
 }
@@ -173,7 +173,7 @@
 #view-home[data-editorial="updates"] .visit-prep-title {
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 17px;
+  font-size: var(--type-h2);
   color: var(--ink-9);
   letter-spacing: 0;
   line-height: 1.35;
@@ -181,7 +181,7 @@
 #view-home[data-editorial="updates"] .visit-prep-sub {
   font-family: var(--sans);
   font-weight: 300;
-  font-size: 13px;
+  font-size: var(--type-meta);
   color: var(--ink-5);
   margin-top: 2px;
 }
@@ -191,7 +191,7 @@
   color: var(--moss-deep);
   font-family: var(--sans);
   font-weight: 400;
-  font-size: 13px;
+  font-size: var(--type-meta);
   padding: 6px 0;
   cursor: pointer;
   letter-spacing: 0.005em;
@@ -239,7 +239,7 @@
 #view-home[data-editorial="updates"] .alert-banner .alert-title {
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 19px;
+  font-size: var(--type-h2);
   line-height: 1.3;
   color: var(--ink-9);
   letter-spacing: 0;
@@ -247,7 +247,7 @@
 #view-home[data-editorial="updates"] .alert-banner .alert-body {
   font-family: var(--sans);
   font-weight: 300;
-  font-size: 14px;
+  font-size: var(--type-body);
   line-height: 1.55;
   color: var(--ink-5);
   margin-top: 8px;
@@ -275,7 +275,7 @@
   color: var(--moss-deep);
   font-family: var(--sans);
   font-weight: 400;
-  font-size: 13px;
+  font-size: var(--type-meta);
   letter-spacing: 0.005em;
   padding: 4px 0;
   display: inline-flex;
@@ -313,7 +313,7 @@
 #view-home[data-editorial="updates"] .tl-month {
   font-family: var(--sans);
   font-weight: 400;
-  font-size: 12px;
+  font-size: var(--type-meta);
   color: var(--ink-4);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -401,7 +401,7 @@
 #view-home[data-editorial="updates"] .tl-card-type {
   font-family: var(--sans);
   font-weight: 400;
-  font-size: 11px;
+  font-size: var(--type-micro);
   color: var(--ink-4);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -420,7 +420,7 @@
 #view-home[data-editorial="updates"] .tl-card-title {
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 18px;
+  font-size: var(--type-h2);
   line-height: 1.32;
   color: var(--ink-9);
   letter-spacing: 0;
@@ -431,7 +431,7 @@
 #view-home[data-editorial="updates"] .tl-card-body {
   font-family: var(--sans);
   font-weight: 300;
-  font-size: 14px;
+  font-size: var(--type-body);
   line-height: 1.55;
   color: var(--ink-5);
   margin: 0 0 6px;
@@ -442,7 +442,7 @@
 #view-home[data-editorial="updates"] .tl-card-date {
   font-family: var(--sans);
   font-weight: 400;
-  font-size: 12px;
+  font-size: var(--type-meta);
   color: var(--ink-4);
   letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
@@ -466,7 +466,7 @@
   color: var(--ink-5);
   font-family: var(--sans);
   font-weight: 400;
-  font-size: 10px;
+  font-size: var(--type-micro);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   padding: 2px 8px;
@@ -487,9 +487,9 @@
     padding-top: 8px;
   }
   #view-home[data-editorial="updates"] .tl-card-title {
-    font-size: 19px;
+    font-size: var(--type-h2);
   }
   #view-home[data-editorial="updates"] .alert-banner .alert-title {
-    font-size: 20px;
+    font-size: var(--type-h2);
   }
 }

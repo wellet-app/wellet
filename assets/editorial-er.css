@@ -48,7 +48,7 @@
 }
 [data-editorial="er-sheet"] .er-header-title {
   font-family: var(--serif) !important;
-  font-size: 22px !important;
+  font-size: var(--type-h1) !important;
   font-weight: 500 !important;
   letter-spacing: -0.005em !important;
   line-height: 1.15 !important;
@@ -93,7 +93,7 @@
 }
 [data-editorial="er-sheet"] .er-patient-name {
   font-family: var(--serif) !important;
-  font-size: 36px !important;
+  font-size: var(--type-display) !important;
   font-weight: 400 !important;
   letter-spacing: -0.01em !important;
   line-height: 1.05 !important;
@@ -104,7 +104,7 @@
 [data-editorial="er-sheet"] .er-patient-dob {
   font-family: 'DM Sans', -apple-system, sans-serif !important;
   font-weight: 300 !important;
-  font-size: 14px !important;
+  font-size: var(--type-body) !important;
   color: var(--ink-6) !important;
   letter-spacing: 0 !important;
 }
@@ -124,7 +124,7 @@
 }
 [data-editorial="er-sheet"] .er-body .emrg-section-title {
   font-family: var(--serif) !important;
-  font-size: 11px !important;
+  font-size: var(--type-micro) !important;
   font-weight: 500 !important;
   letter-spacing: 0.12em !important;
   text-transform: uppercase !important;
@@ -152,7 +152,7 @@
   gap: 16px;
   padding: 9px 0 !important;
   border-bottom: 1px solid var(--ink-0, #F2EDE2);
-  font-size: 16px !important;
+  font-size: var(--type-body) !important;
 }
 [data-editorial="er-sheet"] .er-body .emrg-row:last-child {
   border-bottom: none;
@@ -160,14 +160,14 @@
 [data-editorial="er-sheet"] .er-body .emrg-label {
   font-family: 'DM Sans', -apple-system, sans-serif !important;
   font-weight: 300 !important;
-  font-size: 16px !important;
+  font-size: var(--type-body) !important;
   color: var(--ink-6) !important;
   flex: 0 0 auto;
 }
 [data-editorial="er-sheet"] .er-body .emrg-val {
   font-family: var(--serif) !important;
   font-weight: 500 !important;
-  font-size: 16px !important;
+  font-size: var(--type-body) !important;
   color: var(--ink-9) !important;
   text-align: right;
   font-variation-settings: "opsz" 24, "SOFT" 60 !important;
@@ -186,7 +186,7 @@
 }
 [data-editorial="er-sheet"] .er-ai-label {
   font-family: var(--serif) !important;
-  font-size: 11px !important;
+  font-size: var(--type-micro) !important;
   font-weight: 500 !important;
   letter-spacing: 0.12em !important;
   text-transform: uppercase !important;
@@ -209,7 +209,7 @@
 [data-editorial="er-sheet"] .er-ai-body,
 [data-editorial="er-sheet"] .er-ai-text {
   font-family: var(--serif) !important;
-  font-size: 17px !important;
+  font-size: var(--type-h2) !important;
   font-weight: 400 !important;
   line-height: 1.6 !important;
   color: var(--ink-9) !important;
@@ -223,7 +223,7 @@
 [data-editorial="er-sheet"] .er-ai-cached-note {
   font-family: 'DM Sans', -apple-system, sans-serif !important;
   font-weight: 300 !important;
-  font-size: 12px !important;
+  font-size: var(--type-meta) !important;
   color: var(--ink-5) !important;
   border-top: 1px solid var(--ink-1, #E8E2D6) !important;
 }
@@ -243,7 +243,7 @@
   gap: 7px;
   font-family: 'DM Sans', -apple-system, sans-serif !important;
   font-weight: 500 !important;
-  font-size: 14px !important;
+  font-size: var(--type-body) !important;
   letter-spacing: 0.01em !important;
   white-space: nowrap !important;
   border-radius: 999px !important;
@@ -306,14 +306,14 @@
     max-width: 720px;
   }
   [data-editorial="er-sheet"] .er-patient-name {
-    font-size: 44px !important;
+    font-size: var(--type-display) !important;
   }
   [data-editorial="er-sheet"] .er-body .emrg-row {
-    font-size: 17px !important;
+    font-size: var(--type-h2) !important;
   }
   [data-editorial="er-sheet"] .er-ai-body,
   [data-editorial="er-sheet"] .er-ai-text {
-    font-size: 18px !important;
+    font-size: var(--type-h2) !important;
   }
 }
 @media (min-width: 1024px) {

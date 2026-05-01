@@ -51,7 +51,7 @@
   color: var(--ink-5);
   font-family: var(--sans);
   font-weight: 400;
-  font-size: 13px;
+  font-size: var(--type-meta);
   letter-spacing: 0.005em;
   padding: 5px 14px;
   box-shadow: none;
@@ -103,7 +103,7 @@
 #view-ask[data-editorial="ask"] .chat-sender {
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 11px;
+  font-size: var(--type-micro);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-5);
@@ -131,7 +131,7 @@
   color: var(--ink-9);
   font-family: var(--sans);
   font-weight: 300;
-  font-size: 15px;
+  font-size: var(--type-body);
   line-height: 1.55;
   letter-spacing: 0.005em;
   align-self: stretch;
@@ -140,7 +140,7 @@
 #view-ask[data-editorial="ask"] .chat-group.from-wellet:first-child .chat-bubble.wellet {
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 19px;
+  font-size: var(--type-h2);
   line-height: 1.45;
   color: var(--ink-7);
   letter-spacing: -0.005em;
@@ -149,7 +149,7 @@
 }
 @media (min-width: 768px) {
   #view-ask[data-editorial="ask"] .chat-group.from-wellet:first-child .chat-bubble.wellet {
-    font-size: 22px;
+    font-size: var(--type-h1);
   }
 }
 
@@ -163,7 +163,7 @@
 #view-ask[data-editorial="ask"] .chat-bubble.wellet .md-h {
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 17px;
+  font-size: var(--type-h2);
   line-height: 1.25;
   color: var(--ink-9);
   margin: 14px 0 6px;
@@ -191,7 +191,7 @@
   padding: 1px 5px;
   border-radius: 3px;
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 13px;
+  font-size: var(--type-meta);
   color: var(--ink-9);
 }
 #view-ask[data-editorial="ask"] .chat-bubble.wellet a {
@@ -208,7 +208,7 @@
   color: var(--ink-9);
   font-family: var(--sans);
   font-weight: 400;
-  font-size: 15px;
+  font-size: var(--type-body);
   line-height: 1.5;
   border: 0;
   border-radius: 14px;
@@ -232,7 +232,7 @@
   content: "Some places to start";
   font-family: var(--serif);
   font-weight: 400;
-  font-size: 12px;
+  font-size: var(--type-meta);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-5);
@@ -248,7 +248,7 @@
   margin: 0;
   font-family: var(--sans);
   font-weight: 300;
-  font-size: 15px;
+  font-size: var(--type-body);
   letter-spacing: 0.005em;
   color: var(--ink-9);
   text-align: left;
@@ -292,7 +292,7 @@
   padding: 10px 14px;
   font-family: var(--sans);
   font-weight: 300;
-  font-size: 16px;
+  font-size: var(--type-body);
   line-height: 1.4;
   color: var(--ink-9);
   background: var(--bg-2, #FBF9F4);
@@ -363,7 +363,7 @@
 #view-ask[data-editorial="ask"] #ask-context-chip {
   margin: 0 var(--gutter, 22px) 6px;
   font-family: var(--serif);
-  font-size: 13px;
+  font-size: var(--type-meta);
   color: var(--ink-5);
   font-variation-settings: "opsz" 14, "SOFT" 60;
 }
