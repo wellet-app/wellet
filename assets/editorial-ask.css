@@ -225,8 +225,8 @@
   flex-direction: column;
   flex-wrap: nowrap;
   gap: 0;
-  border-top: 1px solid var(--ink-1);
-  margin-top: 8px;
+  border-top: 0;
+  margin-top: 4px;
 }
 #view-ask[data-editorial="ask"] .suggestion-chips::before {
   content: "Some places to start";
@@ -236,15 +236,14 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-5);
-  padding: 14px 0 6px;
+  padding: 12px 0 4px;
   font-variation-settings: "opsz" 14, "SOFT" 60;
 }
 #view-ask[data-editorial="ask"] .chip {
   background: transparent;
   border: 0;
-  border-bottom: 1px solid var(--ink-1);
   border-radius: 0;
-  padding: 12px 0;
+  padding: 9px 0;
   margin: 0;
   font-family: var(--sans);
   font-weight: 300;
@@ -269,17 +268,13 @@
 }
 #view-ask[data-editorial="ask"] .chip:hover {
   background: transparent;
-  border-color: var(--ink-3);
   color: var(--moss-deep);
 }
-#view-ask[data-editorial="ask"] .chip:last-child {
-  border-bottom: 0;
-}
 
-/* ---- Input bar — quiet hairline, no shadow ---- */
+/* ---- Input bar — no top hairline; spacing carries the separation ---- */
 #view-ask[data-editorial="ask"] .ask-input-bar {
-  padding: 12px var(--gutter, 22px) 14px;
-  border-top: 1px solid var(--ink-1);
+  padding: 14px var(--gutter, 22px) 14px;
+  border-top: 0;
   background: var(--bg, #F7F5F0);
   display: flex;
   gap: 10px;
