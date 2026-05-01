@@ -1618,10 +1618,14 @@ function renderUpdateMe() {
   var addMoreOutside = (hasAnyWelletSource && emptyActions === compactAddMore) ? compactAddMore : '';
   var addMoreInside = (hasAnyWelletSource && emptyActions === compactAddMore) ? '' : emptyActions;
 
+  // C7: One quiet line above the summary — factual coordination signals only.
+  var rightNowLineHtml = buildRightNowLine(name, currentPersonId);
+
   if (liveEvents.length === 0 && !hasCompletedDocs && !ehrConnected && !hasWearable) {
     // Truly empty: summary placeholder FIRST, then onboarding CTAs below
     pane.innerHTML = sharedInboxContainer
       + '<div class="update-me-section">'
+      + rightNowLineHtml
       + emptyPlaceholder
       + addMoreInside
       + '</div>'
@@ -1639,6 +1643,7 @@ function renderUpdateMe() {
     var chartNoticedEarlyHtml = buildChartNoticedBanner(name, currentPersonId);
     pane.innerHTML = sharedInboxContainer
       + '<div class="update-me-section">'
+      + rightNowLineHtml
       + summarySection
       + chartNoticedEarlyHtml
       + addMoreInside
@@ -1658,6 +1663,7 @@ function renderUpdateMe() {
     var chartNoticedHtml = buildChartNoticedBanner(name, currentPersonId);
     pane.innerHTML = sharedInboxContainer
       + '<div class="update-me-section">'
+      + rightNowLineHtml
       + summarySection
       + alertBannerHtml
       + chartNoticedHtml
@@ -1816,6 +1822,142 @@ function buildChartNoticedBanner(personName, personId) {
       + '<div class="alert-body">' + c.body + '</div>'
       + '</div></div>';
   }).join('');
+}
+
+// ── RIGHT NOW LINE (C7) ──────────────────────────────────────────────────
+// One quiet sentence at the very top of Home, above the Wellet Summary card.
+// Format: "{FirstName} · {state}" — calm, italic, no card/icon/border.
+// Selection priority (top wins, max 2 clauses combined):
+//   1. Imminent appt (today/tomorrow): "appointment {today|tomorrow} with {provider}"
+//   2. Recent lab (≤3 days): "{lab} came back {N days ago|yesterday}"
+//   3. Recent chart change (≤7 days): "{N} new chart entries this week"
+//   4. Sync staleness (≥7 days): "{N} days since the chart last synced"
+//   5. Upcoming appt (this/next week): "next visit {Mon Mar 14}"
+//   6. Fallback: "steady this week"
+// Combine: imminent appt + recent lab can pair (" · " between clauses).
+// Voice: factual coordination signals only. Never medical interpretation.
+// "A1c came back" — NOT "A1c is normal". "the chart" — not "her chart".
+function buildRightNowLine(personName, personId) {
+  if (isDemoMode) return ''; // Demo has its own static state.
+  var firstName = (personName || '').split(' ')[0] || 'Your loved one';
+
+  var ehr = null;
+  try { ehr = getEhrData(personId); } catch (e) { ehr = null; }
+
+  var now = new Date();
+  var startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  // ── 1. Appointments (imminent + upcoming) ────────────────────────────
+  var appts = [];
+  try {
+    appts = (typeof liveEvents !== 'undefined' ? liveEvents : []).filter(function(e) {
+      return e && e.event_type === 'appointment' && e.event_date
+        && new Date(e.event_date) >= new Date(now.getTime() - 3600000);
+    }).map(function(e) {
+      return { title: e.title || '', date: new Date(e.event_date) };
+    }).sort(function(a, b) { return a.date - b.date; });
+  } catch (e) { appts = []; }
+
+  var imminentAppt = null; // today or tomorrow
+  var upcomingAppt = null; // this week / next week
+  for (var ai = 0; ai < appts.length; ai++) {
+    var a = appts[ai];
+    var dayDiff = Math.round((new Date(a.date.getFullYear(), a.date.getMonth(), a.date.getDate()) - startOfToday) / 86400000);
+    if (dayDiff <= 1 && !imminentAppt) {
+      imminentAppt = { appt: a, when: dayDiff <= 0 ? 'today' : 'tomorrow' };
+    } else if (dayDiff > 1 && dayDiff < 14 && !upcomingAppt) {
+      upcomingAppt = a;
+    }
+  }
+
+  // ── 2. Recent lab (≤3 days) ─────────────────────────────────────────
+  var recentLab = null;
+  if (ehr && ehr.observations) {
+    var threeDaysAgo = new Date(Date.now() - 3 * 86400000);
+    var labs = ehr.observations.filter(function(o) {
+      if (!o || !o.name || !o.effective_date) return false;
+      var d = new Date(o.effective_date);
+      return !isNaN(d) && d >= threeDaysAgo;
+    }).sort(function(a, b) { return new Date(b.effective_date) - new Date(a.effective_date); });
+    if (labs.length > 0) {
+      var lab = labs[0];
+      var labDate = new Date(lab.effective_date);
+      var labDayDiff = Math.round((startOfToday - new Date(labDate.getFullYear(), labDate.getMonth(), labDate.getDate())) / 86400000);
+      var whenText;
+      if (labDayDiff <= 0) whenText = 'today';
+      else if (labDayDiff === 1) whenText = 'yesterday';
+      else whenText = labDayDiff + ' days ago';
+      recentLab = { name: _shortenClinicalName(lab.name), when: whenText };
+    }
+  }
+
+  // ── 3. Recent chart change (≤7 days, by snapshot diff) ──────────────
+  var newEntryCount = 0;
+  if (ehr) {
+    var prev = _readChartSnapshot(personId);
+    if (prev) {
+      var prevMedSet = {};
+      ((prev && prev.meds) || []).forEach(function(k){ prevMedSet[k] = true; });
+      var prevCondSet = {};
+      ((prev && prev.conds) || []).forEach(function(k){ prevCondSet[k] = true; });
+      var meds = (ehr.medications || []).filter(function(m){ return m && m.name; });
+      var conds = (ehr.conditions || []).filter(function(c){ return c && c.name; });
+      var newMeds = meds.filter(function(m){ var k = _chartRowKey(m); return k && !prevMedSet[k]; });
+      var newConds = conds.filter(function(c){ var k = _chartRowKey(c); return k && !prevCondSet[k]; });
+      newEntryCount = newMeds.length + newConds.length;
+    }
+  }
+
+  // ── 4. Sync staleness (≥7 days) ─────────────────────────────────────
+  var staleDays = null;
+  if (ehr && ehr.synced_at) {
+    var syncedAt = new Date(ehr.synced_at);
+    if (!isNaN(syncedAt)) {
+      var days = Math.floor((Date.now() - syncedAt.getTime()) / 86400000);
+      if (days >= 7) staleDays = days;
+    }
+  }
+
+  // ── Compose state (priority order, cap 2 clauses) ───────────────────
+  var clauses = [];
+
+  if (imminentAppt) {
+    var apptText = 'appointment ' + imminentAppt.when;
+    var provider = (imminentAppt.appt.title || '').trim();
+    if (provider) {
+      // Title often looks like "Dr. Smith — Cardiology". Keep it short.
+      var shortProv = provider.split(/\s[—\-]\s/)[0];
+      apptText += ' with ' + shortProv;
+    }
+    clauses.push(apptText);
+  }
+
+  if (recentLab && clauses.length < 2) {
+    clauses.push(recentLab.name + ' came back ' + recentLab.when);
+  }
+
+  if (clauses.length === 0 && newEntryCount > 0) {
+    clauses.push(newEntryCount + ' new chart ' + (newEntryCount === 1 ? 'entry' : 'entries') + ' this week');
+  }
+
+  if (clauses.length === 0 && staleDays !== null) {
+    clauses.push(staleDays + ' days since the chart last synced');
+  }
+
+  if (clauses.length === 0 && upcomingAppt) {
+    clauses.push('next visit ' + formatUpcomingDateLine(upcomingAppt.date).split(' \u00b7 ')[0]);
+  }
+
+  if (clauses.length === 0) {
+    clauses.push('steady this week');
+  }
+
+  var stateText = clauses.join(' \u00b7 ');
+  return '<div class="right-now-line">'
+    + '<span class="right-now-name">' + escHtml(firstName) + '</span>'
+    + '<span class="right-now-sep"> \u00b7 </span>'
+    + '<span class="right-now-state">' + escHtml(stateText) + '</span>'
+    + '</div>';
 }
 
 // ── PATTERN ALERT DETECTION & BANNER ─────────────────────────────────────

@@ -678,6 +678,28 @@
   /* PR 15: "Before you call" panel on Care team — size to content, not full section width. */
   .alert-banner.before-you-call { display: inline-flex; max-width: min(520px, 100%); margin: 0 0 12px; }
 
+  /* PR 16 (C7): Right-now line — one quiet sentence above the Wellet Summary.
+     No card, no border, no icon. Italic Frounces serif for editorial calm. */
+  .right-now-line {
+    margin: 4px 20px 10px;
+    font-family: 'Fraunces', Georgia, serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: var(--type-meta);
+    line-height: 1.5;
+    color: var(--text-secondary);
+    letter-spacing: 0.01em;
+  }
+  .right-now-line .right-now-name { color: var(--text-primary); font-weight: 500; }
+  .right-now-line .right-now-sep { color: var(--text-muted); }
+  .right-now-line .right-now-state { color: var(--text-secondary); }
+  @media (min-width: 768px) {
+    .right-now-line { margin: 6px 24px 12px; font-size: 15px; }
+  }
+  @media (min-width: 1024px) {
+    .right-now-line { margin: 8px 28px 14px; font-size: 16px; }
+  }
+
   .quick-actions { display: flex; gap: 8px; margin: 12px 20px 0; }
   .qa-btn { flex: 1; background: white; border: 1px solid var(--border); border-radius: 10px; padding: 10px 8px; min-height: 44px; font-family: 'DM Sans', sans-serif; font-size: var(--type-micro); font-weight: 500; color: var(--text-secondary); cursor: pointer; text-align: center; transition: all 0.15s; display: flex; flex-direction: column; align-items: center; gap: 5px; }
   .qa-btn:hover { border-color: var(--moss); color: var(--moss); background: var(--mint); }
