@@ -392,32 +392,88 @@ Deno.serve(async (req) => {
       const codeChallenge = await computeCodeChallenge(codeVerifier);
       const state = generateState();
 
-      // HOTFIX 2026-04-26: previously this was an upsert with
-      // onConflict: 'person_id' — which silently overwrote any existing
-      // connection on the same person row whenever a second hospital was
-      // started. We now insert a new pending row per OAuth attempt and rely
-      // on `state` (globally unique per attempt) to resolve the matching
-      // row in `callback`. The companion migration drops UNIQUE(person_id)
-      // and adds a partial UNIQUE(person_id, fhir_base_url) WHERE
-      // status='connected' so multiple connected hospitals can coexist on
-      // the same person.
-      const { error: insertError } = await admin.from('ehr_connections').insert({
-        user_id: user.id,
-        person_id: person_id,
-        provider: 'epic',
-        code_verifier: codeVerifier,
-        state: state,
-        fhir_base_url: fhirBase,
-        token_url: tokenUrl,
-        hospital_name: hospitalName || (isSandbox ? 'Epic Sandbox' : null),
-        status: 'pending',
-        access_token: null,
-        refresh_token: null,
-        token_expires_at: null,
-        patient_id: null,
-        connected_provider: null,
-        connected_at: null,
-      });
+      // 2026-05-01: previously every `start` call did a plain insert,
+      // which created a NEW ehr_connections row per OAuth attempt. The
+      // partial unique index keeps us from ending up with two CONNECTED
+      // rows for the same hospital, but it does not stop dead 'pending' /
+      // 'needs_reconnect' / 'superseded' rows from accumulating across
+      // reconnects, which made the duplicate-row bug real (multiple
+      // pendings would race on the same hospital and the cache could
+      // pick a stale one).
+      //
+      // Behavior now: if there's already a reusable row for this
+      // (person_id, fhir_base_url) — i.e. status in
+      // ('pending','needs_reconnect','superseded') — UPDATE it in place
+      // with the fresh PKCE+state and flip status='pending'. If the only
+      // existing row is status='connected', leave it alone (the live
+      // token must stay valid until the new OAuth dance finishes — the
+      // partial unique index will be respected because we're inserting a
+      // 'pending', not another 'connected') and insert a new pending row
+      // alongside it. The `state` column is globally unique per attempt,
+      // so `callback` still resolves the right row.
+      const { data: existingRows, error: existingErr } = await admin
+        .from('ehr_connections')
+        .select('id, status')
+        .eq('person_id', person_id)
+        .eq('fhir_base_url', fhirBase)
+        .in('status', ['pending', 'needs_reconnect', 'superseded'])
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (existingErr) {
+        console.error('[epic-auth] start existing-row lookup failed', { err: existingErr });
+        // Fail soft: fall through to the insert path so a transient lookup
+        // error doesn't block reconnect entirely.
+      }
+      const reusable = existingRows && existingRows[0];
+
+      let insertError: { message: string } | null = null;
+      if (reusable) {
+        const { error: updateError } = await admin.from('ehr_connections')
+          .update({
+            user_id: user.id,
+            provider: 'epic',
+            code_verifier: codeVerifier,
+            state: state,
+            token_url: tokenUrl,
+            hospital_name: hospitalName || (isSandbox ? 'Epic Sandbox' : null),
+            status: 'pending',
+            // Clear out any stale OAuth artifacts from a previous failed
+            // attempt — the new dance will repopulate these on success.
+            access_token: null,
+            refresh_token: null,
+            token_expires_at: null,
+            patient_id: null,
+            connected_provider: null,
+            connected_at: null,
+            needs_reconnect: false,
+          })
+          .eq('id', reusable.id);
+        if (updateError) {
+          console.error('[epic-auth] start reuse-row update failed', { err: updateError, row_id: reusable.id });
+          insertError = updateError;
+        } else {
+          console.log('[epic-auth] start reused existing row', { row_id: reusable.id, prior_status: reusable.status });
+        }
+      } else {
+        const { error: insErr } = await admin.from('ehr_connections').insert({
+          user_id: user.id,
+          person_id: person_id,
+          provider: 'epic',
+          code_verifier: codeVerifier,
+          state: state,
+          fhir_base_url: fhirBase,
+          token_url: tokenUrl,
+          hospital_name: hospitalName || (isSandbox ? 'Epic Sandbox' : null),
+          status: 'pending',
+          access_token: null,
+          refresh_token: null,
+          token_expires_at: null,
+          patient_id: null,
+          connected_provider: null,
+          connected_at: null,
+        });
+        insertError = insErr;
+      }
       if (insertError) {
         console.error('[epic-auth] start insert failed', { err: insertError });
         return jsonResponse({
