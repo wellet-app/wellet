@@ -1237,7 +1237,7 @@
           <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
             <div class="settings-row-left" style="flex:1;min-width:0;">
               <div class="settings-row-icon" style="background:#E8F5E9;color:#4CAF50;"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>
-              <div><div class="settings-row-label">Multi-hospital preview</div><div class="settings-row-meta" id="phase2-toggle-desc">Off — Records reads the single-hospital cache.</div></div>
+              <div><div class="settings-row-label">Multi-hospital preview</div><div class="settings-row-meta" id="phase2-toggle-desc">Off — single-hospital cache. Auto-enables when a 2nd hospital connects.</div></div>
             </div>
             <button id="phase2-toggle-btn" type="button" onclick="togglePhase2Flag()" style="flex:0 0 auto;background:#eef2f0;border:1px solid var(--border);color:var(--text-primary);font-size:13px;font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;">Turn on</button>
           </div>
@@ -2862,7 +2862,7 @@
 </div>
 
 </div><!-- end page-wrap -->
-<script src="/assets/wellet.js?v=20260501-1530"></script>
+<script src="/assets/wellet.js?v=20260501-1655"></script>
 <script src="/guided-demo.js"></script>
 <!-- CARE CIRCLE SHARE SHEET -->
 <div class="share-overlay" id="share-overlay" onclick="if(event.target===this)closeShareSheet()">

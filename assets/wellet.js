@@ -4119,7 +4119,7 @@ function renderRecordsView() {
 
   // Care Team
   if (ehrCareTeam.length > 0) {
-    html += buildCareTeamSection(ehrCareTeam, ehrProvider, allEhrVisits);
+    html += buildCareTeamSection(ehrCareTeam, ehrProvider, allEhrVisits, ehrData);
   }
 
   // Procedures
@@ -8028,18 +8028,30 @@ function updatePhase2ToggleUI() {
   var desc = document.getElementById('phase2-toggle-desc');
   if (!btn || !desc) return;
   var on = isPhase2Enabled();
+  // Detect whether the active loved one already has 2+ connected hospitals.
+  // When they do, Phase 2 auto-enables (see saveEhrCache), so the toggle is
+  // really a status indicator at that point — surface that in the copy.
+  var nConn = 0;
+  try {
+    var v2 = currentPersonId ? loadEhrCacheV2(currentPersonId) : null;
+    if (v2 && v2.connections) nConn = Object.keys(v2.connections).length;
+  } catch(e) {}
   if (on) {
     btn.textContent = 'Turn off';
     btn.style.background = 'var(--moss)';
     btn.style.color = '#fff';
     btn.style.borderColor = 'var(--moss)';
-    desc.textContent = 'On — Records reads the merged multi-hospital cache.';
+    if (nConn >= 2) {
+      desc.textContent = 'On (auto) — ' + nConn + ' hospitals connected. Records merges them all.';
+    } else {
+      desc.textContent = 'On — Records reads the merged multi-hospital cache.';
+    }
   } else {
     btn.textContent = 'Turn on';
     btn.style.background = '#eef2f0';
     btn.style.color = 'var(--text-primary)';
     btn.style.borderColor = 'var(--border)';
-    desc.textContent = 'Off — Records reads the single-hospital cache.';
+    desc.textContent = 'Off — single-hospital cache. Auto-enables when a 2nd hospital connects.';
   }
 }
 
@@ -8562,15 +8574,11 @@ function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox) {
         }, 400);
         return;
       }
-      // 2026-04-26 hotfix: server-side guard that refuses a SECOND hospital on
-      // a loved one until the rest of the N-connections refactor lands. The
-      // server returns a friendly message in `data.message`. Surface it as a
-      // plain toast — no "let us know" modal, since this is an expected
-      // temporary limitation, not a hospital-support gap.
-      if (data.error === 'multi_hospital_not_yet_supported') {
-        showToast(data.message || 'Multi-hospital support is shipping soon — for now, only one hospital can be connected at a time per loved one.');
-        return;
-      }
+      // 2026-05-01: removed dead handler for `multi_hospital_not_yet_supported`.
+      // The 2026-04-26 server-side gate was lifted on 2026-04-27 once the
+      // N-connections refactor landed; the server no longer returns this
+      // error code. A loved one can now connect any number of hospitals
+      // (Duke, UNC, WakeMed, etc.) and the v2 merged cache surfaces them all.
       var msg = 'Error: ' + data.error;
       if (data.diag) msg += ' (' + data.diag + ')';
       showToast(msg);
@@ -8848,8 +8856,22 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
     saveEhrCache(personId, data);
     // Phase 2 dual-write: when the response carries connections[] (v55+),
     // also persist the per-connection v2 shape. v1 stays the source of truth
-    // until the flag flips ON; v2 is read-only until then.
+    // until Phase 2 is on; v2 is read-only until then.
     try { saveEhrCacheV2(personId, data); } catch(e) { console.warn('v2 cache save:', e); }
+    // Auto-enable Phase 2 the moment a loved one has 2+ connected hospitals.
+    // Single-hospital people stay on the v1 cache (unchanged behavior); the
+    // moment a second hospital finishes OAuth, Records/Timeline/Ask Wellet
+    // start reading from the merged getMergedEhr view so both hospitals'
+    // data shows up. No user action required — the developer-preview toggle
+    // becomes a status row at that point. Idempotent: safe to call every sync.
+    try {
+      if (data && Array.isArray(data.connections) && data.connections.length >= 2) {
+        if (!isPhase2Enabled()) {
+          localStorage.setItem('welletPhase2', '1');
+          if (typeof updatePhase2ToggleUI === 'function') updatePhase2ToggleUI();
+        }
+      }
+    } catch(e) { console.warn('phase2 auto-enable:', e); }
     // Fresh sync just landed — update the masthead label so it says e.g.
     // "Updated just now" (truthfully this time) instead of staying stale.
     try { if (personId === currentPersonId) updateHeaderSyncMeta(); } catch(e) {}
@@ -9075,11 +9097,10 @@ function buildEhrStatusBar(ehrData) {
     + '<div class="ehr-status-right">'
     + '<span style="font-size:11px;color:var(--text-muted);">Synced ' + syncedStr + '</span>'
     // "Add another hospital" entry point. Opens the same Epic hospital picker
-    // that first-time connect uses. The epic-auth `start` route enforces a
-    // per-loved-one guard until the full N-connections refactor ships, so
-    // attempting a different hospital today returns a friendly 409 that the
-    // picker surfaces. Same hospital re-connect (e.g. expired refresh) is
-    // allowed through.
+    // that first-time connect uses. As of 2026-04-27 the per-loved-one server
+    // guard is lifted — a loved one can connect Duke + UNC + WakeMed + any
+    // other Epic-on-FHIR hospital, and the v2 merged cache (auto-enabled at
+    // N≥2) surfaces all of them in Records / Timeline / Ask Wellet.
     + '<button class="ehr-refresh-btn" onclick="startEhrConnect()" title="Add another hospital"><i data-lucide="plus" style="width:14px;height:14px;"></i></button>'
     + '<button class="ehr-refresh-btn" onclick="refreshEhrData()" title="Refresh data"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>'
     + '<button class="ehr-refresh-btn" onclick="disconnectEhr()" title="Disconnect" style="color:var(--red);"><i data-lucide="unplug" style="width:14px;height:14px;"></i></button>'
@@ -9323,7 +9344,7 @@ function enrichPractitionersForPerson(personId, careTeam, provider) {
 // recent encounter so Betsy sees who Mom actually sees most often at the top.
 // The whole section is collapsible — per Betsy's note: "we need to be able
 // to collapse and expand sections in all of records."
-function buildCareTeamSection(careTeam, provider, visits) {
+function buildCareTeamSection(careTeam, provider, visits, ehrData) {
   if (!careTeam || !careTeam.length) return '';
 
   // Merge in any enriched contact info we have for the active person.
@@ -9430,7 +9451,7 @@ function buildCareTeamSection(careTeam, provider, visits) {
       + '<div class="record-label">' + escHtml(p.name || 'Unnamed practitioner') + '</div>'
       + '<div class="record-meta">' + (summary || '\u2014') + '</div>'
       + '</div>'
-      + ehrProviderBadgeHtml(provider)
+      + rowProviderBadge(p, provider, ehrData)
       + contactBlock
       + '</div>';
   });
