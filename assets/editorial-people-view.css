@@ -44,6 +44,23 @@
   font-variation-settings: "opsz" 72, "SOFT" 60;
   margin: 0 0 6px;
 }
+
+/* Lived-time eyebrow — quiet caption above the masthead. Same
+   visual register as Records / Resources / Signals so the four list
+   surfaces share a single editorial pattern. */
+#view-people[data-editorial="people"] .people-eyebrow {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: var(--type-micro, 11px);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-5, #6b6b6b);
+  margin: 0 0 6px;
+  font-variant-numeric: tabular-nums;
+}
+#view-people[data-editorial="people"] .people-eyebrow:empty {
+  display: none;
+}
 #view-people[data-editorial="people"] .view-subtitle {
   font-family: var(--sans);
   font-size: var(--type-body);

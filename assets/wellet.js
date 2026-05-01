@@ -11558,6 +11558,17 @@ function switchRecordsPerson(el, person) {
   initIcons();
 }
 
+// ── PEOPLE LIVED-TIME EYEBROW (demo path) ────────────────────────────
+// Static demo HTML hardcodes 2 people (Dad + Mom); only Dad has a
+// chart wired in DEMO_EHR_DATA. We render "Caring for 2 people \u00B7 1
+// with chart" so the demo and authenticated paths read the same.
+function updatePeopleEyebrow() {
+  var el = document.getElementById('people-eyebrow');
+  if (!el) return;
+  if (!isDemoMode) return;  // real path is built inline by renderPeopleView
+  el.textContent = 'Caring for 2 people \u00B7 1 with chart';
+}
+
 // ── RECORDS LIVED-TIME EYEBROW (demo path) ─────────────────────────────
 // In demo mode the Records header markup lives statically in index.html.
 // This helper fills the empty `#records-eyebrow` div with an honest line:
@@ -16738,8 +16749,9 @@ enterDemoMode = function() {
   _origEnterDemoMode();
   initDemoNotifications();
   refreshDemoRecordBadges();
-  // Lived-time eyebrow on the static demo Records header.
+  // Lived-time eyebrows on the static demo Records and People headers.
   try { updateRecordsEyebrow('dad'); } catch (e) {}
+  try { updatePeopleEyebrow(); } catch (e) {}
   startReminderCheck();
 };
 
@@ -17376,7 +17388,29 @@ renderPeopleView = function() {
   var view = document.getElementById('view-people');
   if (!view) return;
 
-  var html = '<div class="view-header"><div class="view-title">People</div>'
+  // Lived-time eyebrow — quiet caption above the masthead. Counts the
+  // people you're actively caring for (non-bereaved/non-archived) and
+  // how many of them have a chart connected. Stays quiet when nobody's
+  // there yet (first-run / empty state).
+  var activePeople = (currentPeople || []).filter(function(p){
+    var s = p.care_status || 'active';
+    return s !== 'bereaved' && s !== 'archived' && s !== 'closed';
+  });
+  var withChart = activePeople.filter(function(p){
+    try { var e = getEhrData(p.id); return !!(e && (e.synced_at || (e.medications && e.medications.length))); }
+    catch(_e) { return false; }
+  }).length;
+  var peopleEyebrow = '';
+  if (activePeople.length > 0) {
+    var parts = [];
+    parts.push('Caring for ' + activePeople.length + (activePeople.length===1 ? ' person' : ' people'));
+    if (withChart > 0) parts.push(withChart + ' with chart');
+    peopleEyebrow = '<div class="people-eyebrow">' + parts.join(' \u00B7 ') + '</div>';
+  }
+
+  var html = '<div class="view-header">'
+    + peopleEyebrow
+    + '<div class="view-title">People</div>'
     + '<div class="view-subtitle">The people you care for, and the family who helps.</div></div>'
     + '<div class="people-section">'
     + '<div style="font-size:var(--type-micro);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin:4px 2px 10px;">Who you are caring for</div>';
