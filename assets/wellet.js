@@ -9235,9 +9235,17 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
       var prov = (data && (data.provider || {})) || {};
       enrichPractitionersForPerson(personId, ct, prov);
     } catch(e) {}
-    // Navigate to Records view after initial EHR connection
+    // Navigate to Records view after initial EHR connection.
+    // C9: On the FIRST successful sync for this person, show a one-time
+    // warm welcome screen with what just landed + a chart-aware sentence.
+    // The overlay's CTA navigates to Records itself; subsequent syncs skip it.
     if (navigateToRecords) {
-      switchNavTo('records');
+      if (!hasSeenFirstSync(personId)) {
+        try { openFirstSyncWelcome(personId, data); }
+        catch (e) { console.warn('first-sync welcome:', e); switchNavTo('records'); }
+      } else {
+        switchNavTo('records');
+      }
     }
   }).catch(function(err) {
     console.error('EHR fetch error:', err);
@@ -13393,6 +13401,120 @@ function openInviteChannelChooser(inviteArgs, member, data) {
     openInviteSms(inviteArgs);
     _markInviteSent(member, 'Invite ready \u2014 send from Messages');
   });
+}
+
+// ── FIRST-SYNC ONBOARDING (C9) ───────────────────────────────────
+// One-time warm welcome screen shown after the FIRST successful EHR sync
+// for a given person. Surfaces what just landed (counts) plus the C8/C9
+// shared right-now sentence. Voice: factual coordination only.
+function _firstSyncFlagKey(personId) {
+  return 'wellet_first_sync_seen_' + personId;
+}
+function hasSeenFirstSync(personId) {
+  if (!personId) return true; // be conservative
+  try { return localStorage.getItem(_firstSyncFlagKey(personId)) === '1'; }
+  catch (e) { return true; }
+}
+function markFirstSyncSeen(personId) {
+  if (!personId) return;
+  try { localStorage.setItem(_firstSyncFlagKey(personId), '1'); } catch (e) {}
+}
+
+// Pulls clean counts off the freshly-synced EHR data payload.
+// Returns ordered list of { label, count, icon } for non-zero categories only.
+function _firstSyncCounts(data) {
+  if (!data) return [];
+  var rows = [
+    { key: 'medications',       label: 'medication',       plural: 'medications',       icon: 'pill' },
+    { key: 'conditions',        label: 'condition',        plural: 'conditions',        icon: 'activity' },
+    { key: 'allergies',         label: 'allergy',          plural: 'allergies',         icon: 'shield-alert' },
+    { key: 'observations',      label: 'lab result',       plural: 'lab results',       icon: 'flask-conical' },
+    { key: 'visits',            label: 'past visit',       plural: 'past visits',       icon: 'calendar-clock' },
+    { key: 'care_team',         label: 'provider',         plural: 'providers',         icon: 'users' },
+    { key: 'immunizations',     label: 'immunization',     plural: 'immunizations',     icon: 'syringe' },
+    { key: 'diagnostic_reports',label: 'diagnostic report',plural: 'diagnostic reports',icon: 'file-text' }
+  ];
+  var out = [];
+  rows.forEach(function(r) {
+    var arr = data[r.key];
+    var n = (Array.isArray(arr) ? arr.length : 0);
+    if (n > 0) {
+      out.push({
+        count: n,
+        text: n + ' ' + (n === 1 ? r.label : r.plural),
+        icon: r.icon
+      });
+    }
+  });
+  return out;
+}
+
+// Open the one-time first-sync welcome overlay. personId + data are required.
+function openFirstSyncWelcome(personId, data) {
+  if (!personId || !data) { switchNavTo('records'); return; }
+
+  // Resolve a friendly first name without depending on currentPeople loading order.
+  var person = (typeof currentPeople !== 'undefined' && currentPeople)
+    ? currentPeople.find(function(p){ return p.id === personId; }) : null;
+  var fullName = (person && person.name) || (data.patient && data.patient.name) || 'your loved one';
+  var firstName = (fullName || '').split(' ')[0] || 'them';
+
+  var counts = _firstSyncCounts(data);
+  var rightNow = buildInviteRightNow(fullName, personId);
+
+  // Build the overlay
+  var existing = document.getElementById('first-sync-overlay');
+  if (existing) existing.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'first-sync-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(20,28,30,0.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;animation:welletFadeIn 0.25s ease;';
+
+  var sheet = document.createElement('div');
+  sheet.style.cssText = 'background:#FAF7F2;border-radius:20px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;padding:32px 24px 28px;box-shadow:0 16px 48px rgba(0,0,0,0.25);';
+
+  // Counts list HTML
+  var countsHtml = '';
+  if (counts.length > 0) {
+    countsHtml = '<div style="margin:18px 0 4px;">' + counts.map(function(c) {
+      return '<div style="display:flex;align-items:center;gap:12px;padding:8px 0;font-size:var(--type-body);color:var(--text-primary);">'
+        + '<i data-lucide="' + c.icon + '" style="width:18px;height:18px;color:var(--moss);flex-shrink:0;"></i>'
+        + '<span>' + escHtml(c.text) + '</span>'
+        + '</div>';
+    }).join('') + '</div>';
+  }
+
+  // Right-now sentence (only if non-empty)
+  var rightNowHtml = '';
+  if (rightNow) {
+    rightNowHtml = '<div style="margin:14px 0 4px;padding:14px 16px;background:rgba(124,140,113,0.08);border-radius:12px;font-family:Fraunces,Georgia,serif;font-style:italic;font-size:15px;line-height:1.5;color:var(--text-primary);">'
+      + escHtml(rightNow) + '</div>';
+  }
+
+  sheet.innerHTML =
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">'
+    +   '<div style="width:32px;height:32px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;"><i data-lucide="check" style="width:18px;height:18px;color:var(--moss);"></i></div>'
+    +   '<div style="font-size:var(--type-meta);color:var(--text-secondary);font-weight:500;letter-spacing:0.02em;text-transform:uppercase;">Connected</div>'
+    + '</div>'
+    + '<div style="font-family:Fraunces,Georgia,serif;font-size:28px;line-height:1.2;color:var(--text-primary);margin-bottom:6px;">We pulled in ' + escHtml(firstName) + '\u2019s chart.</div>'
+    + '<div style="font-size:var(--type-body);color:var(--text-secondary);line-height:1.5;">Here\u2019s what just landed.</div>'
+    + countsHtml
+    + rightNowHtml
+    + '<button id="first-sync-cta" style="width:100%;background:var(--moss);color:white;border:none;border-radius:12px;padding:14px;font-size:var(--type-body);font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;margin-top:18px;display:flex;align-items:center;justify-content:center;gap:8px;">Take me to the records <i data-lucide="arrow-right" style="width:16px;height:16px;"></i></button>'
+    + '<div style="text-align:center;margin-top:12px;font-size:var(--type-micro);color:var(--text-muted);">Wellet will keep this fresh in the background.</div>';
+
+  overlay.appendChild(sheet);
+  document.body.appendChild(overlay);
+  initIcons();
+
+  function dismiss() {
+    markFirstSyncSeen(personId);
+    overlay.remove();
+    switchNavTo('records');
+  }
+  document.getElementById('first-sync-cta').addEventListener('click', dismiss);
+  // Backdrop click also dismisses (but still marks seen so we don't show again)
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) dismiss(); });
 }
 
 function openContactEditById(memberId) {
