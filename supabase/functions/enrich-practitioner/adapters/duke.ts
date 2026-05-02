@@ -17,6 +17,10 @@
 // in enrich-practitioner/index.ts, repackaged behind the
 // HospitalDirectoryAdapter contract. Behavior is intentionally
 // identical so the registry refactor is observably a no-op for Duke.
+//
+// Shared utilities (timedFetch, splitName, slugify, stripHtml,
+// decodeHtmlEntities, formatPhoneUS) live in _shared/adapter-utils.ts
+// so future hospital adapters can compose them without duplication.
 
 import type {
   Address,
@@ -24,83 +28,14 @@ import type {
   EnrichInput,
 } from "../../_shared/practitioner-types.ts";
 import type { HospitalDirectoryAdapter } from "../../_shared/hospital-directory-registry.ts";
-
-const FETCH_TIMEOUT_MS = 8_000;
-const USER_AGENT =
-  "Wellet/1.0 (+https://getwellet.com; contact@getwellet.com) provider-directory-lookup";
-
-// ── Local utilities (kept private to the adapter) ─────────────────────
-
-async function timedFetch(url: string, init: RequestInit = {}): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  try {
-    return await fetch(url, {
-      ...init,
-      signal: controller.signal,
-      headers: {
-        "User-Agent": USER_AGENT,
-        ...(init.headers || {}),
-      },
-    });
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-function splitName(display: string): { first: string; last: string; credential: string } {
-  if (!display) return { first: "", last: "", credential: "" };
-  const m = display.match(/^(.+?)(?:,\s*)?\b(MD|DO|DDS|DMD|PA-C|PA|NP|APRN|RN|PhD|PsyD|MSN|MPH|MBA)\b\.?\s*$/i);
-  let core = display;
-  let credential = "";
-  if (m) {
-    core = m[1].trim().replace(/,+$/, "").trim();
-    credential = m[2].toUpperCase();
-  }
-  core = core.replace(/\s+/g, " ").trim();
-  const parts = core.split(" ").filter(Boolean);
-  if (parts.length === 0) return { first: "", last: "", credential };
-  if (parts.length === 1) return { first: "", last: parts[0], credential };
-  return { first: parts[0], last: parts[parts.length - 1], credential };
-}
-
-function slugify(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9\s-]/g, "")
-    .trim()
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
-}
-
-function stripHtml(s: string): string {
-  return s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
-}
-
-function decodeHtmlEntities(s: string): string {
-  return s
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#039;/g, "'")
-    .replace(/&rsquo;/g, "\u2019")
-    .replace(/&lsquo;/g, "\u2018")
-    .replace(/&ndash;/g, "\u2013")
-    .replace(/&mdash;/g, "\u2014")
-    .replace(/&nbsp;/g, " ");
-}
-
-function formatPhoneUS(digits: string): string | null {
-  const d = digits.replace(/\D/g, "");
-  if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
-  if (d.length === 11 && d.startsWith("1")) {
-    return `${d.slice(1, 4)}-${d.slice(4, 7)}-${d.slice(7)}`;
-  }
-  return null;
-}
+import {
+  decodeHtmlEntities,
+  formatPhoneUS,
+  slugify,
+  splitName,
+  stripHtml,
+  timedFetch,
+} from "../../_shared/adapter-utils.ts";
 
 // ── Page parser ───────────────────────────────────────────────────────
 
