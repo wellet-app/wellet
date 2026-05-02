@@ -19,11 +19,13 @@
 
 import { registerAdapter } from "../../_shared/hospital-directory-registry.ts";
 import { dukeAdapter } from "./duke.ts";
+import { uncAdapter } from "./unc.ts";
 
 registerAdapter(dukeAdapter);
+registerAdapter(uncAdapter);
 
 // Future adapters land here:
-//   import { uncAdapter } from "./unc.ts";          registerAdapter(uncAdapter);
-//   import { wakemedAdapter } from "./wakemed.ts";  registerAdapter(wakemedAdapter);
-//   import { coneAdapter } from "./cone.ts";        registerAdapter(coneAdapter);
-//   import { atriumAdapter } from "./atrium.ts";    registerAdapter(atriumAdapter);
+//   import { clevelandAdapter } from "./cleveland.ts";  registerAdapter(clevelandAdapter);
+//   import { mayoAdapter } from "./mayo.ts";            registerAdapter(mayoAdapter);
+//   import { mgbAdapter } from "./mgb.ts";              registerAdapter(mgbAdapter);
+//   import { stanfordAdapter } from "./stanford.ts";    registerAdapter(stanfordAdapter);
