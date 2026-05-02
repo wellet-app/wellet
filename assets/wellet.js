@@ -13066,7 +13066,7 @@ function renderCareCircle() {
       inviteBadge = '<span style="font-size:var(--type-micro);color:var(--moss);background:var(--mint);padding:2px 8px;border-radius:10px;font-weight:500;white-space:nowrap;">Joined</span>';
     } else if (inviteStatus === 'invited') {
       inviteBadge = '<span style="font-size:var(--type-micro);color:#8B6914;background:#FFF8E1;padding:2px 8px;border-radius:10px;font-weight:500;white-space:nowrap;">Invited</span>';
-    } else if (member.email) {
+    } else if (member.email || member.phone) {
       inviteBtn = '<button class="contact-edit-btn" onclick="event.stopPropagation();sendCareCircleInvite(\'' + member.id + '\')" title="Send invite" style="color:var(--moss);"><i data-lucide="send" style="width:14px;height:14px;"></i></button>';
     }
     html += '<div class="contact-card">'
@@ -13085,9 +13085,219 @@ function renderCareCircle() {
   initIcons();
 }
 
+// ── CARE CIRCLE INVITE COPY (C8) ──────────────────────────────────
+// Personalized invite copy (role × channel × chart-aware).
+// Shares the same priority ladder as buildRightNowLine but uses softer
+// full-sentence phrasing for invites. Voice rules: factual coordination
+// signals only — never medical interpretation. Pronoun-free.
+// Fallback ("steady this week") is OMITTED in invites — the email/SMS
+// reads naturally without it.
+function buildInviteRightNow(personName, personId) {
+  if (isDemoMode) return ''; // Demo invites use generic copy.
+  var firstName = (personName || '').split(' ')[0] || 'They';
+
+  var ehr = null;
+  try { ehr = getEhrData(personId); } catch (e) { ehr = null; }
+
+  var now = new Date();
+  var startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  // ── 1. Appointments (imminent + upcoming) ────────────────────────────
+  var appts = [];
+  try {
+    appts = (typeof liveEvents !== 'undefined' ? liveEvents : []).filter(function(e) {
+      return e && e.event_type === 'appointment' && e.event_date
+        && new Date(e.event_date) >= new Date(now.getTime() - 3600000);
+    }).map(function(e) {
+      return { title: e.title || '', date: new Date(e.event_date) };
+    }).sort(function(a, b) { return a.date - b.date; });
+  } catch (e) { appts = []; }
+
+  var imminentAppt = null;
+  var upcomingAppt = null;
+  for (var ai = 0; ai < appts.length; ai++) {
+    var a = appts[ai];
+    var dayDiff = Math.round((new Date(a.date.getFullYear(), a.date.getMonth(), a.date.getDate()) - startOfToday) / 86400000);
+    if (dayDiff <= 1 && !imminentAppt) {
+      imminentAppt = { appt: a, when: dayDiff <= 0 ? 'today' : 'tomorrow' };
+    } else if (dayDiff > 1 && dayDiff < 14 && !upcomingAppt) {
+      upcomingAppt = a;
+    }
+  }
+
+  // ── 2. Recent lab (≤3 days) ────────────────────────────────────────
+  var recentLab = null;
+  if (ehr && ehr.observations) {
+    var threeDaysAgo = new Date(Date.now() - 3 * 86400000);
+    var labs = ehr.observations.filter(function(o) {
+      if (!o || !o.name || !o.effective_date) return false;
+      var d = new Date(o.effective_date);
+      return !isNaN(d) && d >= threeDaysAgo;
+    }).sort(function(a, b) { return new Date(b.effective_date) - new Date(a.effective_date); });
+    if (labs.length > 0) {
+      var lab = labs[0];
+      var labDate = new Date(lab.effective_date);
+      var labDayDiff = Math.round((startOfToday - new Date(labDate.getFullYear(), labDate.getMonth(), labDate.getDate())) / 86400000);
+      var whenText;
+      if (labDayDiff <= 0) whenText = 'today';
+      else if (labDayDiff === 1) whenText = 'yesterday';
+      else whenText = labDayDiff + ' days ago';
+      recentLab = { name: _shortenClinicalName(lab.name), when: whenText };
+    }
+  }
+
+  // ── 3. Recent chart change (≤7 days, by snapshot diff) ──────────────
+  var newEntryCount = 0;
+  if (ehr) {
+    var prev = _readChartSnapshot(personId);
+    if (prev) {
+      var prevMedSet = {}, prevCondSet = {};
+      ((prev && prev.meds) || []).forEach(function(k){ prevMedSet[k] = true; });
+      ((prev && prev.conds) || []).forEach(function(k){ prevCondSet[k] = true; });
+      var meds = (ehr.medications || []).filter(function(m){ return m && m.name; });
+      var conds = (ehr.conditions || []).filter(function(c){ return c && c.name; });
+      var newMeds = meds.filter(function(m){ var k = _chartRowKey(m); return k && !prevMedSet[k]; });
+      var newConds = conds.filter(function(c){ var k = _chartRowKey(c); return k && !prevCondSet[k]; });
+      newEntryCount = newMeds.length + newConds.length;
+    }
+  }
+
+  // ── 4. Sync staleness (≥7 days) ─────────────────────────────────────
+  var staleDays = null;
+  if (ehr && ehr.synced_at) {
+    var syncedAt = new Date(ehr.synced_at);
+    if (!isNaN(syncedAt)) {
+      var days = Math.floor((Date.now() - syncedAt.getTime()) / 86400000);
+      if (days >= 7) staleDays = days;
+    }
+  }
+
+  // ── Compose softer full-sentence phrasing (max 2 clauses) ────────────
+  var clauses = [];
+
+  if (imminentAppt) {
+    var provider = (imminentAppt.appt.title || '').trim();
+    var shortProv = provider ? provider.split(/\s[—\-]\s/)[0] : '';
+    if (imminentAppt.when === 'today') {
+      clauses.push(firstName + (shortProv ? "'s next visit is later today with " + shortProv : ' has a visit later today'));
+    } else {
+      clauses.push(firstName + (shortProv ? ' has a visit tomorrow with ' + shortProv : ' has a visit tomorrow'));
+    }
+  }
+
+  if (recentLab && clauses.length < 2) {
+    var labClause;
+    if (clauses.length > 0) {
+      // Pair: drop "FirstName's" prefix to read "and the X results came back"
+      labClause = 'the ' + recentLab.name + ' results came ' + (recentLab.when === 'today' ? 'in ' : 'back ') + recentLab.when;
+    } else {
+      labClause = firstName + "'s " + recentLab.name + ' results came ' + (recentLab.when === 'today' ? 'in ' : 'back ') + recentLab.when;
+    }
+    clauses.push(labClause);
+  }
+
+  if (clauses.length === 0 && newEntryCount > 0) {
+    clauses.push('There ' + (newEntryCount === 1 ? 'is 1 new entry' : 'are ' + newEntryCount + ' new entries') + ' on ' + firstName + "'s chart this week");
+  }
+
+  if (clauses.length === 0 && staleDays !== null) {
+    clauses.push(firstName + "'s chart hasn't synced in " + staleDays + ' days');
+  }
+
+  if (clauses.length === 0 && upcomingAppt) {
+    var dateStr = formatUpcomingDateLine(upcomingAppt.date).split(' \u00b7 ')[0];
+    clauses.push(firstName + "'s next visit is " + dateStr);
+  }
+
+  // Fallback (steady) intentionally omitted for invites.
+  if (clauses.length === 0) return '';
+
+  // Join with ", and " if 2 clauses; add trailing period.
+  var sentence = clauses.length === 2 ? clauses[0] + ', and ' + clauses[1] : clauses[0];
+  return sentence + '.';
+}
+
+// Returns { subject, body, smsBody } for a personalized invite.
+// role: 'primary' | 'secondary' | 'emergency'
+function buildInviteCopy(args) {
+  var memberName = args.memberName || 'there';
+  var personName = args.personName || 'my loved one';
+  var firstName = (personName || '').split(' ')[0] || 'them';
+  var role = (args.role || 'secondary').toLowerCase();
+  if (role !== 'primary' && role !== 'emergency') role = 'secondary';
+  var inviteLink = args.inviteLink || '';
+  var rightNow = args.rightNow || ''; // already includes trailing period or is ''
+
+  var subject, intro, closer;
+  if (role === 'primary') {
+    subject = 'Joining the care circle for ' + firstName;
+    intro = "I'm leaning on Wellet to keep " + firstName + "'s care coordinated \u2014 medications, appointments, what just changed in the chart \u2014 all in one place. I'd love you to join the circle as a primary care partner so we're reading from the same page.";
+    closer = 'Wellet is free. Once you\'re in, you\'ll see ' + firstName + "'s timeline, medications, and care updates.\n\nThank you \u2014 it means a lot.";
+  } else if (role === 'emergency') {
+    subject = 'In case anything happens with ' + firstName;
+    intro = "I've listed you as an emergency contact for " + firstName + ' on Wellet. If you join the circle, you\'ll have quick access to medications, allergies, and the care team \u2014 the things a hospital or first responder might ask for.';
+    closer = 'Hopefully you never need it. Thanks for being our backstop.';
+  } else {
+    subject = 'A small ask \u2014 join ' + firstName + "'s care circle";
+    intro = "I'm using Wellet to follow " + firstName + "'s care, and I'd love you in the circle. You'll see what I see \u2014 appointments, the chart, anything new \u2014 so we don't have to retell each other every update.";
+    closer = 'No cost, no app needed unless you want it. Thanks for being there.';
+  }
+
+  // ── Email body (multi-paragraph) ────────────────────────────────
+  var bodyParts = ['Hi ' + memberName + ',', intro];
+  if (rightNow) bodyParts.push(rightNow);
+  bodyParts.push('Tap to join: ' + inviteLink, closer);
+  var body = bodyParts.join('\n\n');
+
+  // ── SMS body (single line, 160-ish target) ──────────────────────────
+  var smsLead, smsCta;
+  if (role === 'primary') {
+    smsLead = "Hi " + memberName + " \u2014 I'm using Wellet to keep " + firstName + "'s care in one place.";
+    smsCta = 'Join the circle: ' + inviteLink;
+  } else if (role === 'emergency') {
+    smsLead = 'Hi ' + memberName + " \u2014 I've put you down as emergency contact for " + firstName + ' on Wellet. Meds, allergies, care team in one place if you ever need it.';
+    smsCta = 'Tap to join: ' + inviteLink;
+  } else {
+    smsLead = 'Hi ' + memberName + " \u2014 adding you to " + firstName + "'s care circle on Wellet so we're reading the same chart.";
+    smsCta = 'Tap to join: ' + inviteLink;
+  }
+
+  var smsBody;
+  if (rightNow && (smsLead.length + 1 + rightNow.length + 1 + smsCta.length) <= 320) {
+    // Fits with the right-now line (320 = ~2 SMS segments, friendly cap)
+    smsBody = smsLead + ' ' + rightNow + ' ' + smsCta;
+  } else {
+    // Trim: drop right-now line
+    smsBody = smsLead + ' ' + smsCta;
+  }
+
+  return { subject: subject, body: body, smsBody: smsBody };
+}
+
+// Open mailto with personalized email copy.
+function openInviteMailto(args) {
+  var copy = buildInviteCopy(args);
+  var url = 'mailto:' + encodeURIComponent(args.memberEmail || '')
+    + '?subject=' + encodeURIComponent(copy.subject)
+    + '&body=' + encodeURIComponent(copy.body);
+  window.open(url, '_self');
+}
+
+// Open sms: with personalized SMS copy. Uses the iOS/Android sms: scheme.
+function openInviteSms(args) {
+  var copy = buildInviteCopy(args);
+  // sms: with ?body= works on iOS 8+ and most Android. Fall back to ?&body= on Android.
+  var phone = (args.memberPhone || '').replace(/[^+\d]/g, '');
+  var ua = navigator.userAgent || '';
+  var sep = /android/i.test(ua) ? '?' : '&';
+  var url = 'sms:' + phone + sep + 'body=' + encodeURIComponent(copy.smsBody);
+  window.open(url, '_self');
+}
+
 async function sendCareCircleInvite(memberId) {
   var member = liveCareCircle.find(function(c){ return c.id === memberId; });
-  if (!member || !member.email) { showToast('No email address for this member'); return; }
+  if (!member) { showToast('Member not found'); return; }
+  if (!member.email && !member.phone) { showToast('No email or phone for this member'); return; }
 
   showToast('Generating invite\u2026');
 
@@ -13101,28 +13311,88 @@ async function sendCareCircleInvite(memberId) {
     var data = await res.json();
     if (!res.ok || !data.success) { showToast('Error: ' + (data.error || 'Could not create invite')); return; }
 
-    // Open mailto with pre-filled invite
     var personName = data.person_name || 'your loved one';
-    var subject = encodeURIComponent('Join my care circle on Wellet');
-    var body = encodeURIComponent(
-      'Hi ' + data.member_name + ',\n\n'
-      + 'I\'m using Wellet to help manage ' + personName + '\'s health information \u2014 medications, appointments, and care updates all in one place.\n\n'
-      + 'I\'d like you to join our care circle so we can stay on the same page.\n\n'
-      + 'Click here to join:\n'
-      + data.invite_link + '\n\n'
-      + 'Wellet is free to use. Once you join, you\'ll be able to see ' + personName + '\'s health timeline, medications, and care updates.\n\n'
-      + 'Thank you!'
-    );
-    window.open('mailto:' + encodeURIComponent(data.member_email) + '?subject=' + subject + '&body=' + body, '_self');
+    var rightNow = buildInviteRightNow(personName, currentPersonId);
 
-    // Update local state
-    member.invite_status = 'invited';
-    member.invited_at = new Date().toISOString();
-    renderCareCircle();
-    showToast('Invite ready \u2014 send from your email');
+    var inviteArgs = {
+      memberName: data.member_name,
+      memberEmail: data.member_email || member.email,
+      memberPhone: member.phone,
+      personName: personName,
+      role: member.role,
+      inviteLink: data.invite_link,
+      rightNow: rightNow
+    };
+
+    // Pick channel:
+    //   - If both email + phone: open the dual-channel chooser sheet.
+    //   - If only email: open mailto.
+    //   - If only phone: open sms:.
+    var hasEmail = !!member.email;
+    var hasPhone = !!member.phone;
+    if (hasEmail && hasPhone) {
+      openInviteChannelChooser(inviteArgs, member, data);
+      return;
+    }
+    if (hasEmail) {
+      openInviteMailto(inviteArgs);
+      _markInviteSent(member, 'Invite ready \u2014 send from your email');
+      return;
+    }
+    openInviteSms(inviteArgs);
+    _markInviteSent(member, 'Invite ready \u2014 send from Messages');
   } catch(e) {
     showToast('Error: ' + e.message);
   }
+}
+
+function _markInviteSent(member, toastMsg) {
+  member.invite_status = 'invited';
+  member.invited_at = new Date().toISOString();
+  renderCareCircle();
+  showToast(toastMsg);
+}
+
+function openInviteChannelChooser(inviteArgs, member, data) {
+  // Build a lightweight modal with two buttons. Reuses the .sheet/.sheet-overlay
+  // pattern from elsewhere in the app for consistency.
+  var existing = document.getElementById('invite-channel-overlay');
+  if (existing) existing.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'invite-channel-overlay';
+  overlay.className = 'sheet-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:10000;display:flex;align-items:flex-end;justify-content:center;';
+
+  var sheet = document.createElement('div');
+  sheet.className = 'sheet';
+  sheet.style.cssText = 'background:white;border-radius:20px 20px 0 0;width:100%;max-width:520px;padding:24px 20px 32px;box-shadow:0 -8px 24px rgba(0,0,0,0.15);';
+
+  var firstName = (inviteArgs.personName || '').split(' ')[0] || 'them';
+  sheet.innerHTML =
+    '<div style="font-family:var(--serif);font-size:var(--type-h2);margin-bottom:6px;color:var(--text-primary);">Send invite to ' + escHtml(inviteArgs.memberName) + '</div>'
+    + '<div style="font-size:var(--type-meta);color:var(--text-secondary);margin-bottom:20px;line-height:1.5;">A personalized invite to join ' + escHtml(firstName) + "'s care circle. Pick how you'd like to send it." + '</div>'
+    + '<button id="invite-channel-email" style="width:100%;background:var(--moss);color:white;border:none;border-radius:12px;padding:14px;font-size:var(--type-body);font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:8px;"><i data-lucide="mail" style="width:16px;height:16px;"></i> Send via email</button>'
+    + '<button id="invite-channel-sms" style="width:100%;background:white;color:var(--moss);border:1.5px solid var(--moss);border-radius:12px;padding:14px;font-size:var(--type-body);font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:8px;"><i data-lucide="message-circle" style="width:16px;height:16px;"></i> Send via text</button>'
+    + '<button id="invite-channel-cancel" style="width:100%;background:none;color:var(--text-muted);border:none;padding:8px;font-size:var(--type-meta);cursor:pointer;font-family:DM Sans,sans-serif;">Cancel</button>';
+
+  overlay.appendChild(sheet);
+  document.body.appendChild(overlay);
+  initIcons();
+
+  function close() { overlay.remove(); }
+  overlay.addEventListener('click', function(e){ if (e.target === overlay) close(); });
+  document.getElementById('invite-channel-cancel').addEventListener('click', close);
+  document.getElementById('invite-channel-email').addEventListener('click', function() {
+    close();
+    openInviteMailto(inviteArgs);
+    _markInviteSent(member, 'Invite ready \u2014 send from your email');
+  });
+  document.getElementById('invite-channel-sms').addEventListener('click', function() {
+    close();
+    openInviteSms(inviteArgs);
+    _markInviteSent(member, 'Invite ready \u2014 send from Messages');
+  });
 }
 
 function openContactEditById(memberId) {
