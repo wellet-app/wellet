@@ -9091,8 +9091,8 @@ function handleEpicCallback() {
 function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
   // Surface silent bails — these have historically caused "Refresh doesn't do anything" reports.
   if (isDemoMode) { console.warn('[EHR] fetchEhrData bail: demo mode'); return; }
-  if (!currentUser) { console.warn('[EHR] fetchEhrData bail: no currentUser'); try { showToast('DEBUG-A: no currentUser'); } catch(e){} return; }
-  if (!personId) { console.warn('[EHR] fetchEhrData bail: no personId'); try { showToast('DEBUG-B: no personId'); } catch(e){} return; }
+  if (!currentUser) { console.warn('[EHR] fetchEhrData bail: no currentUser'); try { showToast('Not signed in \u2014 please reload'); } catch(e){} return; }
+  if (!personId) { console.warn('[EHR] fetchEhrData bail: no personId'); try { showToast('No person selected'); } catch(e){} return; }
   console.log('[EHR] fetchEhrData START person=' + personId);
   var retryAttempt = _retryAttempt || 0;
 
@@ -9106,7 +9106,7 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
     var session = sessionRes.data.session;
     if (!session) {
       console.warn('[EHR] fetchEhrData bail: no session');
-      try { showToast('DEBUG-C: no session'); } catch(e){}
+      try { showToast('Session expired \u2014 please reload to sign in'); } catch(e){}
       try { restoreRecordsEhrStatus(); } catch(e){}
       return BAILED;
     }
@@ -9127,7 +9127,7 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
     // reach health records" toast — the network is fine, the token isn't.
     if (res.status === 401) {
       console.warn('[EHR] fetch-ehr-data 401 \u2014 token refresh failed for all connections');
-      try { showToast('DEBUG-D: 401 token refresh failed'); } catch(e){}
+      try { showToast('Please reconnect your health records to refresh access'); } catch(e){}
       try { restoreRecordsEhrStatus(); } catch(e){}
       try { evaluateReconnectBanner(); } catch(e) {}
       return BAILED;
@@ -9179,7 +9179,7 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
     if (!data || data.error) {
       // PHI log removed
       console.warn('[EHR] fetchEhrData bail: no data or data.error');
-      try { var dbgErr = (data && data.error) ? String(data.error).slice(0,80) : 'no-data'; showToast('DEBUG-E: ' + dbgErr); } catch(e){}
+      try { showToast("Couldn\u2019t reach health records \u2014 try again"); } catch(e){}
       try { restoreRecordsEhrStatus(); } catch(e){}
       return;
     }
@@ -9249,7 +9249,7 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
     }
   }).catch(function(err) {
     console.error('EHR fetch error:', err);
-    try { showToast('DEBUG-F: ' + (err && err.message ? String(err.message).slice(0,80) : String(err).slice(0,80))); } catch(e){}
+    try { showToast("Couldn\u2019t reach health records \u2014 try again"); } catch(e){}
     try { restoreRecordsEhrStatus(); } catch(e){}
   });
 }
