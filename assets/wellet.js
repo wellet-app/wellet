@@ -7544,6 +7544,31 @@ window.addEventListener('pageshow', function(e) {
       closeSheet('hospital-picker-overlay');
     }
   }
+  // 2026-05-04: PWA / tab-restore auto-sync. When the page comes back from
+  // bfcache (iOS PWA re-open, browser tab swap-back), the in-memory cache is
+  // intact but may be hours old. Re-evaluate staleness against the 15-min
+  // threshold and fire one fetch-ehr-data round-trip if needed. Honest
+  // "Updated …" chip falls out of this for free.
+  try {
+    if (currentPersonId && typeof autoRefreshEhrIfNeeded === 'function') {
+      autoRefreshEhrIfNeeded(currentPersonId);
+    }
+    if (typeof updateHeaderSyncMeta === 'function') updateHeaderSyncMeta();
+  } catch(err) { /* non-fatal */ }
+});
+
+// 2026-05-04: tab-visibility auto-sync. visibilitychange fires when the user
+// switches back to a Wellet tab from another app/tab without a full reload.
+// Same intent as the pageshow handler above: keep the masthead chip honest
+// and don't show 8-hour-old "Updated …" labels just because the tab sat idle.
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState !== 'visible') return;
+  try {
+    if (currentPersonId && typeof autoRefreshEhrIfNeeded === 'function') {
+      autoRefreshEhrIfNeeded(currentPersonId);
+    }
+    if (typeof updateHeaderSyncMeta === 'function') updateHeaderSyncMeta();
+  } catch(err) { /* non-fatal */ }
 });
 
 // Demo EHR data for Dad
@@ -8419,15 +8444,17 @@ function togglePhase2Flag() {
   try { if (typeof renderTimeline === 'function') renderTimeline(); } catch(e){}
 }
 
-// Check if cached EHR data is stale (older than 30 minutes).
-// Tight threshold so reopening the app picks up new chart activity from a
-// loved one's hospital — we'd rather sync once on re-open than show stale
-// "Updated 8 hr ago" timestamps under the logo.
+// Check if cached EHR data is stale (older than 15 minutes).
+// 2026-05-04: tightened from 30→15 min so reopening the app reliably picks
+// up new chart activity from a loved one's hospital. Multiple Duke sync rows
+// per day is normal (every app open) — the cost is small, and the win is
+// that the masthead "Updated …" chip never lies for more than a quarter hour
+// after a re-open. autoRefreshEhrIfNeeded() consults this on person load.
 function isEhrCacheStale(personId) {
   var cached = ehrCache[personId];
   if (!cached || !cached.synced_at) return true;
   var age = Date.now() - new Date(cached.synced_at).getTime();
-  return age > 30 * 60 * 1000;
+  return age > 15 * 60 * 1000;
 }
 
 // Legacy v1 reader — same body as before, kept so the flag can dispatch.
@@ -10287,14 +10314,18 @@ function _bannerRender(state) {
   if (!host) return;
   var hospital = escHtml(state.hospital_name || 'your hospital');
   var copy = '';
+  // 2026-05-04: warmer, family-coordination voice. No "track/monitor" — use
+  // "notices" / "watches for". Avoid harsh imperatives like "Reconnect to
+  // fix it"; the action button still says Reconnect, so the copy can stay
+  // gentle.
   if (state.kind === 'needs_reconnect') {
-    copy = 'Your connection to ' + hospital + ' needs a quick refresh.';
+    copy = hospital + ' would like a quick sign-in to keep records flowing.';
   } else if (state.kind === 'scope_regression') {
-    copy = hospital + ' stopped sending some records. Reconnect to fix it.';
+    copy = 'Wellet noticed ' + hospital + ' is sending fewer records lately. A quick sign-in usually sorts it out.';
   } else if (state.kind === 'migration_available') {
-    copy = 'Reconnect ' + hospital + ' to see your care team\u2019s contact info.';
+    copy = 'A quick sign-in to ' + hospital + ' will bring your care team\u2019s contact info into Wellet.';
   } else if (state.kind === 'stale') {
-    copy = 'It\u2019s been a while since ' + hospital + ' synced. Reconnect to keep things current.';
+    copy = 'It\u2019s been a little while since ' + hospital + ' last synced. A quick sign-in will catch you up.';
   } else {
     return;
   }
@@ -10302,7 +10333,7 @@ function _bannerRender(state) {
     '<span class="reconnect-banner__icon"><i data-lucide="alert-circle" style="width:16px;height:16px;"></i></span>'
     + '<span class="reconnect-banner__copy">' + copy + '</span>'
     + '<span class="reconnect-banner__actions">'
-    +   '<button type="button" class="reconnect-banner__btn" onclick="reconnectBannerTap()">Reconnect</button>'
+    +   '<button type="button" class="reconnect-banner__btn" onclick="reconnectBannerTap()">Sign in</button>'
     +   '<button type="button" class="reconnect-banner__dismiss" onclick="reconnectBannerDismiss()">Not now</button>'
     + '</span>';
   host.classList.add('show');
@@ -10330,7 +10361,7 @@ function reconnectBannerTap() {
   var hospitalLabel = name || 'your hospital';
 
   function fallthroughToOAuth() {
-    try { showToast('Need to verify with ' + hospitalLabel); } catch(e) {}
+    try { showToast('Sending you to ' + hospitalLabel + ' to sign in\u2026'); } catch(e) {}
     _bannerHide();
     try { beginEhrOAuth(fhir, name, false); } catch(e) { console.warn('[banner] reconnect tap failed', e); }
   }
@@ -10343,11 +10374,11 @@ function reconnectBannerTap() {
 
   // Stale or needs_reconnect: try silent refresh first.
   if (!currentPersonId) { fallthroughToOAuth(); return; }
-  try { showToast('Refreshing connection\u2026'); } catch(e) {}
+  try { showToast('Catching up with ' + hospitalLabel + '\u2026'); } catch(e) {}
   tryEpicRefresh(currentPersonId).then(function(result) {
     if (result && result.ok) {
       _bannerHide();
-      try { showToast('Reconnected'); } catch(e) {}
+      try { showToast('Caught up'); } catch(e) {}
       try { loadPersonData(currentPersonId); } catch(e) { console.warn('[banner] reload after refresh failed', e); }
       try { updateHeaderSyncMeta(); } catch(e) {}
       return;
