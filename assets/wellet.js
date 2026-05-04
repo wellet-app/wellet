@@ -1948,8 +1948,14 @@ function buildRightNowLine(personName, personId) {
     clauses.push('next visit ' + formatUpcomingDateLine(upcomingAppt.date).split(' \u00b7 ')[0]);
   }
 
+  // 2026-05-04: dropped the "steady this week" fallback. It read as a
+  // clinical state assessment but was only triggered by "no qualifying
+  // signal hit the priority list" — which can be wrong if a new allergy
+  // landed (priority 3 only checks meds + conds), or if there's a chart
+  // change older than 7 days. Better to render nothing than render a
+  // soft lie above the Wellet Summary card.
   if (clauses.length === 0) {
-    clauses.push('steady this week');
+    return '';
   }
 
   var stateText = clauses.join(' \u00b7 ');
@@ -4379,16 +4385,26 @@ function renderRecordsView() {
     }
     recordsEyebrow = '<div class="records-eyebrow">' + eyebrowParts.join(' \u00B7 ') + '</div>';
   }
-  var html = '<div class="view-header">'
+  // 2026-05-04: stack the records header instead of inheriting the global
+  // .view-header flex row. The flex layout was meant for views with a back
+  // button; here it caused the eyebrow + title to compete with the wide
+  // person-pill row, pushing both off-screen on narrow viewports.
+  var html = '<div class="view-header" style="display:block;">'
     + recordsEyebrow
-    + '<div class="view-title">Records</div>'
-    + '<div style="display:flex;gap:8px;margin-top:10px;">';
-  currentPeople.forEach(function(p) {
-    var active = p.id===currentPersonId ? ' active' : '';
-    html += '<button class="person-pill'+active+'" onclick="switchRecordsToRealPerson(\''+p.id+'\',this)">'
-      + '<span class="pip"></span>'+escHtml(p.name.split(' ')[0])+'</button>';
-  });
-  html += '</div></div>';
+    + '<div class="view-title">Records</div>';
+  // Only render the per-view person-pill row when there are 2+ active
+  // loved ones to switch between. With a single person, the masthead pill
+  // already shows the name — a second "● Mom" pill is just noise.
+  if (currentPeople && currentPeople.length >= 2) {
+    html += '<div style="display:flex;gap:8px;margin-top:10px;">';
+    currentPeople.forEach(function(p) {
+      var active = p.id===currentPersonId ? ' active' : '';
+      html += '<button class="person-pill'+active+'" onclick="switchRecordsToRealPerson(\''+p.id+'\',this)">'
+        + '<span class="pip"></span>'+escHtml(p.name.split(' ')[0])+'</button>';
+    });
+    html += '</div>';
+  }
+  html += '</div>';
   if (ehrData) html += buildEhrStatusBar(ehrData);
 
   html += '<div class="records-section">';
@@ -9459,24 +9475,35 @@ function appleHealthBadgeHtml(source, providerName) {
   return '';
 }
 
-// Build EHR status bar for Records view
+// Build the slim chart-identity line for Records view.
+// 2026-05-04: previous version was a chunky two-line status bar with a green
+// dot, "EHR Connected" label, provider, chart name + DOB, sync timestamp,
+// and three action buttons. The eyebrow above the title already carries the
+// provider + sync-time + counts, so all this needed to do was confirm the
+// chart-identity safeguard (so a caregiver spots a Mom/Dad mix-up) and host
+// the connection actions. Single quiet row, no green dot, no boilerplate.
 function buildEhrStatusBar(ehrData) {
   if (!ehrData || !ehrData.synced_at) return '';
-  var syncedStr = formatEventDate(ehrData.synced_at);
-  // Show the actual patient name/DOB returned by the EHR so the caregiver can
-  // verify the chart matches the person shown. This is the final safeguard
-  // against silent identity mismatches.
-  var patientLine = '';
+  var idParts = [];
   if (ehrData.patient && ehrData.patient.name) {
-    var dob = ehrData.patient.birth_date ? ' \u00B7 DOB ' + escHtml(ehrData.patient.birth_date) : '';
-    patientLine = '<div style="font-size:var(--type-micro);color:var(--text-secondary);margin-top:2px;">Chart: ' + escHtml(ehrData.patient.name) + dob + '</div>';
+    idParts.push(escHtml(ehrData.patient.name));
   }
+  if (ehrData.patient && ehrData.patient.birth_date) {
+    idParts.push('DOB ' + escHtml(ehrData.patient.birth_date));
+  }
+  // If we somehow have no patient identity at all (legacy cache), fall back
+  // to the provider so the actions still have a meaningful left side.
+  if (idParts.length === 0) {
+    idParts.push(escHtml(ehrData.provider || 'Connected chart'));
+  }
+  var idLine = idParts.join(' \u00B7 ');
   return '<div class="ehr-status-bar">'
-    + '<div class="ehr-status-left"><div class="ehr-status-dot" aria-hidden="true"></div>'
-    + '<div><strong>EHR Connected</strong> \u00B7 ' + escHtml(ehrData.provider || 'Provider')
-    + patientLine + '</div></div>'
+    + '<div class="ehr-status-left">'
+    + '<div style="font-size:var(--type-micro);color:var(--text-secondary);">'
+    + 'Chart: ' + idLine
+    + '</div>'
+    + '</div>'
     + '<div class="ehr-status-right">'
-    + '<span style="font-size:var(--type-micro);color:var(--text-muted);">Synced ' + syncedStr + '</span>'
     // "Add another hospital" entry point. Opens the same Epic hospital picker
     // that first-time connect uses. As of 2026-04-27 the per-loved-one server
     // guard is lifted — a loved one can connect Duke + UNC + WakeMed + any
