@@ -26,6 +26,26 @@ function isSelfMode() {
   return appMode === 'me';
 }
 
+// ── Mode-aware copy helpers ──────────────────────────────────────────────
+// Caregiver mode: subject = "Your loved one" / "your loved one".
+// Me mode:        subject = "You" / "you".
+// Use loRefSubjectUpper() at the start of a sentence ("<X> hasn’t synced…")
+// and loRefSubjectLower() inside one ("Send to <X>").
+function loRefSubjectLower() { return isSelfMode() ? 'you' : 'your loved one'; }
+function loRefSubjectUpper() { return isSelfMode() ? 'You' : 'Your loved one'; }
+
+// possSegment() returns the possessive prefix used in templates like
+// "Ask about <X> health" or "<X> medications". It includes the ’s when
+// needed so the template should NOT add its own.
+//   - real person name      → "Mom’s"
+//   - caregiver, no person  → "your loved one’s" / "Your loved one’s"
+//   - me-mode, no person    → "your" / "Your" (English possessive of "you")
+function possSegment(personName, lower) {
+  if (personName) return personName + '\u2019s';
+  if (isSelfMode()) return lower ? 'your' : 'Your';
+  return lower ? 'your loved one\u2019s' : 'Your loved one\u2019s';
+}
+
 // Subtle per-person background tints (barely perceptible, subliminal context)
 var _personBgPalette = ['#F7F5F0', '#F0F5F2', '#F3F0F6', '#F0F3F7', '#F7F2F0'];
 // VA-enrolled people get a subtle olive/sage palette that nods to military without shouting
@@ -2132,7 +2152,7 @@ function buildChartNoticedBanner(personName, personId) {
 function buildRightNowLine(personName, personId) {
   if (isDemoMode) return ''; // Demo has its own static state.
   var firstName = (personName || '').split(' ')[0]
-    || (isSelfMode() ? 'You' : 'Your loved one');
+    || loRefSubjectUpper();
 
   var ehr = null;
   try { ehr = getEhrData(personId); } catch (e) { ehr = null; }
@@ -10953,9 +10973,9 @@ function renderAskView() {
   personBar.innerHTML = pillsHtml;
 
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
-  var firstName = person ? person.name.split(' ')[0] : 'your loved one';
+  var firstName = person ? person.name.split(' ')[0] : '';
   var inputEl = document.getElementById('ask-input');
-  if (inputEl) inputEl.placeholder = 'Ask about ' + escHtml(firstName) + '\u2019s health\u2026';
+  if (inputEl) inputEl.placeholder = 'Ask about ' + escHtml(possSegment(firstName, true)) + ' health\u2026';
 
   // Update the welcome bubble with dynamic name
   var chatArea = document.getElementById('chat-area');
@@ -17899,7 +17919,7 @@ function checkRemindersNow() {
         if (lastFired && now.getTime() - lastFired < 120000) return; // debounce 2 min
         _lastReminderCheck[key] = now.getTime();
 
-        var title = (rem.personName || 'Your loved one') + '\u2019s ' + (rem.medName || 'medication');
+        var title = possSegment(rem.personName, false) + ' ' + (rem.medName || 'medication');
         var body = 'Time to take ' + (rem.medName || 'medication');
 
         if (!quiet) {
@@ -18712,9 +18732,9 @@ renderAskView = function() {
   personBar.innerHTML = pillsHtml;
 
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
-  var firstName = person ? person.name.split(' ')[0] : 'your loved one';
+  var firstName = person ? person.name.split(' ')[0] : '';
   var inputEl = document.getElementById('ask-input');
-  if (inputEl) inputEl.placeholder = 'Ask about ' + escHtml(firstName) + '\u2019s health\u2026';
+  if (inputEl) inputEl.placeholder = 'Ask about ' + escHtml(possSegment(firstName, true)) + ' health\u2026';
 
   var chatArea = document.getElementById('chat-area');
   if (chatArea) {
