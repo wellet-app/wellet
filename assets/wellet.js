@@ -26,13 +26,6 @@ function isSelfMode() {
   return appMode === 'me';
 }
 
-// Mode-aware fallback for the subject of right-now / reminder / fallback copy.
-// In Me mode the user is the subject. In caregiver mode the subject is the
-// loved one. Use loRefLower() inside a sentence ("you" / "your loved one")
-// and loRefUpper() at the start of one ("You" / "Your loved one").
-function loRefLower() { return isSelfMode() ? 'you' : 'your loved one'; }
-function loRefUpper() { return isSelfMode() ? 'You' : 'Your loved one'; }
-
 // Subtle per-person background tints (barely perceptible, subliminal context)
 var _personBgPalette = ['#F7F5F0', '#F0F5F2', '#F3F0F6', '#F0F3F7', '#F7F2F0'];
 // VA-enrolled people get a subtle olive/sage palette that nods to military without shouting
@@ -1728,7 +1721,7 @@ function renderUpdateMe() {
   var pane = document.getElementById('tab-update');
   if (!pane) return;
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
-  var name = person ? person.name.split(' ')[0] : loRefLower();
+  var name = person ? person.name.split(' ')[0] : 'your loved one';
   var isSelf = !!(person && person.relationship === 'self');
   var subjectName = isSelf ? 'you' : name;
   var ehrConnected = !!getEhrData(currentPersonId);
@@ -2018,7 +2011,7 @@ function buildChartNoticedBanner(personName, personId) {
   try { ehr = getEhrData(personId); } catch (e) { return ''; }
   if (!ehr) return '';
 
-  var name = escHtml(personName || loRefLower());
+  var name = escHtml(personName || 'your loved one');
   var meds = (ehr.medications || []).filter(function(m){ return m && m.name; });
   var conds = (ehr.conditions || []).filter(function(c){ return c && c.name; });
   var obs = (ehr.observations || []).filter(function(o){ return o && o.name; });
@@ -2139,7 +2132,7 @@ function buildChartNoticedBanner(personName, personId) {
 function buildRightNowLine(personName, personId) {
   if (isDemoMode) return ''; // Demo has its own static state.
   var firstName = (personName || '').split(' ')[0]
-    || loRefUpper();
+    || (isSelfMode() ? 'You' : 'Your loved one');
 
   var ehr = null;
   try { ehr = getEhrData(personId); } catch (e) { ehr = null; }
@@ -7241,7 +7234,7 @@ function obResumeChat() {
   } else if (obChat.phase === 'person_sex') {
     obTypeThen('Welcome back. One more quick detail \u2014 biological sex?', obShowSexChips, 600);
   } else if (obChat.phase === 'connect' || obChat.phase === 'freetext') {
-    var personName = obChat.personName || loRefLower();
+    var personName = obChat.personName || 'your loved one';
     obTypeThen('What would you like to add to ' + escHtml(personName) + '\u2019s record?', obShowConnectChips, 600);
   } else if (obChat.phase === 'wrapup') {
     obShowTourOffer();
@@ -10960,7 +10953,7 @@ function renderAskView() {
   personBar.innerHTML = pillsHtml;
 
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
-  var firstName = person ? person.name.split(' ')[0] : loRefLower();
+  var firstName = person ? person.name.split(' ')[0] : 'your loved one';
   var inputEl = document.getElementById('ask-input');
   if (inputEl) inputEl.placeholder = 'Ask about ' + escHtml(firstName) + '\u2019s health\u2026';
 
@@ -11471,7 +11464,7 @@ function refreshEmergencySummary() {
 // Add-more-to-Wellet sheet: surfaces the three ways to grow Wellet’s knowledge
 function openAddMoreToWellet() {
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
-  var name = person ? person.name.split(' ')[0] : loRefLower();
+  var name = person ? person.name.split(' ')[0] : 'your loved one';
   var ehrConnected = !!getEhrData(currentPersonId);
   var ehrLabel = ehrConnected ? 'Other Health Records' : 'Connect Health Records';
   var ehrDesc = ehrConnected ? 'Link another hospital or clinic.' : 'Pull visits, labs, meds from an Epic or VA system.';
@@ -11486,7 +11479,7 @@ function openAddMoreToWellet() {
 }
 function addMoreUpload() {
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
-  var name = person ? person.name.split(' ')[0] : loRefLower();
+  var name = person ? person.name.split(' ')[0] : 'your loved one';
   closeSheet('add-more-overlay');
   setTimeout(function(){ openUpload(name); }, 180);
 }
@@ -11506,7 +11499,7 @@ function openShareFamily() {
 
   var firstName = getPersonFirstName();
   var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
-  var fullName = isDemoMode ? 'John Bell' : (person ? person.name : loRefLower());
+  var fullName = isDemoMode ? 'John Bell' : (person ? person.name : 'your loved one');
 
   // Update subtitle
   document.getElementById('share-sheet-sub').textContent = 'Send a summary of what\u2019s going on with ' + firstName;
@@ -12735,7 +12728,7 @@ async function renderResourcesView() {
   }
 
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
-  var personName = person ? person.name.split(' ')[0] : loRefLower();
+  var personName = person ? person.name.split(' ')[0] : 'your loved one';
   var personConditions = person ? person.conditions : '';
   var slugs = conditionToSlugs(personConditions);
 
@@ -12934,7 +12927,7 @@ async function checkConditionTrigger() {
   if (matches.length === 0) return;
 
   var person = currentPeople.find(function(p){ return p.id === _profileEditPersonId; });
-  var personName = person ? person.name.split(' ')[0] : loRefLower();
+  var personName = person ? person.name.split(' ')[0] : 'your loved one';
 
   // Show trigger card after the profile save toast
   setTimeout(function() {
@@ -13701,7 +13694,7 @@ async function sendCareCircleInvite(memberId) {
     var data = await res.json();
     if (!res.ok || !data.success) { showToast('Error: ' + (data.error || 'Could not create invite')); return; }
 
-    var personName = data.person_name || loRefLower();
+    var personName = data.person_name || 'your loved one';
     var rightNow = buildInviteRightNow(personName, currentPersonId);
 
     var inviteArgs = {
@@ -13838,7 +13831,7 @@ function openFirstSyncWelcome(personId, data) {
   // Resolve a friendly first name without depending on currentPeople loading order.
   var person = (typeof currentPeople !== 'undefined' && currentPeople)
     ? currentPeople.find(function(p){ return p.id === personId; }) : null;
-  var fullName = (person && person.name) || (data.patient && data.patient.name) || loRefLower();
+  var fullName = (person && person.name) || (data.patient && data.patient.name) || 'your loved one';
   var firstName = (fullName || '').split(' ')[0] || 'them';
 
   var counts = _firstSyncCounts(data);
@@ -15819,7 +15812,7 @@ async function obAdvanceAfterDobSex() {
   obSaveChatState();
   // Create the person row now that DOB/sex (if provided) are on obState.
   await obCreatePerson();
-  var nameDisplay = obChat.personName || obChat.userName || loRefLower();
+  var nameDisplay = obChat.personName || obChat.userName || 'your loved one';
   var prompt = (obChat.situation === 'self')
     ? 'Thanks. Let\u2019s get your health into one place. What do you have handy right now? You can always come back and add more later.'
     : 'Thanks. Let\u2019s get ' + escHtml(nameDisplay) + '\u2019s health into one place. What do you have handy right now? You can always come back and add more later.';
@@ -16033,7 +16026,7 @@ function obSelectConnect(id, btn) {
 }
 
 function obStartEhrConnect() {
-  var personName = obChat.personName || loRefLower();
+  var personName = obChat.personName || 'your loved one';
   setTimeout(function(){
     obTypeThen('Great \u2014 I can connect directly to ' + escHtml(personName) + '\u2019s patient portal. This pulls in lab results, visit notes, medications, and more.', function(){
       // Trigger existing EHR connect flow
@@ -16102,7 +16095,7 @@ function obStartPhotoCapture() {
 }
 
 function obStartDeviceConnect() {
-  var personName = obChat.personName || loRefLower();
+  var personName = obChat.personName || 'your loved one';
   setTimeout(function(){
     obTypeThen('I can connect to wearables, smartwatches, and other health devices to pull in vitals, activity, and sleep data.', function(){
       if (!currentPersonId) {
@@ -16116,7 +16109,7 @@ function obStartDeviceConnect() {
 }
 
 function obStartFreeText() {
-  var personName = obChat.personName || loRefLower();
+  var personName = obChat.personName || 'your loved one';
   obChat.phase = 'freetext';
   obSaveChatState();
   setTimeout(function(){
@@ -16278,7 +16271,7 @@ function obShowTourOffer() {
   var chat = document.getElementById('ob-chat-area');
   var group = document.createElement('div');
   group.className = 'ob-msg-group from-wellet';
-  var personName = obChat.personName || loRefLower();
+  var personName = obChat.personName || 'your loved one';
   var userName = obChat.userName || 'there';
   group.innerHTML = '<div class="ob-sender">Wellet</div>'
     + '<div class="ob-bubble wellet">You\u2019re all set, ' + escHtml(userName) + '. I\u2019ve organized everything into ' + escHtml(personName) + '\u2019s record. A few things you can do from here:</div>'
@@ -16350,7 +16343,7 @@ function obOnDeviceConnected(provider) {
   obChat.deviceConnected = true;
   obChat.deviceProvider = provider || 'your device';
   obSaveChatState();
-  var personName = obChat.personName || loRefLower();
+  var personName = obChat.personName || 'your loved one';
   obTypeThen('Connected to ' + escHtml(obChat.deviceProvider) + '. I\u2019ll start pulling in ' + escHtml(personName) + '\u2019s health data.', function(){
     setTimeout(function(){
       obTypeThen('Anything else you\u2019d like to connect?', obShowConnectChips, 600);
@@ -16377,7 +16370,7 @@ function showOwnWellet() {
   }
   // Fallback: show empty-state app
   showApp();
-  var name = obState.personName || loRefLower();
+  var name = obState.personName || 'your loved one';
   var isSelf = obState.personName && obState.personName === obState.userName;
   var displayName = isSelf ? obState.userName : name;
   var possessive = isSelf ? 'your' : name + '\u2019s';
@@ -17642,7 +17635,7 @@ async function loadRemindersFromDB() {
         times: r.reminder_times || [],
         active: r.active,
         medName: med ? med.name + (med.dose ? ' ' + med.dose : '') : 'Medication',
-        personName: person ? person.name.split(' ')[0] : loRefUpper()
+        personName: person ? person.name.split(' ')[0] : 'Your loved one'
       };
     });
   }
@@ -17700,7 +17693,7 @@ function buildNotifList() {
       return {
         title: e.title,
         date: e.event_date,
-        personName: person ? person.name.split(' ')[0] : loRefUpper()
+        personName: person ? person.name.split(' ')[0] : 'Your loved one'
       };
     });
   }
@@ -17906,7 +17899,7 @@ function checkRemindersNow() {
         if (lastFired && now.getTime() - lastFired < 120000) return; // debounce 2 min
         _lastReminderCheck[key] = now.getTime();
 
-        var title = (rem.personName || loRefUpper()) + '\u2019s ' + (rem.medName || 'medication');
+        var title = (rem.personName || 'Your loved one') + '\u2019s ' + (rem.medName || 'medication');
         var body = 'Time to take ' + (rem.medName || 'medication');
 
         if (!quiet) {
@@ -17956,7 +17949,7 @@ function checkAppointmentReminders(now) {
     return e.event_type === 'appointment' && new Date(e.event_date) > now;
   }).map(function(e) {
     var person = currentPeople.find(function(p) { return p.id === e.person_id; });
-    return { title: e.title, date: e.event_date, personName: person ? person.name.split(' ')[0] : loRefUpper() };
+    return { title: e.title, date: e.event_date, personName: person ? person.name.split(' ')[0] : 'Your loved one' };
   });
 
   appointments.forEach(function(appt) {
@@ -18029,7 +18022,7 @@ function addReminderBtnsToRecords() {
       var row = medRows[i];
       if (!row) return;
       var person = currentPeople.find(function(p) { return p.id === med.person_id; });
-      var personName = person ? person.name.split(' ')[0] : loRefUpper();
+      var personName = person ? person.name.split(' ')[0] : 'Your loved one';
       var rem = _medReminders[med.id];
       var badgeHtml = '';
       if (rem && rem.active && rem.times && rem.times.length > 0) {
@@ -18174,7 +18167,7 @@ function detectBereavement(text) {
 function openLifeChanges() {
   closeSheet('profile-overlay');
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
-  var name = person ? person.name.split(' ')[0] : loRefLower();
+  var name = person ? person.name.split(' ')[0] : 'your loved one';
   var container = document.getElementById('eoc-lc-options');
   container.innerHTML =
     '<div class="eoc-lc-row" onclick="startEocFlow(\'' + currentPersonId + '\')">'
@@ -18206,7 +18199,7 @@ function startEocFlow(personId) {
   var pid = personId || currentPersonId;
   _eocPersonId = pid;
   var person = currentPeople.find(function(p){ return p.id === pid; });
-  _eocPersonName = person ? person.name.split(' ')[0] : loRefLower();
+  _eocPersonName = person ? person.name.split(' ')[0] : 'your loved one';
   _eocStep = 1;
   _eocArchiveChoice = 'pdf';
   _eocFundChoice = 'donate';
@@ -18719,7 +18712,7 @@ renderAskView = function() {
   personBar.innerHTML = pillsHtml;
 
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
-  var firstName = person ? person.name.split(' ')[0] : loRefLower();
+  var firstName = person ? person.name.split(' ')[0] : 'your loved one';
   var inputEl = document.getElementById('ask-input');
   if (inputEl) inputEl.placeholder = 'Ask about ' + escHtml(firstName) + '\u2019s health\u2026';
 
@@ -18848,7 +18841,7 @@ sendAskMessage = function() {
 
   // Get person name
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
-  var firstName = person ? person.name.split(' ')[0] : loRefLower();
+  var firstName = person ? person.name.split(' ')[0] : 'your loved one';
 
   // Check bereavement detection (only for real mode with a person)
   if (!isDemoMode && currentPersonId) {
