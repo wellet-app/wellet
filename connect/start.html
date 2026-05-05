@@ -205,10 +205,26 @@
     return;
   }
 
-  // 3) Happy path — re-launch the iOS app with the same fragment
+  // 3) Happy path — re-launch the iOS app with the same fragment.
+  //
+  // If the original launch URL from mywellet.com had ?person_id=... or
+  // ?return=... query params, Supabase preserved them on the redirect_to
+  // URL and they're now in our location.search. Forward them to the app
+  // by appending to the fragment, so the app's auth-callback handler can
+  // restore launch context that was lost when Wellet Connect was force-quit
+  // mid-flow. (When the app stayed alive, this is redundant but harmless.)
   setState('state-opening');
 
-  var deepLink = 'welletconnect://auth/callback#' + hash;
+  var extra = '';
+  try {
+    var qp = new URLSearchParams(location.search);
+    var pid = qp.get('person_id');
+    var ret = qp.get('return');
+    if (pid) extra += '&person_id=' + encodeURIComponent(pid);
+    if (ret) extra += '&return=' + encodeURIComponent(ret);
+  } catch (e) { /* old browsers — just skip the forward */ }
+
+  var deepLink = 'welletconnect://auth/callback#' + hash + extra;
   var btn = document.getElementById('btn-open-app');
 
   btn.addEventListener('click', function () {
