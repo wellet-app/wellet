@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Open in Wellet Connect</title>
+<meta name="description" content="Finish signing in to Wellet Connect.">
+<meta name="theme-color" content="#608F7C">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300;1,9..144,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --moss: #608F7C;
+    --moss-deep: #4a7361;
+    --cream: #f7f5ee;
+    --sage: #e9efe6;
+    --ink: #2c3a30;
+    --soft: #6b7a6f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: var(--cream);
+    color: var(--ink);
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    font-weight: 300;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    text-align: center;
+  }
+  .logo {
+    width: 96px;
+    margin-bottom: 32px;
+  }
+  h1 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 300;
+    font-size: clamp(28px, 6vw, 36px);
+    line-height: 1.2;
+    color: var(--moss-deep);
+    margin-bottom: 12px;
+    letter-spacing: -0.01em;
+  }
+  h1 em {
+    font-style: italic;
+    color: var(--moss);
+  }
+  p {
+    font-size: 15px;
+    color: var(--soft);
+    max-width: 360px;
+    margin: 0 auto 28px;
+  }
+  .spinner {
+    display: inline-block;
+    width: 22px;
+    height: 22px;
+    border: 2px solid rgba(96, 143, 124, 0.18);
+    border-top-color: var(--moss);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  .opening {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 18px;
+    background: var(--sage);
+    border-radius: 999px;
+    font-size: 14px;
+    color: var(--moss-deep);
+    margin-bottom: 24px;
+  }
+  .btn {
+    display: inline-block;
+    padding: 14px 28px;
+    background: var(--moss);
+    color: var(--cream);
+    text-decoration: none;
+    border-radius: 999px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 400;
+    font-size: 16px;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:hover, .btn:focus {
+    background: var(--moss-deep);
+  }
+  .btn:active {
+    background: var(--moss-deep);
+    transform: scale(0.98);
+  }
+  .footnote {
+    margin-top: 32px;
+    font-size: 13px;
+    color: var(--soft);
+    max-width: 320px;
+  }
+  .footnote a {
+    color: var(--moss-deep);
+    text-decoration: underline;
+  }
+  /* States: only one card is visible at a time */
+  .card { display: none; }
+  .card.is-active { display: block; }
+  /* Error state */
+  .error h1 { color: #8a4a3a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <svg class="logo" viewBox="0 138 150 42" xmlns="http://www.w3.org/2000/svg" aria-label="Wellet">
+    <path fill="#608F7C" d="M45.5,142c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83l.25-2.56h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z"/>
+    <path fill="#608F7C" d="M57.31,168.14c-1.13,1.44-2.57,2.56-4.32,3.37-1.75.8-3.61,1.21-5.58,1.21s-3.92-.49-5.65-1.48c-1.73-.98-3.1-2.32-4.1-4.01-1.01-1.69-1.51-3.55-1.51-5.56s.5-3.87,1.51-5.56c1.01-1.69,2.38-3.03,4.1-4.01,1.73-.98,3.61-1.48,5.65-1.48,1.92,0,3.62.28,5.09.83s2.62,1.31,3.42,2.29c.8.97,1.21,2.06,1.21,3.26,0,2.62-1.68,4.46-5.04,5.54-1.49.46-3.06.68-4.72.68-1.08,0-2.24-.11-3.49-.32.02,1.13.35,2.16.99,3.1.64.94,1.46,1.67,2.47,2.21s2.05.81,3.13.81c.96,0,1.94-.2,2.93-.61,1-.41,1.82-.98,2.47-1.73l1.44,1.48ZM45.7,155.59c-.8,1.26-1.34,2.86-1.6,4.81.84.17,1.64.25,2.41.25,1.61,0,2.87-.34,3.78-1.01.91-.67,1.51-1.5,1.8-2.48.1-.29.14-.59.14-.9,0-.86-.32-1.56-.95-2.09-.64-.53-1.36-.76-2.18-.68-1.46.14-2.6.85-3.4,2.11Z"/>
+    <path fill="#608F7C" d="M58.21,170.23c.7-.12,1.26-.52,1.69-1.21.43-.68.65-1.9.65-3.65v-14.26c0-1.18-.13-2.08-.38-2.72s-.5-1.06-.76-1.26-.71-.51-1.39-.92c.65-.84,1.61-1.47,2.9-1.89,1.28-.42,2.59-.63,3.91-.63,1.15,0,2.04.14,2.66.43v21.24c0,1.75.22,2.97.65,3.65.43.68,1,1.09,1.69,1.21l.11,1.62h-11.84l.11-1.62Z"/>
+    <path fill="#608F7C" d="M70.85,170.23c.7-.12,1.26-.52,1.69-1.21.43-.68.65-1.9.65-3.65v-14.26c0-1.18-.13-2.08-.38-2.72s-.5-1.06-.76-1.26-.71-.51-1.39-.92c.65-.84,1.61-1.47,2.9-1.89,1.28-.42,2.59-.63,3.91-.63,1.15,0,2.04.14,2.66.43v21.24c0,1.75.22,2.97.65,3.65.43.68,1,1.09,1.69,1.21l.11,1.62h-11.84l.11-1.62Z"/>
+    <path fill="#608F7C" d="M104.11,168.14c-1.13,1.44-2.57,2.56-4.32,3.37-1.75.8-3.61,1.21-5.58,1.21s-3.92-.49-5.65-1.48c-1.73-.98-3.1-2.32-4.1-4.01-1.01-1.69-1.51-3.55-1.51-5.56s.5-3.87,1.51-5.56c1.01-1.69,2.38-3.03,4.1-4.01,1.73-.98,3.61-1.48,5.65-1.48,1.92,0,3.62.28,5.09.83,1.48.55,2.62,1.31,3.42,2.29.8.97,1.21,2.06,1.21,3.26,0,2.62-1.68,4.46-5.04,5.54-1.49.46-3.06.68-4.72.68-1.08,0-2.24-.11-3.49-.32.02,1.13.35,2.16.99,3.1.64.94,1.46,1.67,2.47,2.21,1.01.54,2.05.81,3.13.81.96,0,1.94-.2,2.93-.61s1.82-.98,2.47-1.73l1.44,1.48ZM92.5,155.59c-.8,1.26-1.34,2.86-1.6,4.81.84.17,1.64.25,2.41.25,1.61,0,2.87-.34,3.78-1.01s1.51-1.5,1.8-2.48c.09-.29.14-.59.14-.9,0-.86-.32-1.56-.95-2.09-.64-.53-1.36-.76-2.18-.68-1.46.14-2.6.85-3.4,2.11Z"/>
+    <path fill="#608F7C" d="M139.93,141.71c.46.5.76,1.14.86,1.81.17,1.09-.14,2.07-.91,2.95s-1.69,1.36-2.84,1.51c-.83.11-1.71.14-2.64.09-1.17-.04-2.31,0-3.43.15-1.24.16-2.36.49-3.36,1-1,.5-1.5.85-2.29,1.37-1.25.83-.64.51-2.68,1.64-1.7.75-1.02.47-2.27.96-2.92,1.15-5.84,1.04-6.2,1.21v12.12c0,.86.13,1.51.38,1.93s.58.63.99.63c.26,0,.55-.09.86-.27.31-.18.6-.43.86-.74l1.44,1.48c-.98,1.1-1.96,1.87-2.92,2.3-.96.43-2.08.65-3.35.65-1.58,0-2.89-.4-3.92-1.21-1.03-.8-1.55-1.95-1.55-3.44v-13c-.74-.07-1.58-.24-2.52-.5v-1.8c.53.12.97.18,1.33.18.96,0,1.82-.27,2.59-.81.77-.54,1.42-1.18,1.96-1.91.54-.73,1.15-1.66,1.82-2.79.48-.89.88-1.52,1.19-1.91h.83v6.8c3.33.07,5-.58,7.3-1.62,1.91-1.06,2.49-1.68,3.33-2.56.36-.38.58-.67,1.77-1.97.66-.72,2.14-1.98,2.76-2.44,1.43-1.1,2.12-1.49,3.27-2.09,1.14-.61,2.11-.76,3.26-.88,2.04-.21,3.13.16,4.06,1.16Z"/>
+  </svg>
+
+  <!-- State 1: opening (auto-attempts deep link) -->
+  <div id="state-opening" class="card">
+    <div class="opening" role="status">
+      <span class="spinner" aria-hidden="true"></span>
+      <span>Opening Wellet Connect.</span>
+    </div>
+    <h1>You're <em>almost</em> in.</h1>
+    <p>If Wellet Connect doesn't open on its own in a moment, tap the button below.</p>
+    <button class="btn" id="btn-open-app" type="button">Open Wellet Connect</button>
+    <p class="footnote">This page hands your sign-in to the Wellet Connect app on this device. Nothing is stored here.</p>
+  </div>
+
+  <!-- State 2: no token (user typed URL directly or fragment was stripped) -->
+  <div id="state-no-token" class="card">
+    <h1>Open this on your <em>phone</em>.</h1>
+    <p>Wellet Connect lives on your iPhone. Tap the magic link from the email you received on the same phone where you installed the app.</p>
+    <p class="footnote">Looking for the regular Wellet website? <a href="/">Go to mywellet.com</a>.</p>
+  </div>
+
+  <!-- State 3: error from Supabase (expired link, etc.) -->
+  <div id="state-error" class="card error">
+    <h1>That link <em>has expired.</em></h1>
+    <p id="error-detail">Magic links expire after a short window for security. Open Wellet Connect on your phone and ask for a fresh one.</p>
+    <p class="footnote">Need help? Email betsy@mywellet.com.</p>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  // Read both fragment (#access_token=...) and query (?error=...) — Supabase
+  // puts errors on the query string and successful tokens in the fragment.
+  var hash = (location.hash || '').replace(/^#/, '');
+  var query = location.search || '';
+
+  function setState(id) {
+    var cards = document.querySelectorAll('.card');
+    for (var i = 0; i < cards.length; i++) cards[i].classList.remove('is-active');
+    var el = document.getElementById(id);
+    if (el) el.classList.add('is-active');
+  }
+
+  function showError(message) {
+    var detail = document.getElementById('error-detail');
+    if (detail && message) detail.textContent = message;
+    setState('state-error');
+  }
+
+  // 1) Error path — Supabase failed to authenticate
+  if (query.indexOf('error=') !== -1 || hash.indexOf('error=') !== -1) {
+    var src = query.indexOf('error=') !== -1 ? query.slice(1) : hash;
+    var params = new URLSearchParams(src);
+    var desc = params.get('error_description') || params.get('error') || '';
+    // Soften the system message a little for users.
+    if (desc) {
+      desc = desc.replace(/_/g, ' ').replace(/\+/g, ' ');
+      desc = desc.charAt(0).toUpperCase() + desc.slice(1) + '.';
+    }
+    showError(desc || null);
+    return;
+  }
+
+  // 2) No fragment — user opened /connect/start without a magic link payload
+  if (!hash || hash.indexOf('access_token=') === -1) {
+    setState('state-no-token');
+    return;
+  }
+
+  // 3) Happy path — re-launch the iOS app with the same fragment
+  setState('state-opening');
+
+  var deepLink = 'welletconnect://auth/callback#' + hash;
+  var btn = document.getElementById('btn-open-app');
+
+  btn.addEventListener('click', function () {
+    location.href = deepLink;
+  });
+
+  // Auto-attempt the deep link on first paint. If the OS opens the app,
+  // this page disappears. If not (web browser, no app installed), the
+  // user stays on the page and can tap the button.
+  setTimeout(function () {
+    location.href = deepLink;
+  }, 250);
+})();
+</script>
+</body>
+</html>
