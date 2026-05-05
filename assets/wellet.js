@@ -18,6 +18,14 @@ var currentUser = null;
 var _userDataLoaded = false; // set true when initApp or onAuthStateChange completes loadUserData; prevents double-load
 var currentPeople = [];   // [{id, name, relationship, avatar_initials}]
 
+// App mode — set at first run via mode-question screen, read from profiles.app_mode.
+// Values: 'me' | 'caregiver' | null (null = onboarding gate not yet answered).
+var appMode = null;
+
+function isSelfMode() {
+  return appMode === 'me';
+}
+
 // Subtle per-person background tints (barely perceptible, subliminal context)
 var _personBgPalette = ['#F7F5F0', '#F0F5F2', '#F3F0F6', '#F0F3F7', '#F7F2F0'];
 // VA-enrolled people get a subtle olive/sage palette that nods to military without shouting
@@ -901,6 +909,7 @@ async function handleLogout() {
   currentUser = null;
   currentPeople = [];
   currentPersonId = null;
+  appMode = null;
   liveEvents = [];
   liveMeds = [];
   liveDocs = [];
@@ -949,6 +958,32 @@ function resetInactivityTimer() {
 // ── LOAD USER DATA ────────────────────────────────────────────────────────────
 async function loadUserData() {
   try {
+    // Read app_mode FIRST. The first-run mode question gates everything else;
+    // until it's answered (app_mode === null) we don't want to flash the app shell.
+    // The migration's auth.users trigger guarantees a profiles row exists for every
+    // signed-in user, so a missing row here is treated as "first run" (null).
+    var profileMode = null;
+    try {
+      var { data: profile, error: profileErr } = await db
+        .from('profiles')
+        .select('app_mode')
+        .eq('id', currentUser.id)
+        .maybeSingle();
+      if (profileErr) { console.warn('profiles read error (treating as first-run):', profileErr); }
+      profileMode = profile && profile.app_mode ? profile.app_mode : null;
+    } catch (e) {
+      console.warn('profiles read threw (treating as first-run):', e);
+    }
+    appMode = profileMode;
+
+    if (appMode === null) {
+      // First run — show mode question and stop here. The mode handlers
+      // (chooseModeMe / chooseModeCaregiver) are responsible for continuing
+      // the boot path once the user picks.
+      showModeQuestion();
+      return;
+    }
+
     const { data: people, error } = await db
       .from('people')
       .select('*')
@@ -976,6 +1011,127 @@ async function loadUserData() {
     // Don't leave a blank screen — show auth as fallback
     showAuthScreen();
     showToast('Could not load your data \u2014 please try again');
+  }
+}
+
+// Hide menu rows that don't apply in Me mode. Currently: the "People" entry
+// in the header overflow menu. Called from showAuthenticatedApp once appMode
+// is loaded, and again after a Settings-driven mode flip.
+function renderHeaderMenuModeGuards() {
+  var peopleItem = document.getElementById('header-menu-people');
+  if (!peopleItem) return;
+  peopleItem.style.display = isSelfMode() ? 'none' : '';
+}
+
+// ── MODE QUESTION (first-run gate) ───────────────────────────────────────────────────────────
+function showModeQuestion() {
+  var ids = ['loading-screen','auth-screen','landing','app','onboarding'];
+  ids.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  var screen = document.getElementById('mode-question-screen');
+  if (screen) screen.style.display = 'flex';
+  window.scrollTo(0, 0);
+  try { history.pushState({ type: 'mode-question' }, ''); } catch(e) {}
+}
+
+function hideModeQuestion() {
+  var screen = document.getElementById('mode-question-screen');
+  if (screen) screen.style.display = 'none';
+}
+
+// User picked "Me". Persist mode, create the self-person row, then continue
+// the boot path. Step 5a (the Connect-your-data 3-card screen) isn't built
+// yet — until it lands, fall through to showAuthenticatedApp() so the user
+// sees their (empty) Home and can connect from Settings.
+async function chooseModeMe() {
+  if (!currentUser) {
+    console.error('chooseModeMe called without currentUser');
+    return;
+  }
+  var btnEl = document.querySelector('.mode-btn--me');
+  if (btnEl) btnEl.disabled = true;
+  try {
+    appMode = 'me';
+    var { error: profileErr } = await db.from('profiles')
+      .update({ app_mode: 'me' })
+      .eq('id', currentUser.id);
+    if (profileErr) {
+      console.error('Failed to write app_mode=me:', profileErr);
+      showToast('Could not save your choice \u2014 please try again');
+      appMode = null;
+      if (btnEl) btnEl.disabled = false;
+      return;
+    }
+
+    // Create the self-person row. The migration's partial unique index
+    // (people_one_self_per_user) prevents accidental duplicates.
+    var firstName =
+      (currentUser.user_metadata && currentUser.user_metadata.full_name && currentUser.user_metadata.full_name.split(' ')[0])
+      || (currentUser.email && currentUser.email.split('@')[0])
+      || 'Me';
+    var { data: selfPerson, error: insertErr } = await db.from('people').insert({
+      user_id: currentUser.id,
+      name: firstName,
+      relationship: 'self',
+      is_self: true,
+      care_status: 'active'
+    }).select().single();
+    if (insertErr || !selfPerson) {
+      console.error('Failed to create self-person row:', insertErr);
+      showToast('Could not finish setup \u2014 please try again');
+      // Roll back the mode write so the user can retry cleanly.
+      try { await db.from('profiles').update({ app_mode: null }).eq('id', currentUser.id); } catch(e) {}
+      appMode = null;
+      if (btnEl) btnEl.disabled = false;
+      return;
+    }
+
+    currentPeople = [selfPerson];
+    setCurrentPersonId(selfPerson.id);
+    applyPersonBg(currentPersonId);
+    await loadPersonData(currentPersonId);
+
+    hideModeQuestion();
+    // TODO (step 5a, Tue AM): replace this with showConnectScreen() once the
+    // 3-card Connect-your-data screen exists. For now Me users land on Home
+    // and can connect from Settings.
+    showAuthenticatedApp();
+  } catch (e) {
+    console.error('chooseModeMe failed:', e);
+    showToast('Something went wrong \u2014 please try again');
+    if (btnEl) btnEl.disabled = false;
+  }
+}
+
+// User picked "Someone I care for". Persist mode, then run the existing
+// caregiver onboarding flow unchanged.
+async function chooseModeCaregiver() {
+  if (!currentUser) {
+    console.error('chooseModeCaregiver called without currentUser');
+    return;
+  }
+  var btnEl = document.querySelector('.mode-btn--caregiver');
+  if (btnEl) btnEl.disabled = true;
+  try {
+    appMode = 'caregiver';
+    var { error: profileErr } = await db.from('profiles')
+      .update({ app_mode: 'caregiver' })
+      .eq('id', currentUser.id);
+    if (profileErr) {
+      console.error('Failed to write app_mode=caregiver:', profileErr);
+      showToast('Could not save your choice \u2014 please try again');
+      appMode = null;
+      if (btnEl) btnEl.disabled = false;
+      return;
+    }
+    hideModeQuestion();
+    showOnboarding();
+  } catch (e) {
+    console.error('chooseModeCaregiver failed:', e);
+    showToast('Something went wrong \u2014 please try again');
+    if (btnEl) btnEl.disabled = false;
   }
 }
 
@@ -1104,6 +1260,7 @@ function showAuthenticatedApp() {
   window.scrollTo(0, 0);
 
   renderPersonSwitcher();
+  renderHeaderMenuModeGuards();
   renderUpdateMe();
   renderTimeline();
   renderPeopleView();
@@ -1132,6 +1289,9 @@ function showAuthenticatedApp() {
 function renderPersonSwitcher() {
   var switcher = document.getElementById('header-person-switcher');
   if (!switcher) return;
+  // Me mode: hide the switcher entirely. There's only ever one person
+  // (the user themselves), so showing a single pill would be noise.
+  if (isSelfMode()) { switcher.style.display = 'none'; switcher.innerHTML = ''; return; }
   var html = '';
   currentPeople.forEach(function(p, i) {
     var active = p.id === currentPersonId ? ' active' : '';
@@ -1839,7 +1999,8 @@ function buildChartNoticedBanner(personName, personId) {
 // "A1c came back" — NOT "A1c is normal". "the chart" — not "her chart".
 function buildRightNowLine(personName, personId) {
   if (isDemoMode) return ''; // Demo has its own static state.
-  var firstName = (personName || '').split(' ')[0] || 'Your loved one';
+  var firstName = (personName || '').split(' ')[0]
+    || (isSelfMode() ? 'You' : 'Your loved one');
 
   var ehr = null;
   try { ehr = getEhrData(personId); } catch (e) { ehr = null; }
@@ -14179,8 +14340,16 @@ function switchNavTo(view, skipPush) {
   // Resilient to nav-layout changes (4-button / 6-button / menu re-org).
   var _navMatch = document.querySelector('.nav-item[data-nav-key="nav.' + view + '"]');
   if (_navMatch) _navMatch.classList.add('active');
+  // Me mode: there's no person-switcher to show, so don't restore its display
+  // when navigating to Home. Without this guard the switcher would flip back
+  // to 'flex' on every Home tap and reveal an empty bar.
+  if (view === 'people' && isSelfMode()) {
+    return; // no-op: People nav is hidden in Me mode
+  }
   var isHome = view === 'home';
-  document.getElementById('header-person-switcher').style.display = isHome ? 'flex' : 'none';
+  if (!isSelfMode()) {
+    document.getElementById('header-person-switcher').style.display = isHome ? 'flex' : 'none';
+  }
   document.getElementById('header-tab-bar').style.display = isHome ? 'flex' : 'none';
   if (view === 'signals') { renderSignalsView(); }
   if (view === 'resources') { renderResourcesView(); }
@@ -18208,6 +18377,10 @@ var _origRenderPersonSwitcher = renderPersonSwitcher;
 renderPersonSwitcher = function() {
   var switcher = document.getElementById('header-person-switcher');
   if (!switcher) return;
+  // Me mode: hide the switcher entirely. Mirrors the guard on the original
+  // renderPersonSwitcher above; this override is the one that actually runs
+  // in production (it filters archived/closed people).
+  if (isSelfMode()) { switcher.style.display = 'none'; switcher.innerHTML = ''; return; }
   var html = '';
   currentPeople.forEach(function(p) {
     var status = p.care_status || 'active';

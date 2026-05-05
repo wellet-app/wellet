@@ -2026,3 +2026,82 @@
   @media (min-width: 1024px) {
     .auth-headline h1 { font-size: var(--type-display); }
   }
+
+  /* ── Mode question (first-run gate) ─────────────────────────────────────
+     Single full-screen card. Mirrors auth-screen tokens so it feels like
+     part of the same family. No skip, no back button — answered exactly once
+     per user, then never seen again. */
+  .mode-question-screen {
+    position: fixed; inset: 0;
+    background: var(--cream, #F7F5F0);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+    z-index: 9000;
+    overflow-y: auto;
+  }
+  .mode-question-card {
+    width: 100%;
+    max-width: 440px;
+    display: flex; flex-direction: column; align-items: stretch;
+    gap: 14px;
+    padding: 8px;
+  }
+  .mode-question-wordmark {
+    width: 96px; height: auto;
+    display: block;
+    margin: 8px auto 24px;
+  }
+  .mode-question-headline {
+    font-family: var(--serif, 'Fraunces', Georgia, serif);
+    font-weight: 400;
+    font-size: clamp(28px, 5vw, 36px);
+    line-height: 1.2;
+    color: #2C2A26;
+    text-align: center;
+    margin: 0 8px;
+  }
+  .mode-question-headline em {
+    font-family: var(--serif, 'Fraunces', Georgia, serif);
+    font-style: italic;
+    color: #4A7A66;
+  }
+  .mode-question-sub {
+    font-size: var(--type-body, 16px);
+    line-height: 1.5;
+    color: #5A5A5A;
+    font-weight: 300;
+    text-align: center;
+    margin: 0 8px 12px;
+  }
+  .mode-btn {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+    width: 100%;
+    padding: 18px 20px;
+    border: 1.5px solid #DCE9E2;
+    border-radius: 14px;
+    background: #FFFFFF;
+    color: #2C2A26;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.05s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mode-btn:hover, .mode-btn:focus-visible {
+    border-color: #608F7C;
+    background: #FCFBF8;
+    outline: none;
+  }
+  .mode-btn:active { transform: scale(0.995); }
+  .mode-btn-title {
+    font-family: var(--serif, 'Fraunces', Georgia, serif);
+    font-weight: 400;
+    font-size: 22px;
+    line-height: 1.2;
+  }
+  .mode-btn-sub {
+    font-size: 14px;
+    line-height: 1.4;
+    color: #6E6B66;
+    font-weight: 300;
+  }
