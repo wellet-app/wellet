@@ -2105,3 +2105,250 @@
     color: #6E6B66;
     font-weight: 300;
   }
+
+  /* ─────────────────────────────────────────────────────────────────
+   Connect-your-data screen (Me-mode first-run, after mode question)
+  ────────────────────────────────────────────────────────────────── */
+  .connect-data-screen {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    background: #F7F5F0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 56px 20px 40px;
+    align-items: flex-start;
+    justify-content: center;
+  }
+  .connect-data-screen[style*="flex"], .connect-data-screen.is-open {
+    display: flex;
+  }
+  .connect-data-card {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+  }
+  .connect-data-card .mode-question-wordmark {
+    width: 96px;
+    height: auto;
+    align-self: center;
+    margin-bottom: 28px;
+  }
+  .connect-data-headline {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 400;
+    font-size: 28px;
+    line-height: 1.25;
+    color: #2A3A33;
+    margin: 0 0 8px;
+    text-align: center;
+    letter-spacing: -0.01em;
+  }
+  .connect-data-headline em {
+    font-style: italic;
+    color: #4A7A66;
+    font-weight: 400;
+  }
+  .connect-data-sub {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #6E6B66;
+    text-align: center;
+    margin: 0 0 28px;
+    font-weight: 300;
+  }
+  .connect-card {
+    appearance: none;
+    -webkit-appearance: none;
+    background: #FFFFFF;
+    border: 1.5px solid #E5E0D6;
+    border-radius: 14px;
+    padding: 18px 16px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.15s, transform 0.06s, background 0.15s;
+    font-family: inherit;
+  }
+  .connect-card:hover, .connect-card:focus-visible {
+    border-color: #4A7A66;
+    background: #F4F8F4;
+    outline: none;
+  }
+  .connect-card:active {
+    transform: scale(0.997);
+  }
+  .connect-card.is-disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  .connect-card.is-disabled:hover {
+    border-color: #E5E0D6;
+    background: #FFFFFF;
+  }
+  .connect-card-icon {
+    flex: 0 0 40px;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: #EEF3EE;
+    color: #4A7A66;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .connect-card-icon i, .connect-card-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+  .connect-card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+  }
+  .connect-card-title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 400;
+    font-size: 17px;
+    line-height: 1.25;
+    color: #2A3A33;
+  }
+  .connect-card-sub {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #6E6B66;
+    font-weight: 300;
+  }
+  .connect-card-chevron {
+    flex: 0 0 auto;
+    color: #B5AFA1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .connect-card-chevron i, .connect-card-chevron svg {
+    width: 18px;
+    height: 18px;
+  }
+  .connect-skip-btn {
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    border: none;
+    color: #6E6B66;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 400;
+    margin-top: 16px;
+    padding: 12px 8px;
+    cursor: pointer;
+    align-self: center;
+    text-decoration: underline;
+    text-decoration-color: rgba(110, 107, 102, 0.35);
+    text-underline-offset: 3px;
+  }
+  .connect-skip-btn:hover {
+    color: #2A3A33;
+    text-decoration-color: rgba(42, 58, 51, 0.6);
+  }
+
+  /* ─────────────────────────────────────────────────────────────────
+   Wellet Connect install prompt (iPhone-only, fires on universal-link miss)
+  ────────────────────────────────────────────────────────────────── */
+  .wc-install-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9500;
+    background: rgba(20, 25, 23, 0.5);
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0;
+  }
+  .wc-install-overlay[style*="flex"], .wc-install-overlay.is-open {
+    display: flex;
+  }
+  @media (min-width: 520px) {
+    .wc-install-overlay {
+      align-items: center;
+      padding: 20px;
+    }
+  }
+  .wc-install-sheet {
+    width: 100%;
+    max-width: 460px;
+    background: #F7F5F0;
+    border-radius: 18px 18px 0 0;
+    padding: 28px 24px 32px;
+    display: flex;
+    flex-direction: column;
+  }
+  @media (min-width: 520px) {
+    .wc-install-sheet {
+      border-radius: 18px;
+    }
+  }
+  .wc-install-title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 400;
+    font-size: 22px;
+    line-height: 1.3;
+    color: #2A3A33;
+    margin: 0 0 12px;
+  }
+  .wc-install-body {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
+    color: #5A5A55;
+    margin: 0 0 20px;
+    font-weight: 300;
+  }
+  .wc-install-primary {
+    appearance: none;
+    -webkit-appearance: none;
+    background: #4A7A66;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 12px;
+    padding: 14px 18px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    text-decoration: none;
+    text-align: center;
+    cursor: pointer;
+    margin-bottom: 8px;
+  }
+  .wc-install-primary:hover {
+    background: #3F6957;
+  }
+  .wc-install-secondary {
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    color: #6E6B66;
+    border: none;
+    padding: 12px 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 400;
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-color: rgba(110, 107, 102, 0.35);
+    text-underline-offset: 3px;
+  }
+  .wc-install-secondary:hover {
+    color: #2A3A33;
+  }

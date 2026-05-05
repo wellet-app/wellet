@@ -1094,10 +1094,9 @@ async function chooseModeMe() {
     await loadPersonData(currentPersonId);
 
     hideModeQuestion();
-    // TODO (step 5a, Tue AM): replace this with showConnectScreen() once the
-    // 3-card Connect-your-data screen exists. For now Me users land on Home
-    // and can connect from Settings.
-    showAuthenticatedApp();
+    // Step 5a: route Me users to the Connect-your-data screen so they can wire up
+    // EHR / Apple Health / Terra before landing on Home. Skip lands on Home.
+    showConnectScreen();
   } catch (e) {
     console.error('chooseModeMe failed:', e);
     showToast('Something went wrong \u2014 please try again');
@@ -1133,6 +1132,137 @@ async function chooseModeCaregiver() {
     showToast('Something went wrong \u2014 please try again');
     if (btnEl) btnEl.disabled = false;
   }
+}
+
+// ── STEP 5a: "Connect your data" screen (Me-mode first-run) ────────────────
+// Three cards (Health records / Apple Health / Other wearables) that route
+// into the existing connect flows. The user can skip and reach Home; they can
+// always come back via Settings.
+//
+// All three cards bind to currentPersonId, which at this point is the
+// self-person row (set by chooseModeMe). That's how step 6's "EHR connect on
+// self-person row" requirement is satisfied without any change to
+// startEhrConnect / beginEhrOAuth: the existing OAuth state already carries
+// person_id, and ehr_connections is keyed by person_id. Same for Terra —
+// terra_connections.person_id will reference the self-person row.
+function showConnectScreen() {
+  var screen = document.getElementById('connect-data-screen');
+  if (!screen) {
+    // Defensive fallback: if the screen isn't in the DOM (e.g. older HTML),
+    // skip straight to Home so the user doesn't get stranded.
+    showAuthenticatedApp();
+    return;
+  }
+  // Tag the body so masthead/nav stay hidden under the overlay.
+  document.body.classList.add('connect-data-open');
+  // Adjust the Apple Health sub for non-iPhone devices so the user knows
+  // what to expect before they tap.
+  var appleSub = document.getElementById('connect-card-apple-sub');
+  var appleCard = document.getElementById('connect-card-apple');
+  if (appleSub && appleCard) {
+    if (!_isIPhone()) {
+      appleSub.textContent = 'Apple Health lives on iPhone — open Wellet on your iPhone to connect.';
+      appleCard.classList.add('is-disabled');
+    } else {
+      appleSub.textContent = 'Steps, sleep, heart rate, and anything else on your iPhone.';
+      appleCard.classList.remove('is-disabled');
+    }
+  }
+  screen.style.display = 'flex';
+  if (window.lucide) try { lucide.createIcons(); } catch(e) {}
+}
+
+function hideConnectScreen() {
+  var screen = document.getElementById('connect-data-screen');
+  if (screen) screen.style.display = 'none';
+  document.body.classList.remove('connect-data-open');
+}
+
+// User taps "I'll do this later" — go to Home. Self-person row is already
+// created and persisted; mode is locked. Connections can happen any time
+// from Settings.
+function skipConnectScreen() {
+  hideConnectScreen();
+  showAuthenticatedApp();
+}
+
+// Card click handler. Routes by source. After a successful kick-off the
+// Connect screen tears itself down so the user lands on the existing
+// connection UI (hospital picker, Wellet Connect handoff, Terra widget).
+function connectFromMeOnboarding(source) {
+  if (source === 'ehr') {
+    hideConnectScreen();
+    showAuthenticatedApp();
+    // Open the hospital picker on next tick so the masthead is in place
+    // before the sheet animates up.
+    setTimeout(function() { try { startEhrConnect(); } catch(e) { console.error(e); } }, 60);
+    return;
+  }
+  if (source === 'apple') {
+    if (!_isIPhone()) {
+      showAppleHealthWebNotice();
+      return;
+    }
+    connectAppleHealth();
+    return;
+  }
+  if (source === 'terra') {
+    hideConnectScreen();
+    showAuthenticatedApp();
+    setTimeout(function() { try { openTerraConnect(); } catch(e) { console.error(e); } }, 60);
+    return;
+  }
+}
+
+function _isIPhone() {
+  var ua = navigator.userAgent || '';
+  // iPad on iPadOS 13+ reports as Mac; treat iPad as non-iPhone for the
+  // Apple Health card since Wellet Connect ships iPhone-first. We can
+  // revisit when the iPad universal-link target is added.
+  return /iPhone|iPod/.test(ua);
+}
+
+// Apple Health connect — iPhone only. Tries the universal link to Wellet
+// Connect; if the page is still visible after 800ms (link didn't resolve),
+// shows the install prompt.
+function connectAppleHealth() {
+  if (!_isIPhone()) {
+    showAppleHealthWebNotice();
+    return;
+  }
+  if (!currentPersonId) {
+    console.warn('connectAppleHealth: no currentPersonId yet');
+    showToast('Setting things up \u2014 try again in a moment');
+    return;
+  }
+  var deepLink = 'wellet://connect?type=health'
+               + '&person_id=' + encodeURIComponent(currentPersonId)
+               + '&return='    + encodeURIComponent(location.origin + '/connect-callback');
+  var t0 = Date.now();
+  // Use location.href; Safari handles wellet:// → universal link → app open.
+  // If the AASA file or app aren't installed, control returns here in <800ms
+  // and document.visibilityState stays 'visible'.
+  try { window.location.href = deepLink; } catch(e) { /* swallow */ }
+  setTimeout(function() {
+    if (document.visibilityState === 'visible' && Date.now() - t0 < 1500) {
+      showWelletConnectInstallPrompt();
+    }
+  }, 800);
+}
+
+function showAppleHealthWebNotice() {
+  showToast('Apple Health lives on iPhone \u2014 open Wellet on your iPhone to connect.');
+}
+
+function showWelletConnectInstallPrompt() {
+  var ov = document.getElementById('wc-install-overlay');
+  if (!ov) return;
+  ov.style.display = 'flex';
+}
+
+function hideWelletConnectInstallPrompt() {
+  var ov = document.getElementById('wc-install-overlay');
+  if (ov) ov.style.display = 'none';
 }
 
 async function loadPersonData(personId) {
