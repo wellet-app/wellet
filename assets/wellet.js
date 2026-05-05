@@ -361,6 +361,8 @@ async function initApp() {
   });
   // Check for EHR OAuth callback code in URL
   checkEhrCallbackOnLoad();
+  // Handle Wellet Connect (Apple Health bridge) callback
+  handleConnectCallback();
   // Handle Terra wearable auth redirect
   handleTerraCallback();
   // Handle billing success return from Stripe
@@ -10555,6 +10557,30 @@ function checkEhrCallbackOnLoad() {
   }
 }
 
+// Handle the /connect-callback universal-link return from the Wellet Connect
+// iOS app. Reads ?status=ok|error, shows the spec toast, and redirects home.
+// TODO: when Wellet Connect ships, the iOS app will fire its own webhook to
+// stamp apple_health_connected_at on the people row. We intentionally do NOT
+// write that column here yet (it doesn't exist in the schema).
+function handleConnectCallback() {
+  if (window.location.pathname !== '/connect-callback') return;
+  var params = new URLSearchParams(window.location.search);
+  var status = params.get('status');
+  try {
+    if (status === 'ok') {
+      showToast('Apple Health connected \u2014 catching up');
+    } else {
+      showToast('Apple Health didn\u2019t finish connecting \u2014 try again');
+    }
+  } catch(e) {}
+  // Redirect to home so the user lands in the app shell, not on a bare path.
+  try {
+    window.history.replaceState({}, '', '/');
+  } catch(e) {
+    window.location.replace('/');
+  }
+}
+
 // Auto-refresh stale EHR data on person load.
 // Also recovers from "orphan connection" state: if a connection row exists
 // in Postgres but this device has no local cache (common after a client
@@ -14008,6 +14034,147 @@ function updateSettingsViewAccount() {
     if (emailEl) emailEl.textContent = currentUser.email || 'Signed in';
   } else {
     if (section) section.style.display = 'none';
+  }
+  renderAppModeSettingsRow();
+}
+
+// ── STEP 7: Settings → App mode row ───────────────────────────────────
+function renderAppModeSettingsRow() {
+  var meta = document.getElementById('sv-app-mode-meta');
+  if (!meta) return;
+  if (appMode === 'me') {
+    meta.textContent = 'Me — your own records';
+  } else if (appMode === 'caregiver') {
+    meta.textContent = 'Someone I care for';
+  } else {
+    meta.textContent = 'Choose how Wellet is set up';
+  }
+}
+
+function openAppModeSwitch() {
+  var ov = document.getElementById('app-mode-switch-overlay');
+  if (!ov) return;
+  // Disable the button matching the current mode so the user can't "switch"
+  // to the mode they're already in.
+  var meBtn = document.getElementById('app-mode-switch-me-btn');
+  var cgBtn = document.getElementById('app-mode-switch-caregiver-btn');
+  if (meBtn) {
+    meBtn.disabled = (appMode === 'me');
+    meBtn.style.opacity = (appMode === 'me') ? '0.5' : '';
+    meBtn.style.cursor = (appMode === 'me') ? 'not-allowed' : '';
+  }
+  if (cgBtn) {
+    cgBtn.disabled = (appMode === 'caregiver');
+    cgBtn.style.opacity = (appMode === 'caregiver') ? '0.5' : '';
+    cgBtn.style.cursor = (appMode === 'caregiver') ? 'not-allowed' : '';
+  }
+  // Tailor the body copy by direction so the consequence is clear.
+  var bodyEl = document.getElementById('app-mode-switch-body');
+  if (bodyEl) {
+    if (appMode === 'me') {
+      bodyEl.textContent = 'Switching to caregiver mode brings back the person switcher and the People section. Your records and connections stay exactly as they are.';
+    } else if (appMode === 'caregiver') {
+      bodyEl.textContent = 'Switching to Me mode hides the person switcher and the People section. Your records, connections, and family members stay exactly as they are.';
+    } else {
+      bodyEl.textContent = 'Switching mode re-skins the app. Your records, connections, and family members stay exactly as they are.';
+    }
+  }
+  ov.style.display = 'flex';
+}
+
+function closeAppModeSwitch() {
+  var ov = document.getElementById('app-mode-switch-overlay');
+  if (ov) ov.style.display = 'none';
+}
+
+async function confirmAppModeSwitch(target) {
+  if (!currentUser) return;
+  if (target !== 'me' && target !== 'caregiver') return;
+  if (target === appMode) { closeAppModeSwitch(); return; }
+
+  var meBtn = document.getElementById('app-mode-switch-me-btn');
+  var cgBtn = document.getElementById('app-mode-switch-caregiver-btn');
+  var btn = (target === 'me') ? meBtn : cgBtn;
+  if (btn) btn.disabled = true;
+
+  var prevMode = appMode;
+  try {
+    var { error } = await db.from('profiles')
+      .update({ app_mode: target, updated_at: new Date().toISOString() })
+      .eq('id', currentUser.id);
+    if (error) {
+      console.error('confirmAppModeSwitch update failed:', error);
+      showToast('Could not switch mode \u2014 please try again');
+      if (btn) btn.disabled = false;
+      return;
+    }
+
+    appMode = target;
+
+    // Switching INTO Me mode: ensure a self-person row exists. If the user
+    // is a caregiver who has never created one, create it now using the same
+    // logic as chooseModeMe so the shell has a person to render.
+    // The partial unique index people_one_self_per_user prevents duplicates.
+    if (target === 'me') {
+      var existingSelf = (currentPeople || []).find(function(p) { return p && p.is_self === true; });
+      if (!existingSelf) {
+        var firstName =
+          (currentUser.user_metadata && currentUser.user_metadata.full_name && currentUser.user_metadata.full_name.split(' ')[0])
+          || (currentUser.email && currentUser.email.split('@')[0])
+          || 'Me';
+        try {
+          var { data: selfPerson, error: insertErr } = await db.from('people').insert({
+            user_id: currentUser.id,
+            name: firstName,
+            relationship: 'self',
+            is_self: true,
+            care_status: 'active'
+          }).select().single();
+          if (insertErr || !selfPerson) {
+            console.error('Self-person create on mode switch failed:', insertErr);
+            // Roll back
+            await db.from('profiles').update({ app_mode: prevMode }).eq('id', currentUser.id);
+            appMode = prevMode;
+            showToast('Could not switch mode \u2014 please try again');
+            if (btn) btn.disabled = false;
+            return;
+          }
+          // Splice into local cache and switch to it so the home screen shows
+          // the user's own data immediately.
+          currentPeople = [selfPerson].concat(currentPeople || []);
+          setCurrentPersonId(selfPerson.id);
+          applyPersonBg(currentPersonId);
+          await loadPersonData(currentPersonId);
+        } catch (insertCatch) {
+          console.error('Self-person create threw:', insertCatch);
+          await db.from('profiles').update({ app_mode: prevMode }).eq('id', currentUser.id);
+          appMode = prevMode;
+          showToast('Could not switch mode \u2014 please try again');
+          if (btn) btn.disabled = false;
+          return;
+        }
+      } else {
+        // Self-person already exists — switch active person to it so the home
+        // screen reflects "Me" immediately.
+        setCurrentPersonId(existingSelf.id);
+        applyPersonBg(currentPersonId);
+        await loadPersonData(currentPersonId);
+      }
+    }
+
+    // Re-skin the shell. Same calls used at boot.
+    try { renderPersonSwitcher(); } catch (e) {}
+    try { if (typeof renderHeaderMenuModeGuards === 'function') renderHeaderMenuModeGuards(); } catch (e) {}
+    try { if (typeof renderUpdateMe === 'function') renderUpdateMe(); } catch (e) {}
+    renderAppModeSettingsRow();
+
+    closeAppModeSwitch();
+    showToast(target === 'me' ? 'Switched to Me mode' : 'Switched to caregiver mode');
+    if (btn) btn.disabled = false;
+  } catch (e) {
+    console.error('confirmAppModeSwitch threw:', e);
+    showToast('Something went wrong \u2014 please try again');
+    if (btn) btn.disabled = false;
   }
 }
 

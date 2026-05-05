@@ -288,6 +288,23 @@
   </div>
 </div>
 
+<!-- APP MODE SWITCH SHEET (Settings → App mode → Change) -->
+<div id="app-mode-switch-overlay" class="wc-install-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="app-mode-switch-title">
+  <div class="wc-install-sheet">
+    <h2 class="wc-install-title" id="app-mode-switch-title">Change app mode</h2>
+    <p class="wc-install-body" id="app-mode-switch-body">Switching mode re-skins the app. Your records, connections, and people stay exactly as they are.</p>
+    <button type="button" class="mode-btn" id="app-mode-switch-me-btn" onclick="confirmAppModeSwitch('me')" style="margin-bottom:10px;">
+      <span class="mode-btn-title">Me</span>
+      <span class="mode-btn-sub">Your own records, in one calm place.</span>
+    </button>
+    <button type="button" class="mode-btn" id="app-mode-switch-caregiver-btn" onclick="confirmAppModeSwitch('caregiver')" style="margin-bottom:14px;">
+      <span class="mode-btn-title">Someone I care for</span>
+      <span class="mode-btn-sub">A loved one or family member you help look after.</span>
+    </button>
+    <button type="button" class="wc-install-secondary" onclick="closeAppModeSwitch()">Cancel</button>
+  </div>
+</div>
+
 <!-- LANDING (demo mode) -->
 <div id="landing">
   <div class="hero-band">
@@ -1226,6 +1243,13 @@
               <div class="settings-row-icon"><i data-lucide="user" style="width:15px;height:15px;"></i></div>
               <div><div class="settings-row-label" id="sv-user-email">Signed in</div><div class="settings-row-meta">Magic link authentication</div></div>
             </div>
+          </div>
+          <div class="settings-row" id="sv-app-mode-row" style="cursor:pointer;" onclick="openAppModeSwitch()">
+            <div class="settings-row-left">
+              <div class="settings-row-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="layout-grid" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">App mode</div><div class="settings-row-meta" id="sv-app-mode-meta">Choose how Wellet is set up</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
           </div>
           <div class="settings-row" style="cursor:pointer;" onclick="handleLogout()">
             <div class="settings-row-left">
