@@ -1,130 +1,167 @@
-import re, sys
+import re, sys, os
+
+# Wellet legal-page generator.
+#
+# Reads markdown sources at /home/user/workspace/wellet-{privacy-policy,terms-of-service}.md
+# and writes privacy.html / terms.html into THIS DIRECTORY (the wellet-app repo root).
+#
+# Important: the markdown sources are the source of truth for legal copy. If you
+# edit privacy.html or terms.html directly, mirror the change back into the markdown
+# source or your next regeneration will silently revert it. (See the drift-fix
+# commit on 2026-05-06 — several months of policy improvements were
+# only in HTML, not in markdown, until this script was patched.)
+#
+# Markdown features supported:
+# - Headings (#, ##, ###)
+# - Paragraphs
+# - Bold (**), italic (*), inline code (`)
+# - External links (auto target=_blank rel=noopener), internal anchors (#...) kept inline
+# - Unordered lists (-) with one level of nesting via 2-space indent
+# - Ordered lists (1. 2. ...) — emitted as <ol>
+# - Horizontal rules (---)
+# - GFM-style pipe tables
 
 def md_to_html(md_text):
-    """Simple markdown to HTML converter for legal docs."""
+    """Markdown to HTML converter for legal docs."""
     lines = md_text.strip().split('\n')
     html_parts = []
-    in_list = False
+    list_stack = []   # stack of open list types: 'ul' | 'ol'  (supports 1 level of nesting)
     in_table = False
-    table_header_done = False
-    
+
+    def close_lists():
+        while list_stack:
+            html_parts.append(f'</{list_stack.pop()}>')
+
+    def open_list(kind):
+        # If we already have a list open of the correct type at top, do nothing.
+        if list_stack and list_stack[-1] == kind:
+            return
+        # Different type at top — close everything and reopen
+        close_lists()
+        html_parts.append(f'<{kind}>')
+        list_stack.append(kind)
+
     for line in lines:
         stripped = line.strip()
-        
-        # Skip empty lines
+        # leading-space count for nested-list detection
+        indent = len(line) - len(line.lstrip(' '))
+
+        # Empty line: close lists/tables
         if not stripped:
-            if in_list:
-                html_parts.append('</ul>')
-                in_list = False
+            close_lists()
             if in_table:
-                html_parts.append('</tbody></table>')
+                html_parts.append('</tbody></table></div>')
                 in_table = False
-                table_header_done = False
             html_parts.append('')
             continue
-        
-        # Horizontal rules
+
+        # Horizontal rule
         if stripped == '---':
-            if in_list:
-                html_parts.append('</ul>')
-                in_list = False
+            close_lists()
             html_parts.append('<hr>')
             continue
-        
+
         # Table rows
         if '|' in stripped and stripped.startswith('|'):
             cells = [c.strip() for c in stripped.split('|')[1:-1]]
-            # Skip separator rows
+            # Separator row
             if all(set(c) <= set('-: ') for c in cells):
                 continue
             if not in_table:
                 html_parts.append('<div class="table-wrap"><table>')
                 html_parts.append('<thead><tr>')
                 for cell in cells:
-                    cell = inline_format(cell)
-                    html_parts.append(f'<th>{cell}</th>')
+                    html_parts.append(f'<th>{inline_format(cell)}</th>')
                 html_parts.append('</tr></thead><tbody>')
                 in_table = True
-                table_header_done = True
                 continue
             else:
                 html_parts.append('<tr>')
                 for cell in cells:
-                    cell = inline_format(cell)
-                    html_parts.append(f'<td>{cell}</td>')
+                    html_parts.append(f'<td>{inline_format(cell)}</td>')
                 html_parts.append('</tr>')
                 continue
-        
-        if in_table and not ('|' in stripped):
+        if in_table and '|' not in stripped:
             html_parts.append('</tbody></table></div>')
             in_table = False
-            table_header_done = False
-        
-        # Headers
+
+        # Headings
         if stripped.startswith('# '):
-            if in_list:
-                html_parts.append('</ul>')
-                in_list = False
+            close_lists()
             html_parts.append(f'<h1>{inline_format(stripped[2:])}</h1>')
             continue
         if stripped.startswith('## '):
-            if in_list:
-                html_parts.append('</ul>')
-                in_list = False
-            # Generate id from text
+            close_lists()
             text = stripped[3:]
             id_text = re.sub(r'[^\w\s-]', '', text.lower()).strip().replace(' ', '-')
             html_parts.append(f'<h2 id="{id_text}">{inline_format(text)}</h2>')
             continue
         if stripped.startswith('### '):
-            if in_list:
-                html_parts.append('</ul>')
-                in_list = False
+            close_lists()
             html_parts.append(f'<h3>{inline_format(stripped[4:])}</h3>')
             continue
-        
-        # List items
+
+        # Unordered list item
         if stripped.startswith('- '):
-            if not in_list:
-                html_parts.append('<ul>')
-                in_list = True
-            html_parts.append(f'<li>{inline_format(stripped[2:])}</li>')
-            continue
-        
-        # Numbered list
-        if re.match(r'^\d+\.\s', stripped):
-            text = re.sub(r'^\d+\.\s', '', stripped)
-            if not in_list:
-                html_parts.append('<ol>')
-                in_list = True  
+            text = stripped[2:]
+            # Nested? (2+ spaces of indent and a list is already open)
+            if indent >= 2 and list_stack:
+                # ensure there is a nested <ul> sitting inside the last <li>
+                # we emit by appending the nested <ul> tag, mark stack with a sentinel
+                if list_stack[-1] != 'ul-nested':
+                    # patch the previously-emitted </li> off the last item if present
+                    if html_parts and html_parts[-1].endswith('</li>'):
+                        html_parts[-1] = html_parts[-1][:-len('</li>')]
+                    html_parts.append('<ul>')
+                    list_stack.append('ul-nested')
+                html_parts.append(f'<li>{inline_format(text)}</li>')
+                continue
+            # Top-level UL
+            # Close any nested list before continuing
+            while list_stack and list_stack[-1] == 'ul-nested':
+                html_parts.append('</ul></li>')
+                list_stack.pop()
+            open_list('ul')
             html_parts.append(f'<li>{inline_format(text)}</li>')
             continue
-        
-        # Paragraphs
-        if in_list:
-            html_parts.append('</ul>' if True else '</ol>')
-            in_list = False
+
+        # Ordered list item (1. 2. ...)
+        if re.match(r'^\d+\.\s', stripped):
+            text = re.sub(r'^\d+\.\s', '', stripped)
+            # close any nested before transitioning
+            while list_stack and list_stack[-1] == 'ul-nested':
+                html_parts.append('</ul></li>')
+                list_stack.pop()
+            open_list('ol')
+            html_parts.append(f'<li>{inline_format(text)}</li>')
+            continue
+
+        # Paragraph
+        close_lists()
         html_parts.append(f'<p>{inline_format(stripped)}</p>')
-    
-    if in_list:
-        html_parts.append('</ul>')
+
+    close_lists()
     if in_table:
         html_parts.append('</tbody></table></div>')
-    
+
     return '\n'.join(html_parts)
 
 def inline_format(text):
     """Handle bold, italic, links, inline code."""
-    # Links [text](url)
-    text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2" target="_blank" rel="noopener">\1</a>', text)
+    # Links [text](url) — add target=_blank rel=noopener for external/cross-domain
+    # links only. Internal anchor links (#...) and same-page links stay plain.
+    def _link(m):
+        label, href = m.group(1), m.group(2)
+        if href.startswith('#'):
+            return f'<a href="{href}">{label}</a>'
+        return f'<a href="{href}" target="_blank" rel="noopener">{label}</a>'
+    text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', _link, text)
     # Bold
     text = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', text)
     # Italic
     text = re.sub(r'\*([^*]+)\*', r'<em>\1</em>', text)
     # Inline code
     text = re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
-    # Section refs like [Section 4](#4...)
-    text = re.sub(r'<a href="#([^"]+)"', r'<a href="#\1"', text)
     return text
 
 def make_page(title, md_content, back_text="Back to Wellet"):
@@ -283,17 +320,20 @@ def make_page(title, md_content, back_text="Back to Wellet"):
 </body>
 </html>'''
 
-# Read and generate
-with open('/home/user/workspace/wellet-privacy-policy.md', 'r') as f:
+# Read sources and write into the directory this script lives in (the repo root).
+# Markdown sources are versioned alongside this script in the same directory.
+repo_root = os.path.dirname(os.path.abspath(__file__))
+
+with open(os.path.join(repo_root, 'wellet-privacy-policy.md'), 'r') as f:
     privacy_md = f.read()
 
-with open('/home/user/workspace/wellet-terms-of-service.md', 'r') as f:
+with open(os.path.join(repo_root, 'wellet-terms-of-service.md'), 'r') as f:
     terms_md = f.read()
 
-with open('/home/user/workspace/wellet-23c5bebf/privacy.html', 'w') as f:
+with open(os.path.join(repo_root, 'privacy.html'), 'w') as f:
     f.write(make_page('Privacy Policy', privacy_md))
 
-with open('/home/user/workspace/wellet-23c5bebf/terms.html', 'w') as f:
+with open(os.path.join(repo_root, 'terms.html'), 'w') as f:
     f.write(make_page('Terms of Service', terms_md))
 
-print("Generated privacy.html and terms.html")
+print(f"Generated privacy.html and terms.html in {repo_root}")
