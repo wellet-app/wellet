@@ -1,0 +1,13 @@
+# mywellet.com — Wellet application
+# This is a gated app; public landing + legal pages only are crawlable.
+User-agent: *
+Disallow: /epic-callback
+Disallow: /connect/start
+Disallow: /share.html
+Disallow: /how-it-works
+Disallow: /your-data
+Allow: /
+Allow: /privacy
+Allow: /terms
+
+Sitemap: https://mywellet.com/sitemap.xml
