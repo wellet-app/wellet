@@ -819,9 +819,80 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
+// ─── Email typo detection ───────────────────────────────────────────────
+// Catches common TLD + provider-name typos before we burn a Supabase OTP
+// send on a dead address. Returns either null (looks fine) or a corrected
+// suggestion string. Conservative on purpose — only suggests when we're
+// very confident, so we don't second-guess legitimate domains.
+var EMAIL_TLD_TYPOS = {
+  'con': 'com', 'cmo': 'com', 'comm': 'com', 'cim': 'com', 'cm': 'com',
+  'ner': 'net', 'nett': 'net',
+  'orgg': 'org', 'ogr': 'org',
+  'edi': 'edu', 'eud': 'edu',
+  'goc': 'gov',
+  'cok': 'co'
+};
+var EMAIL_PROVIDER_TYPOS = {
+  'gmial.com': 'gmail.com', 'gmai.com': 'gmail.com', 'gmail.co': 'gmail.com',
+  'gmaill.com': 'gmail.com', 'gnail.com': 'gmail.com', 'gmil.com': 'gmail.com',
+  'hotmial.com': 'hotmail.com', 'hotmai.com': 'hotmail.com',
+  'hotmal.com': 'hotmail.com', 'hotmali.com': 'hotmail.com',
+  'yhaoo.com': 'yahoo.com', 'yaho.com': 'yahoo.com', 'yahooo.com': 'yahoo.com',
+  'yahoo.co': 'yahoo.com',
+  'outlok.com': 'outlook.com', 'outloook.com': 'outlook.com',
+  'icoud.com': 'icloud.com', 'iclud.com': 'icloud.com', 'icloud.co': 'icloud.com'
+};
+function suggestEmailTypo(email) {
+  if (!email || email.indexOf('@') < 0) return null;
+  var parts = email.toLowerCase().split('@');
+  if (parts.length !== 2 || !parts[1]) return null;
+  var local = parts[0];
+  var domain = parts[1];
+  // Whole-domain provider match wins first.
+  if (EMAIL_PROVIDER_TYPOS[domain]) {
+    return local + '@' + EMAIL_PROVIDER_TYPOS[domain];
+  }
+  // Otherwise look at just the TLD (after last dot).
+  var lastDot = domain.lastIndexOf('.');
+  if (lastDot < 0) return null;
+  var tld = domain.slice(lastDot + 1);
+  if (EMAIL_TLD_TYPOS[tld]) {
+    return local + '@' + domain.slice(0, lastDot + 1) + EMAIL_TLD_TYPOS[tld];
+  }
+  return null;
+}
+function showEmailSuggestion(suggestion) {
+  var box = document.getElementById('auth-email-suggestion');
+  var btn = document.getElementById('auth-email-suggestion-btn');
+  if (!box || !btn) return;
+  btn.textContent = suggestion;
+  box.style.display = 'block';
+}
+function clearEmailSuggestion() {
+  var box = document.getElementById('auth-email-suggestion');
+  if (box) box.style.display = 'none';
+}
+function acceptEmailSuggestion() {
+  var btn = document.getElementById('auth-email-suggestion-btn');
+  var input = document.getElementById('auth-email');
+  if (!btn || !input) return;
+  input.value = btn.textContent;
+  clearEmailSuggestion();
+  input.focus();
+}
+
 async function sendMagicLink() {
   var email = document.getElementById('auth-email').value.trim();
   if (!email) { showToast('Please enter your email'); return; }
+
+  // Catch the .con / gmial.com class of typos before we send.
+  var suggestion = suggestEmailTypo(email);
+  if (suggestion && suggestion !== email.toLowerCase()) {
+    showEmailSuggestion(suggestion);
+    return;
+  }
+  clearEmailSuggestion();
+
   var btn = document.getElementById('auth-send-btn');
   btn.disabled = true;
   btn.textContent = 'Sending…';

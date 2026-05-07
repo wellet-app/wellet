@@ -122,7 +122,10 @@
         <div class="auth-cta-eyebrow">Get started</div>
         <div class="auth-input-wrap">
           <label class="auth-input-label" for="auth-email">Email address</label>
-          <input type="email" id="auth-email" class="auth-input" placeholder="you@email.com" autocomplete="email">
+          <input type="email" id="auth-email" class="auth-input" placeholder="you@email.com" autocomplete="email" oninput="clearEmailSuggestion()">
+          <div id="auth-email-suggestion" style="display:none;margin-top:8px;font-size:13px;line-height:1.4;color:var(--text-secondary);">
+            Did you mean <button type="button" id="auth-email-suggestion-btn" onclick="acceptEmailSuggestion()" style="background:none;border:none;padding:0;color:#608F7C;font:inherit;text-decoration:underline;cursor:pointer;"></button>?
+          </div>
         </div>
         <button class="btn-primary" onclick="sendMagicLink()" id="auth-send-btn" style="width:100%;background:var(--text-primary);">
           Send magic link <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>
@@ -2985,7 +2988,7 @@
 </div>
 
 </div><!-- end page-wrap -->
-<script src="/assets/wellet.js?v=20260507-1540"></script>
+<script src="/assets/wellet.js?v=20260507-1830"></script>
 <script src="/guided-demo.js"></script>
 <!-- CARE CIRCLE SHARE SHEET -->
 <div class="share-overlay" id="share-overlay" onclick="if(event.target===this)closeShareSheet()">
