@@ -354,6 +354,35 @@
   color: var(--ink-5);
 }
 
+/* Dark moss "Check your email" card — the inverted state needs light text
+   that wins over the editorial ink colors above. Same specificity as the
+   editorial selectors, declared after, so the cascade picks these up only
+   when the .auth-sent-card class is present. */
+#auth-screen[data-editorial="auth"] .auth-sent-card .auth-sent-icon {
+  background: rgba(255, 255, 255, 0.10);
+  color: #F2F0EA;
+}
+#auth-screen[data-editorial="auth"] .auth-sent-card .auth-sent-title {
+  color: #FFFFFF;
+}
+#auth-screen[data-editorial="auth"] .auth-sent-card .auth-sent-body {
+  color: rgba(242, 240, 234, 0.90);
+}
+#auth-screen[data-editorial="auth"] .auth-sent-card .auth-sent-body strong {
+  color: #FFFFFF;
+  font-weight: 600;
+}
+#auth-screen[data-editorial="auth"] .auth-sent-card .auth-demo-link,
+#auth-screen[data-editorial="auth"] .auth-sent-card .auth-demo-link--on-card {
+  color: rgba(242, 240, 234, 0.90);
+  text-decoration-color: rgba(242, 240, 234, 0.55);
+}
+#auth-screen[data-editorial="auth"] .auth-sent-card .auth-demo-link:hover,
+#auth-screen[data-editorial="auth"] .auth-sent-card .auth-demo-link--on-card:hover {
+  color: #FFFFFF;
+  text-decoration-color: #FFFFFF;
+}
+
 /* The waitlist ("private alpha") gate input — same editorial underline
    treatment as the magic-link input. */
 #auth-screen[data-editorial="auth"] .auth-gate-input {

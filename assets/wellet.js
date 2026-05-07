@@ -9925,10 +9925,18 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
     // C9: On the FIRST successful sync for this person, show a one-time
     // warm welcome screen with what just landed + a chart-aware sentence.
     // The overlay's CTA navigates to Records itself; subsequent syncs skip it.
+    //
+    // Step 5a exception: if the user is in the multi-source connect flow,
+    // ALWAYS show the success popup (with two CTAs: "keep going" / "stop here").
+    // The first-sync-seen flag is per-person, but in connect flow each
+    // additional source connect deserves its own confirmation \u2014 e.g. user
+    // connects EHR (popup), keeps going to connect Apple Health, would still
+    // expect a popup confirming what landed.
     if (navigateToRecords) {
-      if (!hasSeenFirstSync(personId)) {
+      var _inConnectFlowNow = (typeof _isConnectScreenActive === 'function' && _isConnectScreenActive());
+      if (_inConnectFlowNow || !hasSeenFirstSync(personId)) {
         try { openFirstSyncWelcome(personId, data); }
-        catch (e) { console.warn('first-sync welcome:', e); switchNavTo('records'); }
+        catch (e) { console.warn('first-sync welcome:', e); if (!_inConnectFlowNow) switchNavTo('records'); }
       } else {
         switchNavTo('records');
       }
@@ -14664,7 +14672,11 @@ function _firstSyncCounts(data) {
   return out;
 }
 
-// Open the one-time first-sync welcome overlay. personId + data are required.
+// Open the connect-success overlay. personId + data are required.
+// When the user is in the multi-source connect flow (Step 5a), shows two
+// CTAs: "Keep going \u2014 connect more" (return to connect cards) and
+// "Stop here \u2014 view records" (drop into the authenticated app on Records).
+// Otherwise (legacy chat-onboarding path), shows a single CTA into Records.
 function openFirstSyncWelcome(personId, data) {
   if (!personId || !data) { switchNavTo('records'); return; }
 
@@ -14676,6 +14688,11 @@ function openFirstSyncWelcome(personId, data) {
 
   var counts = _firstSyncCounts(data);
   var rightNow = buildInviteRightNow(fullName, personId);
+
+  // Are we in the multi-source connect flow? If so, the popup shows two CTAs
+  // and "Keep going" leaves the connect screen visible underneath so the user
+  // can pick the next source (Apple Health / Devices).
+  var inConnectFlow = (typeof _isConnectScreenActive === 'function' && _isConnectScreenActive());
 
   // Build the overlay
   var existing = document.getElementById('first-sync-overlay');
@@ -14706,6 +14723,17 @@ function openFirstSyncWelcome(personId, data) {
       + escHtml(rightNow) + '</div>';
   }
 
+  // CTA block: two buttons during connect flow, one during the legacy
+  // onboarding-chat path.
+  var ctaHtml;
+  if (inConnectFlow) {
+    ctaHtml =
+        '<button id="first-sync-cta-stop" style="width:100%;background:var(--moss);color:white;border:none;border-radius:12px;padding:14px;font-size:var(--type-body);font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;margin-top:18px;display:flex;align-items:center;justify-content:center;gap:8px;">Stop here \u2014 view records <i data-lucide="arrow-right" style="width:16px;height:16px;"></i></button>'
+      + '<button id="first-sync-cta-more" style="width:100%;background:transparent;color:var(--moss);border:1.5px solid var(--moss);border-radius:12px;padding:13px;font-size:var(--type-body);font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;margin-top:10px;display:flex;align-items:center;justify-content:center;gap:8px;">Keep going \u2014 connect more</button>';
+  } else {
+    ctaHtml = '<button id="first-sync-cta" style="width:100%;background:var(--moss);color:white;border:none;border-radius:12px;padding:14px;font-size:var(--type-body);font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;margin-top:18px;display:flex;align-items:center;justify-content:center;gap:8px;">Take me to the records <i data-lucide="arrow-right" style="width:16px;height:16px;"></i></button>';
+  }
+
   sheet.innerHTML =
     '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">'
     +   '<div style="width:32px;height:32px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;"><i data-lucide="check" style="width:18px;height:18px;color:var(--moss);"></i></div>'
@@ -14715,21 +14743,43 @@ function openFirstSyncWelcome(personId, data) {
     + '<div style="font-size:var(--type-body);color:var(--text-secondary);line-height:1.5;">Here\u2019s what just landed.</div>'
     + countsHtml
     + rightNowHtml
-    + '<button id="first-sync-cta" style="width:100%;background:var(--moss);color:white;border:none;border-radius:12px;padding:14px;font-size:var(--type-body);font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;margin-top:18px;display:flex;align-items:center;justify-content:center;gap:8px;">Take me to the records <i data-lucide="arrow-right" style="width:16px;height:16px;"></i></button>'
+    + ctaHtml
     + '<div style="text-align:center;margin-top:12px;font-size:var(--type-micro);color:var(--text-muted);">Wellet will keep this fresh in the background.</div>';
 
   overlay.appendChild(sheet);
   document.body.appendChild(overlay);
   initIcons();
 
-  function dismiss() {
+  // "Stop here \u2014 view records": tear down the connect-screen overlay,
+  // bring up the authenticated app, and land on Records.
+  function goToRecords() {
     markFirstSyncSeen(personId);
     overlay.remove();
-    switchNavTo('records');
+    try { if (typeof hideConnectScreen === 'function') hideConnectScreen(); } catch(_e) {}
+    try { if (typeof showAuthenticatedApp === 'function') showAuthenticatedApp(); } catch(_e) {}
+    try { switchNavTo('records'); } catch(_e) {}
   }
-  document.getElementById('first-sync-cta').addEventListener('click', dismiss);
-  // Backdrop click also dismisses (but still marks seen so we don't show again)
-  overlay.addEventListener('click', function(e) { if (e.target === overlay) dismiss(); });
+  // "Keep going \u2014 connect more": just close the popup. Connect screen is
+  // already visible underneath with the EHR card now showing \u2713.
+  function keepGoing() {
+    markFirstSyncSeen(personId);
+    overlay.remove();
+    try { if (typeof refreshConnectScreenStatus === 'function') refreshConnectScreenStatus(); } catch(_e) {}
+  }
+
+  if (inConnectFlow) {
+    var stopBtn = document.getElementById('first-sync-cta-stop');
+    var moreBtn = document.getElementById('first-sync-cta-more');
+    if (stopBtn) stopBtn.addEventListener('click', goToRecords);
+    if (moreBtn) moreBtn.addEventListener('click', keepGoing);
+    // Backdrop click is ambiguous when both options are valid \u2014 prefer
+    // "keep going" (less destructive: user stays where they were).
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) keepGoing(); });
+  } else {
+    var soloBtn = document.getElementById('first-sync-cta');
+    if (soloBtn) soloBtn.addEventListener('click', goToRecords);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) goToRecords(); });
+  }
 }
 
 function openContactEditById(memberId) {
