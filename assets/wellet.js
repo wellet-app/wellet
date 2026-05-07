@@ -11256,7 +11256,7 @@ async function renderWatchesList() {
 
   try {
     var res = await db.from('care_signal_watches')
-      .select('id, person_id, watch_type, parameters, status, created_at')
+      .select('id, person_id, watch_type, parameters, active, paused_at, description, created_at')
       .order('created_at', { ascending: false });
     var rows = (res && res.data) || [];
     if (res && res.error) {
@@ -11291,7 +11291,7 @@ async function renderWatchesList() {
     rows.forEach(function(w) {
       var friendly = _watchTypeFriendly(w.watch_type, w.parameters);
       var who = nameByPerson[w.person_id] || 'your loved one';
-      var paused = w.status === 'paused';
+      var paused = (w.active === false);
       var statusChip = paused
         ? '<span class="watch-row-status watch-row-status-paused">Paused</span>'
         : '<span class="watch-row-status watch-row-status-active">Active</span>';
@@ -11321,7 +11321,7 @@ async function renderWatchesList() {
     try { initIcons(); } catch (_e) {}
 
     // Update settings-row meta with active count
-    var activeCount = rows.filter(function(r){ return r.status !== 'paused'; }).length;
+    var activeCount = rows.filter(function(r){ return r.active !== false; }).length;
     var meta2 = document.getElementById('sv-watches-meta');
     if (meta2) {
       meta2.textContent = activeCount === 0
@@ -11337,9 +11337,11 @@ async function renderWatchesList() {
 async function toggleWatchPaused(id, shouldPause) {
   if (!db || !id) return;
   try {
-    var newStatus = shouldPause ? 'paused' : 'active';
+    var patch = shouldPause
+      ? { active: false, paused_at: new Date().toISOString() }
+      : { active: true,  paused_at: null };
     var upd = await db.from('care_signal_watches')
-      .update({ status: newStatus })
+      .update(patch)
       .eq('id', id);
     if (upd && upd.error) {
       console.error('toggleWatchPaused error', upd.error);
