@@ -1191,6 +1191,79 @@ async function chooseModeCaregiver() {
 // startEhrConnect / beginEhrOAuth: the existing OAuth state already carries
 // person_id, and ehr_connections is keyed by person_id. Same for Terra —
 // terra_connections.person_id will reference the self-person row.
+// localStorage key marking that the user is in the multi-source connect
+// flow. Persists across the OAuth round-trip (Epic redirects out and back),
+// across the Apple Health deep-link bounce, and across the Terra widget
+// navigation. When set, the EHR / Terra / Apple-Health callback handlers
+// route the user back to this screen with the completed card marked done
+// instead of dumping them on Home.
+var _CONNECT_SCREEN_FLAG_KEY = 'wellet_connect_screen_active';
+
+function _setConnectScreenActive() {
+  try { localStorage.setItem(_CONNECT_SCREEN_FLAG_KEY, '1'); } catch(_e) {}
+}
+function _isConnectScreenActive() {
+  try { return localStorage.getItem(_CONNECT_SCREEN_FLAG_KEY) === '1'; } catch(_e) { return false; }
+}
+function _clearConnectScreenActive() {
+  try { localStorage.removeItem(_CONNECT_SCREEN_FLAG_KEY); } catch(_e) {}
+}
+
+// Refresh the per-card status (✓ "Connected" vs default state) and update
+// the bottom CTA. Called on screen open, after every OAuth callback that
+// brings the user back, and after Apple Health "connected" pings.
+function refreshConnectScreenStatus() {
+  var screen = document.getElementById('connect-data-screen');
+  if (!screen || screen.style.display === 'none') return;
+
+  // EHR — any active connection on currentPersonId counts.
+  var ehrConnected = !!(typeof getEhrData === 'function' && currentPersonId && getEhrData(currentPersonId));
+  // Terra — a row in terra_connections (loaded into _terraConnections cache).
+  var terraConnected = false;
+  try {
+    if (typeof _terraConnections !== 'undefined' && _terraConnections && _terraConnections.length) {
+      terraConnected = _terraConnections.some(function(c){ return c && c.person_id === currentPersonId && c.status !== 'disconnected'; });
+    }
+  } catch(_e) {}
+  // Apple Health — we don't have a synchronous "connected" signal in the web
+  // app since the bridge runs natively. Treat "completed Wellet Connect
+  // handshake" as the marker. Stored in localStorage by the bridge callback.
+  var appleConnected = false;
+  try { appleConnected = localStorage.getItem('wellet_apple_health_connected_' + currentPersonId) === '1'; } catch(_e) {}
+
+  _markConnectCard('connect-card-ehr', ehrConnected);
+  _markConnectCard('connect-card-apple', appleConnected);
+  _markConnectCard('connect-card-terra', terraConnected);
+
+  // Update the bottom CTA: "I'll do this later" if nothing connected,
+  // "Open my Wellet" once at least one source is in place.
+  var skipBtn = document.querySelector('#connect-data-screen .connect-skip-btn');
+  if (skipBtn) {
+    var anyConnected = ehrConnected || terraConnected || appleConnected;
+    skipBtn.textContent = anyConnected ? 'Open my Wellet' : "I'll do this later";
+    skipBtn.classList.toggle('connect-skip-btn--primary', anyConnected);
+  }
+}
+
+function _markConnectCard(cardId, isConnected) {
+  var card = document.getElementById(cardId);
+  if (!card) return;
+  // Remove any prior status badge so we don't stack multiples.
+  var prior = card.querySelector('.connect-card-status');
+  if (prior) prior.remove();
+  if (isConnected) {
+    card.classList.add('is-connected');
+    var badge = document.createElement('span');
+    badge.className = 'connect-card-status';
+    badge.innerHTML = '<i data-lucide="check-circle-2"></i> Connected';
+    var chevron = card.querySelector('.connect-card-chevron');
+    if (chevron) card.insertBefore(badge, chevron);
+    else card.appendChild(badge);
+  } else {
+    card.classList.remove('is-connected');
+  }
+}
+
 function showConnectScreen() {
   var screen = document.getElementById('connect-data-screen');
   if (!screen) {
@@ -1199,6 +1272,7 @@ function showConnectScreen() {
     showAuthenticatedApp();
     return;
   }
+  _setConnectScreenActive();
   // Tag the body so masthead/nav stay hidden under the overlay.
   document.body.classList.add('connect-data-open');
   // Adjust the Apple Health sub for non-iPhone devices so the user knows
@@ -1215,6 +1289,7 @@ function showConnectScreen() {
     }
   }
   screen.style.display = 'flex';
+  refreshConnectScreenStatus();
   if (window.lucide) try { lucide.createIcons(); } catch(e) {}
 }
 
@@ -1222,6 +1297,7 @@ function hideConnectScreen() {
   var screen = document.getElementById('connect-data-screen');
   if (screen) screen.style.display = 'none';
   document.body.classList.remove('connect-data-open');
+  _clearConnectScreenActive();
 }
 
 // User taps "I'll do this later" — go to Home. Self-person row is already
@@ -1232,15 +1308,21 @@ function skipConnectScreen() {
   showAuthenticatedApp();
 }
 
-// Card click handler. Routes by source. After a successful kick-off the
-// Connect screen tears itself down so the user lands on the existing
-// connection UI (hospital picker, Wellet Connect handoff, Terra widget).
+// Card click handler. Routes by source. The connect screen flag stays set
+// so when each connect flow returns (EHR OAuth round-trip, Terra widget
+// callback, Apple Health bridge), the callback handlers route the user
+// BACK to the connect screen with the completed card marked done. They can
+// then continue with the next source or tap "Open my Wellet" to leave.
 function connectFromMeOnboarding(source) {
   if (source === 'ehr') {
-    hideConnectScreen();
+    // EHR OAuth needs the masthead/picker DOM in place. Tear down the
+    // connect screen visually but KEEP the localStorage flag set — the
+    // EHR callback uses _isConnectScreenActive() to decide whether to
+    // return here instead of routing to Records.
+    var screen = document.getElementById('connect-data-screen');
+    if (screen) screen.style.display = 'none';
+    document.body.classList.remove('connect-data-open');
     showAuthenticatedApp();
-    // Open the hospital picker on next tick so the masthead is in place
-    // before the sheet animates up.
     setTimeout(function() { try { startEhrConnect(); } catch(e) { console.error(e); } }, 60);
     return;
   }
@@ -1249,11 +1331,15 @@ function connectFromMeOnboarding(source) {
       showAppleHealthWebNotice();
       return;
     }
+    // Apple Health: deep-link bounces to native app. Connect screen flag
+    // is already set; if/when the user returns to web, we'll re-show.
     connectAppleHealth();
     return;
   }
   if (source === 'terra') {
-    hideConnectScreen();
+    var screen2 = document.getElementById('connect-data-screen');
+    if (screen2) screen2.style.display = 'none';
+    document.body.classList.remove('connect-data-open');
     showAuthenticatedApp();
     setTimeout(function() { try { openTerraConnect(); } catch(e) { console.error(e); } }, 60);
     return;
@@ -9520,6 +9606,24 @@ function handleEhrCallback() {
           p.setAttribute('aria-selected', match ? 'true' : 'false');
         });
       } catch(e) {}
+      // If the user is in the multi-source connect flow (Step 5a), route
+      // them BACK to the connect screen with the EHR card marked done so
+      // they can pick the next source (Apple Health / Devices) or hit
+      // "Open my Wellet". This takes priority over the legacy onboarding
+      // chat path below.
+      if (typeof _isConnectScreenActive === 'function' && _isConnectScreenActive()) {
+        showToast('Health records connected!');
+        var hospitalCs = data.hospital_name || data.provider || 'your hospital';
+        // Kick off the data pull in the background so it's loading while
+        // the user picks their next source.
+        try { fetchEhrData(personId, true); } catch(_e) {}
+        // Re-open the connect screen and refresh status so EHR shows ✓.
+        try { showConnectScreen(); } catch(_e) {}
+        // Clear the legacy onboarding-chat flag if it was also set so it
+        // doesn't fire later.
+        try { localStorage.removeItem('wellet_ob_ehr_return'); } catch(_e) {}
+        return;
+      }
       // Check if returning from onboarding EHR connect
       var fromOnboarding = false;
       try { fromOnboarding = localStorage.getItem('wellet_ob_ehr_return') === 'true'; localStorage.removeItem('wellet_ob_ehr_return'); } catch(e) {}
@@ -15226,11 +15330,41 @@ async function submitFeedback() {
 }
 
 // ── ALPHA WELCOME ─────────────────────────────────────────────────────────────
+// Build the adaptive "Here's how to get started" step list based on whether
+// the user is in Me mode or caregiver mode, and what they've already wired up.
+function populateWelcomeSteps() {
+  var el = document.getElementById('welcome-getting-started');
+  if (!el) return;
+  var meMode = isSelfMode();
+  var hasEhr = !!(typeof getEhrData === 'function' && currentPersonId && getEhrData(currentPersonId));
+  var steps = [];
+  if (meMode) {
+    if (!hasEhr) steps.push('Connect your hospital records or upload a document');
+    else steps.push('Upload a document \u2014 discharge summary, lab report, anything');
+    steps.push('Try <strong>Ask Wellet</strong> \u2014 ask it anything about your record');
+    steps.push('Tap <strong>Summary</strong> to see what\u2019s changed');
+  } else {
+    var hasPerson = Array.isArray(currentPeople) && currentPeople.length > 0;
+    if (!hasPerson) steps.push('Add the person you\u2019re caring for');
+    if (!hasEhr) steps.push('Connect their hospital records or upload a document');
+    else steps.push('Upload a document \u2014 discharge summary, lab report, anything');
+    steps.push('Try <strong>Ask Wellet</strong> \u2014 ask it anything about their record');
+    steps.push('Tap <strong>Summary</strong> to see what\u2019s changed');
+  }
+  var html = '';
+  for (var i = 0; i < steps.length; i++) {
+    html += '<strong style="color:var(--moss);">' + (i + 1) + '.</strong> ' + steps[i];
+    if (i < steps.length - 1) html += '<br>';
+  }
+  el.innerHTML = html;
+}
+
 function showAlphaWelcome() {
   var key = 'wellet_welcome_shown_' + (currentUser ? currentUser.id : 'anon');
   if (localStorage.getItem(key)) return;
   localStorage.setItem(key, 'true');
   setTimeout(function() {
+    populateWelcomeSteps();
     openSheetAccessible('welcome-overlay');
     initIcons();
   }, 600);
@@ -16958,6 +17092,20 @@ function obShowAppCTA() {
 async function obFinishAndOpen() {
   obChat.phase = 'done';
   obSaveChatState();
+  // Unified Step 5a: route caregiver-mode users through the same multi-source
+  // connect screen Myself-mode users see (Hospital / Apple Health / Devices
+  // with \u2713 checkmarks). The caregiver-mode person was already created
+  // upstream so currentPersonId is set. If anything went wrong and we have
+  // no person yet, fall back to the legacy Home redirect.
+  try {
+    if (currentPeople && currentPeople.length > 0 && typeof showConnectScreen === 'function') {
+      currentPersonId = currentPeople[currentPeople.length - 1].id;
+      try { await loadPersonData(currentPersonId); } catch(_e) {}
+      showApp();
+      showConnectScreen();
+      return;
+    }
+  } catch(_e) { console.warn('connect-screen route from caregiver finish failed:', _e); }
   showOwnWellet();
 }
 
@@ -19547,6 +19695,11 @@ function _onTerraAuthSuccessInParent(payload) {
     invalidateSignalsCache(payload.person_id);
     showToast('Wearable connected successfully', 'success');
     if (typeof renderSignalsView === 'function') { try { renderSignalsView(); } catch(e){} }
+    // Higher priority: if onboarding connect screen is active, return user to it with \u2713
+    if (typeof _isConnectScreenActive === 'function' && _isConnectScreenActive()) {
+      try { showConnectScreen(); } catch(e) { console.warn('[Terra] showConnectScreen failed:', e); }
+      return;
+    }
     if (obChat && obChat.phase === 'connect') {
       obOnDeviceConnected(payload.provider || 'your device');
     }

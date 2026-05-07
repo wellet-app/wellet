@@ -21,7 +21,7 @@
 <script src="/lucide.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<link rel="stylesheet" href="/assets/wellet.css?v=20260501-1900">
+<link rel="stylesheet" href="/assets/wellet.css?v=20260507-1200">
 <link rel="stylesheet" href="/assets/editorial-foundation.css">
 <link rel="stylesheet" href="/assets/editorial-auth.css">
 <link rel="stylesheet" href="/assets/editorial-updates.css">
@@ -435,6 +435,10 @@
         <button class="header-menu-item" onclick="closeHeaderMenu();switchNavTo('resources')">
           <span class="header-menu-icon"><i data-lucide="book-open" style="width:16px;height:16px;"></i></span>
           <span>Resources</span>
+        </button>
+        <button class="header-menu-item" onclick="closeHeaderMenu();showConnectScreen()">
+          <span class="header-menu-icon"><i data-lucide="link" style="width:16px;height:16px;"></i></span>
+          <span>Set up connections</span>
         </button>
         <div class="header-menu-divider"></div>
         <button class="header-menu-item" onclick="closeHeaderMenu();openFeedbackSheet()">
@@ -2234,17 +2238,14 @@
       <div style="width:56px;height:56px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;"><i data-lucide="heart-handshake" style="width:28px;height:28px;color:var(--moss);"></i></div>
       <div style="font-family: var(--serif);font-size:var(--type-h1);margin-bottom:8px;">Welcome to Wellet</div>
       <p style="font-size:var(--type-body);line-height:1.65;color:var(--text-secondary);margin-bottom:16px;">You're one of the very first people to use this. Wellet has been in my head for years, but the app you're looking at is less than a month old.</p>
-      <p style="font-size:var(--type-body);line-height:1.65;color:var(--text-secondary);margin-bottom:20px;"><strong style="color:var(--text-primary);">That means there will be bugs.</strong> I'm asking, begging you: if something breaks or feels off, tap the bug icon in the header and tell me. Every report makes Wellet better for every caregiver who comes next.</p>
+      <p style="font-size:var(--type-body);line-height:1.65;color:var(--text-secondary);margin-bottom:20px;"><strong style="color:var(--text-primary);">That means there will be bugs.</strong> I'm asking, begging you: if something breaks or feels off, tap the menu (<strong>•••</strong>) and choose <strong>Report a bug</strong>. Every report makes Wellet better for every caregiver who comes next.</p>
       <div style="background:var(--cream);border-radius:12px;padding:16px;text-align:left;margin-bottom:20px;">
         <div style="font-size:var(--type-meta);font-weight:500;color:var(--text-primary);margin-bottom:10px;">Here's how to get started:</div>
-        <div style="font-size:var(--type-meta);color:var(--text-secondary);line-height:1.7;">
-          <strong style="color:var(--moss);">1.</strong> Add a family member you're caring for<br>
-          <strong style="color:var(--moss);">2.</strong> Upload a document — discharge summary, lab report, anything<br>
-          <strong style="color:var(--moss);">3.</strong> Try <strong>Ask Wellet</strong> — ask it anything about the record you uploaded<br>
-          <strong style="color:var(--moss);">4.</strong> Tap <strong>Summary</strong> to see what's changed
+        <div id="welcome-getting-started" style="font-size:var(--type-meta);color:var(--text-secondary);line-height:1.7;">
+          <!-- populated by populateWelcomeSteps() based on app_mode + connections -->
         </div>
       </div>
-      <button class="btn-primary" style="width:100%;font-size:var(--type-body);padding:14px;" onclick="dismissWelcome()">
+      <button class="btn-primary" style="width:100%;font-size:var(--type-body);padding:14px;display:block;margin:0 auto;" onclick="dismissWelcome()">
         Let's go
       </button>
     </div>
