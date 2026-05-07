@@ -94,7 +94,9 @@ Deno.serve(async (req) => {
 
     // Email Betsy
     const smtpHost = Deno.env.get("BREVO_SMTP_HOST") || "smtp-relay.brevo.com";
-    const smtpPort = parseInt(Deno.env.get("BREVO_SMTP_PORT") || "587", 10);
+    // Hardcoded to 465 (implicit TLS / SMTPS). denomailer 1.6 + tls:true on 587
+    // produces InvalidContentType. 465 + tls:true is the working combo.
+    const smtpPort = 465;
     const smtpUser = Deno.env.get("BREVO_SMTP_USER") || "";
     const smtpPass = Deno.env.get("BREVO_SMTP_KEY") || "";
 
@@ -103,7 +105,7 @@ Deno.serve(async (req) => {
         connection: {
           hostname: smtpHost,
           port: smtpPort,
-          tls: false,
+          tls: true,
           auth: { username: smtpUser, password: smtpPass },
         },
       });
@@ -154,7 +156,8 @@ ${signedScreenshotUrl ? `Screenshot: ${signedScreenshotUrl}` : ""}`;
 
       try {
         await client.send({
-          from: "Wellet Bugs <notifications@mywellet.com>",
+          // hello@getwellet.com is the verified Brevo sender; mywellet.com isn't domain-auth'd yet.
+          from: "Wellet Bugs <hello@getwellet.com>",
           to: SUPPORT_EMAIL,
           replyTo: user.email || undefined,
           subject,

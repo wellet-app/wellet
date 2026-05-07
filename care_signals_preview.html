@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Care Signals v1 — UI preview</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<style>
+  :root {
+    --serif: 'Fraunces', Georgia, serif;
+    --sans: 'Inter', system-ui, sans-serif;
+    --moss: #3D5C49;
+    --moss-deep: #2F4A3A;
+    --red: #B5462A;
+    --ink-1: #ECEAE4;
+    --ink-2: #BFB9AE;
+    --ink-5: #76685B;
+    --ink-7: #2B2A28;
+    --paper: #FBF8F1;
+    --type-meta: 12px;
+    --type-body: 15px;
+    --text-secondary: #76685B;
+  }
+  body {
+    margin: 0;
+    background: var(--paper);
+    font-family: var(--sans);
+    color: var(--ink-7);
+    padding: 24px;
+  }
+  h1 {
+    font-family: var(--serif);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    margin: 0 0 6px;
+  }
+  .preview-sub {
+    color: var(--ink-5);
+    margin: 0 0 28px;
+    font-size: 14px;
+  }
+  .preview-section {
+    margin-bottom: 36px;
+  }
+  .preview-section h2 {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 500;
+    margin: 0 0 12px;
+    letter-spacing: -0.01em;
+  }
+  .signals-section-title {
+    font-family: var(--serif);
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--ink-7);
+    margin-bottom: 4px;
+  }
+  .wearable-sync {
+    margin-left: 8px;
+    color: var(--ink-5);
+    font-size: 12px;
+    font-weight: 400;
+  }
+  .signals-section-sub {
+    font-size: 13px;
+    color: var(--ink-5);
+    margin-bottom: 14px;
+  }
+  .wearable-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+  }
+  .wearable-card {
+    background: #fff;
+    border: 1px solid var(--ink-1);
+    border-radius: 14px;
+    padding: 16px;
+  }
+  .signals-label {
+    font-size: 12px;
+    color: var(--ink-5);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .signals-metric {
+    font-family: var(--serif);
+    font-size: 32px;
+    font-weight: 500;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+  .signals-metric-sm {
+    font-size: 12px;
+    color: var(--ink-5);
+    margin-top: 4px;
+  }
+  .wearable-sparkline {
+    margin: 8px 0 4px;
+    color: var(--red);
+  }
+
+  /* ============================================================================
+   * CARE SIGNALS v1 — copied from editorial-ask.css for preview
+   * ========================================================================== */
+
+  .wearable-pill-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--ink-1, #ECEAE4);
+    flex-wrap: wrap;
+  }
+
+  .wearable-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-family: var(--sans, system-ui, sans-serif);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1;
+    color: var(--ink-7, #2B2A28);
+    background: #F5F3EE;
+    border: 1px solid #E2DDD2;
+    cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease;
+  }
+  .wearable-pill:hover { background: #ECE7DA; border-color: #D6CFBE; }
+
+  .wearable-pill-notify {
+    background: #FFF6E2;
+    border-color: #F0DCA9;
+    color: #6B4F12;
+  }
+  .wearable-pill-notify:hover { background: #FBEFCC; border-color: #E6CD8A; }
+
+  .wearable-pill-share {
+    background: #EDF3EE;
+    border-color: #CDE0D2;
+    color: var(--moss-deep, #2F4A3A);
+  }
+  .wearable-pill-share:hover { background: #DCE9E0; border-color: #B7D2BF; }
+
+  /* Context chip */
+  .ask-context-chip-watch {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    padding: 6px 10px;
+    background: #FFF4E0;
+    border: 1px solid #F0D9A8;
+    border-radius: 999px;
+    font-size: var(--type-meta);
+    color: #7A5A1F;
+  }
+  .ask-context-chip-about {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: #E8F5EE;
+    border: 1px solid #C8E0D2;
+    border-radius: 999px;
+    font-size: var(--type-meta);
+    color: var(--moss);
+  }
+
+  /* Watch proposal card */
+  .watch-proposal-card {
+    margin: 4px 0;
+    padding: 14px 16px;
+    background: #FFFBF0;
+    border: 1px solid #F0DCA9;
+    border-radius: 14px;
+    font-family: var(--sans, system-ui, sans-serif);
+    max-width: 460px;
+  }
+  .watch-proposal-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .watch-proposal-title {
+    font-family: var(--serif, 'Fraunces', Georgia, serif);
+    font-size: 15px;
+    font-weight: 500;
+    color: #4A360E;
+    letter-spacing: -0.01em;
+  }
+  .watch-conf {
+    margin-left: auto;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1.4;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .watch-conf-low  { background: #F5EFE2; color: #7A5A1F; border: 1px solid #E5D7B0; }
+  .watch-conf-med  { background: #EAF1E5; color: #3F6132; border: 1px solid #C9DDC0; }
+  .watch-conf-high { background: #DBE9D1; color: #2C4D24; border: 1px solid #B0CDA1; }
+  .watch-proposal-body {
+    font-size: 14px;
+    line-height: 1.45;
+    color: #2B2A28;
+    margin-bottom: 8px;
+  }
+  .watch-proposal-meta {
+    font-size: 12px;
+    line-height: 1.4;
+    color: #76685B;
+    margin-bottom: 12px;
+  }
+  .watch-proposal-actions { display: flex; gap: 8px; }
+  .watch-btn {
+    padding: 8px 16px;
+    border-radius: 999px;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .watch-btn-primary {
+    background: var(--moss-deep);
+    color: #fff;
+    border-color: var(--moss-deep);
+  }
+  .watch-btn-secondary {
+    background: transparent;
+    color: var(--moss-deep);
+    border-color: #C9D5CD;
+  }
+
+  /* Lucide icon sizing */
+  .wearable-pill-icon, .wearable-pill svg { width: 12px; height: 12px; flex-shrink: 0; }
+  .watch-proposal-icon, .watch-proposal-card svg { width: 16px; height: 16px; flex-shrink: 0; color: #B68A2A; }
+  .watch-proposal-icon.watch-proposal-icon-saved { color: #3F6132; }
+  .watch-proposal-card-saved { background: #F4F8F0; border-color: #C8DDB7; }
+  .watch-proposal-card-saved .watch-proposal-title { color: #2C4D24; }
+  .ask-context-chip-watch svg, .ask-context-chip-about svg { width: 12px; height: 12px; flex-shrink: 0; }
+  .chip {
+    display: inline-block;
+    margin: 0 6px 6px 0;
+    padding: 7px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--ink-1);
+    background: #fff;
+    font-family: var(--sans);
+    font-size: 12.5px;
+    color: var(--ink-7);
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+  <h1>Care Signals v1 — visual preview</h1>
+  <p class="preview-sub">What you'd see in the real Signals view (the demo renderer is intentionally untouched).</p>
+
+  <div class="preview-section">
+    <h2>1 · Wearable cards with new pills</h2>
+    <div class="signals-section-title">Apple Watch · Mom <span class="wearable-sync">12 min ago</span></div>
+    <div class="signals-section-sub">Live wearable data</div>
+    <div class="wearable-grid">
+
+      <!-- Heart rate -->
+      <div class="wearable-card">
+        <div class="signals-label">Heart rate</div>
+        <div class="signals-metric">72 <span style="font-size:var(--type-body);font-weight:400;color:var(--text-secondary);">bpm</span></div>
+        <div class="wearable-sparkline">
+          <svg width="120" height="28" viewBox="0 0 120 28">
+            <polyline fill="none" stroke="currentColor" stroke-width="1.5"
+                      points="0,18 12,16 24,20 36,14 48,12 60,15 72,13 84,17 96,14 108,11 120,13"/>
+          </svg>
+        </div>
+        <div class="signals-metric-sm">58–104 range</div>
+        <div class="signals-metric-sm">Resting: 64 bpm</div>
+        <div class="wearable-pill-row">
+          <button class="wearable-pill wearable-pill-share"><i data-lucide="share-2"></i><span>Share</span></button>
+          <button class="wearable-pill wearable-pill-notify"><i data-lucide="bell"></i><span>Notify me</span></button>
+        </div>
+      </div>
+
+      <!-- Steps -->
+      <div class="wearable-card">
+        <div class="signals-label">Steps</div>
+        <div class="signals-metric">3,420</div>
+        <div class="signals-metric-sm">57% of goal</div>
+        <div class="signals-metric-sm">186 active cal</div>
+        <div class="signals-metric-sm">1.6 mi</div>
+        <div class="wearable-pill-row">
+          <button class="wearable-pill wearable-pill-share"><i data-lucide="share-2"></i><span>Share</span></button>
+          <button class="wearable-pill wearable-pill-notify"><i data-lucide="bell"></i><span>Notify me</span></button>
+        </div>
+      </div>
+
+      <!-- Sleep -->
+      <div class="wearable-card">
+        <div class="signals-label">Sleep</div>
+        <div class="signals-metric">6h 42m</div>
+        <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;margin:8px 0;">
+          <div style="flex:1.5;background:#2F4A3A;"></div>
+          <div style="flex:3;background:#5C7B68;"></div>
+          <div style="flex:1;background:#9CB5A4;"></div>
+          <div style="flex:0.4;background:#D6CFBE;"></div>
+        </div>
+        <div class="signals-metric-sm">11:14 PM – 5:56 AM</div>
+        <div class="wearable-pill-row">
+          <button class="wearable-pill wearable-pill-share"><i data-lucide="share-2"></i><span>Share</span></button>
+          <button class="wearable-pill wearable-pill-notify"><i data-lucide="bell"></i><span>Notify me</span></button>
+        </div>
+      </div>
+
+      <!-- SpO2 (no notify pill) -->
+      <div class="wearable-card">
+        <div class="signals-label">Blood oxygen</div>
+        <div class="signals-metric">97<span style="font-size:var(--type-body);font-weight:400;">%</span></div>
+        <div style="display:flex;align-items:center;gap:4px;margin-top:4px;">
+          <span style="width:8px;height:8px;border-radius:50%;background:var(--moss);display:inline-block;"></span>
+          <span class="signals-metric-sm">94–99% range</span>
+        </div>
+        <div style="margin-top:10px;font-size:11px;color:var(--ink-5);font-style:italic;">No "Notify me" pill on SpO2 (your decision)</div>
+      </div>
+
+      <!-- HRV (no notify pill) -->
+      <div class="wearable-card">
+        <div class="signals-label">HRV</div>
+        <div class="signals-metric">38 <span style="font-size:var(--type-body);font-weight:400;color:var(--text-secondary);">ms</span></div>
+        <div class="signals-metric-sm">Heart rate variability</div>
+        <div style="margin-top:10px;font-size:11px;color:var(--ink-5);font-style:italic;">No "Notify me" pill on HRV (your decision)</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="preview-section">
+    <h2>2 · Ask Wellet "Watching:" context chip (after tapping Notify me on heart rate)</h2>
+    <div class="ask-context-chip-watch">
+      <i data-lucide="bell"></i>
+      <span>Watching: heart rate · Mom</span>
+      <button style="background:none;border:none;padding:0 0 0 4px;cursor:pointer;color:#7A5A1F;display:flex;align-items:center;"><i data-lucide="x"></i></button>
+    </div>
+    <div style="margin-top:14px;">
+      <button class="chip">Notice if Mom's resting heart rate stays above 90 for 3 days</button>
+      <button class="chip">Notice if resting heart rate runs 10 bpm above their usual</button>
+      <button class="chip">Notice if heart rate is unusually high this week</button>
+    </div>
+    <p style="font-size:12px;color:var(--ink-5);margin-top:10px;">For comparison, the existing "About:" chip (record-card flow) is unchanged:</p>
+    <div class="ask-context-chip-about">
+      <i data-lucide="link"></i>
+      <span>About: Lipitor · 20mg · May 2</span>
+      <button style="background:none;border:none;padding:0 0 0 4px;cursor:pointer;color:var(--moss);display:flex;align-items:center;"><i data-lucide="x"></i></button>
+    </div>
+  </div>
+
+  <div class="preview-section">
+    <h2>3 · Watch proposal card (rendered in chat after ask-wellet v24 returns)</h2>
+    <div class="watch-proposal-card">
+      <div class="watch-proposal-head">
+        <i data-lucide="bell" class="watch-proposal-icon"></i>
+        <span class="watch-proposal-title">Here's what I'll watch for</span>
+        <span class="watch-conf watch-conf-med">Pretty sure</span>
+      </div>
+      <div class="watch-proposal-body">I'll let you know if Mom's resting heart rate stays above 90 bpm for 3 days in a row.</div>
+      <div class="watch-proposal-meta">You'll get an email when it happens. You can stop or change this anytime in Settings.</div>
+      <div class="watch-proposal-actions">
+        <button class="watch-btn watch-btn-primary">Confirm</button>
+        <button class="watch-btn watch-btn-secondary">Adjust</button>
+      </div>
+    </div>
+
+    <div style="height:14px"></div>
+
+    <div class="watch-proposal-card watch-proposal-card-saved">
+      <div class="watch-proposal-head">
+        <i data-lucide="check-circle-2" class="watch-proposal-icon watch-proposal-icon-saved"></i>
+        <span class="watch-proposal-title">All set — I'm watching for this now.</span>
+      </div>
+      <div class="watch-proposal-meta">You can review or stop it anytime under Settings › What I'm watching.</div>
+    </div>
+  </div>
+  <script>
+    window.addEventListener('load', function(){
+      try { lucide.createIcons(); } catch(e){ console.error(e); }
+    });
+  </script>
+</body>
+</html>

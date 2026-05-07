@@ -14,7 +14,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
-const FROM_ADDRESS = "Wellet <hello@mywellet.com>";
+// Brevo verified senders for this account: betsy.eble@gmail.com and
+// hello@getwellet.com. Anything else (notifications@mywellet.com etc.) is
+// rejected by Brevo's MTA after SMTP accept. Use the verified marketing
+// address until mywellet.com domain auth is set up in Brevo (DKIM/SPF).
+const FROM_ADDRESS = "Wellet <hello@getwellet.com>";
 
 // ---- Validation helpers ----
 
@@ -474,7 +478,11 @@ Deno.serve(async (req: Request) => {
   if (email && emailConsent) {
     const sendWithTimeout = async () => {
       const smtpHost = Deno.env.get("BREVO_SMTP_HOST") || "smtp-relay.brevo.com";
-      const smtpPort = parseInt(Deno.env.get("BREVO_SMTP_PORT") || "587", 10);
+      // Hardcoded to 465 (implicit TLS / SMTPS). Brevo supports 465 + 587,
+      // but denomailer 1.6 + tls:true on 587 produces an InvalidContentType
+      // error because 587 expects STARTTLS handshake. We deliberately ignore
+      // BREVO_SMTP_PORT here so a stale 587 secret can't break sends.
+      const smtpPort = 465;
       const smtpUser = Deno.env.get("BREVO_SMTP_USER") || "";
       const smtpPass = Deno.env.get("BREVO_SMTP_KEY") || "";
       if (smtpUser && smtpPass) {
@@ -496,6 +504,7 @@ Deno.serve(async (req: Request) => {
           from: FROM_ADDRESS,
           to: email,
           subject: "What Wellet would notice for you",
+          content: "auto",
           html:
             `<div style="max-width: 600px; margin: 0 auto; font-family: 'DM Sans', system-ui, sans-serif; color: #2d3a35;">
                <h1 style="font-family: 'Fraunces', Georgia, serif; font-weight: 400; font-size: 32px; line-height: 1.2;">Here's what Wellet would notice for you.</h1>
@@ -520,7 +529,16 @@ Deno.serve(async (req: Request) => {
         new Promise((_, rej) => setTimeout(() => rej(new Error("smtp timeout")), 12000)),
       ]);
     } catch (smtpErr) {
-      console.error("scorecard email send failed (non-fatal)", smtpErr);
+      const msg = smtpErr instanceof Error ? smtpErr.message : String(smtpErr);
+      console.error("scorecard email send failed (non-fatal)", msg);
+      // Stash the failure on the row so we can see it in the table without
+      // hunting through edge-function logs. Best-effort.
+      try {
+        await supabase
+          .from("scorecard_responses")
+          .update({ email_error: msg.substring(0, 500) })
+          .eq("id", inserted.id);
+      } catch (_) { /* ignore */ }
     }
   }
 

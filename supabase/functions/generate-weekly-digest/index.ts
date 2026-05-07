@@ -27,7 +27,9 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const OPENAI_KEY = Deno.env.get("OPENAI_API_KEY") || "";
 const SMTP_HOST = Deno.env.get("BREVO_SMTP_HOST") || "smtp-relay.brevo.com";
-const SMTP_PORT = parseInt(Deno.env.get("BREVO_SMTP_PORT") || "587", 10);
+// Hardcoded to 465 (implicit TLS / SMTPS). denomailer 1.6 + tls:true on 587
+// produces InvalidContentType (587 expects STARTTLS, not implicit TLS).
+const SMTP_PORT = 465;
 const SMTP_USER = Deno.env.get("BREVO_SMTP_USER") || "";
 const SMTP_PASS = Deno.env.get("BREVO_SMTP_KEY") || "";
 
@@ -286,7 +288,8 @@ async function runForUser(
   });
 
   await client.send({
-    from: "Wellet <notifications@mywellet.com>",
+    // hello@getwellet.com is verified in Brevo; mywellet.com domain isn't auth'd yet.
+    from: "Wellet <hello@getwellet.com>",
     to: userEmail,
     subject,
     content: "auto",

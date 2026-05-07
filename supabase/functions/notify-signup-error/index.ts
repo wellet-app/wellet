@@ -1,7 +1,7 @@
 // notify-signup-error: invoked by a Postgres trigger whenever a row with
 // severity='critical' lands in public.signup_error_log. Sends an immediate
 // email to betsy.eble@gmail.com via Brevo SMTP, mirroring the proven
-// send-bug-report SMTP wiring exactly (denomailer 1.6.0, port 587, tls:false).
+// send-bug-report SMTP wiring exactly (denomailer 1.6.0, port 465, tls:true).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
@@ -78,7 +78,9 @@ Deno.serve(async (req) => {
     }
 
     const smtpHost = Deno.env.get("BREVO_SMTP_HOST") || "smtp-relay.brevo.com";
-    const smtpPort = parseInt(Deno.env.get("BREVO_SMTP_PORT") || "587", 10);
+    // Hardcoded to 465 (implicit TLS / SMTPS). denomailer 1.6 + tls:true on 587
+    // produces InvalidContentType. 465 + tls:true is the working combo.
+    const smtpPort = 465;
     const smtpUser = Deno.env.get("BREVO_SMTP_USER") || "";
     const smtpPass = Deno.env.get("BREVO_SMTP_KEY") || "";
 
@@ -93,7 +95,7 @@ Deno.serve(async (req) => {
       connection: {
         hostname: smtpHost,
         port: smtpPort,
-        tls: false,
+        tls: true,
         auth: { username: smtpUser, password: smtpPass },
       },
     });
@@ -125,7 +127,8 @@ Deno.serve(async (req) => {
 
     try {
       await client.send({
-        from: "Wellet Alerts <notifications@mywellet.com>",
+        // hello@getwellet.com is the verified Brevo sender; mywellet.com isn't domain-auth'd yet.
+        from: "Wellet Alerts <hello@getwellet.com>",
         to: SUPPORT_EMAIL,
         subject,
         content: textBody,

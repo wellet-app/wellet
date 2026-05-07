@@ -1173,6 +1173,70 @@ async function chooseModeMe() {
   }
 }
 
+// User picked "Both". Schema only has me/caregiver, so we map Both → caregiver
+// (the more permissive mode — supports multiple people including a self row)
+// and AUTO-CREATE the self-person up front, then run the caregiver onboarding
+// flow so the user names their loved one. End result: profile.app_mode =
+// 'caregiver', people table has a self row + a loved-one row, and Step 5a
+// connect screen runs against the loved-one (the most recently added person,
+// matching obFinishAndOpen's last-of-currentPeople pick).
+async function chooseModeBoth() {
+  if (!currentUser) {
+    console.error('chooseModeBoth called without currentUser');
+    return;
+  }
+  var btnEl = document.querySelector('.mode-btn--both');
+  if (btnEl) btnEl.disabled = true;
+  try {
+    appMode = 'caregiver';
+    var { error: profileErr } = await db.from('profiles')
+      .update({ app_mode: 'caregiver' })
+      .eq('id', currentUser.id);
+    if (profileErr) {
+      console.error('Failed to write app_mode=caregiver (Both):', profileErr);
+      showToast('Could not save your choice \u2014 please try again');
+      appMode = null;
+      if (btnEl) btnEl.disabled = false;
+      return;
+    }
+    // Auto-create the self-person row — same shape as chooseModeMe, but we
+    // do NOT route to Step 5a yet. Caregiver onboarding chat needs to run
+    // first so the user can name + describe their loved one.
+    var firstName =
+      (currentUser.user_metadata && currentUser.user_metadata.full_name && currentUser.user_metadata.full_name.split(' ')[0])
+      || (currentUser.email && currentUser.email.split('@')[0])
+      || 'Me';
+    var { data: selfPerson, error: insertErr } = await db.from('people').insert({
+      user_id: currentUser.id,
+      name: firstName,
+      relationship: 'self',
+      is_self: true,
+      care_status: 'active'
+    }).select().single();
+    if (insertErr || !selfPerson) {
+      console.error('Failed to create self-person row in Both:', insertErr);
+      showToast('Could not finish setup \u2014 please try again');
+      try { await db.from('profiles').update({ app_mode: null }).eq('id', currentUser.id); } catch(e) {}
+      appMode = null;
+      if (btnEl) btnEl.disabled = false;
+      return;
+    }
+    currentPeople = [selfPerson];
+    setCurrentPersonId(selfPerson.id);
+    applyPersonBg(currentPersonId);
+    try { await loadPersonData(currentPersonId); } catch(_e) {}
+    hideModeQuestion();
+    // Run the existing caregiver chat. When it finishes, obFinishAndOpen
+    // will pick currentPeople[last] (the loved one we\u2019re about to add)
+    // and route through Step 5a connect screen.
+    showOnboarding();
+  } catch (e) {
+    console.error('chooseModeBoth failed:', e);
+    showToast('Something went wrong \u2014 please try again');
+    if (btnEl) btnEl.disabled = false;
+  }
+}
+
 // User picked "Someone I care for". Persist mode, then run the existing
 // caregiver onboarding flow unchanged.
 async function chooseModeCaregiver() {

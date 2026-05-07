@@ -10,7 +10,8 @@ import { getCorsHeaders } from "../_shared/cors.ts";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const SUPPORT_TO = "support@getwellet.com";
-const FROM_ADDRESS = "Wellet <notifications@mywellet.com>";
+// hello@getwellet.com is the verified Brevo sender; mywellet.com isn't domain-auth'd yet.
+const FROM_ADDRESS = "Wellet <hello@getwellet.com>";
 
 const ALLOWED_ISSUE_TYPES = new Set([
   "not_found",
@@ -125,7 +126,9 @@ Deno.serve(async (req) => {
     // Fire email to support — non-blocking on user response. If SMTP fails,
     // we still 200 the user; the row is persisted and we can alert later.
     const smtpHost = Deno.env.get("BREVO_SMTP_HOST") || "smtp-relay.brevo.com";
-    const smtpPort = parseInt(Deno.env.get("BREVO_SMTP_PORT") || "587", 10);
+    // Hardcoded to 465 (implicit TLS / SMTPS). denomailer 1.6 + tls:true on 587
+    // produces InvalidContentType. 465 + tls:true is the working combo.
+    const smtpPort = 465;
     const smtpUser = Deno.env.get("BREVO_SMTP_USER") || "";
     const smtpPass = Deno.env.get("BREVO_SMTP_KEY") || "";
 
