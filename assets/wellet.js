@@ -992,6 +992,96 @@ async function handleLogout() {
   showToast('Signed out');
 }
 
+// ── RESET ONBOARDING (alpha tester escape hatch) ──────────────────────────
+// Wipes server-side state for the signed-in user so they can re-run setup
+// from the mode question. Cascades through people \u2192 ehr_connections,
+// terra_connections, medications, allergies, lab_results, conditions,
+// documents, care_circle_*, etc. (FKs are CASCADE on people.)
+//
+// Two extra tables don't have FKs and are cleared explicitly: ehr_sync_log
+// and care_archives.
+//
+// After the wipe we sign out and land on the auth screen so the user can
+// magic-link back in and start fresh from the mode question.
+async function resetOnboarding() {
+  if (!currentUser) {
+    showToast('Not signed in \u2014 use Sign out instead');
+    return;
+  }
+  var ok = window.confirm(
+    'Reset onboarding?\n\n'
+    + 'This will permanently delete every person, record, connection, '
+    + 'document, and care-circle contact on your account, then sign you '
+    + 'out so you can start setup from scratch.\n\n'
+    + 'There is no undo.'
+  );
+  if (!ok) return;
+
+  var userId = currentUser.id;
+  try {
+    showToast('Resetting your account\u2026');
+    // 1. Cascading delete: removing people takes ehr_connections,
+    //    terra_connections, medications, allergies, lab_results,
+    //    conditions, documents, vitals, wearable_observations,
+    //    care_circle_*, check_ins, notifications, etc. with it.
+    var pErr = (await db.from('people').delete().eq('user_id', userId)).error;
+    if (pErr) console.warn('reset: people delete error', pErr);
+    // 2. Tables without an FK to people \u2014 wipe by user_id directly.
+    try { await db.from('ehr_sync_log').delete().eq('user_id', userId); } catch(e) { console.warn('reset: ehr_sync_log', e); }
+    try { await db.from('care_archives').delete().eq('user_id', userId); } catch(e) { console.warn('reset: care_archives', e); }
+    // 3. Drop app_mode so the next sign-in lands on the mode question.
+    var mErr = (await db.from('profiles').update({ app_mode: null }).eq('id', userId)).error;
+    if (mErr) console.warn('reset: profile app_mode error', mErr);
+  } catch (e) {
+    console.error('resetOnboarding failed:', e);
+    showToast('Reset failed \u2014 please try again');
+    return;
+  }
+
+  // 4. Local state \u2014 clear all PHI, onboarding chat, connect-screen flag,
+  //    first-sync flags, and per-person caches.
+  try {
+    clearPhiFromStorage();
+    var keysToScrub = [];
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (k && (
+        k === 'wellet_ob_chat' ||
+        k === 'wellet_connect_screen_active' ||
+        k === 'wellet_ob_ehr_return' ||
+        k === 'wellet_ob_ehr_hospital' ||
+        k === 'wellet_ehr_pending_person' ||
+        k === 'welletPhase2' ||
+        k.indexOf('wellet_first_sync_seen_') === 0 ||
+        k.indexOf('wellet_apple_health_connected_') === 0
+      )) {
+        keysToScrub.push(k);
+      }
+    }
+    keysToScrub.forEach(function(key) { try { localStorage.removeItem(key); } catch(_e) {} });
+  } catch (e) { /* localStorage unavailable */ }
+
+  // 5. Sign out so re-auth runs the full boot path (loadUserData \u2192
+  //    showModeQuestion since profile.app_mode is now null).
+  try { await db.auth.signOut(); } catch(e) {}
+  isDemoMode = false;
+  currentUser = null;
+  currentPeople = [];
+  currentPersonId = null;
+  appMode = null;
+  liveEvents = [];
+  liveMeds = [];
+  liveDocs = [];
+  liveCareCircle = [];
+  summaryCache = {};
+  ehrCache = {};
+  _emergencyBriefCache = {};
+  if (_audioPlayer) { _audioPlayer.pause(); _audioPlayer = null; }
+  closeSettings();
+  showAuthScreen();
+  showToast('Reset complete \u2014 sign in to start fresh');
+}
+
 // ── PHI STORAGE CLEANUP ───────────────────────────────────────────────────────
 function clearPhiFromStorage() {
   try {
