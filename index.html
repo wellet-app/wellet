@@ -23,7 +23,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <link rel="stylesheet" href="/assets/wellet.css?v=20260507-1200">
 <link rel="stylesheet" href="/assets/editorial-foundation.css">
-<link rel="stylesheet" href="/assets/editorial-auth.css?v=20260507-1410">
+<link rel="stylesheet" href="/assets/editorial-auth.css?v=20260507-1515">
 <link rel="stylesheet" href="/assets/editorial-updates.css">
 <link rel="stylesheet" href="/assets/editorial-records.css?v=20260501-1550">
 <link rel="stylesheet" href="/assets/editorial-ask.css?v=20260501-1635">
@@ -156,49 +156,8 @@
         </button>
       </div>
     </div>
-    <div id="auth-gate-state" class="auth-gate">
-      <div class="auth-gate-icon"><i data-lucide="lock" style="width:24px;height:24px;"></i></div>
-      <div class="auth-gate-title">Private alpha</div>
-      <p class="auth-gate-body">Wellet is in private alpha right now. A few quick questions help us get you in faster — we let people in based on whether their hospital is ready, not first-come-first-served.</p>
-      <div id="auth-gate-form">
-        <div class="auth-gate-input-wrap">
-          <label for="auth-gate-email" class="auth-gate-input-label">Email address</label>
-          <input type="email" id="auth-gate-email" class="auth-gate-input" placeholder="you@email.com" autocomplete="email">
-        </div>
-        <div class="auth-gate-input-wrap" style="margin-top:12px;">
-          <label for="auth-gate-hospital" class="auth-gate-input-label">Hospital or health system</label>
-          <input type="text" id="auth-gate-hospital" class="auth-gate-input" placeholder="e.g. Duke Health, UNC Health, Kaiser…" autocomplete="off">
-          <div style="font-size:11px;color:var(--text-secondary);margin-top:6px;line-height:1.4;">Where you (or the person you care for) get most of your care. If multiple, name the main one.</div>
-        </div>
-        <div class="auth-gate-input-wrap" style="margin-top:12px;">
-          <label class="auth-gate-input-label" style="margin-bottom:8px;">Who's Wellet for?</label>
-          <div id="auth-gate-caringfor" style="display:flex;flex-direction:column;gap:8px;">
-            <label class="auth-gate-radio"><input type="radio" name="caring_for" value="family_member"> A family member or loved one</label>
-            <label class="auth-gate-radio"><input type="radio" name="caring_for" value="myself"> Myself</label>
-            <label class="auth-gate-radio"><input type="radio" name="caring_for" value="both"> Both</label>
-          </div>
-        </div>
-        <button class="btn-primary" onclick="submitWaitlistRequest()" id="auth-gate-btn" style="margin-top:14px;">
-          Request access <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>
-        </button>
-      </div>
-      <div id="auth-gate-success" class="auth-gate-success">
-        <div class="auth-gate-success-icon"><i data-lucide="check" style="width:22px;height:22px;"></i></div>
-        <div class="auth-gate-success-title">You're on the list</div>
-        <p class="auth-gate-success-body">We'll send you a magic link when your spot opens. Wellet is in early alpha — less than a month old — so when you get in, expect rough edges. I'll be asking for your help finding them.</p>
-        <a href="https://getwellet.com" target="_blank" rel="noopener" class="auth-gate-link">Learn more about Wellet &rarr;</a>
-      </div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:16px;">
-        <button class="auth-demo-link" style="width:100%;" onclick="enterDemoMode()">
-          <i data-lucide="play-circle" style="width:14px;height:14px;"></i>
-          Try the demo
-        </button>
-        <button class="auth-gate-back" onclick="showAuthFormState()">
-          <i data-lucide="arrow-left" style="width:12px;height:12px;vertical-align:middle;"></i>
-          Back to sign in
-        </button>
-      </div>
-    </div>
+    <!-- Alpha gate removed 2026-05-07: anyone with a valid email gets a magic link.
+         Hospital-not-supported messaging happens after sign-in, in the connect flow. -->
     <div class="auth-privacy">
     <p>No password required. <button class="auth-privacy-toggle" onclick="togglePrivacyDetail()"><strong>Your data stays private</strong> <i data-lucide="chevron-down" style="width:12px;height:12px;vertical-align:middle;" id="privacy-chevron"></i></button></p>
     <div id="auth-privacy-detail" class="auth-privacy-detail">
@@ -3026,7 +2985,7 @@
 </div>
 
 </div><!-- end page-wrap -->
-<script src="/assets/wellet.js?v=20260507-1445"></script>
+<script src="/assets/wellet.js?v=20260507-1515"></script>
 <script src="/guided-demo.js"></script>
 <!-- CARE CIRCLE SHARE SHEET -->
 <div class="share-overlay" id="share-overlay" onclick="if(event.target===this)closeShareSheet()">

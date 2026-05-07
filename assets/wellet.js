@@ -283,18 +283,6 @@ async function initApp() {
     var { data: { session } } = await db.auth.getSession();
     console.log('[auth-boot] getSession result:', session ? 'HAS_SESSION (' + (session.user && session.user.email) + ')' : 'NO_SESSION');
     if (session) {
-      // Verify the user is still on the alpha allowlist.
-      // Only sign out on an explicit `false` — a null (RPC error / network blip)
-      // must NOT kick a valid session. This prevents the "magic link every visit"
-      // failure mode when the RPC is transiently unavailable.
-      var stillAllowed = await checkAlphaAllowlist(session.user.email);
-      if (stillAllowed === false) {
-        console.warn('User removed from alpha allowlist \u2014 signing out');
-        await db.auth.signOut();
-        showAuthScreen();
-        showToast('Your alpha access has been revoked');
-        return;
-      }
       currentUser = session.user;
       // Guard against the rare race where onAuthStateChange already ran loadUserData
       // for this same session (e.g. INITIAL_SESSION fired during getSession's await).
@@ -334,17 +322,6 @@ async function initApp() {
         if (currentUser && currentUser.id === session.user.id && event !== 'SIGNED_IN') {
           resetInactivityTimer();
           return;
-        }
-        // Verify allowlist on fresh sign-in (fail-open on RPC error: sendMagicLink
-        // is the hard gate, so a transient RPC failure here shouldn't lock users out)
-        if (event === 'SIGNED_IN') {
-          var allowed = await checkAlphaAllowlist(session.user.email);
-          if (allowed === false) {
-            await db.auth.signOut();
-            showAuthScreen();
-            showToast('Your email is not on the alpha list');
-            return;
-          }
         }
         currentUser = session.user;
         resetInactivityTimer();
@@ -842,43 +819,13 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
-async function checkAlphaAllowlist(email) {
-  var normalized = email.toLowerCase().trim();
-  try {
-    var { data, error } = await db.rpc('check_alpha_allowlist', { check_email: normalized });
-    if (error) {
-      // Transient RPC failure — don't assert the user is banned. Let magic-link
-      // send flow enforce strict gating. Return null to signal "unknown".
-      console.error('Allowlist check error:', error);
-      return null;
-    }
-    return data === true;
-  } catch (e) {
-    console.error('Allowlist check threw:', e);
-    return null;
-  }
-}
-
 async function sendMagicLink() {
   var email = document.getElementById('auth-email').value.trim();
   if (!email) { showToast('Please enter your email'); return; }
   var btn = document.getElementById('auth-send-btn');
   btn.disabled = true;
-  btn.textContent = 'Checking…';
-
-  // Alpha gate: strictly require a positive allowlist result before sending.
-  // null (RPC error) is treated as "not allowed" here so we don't spam magic
-  // links to random emails during an outage.
-  var allowed = await checkAlphaAllowlist(email);
-  if (allowed !== true) {
-    btn.disabled = false;
-    btn.innerHTML = 'Send magic link <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>';
-    initIcons();
-    showAlphaGate(email);
-    return;
-  }
-
   btn.textContent = 'Sending…';
+
   var sentEmail = document.getElementById('auth-sent-email');
   if (sentEmail) sentEmail.textContent = email;
   // Remember the email for the expired-session banner to pre-fill next time.
@@ -895,27 +842,12 @@ async function sendMagicLink() {
   } else {
     document.getElementById('auth-form-state').style.display = 'none';
     document.getElementById('auth-sent-state').style.display = 'block';
-    document.getElementById('auth-gate-state').style.display = 'none';
   }
-}
-
-function showAlphaGate(email) {
-  document.getElementById('auth-form-state').style.display = 'none';
-  document.getElementById('auth-sent-state').style.display = 'none';
-  document.getElementById('auth-gate-state').style.display = 'block';
-  // Pre-fill the gate email input with what they already typed
-  var gateInput = document.getElementById('auth-gate-email');
-  if (gateInput && email) gateInput.value = email;
-  // Reset to form view (hide success in case they come back)
-  document.getElementById('auth-gate-form').style.display = 'block';
-  document.getElementById('auth-gate-success').style.display = 'none';
-  initIcons();
 }
 
 function showAuthFormState() {
   document.getElementById('auth-form-state').style.display = 'block';
   document.getElementById('auth-sent-state').style.display = 'none';
-  document.getElementById('auth-gate-state').style.display = 'none';
   var reveal = document.getElementById('auth-signin-reveal');
   var toggle = document.getElementById('auth-signin-toggle');
   if (reveal) reveal.style.display = 'none';
@@ -923,52 +855,10 @@ function showAuthFormState() {
   initIcons();
 }
 
-async function submitWaitlistRequest() {
-  var email = document.getElementById('auth-gate-email').value.trim();
-  if (!email) { showToast('Please enter your email'); return; }
-
-  // Optional but encouraged: hospital + caring_for so we can prioritize
-  // testers based on whether their hospital is supported.
-  var hospitalEl = document.getElementById('auth-gate-hospital');
-  var hospital = hospitalEl ? hospitalEl.value.trim() : '';
-  if (!hospital) {
-    showToast('Please tell us your hospital so we can prioritize you');
-    hospitalEl && hospitalEl.focus();
-    return;
-  }
-
-  var caringForChecked = document.querySelector('input[name="caring_for"]:checked');
-  var caringFor = caringForChecked ? caringForChecked.value : '';
-  if (!caringFor) {
-    showToast('Please pick who Wellet is for');
-    return;
-  }
-
-  var btn = document.getElementById('auth-gate-btn');
-  btn.disabled = true;
-  btn.textContent = 'Submitting…';
-  var { error } = await db.from('waitlist_requests').upsert(
-    {
-      email: email.toLowerCase(),
-      requested_at: new Date().toISOString(),
-      hospital: hospital,
-      caring_for: caringFor,
-      source: 'gate'
-    },
-    { onConflict: 'email' }
-  );
-  if (error) {
-    showToast('Error: ' + error.message);
-    btn.disabled = false;
-    btn.innerHTML = 'Request access <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>';
-    initIcons();
-    return;
-  }
-  // Show success
-  document.getElementById('auth-gate-form').style.display = 'none';
-  document.getElementById('auth-gate-success').style.display = 'block';
-  initIcons();
-}
+// ALPHA GATE REMOVED 2026-05-07: anyone with a valid email gets a magic link.
+// Hospital-not-supported messaging now happens after sign-in, in the connect flow.
+// Stub kept so existing tests that monkey-patch checkAlphaAllowlist still load.
+async function checkAlphaAllowlist(_email) { return true; }
 
 async function handleLogout() {
   clearPhiFromStorage();
@@ -7428,10 +7318,9 @@ function showAuthScreen() {
     document.body.classList.remove('is-authenticated');
     document.body.classList.add('is-auth-screen');
   } catch(_e) {}
-  // Reset auth sub-states to default (show form, hide sent/gate)
+  // Reset auth sub-states to default (show form, hide sent)
   document.getElementById('auth-form-state').style.display = 'block';
   document.getElementById('auth-sent-state').style.display = 'none';
-  document.getElementById('auth-gate-state').style.display = 'none';
   // Hide bug report button when logged out
   var bugBtn = document.getElementById('bug-report-btn');
   if (bugBtn) bugBtn.style.display = 'none';
