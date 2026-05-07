@@ -1292,6 +1292,17 @@
             <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
           </div>
         </div>
+        <!-- Care Signals: what Wellet is watching for -->
+        <div class="settings-section" style="margin-top:12px;">
+          <div class="settings-section-label">Care Signals</div>
+          <div class="settings-row" style="cursor:pointer;" onclick="openWatchesSheet()">
+            <div class="settings-row-left">
+              <div class="settings-row-icon" style="background:#FFF6E2;color:#6B4F12;"><i data-lucide="bell" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">What I&rsquo;m watching</div><div class="settings-row-meta" id="sv-watches-meta">Things Wellet will quietly notice for you</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+          </div>
+        </div>
         <!-- Privacy & Data -->
         <div class="settings-section" style="margin-top:12px;">
           <div class="settings-section-label">Privacy &amp; Data</div>
@@ -1577,6 +1588,21 @@
     <div class="qa-sheet-title">Share history</div>
     <div class="qa-sheet-sub">Links you've shared</div>
     <div id="share-history-list" style="padding:0 20px 20px;overflow-y:auto;max-height:50vh;">
+      <div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:var(--type-meta);">Loading&hellip;</div>
+    </div>
+  </div>
+</div>
+
+<!-- WHAT I'M WATCHING SHEET -->
+<div class="qa-overlay" id="watches-overlay" data-editorial="sheet">
+  <div class="qa-sheet" style="max-height:80vh;">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" aria-label="Close" onclick="closeSheet('watches-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title">What I&rsquo;m watching</div>
+    <div class="qa-sheet-sub">Wellet will quietly notice these and email you. Stop or pause anytime.</div>
+    <div id="watches-list" style="padding:0 20px 24px;overflow-y:auto;max-height:60vh;">
       <div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:var(--type-meta);">Loading&hellip;</div>
     </div>
   </div>

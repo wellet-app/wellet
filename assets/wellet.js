@@ -2779,7 +2779,25 @@ function _renderAskContextChip() {
   if (!slot) return;
   var ctx = window._pendingAskContext;
   if (!ctx) { slot.style.display = 'none'; slot.innerHTML = ''; return; }
-  // Build a short human-readable label
+
+  // Watch-mode chip: "Watching: heart rate" with bell icon.
+  if (ctx.intent === 'watch') {
+    var watchLabel = ctx.label || ctx.metric || '';
+    if (ctx.personName) watchLabel += ' \u00B7 ' + ctx.personName;
+    slot.style.display = 'block';
+    slot.innerHTML =
+        '<div style="display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:6px 10px;background:#FFF4E0;border:1px solid #F0D9A8;border-radius:999px;font-size:var(--type-meta);color:#7A5A1F;">'
+      +   '<i data-lucide="bell" style="width:12px;height:12px;flex-shrink:0;"></i>'
+      +   '<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Watching: ' + escHtml(watchLabel) + '</span>'
+      +   '<button onclick="clearAskContext()" aria-label="Cancel watch setup" style="background:none;border:none;padding:0 0 0 4px;cursor:pointer;color:#7A5A1F;display:flex;align-items:center;">'
+      +     '<i data-lucide="x" style="width:12px;height:12px;"></i>'
+      +   '</button>'
+      + '</div>';
+    try { initIcons(); } catch (e) {}
+    return;
+  }
+
+  // Default "About:" chip (long-press / record card flow).
   var parts = [];
   if (ctx.name)  parts.push(ctx.name);
   if (ctx.value) parts.push(ctx.value);
@@ -8279,6 +8297,7 @@ function _paintSignals(el, sigFirstName, activeConns, terraData) {
           }
           ch += '<div class="signals-metric-sm">' + rw.heartRate.min + '\u2013' + rw.heartRate.max + ' range</div>';
           if (rw.heartRate.resting) ch += '<div class="signals-metric-sm">Resting: ' + rw.heartRate.resting + ' bpm</div>';
+          ch += renderWearablePills('heart_rate', rw.personName);
           ch += '</div>';
         }
 
@@ -8294,6 +8313,7 @@ function _paintSignals(el, sigFirstName, activeConns, terraData) {
           ch += '</div>';
           if (rw.calories) ch += '<div class="signals-metric-sm">' + rw.calories.toLocaleString() + ' active cal</div>';
           if (rw.distance) ch += '<div class="signals-metric-sm">' + rw.distance + ' mi</div>';
+          ch += renderWearablePills('steps', rw.personName);
           ch += '</div>';
         }
 
@@ -8308,6 +8328,7 @@ function _paintSignals(el, sigFirstName, activeConns, terraData) {
           if (rw.sleep.bedTime || rw.sleep.wakeTime) {
             ch += '<div class="signals-metric-sm">' + escHtml(rw.sleep.bedTime) + (rw.sleep.wakeTime ? ' \u2013 ' + escHtml(rw.sleep.wakeTime) : '') + '</div>';
           }
+          ch += renderWearablePills('sleep', rw.personName);
           ch += '</div>';
         }
 
@@ -8337,6 +8358,77 @@ function _paintSignals(el, sigFirstName, activeConns, terraData) {
   ch += '</div>'; // close signals-view
   el.innerHTML = ch;
   initIcons();
+}
+
+// ── CARE SIGNALS v1: per-card pills ──────────────────────────────────────────
+// Renders the [Share] [\ud83d\udd14 Notify me] pills inside a wearable card.
+// metric: 'heart_rate' | 'steps' | 'sleep'  (SpO2 + HRV intentionally omitted)
+// personName: first name of the loved one (for chat-mode label only)
+function renderWearablePills(metric, personName) {
+  var safeMetric = String(metric || '').replace(/[^a-z_]/g, '');
+  var safeName = (personName || '').replace(/[^A-Za-z0-9 \-\u00C0-\u024F]/g, '');
+  var encName = escHtml(safeName);
+  return ''
+    + '<div class="wearable-pill-row">'
+    +   '<button class="wearable-pill wearable-pill-share" type="button" '
+    +           'onclick="shareWearableMetric(\'' + safeMetric + '\',\'' + encName + '\')" '
+    +           'aria-label="Share this with your care circle">'
+    +     '<i data-lucide="share-2" class="wearable-pill-icon"></i>'
+    +     '<span>Share</span>'
+    +   '</button>'
+    +   '<button class="wearable-pill wearable-pill-notify" type="button" '
+    +           'onclick="openAskWithWatchContext(\'' + safeMetric + '\',\'' + encName + '\')" '
+    +           'aria-label="Have Wellet notice changes in this">'
+    +     '<i data-lucide="bell" class="wearable-pill-icon"></i>'
+    +     '<span>Notify me</span>'
+    +   '</button>'
+    + '</div>';
+}
+
+// Share a wearable metric snapshot via the existing Care Circle share sheet.
+// We register a lightweight item shape into _shareRegistry and open the sheet.
+function shareWearableMetric(metric, personName) {
+  try {
+    var labels = { heart_rate: 'Heart rate', steps: 'Daily steps', sleep: 'Sleep' };
+    var title = (labels[metric] || 'Wearable update') + (personName ? ' \u00B7 ' + personName : '');
+    var key = registerShareItem({
+      kind: 'pattern',
+      subKind: 'wearable_snapshot',
+      metric: metric,
+      title: title,
+      date: new Date().toISOString(),
+      notes: 'Snapshot of today\u2019s ' + (labels[metric] || metric).toLowerCase() + '.'
+    });
+    if (typeof openShareSheet === 'function') openShareSheet(key);
+  } catch (e) { console.error('shareWearableMetric', e); }
+}
+
+// "Notify me" pill: prime Ask Wellet with a watch-mode context and switch tabs.
+// The chip + suggestion chips will reflect watch intent; sendAskMessage()
+// will POST { mode:'watch', text, person_id, context } to ask-wellet v24.
+function openAskWithWatchContext(metric, personName) {
+  var labels = { heart_rate: 'heart rate', steps: 'daily steps', sleep: 'sleep' };
+  window._pendingAskContext = {
+    intent: 'watch',
+    metric: metric,
+    personName: personName || '',
+    label: labels[metric] || metric
+  };
+  try { switchNavTo('ask'); } catch (e) {}
+  setTimeout(function() {
+    try { _renderAskContextChip(); } catch (e) {}
+    // Swap the starter suggestion chips for watch-mode chips
+    try {
+      var chips = document.getElementById('suggestion-chips');
+      if (chips && typeof buildWatchSuggestionChips === 'function') {
+        chips.innerHTML = buildWatchSuggestionChips(personName || '');
+        chips.style.display = '';
+        if (typeof initIcons === 'function') initIcons();
+      }
+    } catch (e) {}
+    var input = document.getElementById('ask-input');
+    if (input) input.focus();
+  }, 60);
 }
 
 // Demo-mode renderer (unchanged legacy path)
@@ -9419,12 +9511,21 @@ function handleEhrCallback() {
         showOwnWellet();
         fetchEhrData(personId, true);
         setTimeout(function() { try { switchNavTo('records'); } catch(e) {} }, 300);
+        // After a short delay, ask if they'd like a heads-up when new records arrive.
+        setTimeout(function() {
+          try { promptNewRecordsWatchOptIn(personId, hospital); } catch (_e) {}
+        }, 1800);
         return;
       }
       showToast('Health records connected! Fetching data\u2026');
       // Take the user straight to Records so they can watch the data land
       try { switchNavTo('records'); } catch(e) { console.warn('switchNavTo(records) after EHR connect failed:', e); }
       fetchEhrData(personId, true);
+      // After a short delay, ask if they'd like a heads-up when new records arrive.
+      var _hospitalName = data.hospital_name || data.provider || 'your hospital';
+      setTimeout(function() {
+        try { promptNewRecordsWatchOptIn(personId, _hospitalName); } catch (_e) {}
+      }, 1800);
     }).catch(function(err) {
       console.error('EHR callback error:', err);
       showToast('EHR connection failed');
@@ -10957,6 +11058,455 @@ function buildAskChips(personId, firstName) {
   }).join('');
 }
 
+// ── CARE SIGNALS v1: watch-mode suggestion chips ─────────────────────────────
+function buildWatchSuggestionChips(firstName) {
+  var name = escHtml(firstName || 'them');
+  var ctx = window._pendingAskContext || {};
+  var metric = ctx.metric || '';
+  var chips = [];
+  if (metric === 'heart_rate') {
+    chips = [
+      'Notice if ' + name + '\u2019s resting heart rate stays above 90 for 3 days',
+      'Notice if resting heart rate runs 10 bpm above their usual',
+      'Notice if heart rate is unusually high this week'
+    ];
+  } else if (metric === 'steps') {
+    chips = [
+      'Notice if ' + name + ' takes fewer than 1,000 steps for 3 days',
+      'Notice if daily steps drop below 2,000 this week',
+      'Notice if their watch hasn\u2019t synced in 3 days'
+    ];
+  } else if (metric === 'sleep') {
+    chips = [
+      'Notice if ' + name + ' sleeps less than 5 hours for 3 nights',
+      'Notice if sleep is under 6 hours this week',
+      'Notice if their watch hasn\u2019t synced in 3 days'
+    ];
+  } else {
+    chips = [
+      'Notice changes I should know about',
+      'Notice if their watch stops syncing'
+    ];
+  }
+  return chips.map(function(q) {
+    return '<button class="chip" onclick="askQuestion(this.textContent)">' + q + '</button>';
+  }).join('');
+}
+
+// ── CARE SIGNALS v1: watch_proposal / watch_rejected handler ────────────────────
+window._watchProposalRegistry = {};
+window._watchProposalCounter = 0;
+
+function handleWatchModeResponse(data) {
+  if (!data || typeof data !== 'object') {
+    addWelletMessage('I couldn\u2019t set that up just now. Please try again in a moment.');
+    return;
+  }
+  if (data.kind === 'watch_rejected') {
+    var reason = data.reason || 'I can\u2019t set that one up yet.';
+    addWelletMessage(escHtml(reason));
+    return;
+  }
+  if (data.kind === 'watch_proposal') {
+    var key = 'wp_' + (++window._watchProposalCounter);
+    window._watchProposalRegistry[key] = {
+      watch_type: data.watch_type,
+      parameters: data.parameters || {},
+      description: data.description || '',
+      person_id: currentPersonId
+    };
+    addWelletMessage(renderWatchProposalCard(key, data));
+    try { initIcons(); } catch (e) {}
+    return;
+  }
+  // Fallback: unknown shape
+  addWelletMessage(renderMarkdownSafe(data.answer || data.response || 'I couldn\u2019t set that up just now.'));
+}
+
+function renderWatchProposalCard(key, data) {
+  var conf = data.confidence ? String(data.confidence).toLowerCase() : '';
+  var confChip = '';
+  if (conf === 'low') {
+    confChip = '<span class="watch-conf watch-conf-low">Best guess</span>';
+  } else if (conf === 'medium') {
+    confChip = '<span class="watch-conf watch-conf-med">Pretty sure</span>';
+  } else if (conf === 'high') {
+    confChip = '<span class="watch-conf watch-conf-high">Confident</span>';
+  }
+  var description = escHtml(data.description || 'I\u2019ll watch for this and let you know.');
+  return ''
+    + '<div class="watch-proposal-card">'
+    +   '<div class="watch-proposal-head">'
+    +     '<i data-lucide="bell" class="watch-proposal-icon"></i>'
+    +     '<span class="watch-proposal-title">Here\u2019s what I\u2019ll watch for</span>'
+    +     confChip
+    +   '</div>'
+    +   '<div class="watch-proposal-body">' + description + '</div>'
+    +   '<div class="watch-proposal-meta">You\u2019ll get an email when it happens. You can stop or change this anytime in Settings.</div>'
+    +   '<div class="watch-proposal-actions">'
+    +     '<button class="watch-btn watch-btn-primary" onclick="confirmWatchProposal(\'' + key + '\', this)">Confirm</button>'
+    +     '<button class="watch-btn watch-btn-secondary" onclick="adjustWatchProposal(\'' + key + '\')">Adjust</button>'
+    +   '</div>'
+    + '</div>';
+}
+
+async function confirmWatchProposal(key, btnEl) {
+  var prop = window._watchProposalRegistry && window._watchProposalRegistry[key];
+  if (!prop) { showToast && showToast('That option expired \u2014 ask again.'); return; }
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Saving\u2026'; }
+  try {
+    var token = null;
+    try {
+      var s = await db.auth.getSession();
+      token = (s && s.data && s.data.session && s.data.session.access_token) || null;
+    } catch(_e){}
+    if (!token) {
+      addWelletMessage('Your session expired. Please sign out and sign back in, then try again.');
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Confirm'; }
+      return;
+    }
+    var res = await fetch(
+      'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/create-care-signal-watch',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token,
+          'apikey': ANON_KEY
+        },
+        body: JSON.stringify({
+          person_id: prop.person_id,
+          watch_type: prop.watch_type,
+          parameters: prop.parameters
+        })
+      }
+    );
+    if (res.ok) {
+      var saved = await res.json().catch(function(){ return {}; });
+      // Replace the card with a confirmation message
+      var card = btnEl ? btnEl.closest('.watch-proposal-card') : null;
+      if (card) {
+        card.classList.add('watch-proposal-card-saved');
+        card.innerHTML = '<div class="watch-proposal-head">'
+          + '<i data-lucide="check-circle-2" class="watch-proposal-icon watch-proposal-icon-saved"></i>'
+          + '<span class="watch-proposal-title">All set \u2014 I\u2019m watching for this now.</span>'
+          + '</div>'
+          + '<div class="watch-proposal-meta">You can review or stop it anytime under Settings \u203A What I\u2019m watching.</div>';
+        try { initIcons(); } catch (_e) {}
+      } else {
+        addWelletMessage('All set \u2014 I\u2019m watching for this now.');
+      }
+      delete window._watchProposalRegistry[key];
+    } else {
+      var errText = '';
+      try { errText = await res.text(); } catch(_e){}
+      console.error('create-care-signal-watch failed', res.status, errText);
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Confirm'; }
+      addWelletMessage('I couldn\u2019t save that watch (code ' + res.status + '). Please try again.');
+    }
+  } catch (e) {
+    console.error('confirmWatchProposal exception', e);
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Confirm'; }
+    addWelletMessage('Something went wrong saving that. Please try again.');
+  }
+}
+
+// ── CARE SIGNALS v1: "What I'm watching" settings sheet ──────────────────────
+async function openWatchesSheet() {
+  var overlay = document.getElementById('watches-overlay');
+  if (!overlay) return;
+  overlay.classList.add('show');
+  try { history.pushState({ type: 'sheet', id: 'watches-overlay' }, ''); } catch (_e) {}
+  await renderWatchesList();
+}
+
+function _watchTypeFriendly(watch_type, params) {
+  var p = params || {};
+  switch (watch_type) {
+    case 'resting_hr_sustained_above':
+      return 'Resting heart rate above ' + (p.threshold_bpm || '?') + ' bpm for ' + (p.window_days || '?') + ' day' + ((p.window_days === 1) ? '' : 's');
+    case 'resting_hr_above_baseline':
+      return 'Resting heart rate ' + (p.delta_bpm || '?') + ' bpm above their usual';
+    case 'daily_steps_below':
+      return 'Daily steps below ' + (p.threshold_steps || '?').toLocaleString() + ' for ' + (p.window_days || '?') + ' day' + ((p.window_days === 1) ? '' : 's');
+    case 'sleep_duration_below':
+      return 'Sleep under ' + (p.threshold_hours || '?') + ' hours for ' + (p.window_nights || '?') + ' night' + ((p.window_nights === 1) ? '' : 's');
+    case 'wearable_silence':
+      return 'Their watch hasn\u2019t synced in ' + (p.silence_days || '?') + ' day' + ((p.silence_days === 1) ? '' : 's');
+    case 'refill_gap':
+      return (p.medication_name ? p.medication_name : 'A medication') + ' refill is overdue';
+    case 'pcp_visit_gap':
+      return 'No primary-care visit in ' + (p.months || '?') + ' month' + ((p.months === 1) ? '' : 's');
+    case 'new_record_arrived':
+      var kinds = (p.kinds && p.kinds.length) ? p.kinds.join(', ') : 'new records';
+      return 'New ' + kinds + ' arrive';
+    default:
+      return watch_type;
+  }
+}
+
+async function renderWatchesList() {
+  var listEl = document.getElementById('watches-list');
+  if (!listEl) return;
+  if (!db) {
+    listEl.innerHTML = '<div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:var(--type-meta);">Sign in to see what Wellet is watching for.</div>';
+    return;
+  }
+  listEl.innerHTML = '<div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:var(--type-meta);">Loading\u2026</div>';
+
+  try {
+    var res = await db.from('care_signal_watches')
+      .select('id, person_id, watch_type, parameters, status, created_at')
+      .order('created_at', { ascending: false });
+    var rows = (res && res.data) || [];
+    if (res && res.error) {
+      console.error('care_signal_watches load error', res.error);
+      listEl.innerHTML = '<div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:var(--type-meta);">I couldn\u2019t load this list right now. Please try again in a moment.</div>';
+      return;
+    }
+
+    if (rows.length === 0) {
+      listEl.innerHTML = ''
+        + '<div style="text-align:center;padding:32px 16px;">'
+        +   '<div style="font-size:34px;margin-bottom:6px;color:#B68A2A;"><i data-lucide="bell-off" style="width:34px;height:34px;"></i></div>'
+        +   '<div style="font-family:var(--serif);font-size:18px;font-weight:500;color:var(--ink-7,#2B2A28);margin-bottom:6px;">Nothing yet</div>'
+        +   '<div style="font-size:13px;color:var(--text-muted);line-height:1.45;max-width:320px;margin:0 auto;">Tap the bell on a heart rate, steps, or sleep card to ask Wellet to notice changes for you.</div>'
+        + '</div>';
+      try { initIcons(); } catch (_e) {}
+      // Update the meta line on the settings row
+      var meta = document.getElementById('sv-watches-meta');
+      if (meta) meta.textContent = 'Things Wellet will quietly notice for you';
+      return;
+    }
+
+    // Map person_id → first name for friendlier rows
+    var nameByPerson = {};
+    try {
+      (currentPeople || []).forEach(function(p) {
+        if (p && p.id && p.name) nameByPerson[p.id] = p.name.split(' ')[0];
+      });
+    } catch (_e) {}
+
+    var html = '';
+    rows.forEach(function(w) {
+      var friendly = _watchTypeFriendly(w.watch_type, w.parameters);
+      var who = nameByPerson[w.person_id] || 'your loved one';
+      var paused = w.status === 'paused';
+      var statusChip = paused
+        ? '<span class="watch-row-status watch-row-status-paused">Paused</span>'
+        : '<span class="watch-row-status watch-row-status-active">Active</span>';
+      var pauseLabel = paused ? 'Resume' : 'Pause';
+      var pauseIcon  = paused ? 'play' : 'pause';
+      html += ''
+        + '<div class="watch-row" data-id="' + escHtml(w.id) + '">'
+        +   '<div class="watch-row-head">'
+        +     '<i data-lucide="bell" class="watch-row-icon"></i>'
+        +     '<div class="watch-row-meta">'
+        +       '<div class="watch-row-title">' + escHtml(friendly) + '</div>'
+        +       '<div class="watch-row-sub">For ' + escHtml(who) + '</div>'
+        +     '</div>'
+        +     statusChip
+        +   '</div>'
+        +   '<div class="watch-row-actions">'
+        +     '<button type="button" class="watch-row-btn" onclick="toggleWatchPaused(\'' + w.id + '\', ' + (paused ? 'false' : 'true') + ')">'
+        +       '<i data-lucide="' + pauseIcon + '" style="width:13px;height:13px;"></i><span>' + pauseLabel + '</span>'
+        +     '</button>'
+        +     '<button type="button" class="watch-row-btn watch-row-btn-danger" onclick="deleteWatch(\'' + w.id + '\')">'
+        +       '<i data-lucide="trash-2" style="width:13px;height:13px;"></i><span>Stop watching</span>'
+        +     '</button>'
+        +   '</div>'
+        + '</div>';
+    });
+    listEl.innerHTML = html;
+    try { initIcons(); } catch (_e) {}
+
+    // Update settings-row meta with active count
+    var activeCount = rows.filter(function(r){ return r.status !== 'paused'; }).length;
+    var meta2 = document.getElementById('sv-watches-meta');
+    if (meta2) {
+      meta2.textContent = activeCount === 0
+        ? 'No active watches'
+        : (activeCount === 1 ? '1 active watch' : activeCount + ' active watches');
+    }
+  } catch (e) {
+    console.error('renderWatchesList exception', e);
+    listEl.innerHTML = '<div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:var(--type-meta);">Something went wrong. Please try again.</div>';
+  }
+}
+
+async function toggleWatchPaused(id, shouldPause) {
+  if (!db || !id) return;
+  try {
+    var newStatus = shouldPause ? 'paused' : 'active';
+    var upd = await db.from('care_signal_watches')
+      .update({ status: newStatus })
+      .eq('id', id);
+    if (upd && upd.error) {
+      console.error('toggleWatchPaused error', upd.error);
+      showToast && showToast('Couldn\u2019t update that. Try again.');
+      return;
+    }
+    showToast && showToast(shouldPause ? 'Paused' : 'Resumed');
+    await renderWatchesList();
+  } catch (e) {
+    console.error('toggleWatchPaused exception', e);
+    showToast && showToast('Something went wrong.');
+  }
+}
+
+async function deleteWatch(id) {
+  if (!db || !id) return;
+  if (!confirm('Stop watching for this? You can ask Wellet to start again anytime.')) return;
+  try {
+    var del = await db.from('care_signal_watches').delete().eq('id', id);
+    if (del && del.error) {
+      console.error('deleteWatch error', del.error);
+      showToast && showToast('Couldn\u2019t remove that. Try again.');
+      return;
+    }
+    showToast && showToast('Stopped');
+    await renderWatchesList();
+  } catch (e) {
+    console.error('deleteWatch exception', e);
+    showToast && showToast('Something went wrong.');
+  }
+}
+
+// ----- Care Signals v1: post-EHR-connect onboarding opt-in -----
+// Asks once per (person_id) whether Wellet should notify when new records arrive.
+// Default kinds: lab, visit, imaging, discharge, medication. Immunization is
+// intentionally excluded by default (low signal-to-noise for caregivers).
+function promptNewRecordsWatchOptIn(personId, hospitalName) {
+  if (!personId) return;
+  var flagKey = 'wellet_nr_watch_asked_' + personId;
+  try { if (localStorage.getItem(flagKey) === '1') return; } catch (_e) {}
+  // Avoid stacking on top of an existing prompt
+  if (document.getElementById('nr-watch-prompt')) return;
+
+  var hospital = hospitalName ? String(hospitalName) : 'this hospital';
+
+  var modal = document.createElement('div');
+  modal.id = 'nr-watch-prompt';
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  modal.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:flex-end;justify-content:center;background:rgba(20,24,22,0.42);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);animation:nr-fade 0.18s ease-out;';
+
+  var sheet = document.createElement('div');
+  sheet.style.cssText = 'background:#FAF7F0;border-radius:20px 20px 0 0;width:100%;max-width:520px;padding:22px 22px 18px;box-shadow:0 -8px 28px rgba(0,0,0,0.18);animation:nr-slide 0.22s ease-out;';
+
+  sheet.innerHTML = ''
+    + '<div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;">'
+    +   '<div style="width:38px;height:38px;border-radius:12px;background:#EDF3EE;color:#2F4A3A;display:flex;align-items:center;justify-content:center;flex-shrink:0;">'
+    +     '<i data-lucide="bell" style="width:18px;height:18px;"></i>'
+    +   '</div>'
+    +   '<div style="flex:1;min-width:0;">'
+    +     '<div style="font-family:\'Fraunces\', Georgia, serif;font-size:18px;font-weight:500;color:#1F2A22;line-height:1.3;margin-bottom:4px;">Want a quiet heads-up when new records arrive?</div>'
+    +     '<div style="font-size:13px;color:#6B6356;line-height:1.5;">Wellet can let you know when ' + escHtml(hospital) + ' adds new lab results, visit notes, imaging, discharge summaries, or medications. No clinical advice \u2014 just a gentle nudge.</div>'
+    +   '</div>'
+    + '</div>'
+    + '<label style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:#fff;border:1px solid #E5DFD2;border-radius:12px;margin-bottom:16px;cursor:pointer;-webkit-tap-highlight-color:transparent;">'
+    +   '<input type="checkbox" id="nr-watch-cb" checked style="width:18px;height:18px;accent-color:#2F4A3A;flex-shrink:0;">'
+    +   '<span style="font-size:14px;color:#1F2A22;">Notify me when new records arrive</span>'
+    + '</label>'
+    + '<div style="display:flex;gap:10px;">'
+    +   '<button type="button" id="nr-watch-skip" style="flex:1;padding:12px 14px;border-radius:11px;border:1px solid #C9D5CD;background:transparent;color:#2F4A3A;font-size:14px;font-weight:500;cursor:pointer;-webkit-tap-highlight-color:transparent;">Not now</button>'
+    +   '<button type="button" id="nr-watch-ok" style="flex:1;padding:12px 14px;border-radius:11px;border:1px solid #2F4A3A;background:#2F4A3A;color:#fff;font-size:14px;font-weight:500;cursor:pointer;-webkit-tap-highlight-color:transparent;">Got it</button>'
+    + '</div>'
+    + '<div style="font-size:11px;color:#8A8170;text-align:center;margin-top:12px;">You can change this anytime under Settings \u203A What I\u2019m watching.</div>';
+
+  modal.appendChild(sheet);
+  // Inject keyframes once
+  if (!document.getElementById('nr-watch-style')) {
+    var st = document.createElement('style');
+    st.id = 'nr-watch-style';
+    st.textContent = '@keyframes nr-fade{from{opacity:0}to{opacity:1}}@keyframes nr-slide{from{transform:translateY(100%)}to{transform:translateY(0)}}';
+    document.head.appendChild(st);
+  }
+  document.body.appendChild(modal);
+  try { initIcons(); } catch (_e) {}
+
+  function close() {
+    try { localStorage.setItem(flagKey, '1'); } catch (_e) {}
+    if (modal && modal.parentNode) modal.parentNode.removeChild(modal);
+  }
+
+  document.getElementById('nr-watch-skip').addEventListener('click', function() {
+    close();
+  });
+
+  document.getElementById('nr-watch-ok').addEventListener('click', async function(ev) {
+    var btn = ev.currentTarget;
+    var cb = document.getElementById('nr-watch-cb');
+    var wantsIt = !!(cb && cb.checked);
+    if (!wantsIt) { close(); return; }
+    btn.disabled = true; btn.textContent = 'Saving\u2026';
+    try {
+      var token = null;
+      try {
+        var s = await db.auth.getSession();
+        token = (s && s.data && s.data.session && s.data.session.access_token) || null;
+      } catch (_e) {}
+      if (!token) {
+        showToast && showToast('Please sign in again to save this.');
+        close();
+        return;
+      }
+      var res = await fetch(
+        'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/create-care-signal-watch',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token,
+            'apikey': SUPABASE_ANON_KEY
+          },
+          body: JSON.stringify({
+            person_id: personId,
+            watch_type: 'new_record_arrived',
+            parameters: { kinds: ['lab', 'visit', 'imaging', 'discharge', 'medication'] }
+          })
+        }
+      );
+      if (res.ok) {
+        showToast && showToast('All set \u2014 I\u2019ll notice new records.');
+      } else {
+        var errText = '';
+        try { errText = await res.text(); } catch (_e) {}
+        console.error('promptNewRecordsWatchOptIn create failed', res.status, errText);
+        showToast && showToast('Couldn\u2019t save that. You can turn it on later in Settings.');
+      }
+    } catch (e) {
+      console.error('promptNewRecordsWatchOptIn exception', e);
+      showToast && showToast('Something went wrong. You can turn it on later in Settings.');
+    } finally {
+      close();
+    }
+  });
+}
+
+function adjustWatchProposal(key) {
+  var prop = window._watchProposalRegistry && window._watchProposalRegistry[key];
+  if (!prop) return;
+  // Re-prime watch context using the same metric family if we can infer it
+  var metric = '';
+  if (prop.watch_type === 'resting_hr_sustained_above' || prop.watch_type === 'resting_hr_above_baseline') metric = 'heart_rate';
+  else if (prop.watch_type === 'daily_steps_below') metric = 'steps';
+  else if (prop.watch_type === 'sleep_duration_below') metric = 'sleep';
+  window._pendingAskContext = {
+    intent: 'watch',
+    metric: metric,
+    label: metric ? metric.replace('_', ' ') : 'this',
+    personName: ''
+  };
+  try { _renderAskContextChip(); } catch (e) {}
+  var input = document.getElementById('ask-input');
+  if (input) {
+    input.focus();
+    input.placeholder = 'Tell me what to change\u2026';
+  }
+  addWelletMessage('Sure \u2014 tell me what to change (numbers, days, who).');
+}
+
 function renderAskView() {
   // Render ask view for authenticated mode with real people
   if (isDemoMode) return;
@@ -11269,6 +11819,23 @@ function sendAskMessage() {
         }
       }
       async function callAskWellet(tok) {
+        var pendingCtx = (typeof _pendingAskContext !== 'undefined' && _pendingAskContext) ? _pendingAskContext : null;
+        var bodyObj;
+        if (pendingCtx && pendingCtx.intent === 'watch') {
+          // Watch-mode: ask-wellet v24 returns watch_proposal | watch_rejected
+          bodyObj = {
+            mode: 'watch',
+            text: text,
+            person_id: currentPersonId,
+            context: pendingCtx
+          };
+        } else {
+          bodyObj = {
+            question: text,
+            person_id: currentPersonId,
+            context: pendingCtx
+          };
+        }
         return await withTimeout(fetch(
           'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/ask-wellet',
           {
@@ -11278,11 +11845,7 @@ function sendAskMessage() {
               'Authorization': 'Bearer ' + tok,
               'apikey': ANON_KEY
             },
-            body: JSON.stringify({
-              question: text,
-              person_id: currentPersonId,
-              context: (typeof _pendingAskContext !== 'undefined' && _pendingAskContext) ? _pendingAskContext : null
-            })
+            body: JSON.stringify(bodyObj)
           }
         ), 30000, 'ask-wellet-fetch');
       }
@@ -11310,11 +11873,37 @@ function sendAskMessage() {
             res = await callAskWellet(refreshed);
           }
         }
+        // Capture whether we just sent a watch-mode request before clearing context.
+        var wasWatchMode = false;
+        try {
+          wasWatchMode = !!(typeof _pendingAskContext !== 'undefined'
+                            && _pendingAskContext
+                            && _pendingAskContext.intent === 'watch');
+        } catch(_e){}
         try { if (typeof _pendingAskContext !== 'undefined') { _pendingAskContext = null; if (typeof _renderAskContextChip === 'function') _renderAskContextChip(); } } catch(_e){}
+        // Restore default suggestion chips if we just left watch mode.
+        if (wasWatchMode) {
+          try {
+            var chipsEl = document.getElementById('suggestion-chips');
+            if (chipsEl && typeof buildAskChips === 'function') {
+              var firstName = '';
+              try {
+                var p = (currentPeople || []).find(function(pp){ return pp.id === currentPersonId; });
+                firstName = (p && p.name) ? p.name.split(' ')[0] : '';
+              } catch(_e){}
+              chipsEl.innerHTML = buildAskChips(currentPersonId, firstName);
+              if (typeof initIcons === 'function') initIcons();
+            }
+          } catch(_e){}
+        }
         removeTyping(typingId);
         if (res.ok) {
           var data = await res.json();
-          addWelletMessage(renderMarkdownSafe(data.answer || data.response || 'I couldn\u2019t find an answer to that.'));
+          if (wasWatchMode || data.kind === 'watch_proposal' || data.kind === 'watch_rejected') {
+            handleWatchModeResponse(data);
+          } else {
+            addWelletMessage(renderMarkdownSafe(data.answer || data.response || 'I couldn\u2019t find an answer to that.'));
+          }
         } else if (res.status === 401) {
           console.error('ask-wellet 401 after double refresh; prompting re-auth');
           addWelletMessage('I\u2019m having trouble verifying your session. Tap the menu and sign out, then sign back in and I\u2019ll be ready.');
