@@ -903,11 +903,35 @@ function showAuthFormState() {
 async function submitWaitlistRequest() {
   var email = document.getElementById('auth-gate-email').value.trim();
   if (!email) { showToast('Please enter your email'); return; }
+
+  // Optional but encouraged: hospital + caring_for so we can prioritize
+  // testers based on whether their hospital is supported.
+  var hospitalEl = document.getElementById('auth-gate-hospital');
+  var hospital = hospitalEl ? hospitalEl.value.trim() : '';
+  if (!hospital) {
+    showToast('Please tell us your hospital so we can prioritize you');
+    hospitalEl && hospitalEl.focus();
+    return;
+  }
+
+  var caringForChecked = document.querySelector('input[name="caring_for"]:checked');
+  var caringFor = caringForChecked ? caringForChecked.value : '';
+  if (!caringFor) {
+    showToast('Please pick who Wellet is for');
+    return;
+  }
+
   var btn = document.getElementById('auth-gate-btn');
   btn.disabled = true;
   btn.textContent = 'Submitting…';
   var { error } = await db.from('waitlist_requests').upsert(
-    { email: email.toLowerCase(), requested_at: new Date().toISOString() },
+    {
+      email: email.toLowerCase(),
+      requested_at: new Date().toISOString(),
+      hospital: hospital,
+      caring_for: caringFor,
+      source: 'gate'
+    },
     { onConflict: 'email' }
   );
   if (error) {
