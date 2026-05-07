@@ -116,35 +116,31 @@
     document.getElementById('hero-subtitle').textContent = pick.p;
   })();
   </script>
-  <div class="auth-signals" style="grid-template-columns:1fr;">
-    <div class="auth-signal-card" onclick="window.location.search='?demo=guided'" style="cursor:pointer;transition:box-shadow 0.15s;">
-      <div class="auth-signal-label"><span class="auth-signal-dot auth-signal-dot--green"></span> TODAY</div>
-      <p class="auth-signal-text"><strong>Mom took her medications</strong> this morning. Her blood pressure has been trending higher since the dose change on June 18 — worth mentioning at her August 4 appointment.</p>
-      <p style="font-size:var(--type-meta);color:var(--moss-text);margin-top:6px;font-weight:500;">Try the demo →</p>
-    </div>
-  </div>
   <div class="auth-body">
     <div id="auth-form-state">
-      <button class="btn-primary" onclick="window.location.search='?demo=guided'" style="width:100%;">
-        See how Wellet works <i data-lucide="play" style="width:16px;height:16px;"></i>
-      </button>
-      <button class="auth-demo-link" onclick="enterDemoMode()" style="width:100%;margin-top:10px;">
-        <i data-lucide="compass" style="width:14px;height:14px;"></i>
-        Explore on your own
-      </button>
-      <div style="display:flex;align-items:center;gap:12px;margin-top:14px;">
-        <hr style="flex:1;border:none;border-top:1px solid var(--border);">
-        <span style="font-family:var(--font-body);font-size:var(--type-meta);color:var(--moss-text);white-space:nowrap;font-weight:500;">Sign in or create account</span>
-        <hr style="flex:1;border:none;border-top:1px solid var(--border);">
-      </div>
-      <div id="auth-signin-reveal" style="margin-top:12px;">
-        <div style="font-size:var(--type-meta);color:var(--text-secondary);text-align:center;margin-bottom:10px;line-height:1.45;">New here? Just enter your email — we'll send you a magic link, no password needed.</div>
+      <div id="auth-signin-reveal">
         <div class="auth-input-wrap">
           <label class="auth-input-label" for="auth-email">Email address</label>
           <input type="email" id="auth-email" class="auth-input" placeholder="you@email.com" autocomplete="email">
         </div>
         <button class="btn-primary" onclick="sendMagicLink()" id="auth-send-btn" style="width:100%;background:var(--text-primary);">
           Send magic link <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>
+        </button>
+        <div style="font-size:var(--type-meta);color:var(--text-secondary);text-align:center;margin-top:10px;line-height:1.45;">No password needed. Your data stays private.</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:20px;">
+        <hr style="flex:1;border:none;border-top:1px solid var(--border);">
+        <span style="font-family:var(--font-body);font-size:var(--type-meta);color:var(--text-secondary);white-space:nowrap;">or look around first</span>
+        <hr style="flex:1;border:none;border-top:1px solid var(--border);">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
+        <button class="auth-demo-link" onclick="window.location.search='?demo=guided'" style="width:100%;">
+          <i data-lucide="play" style="width:14px;height:14px;"></i>
+          See how Wellet works
+        </button>
+        <button class="auth-demo-link" onclick="enterDemoMode()" style="width:100%;">
+          <i data-lucide="compass" style="width:14px;height:14px;"></i>
+          Explore on your own
         </button>
       </div>
     </div>
