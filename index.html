@@ -118,7 +118,8 @@
   </script>
   <div class="auth-body">
     <div id="auth-form-state">
-      <div id="auth-signin-reveal">
+      <div id="auth-signin-reveal" class="auth-cta-card">
+        <div class="auth-cta-eyebrow">Get started</div>
         <div class="auth-input-wrap">
           <label class="auth-input-label" for="auth-email">Email address</label>
           <input type="email" id="auth-email" class="auth-input" placeholder="you@email.com" autocomplete="email">
@@ -144,12 +145,12 @@
         </button>
       </div>
     </div>
-    <div id="auth-sent-state" class="auth-sent">
+    <div id="auth-sent-state" class="auth-sent auth-sent-card">
       <div class="auth-sent-icon"><i data-lucide="mail-check" style="width:24px;height:24px;"></i></div>
       <div class="auth-sent-title">Check your email</div>
-      <p class="auth-sent-body">We sent a magic link to <strong id="auth-sent-email"></strong>. Click it to open your Wellet — no password needed.<br><br><span style="font-size:var(--type-meta);color:var(--text-secondary);">Heads up: Wellet is less than a month old. If something breaks once you're in, tap the bug icon in the header and tell me — it goes straight to Betsy.</span></p>
+      <p class="auth-sent-body">We sent a magic link to <strong id="auth-sent-email"></strong>. Click it to open your Wellet — no password needed.<br><br><span class="auth-sent-aside">Heads up: Wellet is less than a month old. If something breaks once you’re in, tap the menu (<strong>•••</strong>) and choose <strong>Report a bug</strong> — it goes straight to Betsy.</span></p>
       <div style="display:flex;justify-content:center;margin-top:12px;">
-        <button class="auth-demo-link" onclick="enterDemoMode()">
+        <button class="auth-demo-link auth-demo-link--on-card" onclick="enterDemoMode()">
           <i data-lucide="play" style="width:14px;height:14px;"></i>
           Try the demo while you wait
         </button>

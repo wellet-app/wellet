@@ -74,6 +74,67 @@
   .auth-sent-icon { width: 52px; height: 52px; border-radius: 50%; background: var(--mint); display: flex; align-items: center; justify-content: center; color: var(--moss); margin: 0 auto 16px; }
   .auth-sent-title { font-family: var(--serif); font-size: var(--type-h2); margin-bottom: 8px; }
   .auth-sent-body { font-size: var(--type-body); color: var(--text-secondary); line-height: 1.6; }
+
+  /* Isolated CTA card on the auth screen — lifts “Get started / email / Send
+     magic link” off the beige background so the action is unmistakable. */
+  .auth-cta-card {
+    background: #FFFFFF;
+    border: 1px solid rgba(42, 58, 51, 0.10);
+    border-radius: 16px;
+    padding: 22px 20px 20px;
+    margin: 8px 0 4px;
+    box-shadow: 0 4px 18px rgba(20, 25, 23, 0.06);
+  }
+  .auth-cta-eyebrow {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--moss);
+    margin-bottom: 12px;
+  }
+
+  /* Confirmation card after “Send magic link” — inverted (dark moss) so the
+     state change actually lands. Lighter copy + white icon chip. */
+  .auth-sent-card {
+    background: #2A3A33;
+    border-radius: 18px;
+    padding: 32px 22px 24px;
+    margin: 8px 0 4px;
+    color: #F2F0EA;
+    box-shadow: 0 6px 22px rgba(20, 25, 23, 0.18);
+  }
+  .auth-sent-card .auth-sent-icon {
+    background: rgba(255, 255, 255, 0.10);
+    color: #F2F0EA;
+  }
+  .auth-sent-card .auth-sent-title {
+    color: #FFFFFF;
+  }
+  .auth-sent-card .auth-sent-body {
+    color: rgba(242, 240, 234, 0.86);
+  }
+  .auth-sent-card .auth-sent-body strong {
+    color: #FFFFFF;
+    font-weight: 600;
+  }
+  .auth-sent-aside {
+    display: block;
+    margin-top: 6px;
+    font-size: var(--type-meta);
+    color: rgba(242, 240, 234, 0.72);
+    line-height: 1.5;
+  }
+  /* Demo button needs to stay legible on the dark card */
+  .auth-demo-link--on-card {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.28);
+    color: #FFFFFF;
+  }
+  .auth-demo-link--on-card:hover {
+    background: rgba(255, 255, 255, 0.14);
+  }
   .auth-gate { display: none; text-align: center; padding: 24px 0; }
   .auth-gate-icon { width: 52px; height: 52px; border-radius: 50%; background: var(--mint); display: flex; align-items: center; justify-content: center; color: var(--moss); margin: 0 auto 16px; }
   .auth-gate-title { font-family: var(--serif); font-size: var(--type-h2); margin-bottom: 8px; }
