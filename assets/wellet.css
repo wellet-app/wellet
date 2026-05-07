@@ -100,6 +100,10 @@
   .auth-privacy { padding: 12px 0 0; text-align: center; }
   .auth-privacy-toggle { background: none; border: none; font-family: 'DM Sans', sans-serif; font-size: var(--type-meta); color: var(--moss-text); cursor: pointer; padding: 0; display: inline-flex; align-items: center; gap: 3px; }
   .auth-privacy-toggle:hover { text-decoration: underline; }
+  .auth-reset-row { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 18px 0 4px; }
+  .auth-reset-btn { background: none; border: none; font-family: 'DM Sans', sans-serif; font-size: var(--type-meta); color: #9E9A94; cursor: pointer; padding: 4px 8px; text-decoration: underline; text-decoration-color: rgba(158, 154, 148, 0.45); text-underline-offset: 3px; }
+  .auth-reset-btn:hover { color: #2A3A33; text-decoration-color: rgba(42, 58, 51, 0.6); }
+  .auth-reset-hint { font-family: 'DM Sans', sans-serif; font-size: 11px; color: #B5AFA1; }
   .auth-privacy-detail { max-height: 0; overflow: hidden; transition: max-height 0.35s ease, opacity 0.35s ease; opacity: 0; }
   .auth-privacy-detail.open { max-height: 200px; opacity: 1; }
   .auth-privacy-detail p { font-size: var(--type-meta); color: var(--text-secondary); line-height: 1.65; margin-top: 10px; text-align: left; }

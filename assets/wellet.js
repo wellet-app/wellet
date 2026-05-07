@@ -783,6 +783,29 @@ function togglePrivacyDetail() {
   }
 }
 
+// Wipe local state so the next signup starts from a true blank slate. Useful
+// for repeated test runs where the auth user was deleted server-side but the
+// device still has a stale onboarding wizard / Supabase session in storage.
+// Signs out via Supabase if a session exists, then clears local + session
+// storage and reloads to '/'.
+async function resetOnboardingAndReload() {
+  var ok = false;
+  try {
+    ok = window.confirm('Start over? This clears onboarding state and signs you out on this device. (Your account on the server is unaffected.)');
+  } catch(_e) { ok = true; }
+  if (!ok) return;
+  try {
+    if (typeof db !== 'undefined' && db && db.auth && typeof db.auth.signOut === 'function') {
+      await db.auth.signOut();
+    }
+  } catch(_e) { /* keep going \u2014 storage wipe is the important part */ }
+  try { localStorage.clear(); } catch(_e) {}
+  try { sessionStorage.clear(); } catch(_e) {}
+  // Drop OAuth params if any so we don\u2019t re-trigger callbacks on reload.
+  try { window.location.replace('/'); } catch(_e) { window.location.href = '/'; }
+}
+
+
 /* ── EXPLAINER FILM ── */
 var explainerRunning = false;
 
