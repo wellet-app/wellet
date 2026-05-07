@@ -211,6 +211,14 @@
 </div><!-- end auth-body -->
 </div><!-- end auth-screen -->
 
+<!-- Global "Start over" rescue pill: visible during onboarding/mode/connect screens.
+     Auto-hidden once the authenticated app mounts (body.is-authenticated) or while
+     the auth-screen is visible (auth-screen has its own Start-over button). -->
+<button type="button" id="global-start-over" class="global-start-over" onclick="resetOnboardingAndReload()" aria-label="Start over">
+  <i data-lucide="rotate-ccw" style="width:13px;height:13px;"></i>
+  <span>Start over</span>
+</button>
+
 <!-- EXPLAINER VIDEO -->
 <div id="explainer-overlay">
   <button class="explainer-close" onclick="hideExplainer()" aria-label="Close"><i data-lucide="x" style="width:20px;height:20px;"></i></button>

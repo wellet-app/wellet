@@ -104,6 +104,40 @@
   .auth-reset-btn { background: none; border: none; font-family: 'DM Sans', sans-serif; font-size: var(--type-meta); color: #9E9A94; cursor: pointer; padding: 4px 8px; text-decoration: underline; text-decoration-color: rgba(158, 154, 148, 0.45); text-underline-offset: 3px; }
   .auth-reset-btn:hover { color: #2A3A33; text-decoration-color: rgba(42, 58, 51, 0.6); }
   .auth-reset-hint { font-family: 'DM Sans', sans-serif; font-size: 11px; color: #B5AFA1; }
+
+  /* Global "Start over" rescue pill (top-left). Visible by default; hidden when
+     auth-screen has focus (it has its own Start over) or once user is in the
+     authenticated app (body.is-authenticated). */
+  .global-start-over {
+    position: fixed;
+    top: max(env(safe-area-inset-top, 0px), 12px);
+    left: 12px;
+    z-index: 99999;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px 7px 10px;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(42, 58, 51, 0.14);
+    border-radius: 999px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    color: #6E6B66;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(20, 25, 23, 0.06);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+  }
+  .global-start-over:hover { color: #2A3A33; transform: translateY(-1px); }
+  .global-start-over:active { transform: translateY(0); }
+  /* Hide on the dedicated auth screen (it has its own button) and once the
+     authenticated app is mounted. */
+  body.is-authenticated .global-start-over,
+  body.is-auth-screen .global-start-over {
+    display: none !important;
+  }
   .auth-privacy-detail { max-height: 0; overflow: hidden; transition: max-height 0.35s ease, opacity 0.35s ease; opacity: 0; }
   .auth-privacy-detail.open { max-height: 200px; opacity: 1; }
   .auth-privacy-detail p { font-size: var(--type-meta); color: var(--text-secondary); line-height: 1.65; margin-top: 10px; text-align: left; }

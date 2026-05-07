@@ -1538,6 +1538,12 @@ function showAuthenticatedApp() {
   document.getElementById('landing').style.display = 'none';
   document.getElementById('onboarding').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
+  // Hide the global \u201cStart over\u201d rescue pill once the authed app is up,
+  // and drop the auth-screen tag in case we came directly from sign-in.
+  try {
+    document.body.classList.add('is-authenticated');
+    document.body.classList.remove('is-auth-screen');
+  } catch(_e) {}
   // Bug report has moved into the three-dot overflow menu — keep the header
   // pill hidden for signed-in users (it was crowding the share button + bell).
   var bugBtn = document.getElementById('bug-report-btn');
@@ -7260,6 +7266,14 @@ function showAuthScreen() {
   document.getElementById('landing').style.display = 'none';
   document.getElementById('app').style.display = 'none';
   document.getElementById('onboarding').style.display = 'none';
+  // Drop the authenticated body class so the global \u201cStart over\u201d pill
+  // can re-appear on the next pre-app screen if the user signs back in.
+  // Also tag body.is-auth-screen so the pill is hidden while the auth screen
+  // is showing (auth screen has its own dedicated Start over button).
+  try {
+    document.body.classList.remove('is-authenticated');
+    document.body.classList.add('is-auth-screen');
+  } catch(_e) {}
   // Reset auth sub-states to default (show form, hide sent/gate)
   document.getElementById('auth-form-state').style.display = 'block';
   document.getElementById('auth-sent-state').style.display = 'none';
