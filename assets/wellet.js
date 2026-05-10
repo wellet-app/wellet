@@ -899,20 +899,112 @@ async function sendMagicLink() {
 
   var sentEmail = document.getElementById('auth-sent-email');
   if (sentEmail) sentEmail.textContent = email;
-  // Remember the email for the expired-session banner to pre-fill next time.
+  // Remember the email for the OTP verify step and the expired-session banner.
   try { localStorage.setItem('wellet_last_signin_email', email); } catch (e) {}
   var { error } = await db.auth.signInWithOtp({
     email: email,
-    options: { emailRedirectTo: 'https://mywellet.com' }
+    options: { emailRedirectTo: 'https://mywellet.com', shouldCreateUser: true }
   });
   if (error) {
     showToast('Error: ' + error.message);
     btn.disabled = false;
-    btn.innerHTML = 'Send magic link <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>';
+    btn.innerHTML = 'Send 6-digit code <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>';
     initIcons();
   } else {
     document.getElementById('auth-form-state').style.display = 'none';
     document.getElementById('auth-sent-state').style.display = 'block';
+    // Reset the send button label for next time and focus the code input.
+    btn.disabled = false;
+    btn.innerHTML = 'Send 6-digit code <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>';
+    var codeInput = document.getElementById('auth-code');
+    if (codeInput) { codeInput.value = ''; setTimeout(function(){ codeInput.focus(); }, 50); }
+    var verifyBtn = document.getElementById('auth-verify-btn');
+    if (verifyBtn) verifyBtn.disabled = true;
+    initIcons();
+  }
+}
+
+// ── OTP code entry (web) ────────────────────────────────────────────────
+function handleOtpCodeInput(e) {
+  var input = e && e.target ? e.target : document.getElementById('auth-code');
+  if (!input) return;
+  // Strip non-digits, cap at 6.
+  var cleaned = (input.value || '').replace(/[^0-9]/g, '').slice(0, 6);
+  if (cleaned !== input.value) input.value = cleaned;
+  var verifyBtn = document.getElementById('auth-verify-btn');
+  if (verifyBtn) verifyBtn.disabled = cleaned.length !== 6;
+  // Auto-submit when 6 digits entered.
+  if (cleaned.length === 6) {
+    verifyAuthCode();
+  }
+}
+
+async function verifyAuthCode() {
+  var input = document.getElementById('auth-code');
+  var code = input ? (input.value || '').trim() : '';
+  if (code.length !== 6) { showToast('Enter all 6 digits'); return; }
+  var email = '';
+  try { email = localStorage.getItem('wellet_last_signin_email') || ''; } catch (e) {}
+  if (!email) {
+    showToast('Session expired — please enter your email again');
+    showAuthFormState();
+    return;
+  }
+  var btn = document.getElementById('auth-verify-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Verifying…'; }
+  var { data, error } = await db.auth.verifyOtp({
+    email: email,
+    token: code,
+    type: 'email'
+  });
+  if (error) {
+    showToast(error.message || 'Invalid or expired code');
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = 'Verify code <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>';
+      initIcons();
+    }
+    if (input) { input.value = ''; input.focus(); }
+    return;
+  }
+  // Success — Supabase has set the session. Reload so the app picks it up cleanly.
+  if (btn) btn.textContent = 'Signed in';
+  setTimeout(function(){ window.location.href = 'https://mywellet.com'; }, 200);
+}
+
+async function resendAuthCode() {
+  var email = '';
+  try { email = localStorage.getItem('wellet_last_signin_email') || ''; } catch (e) {}
+  if (!email) {
+    showToast('Please enter your email again');
+    showAuthFormState();
+    return;
+  }
+  var resend = document.getElementById('auth-resend-btn');
+  if (resend) { resend.disabled = true; resend.textContent = 'Sending…'; }
+  var { error } = await db.auth.signInWithOtp({
+    email: email,
+    options: { emailRedirectTo: 'https://mywellet.com', shouldCreateUser: true }
+  });
+  if (error) {
+    showToast('Error: ' + error.message);
+  } else {
+    showToast('New code sent');
+  }
+  if (resend) {
+    // 30s cooldown so the user can’t spam Supabase.
+    var seconds = 30;
+    resend.textContent = 'Resend in ' + seconds + 's';
+    var t = setInterval(function(){
+      seconds -= 1;
+      if (seconds <= 0) {
+        clearInterval(t);
+        resend.disabled = false;
+        resend.textContent = 'Resend code';
+      } else {
+        resend.textContent = 'Resend in ' + seconds + 's';
+      }
+    }, 1000);
   }
 }
 

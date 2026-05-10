@@ -128,7 +128,7 @@
           </div>
         </div>
         <button class="btn-primary" onclick="sendMagicLink()" id="auth-send-btn" style="width:100%;background:var(--text-primary);">
-          Send magic link <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>
+          Send 6-digit code <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>
         </button>
         <div style="font-size:var(--type-meta);color:var(--text-secondary);text-align:center;margin-top:10px;line-height:1.45;">No password needed. Your data stays private.</div>
       </div>
@@ -151,8 +151,19 @@
     <div id="auth-sent-state" class="auth-sent auth-sent-card">
       <div class="auth-sent-icon"><i data-lucide="mail-check" style="width:24px;height:24px;"></i></div>
       <div class="auth-sent-title">Check your email</div>
-      <p class="auth-sent-body">We sent a magic link to <strong id="auth-sent-email"></strong>. Click it to open your Wellet — no password needed.<br><br><span class="auth-sent-aside">Heads up: Wellet is less than a month old. If something breaks once you’re in, tap the menu (<strong>•••</strong>) and choose <strong>Report a bug</strong> — it goes straight to Betsy.</span></p>
-      <div style="display:flex;justify-content:center;margin-top:12px;">
+      <p class="auth-sent-body">We sent a 6-digit code to <strong id="auth-sent-email"></strong>. Enter it below to sign in.<br><br><span class="auth-sent-aside">Heads up: Wellet is less than a month old. If something breaks once you’re in, tap the menu (<strong>•••</strong>) and choose <strong>Report a bug</strong> — it goes straight to Betsy.</span></p>
+      <div class="auth-input-wrap" style="margin-top:16px;">
+        <label class="auth-input-label" for="auth-code">6-digit code</label>
+        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" id="auth-code" class="auth-input" placeholder="123456" autocomplete="one-time-code" oninput="handleOtpCodeInput(event)" style="font-size:24px;letter-spacing:8px;text-align:center;font-family:var(--font-mono,monospace);">
+      </div>
+      <button class="btn-primary" onclick="verifyAuthCode()" id="auth-verify-btn" disabled style="width:100%;background:var(--text-primary);margin-top:12px;">
+        Verify code <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>
+      </button>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:var(--type-meta);">
+        <button class="auth-link-btn" onclick="showAuthFormState()" style="background:none;border:none;padding:0;color:var(--text-secondary);font:inherit;cursor:pointer;text-decoration:underline;">Use a different email</button>
+        <button class="auth-link-btn" id="auth-resend-btn" onclick="resendAuthCode()" style="background:none;border:none;padding:0;color:var(--text-primary);font:inherit;cursor:pointer;text-decoration:underline;">Resend code</button>
+      </div>
+      <div style="display:flex;justify-content:center;margin-top:16px;">
         <button class="auth-demo-link auth-demo-link--on-card" onclick="enterDemoMode()">
           <i data-lucide="play" style="width:14px;height:14px;"></i>
           Try the demo while you wait
