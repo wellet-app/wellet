@@ -1106,7 +1106,8 @@ async function resetOnboarding() {
         k === 'wellet_ehr_pending_person' ||
         k === 'welletPhase2' ||
         k.indexOf('wellet_first_sync_seen_') === 0 ||
-        k.indexOf('wellet_apple_health_connected_') === 0
+        k.indexOf('wellet_apple_health_connected_') === 0 ||
+        k.indexOf('wellet_apple_health_last_sync_at_') === 0
       )) {
         keysToScrub.push(k);
       }
@@ -1449,17 +1450,61 @@ function refreshConnectScreenStatus() {
   // EHR — any active connection on currentPersonId counts.
   var ehrConnected = !!(typeof getEhrData === 'function' && currentPersonId && getEhrData(currentPersonId));
   // Terra — a row in terra_connections (loaded into _terraConnections cache).
+  // Only count rows that represent a real, working Terra connection:
+  //   - a non-empty terra_user_id (and not the string 'None' or 'null' from
+  //     legacy buggy writes that pre-dated server-side validation)
+  //   - status not 'disconnected'
+  // Apple Health does NOT go through Terra — exclude provider 'APPLE' here so
+  // a stale APPLE row in terra_connections can never falsely mark the card
+  // as connected.
   var terraConnected = false;
   try {
     if (typeof _terraConnections !== 'undefined' && _terraConnections && _terraConnections.length) {
-      terraConnected = _terraConnections.some(function(c){ return c && c.person_id === currentPersonId && c.status !== 'disconnected'; });
+      terraConnected = _terraConnections.some(function(c){
+        if (!c) return false;
+        if (c.person_id !== currentPersonId) return false;
+        if (c.status === 'disconnected') return false;
+        if (String(c.provider || '').toUpperCase() === 'APPLE') return false;
+        var tuid = c.terra_user_id;
+        if (!tuid || tuid === 'None' || tuid === 'null') return false;
+        return true;
+      });
     }
   } catch(_e) {}
-  // Apple Health — we don't have a synchronous "connected" signal in the web
-  // app since the bridge runs natively. Treat "completed Wellet Connect
-  // handshake" as the marker. Stored in localStorage by the bridge callback.
+  // Apple Health \u2014 STRICT signal only. Apple Health is native HealthKit, NOT
+  // Terra. The card is "Connected" only when Postgres has real Apple data
+  // for this person:
+  //   - people.apple_health_last_sync_at is non-null, OR
+  //   - a small localStorage mirror of that timestamp (refreshed below)
+  // We deliberately do NOT consult terra_connections here even if a row
+  // exists with provider='APPLE' \u2014 that's a legacy/zombie shape we're
+  // actively removing from the DB and the wire.
   var appleConnected = false;
-  try { appleConnected = localStorage.getItem('wellet_apple_health_connected_' + currentPersonId) === '1'; } catch(_e) {}
+  try {
+    var ls = localStorage.getItem('wellet_apple_health_last_sync_at_' + currentPersonId);
+    if (ls && ls !== 'null' && ls !== 'None') appleConnected = true;
+  } catch(_e) {}
+  // Kick off an async refresh of the Apple Health signal from Postgres. When
+  // it returns, we restamp localStorage and re-mark just the Apple card. This
+  // keeps the read fast for the common case and self-heals on returns from
+  // the Wellet Connect handoff.
+  try {
+    if (typeof db !== 'undefined' && currentPersonId) {
+      db.from('people')
+        .select('apple_health_last_sync_at')
+        .eq('id', currentPersonId)
+        .maybeSingle()
+        .then(function(res){
+          var ts = res && res.data && res.data.apple_health_last_sync_at;
+          try {
+            if (ts) localStorage.setItem('wellet_apple_health_last_sync_at_' + currentPersonId, ts);
+            else    localStorage.removeItem('wellet_apple_health_last_sync_at_' + currentPersonId);
+          } catch(_e) {}
+          _markConnectCard('connect-card-apple', !!ts);
+        })
+        .catch(function(_e){});
+    }
+  } catch(_e) {}
 
   _markConnectCard('connect-card-ehr', ehrConnected);
   _markConnectCard('connect-card-apple', appleConnected);
@@ -1597,9 +1642,14 @@ function connectAppleHealth() {
     showToast('Setting things up \u2014 try again in a moment');
     return;
   }
+  // mode=apple tells the /connect-callback handler this round-trip was Apple
+  // Health specifically (not EHR, not Terra). Wellet Connect echoes this back
+  // in the universal-link return so the right card lights up and the right
+  // toast fires. Old versions of Wellet Connect won't echo &mode — the callback
+  // handler treats missing mode as legacy Apple to preserve back-compat.
   var deepLink = 'wellet://connect?type=health'
                + '&person_id=' + encodeURIComponent(currentPersonId)
-               + '&return='    + encodeURIComponent(location.origin + '/connect-callback');
+               + '&return='    + encodeURIComponent(location.origin + '/connect-callback?mode=apple');
   var t0 = Date.now();
   // Use location.href; Safari handles wellet:// → universal link → app open.
   // If the AASA file or app aren't installed, control returns here in <800ms
@@ -11058,27 +11108,61 @@ function checkEhrCallbackOnLoad() {
 }
 
 // Handle the /connect-callback universal-link return from the Wellet Connect
-// iOS app. Reads ?status=ok|error, shows the spec toast, and redirects home.
-// TODO: when Wellet Connect ships, the iOS app will fire its own webhook to
-// stamp apple_health_connected_at on the people row. We intentionally do NOT
-// write that column here yet (it doesn't exist in the schema).
+// iOS app. Reads ?mode=ehr|apple|terra and ?status=ok|error and routes the
+// confirmation to the right card. Three buttons, three sources, never crossing:
+//   - mode=apple  -> Apple Health (native HealthKit only; never terra_connections)
+//   - mode=ehr    -> Hospital health records (ehr_connections)
+//   - mode=terra  -> Other wearables via Terra (terra_connections, never APPLE)
+// Missing mode is treated as legacy Apple to keep older Wellet Connect builds
+// working until everyone is on Build 5+.
+//
+// IMPORTANT: status=ok alone is NOT proof that HealthKit auth happened. The
+// Apple card only flips to Connected after we also see real signal in the DB
+// (a wearable_observations row or people.apple_health_last_sync_at stamp).
+// Until then we show a softer "finishing up" toast and let
+// refreshConnectScreenStatus do the actual card update on its next read.
 function handleConnectCallback() {
   if (window.location.pathname !== '/connect-callback') return;
   var params = new URLSearchParams(window.location.search);
   var status = params.get('status');
+  var mode = (params.get('mode') || 'apple').toLowerCase();
   try {
     if (status === 'ok') {
-      showToast('Apple Health connected \u2014 catching up');
+      if (mode === 'ehr') {
+        showToast('Health records connected \u2014 catching up');
+      } else if (mode === 'terra') {
+        showToast('Wearable connected \u2014 catching up');
+      } else {
+        // apple (and legacy missing-mode). We deliberately do NOT set the
+        // wellet_apple_health_connected_<person_id> flag here \u2014 a status=ok
+        // ping from Wellet Connect proves the universal link round-tripped,
+        // not that HealthKit authorization completed. The Apple card lights
+        // up only when refreshConnectScreenStatus sees real Apple data in
+        // Postgres (people.apple_health_last_sync_at or wearable_observations
+        // rows). Until Build 5 ships the explicit HealthKit-success webhook,
+        // a slightly softer "finishing up" toast is honest.
+        showToast('Finishing Apple Health setup \u2014 give it a moment');
+      }
     } else {
-      showToast('Apple Health didn\u2019t finish connecting \u2014 try again');
+      if (mode === 'ehr') {
+        showToast('Health records didn\u2019t finish connecting \u2014 try again');
+      } else if (mode === 'terra') {
+        showToast('Wearable didn\u2019t finish connecting \u2014 try again');
+      } else {
+        showToast('Apple Health didn\u2019t finish connecting \u2014 try again');
+      }
     }
   } catch(e) {}
   // Redirect to home so the user lands in the app shell, not on a bare path.
+  // Keep them on the connect screen if they were mid-onboarding; otherwise
+  // route home so they aren't stranded on /connect-callback.
   try {
     window.history.replaceState({}, '', '/');
   } catch(e) {
     window.location.replace('/');
   }
+  // Trigger a status re-read so the right card updates if real signal landed.
+  try { if (typeof refreshConnectScreenStatus === 'function') refreshConnectScreenStatus(); } catch(e) {}
 }
 
 // Auto-refresh stale EHR data on person load.
