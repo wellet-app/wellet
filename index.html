@@ -1868,7 +1868,7 @@
       <div class="settings-row">
         <div class="settings-row-left">
           <div class="settings-row-icon"><i data-lucide="user" style="width:15px;height:15px;"></i></div>
-          <div><div class="settings-row-label" id="settings-user-email" data-i18n="settings.signedIn">Signed in</div><div class="settings-row-meta" data-i18n="settings.magicLink">Magic link authentication</div></div>
+          <div><div class="settings-row-label" id="settings-user-email" data-i18n="settings.signedIn">Signed in</div><div class="settings-row-meta" data-i18n="settings.magicLink">6-digit code sign-in</div></div>
         </div>
       </div>
       <div class="settings-row" style="cursor:pointer;" onclick="handleLogout()">
@@ -1876,16 +1876,16 @@
           <div class="settings-row-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="log-out" style="width:15px;height:15px;"></i></div>
           <div><div class="settings-row-label" style="color:var(--red);" data-i18n="settings.signOut">Sign out</div><div class="settings-row-meta" data-i18n="settings.signOutMeta">Return to login screen</div></div>
         </div>
+        <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+      </div>
+    </div>
+
     <!-- Language section -->
-    <div class="settings-section" id="settings-language-section">
+    <div class="settings-section" id="settings-language-section" style="margin-top:12px;">
       <div class="settings-section-label" data-i18n="settings.language">Language</div>
       <div class="lang-pill-row">
         <button class="lang-pill-btn active" data-lang="en" onclick="setLanguage('en')">English</button>
         <button class="lang-pill-btn" data-lang="es" onclick="setLanguage('es')">Español</button>
-      </div>
-    </div>
-
-        <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
       </div>
     </div>
 
@@ -1999,15 +1999,6 @@
       <div class="settings-section-label" data-i18n="settings.careCircle">Family &amp; care circle</div>
       <div id="care-circle-list">
         <!-- populated by renderCareCircle() -->
-        <div class="contact-card">
-          <div class="contact-avatar">SB</div>
-          <div style="flex:1;">
-            <div class="contact-name">Sarah Bell</div>
-            <div class="contact-meta">sarah@email.com · (919) 555-0142</div>
-          </div>
-          <span class="contact-role primary">Primary</span>
-          <button class="contact-edit-btn" onclick="openContactEdit('Sarah Bell','Primary','sarah@email.com','(919) 555-0142')"><i data-lucide="pencil" style="width:14px;height:14px;"></i></button>
-        </div>
       </div>
       <button class="add-contact-btn" onclick="openContactEdit(null)">
         <i data-lucide="user-plus" style="width:15px;height:15px;"></i>
