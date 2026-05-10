@@ -1234,7 +1234,7 @@
           <div class="settings-row">
             <div class="settings-row-left">
               <div class="settings-row-icon"><i data-lucide="user" style="width:15px;height:15px;"></i></div>
-              <div><div class="settings-row-label" id="sv-user-email">Signed in</div><div class="settings-row-meta">Magic link authentication</div></div>
+              <div><div class="settings-row-label" id="sv-user-email">Signed in</div><div class="settings-row-meta">6-digit code sign-in</div></div>
             </div>
           </div>
           <div class="settings-row" id="sv-app-mode-row" style="cursor:pointer;" onclick="openAppModeSwitch()">
@@ -1263,11 +1263,7 @@
         <div class="settings-section" style="margin-top:12px;">
           <div class="settings-section-label">Care Circle</div>
           <div id="sv-care-circle-list">
-            <div class="contact-card">
-              <div class="contact-avatar">SB</div>
-              <div style="flex:1;"><div class="contact-name">Sarah Bell</div><div class="contact-meta">sarah@email.com</div></div>
-              <span class="contact-role primary">Primary</span>
-            </div>
+            <!-- populated by renderSvCareCircle() -->
           </div>
           <button class="add-contact-btn" onclick="openContactEdit(null)">
             <i data-lucide="user-plus" style="width:15px;height:15px;"></i> Invite family member

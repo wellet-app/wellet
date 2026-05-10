@@ -14326,11 +14326,15 @@ function shareEmergencySummary() {
 // ── CARE CIRCLE (Feature 4) ─────────────────────────────────────────────────
 function renderCareCircle() {
   if (isDemoMode) return;
-  var container = document.getElementById('care-circle-list');
-  if (!container) return;
+  var containers = [
+    document.getElementById('care-circle-list'),
+    document.getElementById('sv-care-circle-list')
+  ].filter(function(c){ return !!c; });
+  if (containers.length === 0) return;
 
   if (liveCareCircle.length === 0) {
-    container.innerHTML = '<div style="text-align:center;padding:16px 0 8px;font-size:var(--type-meta);color:var(--text-secondary);font-style:italic;">No care circle members yet.</div>';
+    var emptyHtml = '<div style="text-align:center;padding:16px 0 8px;font-size:var(--type-meta);color:var(--text-secondary);font-style:italic;">No care circle members yet.</div>';
+    containers.forEach(function(c){ c.innerHTML = emptyHtml; });
     return;
   }
 
@@ -14362,7 +14366,7 @@ function renderCareCircle() {
       + '<button class="contact-edit-btn" onclick="openContactEditById(\'' + member.id + '\')" title="Edit"><i data-lucide="pencil" style="width:14px;height:14px;"></i></button>'
       + '</div>';
   });
-  container.innerHTML = html;
+  containers.forEach(function(c){ c.innerHTML = html; });
   initIcons();
 }
 
@@ -15622,7 +15626,10 @@ function switchNavTo(view, skipPush) {
   if (view === 'resources') { renderResourcesView(); }
   if (view === 'people' && !isDemoMode) { renderPeopleView(); }
   if (view === 'ask' && !isDemoMode) { renderAskView(); }
-  if (view === 'settings') { updateSettingsViewAccount(); }
+  if (view === 'settings') {
+    updateSettingsViewAccount();
+    if (!isDemoMode) { try { renderCareCircle(); } catch(e){} }
+  }
   // Push history state for back button support
   if (!skipPush && view !== _currentNavView) {
     history.pushState({ type: 'tab', view: view }, '');
