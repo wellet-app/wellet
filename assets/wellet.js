@@ -15318,7 +15318,7 @@ var _vrSeconds = 0;
 var _vrIsRecording = false;
 var _vrCancelled = false;
 var _vrWatchdog = null;
-var WELLET_VOICE_BUILD = 'voice-v2026-05-12c';
+var WELLET_VOICE_BUILD = 'voice-v2026-05-12d';
 
 function startVoiceRecording() {
   closeUpload();
@@ -15579,7 +15579,9 @@ async function _uploadVoiceRecording() {
 
     var ts = Date.now();
     var fileName = 'Voice note \u2014 ' + new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + '.' + ext;
-    var storagePath = 'voice/' + userId + '/' + currentPersonId + '/' + ts + '.' + ext;
+    // Storage RLS on the 'documents' bucket requires (storage.foldername(name))[1] = auth.uid()::text
+    // i.e. the FIRST folder must be the user's auth uid. Putting 'voice/' first violates RLS.
+    var storagePath = userId + '/voice/' + currentPersonId + '/' + ts + '.' + ext;
 
     var uploadRes = await db.storage.from('documents').upload(storagePath, blob, {
       contentType: baseMime,
