@@ -2932,7 +2932,36 @@ function renderTimeline() {
     seenSig[sig] = true;
     ehrDeduped.push(e);
   });
-  var allEvents = liveEvents.concat(ehrDeduped);
+  // Voice notes show up on the Timeline as 'note' events. The body shows the
+  // AI summary (or a transcript snippet if no summary was produced). Tapping
+  // routes to the documents pane via openTimelineItem.
+  var voiceTimelineItems = [];
+  try {
+    if (typeof liveDocs !== 'undefined' && Array.isArray(liveDocs)) {
+      liveDocs.forEach(function(d) {
+        if (d.document_type !== 'voice_note' && !(d.file_name && /\.(m4a|mp3|wav|ogg|webm)$/i.test(d.file_name))) return;
+        var ext = d.extracted_events;
+        if (typeof ext === 'string') { try { ext = JSON.parse(ext); } catch(e) { ext = null; } }
+        var body = '';
+        if (ext && ext.summary) body = ext.summary;
+        else if (ext && ext.transcript) body = ext.transcript.length > 240 ? ext.transcript.substring(0,240) + '\u2026' : ext.transcript;
+        else if (d.extraction_status === 'pending') body = 'Transcribing\u2026';
+        else if (d.extraction_status === 'failed') body = 'Transcription failed \u2014 retry from Records.';
+        var title = d.file_name && d.file_name.indexOf('Voice note') === 0 ? d.file_name.replace(/\.[a-z0-9]+$/i,'') : 'Voice note';
+        voiceTimelineItems.push({
+          event_type: 'note',
+          title: title,
+          event_date: d.uploaded_at,
+          notes: body,
+          source: 'voice',
+          _section: 'documents',
+          _refId: d.id
+        });
+      });
+    }
+  } catch (eVT) { try { console.warn('[timeline] voice merge skipped:', eVT); } catch (er) {} }
+
+  var allEvents = liveEvents.concat(ehrDeduped).concat(voiceTimelineItems);
   allEvents.sort(function(a,b) { return new Date(b.event_date) - new Date(a.event_date); });
 
   if (allEvents.length === 0) {
@@ -2976,7 +3005,11 @@ function renderTimeline() {
       // EHR items route to the matching Records detail pane (labs / visits /
       // conditions / documents), with the specific item id as a deep-link hint.
       var clickAttr;
-      if (!isEhr) {
+      if (ev.source === 'voice' && ev._refId) {
+        // Voice notes open the transcript / summary / play sheet directly.
+        var voiceIdSafe = String(ev._refId).replace(/[^a-zA-Z0-9_.\-]/g, '');
+        clickAttr = ' onclick="showExtractionResults(\'' + voiceIdSafe + '\')" style="cursor:pointer;"';
+      } else if (!isEhr) {
         clickAttr = ' onclick="openEditEvent(\'' + ev.id + '\')"';
       } else {
         var section = ev._section || (ev.event_type === 'lab_result' ? 'labs' : (ev.event_type === 'appointment' ? 'visits' : 'conditions'));
@@ -15318,7 +15351,7 @@ var _vrSeconds = 0;
 var _vrIsRecording = false;
 var _vrCancelled = false;
 var _vrWatchdog = null;
-var WELLET_VOICE_BUILD = 'voice-v2026-05-12d';
+var WELLET_VOICE_BUILD = 'voice-v2026-05-12e';
 
 function startVoiceRecording() {
   closeUpload();
@@ -15646,10 +15679,27 @@ async function _uploadVoiceRecording() {
       showToast('Recording saved. Transcription failed \u2014 you can retry from Records.');
     }
 
-    // Refresh the views that show the new note.
+    // Refresh the views that show the new note. We MUST re-fetch documents
+    // from the DB first \u2014 otherwise liveDocs is stale and the new voice note
+    // won\u2019t appear in Records \u2192 Documents until the user reloads the page.
+    try {
+      if (typeof db !== 'undefined' && currentPersonId) {
+        var refreshRes = await db.from('documents').select('*').eq('person_id', currentPersonId).order('uploaded_at', { ascending: false });
+        if (refreshRes && refreshRes.data && typeof liveDocs !== 'undefined') {
+          liveDocs = refreshRes.data;
+        }
+      }
+    } catch (refErr) { try { console.warn('[voice] doc refresh failed:', refErr); } catch (er) {} }
     try { if (typeof renderRecordsView === 'function') renderRecordsView(); } catch (e) {}
     try { if (typeof renderTimeline === 'function') renderTimeline(); } catch (e) {}
     try { if (typeof renderUpdateMe === 'function') renderUpdateMe(); } catch (e) {}
+    // Open the Documents detail straight from the voice sheet \u2014 the user just
+    // spoke into the phone; they shouldn\u2019t have to hunt for the result.
+    try {
+      if (insertRes && insertRes.data && insertRes.data.id && typeof showExtractionResults === 'function') {
+        setTimeout(function() { try { showExtractionResults(insertRes.data.id); } catch (e) {} }, 350);
+      }
+    } catch (eOpen) {}
   } catch (err) {
     console.error('voice recording upload failed:', err);
     if (_vrWatchdog) { clearTimeout(_vrWatchdog); _vrWatchdog = null; }
