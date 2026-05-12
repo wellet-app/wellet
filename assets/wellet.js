@@ -15360,9 +15360,37 @@ function toggleVoiceRecording() {
   }
 }
 
+// Pick the best MIME this browser actually supports for MediaRecorder.
+// iOS WebKit (Safari + Chrome on iOS) supports audio/mp4. Desktop Chrome
+// and Firefox support audio/webm;codecs=opus. We try MP4 first because
+// it's the universal iOS path and Whisper handles it natively.
+function _pickRecorderMimeType() {
+  if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) {
+    return ''; // fall back to browser default
+  }
+  var candidates = [
+    'audio/mp4;codecs=mp4a.40.2', // AAC-LC in MP4 (iOS preferred)
+    'audio/mp4',
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/ogg;codecs=opus',
+    'audio/ogg'
+  ];
+  for (var i = 0; i < candidates.length; i++) {
+    try {
+      if (MediaRecorder.isTypeSupported(candidates[i])) return candidates[i];
+    } catch (e) { /* keep trying */ }
+  }
+  return '';
+}
+
 function _startMediaRecording() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     showToast('Microphone not available on this device');
+    return;
+  }
+  if (typeof MediaRecorder === 'undefined') {
+    showToast('Voice recording isn\u2019t supported in this browser. Try Safari or Chrome.');
     return;
   }
   navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
@@ -15383,19 +15411,68 @@ function _startMediaRecording() {
       if (timerEl) timerEl.textContent = m + ':' + (s < 10 ? '0' : '') + s;
     }, 1000);
     _vrCancelled = false;
-    _vrMediaRecorder = new MediaRecorder(stream);
-    _vrMediaRecorder.ondataavailable = function(e) { if (e.data.size > 0) _vrChunks.push(e.data); };
+
+    // Negotiate a MIME the browser actually supports. Without this, iOS WebKit
+    // would buffer audio in a container Whisper can\u2019t decode and the chunk
+    // would arrive AFTER onstop, dropping the recording.
+    var chosenMime = _pickRecorderMimeType();
+    try {
+      _vrMediaRecorder = chosenMime
+        ? new MediaRecorder(stream, { mimeType: chosenMime })
+        : new MediaRecorder(stream);
+    } catch (ctorErr) {
+      // Fallback: try again with no options (some Android builds reject any options object)
+      try { _vrMediaRecorder = new MediaRecorder(stream); }
+      catch (fatal) {
+        stream.getTracks().forEach(function(t) { t.stop(); });
+        if (_vrTimerInterval) { clearInterval(_vrTimerInterval); _vrTimerInterval = null; }
+        _vrIsRecording = false;
+        showToast('Voice recording isn\u2019t supported in this browser. Try Safari or Chrome.');
+        return;
+      }
+    }
+    try { console.log('[voice] MediaRecorder mimeType =', _vrMediaRecorder.mimeType); } catch (e) {}
+
+    _vrMediaRecorder.ondataavailable = function(e) {
+      if (e.data && e.data.size > 0) _vrChunks.push(e.data);
+      try { console.log('[voice] chunk size =', e.data && e.data.size, 'total chunks =', _vrChunks.length); } catch (er) {}
+    };
+    _vrMediaRecorder.onerror = function(e) {
+      try { console.error('[voice] MediaRecorder error:', e && e.error); } catch (er) {}
+    };
     _vrMediaRecorder.onstop = function() {
       stream.getTracks().forEach(function(t) { t.stop(); });
       if (_vrCancelled) {
         _vrChunks = [];
         return;
       }
-      _uploadVoiceRecording();
+      // On iOS WebKit the final \u201Cdataavailable\u201D event can arrive AFTER onstop
+      // when stop() is called without a timeslice. We requestData() on stop and
+      // then wait a tick to make sure the final chunk has landed before uploading.
+      setTimeout(function() { _uploadVoiceRecording(); }, 250);
     };
-    _vrMediaRecorder.start();
+    // Start with a 1-second timeslice so ondataavailable fires periodically.
+    // Without this, iOS Safari may emit zero chunks until stop().
+    try { _vrMediaRecorder.start(1000); }
+    catch (startErr) {
+      try { _vrMediaRecorder.start(); }
+      catch (startFatal) {
+        stream.getTracks().forEach(function(t) { t.stop(); });
+        if (_vrTimerInterval) { clearInterval(_vrTimerInterval); _vrTimerInterval = null; }
+        _vrIsRecording = false;
+        showToast('Could not start recording. Try closing other apps using the microphone.');
+        return;
+      }
+    }
   }).catch(function(err) {
-    showToast('Could not access microphone: ' + err.message);
+    var msg = (err && err.message) || String(err);
+    if (err && (err.name === 'NotAllowedError' || /permission|denied/i.test(msg))) {
+      showToast('Microphone permission is blocked. Open iOS Settings \u2192 Wellet \u2192 Microphone.');
+    } else if (err && err.name === 'NotFoundError') {
+      showToast('No microphone found on this device.');
+    } else {
+      showToast('Could not access microphone: ' + msg);
+    }
   });
 }
 
@@ -15407,7 +15484,12 @@ function finishVoiceRecording() {
   if (processingEl) processingEl.style.display = 'block';
   if (stopBtn) stopBtn.style.display = 'none';
   if (_vrMediaRecorder && _vrMediaRecorder.state !== 'inactive') {
-    _vrMediaRecorder.stop();
+    // Force a final dataavailable before stop on iOS WebKit.
+    try { if (typeof _vrMediaRecorder.requestData === 'function') _vrMediaRecorder.requestData(); } catch (e) {}
+    try { _vrMediaRecorder.stop(); } catch (e) {
+      try { console.error('[voice] stop() threw:', e); } catch (er) {}
+      _uploadVoiceRecording();
+    }
   } else {
     _uploadVoiceRecording();
   }
@@ -15425,7 +15507,8 @@ async function _uploadVoiceRecording() {
 
   try {
     if (!_vrChunks || _vrChunks.length === 0) {
-      throw new Error('No audio captured. Try recording again.');
+      try { console.warn('[voice] no chunks captured; recorder mimeType was', _vrMediaRecorder && _vrMediaRecorder.mimeType); } catch (e) {}
+      throw new Error('No audio was captured. Check that microphone access is allowed in Settings \u2192 Wellet \u2192 Microphone, then try again.');
     }
     if (!currentPersonId) {
       throw new Error('No person selected. Open a profile first.');
