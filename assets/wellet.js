@@ -6220,24 +6220,54 @@ async function playAudioDocument(docId) {
   // Stop any previous playback
   if (_audioPlayer) { _audioPlayer.pause(); _audioPlayer = null; }
 
-  var result = await db.storage.from('documents').createSignedUrl(doc.storage_path, 3600);
-  if (!result.data || !result.data.signedUrl) {
-    showToast('Could not load audio');
-    return;
-  }
+  // iOS Safari: Audio element MUST be created synchronously inside the user-gesture
+  // click handler. If we await first, the gesture token is lost and play() rejects
+  // with NotAllowedError. So create the element now and assign src once the signed
+  // URL resolves. Also call .load() and .play() right away — the browser will queue
+  // the play until src is set.
+  var audio = new Audio();
+  audio._docId = docId;
+  audio.preload = 'auto';
+  audio.playsInline = true;
+  _audioPlayer = audio;
 
-  _audioPlayer = new Audio(result.data.signedUrl);
-  _audioPlayer._docId = docId;
-  _audioPlayer.play().catch(function() { showToast('Could not play audio'); });
-  _audioPlayer.onended = function() { _audioPlayer = null; };
+  try {
+    var result = await db.storage.from('documents').createSignedUrl(doc.storage_path, 3600);
+    if (!result.data || !result.data.signedUrl) {
+      console.error('[voice] signed url failed', result.error);
+      showToast('Could not load audio');
+      _audioPlayer = null;
+      return;
+    }
+    if (_audioPlayer !== audio) return; // user clicked something else mid-fetch
+    audio.src = result.data.signedUrl;
+    audio.onended = function() { if (_audioPlayer === audio) _audioPlayer = null; };
+    audio.onerror = function(e) {
+      console.error('[voice] audio element error', audio.error, e);
+      showToast('Could not play audio: ' + (audio.error && audio.error.message || 'element error'));
+      if (_audioPlayer === audio) _audioPlayer = null;
+    };
+    try {
+      await audio.play();
+    } catch (playErr) {
+      console.error('[voice] play() rejected', playErr && playErr.name, playErr && playErr.message);
+      showToast('Could not play audio: ' + (playErr && playErr.name || 'play blocked'));
+      if (_audioPlayer === audio) _audioPlayer = null;
+    }
+  } catch (err) {
+    console.error('[voice] playAudioDocument fatal', err);
+    showToast('Could not play audio: ' + (err && err.message || 'unknown'));
+    if (_audioPlayer === audio) _audioPlayer = null;
+  }
 }
 
 async function playTranscriptAudio() {
   if (!_currentExtDoc) return;
   var btn = document.getElementById('ext-play-btn');
+  var doc = _currentExtDoc;
 
   // Toggle playback
-  if (_audioPlayer && _audioPlayer._docId === _currentExtDoc.id) {
+  if (_audioPlayer && _audioPlayer._docId === doc.id) {
     _audioPlayer.pause();
     _audioPlayer = null;
     btn.innerHTML = '<i data-lucide="play" style="width:12px;height:12px;"></i> Play';
@@ -6246,22 +6276,54 @@ async function playTranscriptAudio() {
   }
   if (_audioPlayer) { _audioPlayer.pause(); _audioPlayer = null; }
 
-  var result = await db.storage.from('documents').createSignedUrl(_currentExtDoc.storage_path, 3600);
-  if (!result.data || !result.data.signedUrl) {
-    showToast('Could not load audio');
-    return;
-  }
-
-  _audioPlayer = new Audio(result.data.signedUrl);
-  _audioPlayer._docId = _currentExtDoc.id;
+  // iOS Safari: create Audio element synchronously inside the user gesture
+  var audio = new Audio();
+  audio._docId = doc.id;
+  audio.preload = 'auto';
+  audio.playsInline = true;
+  _audioPlayer = audio;
   btn.innerHTML = '<i data-lucide="square" style="width:12px;height:12px;"></i> Stop';
   initIcons();
-  _audioPlayer.play().catch(function() { showToast('Could not play audio'); });
-  _audioPlayer.onended = function() {
-    _audioPlayer = null;
+
+  var resetBtn = function() {
     btn.innerHTML = '<i data-lucide="play" style="width:12px;height:12px;"></i> Play';
     initIcons();
   };
+
+  try {
+    var result = await db.storage.from('documents').createSignedUrl(doc.storage_path, 3600);
+    if (!result.data || !result.data.signedUrl) {
+      console.error('[voice] signed url failed', result.error);
+      showToast('Could not load audio');
+      _audioPlayer = null; resetBtn();
+      return;
+    }
+    if (_audioPlayer !== audio) return;
+    audio.src = result.data.signedUrl;
+    audio.onended = function() {
+      if (_audioPlayer === audio) _audioPlayer = null;
+      resetBtn();
+    };
+    audio.onerror = function(e) {
+      console.error('[voice] audio element error', audio.error, e);
+      showToast('Could not play audio: ' + (audio.error && audio.error.message || 'element error'));
+      if (_audioPlayer === audio) _audioPlayer = null;
+      resetBtn();
+    };
+    try {
+      await audio.play();
+    } catch (playErr) {
+      console.error('[voice] play() rejected', playErr && playErr.name, playErr && playErr.message);
+      showToast('Could not play audio: ' + (playErr && playErr.name || 'play blocked'));
+      if (_audioPlayer === audio) _audioPlayer = null;
+      resetBtn();
+    }
+  } catch (err) {
+    console.error('[voice] playTranscriptAudio fatal', err);
+    showToast('Could not play audio: ' + (err && err.message || 'unknown'));
+    if (_audioPlayer === audio) _audioPlayer = null;
+    resetBtn();
+  }
 }
 
 var _currentExtDoc = null; // document being viewed in extraction overlay
@@ -15351,7 +15413,7 @@ var _vrSeconds = 0;
 var _vrIsRecording = false;
 var _vrCancelled = false;
 var _vrWatchdog = null;
-var WELLET_VOICE_BUILD = 'voice-v2026-05-12e';
+var WELLET_VOICE_BUILD = 'voice-v2026-05-12f';
 
 function startVoiceRecording() {
   closeUpload();
