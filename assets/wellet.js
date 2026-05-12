@@ -6223,13 +6223,52 @@ async function playAudioDocument(docId) {
   // iOS Safari: Audio element MUST be created synchronously inside the user-gesture
   // click handler. If we await first, the gesture token is lost and play() rejects
   // with NotAllowedError. So create the element now and assign src once the signed
-  // URL resolves. Also call .load() and .play() right away — the browser will queue
-  // the play until src is set.
+  // URL resolves.
   var audio = new Audio();
   audio._docId = docId;
   audio.preload = 'auto';
-  audio.playsInline = true;
   _audioPlayer = audio;
+
+  var errCodeName = function(code) {
+    return ({1:'aborted',2:'network',3:'decode',4:'src-not-supported'})[code] || ('code-' + code);
+  };
+
+  var tryBlobFallback = async function(signedUrl) {
+    // Some iOS Safari versions reject Supabase signed URLs when the response
+    // has a query-string-signed URL with Range request handling, or when the
+    // X-Content-Type-Options header is set strict. Fetching the bytes and
+    // playing from a blob: URL sidesteps both.
+    try {
+      console.warn('[voice] trying blob fallback for', signedUrl);
+      var resp = await fetch(signedUrl);
+      if (!resp.ok) throw new Error('fetch ' + resp.status);
+      var bytes = await resp.blob();
+      // Force the type to audio/mp4 (or whatever the storage said), since the
+      // signed URL response may set content-type to application/octet-stream.
+      var typedBlob = bytes.type ? bytes : new Blob([bytes], { type: 'audio/mp4' });
+      var blobUrl = URL.createObjectURL(typedBlob.type ? typedBlob : new Blob([typedBlob], { type: 'audio/mp4' }));
+      var fallback = new Audio();
+      fallback._docId = docId;
+      fallback.preload = 'auto';
+      fallback.src = blobUrl;
+      _audioPlayer = fallback;
+      fallback.onended = function() {
+        if (_audioPlayer === fallback) _audioPlayer = null;
+        URL.revokeObjectURL(blobUrl);
+      };
+      fallback.onerror = function() {
+        console.error('[voice] blob fallback also failed', fallback.error);
+        showToast('Audio file cannot be played on this device (' + errCodeName(fallback.error && fallback.error.code) + ')');
+        if (_audioPlayer === fallback) _audioPlayer = null;
+        URL.revokeObjectURL(blobUrl);
+      };
+      await fallback.play();
+    } catch (fbErr) {
+      console.error('[voice] blob fallback threw', fbErr);
+      showToast('Could not play audio: ' + (fbErr && fbErr.message || 'fallback failed'));
+      _audioPlayer = null;
+    }
+  };
 
   try {
     var result = await db.storage.from('documents').createSignedUrl(doc.storage_path, 3600);
@@ -6240,19 +6279,21 @@ async function playAudioDocument(docId) {
       return;
     }
     if (_audioPlayer !== audio) return; // user clicked something else mid-fetch
-    audio.src = result.data.signedUrl;
+    var signedUrl = result.data.signedUrl;
+    audio.src = signedUrl;
     audio.onended = function() { if (_audioPlayer === audio) _audioPlayer = null; };
-    audio.onerror = function(e) {
-      console.error('[voice] audio element error', audio.error, e);
-      showToast('Could not play audio: ' + (audio.error && audio.error.message || 'element error'));
-      if (_audioPlayer === audio) _audioPlayer = null;
+    audio.onerror = function() {
+      var code = audio.error && audio.error.code;
+      console.error('[voice] audio element error code=' + code, audio.error);
+      // Try blob fallback before giving up
+      tryBlobFallback(signedUrl);
     };
     try {
       await audio.play();
     } catch (playErr) {
       console.error('[voice] play() rejected', playErr && playErr.name, playErr && playErr.message);
-      showToast('Could not play audio: ' + (playErr && playErr.name || 'play blocked'));
-      if (_audioPlayer === audio) _audioPlayer = null;
+      // If play() rejected, try the blob fallback (iOS gesture issues etc.)
+      tryBlobFallback(signedUrl);
     }
   } catch (err) {
     console.error('[voice] playAudioDocument fatal', err);
@@ -15413,7 +15454,7 @@ var _vrSeconds = 0;
 var _vrIsRecording = false;
 var _vrCancelled = false;
 var _vrWatchdog = null;
-var WELLET_VOICE_BUILD = 'voice-v2026-05-12f';
+var WELLET_VOICE_BUILD = 'voice-v2026-05-12g';
 
 function startVoiceRecording() {
   closeUpload();
