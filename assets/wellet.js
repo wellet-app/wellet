@@ -15317,6 +15317,8 @@ var _vrTimerInterval = null;
 var _vrSeconds = 0;
 var _vrIsRecording = false;
 var _vrCancelled = false;
+var _vrWatchdog = null;
+var WELLET_VOICE_BUILD = 'voice-v2026-05-12c';
 
 function startVoiceRecording() {
   closeUpload();
@@ -15333,11 +15335,15 @@ function startVoiceRecording() {
   var processingLabel = document.getElementById('voice-processing-label');
   var recordBtn = document.getElementById('voice-record-btn');
   if (timerEl) timerEl.textContent = '0:00';
-  if (statusEl) statusEl.textContent = 'Tap to start recording';
+  if (statusEl) statusEl.textContent = 'Tap to start recording \u00b7 ' + WELLET_VOICE_BUILD;
   if (stopBtn) stopBtn.style.display = 'none';
   if (processingEl) processingEl.style.display = 'none';
   if (processingLabel) processingLabel.textContent = 'Transcribing your recording\u2026';
-  if (recordBtn) recordBtn.style.background = '#C0392B';
+  if (recordBtn) {
+    recordBtn.style.background = '#C0392B';
+    recordBtn.disabled = false;
+  }
+  if (_vrWatchdog) { clearTimeout(_vrWatchdog); _vrWatchdog = null; }
 }
 
 function stopVoiceRecording() {
@@ -15436,6 +15442,14 @@ function _startMediaRecording() {
     _vrMediaRecorder.ondataavailable = function(e) {
       if (e.data && e.data.size > 0) _vrChunks.push(e.data);
       try { console.log('[voice] chunk size =', e.data && e.data.size, 'total chunks =', _vrChunks.length); } catch (er) {}
+      // Show live chunk count to the user so we can see if iOS is buffering.
+      try {
+        var st = document.getElementById('voice-record-status');
+        if (st && _vrIsRecording) {
+          var totalBytes = _vrChunks.reduce(function(a,c){ return a + (c.size||0); }, 0);
+          st.textContent = 'Recording\u2026 ' + _vrChunks.length + ' chunk' + (_vrChunks.length===1?'':'s') + ' \u00b7 ' + Math.round(totalBytes/1024) + ' KB';
+        }
+      } catch (er2) {}
     };
     _vrMediaRecorder.onerror = function(e) {
       try { console.error('[voice] MediaRecorder error:', e && e.error); } catch (er) {}
@@ -15481,8 +15495,30 @@ function finishVoiceRecording() {
   _vrIsRecording = false;
   var processingEl = document.getElementById('voice-processing');
   var stopBtn = document.getElementById('voice-stop-btn');
+  var statusEl = document.getElementById('voice-record-status');
+  var recordBtn = document.getElementById('voice-record-btn');
+  // Clearly transition the UI out of the "recording" state so the user
+  // doesn\u2019t see a frozen "Recording\u2026" label while we save.
+  if (statusEl) statusEl.textContent = 'Stopping\u2026';
+  if (recordBtn) {
+    recordBtn.style.background = '#9aa0a6';
+    recordBtn.disabled = true;
+  }
   if (processingEl) processingEl.style.display = 'block';
   if (stopBtn) stopBtn.style.display = 'none';
+
+  // Hard watchdog: if we\u2019re still hung 10s from now, surface a real error
+  // and give the user a way out instead of a frozen "Saving recording\u2026" UI.
+  if (_vrWatchdog) { clearTimeout(_vrWatchdog); }
+  _vrWatchdog = setTimeout(function() {
+    try { console.warn('[voice] watchdog: still stuck after 10s'); } catch (e) {}
+    var pe = document.getElementById('voice-processing');
+    var pl = document.getElementById('voice-processing-label');
+    if (pl) pl.textContent = 'Recording didn\u2019t complete. Tap the X and try again. If it keeps failing, force-quit Safari and reload mywellet.com.';
+    if (pe) pe.style.display = 'block';
+    try { showToast('Voice recording stuck \u2014 see error below.'); } catch (e) {}
+  }, 10000);
+
   if (_vrMediaRecorder && _vrMediaRecorder.state !== 'inactive') {
     // Force a final dataavailable before stop on iOS WebKit.
     try { if (typeof _vrMediaRecorder.requestData === 'function') _vrMediaRecorder.requestData(); } catch (e) {}
@@ -15614,10 +15650,20 @@ async function _uploadVoiceRecording() {
     try { if (typeof renderUpdateMe === 'function') renderUpdateMe(); } catch (e) {}
   } catch (err) {
     console.error('voice recording upload failed:', err);
-    if (processingEl) processingEl.style.display = 'none';
-    if (stopBtn) stopBtn.style.display = 'block';
+    if (_vrWatchdog) { clearTimeout(_vrWatchdog); _vrWatchdog = null; }
+    // Replace the spinner label with the actual error so it\u2019s visible
+    // INSIDE the sheet (toasts can be missed behind the sheet on iOS).
+    var pl2 = document.getElementById('voice-processing-label');
+    if (pl2) pl2.textContent = (err && err.message) ? err.message : 'Could not save recording';
+    if (processingEl) processingEl.style.display = 'block';
+    if (stopBtn) {
+      stopBtn.style.display = 'block';
+      stopBtn.textContent = 'Close';
+      stopBtn.onclick = function() { try { closeSheet('voice-record-overlay'); } catch(e){} };
+    }
     showToast(err && err.message ? err.message : 'Could not save recording');
   } finally {
+    if (_vrWatchdog) { clearTimeout(_vrWatchdog); _vrWatchdog = null; }
     _vrChunks = [];
   }
 }
