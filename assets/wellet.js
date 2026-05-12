@@ -4541,9 +4541,10 @@ function _rdDocsContent(liveDocs, currentPersonId) {
       if (docIsAudio && (doc.extraction_status==='pending'||doc.extraction_status==='failed')) {
         html += '<button class="doc-action-btn" title="Retry transcription" onclick="event.stopPropagation();retryTranscription(\''+doc.id+'\',\''+escHtml(doc.storage_path)+'\')"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>';
       }
-      if (docIsAudio) {
-        html += '<button class="doc-action-btn" title="Play" onclick="event.stopPropagation();playAudioDocument(\''+doc.id+'\')"><i data-lucide="play" style="width:14px;height:14px;"></i></button>';
-      } else {
+      if (!docIsAudio) {
+        // Audio cards omit the View/Play button — iOS Safari cannot decode its
+        // own MediaRecorder MP4 output. Users tap Download instead to play
+        // back in their device's native audio app.
         html += '<button class="doc-action-btn" title="View" onclick="event.stopPropagation();viewDocument(\''+doc.id+'\')"><i data-lucide="eye" style="width:14px;height:14px;"></i></button>';
       }
       html += '<button class="doc-action-btn" title="Download" onclick="event.stopPropagation();downloadDocument(\''+doc.id+'\')"><i data-lucide="download" style="width:14px;height:14px;"></i></button>'
@@ -6299,6 +6300,26 @@ async function playAudioDocument(docId) {
     console.error('[voice] playAudioDocument fatal', err);
     showToast('Could not play audio: ' + (err && err.message || 'unknown'));
     if (_audioPlayer === audio) _audioPlayer = null;
+  }
+}
+
+async function downloadTranscriptAudio() {
+  // Used by the Download button in the transcript sheet. iOS Safari can't
+  // decode its own MediaRecorder MP4 output, so we don't offer in-browser
+  // playback — we just save the .m4a to Files / Downloads where the device's
+  // native audio app can open it.
+  if (!_currentExtDoc) return;
+  try {
+    var result = await db.storage.from('documents').createSignedUrl(_currentExtDoc.storage_path, 3600);
+    if (!result.data || !result.data.signedUrl) {
+      showToast('Could not download audio');
+      return;
+    }
+    triggerDownload(result.data.signedUrl, _currentExtDoc.file_name);
+    showToast('Audio saved. Open from Files to play.');
+  } catch (err) {
+    console.error('[voice] download fatal', err);
+    showToast('Could not download audio');
   }
 }
 
@@ -15489,7 +15510,7 @@ var _vrSeconds = 0;
 var _vrIsRecording = false;
 var _vrCancelled = false;
 var _vrWatchdog = null;
-var WELLET_VOICE_BUILD = 'voice-v2026-05-12h';
+var WELLET_VOICE_BUILD = 'voice-v2026-05-12i';
 
 function startVoiceRecording() {
   closeUpload();

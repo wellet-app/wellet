@@ -2292,8 +2292,8 @@
     <div class="ext-transcript" id="ext-transcript" style="display:none;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin:0 20px 8px;">
         <div style="font-size:var(--type-meta);font-weight:600;color:var(--text-primary);">Transcript</div>
-        <button class="ext-add-btn" id="ext-play-btn" onclick="playTranscriptAudio()">
-          <i data-lucide="play" style="width:12px;height:12px;"></i> Play
+        <button class="ext-add-btn" id="ext-play-btn" onclick="downloadTranscriptAudio()" title="Download to listen in your device's audio app">
+          <i data-lucide="download" style="width:12px;height:12px;"></i> Download
         </button>
       </div>
       <div id="ext-transcript-text" style="margin:0 20px 14px;background:white;border:1px solid var(--border);border-radius:12px;padding:14px 16px;font-size:var(--type-meta);line-height:1.65;color:var(--text-secondary);max-height:200px;overflow-y:auto;"></div>
@@ -2986,7 +2986,7 @@
 </div>
 
 </div><!-- end page-wrap -->
-<script src="/assets/wellet.js?v=20260512-2330"></script>
+<script src="/assets/wellet.js?v=20260512-2340"></script>
 <script src="/guided-demo.js"></script>
 <!-- CARE CIRCLE SHARE SHEET -->
 <div class="share-overlay" id="share-overlay" onclick="if(event.target===this)closeShareSheet()">
