@@ -6321,7 +6321,6 @@ async function playTranscriptAudio() {
   var audio = new Audio();
   audio._docId = doc.id;
   audio.preload = 'auto';
-  audio.playsInline = true;
   _audioPlayer = audio;
   btn.innerHTML = '<i data-lucide="square" style="width:12px;height:12px;"></i> Stop';
   initIcons();
@@ -6331,36 +6330,72 @@ async function playTranscriptAudio() {
     initIcons();
   };
 
+  var errCodeName = function(code) {
+    return ({1:'aborted',2:'network',3:'decode',4:'src-not-supported'})[code] || ('code-' + code);
+  };
+
+  var tryBlobFallback = async function(signedUrl) {
+    try {
+      console.warn('[voice transcript] trying blob fallback for', signedUrl);
+      var resp = await fetch(signedUrl);
+      if (!resp.ok) throw new Error('fetch ' + resp.status);
+      var bytes = await resp.blob();
+      var typedBlob = bytes.type ? bytes : new Blob([bytes], { type: 'audio/mp4' });
+      var blobUrl = URL.createObjectURL(typedBlob.type ? typedBlob : new Blob([typedBlob], { type: 'audio/mp4' }));
+      var fallback = new Audio();
+      fallback._docId = doc.id;
+      fallback.preload = 'auto';
+      fallback.src = blobUrl;
+      _audioPlayer = fallback;
+      fallback.onended = function() {
+        if (_audioPlayer === fallback) _audioPlayer = null;
+        URL.revokeObjectURL(blobUrl);
+        resetBtn();
+      };
+      fallback.onerror = function() {
+        console.error('[voice transcript] blob fallback also failed', fallback.error);
+        showToast('Audio file cannot be played on this device (' + errCodeName(fallback.error && fallback.error.code) + ')');
+        if (_audioPlayer === fallback) _audioPlayer = null;
+        URL.revokeObjectURL(blobUrl);
+        resetBtn();
+      };
+      await fallback.play();
+    } catch (fbErr) {
+      console.error('[voice transcript] blob fallback threw', fbErr);
+      showToast('Could not play audio: ' + (fbErr && fbErr.message || 'fallback failed'));
+      _audioPlayer = null;
+      resetBtn();
+    }
+  };
+
   try {
     var result = await db.storage.from('documents').createSignedUrl(doc.storage_path, 3600);
     if (!result.data || !result.data.signedUrl) {
-      console.error('[voice] signed url failed', result.error);
+      console.error('[voice transcript] signed url failed', result.error);
       showToast('Could not load audio');
       _audioPlayer = null; resetBtn();
       return;
     }
     if (_audioPlayer !== audio) return;
-    audio.src = result.data.signedUrl;
+    var signedUrl = result.data.signedUrl;
+    audio.src = signedUrl;
     audio.onended = function() {
       if (_audioPlayer === audio) _audioPlayer = null;
       resetBtn();
     };
-    audio.onerror = function(e) {
-      console.error('[voice] audio element error', audio.error, e);
-      showToast('Could not play audio: ' + (audio.error && audio.error.message || 'element error'));
-      if (_audioPlayer === audio) _audioPlayer = null;
-      resetBtn();
+    audio.onerror = function() {
+      var code = audio.error && audio.error.code;
+      console.error('[voice transcript] audio element error code=' + code, audio.error);
+      tryBlobFallback(signedUrl);
     };
     try {
       await audio.play();
     } catch (playErr) {
-      console.error('[voice] play() rejected', playErr && playErr.name, playErr && playErr.message);
-      showToast('Could not play audio: ' + (playErr && playErr.name || 'play blocked'));
-      if (_audioPlayer === audio) _audioPlayer = null;
-      resetBtn();
+      console.error('[voice transcript] play() rejected', playErr && playErr.name, playErr && playErr.message);
+      tryBlobFallback(signedUrl);
     }
   } catch (err) {
-    console.error('[voice] playTranscriptAudio fatal', err);
+    console.error('[voice transcript] playTranscriptAudio fatal', err);
     showToast('Could not play audio: ' + (err && err.message || 'unknown'));
     if (_audioPlayer === audio) _audioPlayer = null;
     resetBtn();
@@ -15454,7 +15489,7 @@ var _vrSeconds = 0;
 var _vrIsRecording = false;
 var _vrCancelled = false;
 var _vrWatchdog = null;
-var WELLET_VOICE_BUILD = 'voice-v2026-05-12g';
+var WELLET_VOICE_BUILD = 'voice-v2026-05-12h';
 
 function startVoiceRecording() {
   closeUpload();
