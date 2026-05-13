@@ -2541,9 +2541,17 @@ function renderUpdateMe() {
   // C7: One quiet line above the summary — factual coordination signals only.
   var rightNowLineHtml = buildRightNowLine(name, currentPersonId);
 
+  // L2: Before-your-appointment card, only when imminent (today/tomorrow).
+  // Falls through silently otherwise; the existing Upcoming block + visit-
+  // prep CTA still handle further-out cases.
+  var beforeVisitHtml = '';
+  try { beforeVisitHtml = buildBeforeVisitCard(name, currentPersonId, name); }
+  catch (e) { beforeVisitHtml = ''; /* never break the home render */ }
+
   if (liveEvents.length === 0 && !hasCompletedDocs && !ehrConnected && !hasWearable) {
     // Truly empty: summary placeholder FIRST, then onboarding CTAs below
     pane.innerHTML = sharedInboxContainer
+      + beforeVisitHtml
       + '<div class="update-me-section">'
       + rightNowLineHtml
       + emptyPlaceholder
@@ -2562,6 +2570,7 @@ function renderUpdateMe() {
     // Has document data, EHR, or wearable but no promoted events yet: real summary FIRST, then onboarding CTAs below
     var chartNoticedEarlyHtml = buildChartNoticedBanner(name, currentPersonId);
     pane.innerHTML = sharedInboxContainer
+      + beforeVisitHtml
       + '<div class="update-me-section">'
       + rightNowLineHtml
       + summarySection
@@ -2582,6 +2591,7 @@ function renderUpdateMe() {
     var alertBannerHtml = buildPatternAlertBanner(name);
     var chartNoticedHtml = buildChartNoticedBanner(name, currentPersonId);
     pane.innerHTML = sharedInboxContainer
+      + beforeVisitHtml
       + '<div class="update-me-section">'
       + rightNowLineHtml
       + summarySection
@@ -21123,6 +21133,157 @@ function buildNotifList() {
   _notifList.sort(function(a, b) { return new Date(a.time) - new Date(b.time); });
 
   updateNotifBadge();
+}
+
+// ── BEFORE YOUR APPOINTMENT (L2) ─────────────────────────────────────────
+// Editorial cream card that appears ABOVE the Wellet Summary card on the
+// home view when an appointment is imminent (today or tomorrow). Surfaces
+// three quick prep signals pulled from real data:
+//   - Questions queued: from saved visit-prep localStorage
+//   - New on chart: count of new meds/conditions since the last snapshot
+//   - Wishes captured: count of document_type='wish' rows (or demo count)
+// Falls through silently when no imminent appt — the existing Upcoming
+// block + visit-prep CTA still handles further-out cases.
+//
+// Voice: "Before your appointment" / "loved one" / "watches for". Never
+// "track" / "monitor" / "parent".
+function buildBeforeVisitCard(personFirstName, personId, name) {
+  // 1. Find imminent appointment (today or tomorrow)
+  var now = new Date();
+  var startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  var rows = [];
+  if (isDemoMode) {
+    rows = (typeof getDemoAppointments === 'function') ? getDemoAppointments() : [];
+  } else {
+    rows = (typeof liveEvents !== 'undefined' ? liveEvents : []).filter(function(e) {
+      return e.event_type === 'appointment' && e.event_date;
+    }).map(function(e) {
+      return { title: e.title, date: e.event_date, notes: e.notes || '' };
+    });
+  }
+  if (!rows || !rows.length) return '';
+
+  var imminent = null;
+  rows.sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
+  for (var i = 0; i < rows.length; i++) {
+    var d = new Date(rows[i].date);
+    if (isNaN(d)) continue;
+    var apptDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    var dayDiff = Math.round((apptDay - startOfToday) / 86400000);
+    if (dayDiff < 0) continue; // skip past
+    if (dayDiff <= 1) { imminent = { appt: rows[i], date: d, dayDiff: dayDiff }; break; }
+    else break; // appointments are sorted; first non-imminent ends the search
+  }
+  if (!imminent) return '';
+
+  // 2. Format hero line
+  var whenWord = imminent.dayDiff === 0 ? 'Today' : 'Tomorrow';
+  var timeStr = '';
+  var hh = imminent.date.getHours();
+  var mm = imminent.date.getMinutes();
+  if (!(hh === 0 && mm === 0)) {
+    var ampm = hh >= 12 ? 'PM' : 'AM';
+    var h12 = hh % 12 || 12;
+    var mStr = mm < 10 ? '0' + mm : mm;
+    timeStr = ' at ' + h12 + ':' + mStr + ' ' + ampm;
+  }
+  // Title often looks like "Dr. Smith — Cardiology". Keep it short for the hero.
+  var shortTitle = (imminent.appt.title || 'appointment').split(/\s[\u2014\-]\s/)[0];
+  var heroLine = whenWord + timeStr + ' \u00b7 ' + shortTitle;
+
+  // 3. Compute the three quick stats
+  // 3a. Saved questions in localStorage
+  var questionCount = 0;
+  if (personId) {
+    try {
+      var saved = JSON.parse(localStorage.getItem('wellet_visit_prep_' + personId) || 'null');
+      if (saved && Array.isArray(saved.questions)) questionCount = saved.questions.length;
+    } catch (e) { /* ignore */ }
+  }
+  // Demo: show "5 ready" for Dad so reviewers see the populated state.
+  if (isDemoMode && questionCount === 0) questionCount = 5;
+
+  // 3b. New chart entries since last snapshot — reuse the same logic as the
+  // home-page right-now line so we don't double-count.
+  var newOnChartCount = 0;
+  try {
+    var ehrLocal = (typeof getEhrData === 'function') ? getEhrData(personId || (isDemoMode ? 'dad' : null)) : null;
+    if (ehrLocal && typeof _readChartSnapshot === 'function') {
+      var prev = _readChartSnapshot(personId);
+      if (prev) {
+        var prevMedSet = {};
+        ((prev && prev.meds) || []).forEach(function(k){ prevMedSet[k] = true; });
+        var prevCondSet = {};
+        ((prev && prev.conds) || []).forEach(function(k){ prevCondSet[k] = true; });
+        var meds = (ehrLocal.medications || []).filter(function(m){ return m && m.name; });
+        var conds = (ehrLocal.conditions || []).filter(function(c){ return c && c.name; });
+        var newMeds = meds.filter(function(m){ var k = _chartRowKey(m); return k && !prevMedSet[k]; });
+        var newConds = conds.filter(function(c){ var k = _chartRowKey(c); return k && !prevCondSet[k]; });
+        newOnChartCount = newMeds.length + newConds.length;
+      }
+    }
+  } catch (e) { /* ignore */ }
+  if (isDemoMode && newOnChartCount === 0) newOnChartCount = 2;
+
+  // 3c. Wishes count
+  var wishesCount = 0;
+  if (isDemoMode) {
+    try {
+      var demoWishes = (typeof _demoWishesFor === 'function') ? _demoWishesFor(personId === 'mom' ? 'mom' : 'dad') : [];
+      wishesCount = (demoWishes || []).length;
+    } catch (e) { /* ignore */ }
+  } else {
+    // For real data, count is fetched lazily from the documents table on open.
+    // We avoid blocking the home render with a network call; show “–” when unknown.
+    wishesCount = -1;
+  }
+
+  // 4. Decide CTA copy + handler
+  var savedExists = questionCount > 0 && !isDemoMode;
+  var demoSavedExists = isDemoMode; // demo always shows "Open prep"
+  var ctaLabel, ctaCall;
+  if (savedExists || demoSavedExists) {
+    ctaLabel = 'Open prep for this visit';
+    ctaCall = 'openVisitPrep(true)';
+  } else {
+    ctaLabel = 'Start prep for this visit';
+    ctaCall = 'openVisitPrep(false)';
+  }
+
+  // 5. Compose
+  var statRow = '<div class="bvc-stat-row">'
+    + '<div class="bvc-stat">'
+    +   '<div class="bvc-stat-val' + (questionCount === 0 ? ' empty' : '') + '">' + (questionCount === 0 ? 'None yet' : questionCount) + '</div>'
+    +   '<div class="bvc-stat-label">Questions ready</div>'
+    + '</div>'
+    + '<div class="bvc-stat">'
+    +   '<div class="bvc-stat-val' + (newOnChartCount === 0 ? ' empty' : '') + '">' + (newOnChartCount === 0 ? 'Nothing new' : newOnChartCount) + '</div>'
+    +   '<div class="bvc-stat-label">New on chart</div>'
+    + '</div>'
+    + '<div class="bvc-stat">'
+    +   '<div class="bvc-stat-val' + (wishesCount <= 0 ? ' empty' : '') + '">' + (wishesCount < 0 ? '\u2013' : (wishesCount === 0 ? 'None' : wishesCount)) + '</div>'
+    +   '<div class="bvc-stat-label">Wishes captured</div>'
+    + '</div>'
+    + '</div>';
+
+  // Subline copy: gentle, never clinical, never "track".
+  var subLine = whenWord === 'Today'
+    ? 'A quiet pre-flight before you walk into the room with ' + escHtml(personFirstName) + '.'
+    : 'A quiet pre-flight for the visit. Open it when you have a minute.';
+
+  var wishesPersonId = isDemoMode ? (personId === 'mom' ? 'mom' : 'dad') : (personId || '');
+  var secondaryBtn = (wishesCount > 0)
+    ? '<button class="bvc-secondary" onclick="openWishesList(\'' + escHtml(wishesPersonId) + '\')">Review ' + escHtml(personFirstName) + '\u2019s wishes first</button>'
+    : '';
+
+  return '<div class="before-visit-card" data-personid="' + escHtml(String(personId || '')) + '">'
+    + '<div class="bvc-eyebrow">Before your appointment</div>'
+    + '<div class="bvc-hero">' + escHtml(heroLine) + '</div>'
+    + '<div class="bvc-sub">' + subLine + '</div>'
+    + statRow
+    + '<button class="bvc-cta" onclick="' + ctaCall + '"><i data-lucide="clipboard-list" style="width:16px;height:16px;"></i> ' + escHtml(ctaLabel) + '</button>'
+    + secondaryBtn
+    + '</div>';
 }
 
 // ── DEMO APPOINTMENTS ─────────────────────────────────────────────────────
