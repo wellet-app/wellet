@@ -1546,11 +1546,11 @@ function refreshConnectScreenStatus() {
   _markConnectCard('connect-card-terra', terraConnected);
 
   // Update the bottom CTA: "I'll do this later" if nothing connected,
-  // "Open my Wellet" once at least one source is in place.
+  // "Done" once at least one source is in place.
   var skipBtn = document.querySelector('#connect-data-screen .connect-skip-btn');
   if (skipBtn) {
     var anyConnected = ehrConnected || terraConnected || appleConnected;
-    skipBtn.textContent = anyConnected ? 'Open my Wellet' : "I'll do this later";
+    skipBtn.textContent = anyConnected ? 'Done' : "I'll do this later";
     skipBtn.classList.toggle('connect-skip-btn--primary', anyConnected);
   }
 }
@@ -8812,9 +8812,731 @@ function invalidateSignalsCache(personId) {
   else { _signalsCache = {}; }
 }
 
-function _paintSignals(el, sigFirstName, activeConns, terraData) {
-  if (!activeConns || activeConns.length === 0) {
-    // No connections \u2014 show empty state with connect CTA.
+// ── CareSignals v2 helpers ──────────────────────────────────────────────────
+// Pull the last 7 days of Apple Health from wearable_observations and roll it
+// up into a compact rhythm summary. Returns null on any failure or no data so
+// callers can render an empty state cleanly.
+//
+// Available hk_types confirmed in the DB (2026-05-12):
+//   HKQuantityTypeIdentifierHeartRate, StepCount, RestingHeartRate,
+//   HeartRateVariabilitySDNN, ActiveEnergyBurned
+// (Sleep not flowing yet — quantity types only.)
+async function _loadAppleHealthRhythm(personId) {
+  if (!personId || !db) return null;
+  var sinceIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  try {
+    var res = await db.from('wearable_observations')
+      .select('hk_type, start_at, value, unit, device_source')
+      .eq('person_id', personId)
+      .eq('source', 'apple-health')
+      .gte('start_at', sinceIso)
+      .order('start_at', { ascending: false })
+      .limit(2000);
+    if (!res || res.error || !Array.isArray(res.data) || res.data.length === 0) {
+      if (res && res.error) console.warn('[Signals] AH rhythm query error', res.error);
+      return null;
+    }
+    var rows = res.data;
+    var byType = { hr: [], rhr: [], steps: [], hrv: [], active: [] };
+    var lastSyncAt = null;
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      if (!r || !r.hk_type) continue;
+      if (!lastSyncAt || r.start_at > lastSyncAt) lastSyncAt = r.start_at;
+      if (r.hk_type === 'HKQuantityTypeIdentifierHeartRate') byType.hr.push(r);
+      else if (r.hk_type === 'HKQuantityTypeIdentifierRestingHeartRate') byType.rhr.push(r);
+      else if (r.hk_type === 'HKQuantityTypeIdentifierStepCount') byType.steps.push(r);
+      else if (r.hk_type === 'HKQuantityTypeIdentifierHeartRateVariabilitySDNN') byType.hrv.push(r);
+      else if (r.hk_type === 'HKQuantityTypeIdentifierActiveEnergyBurned') byType.active.push(r);
+    }
+    // Day-bucket helper (YYYY-MM-DD local)
+    function dayKey(iso) {
+      try {
+        var d = new Date(iso);
+        return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+      } catch (_e) { return ''; }
+    }
+    function bucketSum(arr) {
+      var by = {};
+      for (var j = 0; j < arr.length; j++) {
+        var k = dayKey(arr[j].start_at);
+        if (!k) continue;
+        by[k] = (by[k] || 0) + (Number(arr[j].value) || 0);
+      }
+      // Return last 7 days in chronological order (oldest → newest)
+      var out = [];
+      for (var d2 = 6; d2 >= 0; d2--) {
+        var dt = new Date(Date.now() - d2 * 24 * 60 * 60 * 1000);
+        var key = dt.getFullYear() + '-' + (dt.getMonth()+1) + '-' + dt.getDate();
+        out.push(by[key] || 0);
+      }
+      return out;
+    }
+    function bucketAvg(arr) {
+      var by = {};
+      for (var j = 0; j < arr.length; j++) {
+        var k = dayKey(arr[j].start_at);
+        if (!k) continue;
+        if (!by[k]) by[k] = { sum: 0, n: 0 };
+        by[k].sum += (Number(arr[j].value) || 0);
+        by[k].n  += 1;
+      }
+      var out = [];
+      for (var d2 = 6; d2 >= 0; d2--) {
+        var dt = new Date(Date.now() - d2 * 24 * 60 * 60 * 1000);
+        var key = dt.getFullYear() + '-' + (dt.getMonth()+1) + '-' + dt.getDate();
+        var b = by[key];
+        out.push(b && b.n > 0 ? Math.round(b.sum / b.n) : 0);
+      }
+      return out;
+    }
+    var stepsByDay = bucketSum(byType.steps);
+    var hrByDay    = bucketAvg(byType.hr);
+    var rhrByDay   = bucketAvg(byType.rhr);
+    var hrvByDay   = bucketAvg(byType.hrv);
+    function latestNonZero(arr) {
+      for (var k = arr.length - 1; k >= 0; k--) if (arr[k] > 0) return arr[k];
+      return 0;
+    }
+    var hr  = byType.hr.length    ? { latest: Math.round(Number(byType.hr[0].value) || 0),  trend: hrByDay,  unit: 'bpm' }  : null;
+    var rhr = byType.rhr.length   ? { latest: Math.round(Number(byType.rhr[0].value) || 0), trend: rhrByDay, unit: 'bpm' }  : null;
+    var steps = byType.steps.length ? { today: stepsByDay[stepsByDay.length-1], trend: stepsByDay, unit: 'steps' } : null;
+    var hrv = byType.hrv.length   ? { latest: Math.round(Number(byType.hrv[0].value) || 0), trend: hrvByDay, unit: 'ms' }   : null;
+    // If RHR is missing but HR is present, use latest non-zero HR average as a soft fallback.
+    if (!rhr && hr) rhr = { latest: latestNonZero(hrByDay) || hr.latest, trend: hrByDay, unit: 'bpm', soft: true };
+    return {
+      heartRate: hr,
+      restingHr: rhr,
+      steps:     steps,
+      hrv:       hrv,
+      lastSyncAt: lastSyncAt
+    };
+  } catch (e) {
+    console.error('[Signals] _loadAppleHealthRhythm exception', e);
+    return null;
+  }
+}
+
+// Editorial one-liner for the "Right Now" section. Returns '' to suppress.
+function _buildRightNowLine(name, checkIns, conns, terraData, rhythmAH) {
+  var who = escHtml(name || 'your loved one');
+  // 1) Fresh family check-in beats everything
+  var latestCi = (checkIns && checkIns.length) ? checkIns[0] : null;
+  if (latestCi) {
+    var when = '';
+    try { when = formatTimeAgo(latestCi.checked_in_at || latestCi.created_at); } catch(_e){}
+    var bits = [];
+    if (latestCi.mood)         bits.push('mood ' + String(latestCi.mood).toLowerCase());
+    if (latestCi.energy_level) bits.push('energy ' + String(latestCi.energy_level).toLowerCase());
+    if (latestCi.sleep_quality)bits.push('sleep ' + String(latestCi.sleep_quality).toLowerCase());
+    var snippet = bits.slice(0,2).join(', ');
+    if (snippet) {
+      return who + ' \u2014 ' + escHtml(snippet) + (when ? ' \u00b7 ' + escHtml(when) : '') + '.';
+    }
+    if (latestCi.notes) {
+      var note = String(latestCi.notes).slice(0, 140);
+      return who + ' \u2014 \u201c' + escHtml(note) + '\u201d' + (when ? ' \u00b7 ' + escHtml(when) : '') + '.';
+    }
+  }
+  // 2) Apple Health snapshot if we have it
+  if (rhythmAH) {
+    var phrases = [];
+    if (rhythmAH.steps && rhythmAH.steps.today > 0) {
+      phrases.push((rhythmAH.steps.today).toLocaleString() + ' steps today');
+    }
+    if (rhythmAH.restingHr && rhythmAH.restingHr.latest > 0) {
+      phrases.push('resting heart rate ' + rhythmAH.restingHr.latest + ' bpm');
+    } else if (rhythmAH.heartRate && rhythmAH.heartRate.latest > 0) {
+      phrases.push('heart rate ' + rhythmAH.heartRate.latest + ' bpm');
+    }
+    if (phrases.length) {
+      return who + ' \u2014 ' + escHtml(phrases.slice(0,2).join(', ')) + '.';
+    }
+  }
+  // 3) Terra device data
+  if (terraData && terraData.vitals && terraData.vitals.length) {
+    return 'Wellet is following ' + who + '\u2019s wearable rhythms.';
+  }
+  return '';
+}
+
+// Render the active-watches list inline in the CareSignals view. Mirrors the
+// shape of renderWatchesList() but returns HTML so the parent section can wrap
+// it. Empty state nudges toward the "Tell Wellet" CTA in the section head.
+function _renderWatchesSectionHtml(watches, name) {
+  if (!watches || watches.length === 0) {
+    return ''
+      + '<div class="cs-watches-empty">'
+      +   'Nothing on watch yet. Tap '
+      +   '<em>Tell Wellet what to watch for</em> '
+      +   'to add the first one \u2014 like \u201cnotice if ' + escHtml(name) + ' takes fewer than 1,000 steps for three days.\u201d'
+      + '</div>';
+  }
+  // Sort: active first, then by created_at desc (already)
+  var sorted = watches.slice().sort(function(a, b) {
+    var aa = (a.active === false) ? 1 : 0;
+    var bb = (b.active === false) ? 1 : 0;
+    return aa - bb;
+  });
+  var out = '<div class="cs-watches-list">';
+  for (var i = 0; i < sorted.length; i++) {
+    var w = sorted[i];
+    var friendly = _watchTypeFriendly(w.watch_type, w.parameters);
+    var paused = (w.active === false);
+    var statusChip = paused
+      ? '<span class="watch-row-status watch-row-status-paused">Paused</span>'
+      : '<span class="watch-row-status watch-row-status-active">Active</span>';
+    var pauseLabel = paused ? 'Resume' : 'Pause';
+    var pauseIcon  = paused ? 'play' : 'pause';
+    out += ''
+      + '<div class="watch-row" data-id="' + escHtml(w.id) + '">'
+      +   '<div class="watch-row-head">'
+      +     '<i data-lucide="bell" class="watch-row-icon"></i>'
+      +     '<div class="watch-row-meta">'
+      +       '<div class="watch-row-title">' + escHtml(friendly) + '</div>'
+      +       '<div class="watch-row-sub">For ' + escHtml(name) + '</div>'
+      +     '</div>'
+      +     statusChip
+      +   '</div>'
+      +   '<div class="watch-row-actions">'
+      +     '<button type="button" class="watch-row-btn" onclick="toggleWatchPaused(\'' + w.id + '\', ' + (paused ? 'false' : 'true') + '); setTimeout(renderSignalsView, 250);">'
+      +       '<i data-lucide="' + pauseIcon + '" style="width:13px;height:13px;"></i><span>' + pauseLabel + '</span>'
+      +     '</button>'
+      +     '<button type="button" class="watch-row-btn watch-row-btn-danger" onclick="deleteWatch(\'' + w.id + '\'); setTimeout(renderSignalsView, 250);">'
+      +       '<i data-lucide="trash-2" style="width:13px;height:13px;"></i><span>Stop</span>'
+      +     '</button>'
+      +   '</div>'
+      + '</div>';
+  }
+  out += '</div>';
+  return out;
+}
+
+// This Week's Rhythm — sparkline trio. Returns '' if no data of any kind so
+// the parent section can skip itself.
+function _buildRhythmHtml(terraData, rhythmAH, checkIns) {
+  var ah = rhythmAH || {};
+  var hasHr    = !!(ah.heartRate && (ah.heartRate.trend || []).some(function(v){ return v > 0; }));
+  var hasSteps = !!(ah.steps && (ah.steps.trend || []).some(function(v){ return v > 0; }));
+  var hasHrv   = !!(ah.hrv && (ah.hrv.trend || []).some(function(v){ return v > 0; }));
+  var sleepFromCi = (checkIns || [])
+    .filter(function(c){ return !!c.sleep_quality; })
+    .slice(0, 5)
+    .map(function(c){ return String(c.sleep_quality); });
+  var hasSleep = sleepFromCi.length > 0;
+  if (!hasHr && !hasSteps && !hasHrv && !hasSleep) return '';
+  var html = '<div class="cs-rhythm-grid">';
+  // Heart rate sparkline
+  if (hasHr) {
+    html += '<div class="cs-rhythm-card">';
+    html += '<div class="cs-rhythm-label">Heart rate</div>';
+    html += '<div class="cs-rhythm-metric">' + (ah.heartRate.latest || 0) + ' <span class="cs-rhythm-unit">bpm</span></div>';
+    try { html += '<div class="cs-rhythm-spark">' + buildSparkline(ah.heartRate.trend, 120, 28, 'var(--red, #B85450)') + '</div>'; } catch (_e) {}
+    html += '<div class="cs-rhythm-sub">7-day average per day</div>';
+    html += '</div>';
+  }
+  // Steps sparkline
+  if (hasSteps) {
+    var todaySteps = ah.steps.today || 0;
+    html += '<div class="cs-rhythm-card">';
+    html += '<div class="cs-rhythm-label">Steps</div>';
+    html += '<div class="cs-rhythm-metric">' + todaySteps.toLocaleString() + '</div>';
+    try { html += '<div class="cs-rhythm-spark">' + buildSparkline(ah.steps.trend, 120, 28, 'var(--moss, #5A6F50)') + '</div>'; } catch (_e) {}
+    html += '<div class="cs-rhythm-sub">Today \u00b7 7-day trend</div>';
+    html += '</div>';
+  }
+  // HRV sparkline
+  if (hasHrv) {
+    html += '<div class="cs-rhythm-card">';
+    html += '<div class="cs-rhythm-label">HRV</div>';
+    html += '<div class="cs-rhythm-metric">' + (ah.hrv.latest || 0) + ' <span class="cs-rhythm-unit">ms</span></div>';
+    try { html += '<div class="cs-rhythm-spark">' + buildSparkline(ah.hrv.trend, 120, 28, 'var(--ink-7, #3a3a3a)') + '</div>'; } catch (_e) {}
+    html += '<div class="cs-rhythm-sub">Heart rate variability</div>';
+    html += '</div>';
+  }
+  // Sleep (from check-ins, since no AH sleep yet)
+  if (hasSleep) {
+    html += '<div class="cs-rhythm-card">';
+    html += '<div class="cs-rhythm-label">Sleep</div>';
+    html += '<div class="cs-rhythm-metric cs-rhythm-metric--soft">' + escHtml(sleepFromCi[0]) + '</div>';
+    html += '<div class="cs-rhythm-sub">From recent check-ins</div>';
+    html += '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+// Care Circle check-in feed (last 5). Empty state encourages the first one.
+function _renderCircleSectionHtml(checkIns, name) {
+  if (!checkIns || checkIns.length === 0) {
+    return ''
+      + '<div class="cs-circle-empty">'
+      +   'No check-ins from ' + escHtml(name) + '\u2019s circle yet. When family or friends log how they\u2019re feeling, it shows up here.'
+      + '</div>';
+  }
+  var out = '<div class="cs-circle-list">';
+  for (var i = 0; i < checkIns.length; i++) {
+    var c = checkIns[i];
+    var when = '';
+    try { when = formatTimeAgo(c.checked_in_at || c.created_at); } catch(_e){}
+    var pieces = [];
+    if (c.mood)          pieces.push('Mood: ' + escHtml(c.mood));
+    if (c.energy_level)  pieces.push('Energy: ' + escHtml(c.energy_level));
+    if (c.sleep_quality) pieces.push('Sleep: ' + escHtml(c.sleep_quality));
+    if (typeof c.pain_level === 'number' && c.pain_level > 0) pieces.push('Pain: ' + c.pain_level + '/10');
+    if (c.appetite)      pieces.push('Appetite: ' + escHtml(c.appetite));
+    var src = c.source ? String(c.source) : 'check-in';
+    out += '<div class="cs-circle-row">';
+    out += '<div class="cs-circle-row-head">';
+    out += '<i data-lucide="heart" style="width:14px;height:14px;"></i>';
+    out += '<span class="cs-circle-row-when">' + escHtml(when || src) + '</span>';
+    out += '</div>';
+    if (pieces.length) {
+      out += '<div class="cs-circle-row-pieces">' + pieces.join(' \u00b7 ') + '</div>';
+    }
+    if (c.notes) {
+      out += '<div class="cs-circle-row-notes">\u201c' + escHtml(String(c.notes).slice(0, 240)) + '\u201d</div>';
+    }
+    out += '</div>';
+  }
+  out += '</div>';
+  return out;
+}
+
+// Build the wearable-card grid (heart rate / steps / sleep / spo2 / hrv) from
+// the Terra/Whoop/Garmin data path. Lifted out of the legacy _paintSignals body
+// so the new shell can reuse it under the Wearables section.
+function _buildWearableGridHtml(activeConns, terraData) {
+  if (!terraData || !terraData.vitals || !activeConns || activeConns.length === 0) return '';
+  var rw;
+  try {
+    rw = buildRealSignalsData(terraData.vitals, terraData.events, activeConns);
+  } catch (e) {
+    console.error('[Signals] buildRealSignalsData failed', e);
+    return '';
+  }
+  if (!rw) return '';
+  var ch = '<div class="wearable-grid">';
+  if (rw.heartRate) {
+    ch += '<div class="wearable-card">';
+    ch += '<div class="signals-label">' + t('signals.heartRate') + '</div>';
+    ch += '<div class="signals-metric">' + rw.heartRate.current + ' <span style="font-size:var(--type-body);font-weight:400;color:var(--text-secondary);">bpm</span></div>';
+    if (rw.heartRate.trend && rw.heartRate.trend.length >= 2) {
+      ch += '<div class="wearable-sparkline">' + buildSparkline(rw.heartRate.trend, 120, 28, 'var(--red)') + '</div>';
+    }
+    ch += '<div class="signals-metric-sm">' + rw.heartRate.min + '\u2013' + rw.heartRate.max + ' range</div>';
+    if (rw.heartRate.resting) ch += '<div class="signals-metric-sm">Resting: ' + rw.heartRate.resting + ' bpm</div>';
+    ch += renderWearablePills('heart_rate', rw.personName);
+    ch += '</div>';
+  }
+  if (rw.steps) {
+    var rStepsPct = Math.round(rw.steps.today / rw.steps.goal * 100);
+    ch += '<div class="wearable-card">';
+    ch += '<div class="signals-label">' + t('signals.steps') + '</div>';
+    ch += '<div class="signals-metric">' + rw.steps.today.toLocaleString() + '</div>';
+    ch += '<div class="progress-ring-wrap">';
+    ch += buildProgressRing(rStepsPct, 40, 'var(--moss)');
+    ch += '<div class="progress-ring-label">' + rStepsPct + '% of goal</div>';
+    ch += '</div>';
+    if (rw.calories) ch += '<div class="signals-metric-sm">' + rw.calories.toLocaleString() + ' active cal</div>';
+    if (rw.distance) ch += '<div class="signals-metric-sm">' + rw.distance + ' mi</div>';
+    ch += renderWearablePills('steps', rw.personName);
+    ch += '</div>';
+  }
+  if (rw.sleep) {
+    var rSleepH = Math.floor(rw.sleep.total / 60);
+    var rSleepM = rw.sleep.total % 60;
+    ch += '<div class="wearable-card">';
+    ch += '<div class="signals-label">' + t('signals.sleep') + '</div>';
+    ch += '<div class="signals-metric">' + rSleepH + 'h ' + rSleepM + 'm</div>';
+    ch += buildSleepBar(rw.sleep);
+    if (rw.sleep.bedTime || rw.sleep.wakeTime) {
+      ch += '<div class="signals-metric-sm">' + escHtml(rw.sleep.bedTime) + (rw.sleep.wakeTime ? ' \u2013 ' + escHtml(rw.sleep.wakeTime) : '') + '</div>';
+    }
+    ch += renderWearablePills('sleep', rw.personName);
+    ch += '</div>';
+  }
+  if (rw.spo2) {
+    ch += '<div class="wearable-card">';
+    ch += '<div class="signals-label">' + t('signals.bloodOxygen') + '</div>';
+    ch += '<div class="signals-metric">' + rw.spo2.current + '<span style="font-size:var(--type-body);font-weight:400;">%</span></div>';
+    ch += '<div style="display:flex;align-items:center;gap:4px;margin-top:4px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--moss);display:inline-block;"></span>';
+    ch += '<span class="signals-metric-sm">' + rw.spo2.min + '\u2013' + rw.spo2.max + '% range</span></div>';
+    ch += '</div>';
+  }
+  if (rw.hrv) {
+    ch += '<div class="wearable-card">';
+    ch += '<div class="signals-label">HRV</div>';
+    ch += '<div class="signals-metric">' + rw.hrv.current + ' <span style="font-size:var(--type-body);font-weight:400;color:var(--text-secondary);">' + escHtml(rw.hrv.unit) + '</span></div>';
+    ch += '<div class="signals-metric-sm">Heart rate variability</div>';
+    ch += '</div>';
+  }
+  ch += '</div>';
+  return ch;
+}
+
+// When Apple Health is the only source (no third-party wearable), show one
+// "iPhone via Apple Health" device row so the user has the same mental model.
+function _buildAppleHealthDeviceCardHtml(rhythmAH) {
+  if (!rhythmAH) return '';
+  var sync = '';
+  if (rhythmAH.lastSyncAt) {
+    try { sync = 'Last data ' + formatTimeAgo(rhythmAH.lastSyncAt); } catch(_e){ sync = ''; }
+  }
+  var metricCount = 0;
+  if (rhythmAH.heartRate) metricCount++;
+  if (rhythmAH.restingHr && !rhythmAH.restingHr.soft) metricCount++;
+  if (rhythmAH.steps) metricCount++;
+  if (rhythmAH.hrv) metricCount++;
+  var subline = (metricCount === 1 ? '1 metric flowing' : metricCount + ' metrics flowing');
+  var html = '<div class="terra-devices-section">';
+  html += '<div class="terra-devices-title">Connected Devices</div>';
+  html += '<div class="terra-device-card">';
+  html += '<div class="terra-device-icon"><i data-lucide="smartphone"></i></div>';
+  html += '<div class="terra-device-info">';
+  html += '<div class="terra-device-name"><span class="terra-status-dot terra-status-dot--active"></span> iPhone \u00b7 Apple Health</div>';
+  html += '<div class="terra-device-meta">' + escHtml(subline) + (sync ? ' \u00b7 ' + escHtml(sync) : '') + '</div>';
+  html += '</div>';
+  html += '</div>';
+  html += '<button class="terra-add-btn" onclick="openTerraConnect()"><i data-lucide="plus" style="width:14px;height:14px;"></i> Connect a wearable too</button>';
+  html += '<div class="terra-poweredby">Wearables powered by <a href="https://tryterra.co" target="_blank" rel="noopener noreferrer">Terra</a></div>';
+  html += '</div>';
+  return html;
+}
+
+// Plain-English modal for adding a watch. Uses the same vp-overlay/vp-sheet
+// pattern as the watch-proposal flow, POSTs to create-care-signal-watch.
+async function openAddWatchModal() {
+  if (!currentPersonId) {
+    if (typeof showToast === 'function') showToast('Pick a loved one first.');
+    return;
+  }
+  // Remove any existing instance
+  var prev = document.getElementById('cs-add-watch-overlay');
+  if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
+
+  var name = getPersonFirstName() || 'your loved one';
+  var safeName = escHtml(name);
+
+  var overlay = document.createElement('div');
+  overlay.id = 'cs-add-watch-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:flex-end;justify-content:center;background:rgba(20,24,22,0.42);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);animation:nr-fade 0.18s ease-out;';
+
+  var sheet = document.createElement('div');
+  sheet.style.cssText = 'background:#FAF7F0;border-radius:20px 20px 0 0;width:100%;max-width:560px;max-height:88vh;overflow-y:auto;padding:22px 22px 18px;box-shadow:0 -8px 28px rgba(0,0,0,0.18);animation:nr-slide 0.22s ease-out;';
+
+  // Pick a watch type via radio cards. Each card has the params it needs.
+  // Only types Wellet can actually fulfill today are exposed.
+  var typeOptions = [
+    { id: 'resting_hr_sustained_above', title: 'Resting heart rate stays high',
+      sub: 'Notice if it stays above a number for several days',
+      paramsHtml: '<div class="cs-aw-params"><label>bpm</label><input type="number" min="40" max="160" value="90" data-p="threshold_bpm"><label>for days</label><input type="number" min="1" max="14" value="3" data-p="window_days"></div>' },
+    { id: 'resting_hr_above_baseline', title: 'Resting heart rate runs above usual',
+      sub: 'Notice when it\u2019s a few bpm above their baseline',
+      paramsHtml: '<div class="cs-aw-params"><label>bpm above usual</label><input type="number" min="3" max="30" value="10" data-p="delta_bpm"></div>' },
+    { id: 'daily_steps_below', title: 'Steps drop below a number',
+      sub: 'Notice quiet days that stack up',
+      paramsHtml: '<div class="cs-aw-params"><label>steps</label><input type="number" min="100" max="15000" value="1000" step="100" data-p="threshold_steps"><label>for days</label><input type="number" min="1" max="14" value="3" data-p="window_days"></div>' },
+    { id: 'wearable_silence', title: 'Their watch stops syncing',
+      sub: 'Notice if no data comes in for a while',
+      paramsHtml: '<div class="cs-aw-params"><label>days quiet</label><input type="number" min="1" max="14" value="3" data-p="silence_days"></div>' },
+    { id: 'sleep_duration_below', title: 'Sleep runs short',
+      sub: 'Notice if nights get too short, repeatedly',
+      paramsHtml: '<div class="cs-aw-params"><label>hours</label><input type="number" min="3" max="9" step="0.5" value="5" data-p="threshold_hours"><label>for nights</label><input type="number" min="1" max="14" value="3" data-p="window_nights"></div>' },
+    { id: 'new_record_arrived', title: 'New records land in the chart',
+      sub: 'Lab, visit, imaging, discharge, medication',
+      paramsHtml: '<div class="cs-aw-params" style="font-size:12px;color:var(--text-muted,#6B6356);">Wellet will notice all five kinds.</div>' },
+    { id: 'pcp_visit_gap', title: 'It\u2019s been a while since a PCP visit',
+      sub: 'Notice if no primary-care visit in N months',
+      paramsHtml: '<div class="cs-aw-params"><label>months</label><input type="number" min="3" max="24" value="12" data-p="months"></div>' },
+    { id: 'refill_gap', title: 'A refill is overdue',
+      sub: 'Notice if a medication hasn\u2019t been refilled in time',
+      paramsHtml: '<div class="cs-aw-params"><label>medication name (optional)</label><input type="text" maxlength="60" placeholder="e.g. Lisinopril" data-p="medication_name"></div>' }
+  ];
+
+  var cardsHtml = '';
+  for (var i = 0; i < typeOptions.length; i++) {
+    var o = typeOptions[i];
+    var checked = (i === 0) ? ' checked' : '';
+    cardsHtml += ''
+      + '<label class="cs-aw-card" data-wt="' + o.id + '">'
+      +   '<input type="radio" name="cs-aw-type" value="' + o.id + '"' + checked + ' style="margin-top:3px;flex-shrink:0;">'
+      +   '<div style="flex:1;min-width:0;">'
+      +     '<div class="cs-aw-card-title">' + escHtml(o.title) + '</div>'
+      +     '<div class="cs-aw-card-sub">' + escHtml(o.sub) + '</div>'
+      +     '<div class="cs-aw-params-wrap" data-for="' + o.id + '" style="display:' + (i === 0 ? 'flex' : 'none') + ';">' + o.paramsHtml + '</div>'
+      +   '</div>'
+      + '</label>';
+  }
+
+  sheet.innerHTML = ''
+    + '<div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;">'
+    +   '<div style="width:38px;height:38px;border-radius:12px;background:#EDF3EE;color:#2F4A3A;display:flex;align-items:center;justify-content:center;flex-shrink:0;">'
+    +     '<i data-lucide="bell" style="width:18px;height:18px;"></i>'
+    +   '</div>'
+    +   '<div style="flex:1;min-width:0;">'
+    +     '<div style="font-family:\'Fraunces\', Georgia, serif;font-size:20px;font-weight:500;color:#1F2A22;line-height:1.25;margin-bottom:4px;">Tell Wellet what to watch for</div>'
+    +     '<div style="font-size:13px;color:#6B6356;line-height:1.5;">Pick something below. Wellet will notice it for ' + safeName + ' and send a gentle nudge if it happens.</div>'
+    +   '</div>'
+    + '</div>'
+    + '<div class="cs-aw-cards">' + cardsHtml + '</div>'
+    + '<div style="display:flex;gap:10px;margin-top:14px;">'
+    +   '<button type="button" id="cs-aw-cancel" style="flex:1;padding:12px 14px;border-radius:11px;border:1px solid #C9D5CD;background:transparent;color:#2F4A3A;font-size:14px;font-weight:500;cursor:pointer;">Cancel</button>'
+    +   '<button type="button" id="cs-aw-save" style="flex:1;padding:12px 14px;border-radius:11px;border:1px solid #2F4A3A;background:#2F4A3A;color:#fff;font-size:14px;font-weight:500;cursor:pointer;">Start watching</button>'
+    + '</div>'
+    + '<div style="font-size:11px;color:#8A8170;text-align:center;margin-top:12px;">You can pause or stop any watch anytime in Settings.</div>';
+
+  overlay.appendChild(sheet);
+  if (!document.getElementById('nr-watch-style')) {
+    var st = document.createElement('style');
+    st.id = 'nr-watch-style';
+    st.textContent = '@keyframes nr-fade{from{opacity:0}to{opacity:1}}@keyframes nr-slide{from{transform:translateY(100%)}to{transform:translateY(0)}}';
+    document.head.appendChild(st);
+  }
+  document.body.appendChild(overlay);
+  try { initIcons(); } catch (_e) {}
+
+  // Toggle params visibility on radio change
+  var radios = sheet.querySelectorAll('input[name="cs-aw-type"]');
+  radios.forEach(function(r) {
+    r.addEventListener('change', function() {
+      sheet.querySelectorAll('.cs-aw-params-wrap').forEach(function(p) {
+        p.style.display = (p.getAttribute('data-for') === r.value) ? 'flex' : 'none';
+      });
+    });
+  });
+
+  function close() {
+    if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+  }
+  document.getElementById('cs-aw-cancel').addEventListener('click', close);
+  overlay.addEventListener('click', function(ev) { if (ev.target === overlay) close(); });
+
+  document.getElementById('cs-aw-save').addEventListener('click', async function(ev) {
+    var btn = ev.currentTarget;
+    var sel = sheet.querySelector('input[name="cs-aw-type"]:checked');
+    if (!sel) return;
+    var watchType = sel.value;
+    var paramsWrap = sheet.querySelector('.cs-aw-params-wrap[data-for="' + watchType + '"]');
+    var parameters = {};
+    if (paramsWrap) {
+      var inputs = paramsWrap.querySelectorAll('input[data-p]');
+      inputs.forEach(function(inp) {
+        var key = inp.getAttribute('data-p');
+        var val = inp.value;
+        if (inp.type === 'number') {
+          var n = parseFloat(val);
+          if (!isNaN(n)) parameters[key] = n;
+        } else if (val && val.trim()) {
+          parameters[key] = val.trim();
+        }
+      });
+    }
+    // new_record_arrived gets a default kinds array
+    if (watchType === 'new_record_arrived') {
+      parameters = { kinds: ['lab', 'visit', 'imaging', 'discharge', 'medication'] };
+    }
+    btn.disabled = true; btn.textContent = 'Saving\u2026';
+    try {
+      var token = null;
+      try {
+        var s = await db.auth.getSession();
+        token = (s && s.data && s.data.session && s.data.session.access_token) || null;
+      } catch (_e) {}
+      if (!token) {
+        if (typeof showToast === 'function') showToast('Please sign in again to save this.');
+        close();
+        return;
+      }
+      var res = await fetch(
+        'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/create-care-signal-watch',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token,
+            'apikey': SUPABASE_ANON_KEY
+          },
+          body: JSON.stringify({
+            person_id: currentPersonId,
+            watch_type: watchType,
+            parameters: parameters
+          })
+        }
+      );
+      if (res.ok) {
+        if (typeof showToast === 'function') showToast('All set \u2014 I\u2019m watching for this now.');
+        close();
+        // Refresh the CareSignals view so the new watch appears in the list
+        try { setTimeout(renderSignalsView, 150); } catch (_e) {}
+      } else {
+        var errText = '';
+        try { errText = await res.text(); } catch (_e) {}
+        console.error('openAddWatchModal create failed', res.status, errText);
+        if (typeof showToast === 'function') showToast('Couldn\u2019t save that. Please try again.');
+        btn.disabled = false; btn.textContent = 'Start watching';
+      }
+    } catch (e) {
+      console.error('openAddWatchModal exception', e);
+      if (typeof showToast === 'function') showToast('Something went wrong. Please try again.');
+      btn.disabled = false; btn.textContent = 'Start watching';
+    }
+  });
+}
+
+// ── CareSignals v2: 5-section editorial shell ─────────────────────────────
+// Sections (top to bottom):
+//   1) Right Now      — synthesized line from recent check-ins / wearable data
+//   2) Watches        — active care_signal_watches rows + "Tell Wellet" CTA
+//   3) This Week’s Rhythm — sparkline trio (sleep, steps, mood). Skips if empty.
+//   4) Care Circle    — last 5 check_ins (from family/friends or self)
+//   5) Wearables      — device cards (was the whole view; now at the bottom)
+//
+// This view no longer requires a wearable to feel inhabited. Watches and
+// check-ins carry the surface on their own.
+async function _paintSignals(el, sigFirstName, activeConns, terraData) {
+  var personId = currentPersonId || null;
+  activeConns = activeConns || [];
+  var hasDevices = activeConns.length > 0;
+  var hasTerraData = hasDevices && terraData && (terraData.vitals.length > 0 || terraData.events.length > 0);
+
+  // Load watches + check-ins + Apple Health rhythm in parallel. Failures are
+  // non-fatal — we just render an empty/quiet section.
+  var watches = [];
+  var checkIns = [];
+  var rhythmAH = null; // { heartRate, restingHr, steps, hrv, lastSyncAt }
+  if (personId && db) {
+    try {
+      var loads = await Promise.all([
+        db.from('care_signal_watches')
+          .select('id, person_id, watch_type, parameters, active, paused_at, description, last_fired_at, fire_count, created_at')
+          .eq('person_id', personId)
+          .order('created_at', { ascending: false })
+          .then(function(r){ return (r && r.data) || []; })
+          .catch(function(e){ console.error('[Signals] watches load error', e); return []; }),
+        db.from('check_ins')
+          .select('id, person_id, user_id, mood, pain_level, sleep_quality, notes, energy_level, appetite, source, created_at, checked_in_at')
+          .eq('person_id', personId)
+          .order('checked_in_at', { ascending: false, nullsFirst: false })
+          .order('created_at', { ascending: false })
+          .limit(5)
+          .then(function(r){ return (r && r.data) || []; })
+          .catch(function(e){ console.error('[Signals] check_ins load error', e); return []; }),
+        _loadAppleHealthRhythm(personId)
+          .catch(function(e){ console.error('[Signals] AH rhythm load error', e); return null; })
+      ]);
+      watches  = loads[0] || [];
+      checkIns = loads[1] || [];
+      rhythmAH = loads[2] || null;
+    } catch (e) {
+      console.error('[Signals] parallel loads failed', e);
+    }
+  }
+  var hasAHData = !!(rhythmAH && (rhythmAH.heartRate || rhythmAH.steps || rhythmAH.hrv || rhythmAH.restingHr));
+  var hasData = hasTerraData || hasAHData;
+
+  // ── Editorial masthead (always shown) ───────────────────────────────────
+  var activeWatches = watches.filter(function(w){ return w.active !== false; });
+  var fmtAgo;
+  try { fmtAgo = (typeof formatTimeAgo === 'function') ? formatTimeAgo : null; } catch(e) { fmtAgo = null; }
+  var lastSyncStr = '';
+  for (var hi = 0; hi < activeConns.length; hi++) {
+    var hc = activeConns[hi];
+    if (hc.last_data_at && fmtAgo) {
+      try { lastSyncStr = fmtAgo(hc.last_data_at); } catch(_e){}
+      break;
+    }
+  }
+  var eyebrowBits = [];
+  if (activeWatches.length > 0) {
+    eyebrowBits.push(activeWatches.length === 1 ? '1 watch active' : activeWatches.length + ' watches active');
+  }
+  if (lastSyncStr) eyebrowBits.push('Synced ' + lastSyncStr);
+  var eyebrow = eyebrowBits.length ? eyebrowBits.join(' \u00b7 ') : 'Care Signals';
+  var lede = 'What Wellet is noticing for ' + escHtml(sigFirstName) + ' \u2014 quiet patterns, watches, and check-ins from the people closest to her.';
+
+  var ch = '<div class="signals-view">';
+  ch += '<header class="view-header">';
+  ch += '<p class="view-header__eyebrow">' + escHtml(eyebrow) + '</p>';
+  ch += '<h1 class="view-header__title">Care Signals</h1>';
+  ch += '<p class="view-header__lede">' + lede + '</p>';
+  ch += '</header>';
+
+  // ── 1. Right Now ───────────────────────────────────────────────────────
+  var rightNowLine = _buildRightNowLine(sigFirstName, checkIns, activeConns, terraData, rhythmAH);
+  if (rightNowLine) {
+    ch += '<section class="cs-section cs-section--rightnow">';
+    ch += '<div class="cs-section-eyebrow">Right now</div>';
+    ch += '<p class="cs-rightnow-line">' + rightNowLine + '</p>';
+    ch += '</section>';
+  }
+
+  // ── 2. Watches ─────────────────────────────────────────────────────────
+  ch += '<section class="cs-section cs-section--watches">';
+  ch += '<div class="cs-section-head">';
+  ch += '<div class="cs-section-eyebrow">Watches</div>';
+  ch += '<button type="button" class="cs-section-action" onclick="openAddWatchModal()">';
+  ch += '<i data-lucide="plus" style="width:13px;height:13px;"></i><span>Tell Wellet what to watch for</span>';
+  ch += '</button>';
+  ch += '</div>';
+  ch += _renderWatchesSectionHtml(watches, sigFirstName);
+  ch += '</section>';
+
+  // ── 3. This Week’s Rhythm ──────────────────────────────────────────────
+  var rhythmHtml = _buildRhythmHtml(terraData, rhythmAH, checkIns);
+  if (rhythmHtml) {
+    ch += '<section class="cs-section cs-section--rhythm">';
+    ch += '<div class="cs-section-eyebrow">This week\u2019s rhythm</div>';
+    ch += rhythmHtml;
+    ch += '</section>';
+  }
+
+  // ── 4. Care Circle ─────────────────────────────────────────────────────
+  ch += '<section class="cs-section cs-section--circle">';
+  ch += '<div class="cs-section-eyebrow">Care circle check-ins</div>';
+  ch += _renderCircleSectionHtml(checkIns, sigFirstName);
+  ch += '</section>';
+
+  // ── 5. Wearables (demoted) ─────────────────────────────────────────────
+  ch += '<section class="cs-section cs-section--devices">';
+  ch += '<div class="cs-section-eyebrow">Wearables &amp; devices</div>';
+  if (hasDevices) {
+    ch += _buildDeviceCardsHtml(activeConns);
+    if (hasTerraData) {
+      // Re-use the existing wearable grid so heart rate / steps / sleep
+      // cards keep their pills + sparklines. We just wrap it.
+      ch += _buildWearableGridHtml(activeConns, terraData);
+    } else {
+      var waitingDevice = activeConns[0].provider ? activeConns[0].provider.charAt(0).toUpperCase() + activeConns[0].provider.slice(1).toLowerCase() : 'device';
+      ch += '<div class="signals-waiting">';
+      ch += '<i data-lucide="loader" style="width:18px;height:18px;animation:spin 1s linear infinite;"></i>';
+      ch += '<div class="signals-waiting-text">Waiting for first sync from ' + escHtml(waitingDevice) + '\u2026</div>';
+      ch += '<div class="signals-waiting-sub">Data will appear here once your device syncs.</div>';
+      ch += '</div>';
+    }
+  } else if (hasAHData) {
+    // Apple Health is the "device" — the iPhone itself. Show a single
+    // device-style row instead of the third-party wearables grid.
+    ch += _buildAppleHealthDeviceCardHtml(rhythmAH);
+  } else {
+    ch += '<div class="cs-devices-empty">';
+    ch += '<div class="cs-devices-empty-title">No wearable connected</div>';
+    ch += '<div class="cs-devices-empty-sub">Wellet works without a wearable. Add one when you\u2019re ready and we\u2019ll fold sleep, steps, and heart rate into the picture above.</div>';
+    ch += '<button class="terra-add-btn" onclick="openTerraConnect()"><i data-lucide="plus" style="width:14px;height:14px;"></i> Connect a device</button>';
+    ch += '<div class="terra-poweredby">Wearables powered by <a href="https://tryterra.co" target="_blank" rel="noopener noreferrer">Terra</a></div>';
+    ch += '</div>';
+  }
+  ch += '</section>';
+
+  ch += '</div>';
+  el.innerHTML = ch;
+  initIcons();
+  return;
+
+  // ── Legacy empty/no-data short circuit (unused; v2 always renders shell) ──
+  if (false && (!activeConns || activeConns.length === 0)) {
     var emptyHtml = '<div class="signals-view">';
     emptyHtml += '<p class="section-label">' + escHtml(sigFirstName) + '\u2019s Signals</p>';
     emptyHtml += '<div class="terra-empty">';

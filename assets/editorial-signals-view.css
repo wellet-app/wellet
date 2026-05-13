@@ -71,3 +71,344 @@
     font-size: var(--type-display, 40px);
   }
 }
+
+/* ── CareSignals v2: 5-section editorial shell ─────────────────────────── */
+.cs-section {
+  margin: 18px 0 22px;
+  padding: 0;
+}
+.cs-section-eyebrow {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: var(--type-micro, 11px);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-5, #6b6b6b);
+  margin: 0 0 10px;
+}
+.cs-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.cs-section-head .cs-section-eyebrow { margin: 0; }
+.cs-section-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ink-3, #d5d0c4);
+  background: #fff;
+  color: var(--ink-7, #2B2A28);
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.cs-section-action:hover { background: #FAF7F0; border-color: #b8b0a0; }
+
+/* Right Now */
+.cs-rightnow-line {
+  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-size: 19px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--ink-9, #1F2A22);
+  margin: 0;
+  font-variation-settings: "opsz" 36, "SOFT" 40;
+}
+
+/* Watches */
+.cs-watches-empty {
+  padding: 14px 16px;
+  border: 1px dashed var(--ink-2, #D7D2C5);
+  border-radius: 12px;
+  background: #FBF9F2;
+  font-size: 13px;
+  color: var(--text-secondary, #6B6356);
+  line-height: 1.5;
+}
+.cs-watches-empty em { font-style: italic; color: var(--ink-7, #2B2A28); }
+.cs-watches-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.watch-row {
+  background: #fff;
+  border: 1px solid var(--ink-2, #E5DFD2);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.watch-row-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.watch-row-icon {
+  width: 16px;
+  height: 16px;
+  color: #B68A2A;
+  flex-shrink: 0;
+}
+.watch-row-meta { flex: 1; min-width: 0; }
+.watch-row-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-9, #1F2A22);
+  line-height: 1.35;
+}
+.watch-row-sub {
+  font-size: 12px;
+  color: var(--text-muted, #8A8170);
+  margin-top: 2px;
+}
+.watch-row-status {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+.watch-row-status-active {
+  color: #2F4A3A;
+  background: #EDF3EE;
+  border: 1px solid #C9D5CD;
+}
+.watch-row-status-paused {
+  color: #8A8170;
+  background: #F2EFE7;
+  border: 1px solid #E5DFD2;
+}
+.watch-row-actions {
+  display: flex;
+  gap: 8px;
+}
+.watch-row-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--ink-2, #D7D2C5);
+  background: #FAF7F0;
+  color: var(--ink-7, #2B2A28);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.watch-row-btn:hover { background: #F2EFE7; }
+.watch-row-btn-danger {
+  color: #8B3A2E;
+  border-color: #E2C6BF;
+  background: #FBF1EE;
+}
+.watch-row-btn-danger:hover { background: #F5DFD8; }
+
+/* This Week's Rhythm */
+.cs-rhythm-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+@media (min-width: 720px) {
+  .cs-rhythm-grid { grid-template-columns: repeat(4, 1fr); }
+}
+.cs-rhythm-card {
+  background: #fff;
+  border: 1px solid var(--ink-2, #E5DFD2);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cs-rhythm-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-5, #6B6356);
+}
+.cs-rhythm-metric {
+  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--ink-9, #1F2A22);
+  line-height: 1.1;
+  font-variation-settings: "opsz" 36;
+}
+.cs-rhythm-metric--soft {
+  font-size: 16px;
+  text-transform: capitalize;
+}
+.cs-rhythm-unit {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-secondary, #6B6356);
+  margin-left: 2px;
+}
+.cs-rhythm-spark {
+  margin: 2px 0;
+}
+.cs-rhythm-sub {
+  font-size: 11px;
+  color: var(--text-muted, #8A8170);
+  line-height: 1.4;
+}
+
+/* Care Circle */
+.cs-circle-empty {
+  padding: 14px 16px;
+  border: 1px dashed var(--ink-2, #D7D2C5);
+  border-radius: 12px;
+  background: #FBF9F2;
+  font-size: 13px;
+  color: var(--text-secondary, #6B6356);
+  line-height: 1.5;
+}
+.cs-circle-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cs-circle-row {
+  background: #fff;
+  border: 1px solid var(--ink-2, #E5DFD2);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.cs-circle-row-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 6px;
+  color: #B85450;
+}
+.cs-circle-row-when {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #6B6356);
+}
+.cs-circle-row-pieces {
+  font-size: 13px;
+  color: var(--ink-9, #1F2A22);
+  line-height: 1.5;
+}
+.cs-circle-row-notes {
+  margin-top: 6px;
+  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-size: 14px;
+  font-style: italic;
+  color: var(--ink-7, #2B2A28);
+  line-height: 1.5;
+}
+
+/* Wearables empty state */
+.cs-devices-empty {
+  padding: 18px 16px;
+  border: 1px dashed var(--ink-2, #D7D2C5);
+  border-radius: 12px;
+  background: #FBF9F2;
+  text-align: center;
+}
+.cs-devices-empty-title {
+  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink-9, #1F2A22);
+  margin-bottom: 4px;
+}
+.cs-devices-empty-sub {
+  font-size: 13px;
+  color: var(--text-secondary, #6B6356);
+  line-height: 1.5;
+  margin-bottom: 12px;
+  max-width: 44ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Add-watch modal */
+.cs-aw-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 52vh;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.cs-aw-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid #E5DFD2;
+  border-radius: 12px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.cs-aw-card:has(input[type="radio"]:checked) {
+  border-color: #2F4A3A;
+  background: #F5FAF6;
+}
+.cs-aw-card-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1F2A22;
+  line-height: 1.35;
+}
+.cs-aw-card-sub {
+  font-size: 12px;
+  color: #6B6356;
+  margin-top: 2px;
+  line-height: 1.4;
+}
+.cs-aw-params-wrap {
+  margin-top: 10px;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+.cs-aw-params {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+.cs-aw-params label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: #6B6356;
+  text-transform: uppercase;
+}
+.cs-aw-params input[type="number"],
+.cs-aw-params input[type="text"] {
+  width: 90px;
+  padding: 6px 9px;
+  border: 1px solid #D7D2C5;
+  border-radius: 8px;
+  background: #FAF7F0;
+  font-size: 13px;
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  color: #1F2A22;
+}
+.cs-aw-params input[type="text"] { width: 180px; }
+.cs-aw-params input:focus {
+  outline: none;
+  border-color: #2F4A3A;
+  background: #fff;
+}
