@@ -141,7 +141,12 @@
      at sub-pixel positions). With dot=10 and left:11.5, dot center =
      11.5 + 5 = 16.5 — pixel-aligned to the rail center.              */
   left: 11.5px;
-  top: 24px;                     /* aligns with the type-tag row */
+  /* Vertically align the dot with the type-tag row (pencil + "NOTE").
+     .tl-item has padding-top:18px; the type-tag row is ~11px tall with
+     align-items:center, so its visual center sits ~y=26. Dot is 10px,
+     so top:21px puts dot-center at 21+5=26 — lined up with the icon
+     and small-caps label.                                              */
+  top: 21px;
   width: 10px;
   height: 10px;
   border-radius: 50%;
