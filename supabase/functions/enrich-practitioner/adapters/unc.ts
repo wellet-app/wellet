@@ -52,7 +52,10 @@ import {
 // ── Yext config ────────────────────────────────────────────────────────
 
 const YEXT_BASE = "https://liveapi.yext.com/v2/accounts/me/search/vertical/query";
-const YEXT_API_KEY = "fcb2c208969a29f6bc66c93d5737793e";
+// Read from env so the credential isn't checked into a public repo. Set
+// via `supabase secrets set UNC_YEXT_API_KEY=...` (or via the dashboard).
+// If unset, the UNC adapter will skip enrichment gracefully.
+const YEXT_API_KEY = Deno.env.get("UNC_YEXT_API_KEY") || "";
 const YEXT_EXPERIENCE_KEY = "unch-aem-site-search";
 const YEXT_VERSION = "20221201";
 const YEXT_VERTICAL = "aem_page";
@@ -215,6 +218,10 @@ function cacheKeyFor(parts: { first?: string; last?: string }): string | null {
 // ── Adapter implementation ────────────────────────────────────────────
 
 async function lookup(input: EnrichInput): Promise<EnrichedContact | null> {
+  // Graceful skip if env-driven key isn't configured. Caller will fall
+  // through to NPPES (tier 3) which still produces medium-confidence rows.
+  if (!YEXT_API_KEY) return null;
+
   const parts = input.first_name && input.last_name
     ? { first: input.first_name, last: input.last_name }
     : (() => {
