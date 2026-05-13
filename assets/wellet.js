@@ -21564,6 +21564,10 @@ function buildBeforeVisitCard(personFirstName, personId, name) {
   var rows = [];
   if (isDemoMode) {
     rows = (typeof getDemoAppointments === 'function') ? getDemoAppointments() : [];
+    // Filter to this profile so Mom's tab doesn't show Dad's appointment (and vice versa)
+    if (personFirstName) {
+      rows = rows.filter(function(r) { return !r.personName || r.personName === personFirstName; });
+    }
   } else {
     rows = (typeof liveEvents !== 'undefined' ? liveEvents : []).filter(function(e) {
       return e.event_type === 'appointment' && e.event_date;
@@ -21707,6 +21711,9 @@ function buildUpcomingHtml(personFirstName) {
   var rows = [];
   if (isDemoMode) {
     rows = getDemoAppointments();
+    if (personFirstName) {
+      rows = rows.filter(function(r) { return !r.personName || r.personName === personFirstName; });
+    }
   } else {
     rows = (typeof liveEvents !== 'undefined' ? liveEvents : []).filter(function(e) {
       return e.event_type === 'appointment' && new Date(e.event_date) >= new Date(now.getTime() - 3600000);
@@ -21773,17 +21780,32 @@ function formatUpcomingDateLine(d) {
 
 function getDemoAppointments() {
   var now = new Date();
-  var tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(9, 0, 0, 0);
 
-  var nextWeek = new Date(now);
-  nextWeek.setDate(nextWeek.getDate() + 5);
-  nextWeek.setHours(14, 0, 0, 0);
+  // Dad \u2014 imminent (tomorrow 9am) + later this week
+  var dadTomorrow = new Date(now);
+  dadTomorrow.setDate(dadTomorrow.getDate() + 1);
+  dadTomorrow.setHours(9, 0, 0, 0);
+
+  var dadNextWeek = new Date(now);
+  dadNextWeek.setDate(dadNextWeek.getDate() + 5);
+  dadNextWeek.setHours(14, 0, 0, 0);
+
+  // Mom \u2014 imminent (tomorrow 10:30am) + later this week
+  // Different time slots and specialties so each tab tells its own story
+  // and the Before-your-appointment card surfaces on both profiles.
+  var momTomorrow = new Date(now);
+  momTomorrow.setDate(momTomorrow.getDate() + 1);
+  momTomorrow.setHours(10, 30, 0, 0);
+
+  var momLater = new Date(now);
+  momLater.setDate(momLater.getDate() + 8);
+  momLater.setHours(11, 15, 0, 0);
 
   return [
-    { title: 'Dr. Johnson \u2014 Primary Care', date: tomorrow.toISOString(), personName: 'Dad' },
-    { title: 'Dr. Edwards \u2014 Oncology follow-up', date: nextWeek.toISOString(), personName: 'Dad' }
+    { title: 'Dr. Johnson \u2014 Primary Care', date: dadTomorrow.toISOString(), personName: 'Dad' },
+    { title: 'Dr. Edwards \u2014 Oncology follow-up', date: dadNextWeek.toISOString(), personName: 'Dad' },
+    { title: 'Dr. Patel \u2014 Cardiology follow-up', date: momTomorrow.toISOString(), personName: 'Mom' },
+    { title: 'Dr. Reyes \u2014 Rheumatology', date: momLater.toISOString(), personName: 'Mom' }
   ];
 }
 
