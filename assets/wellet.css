@@ -1584,6 +1584,8 @@
   .pattern-card { background:white; border:1px solid var(--border); border-radius:14px; padding:14px; margin-bottom:10px; }
   .pattern-card--moss { border-left:3px solid var(--moss); }
   .pattern-card--amber { border-left:3px solid var(--amber); }
+  /* L1 v1: "RECURRING · WELLET NOTICED" eyebrow on multi-day patterns */
+  .pattern-eyebrow { font-family:'DM Sans',sans-serif; font-size:9px; font-weight:600; letter-spacing:0.12em; color:var(--moss-dark, #557662); margin-bottom:6px; text-transform:uppercase; }
   .pattern-title { font-size:var(--type-body); font-weight:500; color:var(--text-primary); display:flex; align-items:center; gap:6px; margin-bottom:4px; }
   .pattern-title i { width:16px; height:16px; }
   .pattern-card--moss .pattern-title i { color:var(--moss); }
