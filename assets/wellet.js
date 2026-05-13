@@ -1861,6 +1861,120 @@ async function loadPersonData(personId) {
   // for this person. Honest replacement of the old static "Updated just now"
   // string — reads from cache or DB; says nothing if there's no real sync.
   try { updateHeaderSyncMeta(); } catch(e) { /* non-fatal */ }
+
+  // Living Timeline v1 — pull the secondary sources that turn Wellet's timeline
+  // into a record of *everything that happened around* this loved one's care,
+  // not just what the EHR sent. Fire-and-forget, then re-render once data lands.
+  // Wrapped in try/catch and stashed on window._tlExtraSources[personId] so a
+  // shape mismatch never blocks the rest of the app. See wellet_living_timeline_spec.md.
+  loadTimelineExtraSources(personId).then(function() {
+    if (personId === currentPersonId) {
+      try { renderTimeline(); } catch (_e) {}
+    }
+  });
+}
+
+// ── LIVING TIMELINE · EXTRA SOURCES ──────────────────────────────────────────
+// Pulls the data sources that make Wellet more than a caregiver EHR: care
+// circle activity, share events, CareSignals fires, medication logs, check-ins,
+// and documents (already loaded but stashed here for parity). Each fetch is
+// independent, scoped to the person, capped, RLS-checked by Supabase, and
+// silently no-ops on error. Result lives on window._tlExtraSources[personId].
+async function loadTimelineExtraSources(personId) {
+  if (!personId) return;
+  if (!window._tlExtraSources) window._tlExtraSources = {};
+  var bucket = {
+    careCircleMembers: [],
+    careCircleShares: [],
+    shares: [],
+    shareEvents: [],
+    careSignalWatches: [],
+    careSignalFires: [],
+    medicationLogs: [],
+    checkIns: []
+  };
+  // Care circle members (joins / invites). We already have liveCareCircle but
+  // keep a local copy here so the merge block doesn't depend on global ordering.
+  try {
+    var r1 = await db.from('care_circle_members')
+      .select('id, member_name, role, invite_status, status, created_at, invited_at, invited_by')
+      .eq('person_id', personId)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    bucket.careCircleMembers = (r1 && r1.data) || [];
+  } catch (_e) {}
+  // Care circle share events (item kind + sender note + read receipts).
+  try {
+    var r2 = await db.from('care_circle_shares')
+      .select('id, sender_user_id, item_kind, item_ref_table, item_ref_id, payload, sender_note, read_at, created_at')
+      .eq('person_id', personId)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    bucket.careCircleShares = (r2 && r2.data) || [];
+  } catch (_e) {}
+  // Outbound magic-link shares (legacy table). We do NOT show recipient names —
+  // shares are by link, so we render role-level descriptions only.
+  try {
+    var r3 = await db.from('shares')
+      .select('id, person_id, summary_text, created_at, expires_at')
+      .eq('person_id', personId)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    bucket.shares = (r3 && r3.data) || [];
+  } catch (_e) {}
+  // Share open / view events — surface "Dr. Patel viewed your share 3 times"
+  // as a single grouped timeline card per share.
+  try {
+    var shareIds = bucket.shares.map(function(s){ return s.id; });
+    if (shareIds.length > 0) {
+      var r4 = await db.from('share_events')
+        .select('id, share_id, event_type, created_at')
+        .in('share_id', shareIds)
+        .order('created_at', { ascending: false })
+        .limit(500);
+      bucket.shareEvents = (r4 && r4.data) || [];
+    }
+  } catch (_e) {}
+  // CareSignals watches + fires ("Wellet noticed …"). We render fires only —
+  // setup events live in CareSignals view, not the timeline.
+  try {
+    var r5 = await db.from('care_signal_watches')
+      .select('id, watch_type, description, parameters, active, created_at')
+      .eq('person_id', personId)
+      .order('created_at', { ascending: false })
+      .limit(100);
+    bucket.careSignalWatches = (r5 && r5.data) || [];
+  } catch (_e) {}
+  try {
+    var watchIds = bucket.careSignalWatches.map(function(w){ return w.id; });
+    if (watchIds.length > 0) {
+      var r6 = await db.from('care_signal_watch_fires')
+        .select('id, watch_id, fired_at, trigger_value')
+        .in('watch_id', watchIds)
+        .order('fired_at', { ascending: false })
+        .limit(200);
+      bucket.careSignalFires = (r6 && r6.data) || [];
+    }
+  } catch (_e) {}
+  // Medication logs (last 200, collapse-by-day handled in renderTimeline).
+  try {
+    var r7 = await db.from('medication_logs')
+      .select('id, medication_id, taken_at, status, notes, source, created_at')
+      .eq('person_id', personId)
+      .order('taken_at', { ascending: false })
+      .limit(200);
+    bucket.medicationLogs = (r7 && r7.data) || [];
+  } catch (_e) {}
+  // Daily check-ins (mood / pain / sleep / energy / appetite).
+  try {
+    var r8 = await db.from('check_ins')
+      .select('id, mood, pain_level, sleep_quality, energy_level, appetite, notes, source, checked_in_at, created_at')
+      .eq('person_id', personId)
+      .order('checked_in_at', { ascending: false })
+      .limit(200);
+    bucket.checkIns = (r8 && r8.data) || [];
+  } catch (_e) {}
+  window._tlExtraSources[personId] = bucket;
 }
 
 // ── SHOW AUTHENTICATED APP ────────────────────────────────────────────────────
@@ -3058,18 +3172,323 @@ function renderTimeline() {
     }
   } catch (eVT) { try { console.warn('[timeline] voice merge skipped:', eVT); } catch (er) {} }
 
-  var allEvents = liveEvents.concat(ehrDeduped).concat(voiceTimelineItems);
+  // ── LIVING TIMELINE v1 · EXTRA SOURCES ───────────────────────────────────
+  // Five new source merges so Wellet's timeline reflects everything that
+  // happened around this loved one's care — not just the EHR. Each block is
+  // wrapped in try/catch so a shape mismatch or missing table never blocks
+  // the rest of the page. See wellet_living_timeline_spec.md.
+  var extra = (window._tlExtraSources && window._tlExtraSources[currentPersonId]) || {
+    careCircleMembers: [], careCircleShares: [], shares: [], shareEvents: [],
+    careSignalWatches: [], careSignalFires: [], medicationLogs: [], checkIns: []
+  };
+
+  // 1) Documents (non-voice). Uploaded labs, discharge summaries, etc. Voice
+  //    notes already merge in voiceTimelineItems above — skip those here.
+  var documentTimelineItems = [];
+  try {
+    if (typeof liveDocs !== 'undefined' && Array.isArray(liveDocs)) {
+      liveDocs.forEach(function(d) {
+        var isVoice = d.document_type === 'voice_note' || (d.file_name && /\.(m4a|mp3|wav|ogg|webm)$/i.test(d.file_name));
+        if (isVoice) return;
+        if (!d.uploaded_at) return;
+        var label = d.document_type ? String(d.document_type).replace(/_/g,' ') : 'Document';
+        documentTimelineItems.push({
+          event_type: 'document',
+          title: d.file_name || label,
+          event_date: d.uploaded_at,
+          notes: '',
+          source: 'document',
+          _section: 'documents',
+          _refId: d.id
+        });
+      });
+    }
+  } catch (eDoc) { try { console.warn('[timeline] document merge skipped:', eDoc); } catch (er) {} }
+
+  // 2) Care circle activity — invites sent + joins. "Steve joined the care
+  //    circle" / "Invited Sarah (sister)". Skip self / pending nags.
+  var careCircleTimelineItems = [];
+  try {
+    (extra.careCircleMembers || []).forEach(function(m) {
+      if (!m || !m.created_at) return;
+      var name = m.member_name || (m.role ? String(m.role) : 'a family member');
+      // Join event — only render when actually accepted.
+      if (m.status === 'active' || m.invite_status === 'accepted') {
+        careCircleTimelineItems.push({
+          event_type: 'care_circle',
+          title: name + ' joined the care circle',
+          event_date: m.created_at,
+          notes: m.role ? ('Role: ' + m.role) : '',
+          source: 'care_circle',
+          _section: 'people',
+          _refId: m.id
+        });
+      } else if (m.invited_at) {
+        // Invitation sent — only when we have a real invited_at (skip placeholders).
+        careCircleTimelineItems.push({
+          event_type: 'care_circle',
+          title: 'Invited ' + name + (m.role ? ' (' + m.role + ')' : '') + ' to the care circle',
+          event_date: m.invited_at,
+          notes: '',
+          source: 'care_circle',
+          _section: 'people',
+          _refId: m.id
+        });
+      }
+    });
+  } catch (eCC) { try { console.warn('[timeline] care circle merge skipped:', eCC); } catch (er) {} }
+
+  // 3) Share activity — outbound shares + view receipts. Never render recipient
+  //    names (magic-link shares have no recipient identity). Group views per
+  //    share so we say "Your share was opened 3 times" instead of 3 separate
+  //    timeline cards.
+  var shareTimelineItems = [];
+  try {
+    var viewsByShare = Object.create(null);
+    (extra.shareEvents || []).forEach(function(ev) {
+      if (!ev || !ev.share_id) return;
+      if (ev.event_type !== 'view' && ev.event_type !== 'open' && ev.event_type !== 'opened') return;
+      if (!viewsByShare[ev.share_id]) viewsByShare[ev.share_id] = { count: 0, last: null };
+      viewsByShare[ev.share_id].count += 1;
+      if (!viewsByShare[ev.share_id].last || new Date(ev.created_at) > new Date(viewsByShare[ev.share_id].last)) {
+        viewsByShare[ev.share_id].last = ev.created_at;
+      }
+    });
+    (extra.shares || []).forEach(function(s) {
+      if (!s || !s.created_at) return;
+      // Sent
+      shareTimelineItems.push({
+        event_type: 'share',
+        title: 'You shared a summary',
+        event_date: s.created_at,
+        notes: s.summary_text ? (String(s.summary_text).slice(0, 160) + (s.summary_text.length > 160 ? '\u2026' : '')) : '',
+        source: 'share',
+        _section: 'people',
+        _refId: s.id
+      });
+      // Opened (rolled up)
+      var v = viewsByShare[s.id];
+      if (v && v.count > 0 && v.last) {
+        var openTitle = v.count === 1
+          ? 'Your share was opened'
+          : 'Your share was opened ' + v.count + ' times';
+        shareTimelineItems.push({
+          event_type: 'share',
+          title: openTitle,
+          event_date: v.last,
+          notes: '',
+          source: 'share',
+          _section: 'people',
+          _refId: s.id
+        });
+      }
+    });
+  } catch (eS) { try { console.warn('[timeline] share merge skipped:', eS); } catch (er) {} }
+
+  // 4) CareSignals fires — "Wellet noticed X." Setup events are NOT on the
+  //    timeline; only the moments the watcher actually fired. We join fires
+  //    back to watches for the description.
+  var careSignalTimelineItems = [];
+  try {
+    var watchById = Object.create(null);
+    (extra.careSignalWatches || []).forEach(function(w) { if (w && w.id) watchById[w.id] = w; });
+    (extra.careSignalFires || []).forEach(function(f) {
+      if (!f || !f.fired_at) return;
+      var w = watchById[f.watch_id];
+      var desc = (w && w.description) || (w && w.watch_type ? String(w.watch_type).replace(/_/g,' ') : 'a signal worth following');
+      // Trigger value, if it's a simple primitive, becomes the body.
+      var body = '';
+      try {
+        if (f.trigger_value && typeof f.trigger_value === 'object') {
+          if (f.trigger_value.summary) body = String(f.trigger_value.summary);
+          else if (f.trigger_value.value !== undefined) body = 'Reading: ' + f.trigger_value.value;
+        }
+      } catch(_e) {}
+      careSignalTimelineItems.push({
+        event_type: 'care_signal',
+        title: 'Wellet noticed: ' + desc,
+        event_date: f.fired_at,
+        notes: body,
+        source: 'care_signal',
+        _section: 'caresignals',
+        _refId: f.id
+      });
+    });
+  } catch (eCS) { try { console.warn('[timeline] CareSignals merge skipped:', eCS); } catch (er) {} }
+
+  // 5) Medication logs — collapse to one card per day when 3+ doses on the
+  //    same day. Otherwise one card per log. "Logged by you" voice.
+  var medicationLogTimelineItems = [];
+  try {
+    var medsById = Object.create(null);
+    if (typeof liveMeds !== 'undefined' && Array.isArray(liveMeds)) {
+      liveMeds.forEach(function(m){ if (m && m.id) medsById[m.id] = m; });
+    }
+    var logsByDay = Object.create(null);
+    (extra.medicationLogs || []).forEach(function(l) {
+      if (!l || !l.taken_at) return;
+      var dayKey = String(l.taken_at).slice(0, 10);
+      if (!logsByDay[dayKey]) logsByDay[dayKey] = [];
+      logsByDay[dayKey].push(l);
+    });
+    Object.keys(logsByDay).forEach(function(dayKey) {
+      var logs = logsByDay[dayKey];
+      if (logs.length >= 3) {
+        // Collapse: "Took 4 medications on Wednesday"
+        var dayDate = new Date(dayKey + 'T12:00:00Z');
+        var dayLabel = isNaN(dayDate.getTime()) ? dayKey : dayDate.toLocaleDateString('en-US', { weekday: 'long' });
+        medicationLogTimelineItems.push({
+          event_type: 'med_log',
+          title: 'Took ' + logs.length + ' medications on ' + dayLabel,
+          event_date: logs[0].taken_at,
+          notes: '',
+          source: 'med_log',
+          _section: 'meds',
+          _refId: null,
+          _collapsedCount: logs.length
+        });
+      } else {
+        logs.forEach(function(l) {
+          var med = medsById[l.medication_id];
+          var medName = (med && (med.name || med.medication_name)) || 'A medication';
+          var status = l.status && l.status !== 'taken' ? (' \u2014 ' + l.status) : '';
+          medicationLogTimelineItems.push({
+            event_type: 'med_log',
+            title: medName + ' logged' + status,
+            event_date: l.taken_at,
+            notes: l.notes || '',
+            source: 'med_log',
+            _section: 'meds',
+            _refId: l.id
+          });
+        });
+      }
+    });
+  } catch (eML) { try { console.warn('[timeline] medication log merge skipped:', eML); } catch (er) {} }
+
+  // 6) Check-ins — daily mood / pain / sleep entries. Each becomes one card.
+  var checkInTimelineItems = [];
+  try {
+    (extra.checkIns || []).forEach(function(c) {
+      if (!c) return;
+      var when = c.checked_in_at || c.created_at;
+      if (!when) return;
+      var parts = [];
+      if (c.mood) parts.push('Mood: ' + c.mood);
+      if (c.pain_level !== null && c.pain_level !== undefined) parts.push('Pain: ' + c.pain_level + '/10');
+      if (c.sleep_quality) parts.push('Sleep: ' + c.sleep_quality);
+      if (c.energy_level) parts.push('Energy: ' + c.energy_level);
+      if (c.appetite) parts.push('Appetite: ' + c.appetite);
+      checkInTimelineItems.push({
+        event_type: 'check_in',
+        title: 'Daily check-in',
+        event_date: when,
+        notes: (parts.join(' \u00B7 ') + (c.notes ? '\n' + c.notes : '')).trim(),
+        source: 'check_in',
+        _section: 'patterns',
+        _refId: c.id
+      });
+    });
+  } catch (eCI) { try { console.warn('[timeline] check-in merge skipped:', eCI); } catch (er) {} }
+
+  var allEvents = liveEvents.concat(ehrDeduped).concat(voiceTimelineItems)
+    .concat(documentTimelineItems)
+    .concat(careCircleTimelineItems)
+    .concat(shareTimelineItems)
+    .concat(careSignalTimelineItems)
+    .concat(medicationLogTimelineItems)
+    .concat(checkInTimelineItems);
+
+  // ── LIVING TIMELINE · FILTER CHIPS (Phase 2) ───────────────────────────────────
+  // Filter selection persisted per-person in localStorage so when Betsy
+  // switches between mom and dad the filter she had stays intact for that
+  // loved one. Defaults to "all" — no filter applied.
+  var filterKey = 'wellet_timeline_filter_' + currentPersonId;
+  var activeFilter = 'all';
+  try { activeFilter = window.localStorage.getItem(filterKey) || 'all'; } catch(_lse) {}
+  // Map filter id → predicate over an event's source/event_type tag.
+  function _tlMatchesFilter(ev, filter) {
+    if (!filter || filter === 'all') return true;
+    switch (filter) {
+      case 'ehr':         return ev.source === 'ehr';
+      case 'you':         return !ev.source || ev.source === 'user';
+      case 'voice':       return ev.source === 'voice';
+      case 'documents':   return ev.source === 'document';
+      case 'care_circle': return ev.source === 'care_circle' || ev.source === 'share';
+      case 'care_signal': return ev.source === 'care_signal';
+      case 'meds':        return ev.source === 'med_log';
+      default: return true;
+    }
+  }
+  // Stash globally so onclick handlers can reuse without re-render churn.
+  window._tlSetFilter = function(personId, nextFilter) {
+    try { window.localStorage.setItem('wellet_timeline_filter_' + personId, nextFilter); } catch(_e) {}
+    try { renderTimeline(); } catch(_e) {}
+  };
+  // Render chips only when there is enough variety to be useful (>1 source).
+  var sourceSetSeen = {};
+  allEvents.forEach(function(e){ sourceSetSeen[e.source || 'user'] = true; });
+  var chipDefs = [
+    { id:'all',         label:'All' },
+    { id:'ehr',         label:'EHR',         needsSrc: 'ehr' },
+    { id:'you',         label:'You',         needsSrc: 'user' },
+    { id:'voice',       label:'Voice',       needsSrc: 'voice' },
+    { id:'documents',   label:'Documents',   needsSrc: 'document' },
+    { id:'care_circle', label:'Care circle', needsSrc: 'care_circle' },
+    { id:'care_signal', label:'CareSignals', needsSrc: 'care_signal' },
+    { id:'meds',        label:'Meds',        needsSrc: 'med_log' }
+  ];
+  var filterChipsHtml = '';
+  // Show chips when there are at least 2 different sources represented (besides
+  // 'All'). Below that the chips feel like clutter on an empty timeline.
+  var distinctSources = 0;
+  Object.keys(sourceSetSeen).forEach(function(k){ if (k !== 'user' || sourceSetSeen[k]) distinctSources++; });
+  if (distinctSources >= 2) {
+    var chipBtns = chipDefs.filter(function(c) {
+      if (c.id === 'all') return true;
+      // 'you' chip needs at least one user-source event (or the 'user' key).
+      if (c.id === 'you') return !!sourceSetSeen['user'] || liveEvents.length > 0;
+      // 'care_circle' chip shows when either care_circle or share is present.
+      if (c.id === 'care_circle') return !!sourceSetSeen['care_circle'] || !!sourceSetSeen['share'];
+      return !!sourceSetSeen[c.needsSrc];
+    }).map(function(c) {
+      var active = c.id === activeFilter;
+      return '<button class="tl-filter-chip' + (active ? ' is-active' : '') + '"'
+        + ' onclick="window._tlSetFilter(\'' + currentPersonId + '\',\'' + c.id + '\')"'
+        + ' aria-pressed="' + (active ? 'true' : 'false') + '">'
+        + escHtml(c.label) + '</button>';
+    }).join('');
+    filterChipsHtml = '<div class="tl-filter-chips" role="tablist" aria-label="Filter timeline by source">'
+      + chipBtns + '</div>';
+  }
+  // Apply the filter. "All" returns everything.
+  var allEventsUnfiltered = allEvents;
+  if (activeFilter && activeFilter !== 'all') {
+    allEvents = allEventsUnfiltered.filter(function(ev) { return _tlMatchesFilter(ev, activeFilter); });
+  }
+
   allEvents.sort(function(a,b) { return new Date(b.event_date) - new Date(a.event_date); });
 
   if (allEvents.length === 0) {
-    // EHR status bar at top when connected; FAB anchors to the screen
+    // EHR status bar at top when connected; chips above empty state when there
+    // is non-EHR data in the unfiltered set; FAB anchors to the screen.
     var emptyHeader = (ehrData ? buildEhrStatusBar(ehrData) : '');
-    pane.innerHTML = emptyHeader + '<div class="timeline-section">'
-      + '<div style="text-align:center;padding:48px 24px;">'
-      + '<div style="font-size:var(--type-display);margin-bottom:12px;opacity:0.3;"><i data-lucide="calendar" style="width:32px;height:32px;"></i></div>'
-      + '<div style="font-size:var(--type-body);color:var(--text-muted);line-height:1.6;">Appointments, medications, lab results, and your own notes \u2014 they\u2019ll all show up here in order as you add them.</div>'
-      + (!ehrData && !isDemoMode ? buildEhrPrompt() : '')
-      + '</div></div>';
+    var emptyChips = (allEventsUnfiltered.length > 0 && filterChipsHtml) ? filterChipsHtml : '';
+    // If a filter is hiding everything, say so honestly — don't show the
+    // generic empty-state copy that suggests there's nothing in the timeline.
+    var emptyBody;
+    if (activeFilter !== 'all' && allEventsUnfiltered.length > 0) {
+      emptyBody = '<div style="text-align:center;padding:48px 24px;">'
+        + '<div style="font-size:var(--type-body);color:var(--text-muted);line-height:1.6;">No events match this filter yet. Tap <strong>All</strong> to see everything.</div>'
+        + '</div>';
+    } else {
+      emptyBody = '<div style="text-align:center;padding:48px 24px;">'
+        + '<div style="font-size:var(--type-display);margin-bottom:12px;opacity:0.3;"><i data-lucide="calendar" style="width:32px;height:32px;"></i></div>'
+        + '<div style="font-size:var(--type-body);color:var(--text-muted);line-height:1.6;">Appointments, medications, lab results, and your own notes \u2014 they\u2019ll all show up here in order as you add them.</div>'
+        + (!ehrData && !isDemoMode ? buildEhrPrompt() : '')
+        + '</div>';
+    }
+    pane.innerHTML = emptyHeader + emptyChips + '<div class="timeline-section">' + emptyBody + '</div>';
     // Append FAB once per render (deduped by id)
     if (!document.querySelector('#tab-timeline .tl-add-fab')) pane.insertAdjacentHTML('beforeend', fabHtml);
     initIcons();
@@ -3087,9 +3506,10 @@ function renderTimeline() {
     months[key].events.push(ev);
   });
 
-  // EHR status bar FIRST, then timeline list. FAB is appended after.
+  // EHR status bar FIRST, then filter chips, then timeline list. FAB after.
   var html = '';
   if (ehrData) html += buildEhrStatusBar(ehrData);
+  if (filterChipsHtml) html += filterChipsHtml;
   html += '<div class="timeline-section">';
   Object.keys(months).sort().reverse().forEach(function(k) {
     html += '<div class="tl-month">' + months[k].label + '</div>';
@@ -3101,16 +3521,34 @@ function renderTimeline() {
       // Every card is clickable. User-created events open the edit modal;
       // EHR items route to the matching Records detail pane (labs / visits /
       // conditions / documents), with the specific item id as a deep-link hint.
+      // New v1 sources route to their best section (or are non-clickable
+      // when there's nothing useful to drill into).
       var clickAttr;
+      var refIdSafe = ev._refId ? String(ev._refId).replace(/[^a-zA-Z0-9_.\-]/g, '') : '';
       if (ev.source === 'voice' && ev._refId) {
-        // Voice notes open the transcript / summary / play sheet directly.
-        var voiceIdSafe = String(ev._refId).replace(/[^a-zA-Z0-9_.\-]/g, '');
-        clickAttr = ' onclick="showExtractionResults(\'' + voiceIdSafe + '\')" style="cursor:pointer;"';
+        clickAttr = ' onclick="showExtractionResults(\'' + refIdSafe + '\')" style="cursor:pointer;"';
+      } else if (ev.source === 'document' && ev._refId) {
+        // Documents pane in Records, deep-linked via openTimelineItem.
+        clickAttr = ' onclick="openTimelineItem(\'documents\',\'' + refIdSafe + '\')" style="cursor:pointer;"';
+      } else if (ev.source === 'care_circle') {
+        // Open the People view where care circle lives.
+        clickAttr = ' onclick="switchView(\'people\')" style="cursor:pointer;"';
+      } else if (ev.source === 'share') {
+        // No deep-link target for shares yet; tap shows a no-op.
+        clickAttr = '';
+      } else if (ev.source === 'care_signal') {
+        // CareSignals view.
+        clickAttr = ' onclick="switchView(\'caresignals\')" style="cursor:pointer;"';
+      } else if (ev.source === 'med_log') {
+        // Meds tab in Records.
+        clickAttr = ' onclick="openTimelineItem(\'meds\',\'\')" style="cursor:pointer;"';
+      } else if (ev.source === 'check_in') {
+        // CareSignals also surfaces check-ins, route there.
+        clickAttr = ' onclick="switchView(\'caresignals\')" style="cursor:pointer;"';
       } else if (!isEhr) {
-        clickAttr = ' onclick="openEditEvent(\'' + ev.id + '\')"';
+        clickAttr = ' onclick="openEditEvent(\'' + (ev.id || '') + '\')"';
       } else {
         var section = ev._section || (ev.event_type === 'lab_result' ? 'labs' : (ev.event_type === 'appointment' ? 'visits' : 'conditions'));
-        var refIdSafe = ev._refId ? String(ev._refId).replace(/[^a-zA-Z0-9_.\-]/g, '') : '';
         clickAttr = ' onclick="openTimelineItem(\'' + section + '\',\'' + refIdSafe + '\')" style="cursor:pointer;"';
       }
       // Register share context for this timeline item
@@ -3139,6 +3577,43 @@ function renderTimeline() {
       // opens the Ask context via data-ask-lp.
       // Rail and dot are drawn via CSS ::before on .timeline-section and
       // .tl-item — no per-item line-col / connector divs.
+      // Source pill voice rules (wellet_living_timeline_spec.md):
+      //   EHR → "From Duke"        moss
+      //   You → "Added by you"      muted
+      //   Voice → "Voice note"      muted italic
+      //   Document → "From your uploads" muted
+      //   Care circle → "Care circle activity" moss
+      //   Share → "Shared"          moss
+      //   CareSignals → "Wellet noticed" moss italic
+      //   Med log → "Logged by you" muted
+      //   Check-in → "Daily check-in" muted
+      var pillLabel = '';
+      var pillColor = 'var(--text-muted)';
+      var pillStyle = '';
+      switch (ev.source) {
+        case 'ehr':
+          pillLabel = 'From ' + (ev._ehrProvider || 'EHR');
+          pillColor = 'var(--moss)'; pillStyle = 'font-weight:500;'; break;
+        case 'voice':
+          pillLabel = 'Voice note'; pillStyle = 'font-style:italic;'; break;
+        case 'document':
+          pillLabel = 'From your uploads'; break;
+        case 'care_circle':
+          pillLabel = 'Care circle activity';
+          pillColor = 'var(--moss)'; pillStyle = 'font-weight:500;'; break;
+        case 'share':
+          pillLabel = 'Shared';
+          pillColor = 'var(--moss)'; pillStyle = 'font-weight:500;'; break;
+        case 'care_signal':
+          pillLabel = 'Wellet noticed';
+          pillColor = 'var(--moss)'; pillStyle = 'font-weight:500;font-style:italic;'; break;
+        case 'med_log':
+          pillLabel = 'Logged by you'; break;
+        case 'check_in':
+          pillLabel = 'Daily check-in'; break;
+        default:
+          pillLabel = 'Added by you';
+      }
       html += '<div class="tl-item">'
         + '<div class="tl-card ' + typeInfo.border + '" data-ask-lp="' + askKeyTl + '"' + clickAttr + '>'
         + '<div class="tl-card-type-row"><i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + typeInfo.color + ';"></i>'
@@ -3147,7 +3622,7 @@ function renderTimeline() {
         + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
         + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
         + '<div class="tl-card-date">' + dateStr
-        + (isEhr ? ' \u00B7 <span style="color:var(--moss);font-weight:500;">From ' + escHtml(ev._ehrProvider || 'EHR') + '</span>' : '')
+        + ' \u00B7 <span style="color:' + pillColor + ';' + pillStyle + '">' + escHtml(pillLabel) + '</span>'
         + '</div>'
         + '</div></div>';
     });
@@ -8366,7 +8841,16 @@ function getEventTypeInfo(type) {
     lab_result:  { dot:'lab',  border:'blue-border', icon:'flask-conical', color:'var(--blue)', label:'Lab result' },
     condition:   { dot:'note', border:'', icon:'stethoscope', color:'var(--text-muted)', label:'Diagnosis' },
     note:        { dot:'note', border:'', icon:'pencil-line', color:'var(--text-muted)', label:'Note' },
-    pattern:     { dot:'alert', border:'red-border', icon:'activity', color:'var(--red)', label:'Pattern noticed' }
+    pattern:     { dot:'alert', border:'red-border', icon:'activity', color:'var(--red)', label:'Pattern noticed' },
+    // Living Timeline v1 — sources beyond the EHR that make Wellet a record of
+    // *everything* around a loved one's care. Borders intentionally muted so
+    // these don't crowd EHR cards visually.
+    document:    { dot:'note', border:'', icon:'file-text', color:'var(--text-muted)', label:'Document' },
+    care_circle: { dot:'note', border:'moss-border', icon:'users', color:'var(--moss)', label:'Care circle' },
+    share:       { dot:'note', border:'moss-border', icon:'send', color:'var(--moss)', label:'Share' },
+    care_signal: { dot:'alert', border:'moss-border', icon:'activity', color:'var(--moss)', label:'Wellet noticed' },
+    med_log:     { dot:'med',  border:'amber-border', icon:'pill', color:'var(--amber)', label:'Meds logged' },
+    check_in:    { dot:'note', border:'', icon:'heart-pulse', color:'var(--text-muted)', label:'Check-in' }
   };
   return map[type] || map['note'];
 }
