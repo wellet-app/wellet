@@ -248,6 +248,40 @@
   .privacy-note { font-size: var(--type-meta); color: var(--text-muted); line-height: 1.6; }
   .privacy-note strong { color: var(--moss-text); font-weight: 500; }
 
+  /* ── MOAT MANIFESTO BAND (landing) ── */
+  .manifesto-band {
+    margin: 16px 20px 8px;
+    padding: 28px 24px 30px;
+    background: var(--cream, #FAF8F2);
+    border-radius: 14px;
+    border-left: 3px solid var(--moss, #608F7C);
+    text-align: left;
+  }
+  .manifesto-eyebrow {
+    font-family: 'DM Sans', sans-serif;
+    font-size: var(--type-micro);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--moss-dark, #3D6B58);
+    font-weight: 500;
+    margin-bottom: 10px;
+  }
+  .manifesto-statement {
+    font-family: var(--serif, 'Fraunces'), serif;
+    font-size: 1.0625rem; /* ~17px */
+    line-height: 1.55;
+    color: var(--text-primary, #1a1a1a);
+    font-weight: 400;
+  }
+  .manifesto-statement em {
+    font-style: italic;
+    color: var(--moss-dark, #3D6B58);
+  }
+  @media (min-width: 720px) {
+    .manifesto-band { padding: 36px 32px 38px; }
+    .manifesto-statement { font-size: 1.1875rem; line-height: 1.6; }
+  }
+
   /* ── NOTIFICATION BELL & PANEL ── */
   .notif-bell-wrap { position: relative; }
   .notif-bell-badge { position: absolute; top: -2px; right: -2px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--red); color: white; font-size: var(--type-micro); font-weight: 600; display: flex; align-items: center; justify-content: center; padding: 0 4px; line-height: 1; pointer-events: none; }

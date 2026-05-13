@@ -4,15 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Wellet — A place to remember what matters</title>
-<meta name="description" content="A witness system for family caregivers. Capture, organize, and surface the health history of the people you love.">
-<meta property="og:title" content="Wellet — A place to remember what matters">
-<meta property="og:description" content="A witness system for family caregivers. Capture, organize, and surface the health history of the people you love.">
+<meta name="description" content="A record that belongs to your family, not the hospital. Wellet holds the chart, the conversation, the gut feeling, the share, the watch, and the question — together, in one place.">
+<meta property="og:title" content="Wellet — A record that belongs to your family">
+<meta property="og:description" content="A record that belongs to your family, not the hospital. Wellet holds the chart, the conversation, the gut feeling, the share, the watch, and the question — together, in one place.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://mywellet.com">
 <meta property="og:image" content="https://mywellet.com/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Wellet — A place to remember what matters">
-<meta name="twitter:description" content="A witness system for family caregivers.">
+<meta name="twitter:title" content="Wellet — A record that belongs to your family">
+<meta name="twitter:description" content="A record that belongs to your family, not the hospital.">
 <meta name="theme-color" content="#608F7C">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -109,6 +109,10 @@
       {
         h: 'Caring for someone with dementia means <em>remembering</em> everything they can\'t.',
         p: 'Wellet stays on top of medications, lab results, and appointment prep \u2014 so you can focus on being present. Not another app to learn. Just upload their health records and let Wellet follow along.'
+      },
+      {
+        h: 'A record that belongs to your <em>family,</em> not the hospital.',
+        p: 'The chart, the conversation, the gut feeling, the share, the watch, the question \u2014 everything that happens around your loved one\'s health, in one place. Wellet is the only record that holds all of it.'
       }
     ];
     var pick = heroes[Math.floor(Math.random() * heroes.length)];
@@ -380,6 +384,17 @@
     <button class="btn-secondary" onclick="showApp()">Explore on your own <i data-lucide="arrow-right" style="width:16px;height:16px;"></i></button>
     <button class="btn-secondary" onclick="showOnboarding()"><i data-lucide="plus" style="width:16px;height:16px;"></i> Start my own story</button>
   </div>
+
+  <!-- MOAT MANIFESTO — belongs-to-your-family statement -->
+  <section class="manifesto-band" aria-label="What Wellet is">
+    <div class="manifesto-eyebrow">What Wellet is</div>
+    <p class="manifesto-statement">
+      Wellet is the only place where everything that happens around a loved one&rsquo;s health lives &mdash;
+      <em>the chart, the conversation, the gut feeling, the share, the watch, the question</em> &mdash;
+      in a record that belongs to the family, not the hospital.
+    </p>
+  </section>
+
   <div class="privacy-footer">
     <p class="privacy-note">Demo mode — no login required. <strong style="cursor:pointer;text-decoration:underline;" onclick="showAuthScreen()">Sign in to save your data</strong> between sessions.</p>
   </div>
@@ -1344,7 +1359,7 @@
           <div class="settings-row">
             <div class="settings-row-left">
               <div class="settings-row-icon"><i data-lucide="info" style="width:15px;height:15px;"></i></div>
-              <div><div class="settings-row-label">About Wellet</div><div class="settings-row-meta">v1.0 · Private by design</div></div>
+              <div><div class="settings-row-label">About Wellet</div><div class="settings-row-meta" style="font-family:var(--serif),serif;font-style:italic;">A record that belongs to your family, not the hospital. · v1.0</div></div>
             </div>
           </div>
         </div>
