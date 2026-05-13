@@ -14,6 +14,9 @@
 }
 
 /* ----- Month label — Fraunces small caps, no hairline ----- */
+/* Indented past the rail (rail sits at x=16) so the line never crosses
+   through "APRIL 2026" text. Matches .tl-item's 32px content gutter so
+   the month label and card titles share the same left edge.            */
 #tab-timeline .tl-month {
   font-family: var(--serif);
   font-size: var(--type-meta);
@@ -24,8 +27,15 @@
   text-transform: uppercase;
   color: var(--ink-5, #6E6962);
   margin: 28px 0 14px;
+  padding-left: 32px !important;            /* clear the rail at x=16 + gutter */
   display: block;                           /* was flex+::after — drop the trailing hairline */
   border-top: 0 !important;
+  /* Belt-and-suspenders: also sit above the rail in z-order, with a
+     linen background that masks any 1px line peeking through the
+     left padding behind the text baseline.                            */
+  position: relative;
+  z-index: 2;
+  background: var(--linen, #F7F5F0);
 }
 #tab-timeline .tl-month::after,
 #tab-timeline .tl-month::before {
@@ -126,15 +136,19 @@
 #tab-timeline .tl-item::before {
   content: "";
   position: absolute;
-  left: 12px;                    /* (rail_x 16) - (dot_size/2 ≈ 4.5) */
+  /* Rail is at left:16 width:1, so rail center sits at x=16.5.
+     Dot is 10px now (was 9px — odd sizes can't center on a 1px rail
+     at sub-pixel positions). With dot=10 and left:11.5, dot center =
+     11.5 + 5 = 16.5 — pixel-aligned to the rail center.              */
+  left: 11.5px;
   top: 24px;                     /* aligns with the type-tag row */
-  width: 9px;
-  height: 9px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: var(--linen, #F7F5F0);
   border: 1.5px solid var(--ink-4, #8C857B);
   box-sizing: border-box;
-  z-index: 1;
+  z-index: 2;                    /* sit above the rail so dot looks crisp */
 }
 
 /* The card was previously a flex child (`flex: 1` from wellet.css) and
