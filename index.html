@@ -491,6 +491,30 @@
     <!-- UPDATE ME -->
     <div id="tab-update" class="tab-pane active" role="tabpanel" aria-labelledby="tab-btn-update">
       <div id="demo-home-dad">
+      <!-- L2 — Before your appointment (imminent: tomorrow). Static demo version. -->
+      <div class="before-visit-card">
+        <div class="bvc-eyebrow">Before your appointment</div>
+        <div class="bvc-hero">Tomorrow at 9:00 AM · Dr. Johnson</div>
+        <div class="bvc-sub">A quiet pre-flight for the visit. Open it when you have a minute.</div>
+        <div class="bvc-stat-row">
+          <div class="bvc-stat">
+            <div class="bvc-stat-val">5</div>
+            <div class="bvc-stat-label">Questions ready</div>
+          </div>
+          <div class="bvc-stat">
+            <div class="bvc-stat-val">2</div>
+            <div class="bvc-stat-label">New on chart</div>
+          </div>
+          <div class="bvc-stat">
+            <div class="bvc-stat-val">2</div>
+            <div class="bvc-stat-label">Wishes captured</div>
+          </div>
+        </div>
+        <button class="bvc-cta" onclick="openVisitPrep(true)">
+          <i data-lucide="clipboard-list" style="width:16px;height:16px;"></i> Open prep for this visit
+        </button>
+        <button class="bvc-secondary" onclick="openWishesList('dad')">Review John’s wishes first</button>
+      </div>
       <div class="update-me-section">
         <div class="update-card">
           <div class="update-label">What's going on with Dad right now</div>

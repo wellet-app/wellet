@@ -1700,6 +1700,110 @@
   .lang-pill-btn:hover:not(.active) { border-color: var(--moss); color: var(--moss); }
 
 
+  /* ── BEFORE YOUR APPOINTMENT (L2 — fires when appt is today/tomorrow) ── */
+  /* Editorial cream card with moss left rule. Sits ABOVE the Wellet Summary
+     card on home when an appointment is imminent. Falls through silently
+     otherwise (no card, no eyebrow) — the existing Upcoming block + visit-
+     prep CTA still handle the further-out case. */
+  .before-visit-card {
+    margin: 12px 20px 16px;
+    padding: 18px 18px 16px;
+    background: var(--cream, #FAF6EB);
+    border: 1px solid rgba(96,143,124,0.18);
+    border-left: 3px solid var(--moss, #608F7C);
+    border-radius: 14px;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .bvc-eyebrow {
+    font-size: var(--type-micro, 11px);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--moss-dark, #3F6356);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .bvc-hero {
+    font-family: var(--serif), 'Fraunces', serif;
+    font-size: var(--type-h2, 22px);
+    line-height: 1.25;
+    color: var(--text-primary, #2E2A24);
+    margin: 0 0 4px;
+  }
+  .bvc-sub {
+    font-family: var(--serif), 'Fraunces', serif;
+    font-style: italic;
+    font-size: var(--type-meta, 13px);
+    color: var(--moss-dark, #3F6356);
+    margin: 0 0 14px;
+    line-height: 1.5;
+  }
+  .bvc-stat-row {
+    display: flex;
+    gap: 10px;
+    margin: 0 0 14px;
+  }
+  .bvc-stat {
+    flex: 1;
+    background: rgba(255,255,255,0.55);
+    border: 1px solid rgba(96,143,124,0.14);
+    border-radius: 10px;
+    padding: 10px 10px 9px;
+    text-align: left;
+  }
+  .bvc-stat-val {
+    font-family: var(--serif), 'Fraunces', serif;
+    font-size: 20px;
+    color: var(--moss-dark, #3F6356);
+    line-height: 1.1;
+    font-weight: 500;
+  }
+  .bvc-stat-val.empty {
+    color: var(--text-muted, #8A8275);
+    font-style: italic;
+    font-size: 16px;
+  }
+  .bvc-stat-label {
+    font-size: var(--type-micro, 11px);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted, #8A8275);
+    margin-top: 4px;
+    font-weight: 500;
+  }
+  .bvc-cta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 12px 16px;
+    background: var(--moss, #608F7C);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: var(--type-body, 15px);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .bvc-cta:hover { background: var(--moss-dark, #3F6356); }
+  .bvc-secondary {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    padding: 4px;
+    background: transparent;
+    border: none;
+    color: var(--moss-dark, #3F6356);
+    font-family: 'DM Sans', sans-serif;
+    font-size: var(--type-meta, 13px);
+    font-style: italic;
+    cursor: pointer;
+    text-align: center;
+  }
+  .bvc-secondary:hover { text-decoration: underline; }
+
   /* ── VISIT PREP ────────────────────────────────────────────────────────── */
   .visit-prep-card {
     display: flex;
