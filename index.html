@@ -2079,6 +2079,13 @@
 
     <div class="settings-section" style="margin-top:12px;">
       <div class="settings-section-label" data-i18n="settings.yourData">Your Data</div>
+      <div class="settings-row" style="cursor:pointer;" onclick="closeSettings();downloadFamilyRecordPDF()">
+        <div class="settings-row-left">
+          <div class="settings-row-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="book-heart" style="width:15px;height:15px;"></i></div>
+          <div><div class="settings-row-label">Family record (PDF)</div><div class="settings-row-meta">The full chart plus their wishes — a record that belongs to your family</div></div>
+        </div>
+        <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+      </div>
       <div class="settings-row" style="cursor:pointer;" onclick="exportAllData('json')">
         <div class="settings-row-left">
           <div class="settings-row-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="download" style="width:15px;height:15px;"></i></div>
