@@ -269,19 +269,7 @@ async function initApp() {
   var hasInvite = await checkInviteOnLoad();
 
   try {
-    // DIAGNOSTIC: log what localStorage has under sb-* keys so we can tell
-    // whether the Supabase session was persisted across reloads.
-    try {
-      var sbKeys = [];
-      for (var i = 0; i < localStorage.length; i++) {
-        var k = localStorage.key(i);
-        if (k && (k.indexOf('sb-') === 0 || k.indexOf('supabase') === 0)) sbKeys.push(k);
-      }
-      console.log('[auth-boot] supabase storage keys:', sbKeys, 'path:', window.location.pathname, 'search:', window.location.search);
-    } catch(e) {}
-
     var { data: { session } } = await db.auth.getSession();
-    console.log('[auth-boot] getSession result:', session ? 'HAS_SESSION (' + (session.user && session.user.email) + ')' : 'NO_SESSION');
     if (session) {
       currentUser = session.user;
       // Guard against the rare race where onAuthStateChange already ran loadUserData
@@ -331,7 +319,6 @@ async function initApp() {
         // case _userDataLoaded is still false and we MUST run loadUserData() here, or
         // person-load → autoRefreshEhrIfNeeded → fetch-ehr-data never fires.
         if (event === 'SIGNED_IN' || (event === 'INITIAL_SESSION' && !_userDataLoaded)) {
-          console.log('[auth-boot] onAuthStateChange triggering loadUserData (event=' + event + ', userDataLoaded=' + _userDataLoaded + ')');
           _userDataLoaded = true;
           // Clear the expired-session banner now that we have a live session;
           // a fresh fetch-ehr-data will fire from loadPersonData().
