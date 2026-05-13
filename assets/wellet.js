@@ -5147,30 +5147,50 @@ function openConditionDetail(refId) {
 // Voice rules: Wellet "notices" — never claims a match. All data is public-
 // registry. Every result lists a tap-out to the canonical source.
 //
-// SKIP-LIST: hide the section entirely for sensitive ICD-10 chapters where
-// surfacing trials/treatments/centers/advocacy could feel invasive or
-// stigmatizing. Conservative on purpose — better silent than wrong.
-//   F     · Mental & behavioural disorders
-//   B20   · HIV disease
-//   F10-F19 · Substance use
-//   O     · Pregnancy, childbirth and the puerperium
-//   Z21   · Asymptomatic HIV infection status
-//   Z31-Z37 · Reproductive & encounter for sterilization/contraception
-function _careTeamChipsSkip(icdCode) {
+// SKIP-LIST: per-chip suppression for sensitive ICD-10 chapters. Granular
+// on purpose — trials/treatments/centers can feel invasive for F-chapter
+// (mental & behavioural) conditions, but research + advocacy are often
+// exactly what the family was looking for. Each intent has its own gate.
+//
+//   F     · Mental & behavioural disorders  → hide trials/fda/centers,
+//                                            ALLOW research + advocacy
+//   F10-F19 · Substance use                 → same as F
+//   B20   · HIV disease                     → hide entire section
+//   Z21   · Asymptomatic HIV status         → hide entire section
+//   O     · Pregnancy, childbirth, puerperium → hide entire section
+//   Z31-Z37 · Reproductive / sterilization  → hide entire section
+
+function _careTeamChipsHideAll(icdCode) {
   if (!icdCode) return false;
   var c = String(icdCode).toUpperCase().trim();
   if (!c) return false;
-  if (c.charAt(0) === 'F') return true;          // mental/behavioural + F10-F19 substance use
   if (c.charAt(0) === 'O') return true;          // pregnancy/childbirth
   if (c.indexOf('B20') === 0) return true;       // HIV
   if (c.indexOf('Z21') === 0) return true;       // HIV status
-  // Z31-Z37: reproductive encounters
   var z = c.match(/^Z(\d{2})/);
   if (z) {
     var n = parseInt(z[1], 10);
-    if (n >= 31 && n <= 37) return true;
+    if (n >= 31 && n <= 37) return true;         // Z31-Z37 reproductive
   }
   return false;
+}
+
+// For F-chapter (mental health + substance use): allow research + advocacy
+// only. Trials/FDA/centers feel like "we noticed your depression—here are
+// drugs and centers" which is not the tone we want without a clinician in
+// the loop. Research + advocacy are reading rooms, not recommendations.
+function _careTeamChipIntentAllowed(icdCode, intent) {
+  if (!icdCode) return true;
+  var c = String(icdCode).toUpperCase().trim();
+  if (c.charAt(0) === 'F') {
+    return intent === 'research' || intent === 'advocacy';
+  }
+  return true;
+}
+
+// Back-compat shim — callers using the old name keep working.
+function _careTeamChipsSkip(icdCode) {
+  return _careTeamChipsHideAll(icdCode);
 }
 
 function _escAttr(s) {
@@ -5184,11 +5204,12 @@ function _escAttr(s) {
 
 function renderCareTeamChipSection(cond) {
   if (!cond || !cond.name) return '';
-  if (_careTeamChipsSkip(cond.code)) return '';
+  if (_careTeamChipsHideAll(cond.code)) return '';
   var nm = escHtml(cond.name);
   var codeAttr = _escAttr(cond.code || '');
   var nmAttr = _escAttr(cond.name);
   function chip(intent, label, icon) {
+    if (!_careTeamChipIntentAllowed(cond.code, intent)) return '';
     return '<button type="button" data-care-team-intent="' + intent + '" data-condition-name="' + nmAttr + '" data-icd10="' + codeAttr + '" '
       + 'onclick="askCareTeamChip(this.dataset.careTeamIntent, this.dataset.conditionName, this.dataset.icd10)" '
       + 'style="display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:12px 14px;background:#fff;border:1px solid var(--border);border-radius:12px;cursor:pointer;font-size:var(--type-body);color:var(--text-primary);transition:background 0.15s;">'
@@ -5197,16 +5218,21 @@ function renderCareTeamChipSection(cond) {
       +   '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);flex-shrink:0;"></i>'
       + '</button>';
   }
+  var chipsHtml = ''
+    + chip('trials',          'Recruiting trials nearby',     'flask-conical')
+    + chip('fda_treatments',  'FDA-approved treatments',      'pill')
+    + chip('centers',         'Centers of excellence',        'building-2')
+    + chip('advocacy',        'Patient advocacy groups',      'heart-handshake')
+    + chip('research',        'Recent research',              'book-open');
+    // second_opinion deferred to v1.1 — holding the static-content chip for now
+    // + chip('second_opinion',  'Could a second opinion help?', 'message-circle-question')
+  // If F-chapter filtered everything out (shouldn't), don't render an empty shell.
+  if (!chipsHtml) return '';
   return '<div style="margin-top:26px;">'
     +   '<div style="font-size:var(--type-meta);font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px;">Ask Wellet about this diagnosis</div>'
     +   '<div style="font-size:var(--type-meta);color:var(--text-muted);margin-bottom:12px;">Things your care team might not have time to mention. Public data \u00b7 talk to ' + nm + '\u2019s care team.</div>'
     +   '<div style="display:flex;flex-direction:column;gap:8px;">'
-    +     chip('trials',          'Recruiting trials nearby',     'flask-conical')
-    +     chip('fda_treatments',  'FDA-approved treatments',      'pill')
-    +     chip('centers',         'Centers of excellence',        'building-2')
-    +     chip('advocacy',        'Patient advocacy groups',      'heart-handshake')
-    +     chip('research',        'Recent research',              'book-open')
-    +     chip('second_opinion',  'Could a second opinion help?', 'message-circle-question')
+    +     chipsHtml
     +   '</div>'
     + '</div>';
 }
