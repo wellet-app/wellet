@@ -5122,6 +5122,7 @@ function openConditionDetail(refId) {
     +   _detailRow('Code', cond.code || '')
     + '</div>'
     + relatedHtml
+    + renderCareTeamChipSection(cond)
     + _detailAskCta(askKey)
     + '</div>';
 
@@ -5134,6 +5135,322 @@ function openConditionDetail(refId) {
       attachAskLongPress(card, window._askCtxRegistry[askKey]);
     }
   } catch (_e) {}
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// CARE-TEAM CHIPS · "What your care team might not tell you"
+// ────────────────────────────────────────────────────────────────────────────
+// One section on the Condition detail page = 6 tappable chips, each routes
+// through Ask Wellet with a pre-filled question and structured public-
+// registry data from the fetch-care-team-info edge fn.
+//
+// Voice rules: Wellet "notices" — never claims a match. All data is public-
+// registry. Every result lists a tap-out to the canonical source.
+//
+// SKIP-LIST: per-chip suppression for sensitive ICD-10 chapters. Granular
+// on purpose — trials/treatments/centers can feel invasive for F-chapter
+// (mental & behavioural) conditions, but research + advocacy are often
+// exactly what the family was looking for. Each intent has its own gate.
+//
+//   F     · Mental & behavioural disorders  → hide trials/fda/centers,
+//                                            ALLOW research + advocacy
+//   F10-F19 · Substance use                 → same as F
+//   B20   · HIV disease                     → hide entire section
+//   Z21   · Asymptomatic HIV status         → hide entire section
+//   O     · Pregnancy, childbirth, puerperium → hide entire section
+//   Z31-Z37 · Reproductive / sterilization  → hide entire section
+
+function _careTeamChipsHideAll(icdCode) {
+  if (!icdCode) return false;
+  var c = String(icdCode).toUpperCase().trim();
+  if (!c) return false;
+  if (c.charAt(0) === 'O') return true;          // pregnancy/childbirth
+  if (c.indexOf('B20') === 0) return true;       // HIV
+  if (c.indexOf('Z21') === 0) return true;       // HIV status
+  var z = c.match(/^Z(\d{2})/);
+  if (z) {
+    var n = parseInt(z[1], 10);
+    if (n >= 31 && n <= 37) return true;         // Z31-Z37 reproductive
+  }
+  return false;
+}
+
+// For F-chapter (mental health + substance use): allow research + advocacy
+// only. Trials/FDA/centers feel like "we noticed your depression—here are
+// drugs and centers" which is not the tone we want without a clinician in
+// the loop. Research + advocacy are reading rooms, not recommendations.
+function _careTeamChipIntentAllowed(icdCode, intent) {
+  if (!icdCode) return true;
+  var c = String(icdCode).toUpperCase().trim();
+  if (c.charAt(0) === 'F') {
+    return intent === 'research' || intent === 'advocacy';
+  }
+  return true;
+}
+
+// Back-compat shim — callers using the old name keep working.
+function _careTeamChipsSkip(icdCode) {
+  return _careTeamChipsHideAll(icdCode);
+}
+
+function _escAttr(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function renderCareTeamChipSection(cond) {
+  if (!cond || !cond.name) return '';
+  if (_careTeamChipsHideAll(cond.code)) return '';
+  var nm = escHtml(cond.name);
+  var codeAttr = _escAttr(cond.code || '');
+  var nmAttr = _escAttr(cond.name);
+  function chip(intent, label, icon) {
+    if (!_careTeamChipIntentAllowed(cond.code, intent)) return '';
+    return '<button type="button" data-care-team-intent="' + intent + '" data-condition-name="' + nmAttr + '" data-icd10="' + codeAttr + '" '
+      + 'onclick="askCareTeamChip(this.dataset.careTeamIntent, this.dataset.conditionName, this.dataset.icd10)" '
+      + 'style="display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:12px 14px;background:#fff;border:1px solid var(--border);border-radius:12px;cursor:pointer;font-size:var(--type-body);color:var(--text-primary);transition:background 0.15s;">'
+      +   '<i data-lucide="' + icon + '" style="width:16px;height:16px;color:var(--moss);flex-shrink:0;"></i>'
+      +   '<span style="flex:1;">' + label + '</span>'
+      +   '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);flex-shrink:0;"></i>'
+      + '</button>';
+  }
+  var chipsHtml = ''
+    + chip('trials',          'Recruiting trials nearby',     'flask-conical')
+    + chip('fda_treatments',  'FDA-approved treatments',      'pill')
+    + chip('centers',         'Centers of excellence',        'building-2')
+    + chip('advocacy',        'Patient advocacy groups',      'heart-handshake')
+    + chip('research',        'Recent research',              'book-open');
+    // second_opinion deferred to v1.1 — holding the static-content chip for now
+    // + chip('second_opinion',  'Could a second opinion help?', 'message-circle-question')
+  // If F-chapter filtered everything out (shouldn't), don't render an empty shell.
+  if (!chipsHtml) return '';
+  return '<div style="margin-top:26px;">'
+    +   '<div style="font-size:var(--type-meta);font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px;">Ask Wellet about this diagnosis</div>'
+    +   '<div style="font-size:var(--type-meta);color:var(--text-muted);margin-bottom:12px;">Things your care team might not have time to mention. Public data \u00b7 talk to ' + nm + '\u2019s care team.</div>'
+    +   '<div style="display:flex;flex-direction:column;gap:8px;">'
+    +     chipsHtml
+    +   '</div>'
+    + '</div>';
+}
+
+// askCareTeamChip(intent, conditionName, icdCode)
+// Fires when the user taps one of the 6 chips. Stashes context, switches to
+// Ask tab, drops a pre-filled question in the thread, and renders Wellet's
+// answer directly from the fetch-care-team-info edge fn. No LLM in the loop.
+function askCareTeamChip(intent, conditionName, icdCode) {
+  var qMap = {
+    trials:          'What recruiting trials might be relevant for ' + conditionName + '?',
+    fda_treatments:  'What FDA-approved treatments exist for ' + conditionName + '?',
+    centers:         'Are there centers of excellence for ' + conditionName + '?',
+    advocacy:        'What patient advocacy groups support people with ' + conditionName + '?',
+    research:        'What does recent research say about ' + conditionName + '?',
+    second_opinion:  'Would a second opinion help for ' + conditionName + '?'
+  };
+  var question = qMap[intent] || ('Tell me about ' + conditionName + '.');
+
+  // Stash so any future Ask flow knows the context
+  window._pendingAskContext = {
+    kind: 'care_team_chip',
+    intent: intent,
+    name: conditionName,
+    meta: { icd10: icdCode || '' }
+  };
+
+  try { switchNavTo('ask'); } catch(_e){}
+
+  setTimeout(function() {
+    try { if (typeof _renderAskContextChip === 'function') _renderAskContextChip(); } catch(_e){}
+    var chips = document.getElementById('suggestion-chips');
+    if (chips) chips.style.display = 'none';
+    addUserMessage(question);
+    var typingId = showTyping();
+    _fetchCareTeamInfo(intent, conditionName, icdCode)
+      .then(function(result) {
+        removeTyping(typingId);
+        addWelletMessage(_renderCareTeamAnswer(intent, conditionName, result));
+      })
+      .catch(function(err) {
+        console.warn('[care-team-chip] fetch failed:', err);
+        removeTyping(typingId);
+        addWelletMessage('I couldn\u2019t reach the public-registry data just now. Try again in a moment.');
+      });
+  }, 80);
+}
+
+function _fetchCareTeamInfo(intent, conditionName, icdCode) {
+  var ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU';
+  // Pull hospital hint from active EHR connection if available — purely for
+  // geo-radius on trials. We pass no PHI; just a regex hint like "duke".
+  var hospitalHint = null;
+  try {
+    var conns = (window._activeEhrConnections || []);
+    if (conns.length > 0) hospitalHint = conns[0].fhir_base_url || conns[0].hospital_name || null;
+  } catch (_e) {}
+
+  return (async function() {
+    var sess = await db.auth.getSession();
+    var tok = sess && sess.data && sess.data.session && sess.data.session.access_token;
+    if (!tok) throw new Error('No session token');
+    var resp = await fetch('https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/fetch-care-team-info', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + tok,
+        'apikey': ANON_KEY
+      },
+      body: JSON.stringify({
+        intent: intent,
+        condition_text: conditionName,
+        icd10: icdCode || '',
+        person_id: currentPersonId,
+        hospital_hint: hospitalHint,
+        max_results: 5
+      })
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    return await resp.json();
+  })();
+}
+
+function _renderCareTeamAnswer(intent, conditionName, payload) {
+  var data = (payload && payload.data) || {};
+  var nm = escHtml(conditionName);
+  var noticed = 'Wellet noticed';
+  var disclaimer = '<div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border);font-size:var(--type-meta);color:var(--text-muted);">Public data \u00b7 talk to ' + nm + '\u2019s care team.</div>';
+
+  function link(href, text) {
+    return '<a href="' + _escAttr(href) + '" target="_blank" rel="noopener" style="color:var(--moss);text-decoration:underline;">' + escHtml(text) + '</a>';
+  }
+  function row(html) {
+    return '<div style="padding:10px 0;border-bottom:1px solid var(--border);">' + html + '</div>';
+  }
+
+  if (intent === 'trials') {
+    var trials = data.trials || [];
+    if (!trials.length) {
+      return noticed + ' no recruiting trials matching ' + nm + ' on ClinicalTrials.gov in the search radius. That can change weekly. ' + link('https://clinicaltrials.gov', 'Search ClinicalTrials.gov directly.') + disclaimer;
+    }
+    var head = noticed + ' <strong>' + trials.length + '</strong> recruiting ' + (trials.length === 1 ? 'trial' : 'trials') + ' for ' + nm + ' on ClinicalTrials.gov:<br><br>';
+    var rows = trials.map(function(t) {
+      var loc = t.location ? ' \u00b7 ' + escHtml(t.location) : '';
+      var sponsor = t.sponsor ? '<div style="font-size:var(--type-meta);color:var(--text-secondary);margin-top:2px;">' + escHtml(t.sponsor) + loc + '</div>' : '';
+      return row(
+        '<div style="font-weight:600;">' + escHtml(t.title) + '</div>'
+      + sponsor
+      + '<div style="margin-top:6px;">' + link(t.url, t.nct_id || 'View on ClinicalTrials.gov') + '</div>'
+      );
+    }).join('');
+    return head + rows + disclaimer;
+  }
+
+  if (intent === 'fda_treatments') {
+    var meds = data.treatments || [];
+    if (!meds.length) {
+      return noticed + ' no drug labels on openFDA that mention ' + nm + '. ' + link('https://www.accessdata.fda.gov/scripts/cder/daf/', 'Search Drugs@FDA directly.') + disclaimer;
+    }
+    var fdaHead = noticed + ' <strong>' + meds.length + '</strong> FDA-labelled ' + (meds.length === 1 ? 'drug whose label mentions' : 'drugs whose labels mention') + ' ' + nm + ':<br><br>';
+    var fdaRows = meds.map(function(m) {
+      var brand = m.brand_name ? escHtml(m.brand_name) : '';
+      var generic = m.generic_name ? escHtml(m.generic_name) : '';
+      var head = brand && generic ? brand + ' <span style="color:var(--text-secondary);font-weight:400;">(' + generic + ')</span>' : (brand || generic || 'Drug');
+      var route = m.route ? '<div style="font-size:var(--type-meta);color:var(--text-secondary);margin-top:2px;">' + escHtml(m.route) + '</div>' : '';
+      return row(
+        '<div style="font-weight:600;">' + head + '</div>'
+      + route
+      + '<div style="margin-top:6px;">' + link(m.label_url, 'View FDA label') + '</div>'
+      );
+    }).join('');
+    return fdaHead + fdaRows + '<div style="margin-top:10px;font-size:var(--type-meta);color:var(--text-secondary);">A drug appearing here means its FDA-approved label mentions ' + nm + '. It does <strong>not</strong> mean ' + nm + ' is its primary FDA-approved indication.</div>' + disclaimer;
+  }
+
+  if (intent === 'centers') {
+    var cs = data.centers || [];
+    if (!cs.length) {
+      return noticed + ' that Wellet doesn\u2019t have a curated list of centers of excellence for ' + nm + ' yet. The Mayo Clinic, Cleveland Clinic, and academic medical centers near you are good places to start.' + disclaimer;
+    }
+    var cHead = noticed + ' <strong>' + cs.length + '</strong> ' + (cs.length === 1 ? 'center' : 'centers') + ' that specialize in ' + nm + ':<br><br>';
+    var cRows = cs.map(function(c) {
+      var loc = [c.city, c.state].filter(Boolean).map(escHtml).join(', ');
+      var spec = c.specialty ? '<div style="font-size:var(--type-meta);color:var(--text-secondary);margin-top:2px;">' + escHtml(c.specialty) + (loc ? ' \u00b7 ' + loc : '') + '</div>' : (loc ? '<div style="font-size:var(--type-meta);color:var(--text-secondary);margin-top:2px;">' + loc + '</div>' : '');
+      var design = c.designation ? '<div style="font-size:var(--type-meta);color:var(--moss);margin-top:4px;">' + escHtml(c.designation) + '</div>' : '';
+      var web = c.website ? '<div style="margin-top:6px;">' + link(c.website, 'Website') + '</div>' : '';
+      return row(
+        '<div style="font-weight:600;">' + escHtml(c.center_name) + '</div>'
+      + spec + design + web
+      );
+    }).join('');
+    return cHead + cRows + disclaimer;
+  }
+
+  if (intent === 'advocacy') {
+    var gs = data.groups || [];
+    if (!gs.length) {
+      return noticed + ' that Wellet doesn\u2019t have a curated list of advocacy groups for ' + nm + ' yet. ' + link('https://rarediseases.org/for-patients-and-families/help-access-medications/find-patient-organization/', 'NORD\u2019s Patient Organization directory') + ' is a good starting point.' + disclaimer;
+    }
+    var gHead = noticed + ' <strong>' + gs.length + '</strong> ' + (gs.length === 1 ? 'group' : 'groups') + ' supporting people with ' + nm + ':<br><br>';
+    var gRows = gs.map(function(g) {
+      var mission = g.mission_short ? '<div style="font-size:var(--type-meta);color:var(--text-secondary);margin-top:2px;">' + escHtml(g.mission_short) + '</div>' : '';
+      var web = g.website ? '<div style="margin-top:6px;">' + link(g.website, 'Website') + '</div>' : '';
+      return row(
+        '<div style="font-weight:600;">' + escHtml(g.group_name) + '</div>'
+      + mission + web
+      );
+    }).join('');
+    return gHead + gRows + disclaimer;
+  }
+
+  if (intent === 'research') {
+    var arts = data.articles || [];
+    if (!arts.length) {
+      return noticed + ' no recent systematic reviews or major trials on PubMed for ' + nm + ' in the last 3 years. ' + link('https://pubmed.ncbi.nlm.nih.gov/', 'Search PubMed directly.') + disclaimer;
+    }
+    var rHead = noticed + ' <strong>' + arts.length + '</strong> recent ' + (arts.length === 1 ? 'review/trial' : 'reviews/trials') + ' on PubMed for ' + nm + ':<br><br>';
+    var rRows = arts.map(function(a) {
+      var auth = (a.authors && a.authors.length) ? escHtml(a.authors.join(', ')) + (a.authors.length >= 3 ? ', et al.' : '') : '';
+      var meta = '<div style="font-size:var(--type-meta);color:var(--text-secondary);margin-top:2px;">' + auth + (auth && (a.journal || a.pub_date) ? ' \u00b7 ' : '') + escHtml(a.journal || '') + (a.pub_date ? ' \u00b7 ' + escHtml(a.pub_date) : '') + '</div>';
+      return row(
+        '<div style="font-weight:600;">' + escHtml(a.title) + '</div>'
+      + meta
+      + '<div style="margin-top:6px;">' + link(a.url, 'Read on PubMed') + '</div>'
+      );
+    }).join('');
+    return rHead + rRows + disclaimer;
+  }
+
+  if (intent === 'second_opinion') {
+    var so = data;
+    var head2 = '<div style="margin-bottom:10px;">' + escHtml(so.framing || '') + '</div>';
+    var when = '';
+    if (so.when_to_consider && so.when_to_consider.length) {
+      when = '<div style="font-weight:600;margin-top:14px;margin-bottom:6px;">When a second opinion makes sense</div><ul style="margin:0;padding-left:18px;">'
+        + so.when_to_consider.map(function(w) { return '<li style="margin-bottom:4px;">' + escHtml(w) + '</li>'; }).join('')
+        + '</ul>';
+    }
+    var progs = '';
+    if (so.programs && so.programs.length) {
+      progs = '<div style="font-weight:600;margin-top:14px;margin-bottom:6px;">Established programs</div>'
+        + so.programs.map(function(p) {
+            return row(
+              '<div style="font-weight:600;">' + escHtml(p.name) + '</div>'
+            + '<div style="font-size:var(--type-meta);color:var(--text-secondary);margin-top:2px;">' + escHtml(p.description || '') + '</div>'
+            + '<div style="margin-top:6px;">' + link(p.url, 'Learn more') + '</div>'
+            );
+          }).join('');
+    }
+    var prep = '';
+    if (so.how_to_prepare && so.how_to_prepare.length) {
+      prep = '<div style="font-weight:600;margin-top:14px;margin-bottom:6px;">How to prepare</div><ul style="margin:0;padding-left:18px;">'
+        + so.how_to_prepare.map(function(w) { return '<li style="margin-bottom:4px;">' + escHtml(w) + '</li>'; }).join('')
+        + '</ul>';
+    }
+    return head2 + when + progs + prep + disclaimer;
+  }
+
+  return noticed + ' an unexpected response. Please try again.' + disclaimer;
 }
 
 // ── renderRecordsView ─────────────────────────────────────────────────────────
