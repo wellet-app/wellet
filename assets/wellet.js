@@ -8652,6 +8652,15 @@ function showApp() {
   if (bugBtn) bugBtn.style.display = 'none';
   // Restore demo HTML if it was replaced
   restoreDemoHTML();
+  // Living Timeline v1 in demo — swap the live* feeds with demo seeds and
+  // paint the Timeline tab through renderTimeline() so the demo shows EHR +
+  // voice + uploads + care circle + share receipts + CareSignals + meds +
+  // check-ins in one stream, just like the real app does. Replaces the
+  // static demo Timeline HTML for the current view.
+  try {
+    _applyDemoTimelineFeeds();
+    if (typeof renderTimeline === 'function') renderTimeline();
+  } catch(_e) { try { console.warn('[demo] renderTimeline on enter failed:', _e); } catch(_) {} }
   window.scrollTo(0, 0);
   initIcons();
 }
@@ -9440,6 +9449,124 @@ var DEMO_EHR_DATA = {
   provider: 'Duke Health (Epic)',
   synced_at: new Date().toISOString()
 };
+
+// ── DEMO LIVING TIMELINE DATA ────────────────────────────────────────────────
+// Seed data so the demo's Timeline tab shows the full picture of what Wellet
+// does — EHR + voice notes + uploaded documents + care circle joins + share
+// receipts + CareSignals fires + medication logs + daily check-ins.
+// Dates are tuned to land relative to "today" so the demo doesn't drift.
+// Helper: produce an ISO timestamp N days ago.
+function _demoDaysAgo(days, hour, minute) {
+  var d = new Date();
+  d.setDate(d.getDate() - days);
+  if (typeof hour === 'number') d.setHours(hour, minute || 0, 0, 0);
+  return d.toISOString();
+}
+
+var DEMO_TIMELINE_EXTRAS = {
+  // Care circle joins + invites
+  careCircleMembers: [
+    { id:'dcc-1', member_name:'Steve Harris', role:'sibling',
+      status:'active', invite_status:'accepted',
+      created_at:_demoDaysAgo(31, 10, 0), invited_at:_demoDaysAgo(33, 8, 0) },
+    { id:'dcc-2', member_name:'Maria Lopez', role:'home aide',
+      status:'active', invite_status:'accepted',
+      created_at:_demoDaysAgo(21, 14, 0), invited_at:_demoDaysAgo(23, 9, 0) }
+  ],
+  careCircleShares: [],
+  // Outbound shares + view receipts (3 opens demonstrates the rollup card)
+  shares: [
+    { id:'ds-1', person_id:'demo-cheryl',
+      summary_text:"Cheryl had her neurology follow-up Thursday. Levodopa dose unchanged. Next visit Jul 22.",
+      created_at:_demoDaysAgo(9, 19, 0), expires_at:_demoDaysAgo(-21, 19, 0) }
+  ],
+  shareEvents: [
+    { id:'dse-1', share_id:'ds-1', event_type:'view', created_at:_demoDaysAgo(9, 21, 14) },
+    { id:'dse-2', share_id:'ds-1', event_type:'view', created_at:_demoDaysAgo(8, 7, 32) },
+    { id:'dse-3', share_id:'ds-1', event_type:'view', created_at:_demoDaysAgo(8, 22, 48) }
+  ],
+  // CareSignals: one watch, one recent fire — "Wellet noticed"
+  careSignalWatches: [
+    { id:'dcw-1', watch_type:'medication_missed',
+      description:'2+ missed Levodopa doses in a row',
+      parameters:{}, active:true, created_at:_demoDaysAgo(42, 10, 0) }
+  ],
+  careSignalFires: [
+    { id:'dcf-1', watch_id:'dcw-1', fired_at:_demoDaysAgo(3, 20, 0),
+      trigger_value:{ summary:'2 evening doses skipped this week.' } }
+  ],
+  // Medication logs — 4 doses on one day demos the "Took N medications" collapse
+  medicationLogs: [
+    { id:'dml-1', medication_id:'dem-lev', taken_at:_demoDaysAgo(2, 8, 0),  status:'taken' },
+    { id:'dml-2', medication_id:'dem-lev', taken_at:_demoDaysAgo(2, 14, 0), status:'taken' },
+    { id:'dml-3', medication_id:'dem-lev', taken_at:_demoDaysAgo(2, 20, 0), status:'taken' },
+    { id:'dml-4', medication_id:'dem-lis', taken_at:_demoDaysAgo(2, 8, 5),  status:'taken' }
+  ],
+  // Daily check-ins — one recent entry
+  checkIns: [
+    { id:'dci-1', mood:'tired', pain_level:2, sleep_quality:'fair',
+      energy_level:'low', appetite:'normal',
+      notes:'A little wobbly this morning, better by afternoon.',
+      checked_in_at:_demoDaysAgo(1, 9, 0) }
+  ]
+};
+
+// Demo documents — one voice note (becomes "Voice note") and two uploaded
+// docs (become "From your uploads"). Voice notes carry an extracted summary
+// so the timeline card body has real content.
+var DEMO_DOCS = [
+  { id:'ddoc-voice-1', person_id:'demo-cheryl',
+    file_name:'Voice note · Saturday morning',
+    document_type:'voice_note',
+    uploaded_at:_demoDaysAgo(5, 11, 12),
+    extraction_status:'complete',
+    extracted_events:{ summary:'Cheryl seemed a little more tired this morning. Took her morning meds at 8:10. Mentioned her left hand was shaking more than usual.' }
+  },
+  { id:'ddoc-lab-1', person_id:'demo-cheryl',
+    file_name:'Quest labs — March 2026.pdf',
+    document_type:'lab_report',
+    uploaded_at:_demoDaysAgo(14, 16, 30),
+    extraction_status:'complete'
+  },
+  { id:'ddoc-discharge-1', person_id:'demo-cheryl',
+    file_name:'Duke neurology — visit summary.pdf',
+    document_type:'visit_summary',
+    uploaded_at:_demoDaysAgo(27, 10, 15),
+    extraction_status:'complete'
+  }
+];
+
+// Demo medications keyed by the medication_id used in DEMO_TIMELINE_EXTRAS
+// medicationLogs above. Lets the collapse logic name the meds correctly.
+var DEMO_LIVE_MEDS = [
+  { id:'dem-lev', name:'Levodopa/Carbidopa 25-100mg' },
+  { id:'dem-lis', name:'Lisinopril 20mg' }
+];
+
+// Demo manual events — none for the demo; the EHR + extras carry the story.
+var DEMO_LIVE_EVENTS = [];
+
+// Switch the live* feeds into demo mode so renderTimeline reads from the
+// demo seeds instead of empty live arrays. Called from showApp() after
+// restoreDemoHTML(), and again on demo person switch.
+function _applyDemoTimelineFeeds() {
+  try {
+    if (!isDemoMode) return;
+    liveEvents   = DEMO_LIVE_EVENTS.slice();
+    liveDocs     = DEMO_DOCS.slice();
+    liveMeds     = DEMO_LIVE_MEDS.slice();
+    liveLabs     = [];
+    liveVitals   = [];
+    liveAllergies = [];
+    liveCareCircle = DEMO_TIMELINE_EXTRAS.careCircleMembers.slice();
+    if (!window._tlExtraSources) window._tlExtraSources = {};
+    // renderTimeline reads window._tlExtraSources[currentPersonId]. In demo
+    // mode currentPersonId is typically null — bind the key both ways so we
+    // hit the lookup no matter what currentPersonId happens to be.
+    window._tlExtraSources[currentPersonId] = DEMO_TIMELINE_EXTRAS;
+    window._tlExtraSources['demo'] = DEMO_TIMELINE_EXTRAS;
+  } catch(_e) { try { console.warn('[demo] timeline feed apply skipped:', _e); } catch(_) {} }
+}
 
 // ── DEMO CARESIGNALS DATA ────────────────────────────────────────────────────
 var DEMO_CARESIGNALS = {
@@ -17936,6 +18063,13 @@ function switchPerson(el, personKey) {
         }
       }
     } catch(_e3) {}
+    // Re-paint the Living Timeline for the newly selected demo person so it
+    // doesn't show stale data from the other persona. For now both demo
+    // personas share the same DEMO_TIMELINE_EXTRAS — the EHR side differs.
+    try {
+      _applyDemoTimelineFeeds();
+      if (typeof renderTimeline === 'function') renderTimeline();
+    } catch(_eDtl) {}
     initIcons();
   }
 }
