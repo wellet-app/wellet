@@ -2,13 +2,40 @@
 // severity='critical' lands in public.signup_error_log. Sends an immediate
 // email to betsy.eble@gmail.com via Brevo SMTP, mirroring the proven
 // send-bug-report SMTP wiring exactly (denomailer 1.6.0, port 465, tls:true).
+//
+// AUTH: the trigger reads vault.decrypted_secrets['signup_error_notify_secret']
+// and passes it as `signing_secret`. This function fetches the same vault
+// secret on cold start (cached for the worker's lifetime) and compares.
+// To rotate: just update the vault secret. No code or env-var changes needed.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const SUPPORT_EMAIL = "betsy.eble@gmail.com";
-const EXPECTED_SECRET = "qb_kV4W79wW57U9vx1VgoksvpIJ_JS6qJmUoEM-_p0w";
 const DEDUPE_WINDOW_MINUTES = 30;
+
+// Cached vault-loaded secret (cleared per cold start, never logged).
+let _cachedExpectedSecret: string | null = null;
+
+async function loadExpectedSecret(supabaseUrl: string, serviceKey: string): Promise<string | null> {
+  if (_cachedExpectedSecret) return _cachedExpectedSecret;
+  try {
+    const admin = createClient(supabaseUrl, serviceKey);
+    // Vault schema isn't exposed via PostgREST by default; use a SECURITY DEFINER
+    // RPC (public.get_signup_error_notify_secret) that returns the decrypted value.
+    // The RPC is granted to service_role only; revoked from anon/authenticated.
+    const { data, error } = await admin.rpc("get_signup_error_notify_secret");
+    if (error || !data) {
+      console.error("notify-signup-error: vault rpc failed:", error?.message);
+      return null;
+    }
+    _cachedExpectedSecret = String(data);
+    return _cachedExpectedSecret;
+  } catch (e) {
+    console.error("notify-signup-error: vault fetch failed:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
 
 function escapeHtml(str: string): string {
   return (str || "")
@@ -29,15 +56,21 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
 
   try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const expectedSecret = await loadExpectedSecret(supabaseUrl, serviceKey);
+    if (!expectedSecret) {
+      return json({ error: "secret_unavailable" }, 500);
+    }
+
     const body = await req.json().catch(() => ({}));
-    if (String((body as any).signing_secret || "") !== EXPECTED_SECRET) {
+    if (String((body as any).signing_secret || "") !== expectedSecret) {
       return json({ error: "unauthorized" }, 401);
     }
     const errorId = String((body as any).error_id || "");
     if (!errorId) return json({ error: "error_id is required" }, 400);
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const admin = createClient(supabaseUrl, serviceKey);
 
     const { data: row, error: loadErr } = await admin

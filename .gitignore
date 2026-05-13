@@ -5,3 +5,7 @@ deno.lock
 # local extraction artifacts (kept on disk as a safety net, never committed)
 index.html.pre-extract
 extract.py
+
+# AI tooling config — do not commit (may contain tokens)
+.mcp.json
+.aider*
