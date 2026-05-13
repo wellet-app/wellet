@@ -604,6 +604,30 @@
       </div>
       </div><!-- end demo-home-dad -->
       <div id="demo-home-mom" style="display:none;">
+      <!-- L2 — Before your appointment (imminent: tomorrow). Static demo version. -->
+      <div class="before-visit-card">
+        <div class="bvc-eyebrow">Before your appointment</div>
+        <div class="bvc-hero">Tomorrow at 10:30 AM · Dr. Patel</div>
+        <div class="bvc-sub">A quiet pre-flight for the visit. Open it when you have a minute.</div>
+        <div class="bvc-stat-row">
+          <div class="bvc-stat">
+            <div class="bvc-stat-val">4</div>
+            <div class="bvc-stat-label">Questions ready</div>
+          </div>
+          <div class="bvc-stat">
+            <div class="bvc-stat-val">1</div>
+            <div class="bvc-stat-label">New on chart</div>
+          </div>
+          <div class="bvc-stat">
+            <div class="bvc-stat-val">3</div>
+            <div class="bvc-stat-label">Wishes captured</div>
+          </div>
+        </div>
+        <button class="bvc-cta" onclick="openVisitPrep(true)">
+          <i data-lucide="clipboard-list" style="width:16px;height:16px;"></i> Open prep for this visit
+        </button>
+        <button class="bvc-secondary" onclick="openWishesList('mom')">Review Cheryl’s wishes first</button>
+      </div>
       <div class="update-me-section">
         <div class="update-card">
           <div class="update-label">What's going on with Mom right now</div>
@@ -615,11 +639,22 @@
         <div class="upcoming-section-label">Upcoming for Mom</div>
         <div class="upcoming-row">
           <div class="upcoming-row-head">
-            <span class="upcoming-tag">This week</span>
-            <span class="upcoming-date">Fri May 1 · 10:30 AM</span>
+            <span class="upcoming-tag">Tomorrow</span>
+            <span class="upcoming-date">10:30 AM</span>
           </div>
-          <div class="upcoming-title">Endocrinology — A1C follow-up</div>
-          <div class="upcoming-notes">Last A1C 6.8%. Bring walking-routine notes and methotrexate journal.</div>
+          <div class="upcoming-title">Cardiology — Dr. Patel follow-up</div>
+          <div class="upcoming-notes">BP has been running higher this week. Bring home-reading log and current med list.</div>
+          <div class="upcoming-actions">
+            <button class="upcoming-prep-link" onclick="openVisitPrep(true)">Prepare for this visit</button>
+          </div>
+        </div>
+        <div class="upcoming-row">
+          <div class="upcoming-row-head">
+            <span class="upcoming-tag">Next week</span>
+            <span class="upcoming-date">Thu · 11:15 AM</span>
+          </div>
+          <div class="upcoming-title">Rheumatology — Dr. Reyes</div>
+          <div class="upcoming-notes">Methotrexate check-in. Morning stiffness journal ready.</div>
           <div class="upcoming-actions">
             <button class="upcoming-prep-link" onclick="openVisitPrep(false)">Prepare for this visit</button>
           </div>
