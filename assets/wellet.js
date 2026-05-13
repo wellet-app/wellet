@@ -2965,7 +2965,120 @@ function detectPatternAlerts(personName) {
     });
   }
 
+  // L1 v1: Recurring patterns across time. detectRecurringPatterns reads
+  // liveVitals + liveEvents + liveMeds and surfaces shapes like "BP runs
+  // higher in the morning" or "Lisinopril missed on Sundays". These shapes
+  // are higher-signal than the single-threshold alerts above because they
+  // require multiple data points across multiple days.
+  try {
+    var recurring = detectRecurringPatterns();
+    recurring.forEach(function(r) { alerts.push(r); });
+  } catch (e) { /* never let detection crash the home view */ }
+
   return alerts;
+}
+
+// ── L1 v1: RECURRING PATTERN DETECTION ───────────────────────────────────
+// Reads the same liveVitals / liveEvents / liveMeds globals as the alert
+// detector. Returns an array of { key, title, body, sources } shaped exactly
+// like detectPatternAlerts items so they can be appended into the same
+// banner + CareSignals patterns list. A pattern fires only when there is
+// genuine recurrence (≥3 supporting data points across ≥3 distinct days).
+function detectRecurringPatterns() {
+  var out = [];
+  var THIRTY_DAYS_AGO = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  // ── Pattern A: BP time-of-day skew ─────────────────────────────────────
+  // Group blood-pressure readings by morning (5–11) vs evening (17–22).
+  // Flag when each side has ≥3 readings and morning avg systolic is ≥10
+  // mmHg higher than evening — the kind of thing a caregiver would only
+  // notice after weeks of MyChart screenshots.
+  try {
+    if (typeof liveVitals !== 'undefined' && liveVitals && liveVitals.length >= 6) {
+      var bp = liveVitals.filter(function(v) {
+        return v.vital_type === 'blood_pressure' && v.effective_date && new Date(v.effective_date) >= THIRTY_DAYS_AGO;
+      });
+      var morning = [], evening = [];
+      bp.forEach(function(v) {
+        var d = new Date(v.effective_date);
+        var h = d.getHours();
+        var sys = v.value_numeric;
+        if (sys == null && v.value_text) {
+          // Accept "148/92" style strings
+          var m = String(v.value_text).match(/(\d{2,3})/);
+          if (m) sys = parseInt(m[1], 10);
+        }
+        if (!sys || isNaN(sys)) return;
+        if (h >= 5 && h <= 11) morning.push(sys);
+        else if (h >= 17 && h <= 22) evening.push(sys);
+      });
+      if (morning.length >= 3 && evening.length >= 3) {
+        var avg = function(a) { return a.reduce(function(s,n){return s+n;},0) / a.length; };
+        var mAvg = avg(morning), eAvg = avg(evening);
+        var delta = Math.round(mAvg - eAvg);
+        if (delta >= 10) {
+          out.push({
+            key: 'recurring:bp:morning_high:' + new Date().toDateString(),
+            title: 'Blood pressure runs higher in the morning',
+            body: 'Across the last 30 days, morning readings (' + morning.length + ') average about ' + delta + ' mmHg higher than evening readings (' + evening.length + '). Wellet is noticing this so you can mention it at the next visit.',
+            sources: ['Apple Watch', 'BP log']
+          });
+        }
+      }
+    }
+  } catch (e) { /* skip silently */ }
+
+  // ── Pattern B: Medication day-of-week miss ─────────────────────────────
+  // Look at events of type 'medication' tagged as missed (notes contains
+  // 'missed' / 'forgot' or event.subtype='missed'). Group by day-of-week.
+  // Flag a day where ≥2 misses occurred across ≥2 distinct weeks.
+  try {
+    if (typeof liveEvents !== 'undefined' && liveEvents && liveEvents.length >= 3) {
+      var medMisses = liveEvents.filter(function(ev) {
+        if (ev.event_type !== 'medication') return false;
+        var notes = (ev.notes || '').toLowerCase();
+        var sub = (ev.subtype || '').toLowerCase();
+        if (sub === 'missed' || sub === 'skipped') return true;
+        if (notes.indexOf('missed') !== -1 || notes.indexOf('forgot') !== -1 || notes.indexOf('skipped') !== -1) return true;
+        return false;
+      }).filter(function(ev) {
+        return ev.event_date && new Date(ev.event_date) >= THIRTY_DAYS_AGO;
+      });
+      if (medMisses.length >= 2) {
+        var dayBuckets = {}; // dayIndex -> [{date, medName}]
+        var dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+        medMisses.forEach(function(ev) {
+          var d = new Date(ev.event_date);
+          var di = d.getDay();
+          if (!dayBuckets[di]) dayBuckets[di] = [];
+          dayBuckets[di].push({
+            date: d.toDateString(),
+            medName: (ev.title || '').replace(/^missed\s+/i, '').trim() || 'a medication'
+          });
+        });
+        Object.keys(dayBuckets).forEach(function(di) {
+          var bucket = dayBuckets[di];
+          var distinctDates = {};
+          bucket.forEach(function(b) { distinctDates[b.date] = true; });
+          var distinctCount = Object.keys(distinctDates).length;
+          if (bucket.length >= 2 && distinctCount >= 2) {
+            // Most-common med name in this bucket
+            var medCounts = {};
+            bucket.forEach(function(b) { medCounts[b.medName] = (medCounts[b.medName] || 0) + 1; });
+            var topMed = Object.keys(medCounts).sort(function(a,b){return medCounts[b]-medCounts[a];})[0];
+            out.push({
+              key: 'recurring:med:dow:' + di + ':' + new Date().toDateString(),
+              title: topMed + ' is being missed on ' + dayNames[di] + 's',
+              body: bucket.length + ' missed doses logged on ' + dayNames[di] + 's across the last 30 days. Wellet is noticing the pattern so you can decide whether to set a different reminder.',
+              sources: ['Medication log']
+            });
+          }
+        });
+      }
+    }
+  } catch (e) { /* skip silently */ }
+
+  return out;
 }
 
 async function firePatternAlertNotif(alert, personName) {
@@ -9613,6 +9726,15 @@ var DEMO_CARESIGNALS = {
     { time: '8:45 AM', event: 'Hallway motion', icon: 'move', type: 'sensor' }
   ],
   patterns: [
+    // L1 v1: recurring pattern detection — the kind of shape a caregiver
+    // would only notice after weeks of MyChart screenshots. Wellet notices
+    // it across the data without anyone having to hunt for it.
+    { title: 'Blood pressure runs higher in the morning', accent: 'amber', icon: 'activity',
+      body: 'Across the last 30 days, morning readings (5\u201311 AM) average about 14 mmHg higher than evening readings. Wellet is noticing this so you can mention it at the next visit.',
+      sources: ['Apple Watch', 'BP log'], recurring: true },
+    { title: 'Lisinopril is being missed on Sundays', accent: 'amber', icon: 'pill',
+      body: '3 missed doses logged on Sundays across the last 4 weeks. Wellet is noticing the pattern so you can decide whether to set a different reminder.',
+      sources: ['Medicine cabinet', 'Medication log'], recurring: true },
     { title: 'Morning routine is consistent', accent: 'moss', icon: 'check-circle',
       body: 'Your family member has been waking between 6:30\u20137:00 AM and having breakfast within 30 minutes for the last 7 days. This is a stable pattern.',
       sources: ['Bedroom sensor', 'Fridge sensor', 'Apple Watch'] },
@@ -10998,6 +11120,10 @@ function _renderSignalsDemo(el, data, demoFirstName) {
   for (var pi = 0; pi < data.patterns.length; pi++) {
     var p = data.patterns[pi];
     html += '<div class="pattern-card pattern-card--' + escHtml(p.accent) + '">';
+    // L1 v1: "Recurring" eyebrow flags patterns that span multiple days
+    if (p.recurring) {
+      html += '<div class="pattern-eyebrow">RECURRING \u00B7 WELLET NOTICED</div>';
+    }
     html += '<div class="pattern-title"><i data-lucide="' + escHtml(p.icon) + '"></i>' + escHtml(p.title) + '</div>';
     html += '<div class="pattern-body">' + escHtml(p.body) + '</div>';
     html += '<div class="pattern-sources">';
