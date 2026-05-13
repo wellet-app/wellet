@@ -2485,6 +2485,7 @@ function renderUpdateMe() {
     + '<span class="update-summary-label">Wellet summary</span>'
     + '</div>'
     + '<p class="update-summary-text" style="color:var(--text-secondary);font-style:italic;">As you add documents, appointments, and medications, Wellet will build a personalized summary here.</p>'
+    + '<p class="update-summary-text" style="font-family:var(--serif),serif;font-style:italic;color:var(--moss-dark);font-size:var(--type-meta);line-height:1.55;margin-top:10px;">A record that belongs to your family, not the hospital.</p>'
     + '</div>';
 
   // Check if user has completed document extractions (even without promoted events)
@@ -3485,6 +3486,7 @@ function renderTimeline() {
       emptyBody = '<div style="text-align:center;padding:48px 24px;">'
         + '<div style="font-size:var(--type-display);margin-bottom:12px;opacity:0.3;"><i data-lucide="calendar" style="width:32px;height:32px;"></i></div>'
         + '<div style="font-size:var(--type-body);color:var(--text-muted);line-height:1.6;">Appointments, medications, lab results, and your own notes \u2014 they\u2019ll all show up here in order as you add them.</div>'
+        + '<div style="font-family:var(--serif),serif;font-style:italic;font-size:var(--type-meta);color:var(--moss-dark);line-height:1.6;margin-top:18px;max-width:32ch;margin-left:auto;margin-right:auto;">A record that belongs to your family, not the hospital.</div>'
         + (!ehrData && !isDemoMode ? buildEhrPrompt() : '')
         + '</div>';
     }
