@@ -881,6 +881,37 @@ function acceptEmailSuggestion() {
   input.focus();
 }
 
+// Translate a Supabase auth error into a short, kind, action-able toast.
+// Inputs we've seen in the wild on signup / OTP verify:
+//   - over_email_send_rate_limit / email_send_rate_limit_exceeded (HTTP 429)
+//   - email_address_invalid / signup_disabled (HTTP 403)
+//   - otp_expired / token_expired / expired_token
+//   - invalid_otp / token_not_found / invalid_grant
+function _translateAuthError(err) {
+  if (!err) return 'Something went wrong \u2014 please try again.';
+  var code = String(err.code || err.error || err.name || '').toLowerCase();
+  var msg  = String(err.message || '').toLowerCase();
+  var status = err.status || 0;
+  var hay = code + ' ' + msg;
+  if (hay.indexOf('rate_limit') !== -1 || hay.indexOf('rate limit') !== -1 || status === 429) {
+    return 'Too many tries \u2014 please wait 60 seconds and try again.';
+  }
+  if (hay.indexOf('otp_expired') !== -1 || hay.indexOf('expired') !== -1) {
+    return 'That code expired \u2014 tap Resend code to get a fresh one.';
+  }
+  if (hay.indexOf('invalid_otp') !== -1 || hay.indexOf('token_not_found') !== -1 || hay.indexOf('invalid_grant') !== -1 || hay.indexOf('invalid token') !== -1) {
+    return 'That code doesn\u2019t match \u2014 try again or request a new one.';
+  }
+  if (hay.indexOf('email_address_invalid') !== -1 || hay.indexOf('invalid email') !== -1) {
+    return 'That email doesn\u2019t look right \u2014 please check the spelling.';
+  }
+  if (status === 403 || hay.indexOf('signup_disabled') !== -1 || hay.indexOf('not allowed') !== -1) {
+    return 'We can\u2019t send to that address right now \u2014 try a different email or contact betsy@getwellet.com.';
+  }
+  // Fall back to Supabase’s own message if it's user-friendly enough.
+  return err.message ? ('Couldn\u2019t sign you in: ' + err.message) : 'Couldn\u2019t sign you in \u2014 please try again.';
+}
+
 async function sendMagicLink() {
   var email = document.getElementById('auth-email').value.trim();
   if (!email) { showToast('Please enter your email'); return; }
@@ -906,7 +937,7 @@ async function sendMagicLink() {
     options: { emailRedirectTo: 'https://mywellet.com', shouldCreateUser: true }
   });
   if (error) {
-    showToast('Error: ' + error.message);
+    showToast(_translateAuthError(error));
     btn.disabled = false;
     btn.innerHTML = 'Send 6-digit code <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>';
     initIcons();
@@ -958,7 +989,7 @@ async function verifyAuthCode() {
     type: 'email'
   });
   if (error) {
-    showToast(error.message || 'Invalid or expired code');
+    showToast(_translateAuthError(error));
     if (btn) {
       btn.disabled = false;
       btn.innerHTML = 'Verify code <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>';
@@ -987,7 +1018,7 @@ async function resendAuthCode() {
     options: { emailRedirectTo: 'https://mywellet.com', shouldCreateUser: true }
   });
   if (error) {
-    showToast('Error: ' + error.message);
+    showToast(_translateAuthError(error));
   } else {
     showToast('New code sent');
   }
@@ -1209,6 +1240,10 @@ async function loadUserData() {
       showOnboarding();
     } else {
       // Returning user — show app with real data.
+      // Clear any stale connect-screen flag on boot. The flag is only meaningful
+      // mid-OAuth handoff; if we boot with real people loaded, we are past the
+      // initial Connect screen and the flag must not intercept showView() routing.
+      try { localStorage.removeItem('wellet_connect_screen_active'); } catch(_e) {}
       // Prefer the last-viewed person (saved in localStorage) so reloads and post-OAuth
       // round trips don't silently reset to sort_order=0.
       var savedId = getSavedPersonId();
@@ -12168,7 +12203,25 @@ function renderAskView() {
   // Render ask view for authenticated mode with real people
   if (isDemoMode) return;
   var personBar = document.querySelector('#view-ask .ask-person-bar');
-  if (!personBar || !currentPeople.length) return;
+  if (!personBar) return;
+
+  var inputElEmpty = document.getElementById('ask-input');
+  var chipsEmpty = document.getElementById('suggestion-chips');
+  var introBubble = document.querySelector('#chat-area .chat-group.from-wellet .chat-bubble.wellet');
+
+  if (!currentPeople.length) {
+    // No charts connected yet — show neutral copy and a CTA, no demo pills.
+    personBar.innerHTML = '';
+    personBar.style.display = 'none';
+    if (chipsEmpty) {
+      chipsEmpty.innerHTML = '<button class="chip" onclick="showView(\'people\')">Connect a chart to get personalized answers</button>';
+      chipsEmpty.style.display = 'flex';
+    }
+    if (inputElEmpty) inputElEmpty.placeholder = 'Ask Wellet\u2026';
+    if (introBubble) introBubble.textContent = 'Ask me anything about your loved one\u2019s health. I\u2019ll answer from what\u2019s in their records.';
+    return;
+  }
+  personBar.style.display = '';
 
   var pillsHtml = '';
   currentPeople.forEach(function(p) {
@@ -13288,9 +13341,46 @@ function triggerFileUpload(type) {
   document.getElementById('upload-file-input').click();
 }
 
+// Client-side upload guards. The server enforces final validation but we want
+// users to see a friendly toast immediately rather than discover the problem
+// after a long upload. Extensions match the input's accept= list; size cap is
+// 100 MB which covers the largest realistic doctor-visit audio + ZIP exports.
+var _UPLOAD_ALLOWED_EXT = [
+  'pdf','jpg','jpeg','png','gif','webp','heic','heif','doc','docx','txt',
+  'm4a','mp3','wav','ogg','webm','zip','xml','json','html','htm','rtf','csv'
+];
+var _UPLOAD_MAX_BYTES = 100 * 1024 * 1024; // 100 MB
+
+function _uploadGuardOk(file) {
+  if (!file) return false;
+  var name = String(file.name || '');
+  var dot = name.lastIndexOf('.');
+  var ext = dot >= 0 ? name.slice(dot + 1).toLowerCase() : '';
+  if (!ext || _UPLOAD_ALLOWED_EXT.indexOf(ext) === -1) {
+    if (typeof showToast === 'function') {
+      showToast('That file type isn\u2019t supported yet \u2014 try a PDF, image, or audio file.');
+    }
+    return false;
+  }
+  if (typeof file.size === 'number' && file.size > _UPLOAD_MAX_BYTES) {
+    var maxMb = Math.round(_UPLOAD_MAX_BYTES / (1024 * 1024));
+    if (typeof showToast === 'function') {
+      showToast('That file is over ' + maxMb + ' MB \u2014 please pick a smaller one.');
+    }
+    return false;
+  }
+  return true;
+}
+
 function handleFileSelected(input) {
   if (!input.files || !input.files[0]) return;
-  _uploadFile = input.files[0];
+  var picked = input.files[0];
+  if (!_uploadGuardOk(picked)) {
+    // Reset the input so the same file can be re-picked after the user fixes it.
+    try { input.value = ''; } catch(_e) {}
+    return;
+  }
+  _uploadFile = picked;
 
   // ZIP files → health record import flow
   if (isZipFile(_uploadFile.name)) {
