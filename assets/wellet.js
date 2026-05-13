@@ -2328,14 +2328,20 @@ function renderUpdateMe() {
   var visitPrepCardHtml = '';
   if (savedPrep && savedPrep.questions && savedPrep.questions.length > 0) {
     var savedDate = savedPrep.savedAt ? new Date(savedPrep.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
-    visitPrepCardHtml = '<button class="visit-prep-card resume-card" onclick="openVisitPrep(true)">'
+    // Outer is a <div role=button> (not <button>) so we can nest a real
+    // <button> for the dismiss × — nested <button> elements are invalid
+    // HTML and break click handling on some browsers.
+    visitPrepCardHtml = '<div class="visit-prep-card resume-card" role="button" tabindex="0" onclick="openVisitPrep(true)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();openVisitPrep(true);}" style="position:relative;">'
       + '<div class="visit-prep-icon resume"><i data-lucide="clipboard-list" style="width:18px;height:18px;"></i></div>'
       + '<div class="visit-prep-content">'
       + '<div class="visit-prep-title">Resume Visit Prep</div>'
       + '<div class="visit-prep-desc">' + escHtml(savedPrep.visitType || 'Saved prep') + (savedDate ? ' · Saved ' + savedDate : '') + '</div>'
       + '</div>'
       + '<i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);"></i>'
-      + '</button>';
+      + '<button class="visit-prep-dismiss" aria-label="Remove saved visit prep" title="Remove" onclick="event.stopPropagation();deleteVisitPrep();">'
+      + '<i data-lucide="x" style="width:14px;height:14px;"></i>'
+      + '</button>'
+      + '</div>';
     visitPrepCardHtml += '<button class="visit-prep-card" onclick="openVisitPrep(false)" style="margin-top:-4px;">'
       + '<div class="visit-prep-icon"><i data-lucide="plus" style="width:18px;height:18px;"></i></div>'
       + '<div class="visit-prep-content">'
@@ -3805,13 +3811,20 @@ function _rdConditionsContent(ehrConditions, ehrData, ehrProvider) {
     if (!ehrData) html += buildEhrPrompt();
     return html;
   }
-  var needsAttnRe = /need.*vaccin|lacks?|overdue|gap|non-adherence|immuniz.*overdue/i;
+  // "Need for vaccination" / "Lacks X" / "Overdue for Y" come from Epic as
+  // SNOMED finding codes WITHOUT the actual vaccine or screening name
+  // attached, so they read as "Need for vaccination — Code: 1255410..."
+  // which a caregiver can't act on. The Immunizations + Preventive lists
+  // already show what's actually due. Drop these non-actionable rows
+  // entirely. If we later resolve the underlying vaccine/screening name
+  // we can re-introduce them as a real "Coming due" surface.
+  var skipFindingRe = /^\s*(need for vaccin|lacks?\b|overdue\b|non[- ]adherence|immuniz.*overdue|gap in care)/i;
   var preventiveRe = /BMI|body mass|screen|wellness|preventive|counseling|routine|exam|physical/i;
-  var condNA = [], condActive = [], condPrev = [], condResolved = [];
+  var condActive = [], condPrev = [], condResolved = [];
   ehrConditions.forEach(function(c) {
     var n = c.name || '';
-    if (needsAttnRe.test(n))         condNA.push(c);
-    else if (preventiveRe.test(n))   condPrev.push(c);
+    if (skipFindingRe.test(n))       return;                  /* drop — see comment above */
+    if (preventiveRe.test(n))        condPrev.push(c);
     else if (c.status === 'active')  condActive.push(c);
     else                             condResolved.push(c);
   });
@@ -3851,12 +3864,6 @@ function _rdConditionsContent(ehrConditions, ehrData, ehrProvider) {
       + '</div>';
   }
 
-  if (condNA.length) {
-    html += '<div style="'+shdr+'">Needs Attention</div>';
-    condNA.forEach(function(c,i){
-      html += '<div style="background:#FEF6E8;border:1px solid #F5D78C;border-radius:10px;margin-bottom:6px;overflow:hidden;">'+condRow(c,i,'na')+'</div>';
-    });
-  }
   if (condActive.length) {
     html += '<div style="'+shdr+'">Active</div>';
     condActive.forEach(function(c,i){ html += condRow(c,i,'act'); });
@@ -5155,9 +5162,13 @@ function renderRecordsView() {
     ehrAllergies.every(function(a){  return nkaRe.test((a.name||'').trim());      })
   );
 
-  // Needs-attention dot for Conditions tile
-  var needsAttnRe = /need.*vaccin|lacks?|overdue|gap|non-adherence|immuniz.*overdue/i;
-  var hasNeedsAttn = ehrConditions.some(function(c){ return needsAttnRe.test(c.name||''); });
+  // Needs-attention dot for Conditions tile.
+  // Previously fired on "Need for vaccination" / "Lacks X" / "Overdue Y"
+  // SNOMED finding codes, but those rows are now filtered out of the
+  // detail view (they arrive without the actual vaccine/screening name,
+  // so caregivers can't act on them). Suppress the dot too — a tile dot
+  // with nothing behind it on tap is worse than no dot.
+  var hasNeedsAttn = false;
 
   // ── header ────────────────────────────────────────────────────────────────
   // Lived-time eyebrow — quiet caption above the title that tells the reader
@@ -5188,18 +5199,11 @@ function renderRecordsView() {
   var html = '<div class="view-header" style="display:block;">'
     + recordsEyebrow
     + '<div class="view-title">Records</div>';
-  // Only render the per-view person-pill row when there are 2+ active
-  // loved ones to switch between. With a single person, the masthead pill
-  // already shows the name — a second "● Mom" pill is just noise.
-  if (currentPeople && currentPeople.length >= 2) {
-    html += '<div style="display:flex;gap:8px;margin-top:10px;">';
-    currentPeople.forEach(function(p) {
-      var active = p.id===currentPersonId ? ' active' : '';
-      html += '<button class="person-pill'+active+'" onclick="switchRecordsToRealPerson(\''+p.id+'\',this)">'
-        + '<span class="pip"></span>'+escHtml(p.name.split(' ')[0])+'</button>';
-    });
-    html += '</div>';
-  }
+  // 2026-05-12: Removed the per-view person-pill row. The masthead person
+  // switcher (e.g. "Mom  Betsy") already controls the active loved one
+  // app-wide — a second pill row on Records was duplicate UI. Home,
+  // Timeline, and CareSignals never had their own pill row; Records is
+  // now consistent with them.
   html += '</div>';
   if (ehrData) html += buildEhrStatusBar(ehrData);
 
@@ -22129,6 +22133,24 @@ var _vpQuestions = [];         // array of question strings (or grouped objects)
 var _vpCheckedState = {};      // { questionIndex: bool }
 var _vpCurrentStep = 1;
 var _vpIsSaved = false;
+
+// Remove the saved visit-prep for the current loved one. Called from the ×
+// dismiss button on the "Resume Visit Prep" card on the Home tab. Confirms
+// first because regenerating questions costs an LLM round-trip and the user
+// would lose any check-state on the saved list. Storage is client-side
+// only (localStorage key `wellet_visit_prep_<personId>`), so this is a
+// fully local delete — no Supabase row to clean.
+function deleteVisitPrep() {
+  if (!currentPersonId) return;
+  var key = 'wellet_visit_prep_' + currentPersonId;
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { saved = null; }
+  var label = (saved && saved.visitType) ? saved.visitType : 'this saved prep';
+  if (!window.confirm('Remove ' + label + '? You can start a new visit prep anytime.')) return;
+  try { localStorage.removeItem(key); } catch (e) {}
+  if (typeof renderUpdateMe === 'function') renderUpdateMe();
+}
+window.deleteVisitPrep = deleteVisitPrep;
 
 function openVisitPrep(resume) {
   var overlay = document.getElementById('visit-prep-overlay');

@@ -1701,6 +1701,35 @@
   .visit-prep-title { font-size: var(--type-body); font-weight: 600; color: var(--text-primary); }
   .visit-prep-desc { font-size: var(--type-meta); color: var(--text-secondary); margin-top: 2px; }
 
+  /* Dismiss × on the "Resume Visit Prep" card. Sits in the top-right
+     corner so it doesn't compete with the chevron, large enough to be a
+     comfortable touch target (32px) without dominating the row.        */
+  .visit-prep-dismiss {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+    transition: background 0.15s, color 0.15s;
+  }
+  .visit-prep-dismiss:hover {
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--text-primary);
+  }
+  .visit-prep-dismiss:focus-visible {
+    outline: 2px solid var(--moss);
+    outline-offset: 2px;
+  }
+
   /* Visit prep overlay */
   .vp-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 110; align-items: flex-end; justify-content: center; }
   .vp-overlay.show { display: flex; }
