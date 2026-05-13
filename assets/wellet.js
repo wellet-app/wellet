@@ -3660,6 +3660,7 @@ function renderPeopleView() {
       + '<div class="person-card-action">'
       + '<button class="card-action-btn" onclick="switchToRealPersonNav(\'' + p.id + '\')">' + t('tab.update') + '</button>'
       + '<button class="card-action-btn" onclick="openAddEvent(\'' + p.id + '\')">Add event</button>'
+      + '<button class="card-action-btn" onclick="openWishesList(\'' + p.id + '\')" title="Wishes"><i data-lucide="heart" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:3px;"></i>Wishes</button>'
       + '<button class="card-action-btn" onclick="openProfileEdit(\'' + p.id + '\')"><i data-lucide="pencil" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:3px;"></i>Edit profile</button>'
       + '</div></div>';
   });
@@ -22160,6 +22161,7 @@ renderPeopleView = function() {
       + '<div class="person-card-action">'
       + '<button class="card-action-btn" onclick="switchToRealPersonNav(\'' + p.id + '\')">' + t('tab.update') + '</button>'
       + '<button class="card-action-btn" onclick="openAddEvent(\'' + p.id + '\')">Add event</button>'
+      + '<button class="card-action-btn" onclick="openWishesList(\'' + p.id + '\')" title="Wishes"><i data-lucide="heart" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:3px;"></i>Wishes</button>'
       + '<button class="card-action-btn" onclick="openProfileEdit(\'' + p.id + '\')"><i data-lucide="pencil" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:3px;"></i>Edit profile</button>'
       + '</div></div>';
   });
@@ -24618,6 +24620,350 @@ var _pulse = (function() {
 
   return { maybeShow: maybeShow, respond: respond };
 })();
+
+// ── WISHES v1 ────────────────────────────────────────────────────────────────
+// Voice-notes-only. Per loved one. Silent — no prompts. Stored as documents
+// with document_type='wish' so the existing transcribe-audio + RLS pipeline
+// just works. List sheet (#wishes-list-overlay) and a dedicated record sheet
+// (#wish-record-overlay) live in index.html. Recording reuses the same
+// MediaRecorder state machine as voice notes via a mode flag, so we don't
+// fork the audio pipeline.
+
+var _wishMode = false;           // true while we're recording into a wish
+var _wishPersonId = null;        // the person the wish belongs to
+var _wishPersonName = '';        // cached display name for sheet titles
+
+async function openWishesList(personId) {
+  if (!personId) return;
+  _wishPersonId = personId;
+  var person = (currentPeople || []).find(function(p){ return p.id === personId; });
+  _wishPersonName = person ? (person.name || 'your loved one') : 'your loved one';
+  // Demo fallback: the static demo person cards aren't in currentPeople, so map
+  // the well-known ids back to the names the rest of the demo uses.
+  if ((!person) && isDemoMode) {
+    if (personId === 'dad') _wishPersonName = 'John Bell';
+    else if (personId === 'mom') _wishPersonName = 'Mary Bell';
+  }
+  var firstName = _wishPersonName.split(' ')[0];
+  // "your loved one" should stay intact, not get split to "your".
+  if (_wishPersonName === 'your loved one') firstName = 'your loved one';
+  var titleEl = document.getElementById('wishes-list-title');
+  var subEl = document.getElementById('wishes-list-sub');
+  if (titleEl) titleEl.textContent = firstName + '\u2019s wishes';
+  if (subEl) subEl.textContent = 'What ' + firstName + ' wants. In their words, kept safe for the people who need to hear it.';
+  var body = document.getElementById('wishes-list-body');
+  if (body) body.innerHTML = '<div style="padding:24px 4px;font-size:var(--type-meta);color:var(--text-muted);font-style:italic;">Loading\u2026</div>';
+  try { openSheetAccessible('wishes-list-overlay'); } catch (e) { var ov = document.getElementById('wishes-list-overlay'); if (ov) ov.classList.add('show'); }
+  initIcons();
+  await renderWishesList(personId);
+}
+
+function closeWishesList() {
+  try { closeSheet('wishes-list-overlay'); } catch (e) {
+    var ov = document.getElementById('wishes-list-overlay');
+    if (ov) ov.classList.remove('show');
+  }
+}
+
+async function renderWishesList(personId) {
+  var body = document.getElementById('wishes-list-body');
+  if (!body) return;
+  var wishes = [];
+  if (isDemoMode) {
+    // Quiet demo content so the empty state isn't the only thing reviewers see.
+    wishes = _demoWishesFor(personId);
+  } else {
+    try {
+      var res = await db.from('documents')
+        .select('id, file_name, document_type, extracted_events, extraction_status, uploaded_at')
+        .eq('person_id', personId)
+        .eq('document_type', 'wish')
+        .order('uploaded_at', { ascending: false });
+      if (!res.error && res.data) wishes = res.data;
+    } catch (e) { /* leave empty rather than crash */ }
+  }
+
+  if (!wishes.length) {
+    body.innerHTML = '<div style="text-align:center;padding:32px 12px;">'
+      + '<div style="font-size:var(--type-display);opacity:0.25;margin-bottom:12px;"><i data-lucide="heart" style="width:32px;height:32px;"></i></div>'
+      + '<div style="font-family:var(--serif),serif;font-style:italic;color:var(--moss-dark);font-size:var(--type-body);line-height:1.55;max-width:34ch;margin:0 auto 10px;">Nothing recorded yet.</div>'
+      + '<div style="font-size:var(--type-meta);color:var(--text-muted);line-height:1.6;max-width:36ch;margin:0 auto;">When ' + escHtml(_wishPersonName === 'your loved one' ? 'they' : _wishPersonName.split(' ')[0]) + ' tells you something they want \u2014 a song at the funeral, no more chemo, who should make decisions \u2014 capture it here, in their words.</div>'
+      + '</div>';
+    initIcons();
+    return;
+  }
+
+  var html = '';
+  wishes.forEach(function(w) {
+    var ts = w.uploaded_at ? new Date(w.uploaded_at) : null;
+    var dateStr = ts ? ts.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+    // Pull the transcript out of extracted_events if the edge function stored it there.
+    var transcript = '';
+    try {
+      var ee = w.extracted_events;
+      if (ee && typeof ee === 'object') {
+        if (typeof ee.transcript === 'string') transcript = ee.transcript;
+        else if (typeof ee.text === 'string') transcript = ee.text;
+        else if (typeof ee.summary === 'string') transcript = ee.summary;
+      }
+    } catch (e) {}
+    var status = w.extraction_status || '';
+    var statusBadge = '';
+    if (status === 'pending' || status === 'processing') {
+      statusBadge = '<span style="font-size:var(--type-micro);color:var(--text-muted);font-style:italic;">Transcribing\u2026</span>';
+    } else if (status === 'failed') {
+      statusBadge = '<span style="font-size:var(--type-micro);color:#C0392B;">Transcription failed</span>';
+    }
+    var bodyText = transcript
+      ? '<p style="font-family:var(--serif),serif;font-style:italic;color:var(--text-primary);font-size:var(--type-body);line-height:1.55;margin:6px 0 0;">\u201C' + escHtml(transcript) + '\u201D</p>'
+      : (statusBadge ? '<div style="margin-top:6px;">' + statusBadge + '</div>' : '<div style="margin-top:6px;font-size:var(--type-micro);color:var(--text-muted);font-style:italic;">Voice recording \u00b7 transcript pending</div>');
+    html += '<div style="padding:14px 4px;border-top:1px solid var(--border, #ECE8DC);">'
+      + '<div style="display:flex;align-items:center;gap:8px;">'
+      +   '<i data-lucide="heart" style="width:13px;height:13px;color:var(--moss);"></i>'
+      +   '<span style="font-size:var(--type-micro);letter-spacing:0.06em;text-transform:uppercase;color:var(--moss-dark);font-weight:500;">Wish</span>'
+      +   '<span style="font-size:var(--type-micro);color:var(--text-muted);margin-left:auto;">' + escHtml(dateStr) + '</span>'
+      + '</div>'
+      + bodyText
+      + '</div>';
+  });
+  body.innerHTML = html;
+  initIcons();
+}
+
+function _demoWishesFor(personId) {
+  // Two soft wishes per demo person so reviewers see the feature populated.
+  var now = Date.now();
+  var d = function(daysAgo) { return new Date(now - daysAgo * 24 * 3600 * 1000).toISOString(); };
+  if (personId === 'dad' || personId === null || personId === undefined) {
+    return [
+      { id: 'w-dad-1', document_type: 'wish', extraction_status: 'completed', uploaded_at: d(12), extracted_events: { transcript: 'He said again today: no more hospitals if it gets to that. He wants to be home, with the dog, with the windows open.' } },
+      { id: 'w-dad-2', document_type: 'wish', extraction_status: 'completed', uploaded_at: d(34), extracted_events: { transcript: 'Wants Joanne to make medical decisions, not the kids. He was very clear about it.' } }
+    ];
+  }
+  if (personId === 'mom') {
+    return [
+      { id: 'w-mom-1', document_type: 'wish', extraction_status: 'completed', uploaded_at: d(5), extracted_events: { transcript: 'She wants her gardening books donated to the library when the time comes. Specifically the rose ones.' } }
+    ];
+  }
+  return [];
+}
+
+// ── WISH RECORDING ───────────────────────────────────────────────────────────
+// Reuses the same MediaRecorder state machine as voice notes (_vrMediaRecorder,
+// _vrChunks, _vrIsRecording, _vrSeconds, _vrTimerInterval, _vrCancelled). The
+// difference is purely cosmetic UI + a flag that diverts the upload destination.
+
+function startWishRecording() {
+  if (!_wishPersonId) { showToast('Open a profile first'); return; }
+  _wishMode = true;
+  try { openSheetAccessible('wish-record-overlay'); } catch (e) {
+    var ov = document.getElementById('wish-record-overlay'); if (ov) ov.classList.add('show');
+  }
+  initIcons();
+  _vrSeconds = 0;
+  _vrIsRecording = false;
+  _vrCancelled = false;
+  _vrChunks = [];
+  var timerEl = document.getElementById('wish-record-timer');
+  var statusEl = document.getElementById('wish-record-status');
+  var stopBtn = document.getElementById('wish-stop-btn');
+  var processingEl = document.getElementById('wish-processing');
+  var recordBtn = document.getElementById('wish-record-btn');
+  if (timerEl) timerEl.textContent = '0:00';
+  if (statusEl) statusEl.textContent = 'Tap to start recording';
+  if (stopBtn) stopBtn.style.display = 'none';
+  if (processingEl) processingEl.style.display = 'none';
+  if (recordBtn) { recordBtn.style.background = 'var(--moss)'; recordBtn.disabled = false; }
+}
+
+function cancelWishRecording() {
+  _vrCancelled = true;
+  if (_vrMediaRecorder && _vrMediaRecorder.state !== 'inactive') {
+    try { _vrMediaRecorder.stop(); } catch (e) {}
+  }
+  if (_vrTimerInterval) { clearInterval(_vrTimerInterval); _vrTimerInterval = null; }
+  _vrIsRecording = false;
+  _vrChunks = [];
+  _wishMode = false;
+  try { closeSheet('wish-record-overlay'); } catch (e) {
+    var ov = document.getElementById('wish-record-overlay'); if (ov) ov.classList.remove('show');
+  }
+}
+
+function toggleWishRecording() {
+  if (_vrIsRecording) {
+    finishWishRecording();
+  } else {
+    _startWishMediaRecording();
+  }
+}
+
+function _startWishMediaRecording() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { showToast('Microphone not available on this device'); return; }
+  if (typeof MediaRecorder === 'undefined') { showToast('Voice recording isn\u2019t supported in this browser. Try Safari or Chrome.'); return; }
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+    _vrChunks = [];
+    _vrSeconds = 0;
+    _vrIsRecording = true;
+    var statusEl = document.getElementById('wish-record-status');
+    var stopBtn = document.getElementById('wish-stop-btn');
+    var timerEl = document.getElementById('wish-record-timer');
+    var recordBtn = document.getElementById('wish-record-btn');
+    if (statusEl) statusEl.textContent = 'Recording\u2026';
+    if (stopBtn) stopBtn.style.display = 'block';
+    if (recordBtn) recordBtn.style.background = 'var(--moss-dark)';
+    _vrTimerInterval = setInterval(function() {
+      _vrSeconds++;
+      var m = Math.floor(_vrSeconds / 60);
+      var s = _vrSeconds % 60;
+      if (timerEl) timerEl.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+    }, 1000);
+    _vrCancelled = false;
+    var chosenMime = _pickRecorderMimeType();
+    try {
+      _vrMediaRecorder = chosenMime ? new MediaRecorder(stream, { mimeType: chosenMime }) : new MediaRecorder(stream);
+    } catch (ctorErr) {
+      try { _vrMediaRecorder = new MediaRecorder(stream); }
+      catch (fatal) {
+        stream.getTracks().forEach(function(t) { t.stop(); });
+        if (_vrTimerInterval) { clearInterval(_vrTimerInterval); _vrTimerInterval = null; }
+        _vrIsRecording = false;
+        showToast('Voice recording isn\u2019t supported in this browser. Try Safari or Chrome.');
+        return;
+      }
+    }
+    _vrMediaRecorder.ondataavailable = function(e) {
+      if (e.data && e.data.size > 0) _vrChunks.push(e.data);
+      try {
+        var st = document.getElementById('wish-record-status');
+        if (st && _vrIsRecording) {
+          var totalBytes = _vrChunks.reduce(function(a,c){ return a + (c.size||0); }, 0);
+          st.textContent = 'Recording\u2026 ' + Math.round(totalBytes/1024) + ' KB';
+        }
+      } catch (er) {}
+    };
+    _vrMediaRecorder.onstop = function() {
+      stream.getTracks().forEach(function(t) { t.stop(); });
+      if (_vrCancelled) { _vrChunks = []; return; }
+      setTimeout(function() { _uploadWishRecording(); }, 250);
+    };
+    try { _vrMediaRecorder.start(1000); }
+    catch (startErr) {
+      try { _vrMediaRecorder.start(); }
+      catch (startFatal) {
+        stream.getTracks().forEach(function(t) { t.stop(); });
+        if (_vrTimerInterval) { clearInterval(_vrTimerInterval); _vrTimerInterval = null; }
+        _vrIsRecording = false;
+        showToast('Could not start recording. Try closing other apps using the microphone.');
+        return;
+      }
+    }
+  }).catch(function(err) {
+    var msg = (err && err.message) || String(err);
+    if (err && (err.name === 'NotAllowedError' || /permission|denied/i.test(msg))) {
+      showToast('Microphone permission is blocked. Open iOS Settings \u2192 Wellet \u2192 Microphone.');
+    } else if (err && err.name === 'NotFoundError') {
+      showToast('No microphone found on this device.');
+    } else {
+      showToast('Could not access microphone: ' + msg);
+    }
+  });
+}
+
+function finishWishRecording() {
+  if (!_vrIsRecording) return;
+  _vrIsRecording = false;
+  if (_vrTimerInterval) { clearInterval(_vrTimerInterval); _vrTimerInterval = null; }
+  if (_vrMediaRecorder && _vrMediaRecorder.state !== 'inactive') {
+    try { if (typeof _vrMediaRecorder.requestData === 'function') _vrMediaRecorder.requestData(); } catch (e) {}
+    try { _vrMediaRecorder.stop(); } catch (e) { _uploadWishRecording(); }
+  } else {
+    _uploadWishRecording();
+  }
+}
+
+async function _uploadWishRecording() {
+  var processingEl = document.getElementById('wish-processing');
+  var processingLabel = document.getElementById('wish-processing-label');
+  var stopBtn = document.getElementById('wish-stop-btn');
+  if (processingEl) processingEl.style.display = 'block';
+  if (stopBtn) stopBtn.style.display = 'none';
+  var setProgress = function(msg) { if (processingLabel) processingLabel.textContent = msg; };
+
+  try {
+    if (!_vrChunks || _vrChunks.length === 0) {
+      throw new Error('No audio was captured. Check that microphone access is allowed in Settings \u2192 Wellet \u2192 Microphone, then try again.');
+    }
+    if (!_wishPersonId) {
+      throw new Error('No person selected.');
+    }
+
+    var mimeType = (_vrMediaRecorder && _vrMediaRecorder.mimeType) || _vrChunks[0].type || 'audio/webm';
+    var baseMime = mimeType.split(';')[0].trim();
+    var extMap = { 'audio/webm': 'webm', 'audio/mp4': 'm4a', 'audio/mpeg': 'mp3', 'audio/ogg': 'ogg', 'audio/wav': 'wav' };
+    var ext = extMap[baseMime] || 'webm';
+    var blob = new Blob(_vrChunks, { type: baseMime });
+    if (blob.size < 2048) throw new Error('Recording was too short. Try again and speak for a few seconds.');
+
+    setProgress('Saving wish\u2026');
+    var sessionRes = await db.auth.getSession();
+    var session = sessionRes && sessionRes.data && sessionRes.data.session;
+    if (!session) throw new Error('Your session expired. Please sign in again.');
+    var userId = session.user.id;
+    var token = session.access_token;
+
+    var ts = Date.now();
+    var fileName = 'Wish \u2014 ' + new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + '.' + ext;
+    // RLS requires first folder = auth.uid()
+    var storagePath = userId + '/wishes/' + _wishPersonId + '/' + ts + '.' + ext;
+
+    var uploadRes = await db.storage.from('documents').upload(storagePath, blob, { contentType: baseMime, upsert: false });
+    if (uploadRes.error) throw new Error('Upload failed: ' + uploadRes.error.message);
+
+    setProgress('Creating entry\u2026');
+    var insertRes = await db.from('documents').insert({
+      person_id: _wishPersonId,
+      file_name: fileName,
+      storage_path: storagePath,
+      document_type: 'wish',
+      extraction_status: 'pending'
+    }).select().single();
+    if (insertRes.error || !insertRes.data) {
+      try { await db.storage.from('documents').remove([storagePath]); } catch (e) {}
+      throw new Error('Could not save wish: ' + (insertRes.error && insertRes.error.message || 'unknown'));
+    }
+    var docId = insertRes.data.id;
+
+    setProgress('Transcribing\u2026');
+    var controller = new AbortController();
+    var timeoutId = setTimeout(function() { controller.abort(); }, 60000);
+    try {
+      await fetch('https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/transcribe-audio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token, 'apikey': SUPABASE_ANON_KEY },
+        body: JSON.stringify({ document_id: docId, storage_path: storagePath }),
+        signal: controller.signal
+      });
+    } catch (netErr) {
+      // Saved fine, transcription still running. We'll see it on next list refresh.
+    }
+    clearTimeout(timeoutId);
+
+    if (processingEl) processingEl.style.display = 'none';
+    try { closeSheet('wish-record-overlay'); } catch (e) {
+      var ov = document.getElementById('wish-record-overlay'); if (ov) ov.classList.remove('show');
+    }
+    _wishMode = false;
+    showToast('Wish saved');
+    // Refresh the wishes list under it.
+    if (_wishPersonId) await renderWishesList(_wishPersonId);
+  } catch (err) {
+    if (processingEl) processingEl.style.display = 'none';
+    if (stopBtn) stopBtn.style.display = 'block';
+    showToast(err && err.message ? err.message : 'Could not save wish');
+    _wishMode = false;
+  }
+}
 
 // ── INSTRUMENT EXISTING FUNCTIONS ────────────────────────────────────────────
 (function() {

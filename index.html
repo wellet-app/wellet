@@ -822,6 +822,7 @@
             <button class="card-action-btn" onclick="switchNavTo('home')">Summary</button>
             <button class="card-action-btn">Emergency summary</button>
             <button class="card-action-btn" onclick="openUpload('John Bell')">Add document</button>
+            <button class="card-action-btn" onclick="openWishesList('dad')" title="Wishes"><i data-lucide="heart" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:3px;"></i>Wishes</button>
           </div>
         </div>
         <div class="person-card">
@@ -847,6 +848,7 @@
             <button class="card-action-btn">Summary</button>
             <button class="card-action-btn">Emergency summary</button>
             <button class="card-action-btn" onclick="openUpload('Mary Bell')">Add document</button>
+            <button class="card-action-btn" onclick="openWishesList('mom')" title="Wishes"><i data-lucide="heart" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:3px;"></i>Wishes</button>
           </div>
         </div>
         <button class="add-person-btn" onclick="showOnboarding()">
@@ -2142,6 +2144,49 @@
     </div>
     <div id="voice-processing" style="display:none;text-align:center;padding:20px;">
       <div id="voice-processing-label" style="font-size:var(--type-meta);color:var(--text-muted);">Transcribing your recording…</div>
+    </div>
+  </div>
+</div>
+
+<!-- WISHES LIST SHEET (per loved one) -->
+<div class="qa-overlay" id="wishes-list-overlay" data-editorial="sheet" onclick="if(event.target===this)closeWishesList()">
+  <div class="qa-sheet" style="padding-bottom:40px;">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" aria-label="Close" onclick="closeWishesList()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title" id="wishes-list-title">Wishes</div>
+    <div class="qa-sheet-sub" id="wishes-list-sub" style="font-family:var(--serif),serif;font-style:italic;">What your loved one wants. In their words, kept safe for the people who need to hear it.</div>
+    <div id="wishes-list-body" style="padding:8px 0 4px;"><!-- rendered by renderWishesList() --></div>
+    <div style="padding:16px 4px 4px;">
+      <button class="btn-primary" style="width:100%;" onclick="startWishRecording()">
+        <i data-lucide="mic" style="width:16px;height:16px;"></i> Record a wish
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- WISH RECORD SHEET (dedicated; voice note tagged document_type=wish) -->
+<div class="qa-overlay" id="wish-record-overlay" onclick="if(event.target===this)cancelWishRecording()">
+  <div class="qa-sheet" style="padding-bottom:40px;">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" aria-label="Close" onclick="cancelWishRecording()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title" id="wish-record-title">Record a wish</div>
+    <div class="qa-sheet-sub" style="font-family:var(--serif),serif;font-style:italic;">No prompts. No structure. Say what you heard them say, or what you remember them wanting.</div>
+    <div style="text-align:center; padding:32px 20px 24px;">
+      <div id="wish-record-timer" style="font-size:var(--type-display);font-family:var(--serif);color:var(--text-primary);margin-bottom:24px;">0:00</div>
+      <button id="wish-record-btn" onclick="toggleWishRecording()" style="width:80px;height:80px;border-radius:50%;background:var(--moss);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:0 4px 20px rgba(96,143,124,0.35);transition:all 0.2s;">
+        <i data-lucide="mic" style="width:32px;height:32px;color:white;"></i>
+      </button>
+      <div id="wish-record-status" style="font-size:var(--type-meta);color:var(--text-muted);">Tap to start recording</div>
+    </div>
+    <div style="padding:0 20px;">
+      <button id="wish-stop-btn" onclick="finishWishRecording()" style="display:none;width:100%;" class="btn-primary">Save this wish</button>
+    </div>
+    <div id="wish-processing" style="display:none;text-align:center;padding:20px;">
+      <div id="wish-processing-label" style="font-size:var(--type-meta);color:var(--text-muted);">Transcribing…</div>
     </div>
   </div>
 </div>
