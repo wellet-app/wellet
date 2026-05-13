@@ -2441,6 +2441,25 @@
     text-decoration: none;
   }
 
+  /* iPhone-only install nudge beneath the Apple Health connect card */
+  .connect-card-hint {
+    display: none; /* shown via JS on iPhone only */
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.4;
+    color: #6E6B66;
+    padding: 4px 0 0;
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-color: rgba(110, 107, 102, 0.4);
+    text-underline-offset: 2px;
+  }
+  .connect-card-hint:hover {
+    color: #2A3A33;
+    text-decoration-color: rgba(42, 58, 51, 0.6);
+  }
+
   /* ─────────────────────────────────────────────────────────────────
    Wellet Connect install prompt (iPhone-only, fires on universal-link miss)
   ────────────────────────────────────────────────────────────────── */

@@ -259,6 +259,7 @@
       <span class="connect-card-body">
         <span class="connect-card-title">Apple Health</span>
         <span class="connect-card-sub" id="connect-card-apple-sub">Steps, sleep, heart rate, and anything else on your iPhone.</span>
+        <span class="connect-card-hint" id="connect-card-apple-install-hint" style="display:none" onclick="event.stopPropagation();installWelletConnectFromCard();">Don't have it yet? Install Wellet Connect →</span>
       </span>
       <span class="connect-card-chevron"><i data-lucide="chevron-right"></i></span>
     </button>
@@ -282,8 +283,8 @@
 <div id="wc-install-overlay" class="wc-install-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="wc-install-title">
   <div class="wc-install-sheet">
     <h2 class="wc-install-title" id="wc-install-title">Apple Health needs the Wellet Connect app</h2>
-    <p class="wc-install-body">Connect is a small companion app that asks Apple Health for permission and hands the data back to Wellet. It's the only way Apple lets us read your health data.</p>
-    <a class="wc-install-primary" id="wc-install-primary-btn" href="https://testflight.apple.com/join/fNsm9zyd" target="_blank" rel="noopener">Get Wellet Connect</a>
+    <p class="wc-install-body">Wellet Connect is a small iPhone app that asks Apple Health for permission and hands the data back. TestFlight installs it in about 90 seconds. After you install, open it once and your pairing code will already be on your clipboard.</p>
+    <a class="wc-install-primary" id="wc-install-primary-btn" href="https://testflight.apple.com/join/fNsm9zyd" target="_blank" rel="noopener" onclick="installWelletConnectFromOverlay(event)">Get Wellet Connect</a>
     <button type="button" class="wc-install-secondary" onclick="hideWelletConnectInstallPrompt()">Skip for now</button>
   </div>
 </div>

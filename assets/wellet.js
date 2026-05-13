@@ -1600,6 +1600,8 @@ function showConnectScreen() {
   }
   screen.style.display = 'flex';
   refreshConnectScreenStatus();
+  // Show the Wellet Connect install hint under the Apple Health card on iPhone.
+  try { maybeShowAppleInstallHint(); } catch(e) {}
   if (window.lucide) try { lucide.createIcons(); } catch(e) {}
 }
 
@@ -1710,6 +1712,45 @@ function showWelletConnectInstallPrompt() {
 function hideWelletConnectInstallPrompt() {
   var ov = document.getElementById('wc-install-overlay');
   if (ov) ov.style.display = 'none';
+}
+
+// ── WELLET CONNECT INSTALL NUDGE ──────────────────────────────────────────────
+// Shared helper: copies currentPersonId to clipboard then opens TestFlight.
+// The pairing code lands on the clipboard so the user can paste it in Wellet
+// Connect immediately after install without needing to return to the web app.
+async function _copyPairingCodeForInstall() {
+  var code = currentPersonId || '';
+  if (code) {
+    try {
+      await navigator.clipboard.writeText(code);
+    } catch (e) {
+      console.warn('[install-nudge] clipboard write failed:', e);
+      // Non-fatal — continue to open TestFlight regardless
+    }
+    showToast('Pairing code copied \u2014 paste in Wellet Connect after install');
+  }
+  window.open('https://testflight.apple.com/join/fNsm9zyd', '_blank', 'noopener');
+}
+
+// Called when the user taps the hint under the Apple Health card.
+function installWelletConnectFromCard() {
+  _copyPairingCodeForInstall();
+}
+
+// Called when the user taps the primary CTA inside the install overlay.
+// The href on the <a> tag acts as a non-JS fallback; preventDefault stops
+// the double-navigation when JS runs.
+function installWelletConnectFromOverlay(event) {
+  if (event) event.preventDefault();
+  _copyPairingCodeForInstall();
+}
+
+// Show the install hint under the Apple Health card on iPhone only.
+// Called at paint time from showConnectScreen() / showAuthenticatedApp().
+function maybeShowAppleInstallHint() {
+  var hint = document.getElementById('connect-card-apple-install-hint');
+  if (!hint) return;
+  hint.style.display = _isIPhone() ? 'block' : 'none';
 }
 
 async function loadPersonData(personId) {
