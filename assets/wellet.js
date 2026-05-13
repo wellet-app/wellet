@@ -17885,12 +17885,11 @@ function obTourYes() {
   document.querySelectorAll('#ob-chat-area .ob-chips:last-of-type .ob-chip').forEach(function(c){ c.disabled=true; c.classList.add('used'); });
   obAddBubble('user', 'Show me around');
   setTimeout(function(){
-    obTypeThen('Great \u2014 let me show you around. It only takes a minute.', function(){
+    obTypeThen('Your Wellet is ready. A quick tour lives in the \u22ee menu in the top right whenever you want it.', function(){
       setTimeout(function(){
         obChat.phase = 'done';
         obSaveChatState();
         showOwnWellet();
-        startTour();
       }, 600);
     }, 800);
   }, 200);
@@ -18071,11 +18070,14 @@ function showTourStep(idx) {
     tooltip.className = 'tour-tooltip arrow-' + step.arrow;
     var stepNum = (idx + 1) + ' of ' + tourSteps.length;
     var btnLabel = idx < tourSteps.length - 1 ? 'Next' : 'Got it';
-    tooltip.innerHTML = '<div class="tour-step-count">' + stepNum + '</div>'
+    tooltip.innerHTML = '<button class="tour-close" onclick="endTour()" aria-label="Close tour" style="position:absolute;top:6px;right:8px;background:none;border:none;color:inherit;font-size:20px;line-height:1;cursor:pointer;padding:4px;opacity:0.7;">\u00d7</button>'
+      + '<div class="tour-step-count">' + stepNum + '</div>'
       + '<h4>' + step.title + '</h4>'
       + '<p>' + step.text + '</p>'
       + '<div><button class="tour-btn" onclick="nextTourStep()">' + btnLabel + '</button>'
       + '<button class="tour-skip" onclick="endTour()">Skip tour</button></div>';
+    tooltip.style.maxWidth = 'calc(100vw - 24px)';
+    tooltip.style.boxSizing = 'border-box';
     overlay.appendChild(tooltip);
     document.body.appendChild(overlay);
     var rect = targetEl.getBoundingClientRect();
@@ -18089,7 +18091,17 @@ function showTourStep(idx) {
     requestAnimationFrame(function(){
       var tr = tooltip.getBoundingClientRect();
       if (tr.right > window.innerWidth - 12) {
-        tooltip.style.left = (window.innerWidth - tr.width - 12) + 'px';
+        tooltip.style.left = Math.max(12, window.innerWidth - tr.width - 12) + 'px';
+      }
+      // Clamp vertically if tooltip overflows top/bottom on phones
+      var tr2 = tooltip.getBoundingClientRect();
+      if (tr2.bottom > window.innerHeight - 12) {
+        tooltip.style.top = 'auto';
+        tooltip.style.bottom = '12px';
+      }
+      if (tr2.top < 12) {
+        tooltip.style.bottom = 'auto';
+        tooltip.style.top = '12px';
       }
     });
     initIcons();
