@@ -1891,9 +1891,24 @@ async function switchToRealPerson(personId, el) {
   showSkeletons();
   await loadPersonData(personId);
   hideSkeletons();
+  // Home-view paints (always safe to refresh — they read currentPersonId)
   renderUpdateMe();
   renderTimeline();
   renderPatterns();
+  // Re-render whichever view is currently visible so CareSignals / Records /
+  // People / Ask Wellet / Resources don't keep painting the PREVIOUS
+  // person's data after a switch. Prior to this fix, switching from Betsy
+  // to Mom while sitting on CareSignals left Betsy's heart rate + rhythm
+  // tiles on screen because renderSignalsView() was never called.
+  try {
+    var activeView = document.querySelector('.app-view.active');
+    var viewId = activeView ? activeView.id : '';
+    if (viewId === 'view-signals'   && typeof renderSignalsView   === 'function') { renderSignalsView(); }
+    if (viewId === 'view-records'   && typeof renderRecordsView   === 'function') { renderRecordsView(); }
+    if (viewId === 'view-resources' && typeof renderResourcesView === 'function') { renderResourcesView(); }
+    if (viewId === 'view-people'    && typeof renderPeopleView    === 'function') { renderPeopleView(); }
+    if (viewId === 'view-ask'       && typeof renderAskView       === 'function') { renderAskView(); }
+  } catch (_e) { /* never block the switch on a re-paint */ }
   initIcons();
 }
 
