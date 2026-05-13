@@ -20164,6 +20164,290 @@ function downloadSharePDF() {
   showToast('Summary downloaded as PDF');
 }
 
+// ── FAMILY RECORD PDF (L7) ──────────────────────────────────────────────────
+// A complete "belongs to your family" snapshot. Cover page + every section that
+// makes a record feel like it belongs to the family rather than the hospital:
+// patient, conditions, medications, allergies, care team, recent labs, recent
+// timeline events, and — the part the hospital chart cannot hold — wishes,
+// rendered verbatim in italics. Pulls from live data when signed in, falls back
+// to demo content otherwise.
+async function downloadFamilyRecordPDF() {
+  var doc = new window.jspdf.jsPDF();
+  var pageW = doc.internal.pageSize.getWidth();
+  var pageH = doc.internal.pageSize.getHeight();
+
+  // Resolve person (demo: 'John Bell'; live: currentPersonId)
+  var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
+  if (!isDemoMode && !person) { showToast('Open a profile first'); return; }
+  var fullName  = isDemoMode ? 'John Bell' : person.name;
+  var firstName = getPersonFirstName();
+
+  // ── COVER PAGE ────────────────────────────────────────────────────────────
+  // Cream surface, moss rule, serif name, italic moat line, generated date.
+  doc.setFillColor(252, 248, 240); // cream
+  doc.rect(0, 0, pageW, pageH, 'F');
+
+  // Top eyebrow
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(150, 140, 120);
+  doc.text('WELLET \u00B7 FAMILY RECORD', 20, 28);
+
+  // Hairline under eyebrow
+  doc.setDrawColor(220, 210, 190);
+  doc.setLineWidth(0.3);
+  doc.line(20, 32, pageW - 20, 32);
+
+  // Serif title (jsPDF default "Times" reads as serif)
+  doc.setFont('Times', 'normal');
+  doc.setFontSize(34);
+  doc.setTextColor(40, 40, 40);
+  // Wrap in case name is long
+  var titleLines = doc.splitTextToSize(fullName + "'s", pageW - 40);
+  var titleY = 80;
+  doc.text(titleLines, 20, titleY);
+  titleY += titleLines.length * 13;
+  doc.text('Health Record', 20, titleY);
+
+  // Italic moat line
+  doc.setFont('Times', 'italic');
+  doc.setFontSize(14);
+  doc.setTextColor(96, 143, 124); // moss
+  var moatLines = doc.splitTextToSize('A record that belongs to your family, not the hospital.', pageW - 40);
+  doc.text(moatLines, 20, titleY + 22);
+
+  // Generated date, small + muted
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(120, 120, 120);
+  var genStr = 'Compiled ' + new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  doc.text(genStr, 20, pageH - 30);
+  doc.setFontSize(9);
+  doc.setTextColor(150, 150, 150);
+  doc.text('Wellet \u00B7 mywellet.com', 20, pageH - 22);
+
+  // ── DATA PAGE(S) ──────────────────────────────────────────────────────────
+  doc.addPage();
+  var y = 25;
+
+  // Patient block
+  var patientItems = [{ label: 'Name', value: fullName }];
+  if (isDemoMode) {
+    patientItems.push({ label: 'Date of birth', value: 'March 4, 1954 (Age 71)' });
+    patientItems.push({ label: 'Emergency contact', value: 'Sarah Bell \u00b7 (919) 555-0142' });
+    patientItems.push({ label: 'Allergies', value: 'Penicillin (rash)' });
+  } else {
+    if (person.date_of_birth) {
+      var dob = new Date(person.date_of_birth);
+      var age = Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+      patientItems.push({ label: 'Date of birth', value: dob.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) + ' (Age ' + age + ')' });
+    }
+    if (person.emergency_contact_name) {
+      var ec = person.emergency_contact_name;
+      if (person.emergency_contact_phone) ec += ' \u00b7 ' + person.emergency_contact_phone;
+      patientItems.push({ label: 'Emergency contact', value: ec });
+    }
+    if (person.blood_type) patientItems.push({ label: 'Blood type', value: person.blood_type });
+    if (person.insurance_info) patientItems.push({ label: 'Insurance', value: person.insurance_info });
+  }
+  y = pdfAddSection(doc, 'Patient', y, patientItems);
+
+  // Active diagnoses / conditions
+  if (isDemoMode) {
+    y = pdfAddSection(doc, 'Active Diagnoses', y, [
+      { label: 'Hypertension', value: 'Since Apr 2022' },
+      { label: 'CML', value: 'Since 2019 \u00b7 Responding' },
+      { label: 'Stage 3a CKD', value: 'Stable' },
+      { label: 'Glaucoma', value: 'Stable' }
+    ]);
+  } else if (person.conditions) {
+    var condList = person.conditions.split(',').map(function(c){ return c.trim(); }).filter(Boolean);
+    if (condList.length > 0) {
+      var condItems = condList.map(function(c){ return { label: c, value: 'Active' }; });
+      y = pdfAddSection(doc, 'Active Diagnoses', y, condItems);
+    }
+  }
+
+  // Medications
+  if (isDemoMode) {
+    y = pdfAddSection(doc, 'Current Medications', y, [
+      { label: 'Lisinopril', value: '20mg \u00b7 daily' },
+      { label: 'Hydrochlorothiazide', value: '25mg \u00b7 daily' },
+      { label: 'Gleevec (Imatinib)', value: '400mg \u00b7 daily' },
+      { label: 'Metoprolol', value: '50mg \u00b7 daily' },
+      { label: 'Citalopram', value: '10mg \u00b7 daily' },
+      { label: 'Zepbound', value: '12.5mg \u00b7 weekly' }
+    ]);
+  } else {
+    var activeMeds = (typeof liveMeds !== 'undefined' ? liveMeds : []).filter(function(m){ return m.active; });
+    if (activeMeds.length > 0) {
+      var medItems = activeMeds.map(function(m) {
+        var v = '';
+        if (m.dose) v += m.dose;
+        if (m.frequency) v += (v ? ' \u00b7 ' : '') + m.frequency;
+        return { label: m.name, value: v || 'Active' };
+      });
+      y = pdfAddSection(doc, 'Current Medications', y, medItems);
+    }
+  }
+
+  // Allergies
+  if (!isDemoMode) {
+    var allergyRows = (typeof liveAllergies !== 'undefined' ? liveAllergies : []);
+    if (allergyRows.length > 0) {
+      var allergyItems = allergyRows.map(function(a) {
+        var val = a.reaction ? a.reaction : 'On file';
+        if (a.severity) val += ' \u00b7 ' + a.severity;
+        return { label: a.substance || 'Allergy', value: val };
+      });
+      y = pdfAddSection(doc, 'Allergies', y, allergyItems);
+    }
+  }
+
+  // Care team / care circle
+  if (isDemoMode) {
+    y = pdfAddSection(doc, 'Care Team', y, [
+      { label: 'Primary care', value: 'Dr. Johnson' },
+      { label: 'Oncology', value: 'Dr. Edwards \u00b7 Duke' },
+      { label: 'Ophthalmology', value: 'Dr. Patel' }
+    ]);
+    y = pdfAddSection(doc, 'Care Circle', y, [
+      { label: 'Sarah Bell', value: 'Daughter \u00b7 Primary contact' },
+      { label: 'Joanne Bell', value: 'Wife \u00b7 Medical decisions' }
+    ]);
+  } else {
+    var careItems = [];
+    if (person.primary_doctor) careItems.push({ label: 'Primary doctor', value: person.primary_doctor });
+    if (careItems.length > 0) y = pdfAddSection(doc, 'Care Team', y, careItems);
+    var circle = (typeof liveCareCircle !== 'undefined' ? liveCareCircle : []);
+    if (circle.length > 0) {
+      var circleItems = circle.map(function(m) {
+        var v = (m.role || 'Member');
+        if (m.phone) v += ' \u00b7 ' + m.phone;
+        return { label: m.member_name, value: v };
+      });
+      y = pdfAddSection(doc, 'Care Circle', y, circleItems);
+    }
+  }
+
+  // Recent labs (last 8) — live only; demo has no live lab events
+  if (!isDemoMode) {
+    var labEvents = (typeof liveEvents !== 'undefined' ? liveEvents : [])
+      .filter(function(e){ return e.event_type === 'lab_result'; })
+      .slice(0, 8);
+    if (labEvents.length > 0) {
+      var labItems = labEvents.map(function(e) {
+        var dateStr = e.event_date ? new Date(e.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+        return { label: e.title || 'Lab', value: (e.notes || 'Result on file') + (dateStr ? ' (' + dateStr + ')' : '') };
+      });
+      y = pdfAddSection(doc, 'Recent Labs', y, labItems);
+    }
+  }
+
+  // Timeline (last 10 events) — live only
+  if (!isDemoMode) {
+    var recentEvents = (typeof liveEvents !== 'undefined' ? liveEvents : []).slice(0, 10);
+    if (recentEvents.length > 0) {
+      var eventItems = recentEvents.map(function(e) {
+        var dateStr = e.event_date ? new Date(e.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+        var label = e.title || (e.event_type ? String(e.event_type).replace(/_/g, ' ') : 'Event');
+        return { label: label + (dateStr ? ' \u2014 ' + dateStr : ''), value: e.notes || '' };
+      });
+      y = pdfAddSection(doc, 'Recent Timeline', y, eventItems);
+    }
+  } else {
+    // Demo: a few representative events so the page isn't bare
+    y = pdfAddSection(doc, 'Recent Timeline', y, [
+      { label: 'CML follow-up \u2014 Mar 16', value: 'BCR-ABL <0.001 \u00b7 continued response on Gleevec' },
+      { label: 'PT session \u2014 Mar 12', value: 'Knee strength 4/5; cleared for stairs without rail' },
+      { label: 'BP check \u2014 Mar 5', value: '148/92 \u00b7 trending higher since Feb 18 med change' }
+    ]);
+  }
+
+  // ── WISHES (the part the hospital chart cannot hold) ──────────────────────
+  var wishes = [];
+  if (isDemoMode) {
+    wishes = (typeof _demoWishesFor === 'function') ? _demoWishesFor(isDemoMode && currentPersonId === 'mom' ? 'mom' : 'dad') : [];
+  } else {
+    try {
+      var wRes = await db.from('documents')
+        .select('id, extracted_events, extraction_status, uploaded_at')
+        .eq('person_id', currentPersonId)
+        .eq('document_type', 'wish')
+        .order('uploaded_at', { ascending: false });
+      if (!wRes.error && wRes.data) wishes = wRes.data;
+    } catch (e) { /* leave empty */ }
+  }
+
+  if (wishes.length > 0) {
+    // Page break before wishes so they get visual space.
+    doc.addPage();
+    y = 25;
+
+    // Section header with a touch more weight than pdfAddSection (italic eyebrow + serif title)
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(150, 140, 120);
+    doc.text('IN ' + (firstName || 'THEIR').toUpperCase() + "'S OWN WORDS", 20, y);
+    y += 8;
+    doc.setFont('Times', 'normal');
+    doc.setFontSize(20);
+    doc.setTextColor(96, 143, 124);
+    doc.text('Wishes', 20, y);
+    y += 4;
+    doc.setDrawColor(96, 143, 124);
+    doc.setLineWidth(0.4);
+    doc.line(20, y, pageW - 20, y);
+    y += 10;
+
+    wishes.forEach(function(w, idx) {
+      // Pull transcript text out of extracted_events
+      var transcript = '';
+      try {
+        var ee = w.extracted_events;
+        if (ee && typeof ee === 'object') {
+          if (typeof ee.transcript === 'string') transcript = ee.transcript;
+          else if (typeof ee.text === 'string') transcript = ee.text;
+          else if (typeof ee.summary === 'string') transcript = ee.summary;
+        }
+      } catch (e) { /* ignore */ }
+      if (!transcript) transcript = '(Voice note on file)';
+
+      var dateStr = w.uploaded_at ? new Date(w.uploaded_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+
+      // Date eyebrow
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(150, 140, 120);
+      doc.text((dateStr || '').toUpperCase(), 20, y);
+      y += 6;
+
+      // Quote, italic serif
+      doc.setFont('Times', 'italic');
+      doc.setFontSize(12);
+      doc.setTextColor(40, 40, 40);
+      var qLines = doc.splitTextToSize('\u201C' + transcript + '\u201D', pageW - 40);
+      // Page break check
+      var needed = qLines.length * 6 + 14;
+      if (y + needed > pageH - 25) { doc.addPage(); y = 25; }
+      doc.text(qLines, 20, y);
+      y += qLines.length * 6 + 10;
+
+      // Soft divider between wishes
+      if (idx < wishes.length - 1) {
+        doc.setDrawColor(220, 210, 190);
+        doc.setLineWidth(0.2);
+        doc.line(20, y, 60, y);
+        y += 10;
+      }
+    });
+  }
+
+  pdfAddFooter(doc);
+  doc.save(firstName + '-Family-Record-' + new Date().toISOString().slice(0,10) + '.pdf');
+  showToast('Family record downloaded');
+}
+
 // ── FEATURE 3: EXPORT FOR VISIT ─────────────────────────────────────────────
 
 // Fetch AI-generated visit questions (demo or live)
