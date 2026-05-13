@@ -8938,19 +8938,29 @@ function _buildRightNowLine(name, checkIns, conns, terraData, rhythmAH) {
       return who + ' \u2014 \u201c' + escHtml(note) + '\u201d' + (when ? ' \u00b7 ' + escHtml(when) : '') + '.';
     }
   }
-  // 2) Apple Health snapshot if we have it
+  // 2) Apple Health snapshot — only when the underlying data is FRESH.
+  // If Wellet Connect hasn't pushed any HealthKit rows in 12+ hours, the
+  // "resting heart rate 67 bpm" line is days-old and misleading, so we
+  // suppress it and fall through to a softer 'following rhythms' line.
   if (rhythmAH) {
-    var phrases = [];
-    if (rhythmAH.steps && rhythmAH.steps.today > 0) {
-      phrases.push((rhythmAH.steps.today).toLocaleString() + ' steps today');
+    var freshMs = 12 * 60 * 60 * 1000;
+    var isFresh = false;
+    if (rhythmAH.lastSyncAt) {
+      try { isFresh = (Date.now() - new Date(rhythmAH.lastSyncAt).getTime()) < freshMs; } catch(_e) {}
     }
-    if (rhythmAH.restingHr && rhythmAH.restingHr.latest > 0) {
-      phrases.push('resting heart rate ' + rhythmAH.restingHr.latest + ' bpm');
-    } else if (rhythmAH.heartRate && rhythmAH.heartRate.latest > 0) {
-      phrases.push('heart rate ' + rhythmAH.heartRate.latest + ' bpm');
-    }
-    if (phrases.length) {
-      return who + ' \u2014 ' + escHtml(phrases.slice(0,2).join(', ')) + '.';
+    if (isFresh) {
+      var phrases = [];
+      if (rhythmAH.steps && rhythmAH.steps.today > 0) {
+        phrases.push((rhythmAH.steps.today).toLocaleString() + ' steps today');
+      }
+      if (rhythmAH.restingHr && rhythmAH.restingHr.latest > 0) {
+        phrases.push('resting heart rate ' + rhythmAH.restingHr.latest + ' bpm');
+      } else if (rhythmAH.heartRate && rhythmAH.heartRate.latest > 0) {
+        phrases.push('heart rate ' + rhythmAH.heartRate.latest + ' bpm');
+      }
+      if (phrases.length) {
+        return who + ' \u2014 ' + escHtml(phrases.slice(0,2).join(', ')) + '.';
+      }
     }
   }
   // 3) Terra device data
@@ -9025,14 +9035,35 @@ function _buildRhythmHtml(terraData, rhythmAH, checkIns) {
     .map(function(c){ return String(c.sleep_quality); });
   var hasSleep = sleepFromCi.length > 0;
   if (!hasHr && !hasSteps && !hasHrv && !hasSleep) return '';
-  var html = '<div class="cs-rhythm-grid">';
-  // Heart rate sparkline
-  if (hasHr) {
+  // Format the freshness of the underlying Apple Health rows so testers can
+  // see WHY a metric looks weird (e.g. "Steps 0" because background sync
+  // hasn't flushed today's writes from Wellet Connect yet).
+  var freshLabel = '';
+  if (ah.lastSyncAt) {
+    try { freshLabel = 'Apple Health \u00b7 last synced ' + formatTimeAgo(ah.lastSyncAt); } catch(_e) {}
+  }
+  var html = '';
+  if (freshLabel) {
+    html += '<div class="cs-rhythm-freshness">' + escHtml(freshLabel) + '</div>';
+  }
+  html += '<div class="cs-rhythm-grid">';
+  // Resting heart rate — prefer RHR rows; fall back to soft mean of HR.
+  // Skip if we truly have no signal of either kind.
+  var rhrTile = ah.restingHr;
+  var hrFallback = !rhrTile && hasHr ? ah.heartRate : null;
+  if (rhrTile || hrFallback) {
+    var src = rhrTile || hrFallback;
+    // Compute the 7-day mean of the non-zero days so the headline number
+    // matches the sparkline instead of just echoing the latest sample.
+    var nonZero = (src.trend || []).filter(function(v){ return v > 0; });
+    var mean = nonZero.length
+      ? Math.round(nonZero.reduce(function(a,b){return a+b;}, 0) / nonZero.length)
+      : (src.latest || 0);
     html += '<div class="cs-rhythm-card">';
-    html += '<div class="cs-rhythm-label">Heart rate</div>';
-    html += '<div class="cs-rhythm-metric">' + (ah.heartRate.latest || 0) + ' <span class="cs-rhythm-unit">bpm</span></div>';
-    try { html += '<div class="cs-rhythm-spark">' + buildSparkline(ah.heartRate.trend, 120, 28, 'var(--red, #B85450)') + '</div>'; } catch (_e) {}
-    html += '<div class="cs-rhythm-sub">7-day average per day</div>';
+    html += '<div class="cs-rhythm-label">Resting heart rate</div>';
+    html += '<div class="cs-rhythm-metric">' + mean + ' <span class="cs-rhythm-unit">bpm</span></div>';
+    try { html += '<div class="cs-rhythm-spark">' + buildSparkline(src.trend, 120, 28, 'var(--red, #B85450)') + '</div>'; } catch (_e) {}
+    html += '<div class="cs-rhythm-sub">7-day average</div>';
     html += '</div>';
   }
   // Steps sparkline
@@ -9045,21 +9076,20 @@ function _buildRhythmHtml(terraData, rhythmAH, checkIns) {
     html += '<div class="cs-rhythm-sub">Today \u00b7 7-day trend</div>';
     html += '</div>';
   }
-  // HRV sparkline
-  if (hasHrv) {
-    html += '<div class="cs-rhythm-card">';
-    html += '<div class="cs-rhythm-label">HRV</div>';
-    html += '<div class="cs-rhythm-metric">' + (ah.hrv.latest || 0) + ' <span class="cs-rhythm-unit">ms</span></div>';
-    try { html += '<div class="cs-rhythm-spark">' + buildSparkline(ah.hrv.trend, 120, 28, 'var(--ink-7, #3a3a3a)') + '</div>'; } catch (_e) {}
-    html += '<div class="cs-rhythm-sub">Heart rate variability</div>';
-    html += '</div>';
-  }
-  // Sleep (from check-ins, since no AH sleep yet)
+  // Sleep — prefer family check-in sleep_quality; otherwise show a calm
+  // placeholder so testers know Apple Health sleep is on the roadmap
+  // rather than silently missing. HRV is intentionally NOT shown in v1.
   if (hasSleep) {
     html += '<div class="cs-rhythm-card">';
     html += '<div class="cs-rhythm-label">Sleep</div>';
     html += '<div class="cs-rhythm-metric cs-rhythm-metric--soft">' + escHtml(sleepFromCi[0]) + '</div>';
     html += '<div class="cs-rhythm-sub">From recent check-ins</div>';
+    html += '</div>';
+  } else {
+    html += '<div class="cs-rhythm-card cs-rhythm-card--placeholder">';
+    html += '<div class="cs-rhythm-label">Sleep</div>';
+    html += '<div class="cs-rhythm-metric cs-rhythm-metric--soft">\u2014</div>';
+    html += '<div class="cs-rhythm-sub">Coming next from Apple Health</div>';
     html += '</div>';
   }
   html += '</div>';
@@ -9454,13 +9484,13 @@ async function _paintSignals(el, sigFirstName, activeConns, terraData) {
     eyebrowBits.push(activeWatches.length === 1 ? '1 watch active' : activeWatches.length + ' watches active');
   }
   if (lastSyncStr) eyebrowBits.push('Synced ' + lastSyncStr);
-  var eyebrow = eyebrowBits.length ? eyebrowBits.join(' \u00b7 ') : 'Care Signals';
-  var lede = 'What Wellet is noticing for ' + escHtml(sigFirstName) + ' \u2014 quiet patterns, watches, and check-ins from the people closest to her.';
+  var eyebrow = eyebrowBits.length ? eyebrowBits.join(' \u00b7 ') : 'CareSignals';
+  var lede = 'What Wellet is noticing for ' + escHtml(sigFirstName) + ' \u2014 quiet patterns, watches, and check-ins from the people closest to them.';
 
   var ch = '<div class="signals-view">';
   ch += '<header class="view-header">';
   ch += '<p class="view-header__eyebrow">' + escHtml(eyebrow) + '</p>';
-  ch += '<h1 class="view-header__title">Care Signals</h1>';
+  ch += '<h1 class="view-header__title">CareSignals</h1>';
   ch += '<p class="view-header__lede">' + lede + '</p>';
   ch += '</header>';
 
