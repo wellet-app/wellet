@@ -9850,13 +9850,26 @@ function submitConnectRequest() {
     return;
   }
 
+  if (!contactEmail) {
+    showToast('Please add your email so we can tell you when it’s ready');
+    if (emailEl) emailEl.focus();
+    return;
+  }
+
+  // Basic email shape check — server will do the authoritative validation
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+    showToast('That email doesn’t look quite right — please double-check');
+    if (emailEl) emailEl.focus();
+    return;
+  }
+
   var payload = {
     hospital_name: hospitalName,
     city: city || null,
     state: state || null,
     issue_type: issueType,
     notes: notes || null,
-    contact_email: contactEmail || null,
+    contact_email: contactEmail,
     fhir_base_url: _crContext.fhir_base_url || null,
     error_code: _crContext.error_code || null,
     error_message: _crContext.error_message || null,

@@ -2925,7 +2925,7 @@
     <div class="cr-handle"></div>
     <div id="cr-form-view">
       <div class="cr-title" id="cr-title">Tell us about your health system</div>
-      <div class="cr-sub" id="cr-sub">We’re adding hospitals every week. Share a few details and we’ll follow up when yours is ready.</div>
+      <div class="cr-sub" id="cr-sub">We’re adding hospitals every week. Share a few details and your email, and we’ll let you know the moment yours is ready.</div>
       <div class="cr-field">
         <label for="cr-hospital">Hospital or health system</label>
         <input type="text" id="cr-hospital" class="cr-input" placeholder="e.g., Duke Health" maxlength="200" />
@@ -2955,8 +2955,8 @@
         <textarea id="cr-notes" class="cr-textarea" placeholder="Anything else that would help us add support" maxlength="4000"></textarea>
       </div>
       <div class="cr-field">
-        <label for="cr-email">Email (optional)</label>
-        <input type="email" id="cr-email" class="cr-input" placeholder="you@example.com" maxlength="200" />
+        <label for="cr-email">Email <span style="color:var(--text-muted);font-weight:400;">— we’ll use this to tell you when your hospital is ready</span></label>
+        <input type="email" id="cr-email" class="cr-input" placeholder="you@example.com" maxlength="200" required />
       </div>
       <div class="cr-actions">
         <button type="button" class="cr-btn secondary" onclick="closeConnectRequestModal()">Cancel</button>
