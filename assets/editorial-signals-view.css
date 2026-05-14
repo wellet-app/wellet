@@ -495,3 +495,191 @@
   color: #7A6840;
   line-height: 1.4;
 }
+
+/* ── CareSignals v1.3 (May 14 2026): EHR trends section ─────────────────── */
+/* "From your chart" — BP + weight vitals, recent labs, active meds.
+   Surfaces real EHR data so CareSignals isn't empty for users without a watch. */
+.cs-section--ehr-trends { margin-top: 18px; }
+
+.cs-ehr-vitals-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+@media (min-width: 560px) {
+  .cs-ehr-vitals-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.cs-ehr-card {
+  background: #fff;
+  border: 1px solid var(--ink-2, #E5DFD2);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cs-ehr-card-label {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-5, #6B6356);
+}
+.cs-ehr-card-metric {
+  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--ink-9, #1F2A22);
+  line-height: 1.1;
+  font-variation-settings: "opsz" 36;
+}
+.cs-ehr-card-unit {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-secondary, #6B6356);
+  margin-left: 2px;
+}
+.cs-ehr-card-spark {
+  margin: 4px 0 2px;
+  width: 100%;
+}
+.cs-ehr-card-spark svg {
+  width: 100%;
+  height: 86px;
+  display: block;
+}
+.cs-ehr-card-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-secondary, #6B6356);
+  margin-top: 2px;
+}
+.cs-ehr-legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  margin-right: 2px;
+}
+.cs-ehr-card-sub {
+  font-size: 11px;
+  color: var(--text-muted, #8A8170);
+  line-height: 1.4;
+}
+
+.cs-ehr-section-sub {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-5, #6B6356);
+  margin: 14px 0 8px;
+}
+
+.cs-ehr-labs-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 4px;
+}
+@media (min-width: 720px) {
+  .cs-ehr-labs-grid { grid-template-columns: repeat(4, 1fr); }
+}
+.cs-ehr-lab-card {
+  background: #fff;
+  border: 1px solid var(--ink-2, #E5DFD2);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cs-ehr-lab-card--alert {
+  border-color: #E2C6BF;
+  background: #FBF7F4;
+}
+.cs-ehr-lab-card--alert .cs-ehr-lab-value { color: #8B3A2E; }
+.cs-ehr-lab-name {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink-7, #2B2A28);
+  line-height: 1.25;
+}
+.cs-ehr-lab-value {
+  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--ink-9, #1F2A22);
+  line-height: 1.1;
+  font-variation-settings: "opsz" 36;
+}
+.cs-ehr-lab-unit {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-secondary, #6B6356);
+  margin-left: 1px;
+}
+.cs-ehr-lab-spark {
+  margin: 2px 0;
+  width: 100%;
+}
+.cs-ehr-lab-spark svg {
+  width: 100%;
+  height: 56px;
+  display: block;
+}
+.cs-ehr-lab-sub {
+  font-size: 10px;
+  color: var(--text-muted, #8A8170);
+  line-height: 1.35;
+}
+
+.cs-ehr-meds-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cs-ehr-med-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid var(--ink-2, #E5DFD2);
+  border-radius: 10px;
+}
+.cs-ehr-med-icon {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: #F5EFE0;
+  color: #8A6A1F;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.cs-ehr-med-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cs-ehr-med-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-9, #1F2A22);
+  line-height: 1.35;
+}
+.cs-ehr-med-sub {
+  font-size: 11px;
+  color: var(--text-muted, #8A8170);
+  margin-top: 2px;
+  line-height: 1.4;
+}

@@ -10096,6 +10096,321 @@ function invalidateSignalsCache(personId) {
 }
 
 // ── CareSignals v2 helpers ──────────────────────────────────────────────────
+// Pull the user's most-chartable EHR signals (BP, weight, common labs, active
+// meds) so CareSignals has something to surface even when no Apple Watch /
+// wearable is connected. This is what answers "why would I add a device?" —
+// once you see your own BP trending over years, the value of adding daily
+// readings via a wearable becomes obvious.
+//
+// Returns:
+//   {
+//     bp:    { systolic: [...], diastolic: [...], dates: [...], latest, summary }
+//     weight:{ values: [...], dates: [...], latest, unit, summary }
+//     labs:  [{ name, code, values:[], dates:[], unit, range, latest, latestStatus }, ...]
+//     meds:  [{ name, dose, startDate }, ...]
+//   }
+// All keys optional — caller renders only what's populated.
+async function _loadEhrTrends(personId) {
+  if (!personId || !db) return null;
+  var out = { bp: null, weight: null, labs: [], meds: [] };
+  try {
+    var loads = await Promise.all([
+      // Vitals — last 36 months so BP/weight trends have shape.
+      db.from('vitals')
+        .select('vital_type, value, unit, effective_date')
+        .eq('person_id', personId)
+        .gte('effective_date', new Date(Date.now() - 36 * 30 * 24 * 60 * 60 * 1000).toISOString())
+        .order('effective_date', { ascending: true })
+        .limit(500)
+        .then(function(r){ return (r && r.data) || []; })
+        .catch(function(e){ console.warn('[EHR trends] vitals error', e); return []; }),
+      // Labs — last 36 months, numeric only.
+      db.from('lab_results')
+        .select('test_name, loinc_code, value, unit, reference_range, status, effective_date')
+        .eq('person_id', personId)
+        .gte('effective_date', new Date(Date.now() - 36 * 30 * 24 * 60 * 60 * 1000).toISOString())
+        .order('effective_date', { ascending: true })
+        .limit(500)
+        .then(function(r){ return (r && r.data) || []; })
+        .catch(function(e){ console.warn('[EHR trends] labs error', e); return []; }),
+      // Active meds.
+      db.from('medications')
+        .select('name, dose, frequency, active, start_date')
+        .eq('person_id', personId)
+        .eq('active', true)
+        .order('start_date', { ascending: false, nullsFirst: false })
+        .limit(20)
+        .then(function(r){ return (r && r.data) || []; })
+        .catch(function(e){ console.warn('[EHR trends] meds error', e); return []; })
+    ]);
+    var vitals = loads[0], labs = loads[1], meds = loads[2];
+    // ── Vitals: pair systolic/diastolic by date; keep last 12 readings.
+    var sys = vitals.filter(function(v){ return v.vital_type === 'Systolic blood pressure'; });
+    var dia = vitals.filter(function(v){ return v.vital_type === 'Diastolic blood pressure'; });
+    if (sys.length >= 2 && dia.length >= 2) {
+      // Group by date (YYYY-MM-DD) so we pair each visit's S/D.
+      var bpMap = {};
+      sys.forEach(function(v){ var d = String(v.effective_date).slice(0,10); var num = parseFloat(v.value); if (!isNaN(num)) bpMap[d] = bpMap[d] || {date:d}; if (!isNaN(num)) bpMap[d].sys = num; });
+      dia.forEach(function(v){ var d = String(v.effective_date).slice(0,10); var num = parseFloat(v.value); if (!isNaN(num)) bpMap[d] = bpMap[d] || {date:d}; if (!isNaN(num)) bpMap[d].dia = num; });
+      var paired = Object.keys(bpMap).map(function(k){ return bpMap[k]; })
+        .filter(function(r){ return r.sys && r.dia; })
+        .sort(function(a,b){ return a.date < b.date ? -1 : 1; });
+      if (paired.length >= 2) {
+        var last = paired.slice(-12);
+        var latest = last[last.length - 1];
+        var prior = last.length > 1 ? last[last.length - 2] : null;
+        var summary;
+        if (latest.sys >= 140 || latest.dia >= 90) summary = 'Latest reading elevated';
+        else if (latest.sys >= 130 || latest.dia >= 80) summary = 'Latest reading borderline';
+        else summary = 'Latest reading in range';
+        if (prior) {
+          var delta = latest.sys - prior.sys;
+          if (Math.abs(delta) >= 5) summary += ' \u00b7 ' + (delta > 0 ? '\u2191' : '\u2193') + ' ' + Math.abs(delta) + ' from prior visit';
+        }
+        out.bp = {
+          systolic: last.map(function(r){ return r.sys; }),
+          diastolic: last.map(function(r){ return r.dia; }),
+          dates: last.map(function(r){ return r.date; }),
+          latest: latest.sys + '/' + latest.dia,
+          latestDate: latest.date,
+          summary: summary
+        };
+      }
+    }
+    // Weight
+    var wRows = vitals.filter(function(v){ return v.vital_type === 'Weight'; })
+      .map(function(v){ return { v: parseFloat(v.value), d: String(v.effective_date).slice(0,10), unit: v.unit || 'kg' }; })
+      .filter(function(r){ return !isNaN(r.v); })
+      .sort(function(a,b){ return a.d < b.d ? -1 : 1; });
+    if (wRows.length >= 2) {
+      var lastW = wRows.slice(-12);
+      var latestW = lastW[lastW.length - 1];
+      var earliestW = lastW[0];
+      var dW = latestW.v - earliestW.v;
+      var unit = latestW.unit || 'kg';
+      // Convert kg → lbs for display if the EHR gave us kg (Duke does kg).
+      var displayUnit = unit;
+      var conv = 1;
+      if (/^kg/i.test(unit)) { displayUnit = 'lb'; conv = 2.20462; }
+      var summaryW = 'Latest ' + Math.round(latestW.v * conv) + ' ' + displayUnit;
+      if (Math.abs(dW) >= 1) summaryW += ' \u00b7 ' + (dW > 0 ? '\u2191' : '\u2193') + ' ' + Math.abs(Math.round(dW * conv)) + ' ' + displayUnit + ' over ' + lastW.length + ' visits';
+      out.weight = {
+        values: lastW.map(function(r){ return Math.round(r.v * conv * 10) / 10; }),
+        dates: lastW.map(function(r){ return r.d; }),
+        latest: Math.round(latestW.v * conv) + ' ' + displayUnit,
+        latestDate: latestW.d,
+        unit: displayUnit,
+        summary: summaryW
+      };
+    }
+    // ── Labs: pick the top "chartable" tests — numeric value, ≥3 readings, and a
+    // curated allowlist that's clinically meaningful to surface.
+    var labWhitelist = {
+      'Hemoglobin A1C':       { display:'Hemoglobin A1C', priority: 1 },
+      'Glucose':              { display:'Glucose',        priority: 2 },
+      'Cholesterol, Total':   { display:'Total Cholesterol', priority: 3 },
+      'HDL':                  { display:'HDL',            priority: 4 },
+      'LDL':                  { display:'LDL',            priority: 4 },
+      'Triglyceride':         { display:'Triglycerides',  priority: 5 },
+      'Creatinine':           { display:'Creatinine',     priority: 6 },
+      'Glomerular Filtration Rate (eGFR)': { display:'eGFR (kidney function)', priority: 6 },
+      'Hemoglobin':           { display:'Hemoglobin',     priority: 7 },
+      'TSH':                  { display:'TSH (thyroid)',  priority: 8 },
+      'Vitamin D':            { display:'Vitamin D',      priority: 9 },
+      'Ferritin':             { display:'Ferritin',       priority: 10 }
+    };
+    var byTest = {};
+    labs.forEach(function(l) {
+      if (!l.test_name || !labWhitelist[l.test_name]) return;
+      var n = parseFloat(l.value);
+      if (isNaN(n)) return;
+      var k = l.test_name;
+      byTest[k] = byTest[k] || { name: labWhitelist[k].display, code: l.loinc_code, unit: l.unit, range: l.reference_range, status: l.status, priority: labWhitelist[k].priority, rows: [] };
+      byTest[k].rows.push({ v:n, d: String(l.effective_date).slice(0,10), status: l.status });
+    });
+    Object.keys(byTest).forEach(function(k) {
+      var t = byTest[k];
+      if (t.rows.length < 3) return; // need a real trend
+      t.rows.sort(function(a,b){ return a.d < b.d ? -1 : 1; });
+      var last = t.rows.slice(-10);
+      var latest = last[last.length - 1];
+      out.labs.push({
+        name: t.name,
+        code: t.code,
+        values: last.map(function(r){ return r.v; }),
+        dates: last.map(function(r){ return r.d; }),
+        unit: t.unit || '',
+        range: t.range || '',
+        latest: latest.v,
+        latestDate: latest.d,
+        latestStatus: (latest.status || '').toLowerCase(),
+        priority: t.priority
+      });
+    });
+    out.labs.sort(function(a,b){ return a.priority - b.priority; });
+    out.labs = out.labs.slice(0, 4); // show top 4 max so the section stays scannable
+    // Active meds: trim Epic's verbose dose strings for chip display.
+    out.meds = (meds || []).slice(0, 6).map(function(m) {
+      // Pull just the drug name + strength (e.g. "lisinopril 20 MG tablet")
+      // and drop Epic's "Take 1 tablet by mouth\u2026, Starting \u2026, Electronic" trailer.
+      var name = String(m.name || '').replace(/\s+tablet$/i, '').trim();
+      var shortDose = '';
+      if (m.dose) {
+        var dose = String(m.dose);
+        // Capture "Take N tablet(s) (X mg total)" or "Inject X mLs (Y mg total)" prefix.
+        var match = dose.match(/^(Take[^,]+|Inject[^,]+)/i);
+        shortDose = match ? match[1].trim() : (dose.split(',')[0] || '').trim();
+        if (shortDose.length > 56) shortDose = shortDose.slice(0, 54) + '\u2026';
+      }
+      return {
+        name: name,
+        dose: shortDose,
+        frequency: m.frequency || '',
+        startDate: m.start_date || null
+      };
+    });
+    return out;
+  } catch (e) {
+    console.warn('[EHR trends] load failed', e);
+    return null;
+  }
+}
+
+// Render the "From your chart" section: BP card, weight card, lab mini-charts,
+// active meds list. Returns '' when the user truly has no EHR data.
+function _buildEhrTrendsHtml(ehrTrends, sigFirstName) {
+  if (!ehrTrends) return '';
+  var hasAny = !!(ehrTrends.bp || ehrTrends.weight || (ehrTrends.labs || []).length || (ehrTrends.meds || []).length);
+  if (!hasAny) return '';
+  var html = '';
+  // ── BP + Weight: side-by-side big-number cards with a 12-visit trend.
+  if (ehrTrends.bp || ehrTrends.weight) {
+    html += '<div class="cs-ehr-vitals-grid">';
+    if (ehrTrends.bp) {
+      var bp = ehrTrends.bp;
+      html += '<div class="cs-ehr-card">';
+      html += '<div class="cs-ehr-card-label">Blood pressure</div>';
+      html += '<div class="cs-ehr-card-metric">' + escHtml(bp.latest) + ' <span class="cs-ehr-card-unit">mmHg</span></div>';
+      html += '<div class="cs-ehr-card-spark">' + buildDualLineChart(bp.systolic, bp.diastolic, 280, 86, '#B85450', '#3B6EA5') + '</div>';
+      html += '<div class="cs-ehr-card-legend">';
+      html += '<span class="cs-ehr-legend-dot" style="background:#B85450;"></span><span>Systolic</span>';
+      html += '<span class="cs-ehr-legend-dot" style="background:#3B6EA5;margin-left:10px;"></span><span>Diastolic</span>';
+      html += '</div>';
+      html += '<div class="cs-ehr-card-sub">' + escHtml(bp.summary) + ' \u00b7 last visit ' + escHtml(_humanDate(bp.latestDate)) + '</div>';
+      html += '</div>';
+    }
+    if (ehrTrends.weight) {
+      var w = ehrTrends.weight;
+      html += '<div class="cs-ehr-card">';
+      html += '<div class="cs-ehr-card-label">Weight</div>';
+      html += '<div class="cs-ehr-card-metric">' + escHtml(w.latest) + '</div>';
+      html += '<div class="cs-ehr-card-spark">' + buildRhythmChart(w.values, 280, 86, '#5A6F50', '') + '</div>';
+      html += '<div class="cs-ehr-card-sub">' + escHtml(w.summary) + ' \u00b7 last visit ' + escHtml(_humanDate(w.latestDate)) + '</div>';
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+  // ── Labs: 2-column mini-card grid.
+  if ((ehrTrends.labs || []).length > 0) {
+    html += '<div class="cs-ehr-section-sub">From recent labs</div>';
+    html += '<div class="cs-ehr-labs-grid">';
+    ehrTrends.labs.forEach(function(l) {
+      var statusClass = '';
+      if (l.latestStatus === 'abnormal' || l.latestStatus === 'high' || l.latestStatus === 'low' || l.latestStatus === 'h' || l.latestStatus === 'l') statusClass = ' cs-ehr-lab-card--alert';
+      html += '<div class="cs-ehr-lab-card' + statusClass + '">';
+      html += '<div class="cs-ehr-lab-name">' + escHtml(l.name) + '</div>';
+      html += '<div class="cs-ehr-lab-value">' + escHtml(String(l.latest)) + (l.unit ? ' <span class="cs-ehr-lab-unit">' + escHtml(l.unit) + '</span>' : '') + '</div>';
+      try { html += '<div class="cs-ehr-lab-spark">' + buildRhythmChart(l.values, 200, 56, '#5A6F50', '') + '</div>'; } catch(_e){}
+      var when = _humanDate(l.latestDate);
+      var rangeBit = l.range ? ' \u00b7 ref ' + escHtml(l.range) : '';
+      html += '<div class="cs-ehr-lab-sub">' + escHtml(when) + rangeBit + '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+  // ── Active meds: compact list.
+  if ((ehrTrends.meds || []).length > 0) {
+    html += '<div class="cs-ehr-section-sub">Active medications</div>';
+    html += '<div class="cs-ehr-meds-list">';
+    ehrTrends.meds.forEach(function(m) {
+      html += '<div class="cs-ehr-med-row">';
+      html += '<div class="cs-ehr-med-icon"><i data-lucide="pill" style="width:14px;height:14px;"></i></div>';
+      html += '<div class="cs-ehr-med-body">';
+      html += '<div class="cs-ehr-med-name">' + escHtml(m.name) + '</div>';
+      var subBits = [];
+      if (m.dose) subBits.push(m.dose);
+      if (m.frequency) subBits.push(m.frequency);
+      if (m.startDate) subBits.push('Since ' + _humanDate(m.startDate));
+      if (subBits.length) html += '<div class="cs-ehr-med-sub">' + escHtml(subBits.join(' \u00b7 ')) + '</div>';
+      html += '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+  return html;
+}
+
+// Human date helper used by the EHR trends section. Falls back gracefully if
+// the input is malformed.
+function _humanDate(d) {
+  if (!d) return '';
+  try {
+    var dt = new Date(d);
+    if (isNaN(dt.getTime())) return String(d);
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch (_e) {
+    return String(d);
+  }
+}
+
+// Dual-line chart for paired metrics (systolic/diastolic). Reuses the same
+// padding & day-tick conventions as buildRhythmChart but draws two lines.
+function buildDualLineChart(seriesA, seriesB, width, height, colorA, colorB) {
+  if (!seriesA || !seriesB || seriesA.length === 0) return '';
+  var W = width, H = height;
+  var padL = 6, padR = 6, padT = 14, padB = 18;
+  var chartW = W - padL - padR;
+  var chartH = H - padT - padB;
+  var combined = seriesA.concat(seriesB).filter(function(v){ return v > 0; });
+  if (combined.length === 0) return '';
+  var max = Math.max.apply(null, combined);
+  var min = Math.min.apply(null, combined);
+  var pad = (max - min) > 0 ? (max - min) * 0.15 : Math.max(2, max * 0.05);
+  var lo = Math.max(0, min - pad);
+  var hi = max + pad;
+  var range = hi - lo || 1;
+  var n = seriesA.length;
+  var stepX = n > 1 ? chartW / (n - 1) : 0;
+  function px(i){ return padL + i * stepX; }
+  function py(v){ return padT + chartH - ((v - lo) / range) * chartH; }
+  function makeLine(series, color) {
+    var pts = [];
+    for (var i = 0; i < series.length; i++) {
+      if (series[i] > 0) pts.push(px(i) + ',' + py(series[i]));
+    }
+    if (pts.length === 0) return '';
+    var out = '<polyline fill="none" stroke="' + color + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="' + pts.join(' ') + '"/>';
+    for (var j = 0; j < series.length; j++) {
+      if (series[j] > 0) out += '<circle cx="' + px(j) + '" cy="' + py(series[j]) + '" r="2" fill="' + color + '"/>';
+    }
+    return out;
+  }
+  var svg = '<svg width="100%" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true" style="display:block;">';
+  svg += '<line x1="' + padL + '" y1="' + (padT + chartH) + '" x2="' + (W - padR) + '" y2="' + (padT + chartH) + '" stroke="#E5DFD2" stroke-width="1"/>';
+  svg += makeLine(seriesA, colorA);
+  svg += makeLine(seriesB, colorB);
+  // Latest-value labels
+  var latestA = seriesA[seriesA.length - 1];
+  var latestB = seriesB[seriesB.length - 1];
+  if (latestA > 0) svg += '<text x="' + (W - padR) + '" y="' + (py(latestA) - 4) + '" text-anchor="end" font-family="DM Sans, system-ui, sans-serif" font-size="10" font-weight="600" fill="' + colorA + '">' + Math.round(latestA) + '</text>';
+  if (latestB > 0) svg += '<text x="' + (W - padR) + '" y="' + (py(latestB) + 11) + '" text-anchor="end" font-family="DM Sans, system-ui, sans-serif" font-size="10" font-weight="600" fill="' + colorB + '">' + Math.round(latestB) + '</text>';
+  // X-tick: "oldest \u2192 latest" hint instead of day-of-week (irregular visit spacing).
+  svg += '<text x="' + padL + '" y="' + (H - 4) + '" text-anchor="start" font-family="DM Sans, system-ui, sans-serif" font-size="9" fill="#9B8F7E">oldest</text>';
+  svg += '<text x="' + (W - padR) + '" y="' + (H - 4) + '" text-anchor="end" font-family="DM Sans, system-ui, sans-serif" font-size="9" fill="#3D3530" font-weight="600">latest</text>';
+  svg += '</svg>';
+  return svg;
+}
+
 // Pull the last 7 days of Apple Health from wearable_observations and roll it
 // up into a compact rhythm summary. Returns null on any failure or no data so
 // callers can render an empty state cleanly.
@@ -10753,11 +11068,12 @@ async function _paintSignals(el, sigFirstName, activeConns, terraData) {
   var hasDevices = activeConns.length > 0;
   var hasTerraData = hasDevices && terraData && (terraData.vitals.length > 0 || terraData.events.length > 0);
 
-  // Load watches + check-ins + Apple Health rhythm in parallel. Failures are
-  // non-fatal — we just render an empty/quiet section.
+  // Load watches + check-ins + Apple Health rhythm + EHR trends in parallel.
+  // Failures are non-fatal — we just render an empty/quiet section.
   var watches = [];
   var checkIns = [];
   var rhythmAH = null; // { heartRate, restingHr, steps, hrv, lastSyncAt }
+  var ehrTrends = null; // { bp, weight, labs, meds }
   if (personId && db) {
     try {
       var loads = await Promise.all([
@@ -10776,11 +11092,14 @@ async function _paintSignals(el, sigFirstName, activeConns, terraData) {
           .then(function(r){ return (r && r.data) || []; })
           .catch(function(e){ console.error('[Signals] check_ins load error', e); return []; }),
         _loadAppleHealthRhythm(personId)
-          .catch(function(e){ console.error('[Signals] AH rhythm load error', e); return null; })
+          .catch(function(e){ console.error('[Signals] AH rhythm load error', e); return null; }),
+        _loadEhrTrends(personId)
+          .catch(function(e){ console.error('[Signals] EHR trends load error', e); return null; })
       ]);
-      watches  = loads[0] || [];
-      checkIns = loads[1] || [];
-      rhythmAH = loads[2] || null;
+      watches   = loads[0] || [];
+      checkIns  = loads[1] || [];
+      rhythmAH  = loads[2] || null;
+      ehrTrends = loads[3] || null;
     } catch (e) {
       console.error('[Signals] parallel loads failed', e);
     }
@@ -10835,7 +11154,18 @@ async function _paintSignals(el, sigFirstName, activeConns, terraData) {
   ch += _renderWatchesSectionHtml(watches, sigFirstName);
   ch += '</section>';
 
-  // ── 3. This Week’s Rhythm ──────────────────────────────────────────────
+  // ── 3. From your chart (EHR trends) ────────────────────────────────────
+  // Shown BEFORE the wearable rhythm because for users without a watch,
+  // this is the entire reason CareSignals isn't empty.
+  var ehrHtml = _buildEhrTrendsHtml(ehrTrends, sigFirstName);
+  if (ehrHtml) {
+    ch += '<section class="cs-section cs-section--ehr-trends">';
+    ch += '<div class="cs-section-eyebrow">From ' + escHtml(sigFirstName) + '\u2019s chart</div>';
+    ch += ehrHtml;
+    ch += '</section>';
+  }
+
+  // ── 4. This Week\u2019s Rhythm ──────────────────────────────────────────
   var rhythmHtml = _buildRhythmHtml(terraData, rhythmAH, checkIns);
   if (rhythmHtml) {
     ch += '<section class="cs-section cs-section--rhythm">';
