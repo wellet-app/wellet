@@ -34,7 +34,6 @@
 <link rel="stylesheet" href="/assets/editorial-signals-view.css?v=20260514-1900">
 <link rel="stylesheet" href="/assets/editorial-resources-view.css?v=20260501-1505">
 <link rel="stylesheet" href="/assets/editorial-timeline.css?v=20260514-1620">
-<link rel="stylesheet" href="/assets/editorial-patterns.css">
 <link rel="stylesheet" href="/assets/editorial-caresignals.css">
 <link rel="stylesheet" href="/assets/editorial-upcoming.css">
 </head>
@@ -472,7 +471,6 @@
     <div class="tab-bar" id="header-tab-bar" role="tablist" aria-label="Health view">
       <button class="tab active" role="tab" aria-selected="true" aria-controls="tab-update" id="tab-btn-update" onclick="switchTab(this,'update')">Summary</button>
       <button class="tab" role="tab" aria-selected="false" aria-controls="tab-timeline" id="tab-btn-timeline" onclick="switchTab(this,'timeline')">History</button>
-      <button class="tab" role="tab" aria-selected="false" aria-controls="tab-patterns" id="tab-btn-patterns" onclick="switchTab(this,'patterns')">Trends</button>
     </div>
   </div>
 
@@ -815,37 +813,6 @@
       </div>
     </div>
 
-    <!-- PATTERNS -->
-    <div id="tab-patterns" class="tab-pane" role="tabpanel" aria-labelledby="tab-btn-patterns">
-      <div class="patterns-section">
-        <p class="section-label" data-i18n="patterns.noticed">What Wellet has noticed</p>
-        <div class="insight-card">
-          <div class="insight-row"><div class="insight-count">7</div><div><div class="insight-label">Blood pressure readings this month</div></div></div>
-          <div class="insight-sub">Readings have been consistently higher since February 18 — the same day Hydrochlorothiazide was adjusted. This may be expected during medication titration.</div>
-          <div class="bar-wrap">
-            <div class="bar-label"><span>Morning average</span><span style="color:var(--text-primary);font-weight:500;">138/84</span></div>
-            <div class="bar"><div class="bar-fill moss" style="width:72%"></div></div>
-            <div class="bar-label"><span>Evening average</span><span style="color:var(--amber);font-weight:500;">146/91</span></div>
-            <div class="bar"><div class="bar-fill amber" style="width:88%"></div></div>
-          </div>
-        </div>
-        <div class="insight-card">
-          <div class="insight-row"><div class="insight-count">4</div><div><div class="insight-label">Appointments in the past 90 days</div></div></div>
-          <div class="insight-sub">Annual physical, oncology follow-up, PT evaluation, and eye specialist visit. All logged. Next up: Primary care March 16.</div>
-        </div>
-        <div class="insight-card">
-          <div class="insight-row"><div class="insight-count">2</div><div><div class="insight-label">Medication changes since January</div></div></div>
-          <div class="insight-sub">Hydrochlorothiazide dose increase (February 18) and Gleevec dosage confirmation (January 3). Both logged with dates and context.</div>
-        </div>
-        <div class="insight-card" style="border-color:var(--mint-deep);background:var(--mint);">
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-            <i data-lucide="eye" style="width:13px;height:13px;color:var(--moss);"></i>
-            <span style="font-size:var(--type-micro);letter-spacing:.08em;text-transform:uppercase;color:var(--moss-dark);font-weight:500;">Wellet is witnessing</span>
-          </div>
-          <p style="font-size:var(--type-meta);line-height:1.65;color:var(--text-secondary);">CML continues to improve. Fatigue noted by you on February 22 — not yet addressed by care team. PT compliance is excellent. Glaucoma stable at last eye visit.</p>
-        </div>
-      </div>
-    </div><!-- end tab-patterns -->
     </div><!-- end view-home -->
 
     <!-- PEOPLE VIEW -->

@@ -124,7 +124,7 @@ window.addEventListener('load', function() {
     }
   }
   var tabBtns = document.querySelectorAll('.tab[id^="tab-btn-"]');
-  var tabKeys = ['tab.update', 'tab.timeline', 'tab.patterns'];
+  var tabKeys = ['tab.update', 'tab.timeline'];
   for (var _ti = 0; _ti < tabBtns.length; _ti++) {
     if (tabKeys[_ti]) tabBtns[_ti].textContent = t(tabKeys[_ti]);
   }
@@ -8790,7 +8790,13 @@ async function deleteMed() {
 }
 
 // ── RENDER PATTERNS (dynamic for authenticated users) ────────────────────────
-function renderPatterns() {
+// Patterns tab deleted 2026-05-14 — it was a counts dashboard impersonating
+// CareSignals' "noticing" language and confusing testers. CareSignals (the
+// bottom-nav destination, powered by detectRecurringPatterns()) is now the
+// single place Wellet "notices" anything. renderPatterns() is kept as a
+// no-op stub so the ~12 historical call sites stay safe without surgery.
+function renderPatterns() { /* deleted — see CareSignals view */ }
+function _renderPatterns_legacy_unused() {
   var pane = document.getElementById('tab-patterns');
   if (!pane) return;
   if (isDemoMode) return; // keep demo HTML untouched
@@ -26241,7 +26247,7 @@ function refreshCurrentView() {
 
   // Update tab labels
   var tabBtns = document.querySelectorAll('.tab[id^="tab-btn-"]');
-  var tabKeys = ['tab.update', 'tab.timeline', 'tab.patterns'];
+  var tabKeys = ['tab.update', 'tab.timeline'];
   for (var ti = 0; ti < tabBtns.length; ti++) {
     if (tabKeys[ti]) tabBtns[ti].textContent = t(tabKeys[ti]);
   }
