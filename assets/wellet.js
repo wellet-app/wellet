@@ -22544,8 +22544,194 @@ async function revokeFamilyRecord(recordId) {
     var res = await db.from('family_records')
       .update({ share_token: null })
       .eq('id', recordId);
-    if (!res.error) showToast('Share link revoked');
+    if (!res.error) {
+      showToast('Share link revoked');
+      // Refresh the list if it's open.
+      if (document.getElementById('family-records-list-overlay')
+          && document.getElementById('family-records-list-overlay').classList.contains('open')) {
+        renderFamilyRecordsList();
+      }
+    }
   } catch (e) { console.warn('revokeFamilyRecord failed', e); }
+}
+
+// ── SAVED FAMILY RECORDS LIST UI ─────────────────────────────────────────────
+function openFamilyRecordsList() {
+  var overlay = document.getElementById('family-records-list-overlay');
+  if (!overlay) return;
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  renderFamilyRecordsList();
+  if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+}
+
+function closeFamilyRecordsList() {
+  var overlay = document.getElementById('family-records-list-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+async function renderFamilyRecordsList() {
+  var body = document.getElementById('family-records-list-body');
+  if (!body) return;
+
+  if (isDemoMode) {
+    body.innerHTML = '<div style="padding:32px 16px;text-align:center;color:var(--text-muted);font-size:var(--type-meta);line-height:1.6;">' +
+      '<i data-lucide="book-heart" style="width:28px;height:28px;color:var(--moss);opacity:0.5;"></i>' +
+      '<div style="margin-top:12px;">Saved records show up here after you generate one.</div>' +
+      '<div style="margin-top:6px;font-style:italic;font-family:var(--serif),serif;">Demo mode doesn&rsquo;t save records.</div>' +
+      '</div>';
+    if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+    return;
+  }
+
+  body.innerHTML = '<div style="padding:24px 16px;text-align:center;color:var(--text-muted);font-size:var(--type-meta);">Loading…</div>';
+
+  try {
+    var personId = currentPersonId;
+    var query = db.from('family_records')
+      .select('id, person_id, person_name, share_token, file_size_bytes, wishes_count, conditions_count, medications_count, events_count, generated_at, expires_at, view_count, last_viewed_at')
+      .order('generated_at', { ascending: false })
+      .limit(50);
+    if (personId) query = query.eq('person_id', personId);
+
+    var res = await query;
+    if (res.error) {
+      body.innerHTML = '<div style="padding:24px 16px;text-align:center;color:var(--text-muted);font-size:var(--type-meta);">Could not load saved records.</div>';
+      return;
+    }
+
+    var rows = res.data || [];
+    if (rows.length === 0) {
+      body.innerHTML = '<div style="padding:32px 16px;text-align:center;color:var(--text-muted);font-size:var(--type-meta);line-height:1.6;">' +
+        '<i data-lucide="book-heart" style="width:28px;height:28px;color:var(--moss);opacity:0.5;"></i>' +
+        '<div style="margin-top:12px;">No saved records yet.</div>' +
+        '<div style="margin-top:6px;font-style:italic;font-family:var(--serif),serif;">Generate one below and it will live here.</div>' +
+        '</div>';
+      if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+      return;
+    }
+
+    var html = rows.map(function(r) { return _renderFamilyRecordRow(r); }).join('');
+    body.innerHTML = html;
+    if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+  } catch (e) {
+    console.warn('renderFamilyRecordsList failed', e);
+    body.innerHTML = '<div style="padding:24px 16px;text-align:center;color:var(--text-muted);font-size:var(--type-meta);">Could not load saved records.</div>';
+  }
+}
+
+function _renderFamilyRecordRow(r) {
+  var gen = r.generated_at ? new Date(r.generated_at) : null;
+  var dateStr = gen ? gen.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  var sizeKB = r.file_size_bytes ? Math.round(r.file_size_bytes / 1024) : null;
+  var sizeStr = sizeKB ? (sizeKB >= 1024 ? (sizeKB / 1024).toFixed(1) + ' MB' : sizeKB + ' KB') : '';
+  var name = r.person_name || 'Family member';
+
+  // Counts strip
+  var counts = [];
+  if (r.wishes_count) counts.push(r.wishes_count + ' wish' + (r.wishes_count === 1 ? '' : 'es'));
+  if (r.conditions_count) counts.push(r.conditions_count + ' condition' + (r.conditions_count === 1 ? '' : 's'));
+  if (r.medications_count) counts.push(r.medications_count + ' med' + (r.medications_count === 1 ? '' : 's'));
+  var countsStr = counts.join(' · ');
+
+  // Share state
+  var shareBlock = '';
+  if (r.share_token) {
+    var shareUrl = 'https://mywellet.com/family-record.html?t=' + r.share_token;
+    var viewMeta = (r.view_count > 0)
+      ? ('Viewed ' + r.view_count + ' time' + (r.view_count === 1 ? '' : 's'))
+      : 'Not viewed yet';
+    shareBlock =
+      '<div style="margin-top:10px;padding:10px 12px;background:var(--mint);border-radius:8px;">' +
+        '<div style="display:flex;align-items:center;gap:6px;font-size:var(--type-micro);color:var(--moss-dark);text-transform:uppercase;letter-spacing:0.06em;font-weight:500;">' +
+          '<i data-lucide="link-2" style="width:11px;height:11px;"></i>Share link is live' +
+        '</div>' +
+        '<div style="margin-top:4px;font-size:var(--type-micro);color:var(--moss-dark);word-break:break-all;font-family:var(--mono, monospace);">' + escHtml(shareUrl) + '</div>' +
+        '<div style="margin-top:4px;font-size:var(--type-micro);color:var(--text-muted);font-style:italic;">' + viewMeta + '</div>' +
+        '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">' +
+          '<button onclick="copyFamilyRecordLink(\'' + r.id + '\')" style="padding:4px 10px;border-radius:6px;border:1px solid var(--moss);background:transparent;color:var(--moss-dark);font:inherit;font-size:var(--type-micro);cursor:pointer;">Copy link</button>' +
+          '<button onclick="revokeFamilyRecord(\'' + r.id + '\')" style="padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);font:inherit;font-size:var(--type-micro);cursor:pointer;">Revoke</button>' +
+        '</div>' +
+      '</div>';
+  } else {
+    shareBlock =
+      '<div style="margin-top:10px;">' +
+        '<button onclick="shareFamilyRecordFromList(\'' + r.id + '\')" style="padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--moss-dark);font:inherit;font-size:var(--type-meta);cursor:pointer;display:inline-flex;align-items:center;gap:6px;">' +
+          '<i data-lucide="share-2" style="width:13px;height:13px;"></i> Create share link' +
+        '</button>' +
+      '</div>';
+  }
+
+  return (
+    '<div style="padding:14px 0;border-top:1px solid var(--border);">' +
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="font-family:var(--serif),serif;font-size:16px;color:var(--text-primary);">' + escHtml(name) + '’s Record</div>' +
+          '<div style="margin-top:2px;font-size:var(--type-micro);color:var(--text-muted);letter-spacing:0.04em;">' + escHtml(dateStr) + (sizeStr ? ' · ' + sizeStr : '') + '</div>' +
+          (countsStr ? '<div style="margin-top:6px;font-size:var(--type-meta);color:var(--text-secondary);">' + escHtml(countsStr) + '</div>' : '') +
+        '</div>' +
+        '<button onclick="redownloadFamilyRecord(\'' + r.id + '\')" style="padding:6px 10px;border-radius:8px;border:1px solid var(--moss);background:var(--moss);color:white;font:inherit;font-size:var(--type-meta);cursor:pointer;display:inline-flex;align-items:center;gap:6px;flex-shrink:0;">' +
+          '<i data-lucide="download" style="width:13px;height:13px;"></i> Download' +
+        '</button>' +
+      '</div>' +
+      shareBlock +
+    '</div>'
+  );
+}
+
+// Re-download a saved family record via short-lived signed URL.
+async function redownloadFamilyRecord(recordId) {
+  if (!recordId) return;
+  try {
+    var rec = await db.from('family_records')
+      .select('storage_path, person_name, generated_at')
+      .eq('id', recordId)
+      .single();
+    if (rec.error || !rec.data) { showToast('Could not load that record'); return; }
+
+    var signed = await db.storage
+      .from('family-records')
+      .createSignedUrl(rec.data.storage_path, 60);
+    if (signed.error || !signed.data || !signed.data.signedUrl) {
+      showToast('Could not create download link');
+      return;
+    }
+
+    // Trigger the download.
+    var firstName = (rec.data.person_name || '').split(' ')[0] || 'Family';
+    var dateStr = rec.data.generated_at ? new Date(rec.data.generated_at).toISOString().slice(0,10) : new Date().toISOString().slice(0,10);
+    var a = document.createElement('a');
+    a.href = signed.data.signedUrl;
+    a.download = firstName + '-Family-Record-' + dateStr + '.pdf';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){ document.body.removeChild(a); }, 100);
+    showToast('Downloading…');
+  } catch (e) {
+    console.warn('redownloadFamilyRecord failed', e);
+    showToast('Download failed');
+  }
+}
+
+// Wrap shareFamilyRecord so we can refresh the list after.
+async function shareFamilyRecordFromList(recordId) {
+  var url = await shareFamilyRecord(recordId);
+  if (url) renderFamilyRecordsList();
+}
+
+// Copy an existing share link to clipboard.
+async function copyFamilyRecordLink(recordId) {
+  if (!recordId) return;
+  try {
+    var rec = await db.from('family_records').select('share_token').eq('id', recordId).single();
+    if (rec.error || !rec.data || !rec.data.share_token) { showToast('No active link'); return; }
+    var url = 'https://mywellet.com/family-record.html?t=' + rec.data.share_token;
+    try { await navigator.clipboard.writeText(url); showToast('Link copied'); }
+    catch (e) { showToast('Link ready'); }
+  } catch (e) { console.warn('copyFamilyRecordLink failed', e); }
 }
 
 // ── FEATURE 3: EXPORT FOR VISIT ─────────────────────────────────────────────

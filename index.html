@@ -2232,7 +2232,14 @@
       <div class="settings-row" style="cursor:pointer;" onclick="closeSettings();downloadFamilyRecordPDF()">
         <div class="settings-row-left">
           <div class="settings-row-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="book-heart" style="width:15px;height:15px;"></i></div>
-          <div><div class="settings-row-label">Family record (PDF)</div><div class="settings-row-meta">The full chart plus their wishes — a record that belongs to your family</div></div>
+          <div><div class="settings-row-label">Generate family record (PDF)</div><div class="settings-row-meta">The full chart plus their wishes — a record that belongs to your family</div></div>
+        </div>
+        <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+      </div>
+      <div class="settings-row" style="cursor:pointer;" onclick="closeSettings();openFamilyRecordsList()">
+        <div class="settings-row-left">
+          <div class="settings-row-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="folder-heart" style="width:15px;height:15px;"></i></div>
+          <div><div class="settings-row-label">Saved family records</div><div class="settings-row-meta">Past records you can re-download or share with the family</div></div>
         </div>
         <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
       </div>
@@ -2348,6 +2355,24 @@
         <i data-lucide="sparkles" style="width:14px;height:14px;"></i> Surface from records
       </button>
       <div style="font-size:var(--type-micro);color:var(--text-muted);text-align:center;line-height:1.5;font-style:italic;">Reads documents, visit notes, and check-ins for wishes they’ve already shared. Once per day.</div>
+    </div>
+  </div>
+</div>
+
+<!-- SAVED FAMILY RECORDS LIST SHEET -->
+<div class="qa-overlay" id="family-records-list-overlay" data-editorial="sheet" onclick="if(event.target===this)closeFamilyRecordsList()">
+  <div class="qa-sheet" style="padding-bottom:40px;">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" aria-label="Close" onclick="closeFamilyRecordsList()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title">Saved family records</div>
+    <div class="qa-sheet-sub" style="font-family:var(--serif),serif;font-style:italic;">Past records you&rsquo;ve compiled. Re-download for yourself, or share a private link with the family.</div>
+    <div id="family-records-list-body" style="padding:8px 0 4px;"><!-- rendered by renderFamilyRecordsList() --></div>
+    <div style="padding:16px 4px 4px;">
+      <button class="btn-primary" style="width:100%;" onclick="closeFamilyRecordsList();downloadFamilyRecordPDF()">
+        <i data-lucide="book-heart" style="width:16px;height:16px;"></i> Generate a new record
+      </button>
     </div>
   </div>
 </div>
