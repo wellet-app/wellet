@@ -482,10 +482,10 @@ function mapConditions(resources: unknown[]) {
     return {
       type: 'condition',
       source: 'ehr',
-      name: (r.code as Record<string, unknown>)?.text || firstCoding.display || 'Unknown condition',
-      code: firstCoding.code || '',
-      system: firstCoding.system || '',
-      status: (r.clinicalStatus as Record<string, unknown>)?.coding?.[0]?.code || r.clinicalStatus || '',
+      name: ((r.code as Record<string, unknown>)?.text as string) || (firstCoding.display as string) || 'Unknown condition',
+      code: (firstCoding.code as string) || '',
+      system: (firstCoding.system as string) || '',
+      status: (((r.clinicalStatus as Record<string, unknown>)?.coding as Record<string, unknown>[] | undefined)?.[0]?.code as string) || (r.clinicalStatus as string) || '',
       onset_date: r.onsetDateTime || (r.onsetPeriod as Record<string, unknown>)?.start || '',
       recorded_date: r.recordedDate || '',
     };
@@ -505,7 +505,7 @@ function mapMedications(resources: unknown[]) {
     const timing = (firstDosage.timing as Record<string, unknown>) || {};
     const repeat = (timing.repeat as Record<string, unknown>) || {};
 
-    const medName = medCode.text || (medRef.display as string) || firstCoding.display || 'Unknown medication';
+    const medName = (medCode.text as string) || (medRef.display as string) || (firstCoding.display as string) || 'Unknown medication';
 
     // Prescriber reference (e.g. "Practitioner/abc") — used to build Care team
     const requester = (r.requester as Record<string, unknown>) || {};
@@ -557,11 +557,11 @@ function mapAllergies(resources: unknown[]) {
     return {
       type: 'allergy',
       source: 'ehr',
-      name: (r.code as Record<string, unknown>)?.text || firstCoding.display || 'Unknown allergen',
-      code: firstCoding.code || '',
-      severity: reactions[0]?.severity || '',
+      name: ((r.code as Record<string, unknown>)?.text as string) || (firstCoding.display as string) || 'Unknown allergen',
+      code: (firstCoding.code as string) || '',
+      severity: (reactions[0]?.severity as string) || '',
       reactions: manifestations,
-      status: (r.clinicalStatus as Record<string, unknown>)?.coding?.[0]?.code || '',
+      status: (((r.clinicalStatus as Record<string, unknown>)?.coding as Record<string, unknown>[] | undefined)?.[0]?.code as string) || '',
       recorded_date: r.recordedDate || r.assertedDate || '',
     };
   });
