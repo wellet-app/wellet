@@ -2783,7 +2783,9 @@ function buildRightNowLine(personName, personId) {
   var appts = [];
   try {
     appts = (typeof liveEvents !== 'undefined' ? liveEvents : []).filter(function(e) {
-      return e && e.event_type === 'appointment' && e.event_date
+      // Accept both 'appointment' and 'visit' — Duke/Epic send Encounters as
+      // event_type='visit'. Same filter for past-window cutoff.
+      return e && (e.event_type === 'appointment' || e.event_type === 'visit') && e.event_date
         && new Date(e.event_date) >= new Date(now.getTime() - 3600000);
     }).map(function(e) {
       return { title: e.title || '', date: new Date(e.event_date) };
@@ -16742,7 +16744,9 @@ function buildInviteRightNow(personName, personId) {
   var appts = [];
   try {
     appts = (typeof liveEvents !== 'undefined' ? liveEvents : []).filter(function(e) {
-      return e && e.event_type === 'appointment' && e.event_date
+      // Accept both 'appointment' and 'visit' — Duke/Epic send Encounters as
+      // event_type='visit'. Same filter for past-window cutoff.
+      return e && (e.event_type === 'appointment' || e.event_type === 'visit') && e.event_date
         && new Date(e.event_date) >= new Date(now.getTime() - 3600000);
     }).map(function(e) {
       return { title: e.title || '', date: new Date(e.event_date) };
@@ -21590,14 +21594,22 @@ function buildBeforeVisitCard(personFirstName, personId, name) {
       rows = rows.filter(function(r) { return !r.personName || r.personName === personFirstName; });
     }
   } else {
+    // Live mode: accept both 'appointment' AND 'visit' rows. Duke (and most
+    // Epic orgs) send Encounter resources that map to event_type='visit',
+    // not 'appointment' — so filtering on 'appointment' alone hides every
+    // future visit pulled from the EHR. Past rows are dropped below.
     rows = (typeof liveEvents !== 'undefined' ? liveEvents : []).filter(function(e) {
-      return e.event_type === 'appointment' && e.event_date;
+      return (e.event_type === 'appointment' || e.event_type === 'visit') && e.event_date;
     }).map(function(e) {
       return { title: e.title, date: e.event_date, notes: e.notes || '' };
     });
   }
   if (!rows || !rows.length) return '';
 
+  // Find the NEXT future appointment (any future date — not just today/tomorrow).
+  // Earlier this gate clamped to dayDiff <= 1, which meant the card never
+  // fired for visits a few days out. Betsy's rule: the moment an appt is on
+  // the books, surface the card so prep can start anytime.
   var imminent = null;
   rows.sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
   for (var i = 0; i < rows.length; i++) {
@@ -21606,13 +21618,23 @@ function buildBeforeVisitCard(personFirstName, personId, name) {
     var apptDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
     var dayDiff = Math.round((apptDay - startOfToday) / 86400000);
     if (dayDiff < 0) continue; // skip past
-    if (dayDiff <= 1) { imminent = { appt: rows[i], date: d, dayDiff: dayDiff }; break; }
-    else break; // appointments are sorted; first non-imminent ends the search
+    imminent = { appt: rows[i], date: d, dayDiff: dayDiff };
+    break; // appointments are sorted; first future row wins
   }
   if (!imminent) return '';
 
-  // 2. Format hero line
-  var whenWord = imminent.dayDiff === 0 ? 'Today' : 'Tomorrow';
+  // 2. Format hero line — graceful for any future distance.
+  //   dayDiff 0   → 'Today'
+  //   dayDiff 1   → 'Tomorrow'
+  //   dayDiff 2-6 → 'Tuesday' (weekday name)
+  //   dayDiff 7+  → 'Tuesday, May 19'
+  var WEEKDAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var whenWord;
+  if (imminent.dayDiff === 0) whenWord = 'Today';
+  else if (imminent.dayDiff === 1) whenWord = 'Tomorrow';
+  else if (imminent.dayDiff < 7) whenWord = WEEKDAYS[imminent.date.getDay()];
+  else whenWord = WEEKDAYS[imminent.date.getDay()] + ', ' + MONTHS[imminent.date.getMonth()] + ' ' + imminent.date.getDate();
   var timeStr = '';
   var hh = imminent.date.getHours();
   var mm = imminent.date.getMinutes();
@@ -21701,10 +21723,16 @@ function buildBeforeVisitCard(personFirstName, personId, name) {
     + '</div>'
     + '</div>';
 
-  // Subline copy: gentle, never clinical, never "track".
-  var subLine = whenWord === 'Today'
-    ? 'A quiet pre-flight before you walk into the room with ' + escHtml(personFirstName) + '.'
-    : 'A quiet pre-flight for the visit. Open it when you have a minute.';
+  // Subline copy: gentle, never clinical, never "track". Wording adapts to
+  // how soon the visit is — same calm voice, just honest about timing.
+  var subLine;
+  if (imminent.dayDiff === 0) {
+    subLine = 'A quiet pre-flight before you walk into the room with ' + escHtml(personFirstName) + '.';
+  } else if (imminent.dayDiff === 1) {
+    subLine = 'A quiet pre-flight for the visit. Open it when you have a minute.';
+  } else {
+    subLine = 'No rush \u2014 you can start prep now and come back to it.';
+  }
 
   var wishesPersonId = isDemoMode ? (personId === 'mom' ? 'mom' : 'dad') : (personId || '');
   var secondaryBtn = (wishesCount > 0)
