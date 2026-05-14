@@ -130,6 +130,38 @@
   display: none !important;
 }
 
+/* ----- Empty-state explainer (Duke-only, when Appointment.Search 403s) ----
+   Mirrors the editorial row tone: no card, no pill, just a quiet paragraph
+   and a single inline action. Same vertical rhythm as a real upcoming row. */
+.upcoming-explainer {
+  padding: 14px 0 8px;
+}
+.upcoming-explainer-body {
+  font-family: var(--sans);
+  font-size: var(--type-body);
+  line-height: 1.55;
+  color: var(--ink-7, #3F3A33);
+  margin: 0 0 10px;
+}
+.upcoming-explainer-actions {
+  margin-top: 2px;
+}
+.upcoming-explainer-link {
+  font-family: var(--sans);
+  font-size: var(--type-meta);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--moss, #608F7C);
+  text-decoration: none;
+  cursor: pointer;
+}
+.upcoming-explainer-link:hover,
+.upcoming-explainer-link:focus {
+  color: var(--moss-deep, #3F5F52);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* ============================================================
    Tablet+
    ============================================================ */

@@ -23479,7 +23479,9 @@ function buildUpcomingHtml(personFirstName) {
       return { title: e.title, date: e.event_date, notes: e.notes || '' };
     });
   }
-  if (!rows || rows.length === 0) return '';
+  if (!rows || rows.length === 0) {
+    return buildUpcomingExplainerHtml(personFirstName);
+  }
   rows.sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
   rows = rows.slice(0, 3);
 
@@ -23534,6 +23536,45 @@ function formatUpcomingDateLine(d) {
     line += ' \u00b7 ' + h12 + ':' + mStr + ' ' + ampm;
   }
   return line;
+}
+
+// When the Upcoming block has zero rows, show a quiet explainer ONLY if the
+// active person has a live Duke connection. Duke's R4 endpoint silently
+// refuses Appointment.Search (HTTP 403, empty body) even though we request
+// patient/Appointment.read at authorize and every other scoped resource
+// returns 200. Until Duke enables the scope on our Confidential client we
+// surface a short note pointing families to My Duke Health, instead of
+// leaving them staring at an empty Summary thinking the app is broken.
+// Other hospitals (and demo mode, and accounts with no EHR yet) fall
+// through silently — same behavior as before.
+function buildUpcomingExplainerHtml(personFirstName) {
+  if (isDemoMode) return '';
+  if (!currentPersonId) return '';
+  var merged = null;
+  try {
+    if (typeof getMergedEhr === 'function') merged = getMergedEhr(currentPersonId);
+  } catch(_e) { merged = null; }
+  var conns = (merged && Array.isArray(merged._connections)) ? merged._connections : [];
+  if (conns.length === 0) return '';
+  var hasDuke = false;
+  for (var i = 0; i < conns.length; i++) {
+    var c = conns[i] || {};
+    var name = (c.hospital_name || '').toLowerCase();
+    var base = (c.fhir_base_url || '').toLowerCase();
+    if (name.indexOf('duke') !== -1 || base.indexOf('duke') !== -1) { hasDuke = true; break; }
+  }
+  if (!hasDuke) return '';
+  var who = personFirstName ? escHtml(personFirstName) : 'your loved one';
+  var html = '<div class="upcoming-block">';
+  html += '<div class="upcoming-section-label">Upcoming for ' + who + '</div>';
+  html += '<div class="upcoming-explainer">';
+  html += '<div class="upcoming-explainer-body">Duke doesn\u2019t share upcoming visits with apps like Wellet yet. Everything else from Duke is flowing \u2014 conditions, meds, labs, immunizations \u2014 just not the appointment calendar. For the latest schedule, open My Duke Health.</div>';
+  html += '<div class="upcoming-explainer-actions">';
+  html += '<a class="upcoming-explainer-link" href="https://my.dukemychart.org/" target="_blank" rel="noopener noreferrer">Open My Duke Health \u2192</a>';
+  html += '</div>';
+  html += '</div>';
+  html += '</div>';
+  return html;
 }
 
 function getDemoAppointments() {
