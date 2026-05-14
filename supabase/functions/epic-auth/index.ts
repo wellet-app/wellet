@@ -646,6 +646,46 @@ Deno.serve(async (req) => {
       // we resolved by `state` above. Previously it filtered by person_id
       // which would clobber sibling rows once a person had multiple
       // connections (e.g. wipe Mom's Duke code_verifier when finishing UNC).
+      //
+      // HOTFIX 2026-05-14: same-hospital reconnect was failing with
+      // "Failed to store tokens" because the partial unique index
+      // `idx_ehr_connections_person_fhir_connected` (one CONNECTED row per
+      // (person_id, fhir_base_url)) rejected the UPDATE that flipped the
+      // NEW pending row to status='connected' while the PRIOR connected
+      // row was still occupying the slot. The start path comment claimed
+      // this case was handled — it wasn't. Fix: in a SINGLE step, mark any
+      // OTHER 'connected' row for the same (person_id, fhir_base_url) as
+      // 'superseded' immediately before flipping this row, so the partial
+      // unique index never sees two CONNECTED rows at once. This is
+      // idempotent: if no prior row exists (first-time connect), the
+      // supersede affects 0 rows and we proceed normally.
+      try {
+        const { error: supersedeErr } = await admin.from('ehr_connections')
+          .update({
+            status: 'superseded',
+            // Wipe tokens on the old row so a stray refresh can't accidentally
+            // hit Duke with a stale token bound to a no-longer-current
+            // access grant.
+            access_token: null,
+            refresh_token: null,
+            token_expires_at: null,
+            needs_reconnect: false,
+          })
+          .eq('person_id', person_id)
+          .eq('fhir_base_url', conn.fhir_base_url)
+          .eq('status', 'connected')
+          .neq('id', conn.id);
+        if (supersedeErr) {
+          console.error('[epic-auth] supersede prior connected row failed', { err: supersedeErr });
+          // Continue anyway — if there's no prior connected row this is a
+          // no-op. If there IS one and we couldn't supersede it, the
+          // following UPDATE will hit the unique index and surface a
+          // clearer error downstream.
+        }
+      } catch (e) {
+        console.error('[epic-auth] supersede prior connected row threw', { err: (e as Error).message });
+      }
+
       const { error: updateError } = await admin.from('ehr_connections')
         .update({
           access_token: encAccessToken,
@@ -665,7 +705,21 @@ Deno.serve(async (req) => {
 
       if (updateError) {
         console.error('Token store error:', updateError);
-        return jsonResponse({ error: 'Failed to store tokens' }, 500);
+        // Surface a more actionable error to the client. The most common
+        // cause here is the partial unique index rejecting the flip-to-
+        // connected because a sibling 'connected' row still exists — which
+        // should now be impossible thanks to the supersede above, but if
+        // it does happen the message tells Betsy exactly what to look for.
+        const isUniq = /idx_ehr_connections_person_fhir_connected|duplicate key/i.test(
+          (updateError as { message?: string })?.message || ''
+        );
+        return jsonResponse({
+          error: 'Failed to store tokens',
+          detail: (updateError as { message?: string })?.message,
+          hint: isUniq
+            ? 'Another connected row for this hospital already exists for this person. The supersede step should have cleared it — check ehr_connections for stuck rows.'
+            : undefined,
+        }, 500);
       }
 
       return jsonResponse({
