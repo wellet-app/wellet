@@ -2835,15 +2835,22 @@
 }
 
 /* Modal sheet */
-#story-overlay .qa-sheet.story-sheet { max-height: 86vh; overflow-y: auto; }
+#story-overlay .qa-sheet.story-sheet {
+  max-height: 86vh;
+  overflow-y: auto;
+  overflow-x: hidden;            /* clip any rogue native input min-width */
+}
 
 .story-step {
   padding: 4px 20px 24px;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .story-field {
   display: block;
   margin: 14px 0;
+  max-width: 100%;
 }
 .story-field-label {
   display: block;
@@ -2856,6 +2863,8 @@
 }
 .story-input {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;                  /* override iOS Safari default */
   padding: 11px 14px;
   border: 1.5px solid var(--border-medium, #E4DFD5);
   border-radius: 10px;
@@ -2864,6 +2873,21 @@
   color: var(--text-primary);
   background: white;
   box-sizing: border-box;
+  -webkit-appearance: none;      /* stop iOS giving date inputs a fixed huge width */
+  appearance: none;
+}
+/* Native date input on iOS centers content unless we steer it left and align
+   the picker icon to the right. Without this it can also push wider than its
+   container. */
+input.story-input[type="date"] {
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+  display: block;
+}
+input.story-input[type="date"]::-webkit-date-and-time-value { text-align: left; }
+input.story-input[type="date"]::-webkit-calendar-picker-indicator {
+  margin-left: auto;
+  opacity: 0.55;
 }
 .story-input:focus {
   outline: none;
