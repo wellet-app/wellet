@@ -2027,6 +2027,20 @@ function renderPersonSwitcher() {
 }
 
 async function switchToRealPerson(personId, el) {
+  // CRITICAL: set currentPersonId SYNCHRONOUSLY before any await so that
+  // anything reading currentPersonId during the in-flight load (including
+  // re-renders triggered by background events) sees the new person.
+  // Without this, taps on Mom would leave currentPersonId pointing at Betsy
+  // for the duration of loadPersonData, and views painted in that window
+  // showed Betsy's lede + Betsy's cached signals data.
+  try { setCurrentPersonId(personId); } catch(_e) {}
+  // Bust any per-person UI caches keyed off the OLD person id so the next
+  // paint can't serve stale tiles.
+  try {
+    if (typeof _signalsCache !== 'undefined' && _signalsCache && personId) {
+      delete _signalsCache[personId];
+    }
+  } catch(_e2) {}
   document.querySelectorAll('.person-pill').forEach(function(p){ p.classList.remove('active'); });
   el.classList.add('active');
   applyPersonBg(personId);
@@ -18135,6 +18149,26 @@ function switchPerson(el, personKey) {
   headerPills.forEach(function(p, i){ p.classList.remove('active'); p.setAttribute('aria-selected', 'false'); if (p === el) idx = i; });
   el.classList.add('active');
   el.setAttribute('aria-selected', 'true');
+  // LIVE-MODE SAFETY NET: if a real-account pill somehow got wired to the
+  // legacy switchPerson(this) onclick instead of switchToRealPerson, we still
+  // need to actually switch the active person. Find the corresponding entry
+  // in currentPeople by pill index and delegate.
+  if (!isDemoMode) {
+    try {
+      // Build the same filtered list that renderPersonSwitcher uses so the
+      // index here lines up with the visible pill index.
+      var visiblePeople = (currentPeople || []).filter(function(p) {
+        var st = p.care_status || 'active';
+        return st !== 'archived' && st !== 'closed';
+      });
+      var matched = visiblePeople[idx];
+      if (matched && matched.id && matched.id !== currentPersonId
+          && typeof switchToRealPerson === 'function') {
+        switchToRealPerson(matched.id, el);
+        return; // switchToRealPerson handles everything below
+      }
+    } catch(_eLive) {}
+  }
   var bg = _personBgPalette[idx % _personBgPalette.length];
   document.documentElement.style.setProperty('--person-bg', bg);
   // Mark the active person on <body> so any view can react via CSS/JS hooks
