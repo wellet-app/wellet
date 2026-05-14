@@ -3031,3 +3031,247 @@
 @media (max-width: 380px) {
   .story-action-btn { flex-basis: calc(50% - 4px); }
 }
+
+/* ─── ADD OUTSIDE VISIT ───────────────────────────────────────────────────
+ * "Care that didn't come through the EHR" sheet. Same surface vocabulary as
+ * Health Story (cream, moss, serif title) so the two adjacent affordances
+ * feel like one editorial pair.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/* "Add outside visit" link in the timeline header row */
+.tl-story-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.tl-manual-visit-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: 1px dashed rgba(96, 143, 124, 0.45);
+  color: var(--moss);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s ease-out, background 0.15s ease-out, color 0.15s ease-out;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.tl-manual-visit-link:hover {
+  border-color: var(--moss);
+  background: rgba(96, 143, 124, 0.06);
+  color: var(--moss-deep, var(--moss));
+}
+.tl-manual-visit-link:active { transform: scale(0.98); }
+
+/* Sheet surface */
+.manual-visit-sheet {
+  max-width: 540px;
+  background: linear-gradient(180deg, #FCFAF5 0%, #FFFFFF 30%);
+}
+.manual-visit-step { padding-top: 4px; }
+
+/* Step 1: picklist */
+.manual-visit-group-label {
+  font-size: 11.5px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--moss-deep, #4b6341);
+  font-weight: 500;
+  margin: 18px 0 8px;
+  padding-left: 2px;
+}
+.manual-visit-group-label:first-child { margin-top: 6px; }
+.manual-visit-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+@media (max-width: 380px) {
+  .manual-visit-options { grid-template-columns: 1fr; }
+}
+.manual-visit-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: white;
+  border: 1px solid var(--border, #E5E2DA);
+  border-radius: 10px;
+  padding: 11px 12px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text-primary, #28281E);
+  position: relative;
+  transition: border-color 0.15s ease-out, background 0.15s ease-out, transform 0.05s ease-out;
+}
+.manual-visit-option:hover {
+  border-color: var(--moss);
+  background: #FAFAF7;
+}
+.manual-visit-option:active { transform: scale(0.99); }
+.manual-visit-option-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: rgba(96, 143, 124, 0.10);
+  color: var(--moss-deep, #4b6341);
+  flex-shrink: 0;
+}
+.manual-visit-option-icon i {
+  width: 15px !important;
+  height: 15px !important;
+}
+.manual-visit-option-label { flex: 1; line-height: 1.3; }
+.manual-visit-option-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Step 2: details */
+.manual-visit-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  color: var(--moss);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0 0 12px;
+  font-family: inherit;
+}
+.manual-visit-back:hover { color: var(--moss-deep, #4b6341); text-decoration: underline; }
+
+.manual-visit-selected {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(96, 143, 124, 0.07);
+  border: 1px solid rgba(96, 143, 124, 0.20);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 0 0 16px;
+}
+.manual-visit-selected-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: white;
+}
+.manual-visit-selected-icon i { width: 14px !important; height: 14px !important; }
+.manual-visit-selected-label {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary, #28281E);
+}
+.manual-visit-selected-class {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--moss-deep, #4b6341);
+  font-weight: 500;
+}
+
+.manual-visit-field {
+  display: block;
+  margin: 0 0 13px;
+}
+.manual-visit-field-label {
+  display: block;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary, #6B6560);
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+.manual-visit-input {
+  width: 100%;
+  background: white;
+  border: 1px solid var(--border, #E5E2DA);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 14.5px;
+  font-family: inherit;
+  color: var(--text-primary, #28281E);
+  box-sizing: border-box;
+  transition: border-color 0.15s ease-out, box-shadow 0.15s ease-out;
+}
+.manual-visit-input:focus {
+  outline: none;
+  border-color: var(--moss);
+  box-shadow: 0 0 0 3px rgba(96, 143, 124, 0.12);
+}
+.manual-visit-textarea {
+  resize: vertical;
+  min-height: 64px;
+  line-height: 1.5;
+}
+
+.manual-visit-file-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: white;
+  border: 1px dashed var(--border, #E5E2DA);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text-secondary, #6B6560);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease-out, color 0.15s ease-out;
+}
+.manual-visit-file-btn:hover {
+  border-color: var(--moss);
+  color: var(--moss-deep, var(--moss));
+}
+
+.manual-visit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(229, 226, 218, 0.6);
+}
+
+/* ─── ENCOUNTER ROLLUP CARDS ───────────────────────────────────────────────
+ * Visits with a known encounter_class (EHR-mapped or from the manual sheet)
+ * get a color-coded accent rail so a specialist can scan the timeline and
+ * spot every ER trip / inpatient stay at a glance.
+ * ER red · Inpatient blue · Outpatient moss · Virtual gray
+ * ──────────────────────────────────────────────────────────────────────── */
+.tl-card.tl-card-encounter {
+  border-left-width: 3px;
+  border-left-style: solid;
+  position: relative;
+}
+.tl-card.tl-enc-signal-emergency  { border-left-color: #b34a3c; background: linear-gradient(90deg, rgba(179, 74, 60, 0.04) 0%, white 18%); }
+.tl-card.tl-enc-signal-inpatient  { border-left-color: #3a5a8c; background: linear-gradient(90deg, rgba(58, 90, 140, 0.04) 0%, white 18%); }
+.tl-card.tl-enc-signal-outpatient { border-left-color: #4b6341; background: linear-gradient(90deg, rgba(75, 99, 65, 0.03) 0%, white 18%); }
+.tl-card.tl-enc-signal-virtual    { border-left-color: #6b6b6b; background: linear-gradient(90deg, rgba(107, 107, 107, 0.04) 0%, white 18%); }
+
+.tl-card.tl-card-encounter .tl-enc-label {
+  font-size: var(--type-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+}

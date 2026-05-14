@@ -3213,7 +3213,10 @@ function renderTimeline() {
   // Floating Add-event button (FAB) — rendered once, anchored to the screen.
   // Replaces the previous right-aligned button that floated in dead space
   // above the timeline list.
-  var fabHtml = '<button class="tl-add-fab" onclick="openAddEvent()" aria-label="Add event" title="Add event">'
+  // Timeline FAB: tap = quick add event, long-press (550ms) = open the
+  // “Add outside visit” sheet. The long-press handler is wired in initIcons
+  // -- look for _wireTimelineFabLongPress() below.
+  var fabHtml = '<button class="tl-add-fab" id="tl-add-fab" onclick="_handleTlFabTap(event)" aria-label="Add event \u00b7 long-press for outside visit" title="Tap to add an event \u00b7 long-press for an outside visit">'
     + '<i data-lucide="plus" style="width:20px;height:20px;"></i></button>';
 
   // Merge EHR events into timeline. Each item carries a _section hint so the
@@ -3706,10 +3709,16 @@ function renderTimeline() {
   var storyHeaderHtml = '';
   if (allEvents.length > 0) {
     storyHeaderHtml = '<div class="tl-story-header">'
-      + '<button class="tl-story-btn" onclick="openHealthStory()" aria-label="Build a health story from this timeline">'
-      +   '<i data-lucide="book-open" style="width:14px;height:14px;"></i>'
-      +   '<span class="tl-story-btn-label">Build health story</span>'
-      + '</button>'
+      + '<div class="tl-story-header-row">'
+      +   '<button class="tl-story-btn" onclick="openHealthStory()" aria-label="Build a health story from this timeline">'
+      +     '<i data-lucide="book-open" style="width:14px;height:14px;"></i>'
+      +     '<span class="tl-story-btn-label">Build health story</span>'
+      +   '</button>'
+      +   '<button class="tl-manual-visit-link" onclick="openManualVisit()" aria-label="Add an outside visit" title="Care that didn\u2019t come through the EHR">'
+      +     '<i data-lucide="plus-circle" style="width:13px;height:13px;"></i>'
+      +     '<span>Add outside visit</span>'
+      +   '</button>'
+      + '</div>'
       + '<div class="tl-story-hint">A narrative you can read aloud at the next appointment.</div>'
       + '</div>';
   }
@@ -3744,6 +3753,7 @@ function renderTimeline() {
     pane.innerHTML = emptyHeader + storyHeaderHtml + emptyChips + '<div class="timeline-section">' + emptyBody + '</div>';
     // Append FAB once per render (deduped by id)
     if (!document.querySelector('#tab-timeline .tl-add-fab')) pane.insertAdjacentHTML('beforeend', fabHtml);
+    _wireTimelineFabLongPress();
     initIcons();
     return;
   }
@@ -3865,8 +3875,20 @@ function renderTimeline() {
           pillLabel = 'Logged by you'; break;
         case 'check_in':
           pillLabel = 'Daily check-in'; break;
+        case 'manual_visit':
+        case 'manual':
+          pillLabel = 'Added manually';
+          pillColor = 'var(--moss)'; pillStyle = 'font-weight:500;'; break;
         default:
-          pillLabel = 'Added by you';
+          // Visits the user typed in by hand still get the "Added manually"
+          // pill when manual_service_type is present \u2014 keeps EHR-vs-user
+          // provenance honest even on older rows without an explicit source.
+          if (ev.manual_service_type) {
+            pillLabel = 'Added manually';
+            pillColor = 'var(--moss)'; pillStyle = 'font-weight:500;';
+          } else {
+            pillLabel = 'Added by you';
+          }
       }
       // CareSignals fires get a distinct, standout card: amber-mint accent rail,
       // sparkles icon, bigger eyebrow, optional measurement chip.
@@ -3890,17 +3912,45 @@ function renderTimeline() {
           + '</div>'
           + '</div></div>';
       } else {
-        html += '<div class="tl-item">'
-          + '<div class="tl-card ' + typeInfo.border + '" data-ask-lp="' + askKeyTl + '"' + clickAttr + '>'
-          + '<div class="tl-card-type-row"><i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + typeInfo.color + ';"></i>'
-          + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span>'
-          + '</div>'
-          + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
-          + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
-          + '<div class="tl-card-date">' + dateStr
-          + ' \u00B7 <span style="color:' + pillColor + ';' + pillStyle + '">' + escHtml(pillLabel) + '</span>'
-          + '</div>'
-          + '</div></div>';
+        // Encounter rollup: visits (manual or EHR) with a known encounter class
+        // get a color-coded accent rail \u2014 ER red, Inpatient blue, Outpatient
+        // moss, Virtual gray. Mirrors what specialists scan for on a paper
+        // chart so the family member can find an ER trip at a glance.
+        var encInfo = null;
+        var encClass = ev.encounter_class || null;
+        if (!encClass && ev.manual_service_type && window.WELLET_MANUAL_VISIT_BY_SLUG) {
+          var manualItem = window.WELLET_MANUAL_VISIT_BY_SLUG[ev.manual_service_type];
+          if (manualItem) encClass = manualItem.encounter_class;
+        }
+        if (encClass && window.WELLET_ENCOUNTER_CLASS_INFO) {
+          encInfo = window.WELLET_ENCOUNTER_CLASS_INFO[encClass] || null;
+        }
+        if (encInfo) {
+          html += '<div class="tl-item">'
+            + '<div class="tl-card tl-card-encounter tl-enc-' + escHtml(encInfo.color_token) + '" data-ask-lp="' + askKeyTl + '"' + clickAttr + '>'
+            + '<div class="tl-card-type-row">'
+            +   '<i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + encInfo.hex + ';"></i>'
+            +   '<span class="tl-card-type tl-enc-label" style="color:' + encInfo.hex + ';">' + escHtml(encInfo.label) + '</span>'
+            + '</div>'
+            + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
+            + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
+            + '<div class="tl-card-date">' + dateStr
+            + ' \u00B7 <span style="color:' + pillColor + ';' + pillStyle + '">' + escHtml(pillLabel) + '</span>'
+            + '</div>'
+            + '</div></div>';
+        } else {
+          html += '<div class="tl-item">'
+            + '<div class="tl-card ' + typeInfo.border + '" data-ask-lp="' + askKeyTl + '"' + clickAttr + '>'
+            + '<div class="tl-card-type-row"><i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + typeInfo.color + ';"></i>'
+            + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span>'
+            + '</div>'
+            + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
+            + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
+            + '<div class="tl-card-date">' + dateStr
+            + ' \u00B7 <span style="color:' + pillColor + ';' + pillStyle + '">' + escHtml(pillLabel) + '</span>'
+            + '</div>'
+            + '</div></div>';
+        }
       }
     });
   });
@@ -3908,7 +3958,46 @@ function renderTimeline() {
   pane.innerHTML = html;
   // Append FAB once per render (deduped by selector)
   if (!document.querySelector('#tab-timeline .tl-add-fab')) pane.insertAdjacentHTML('beforeend', fabHtml);
+  _wireTimelineFabLongPress();
   initIcons();
+}
+
+// Timeline FAB long-press: tap opens the quick-add event sheet, holding the
+// button for ~550ms opens the "Add outside visit" sheet. We use pointer
+// events so it works on touch + mouse + Apple Pencil identically. On a long
+// press we set _tlFabLongPressFired so the click handler that fires after
+// pointerup is suppressed.
+var _tlFabLongPressTimer = null;
+var _tlFabLongPressFired = false;
+function _handleTlFabTap(e) {
+  if (_tlFabLongPressFired) {
+    _tlFabLongPressFired = false;
+    if (e && e.preventDefault) e.preventDefault();
+    return;
+  }
+  openAddEvent();
+}
+function _wireTimelineFabLongPress() {
+  var fab = document.getElementById('tl-add-fab');
+  if (!fab || fab._lpWired) return;
+  fab._lpWired = true;
+  var start = function() {
+    _tlFabLongPressFired = false;
+    if (_tlFabLongPressTimer) clearTimeout(_tlFabLongPressTimer);
+    _tlFabLongPressTimer = setTimeout(function() {
+      _tlFabLongPressFired = true;
+      // Gentle haptic if available.
+      if (navigator.vibrate) { try { navigator.vibrate(12); } catch(_) {} }
+      openManualVisit();
+    }, 550);
+  };
+  var cancel = function() {
+    if (_tlFabLongPressTimer) { clearTimeout(_tlFabLongPressTimer); _tlFabLongPressTimer = null; }
+  };
+  fab.addEventListener('pointerdown', start);
+  fab.addEventListener('pointerup', cancel);
+  fab.addEventListener('pointerleave', cancel);
+  fab.addEventListener('pointercancel', cancel);
 }
 
 // ── RENDER PEOPLE VIEW ────────────────────────────────────────────────────────
