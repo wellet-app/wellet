@@ -2062,11 +2062,16 @@ async function switchToRealPerson(personId, el) {
   // for the duration of loadPersonData, and views painted in that window
   // showed Betsy's lede + Betsy's cached signals data.
   try { setCurrentPersonId(personId); } catch(_e) {}
-  // Bust any per-person UI caches keyed off the OLD person id so the next
-  // paint can't serve stale tiles.
+  // Bust ALL per-person UI caches so an in-flight render from the previous
+  // person can't paint into the new person's cache slot. Prior to this we
+  // only cleared _signalsCache[NEW_personId] which left a stale slot for the
+  // person we just switched FROM — and a slow in-flight loadTerraConnections
+  // could finish AFTER currentPersonId changed and write the previous
+  // person's data into _signalsCache[NEW_personId], forcing a hard refresh
+  // to see the right person's CareSignals.
   try {
-    if (typeof _signalsCache !== 'undefined' && _signalsCache && personId) {
-      delete _signalsCache[personId];
+    if (typeof _signalsCache !== 'undefined' && _signalsCache) {
+      _signalsCache = {};
     }
   } catch(_e2) {}
   document.querySelectorAll('.person-pill').forEach(function(p){ p.classList.remove('active'); });
@@ -10034,7 +10039,13 @@ async function renderSignalsView() {
 
   if (!data) {
     var sigFirstName = getPersonFirstName();
-    var cacheKey = currentPersonId || '_nopid';
+    // Capture the personId at render-start so an in-flight async load can
+    // detect if the user has since switched people. Without this guard, a
+    // slow loadTerraConnections from a prior person could complete after a
+    // switch and (a) paint stale data, (b) write into the new person's
+    // cache slot — the bug that forced a hard refresh after switching.
+    var startPersonId = currentPersonId;
+    var cacheKey = startPersonId || '_nopid';
     var cached = _signalsCache[cacheKey];
     var cacheFresh = cached && (Date.now() - cached.ts) < _SIGNALS_CACHE_TTL_MS;
 
@@ -10075,7 +10086,14 @@ async function renderSignalsView() {
     console.log('[Signals] connections loaded:', conns.length, 'data:', terraData ? 'yes' : 'no');
     var activeConns = conns.filter(function(c){ return c.status === 'active'; });
 
-    // Update cache
+    // If the user switched people while we were loading, drop this result
+    // entirely — don't paint stale data and don't poison the cache.
+    if (currentPersonId !== startPersonId) {
+      console.log('[Signals] person switched during load, discarding result for', startPersonId);
+      return;
+    }
+
+    // Update cache (keyed on the person we actually loaded for)
     _signalsCache[cacheKey] = { ts: Date.now(), activeConns: activeConns, terraData: terraData };
 
     // 3) Repaint with fresh data (unless the view has since navigated away).
@@ -10115,20 +10133,23 @@ async function _loadEhrTrends(personId) {
   var out = { bp: null, weight: null, labs: [], meds: [] };
   try {
     var loads = await Promise.all([
-      // Vitals — last 36 months so BP/weight trends have shape.
+      // Vitals — last 60 months so BP/weight trends have shape even for
+      // loved ones with sparser chronic-monitoring schedules.
       db.from('vitals')
         .select('vital_type, value, unit, effective_date')
         .eq('person_id', personId)
-        .gte('effective_date', new Date(Date.now() - 36 * 30 * 24 * 60 * 60 * 1000).toISOString())
+        .gte('effective_date', new Date(Date.now() - 60 * 30 * 24 * 60 * 60 * 1000).toISOString())
         .order('effective_date', { ascending: true })
         .limit(500)
         .then(function(r){ return (r && r.data) || []; })
         .catch(function(e){ console.warn('[EHR trends] vitals error', e); return []; }),
-      // Labs — last 36 months, numeric only.
+      // Labs — last 60 months, numeric only. The wider window lets liver
+      // panels (ALT/AST/Alk Phos) and CBC trends on long-running chronic
+      // meds surface even when there's no recent Western metabolic panel.
       db.from('lab_results')
         .select('test_name, loinc_code, value, unit, reference_range, status, effective_date')
         .eq('person_id', personId)
-        .gte('effective_date', new Date(Date.now() - 36 * 30 * 24 * 60 * 60 * 1000).toISOString())
+        .gte('effective_date', new Date(Date.now() - 60 * 30 * 24 * 60 * 60 * 1000).toISOString())
         .order('effective_date', { ascending: true })
         .limit(500)
         .then(function(r){ return (r && r.data) || []; })
@@ -10206,18 +10227,44 @@ async function _loadEhrTrends(personId) {
     // ── Labs: pick the top "chartable" tests — numeric value, ≥3 readings, and a
     // curated allowlist that's clinically meaningful to surface.
     var labWhitelist = {
+      // Western metabolic / cardiac panel
       'Hemoglobin A1C':       { display:'Hemoglobin A1C', priority: 1 },
       'Glucose':              { display:'Glucose',        priority: 2 },
       'Cholesterol, Total':   { display:'Total Cholesterol', priority: 3 },
       'HDL':                  { display:'HDL',            priority: 4 },
       'LDL':                  { display:'LDL',            priority: 4 },
       'Triglyceride':         { display:'Triglycerides',  priority: 5 },
+      // Kidney
       'Creatinine':           { display:'Creatinine',     priority: 6 },
       'Glomerular Filtration Rate (eGFR)': { display:'eGFR (kidney function)', priority: 6 },
-      'Hemoglobin':           { display:'Hemoglobin',     priority: 7 },
-      'TSH':                  { display:'TSH (thyroid)',  priority: 8 },
-      'Vitamin D':            { display:'Vitamin D',      priority: 9 },
-      'Ferritin':             { display:'Ferritin',       priority: 10 }
+      'BUN':                  { display:'BUN (kidney)',   priority: 7 },
+      'Blood Urea Nitrogen':  { display:'BUN (kidney)',   priority: 7 },
+      // CBC — important for chronic meds like imatinib
+      'Hemoglobin':           { display:'Hemoglobin',     priority: 8 },
+      'Hematocrit':           { display:'Hematocrit',     priority: 8 },
+      'Platelet Count':       { display:'Platelets',      priority: 8 },
+      'White Blood Cell Count': { display:'WBC',          priority: 8 },
+      'WBC':                  { display:'WBC',            priority: 8 },
+      // Thyroid / vitamins
+      'TSH':                  { display:'TSH (thyroid)',  priority: 9 },
+      'Vitamin D':            { display:'Vitamin D',      priority: 10 },
+      'Ferritin':             { display:'Ferritin',       priority: 10 },
+      // Liver panel — chronic-monitoring labs that often dominate when
+      // there's no recent metabolic panel (e.g. CML patients on imatinib).
+      'ALT':                  { display:'ALT (liver)',    priority: 11 },
+      'Alanine Aminotransferase': { display:'ALT (liver)', priority: 11 },
+      'AST':                  { display:'AST (liver)',    priority: 11 },
+      'Aspartate Aminotransferase': { display:'AST (liver)', priority: 11 },
+      'Alk Phos':             { display:'Alk Phos (liver)', priority: 12 },
+      'Alkaline Phosphatase': { display:'Alk Phos (liver)', priority: 12 },
+      'Albumin':              { display:'Albumin',        priority: 12 },
+      'Bilirubin':            { display:'Bilirubin',      priority: 12 },
+      'Bilirubin, Total':     { display:'Bilirubin',      priority: 12 },
+      // Basic metabolic — electrolytes / calcium
+      'Sodium':               { display:'Sodium',         priority: 13 },
+      'Potassium':            { display:'Potassium',      priority: 13 },
+      'Chloride':             { display:'Chloride',       priority: 13 },
+      'Calcium':              { display:'Calcium',        priority: 13 }
     };
     var byTest = {};
     labs.forEach(function(l) {
@@ -10575,8 +10622,8 @@ function _renderWatchesSectionHtml(watches, name) {
   if (!watches || watches.length === 0) {
     return ''
       + '<div class="cs-watches-empty">'
-      +   'Nothing on watch yet. Tap '
-      +   '<em>Tell Wellet what to watch for</em> '
+      +   'Nothing to notice yet. Tap '
+      +   '<em>Tell Wellet what to notice</em> '
       +   'to add the first one \u2014 like \u201cnotice if ' + escHtml(name) + ' takes fewer than 1,000 steps for three days.\u201d'
       + '</div>';
   }
@@ -10943,7 +10990,7 @@ async function openAddWatchModal() {
     +     '<i data-lucide="bell" style="width:18px;height:18px;"></i>'
     +   '</div>'
     +   '<div style="flex:1;min-width:0;">'
-    +     '<div style="font-family:\'Fraunces\', Georgia, serif;font-size:20px;font-weight:500;color:#1F2A22;line-height:1.25;margin-bottom:4px;">Tell Wellet what to watch for</div>'
+    +     '<div style="font-family:\'Fraunces\', Georgia, serif;font-size:20px;font-weight:500;color:#1F2A22;line-height:1.25;margin-bottom:4px;">Tell Wellet what to notice</div>'
     +     '<div style="font-size:13px;color:#6B6356;line-height:1.5;">Pick something below. Wellet will notice it for ' + safeName + ' and send a gentle nudge if it happens.</div>'
     +   '</div>'
     + '</div>'
@@ -11121,11 +11168,11 @@ async function _paintSignals(el, sigFirstName, activeConns, terraData) {
   }
   var eyebrowBits = [];
   if (activeWatches.length > 0) {
-    eyebrowBits.push(activeWatches.length === 1 ? '1 watch active' : activeWatches.length + ' watches active');
+    eyebrowBits.push(activeWatches.length === 1 ? '1 thing to notice' : activeWatches.length + ' things to notice');
   }
   if (lastSyncStr) eyebrowBits.push('Synced ' + lastSyncStr);
   var eyebrow = eyebrowBits.length ? eyebrowBits.join(' \u00b7 ') : 'CareSignals';
-  var lede = 'What Wellet is noticing for ' + escHtml(sigFirstName) + ' \u2014 quiet patterns, watches, and check-ins from the people closest to them.';
+  var lede = 'What Wellet is noticing for ' + escHtml(sigFirstName) + ' \u2014 quiet patterns and check-ins from the people closest to them.';
 
   var ch = '<div class="signals-view">';
   ch += '<header class="view-header">';
@@ -11143,12 +11190,12 @@ async function _paintSignals(el, sigFirstName, activeConns, terraData) {
     ch += '</section>';
   }
 
-  // ── 2. Watches ─────────────────────────────────────────────────────────
+  // ── 2. What to notice ─────────────────────────────────────────────────
   ch += '<section class="cs-section cs-section--watches">';
   ch += '<div class="cs-section-head">';
-  ch += '<div class="cs-section-eyebrow">Watches</div>';
+  ch += '<div class="cs-section-eyebrow">What to notice</div>';
   ch += '<button type="button" class="cs-section-action" onclick="openAddWatchModal()">';
-  ch += '<i data-lucide="plus" style="width:13px;height:13px;"></i><span>Tell Wellet what to watch for</span>';
+  ch += '<i data-lucide="plus" style="width:13px;height:13px;"></i><span>Tell Wellet what to notice</span>';
   ch += '</button>';
   ch += '</div>';
   ch += _renderWatchesSectionHtml(watches, sigFirstName);
