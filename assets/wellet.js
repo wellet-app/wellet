@@ -3561,9 +3561,26 @@ function renderTimeline() {
   var filterKey = 'wellet_timeline_filter_' + currentPersonId;
   var activeFilter = 'all';
   try { activeFilter = window.localStorage.getItem(filterKey) || 'all'; } catch(_lse) {}
-  // Map filter id → predicate over an event's source/event_type tag.
+  // Map filter id → predicate over an event's source/event_type tag. Chips
+  // are a hybrid of SOURCE filters (where did this come from?) and TYPE
+  // filters (what kind of thing is this?). On accounts where every event
+  // is 'ehr' the source axis is useless on its own — but the type axis
+  // still has plenty of variety (visits, conditions, labs, immunizations,
+  // notes), so we offer those instead. _ev_kind() collapses the raw
+  // event_type into the buckets the chips care about.
+  function _ev_kind(ev) {
+    var t = (ev && ev.event_type) ? String(ev.event_type).toLowerCase() : '';
+    if (t === 'visit' || t === 'appointment' || t === 'encounter') return 'visits';
+    if (t === 'condition' || t === 'diagnosis')                    return 'diagnoses';
+    if (t === 'diagnostic_report' || t === 'observation' || t === 'lab' || t === 'lab_result') return 'labs';
+    if (t === 'immunization' || t === 'vaccine')                    return 'immunizations';
+    if (t === 'medication' || t === 'med' || t === 'prescription')  return 'meds';
+    if (t === 'note' || t === 'document')                           return 'notes';
+    return 'other';
+  }
   function _tlMatchesFilter(ev, filter) {
     if (!filter || filter === 'all') return true;
+    // Source-based filters
     switch (filter) {
       case 'ehr':         return ev.source === 'ehr';
       case 'you':         return !ev.source || ev.source === 'user';
@@ -3571,49 +3588,82 @@ function renderTimeline() {
       case 'documents':   return ev.source === 'document';
       case 'care_circle': return ev.source === 'care_circle' || ev.source === 'share';
       case 'care_signal': return ev.source === 'care_signal';
-      case 'meds':        return ev.source === 'med_log';
-      default: return true;
     }
+    // Type-based filters (work across any source)
+    return _ev_kind(ev) === filter;
   }
   // Stash globally so onclick handlers can reuse without re-render churn.
   window._tlSetFilter = function(personId, nextFilter) {
     try { window.localStorage.setItem('wellet_timeline_filter_' + personId, nextFilter); } catch(_e) {}
     try { renderTimeline(); } catch(_e) {}
   };
-  // Render chips only when there is enough variety to be useful (>1 source).
+  // Render chips when there's enough variety to be useful on EITHER axis:
+  // multiple sources OR multiple event-kinds. Single-event timelines stay clean.
   var sourceSetSeen = {};
-  allEvents.forEach(function(e){ sourceSetSeen[e.source || 'user'] = true; });
-  var chipDefs = [
-    { id:'all',         label:'All' },
+  var kindSetSeen = {};
+  allEvents.forEach(function(e){
+    sourceSetSeen[e.source || 'user'] = true;
+    kindSetSeen[_ev_kind(e)] = true;
+  });
+  // Source-axis chips
+  var sourceChipDefs = [
     { id:'ehr',         label:'EHR',         needsSrc: 'ehr' },
     { id:'you',         label:'You',         needsSrc: 'user' },
     { id:'voice',       label:'Voice',       needsSrc: 'voice' },
     { id:'documents',   label:'Documents',   needsSrc: 'document' },
     { id:'care_circle', label:'Care circle', needsSrc: 'care_circle' },
-    { id:'care_signal', label:'CareSignals', needsSrc: 'care_signal' },
-    { id:'meds',        label:'Meds',        needsSrc: 'med_log' }
+    { id:'care_signal', label:'CareSignals', needsSrc: 'care_signal' }
+  ];
+  // Type-axis chips (order matters: visits and diagnoses first because they're
+  // what users hunt for most when prepping for an appointment).
+  var typeChipDefs = [
+    { id:'visits',        label:'Visits',        needsKind:'visits' },
+    { id:'diagnoses',     label:'Diagnoses',     needsKind:'diagnoses' },
+    { id:'labs',          label:'Labs',          needsKind:'labs' },
+    { id:'meds',          label:'Meds',          needsKind:'meds' },
+    { id:'immunizations', label:'Vaccines',      needsKind:'immunizations' },
+    { id:'notes',         label:'Notes',         needsKind:'notes' }
   ];
   var filterChipsHtml = '';
-  // Show chips when there are at least 2 different sources represented (besides
-  // 'All'). Below that the chips feel like clutter on an empty timeline.
-  var distinctSources = 0;
-  Object.keys(sourceSetSeen).forEach(function(k){ if (k !== 'user' || sourceSetSeen[k]) distinctSources++; });
-  if (distinctSources >= 2) {
-    var chipBtns = chipDefs.filter(function(c) {
-      if (c.id === 'all') return true;
-      // 'you' chip needs at least one user-source event (or the 'user' key).
-      if (c.id === 'you') return !!sourceSetSeen['user'] || liveEvents.length > 0;
-      // 'care_circle' chip shows when either care_circle or share is present.
-      if (c.id === 'care_circle') return !!sourceSetSeen['care_circle'] || !!sourceSetSeen['share'];
-      return !!sourceSetSeen[c.needsSrc];
-    }).map(function(c) {
-      var active = c.id === activeFilter;
-      return '<button class="tl-filter-chip' + (active ? ' is-active' : '') + '"'
-        + ' onclick="window._tlSetFilter(\'' + currentPersonId + '\',\'' + c.id + '\')"'
-        + ' aria-pressed="' + (active ? 'true' : 'false') + '">'
-        + escHtml(c.label) + '</button>';
-    }).join('');
-    filterChipsHtml = '<div class="tl-filter-chips" role="tablist" aria-label="Filter timeline by source">'
+  var distinctSources = Object.keys(sourceSetSeen).length;
+  var distinctKinds = Object.keys(kindSetSeen).length;
+  // Render whenever there's *any* axis worth filtering on. Empty timelines
+  // (no kinds, no sources) silently skip.
+  if (distinctSources >= 2 || distinctKinds >= 2) {
+    var chipBtns = '';
+    // Always lead with 'All'.
+    var allActive = (activeFilter === 'all' || !activeFilter);
+    chipBtns += '<button class="tl-filter-chip' + (allActive ? ' is-active' : '') + '"'
+      + ' onclick="window._tlSetFilter(\'' + currentPersonId + '\',\'all\')"'
+      + ' aria-pressed="' + (allActive ? 'true' : 'false') + '">All</button>';
+    // Source chips — only when source axis has variety (>=2 sources).
+    if (distinctSources >= 2) {
+      chipBtns += sourceChipDefs.filter(function(c) {
+        if (c.id === 'you')         return !!sourceSetSeen['user'] || liveEvents.length > 0;
+        if (c.id === 'care_circle') return !!sourceSetSeen['care_circle'] || !!sourceSetSeen['share'];
+        return !!sourceSetSeen[c.needsSrc];
+      }).map(function(c) {
+        var active = c.id === activeFilter;
+        return '<button class="tl-filter-chip' + (active ? ' is-active' : '') + '"'
+          + ' onclick="window._tlSetFilter(\'' + currentPersonId + '\',\'' + c.id + '\')"'
+          + ' aria-pressed="' + (active ? 'true' : 'false') + '">'
+          + escHtml(c.label) + '</button>';
+      }).join('');
+    }
+    // Type chips — always offer when there's type variety, even when only
+    // one source. That's the path that unblocks Betsy's all-EHR view.
+    if (distinctKinds >= 2) {
+      chipBtns += typeChipDefs.filter(function(c) {
+        return !!kindSetSeen[c.needsKind];
+      }).map(function(c) {
+        var active = c.id === activeFilter;
+        return '<button class="tl-filter-chip' + (active ? ' is-active' : '') + '"'
+          + ' onclick="window._tlSetFilter(\'' + currentPersonId + '\',\'' + c.id + '\')"'
+          + ' aria-pressed="' + (active ? 'true' : 'false') + '">'
+          + escHtml(c.label) + '</button>';
+      }).join('');
+    }
+    filterChipsHtml = '<div class="tl-filter-chips" role="tablist" aria-label="Filter timeline">'
       + chipBtns + '</div>';
   }
   // Apply the filter. "All" returns everything.
