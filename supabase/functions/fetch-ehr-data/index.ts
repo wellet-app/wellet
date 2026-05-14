@@ -192,6 +192,7 @@ type ConnectionResult = {
     immunizations: number;
     diagnostic_reports: number;
     visits: number;
+    appointments?: number;
     care_team: number;
   };
   persisted: {
@@ -656,6 +657,94 @@ function mapEncounters(resources: unknown[]) {
   return visits;
 }
 
+// Map FHIR Appointment resources — these are future/scheduled visits and power
+// the Before-visit card. Epic returns Appointment.start as ISO-8601. We project
+// them onto the same shape as Encounters so the persist layer treats them as
+// visits (event_type='visit') with a future event_date.
+function mapAppointments(resources: unknown[]) {
+  const out = (resources as Record<string, unknown>[]).map((r) => {
+    // serviceType[0].text gives a friendly name like 'Follow-up' or 'Office Visit'
+    const svcType = ((r.serviceType as Record<string, unknown>[]) || [])[0] || {};
+    const svcCoding = ((svcType.coding as Record<string, unknown>[]) || [])[0] || {};
+    const apptType = (r.appointmentType as Record<string, unknown>) || {};
+    const apptCoding = ((apptType.coding as Record<string, unknown>[]) || [])[0] || {};
+
+    // Reason — R4 uses reasonCode (array) or reasonReference
+    const reasonArr = (r.reasonCode as Record<string, unknown>[]) || [];
+    const firstReason = reasonArr[0] || {};
+    const reasonText = (firstReason.text as string)
+      || (((firstReason.coding as Record<string, unknown>[]) || [])[0]?.display as string)
+      || (r.description as string)
+      || '';
+
+    // Participants — mostly the practitioner(s) and the patient. We keep only
+    // Practitioner refs so they roll into the same enrichment pipeline.
+    const participants = (r.participant as Record<string, unknown>[]) || [];
+    const providers = participants.map((p) => {
+      const actor = (p.actor as Record<string, unknown>) || {};
+      return {
+        ref: (actor.reference as string) || '',
+        name: (actor.display as string) || '',
+      };
+    }).filter((p) => p.ref.startsWith('Practitioner/') || p.name);
+
+    // Location — first participant of type Location, if any
+    let locationDisplay = '';
+    for (const p of participants) {
+      const actor = (p.actor as Record<string, unknown>) || {};
+      const ref = (actor.reference as string) || '';
+      if (ref.startsWith('Location/')) {
+        locationDisplay = (actor.display as string) || '';
+        break;
+      }
+    }
+
+    const name = (svcType.text as string)
+      || (svcCoding.display as string)
+      || (apptType.text as string)
+      || (apptCoding.display as string)
+      || (r.description as string)
+      || 'Upcoming visit';
+
+    return {
+      type: 'appointment',
+      source: 'ehr',
+      id: (r.id as string) || '',
+      name,
+      status: (r.status as string) || '',
+      start_date: (r.start as string) || '',
+      end_date: (r.end as string) || '',
+      class: '',
+      location: locationDisplay,
+      reason: reasonText,
+      providers,
+    };
+  });
+
+  // Drop appointments without a usable start date (Epic occasionally returns
+  // proposed appointments with no time block) and anything already in the
+  // past — the FHIR date filter is a hint, not a guarantee on every server.
+  const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
+  const filtered = out.filter((a) => {
+    if (!a.start_date) return false;
+    const t = new Date(a.start_date).getTime();
+    if (!isFinite(t)) return false;
+    if (t < cutoffMs) return false;
+    // Skip cancelled/no-show; keep booked/pending/arrived/checked-in/proposed.
+    const status = (a.status || '').toLowerCase();
+    if (status === 'cancelled' || status === 'noshow' || status === 'entered-in-error') return false;
+    return true;
+  });
+
+  // Sort soonest first — the Before-visit card wants the next appointment up top.
+  filtered.sort((a, b) => {
+    const da = new Date(a.start_date).getTime();
+    const db = new Date(b.start_date).getTime();
+    return da - db;
+  });
+  return filtered;
+}
+
 // Map DocumentReference resources. Extracts encounter link + LOINC type + attachment URLs
 // so the frontend can offer tappable AVS / Provider-note links per visit.
 function mapDocumentReferences(resources: unknown[]) {
@@ -1103,7 +1192,7 @@ async function fetchAndPersistOneConnection(
     care_team: [] as unknown[],
   };
   const emptyPersisted = { medications: 0, allergies: 0, health_events: 0, lab_results: 0, vitals: 0, errors: [] as string[] };
-  const emptyCounts = { conditions: 0, medications: 0, allergies: 0, observations: 0, immunizations: 0, diagnostic_reports: 0, visits: 0, care_team: 0 };
+  const emptyCounts = { conditions: 0, medications: 0, allergies: 0, observations: 0, immunizations: 0, diagnostic_reports: 0, visits: 0, appointments: 0, care_team: 0 };
 
   const baseResult = {
     connection_id: conn.id as string,
@@ -1146,6 +1235,24 @@ async function fetchAndPersistOneConnection(
     const patientParam = patientId ? `patient=${patientId}` : '';
 
     // Step 2: Fetch all FHIR resources in parallel, threading local tele buckets.
+    //
+    // Future appointments — Epic supports date=ge{YYYY-MM-DD}. We use yesterday as
+    // the floor (timezone-safe slack) so today's not-yet-started visits still come
+    // through. If the connection doesn't have the patient/Appointment.read scope
+    // granted yet (legacy connections), this returns 403 inside fetchFhirResource
+    // and we swallow it as an empty array via the .catch fallback.
+    const apptFloor = (() => {
+      try {
+        const d = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(d.getUTCDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      } catch { return ''; }
+    })();
+    const apptDateParam = apptFloor ? `date=ge${apptFloor}` : '';
+    const apptQuery = [patientParam, apptDateParam].filter(Boolean).join('&');
+
     const [
       patientResource,
       conditions,
@@ -1156,6 +1263,7 @@ async function fetchAndPersistOneConnection(
       immunizations,
       diagnosticReports,
       encountersRaw,
+      appointmentsRaw,
       careTeamsRaw,
       documentReferencesRaw,
     ] = await Promise.all([
@@ -1171,6 +1279,12 @@ async function fetchAndPersistOneConnection(
       fetchFhirResource(fhirBaseUrl, 'DiagnosticReport', accessToken, patientParam, localFhirTele),
       // All encounters — UI filters to last 2 years with a "show older" toggle
       fetchFhirResource(fhirBaseUrl, 'Encounter', accessToken, patientParam, localFhirTele),
+      // Future Appointments — powers the Before-visit card. Tolerant of missing
+      // scope on legacy connections; will be empty until user re-consents Duke.
+      fetchFhirResource(fhirBaseUrl, 'Appointment', accessToken, apptQuery, localFhirTele).catch((e: unknown) => {
+        console.warn('[fetch-ehr-data] Appointment fetch failed (likely scope not granted yet)', String(e));
+        return [] as unknown[];
+      }),
       // Active care teams
       fetchFhirResource(fhirBaseUrl, 'CareTeam', accessToken, patientParam ? `${patientParam}&status=active` : 'status=active', localFhirTele),
       // Clinical notes / AVS / provider summaries (metadata only — content fetched on tap)
@@ -1183,7 +1297,14 @@ async function fetchAndPersistOneConnection(
     const observations = [...labObservations, ...vitalObservations];
 
     const medicationsMapped = mapMedications(medications);
-    const visitsMapped = mapEncounters(encountersRaw);
+    const encountersMapped = mapEncounters(encountersRaw);
+    const appointmentsMapped = mapAppointments(appointmentsRaw);
+    // Visits we pass downstream = past Encounters + future Appointments. Both
+    // share the same shape (start_date/end_date/name/providers/etc.), so the
+    // existing care-team enrichment, persistence, and UI rendering all just
+    // work. The `type` field ('encounter' vs 'appointment') lets the persist
+    // layer differentiate fingerprints so they never collide.
+    const visitsMapped = [...encountersMapped, ...appointmentsMapped];
 
     // Attach DocumentReference metadata to each visit by encounter id so the
     // expanded visit row can offer AVS / Provider Summary links.
@@ -1333,6 +1454,7 @@ async function fetchAndPersistOneConnection(
       immunizations: immunizationsMapped.length,
       diagnostic_reports: diagnosticReportsMapped.length,
       visits: visitsMapped.length,
+      appointments: appointmentsMapped.length,
       care_team: careTeam.length,
     };
 
@@ -1541,7 +1663,7 @@ Deno.serve(async (req) => {
         visits: [],
         care_team: [],
         synced_at: new Date().toISOString(),
-        result_counts: { conditions: 0, medications: 0, allergies: 0, observations: 0, immunizations: 0, diagnostic_reports: 0, visits: 0, care_team: 0 },
+        result_counts: { conditions: 0, medications: 0, allergies: 0, observations: 0, immunizations: 0, diagnostic_reports: 0, visits: 0, appointments: 0, care_team: 0 },
         persisted: { medications: 0, allergies: 0, health_events: 0, lab_results: 0, vitals: 0, errors: [] },
         fhir_calls: [],
         practitioner_calls: [],

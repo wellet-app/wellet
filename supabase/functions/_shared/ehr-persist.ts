@@ -193,8 +193,16 @@ function buildHealthEventRows(
       if (!iso) continue;
       const vid = String(v?.id || '');
       const location = String(v?.location || '');
-      const encType = String(v?.type || v?.encounter_type || '');
-      const isNonVisit = NON_VISIT_RE.test(title) || NON_VISIT_RE.test(encType);
+      // 'type' on the mapped object is either 'encounter' (past) or
+      // 'appointment' (future). Appointments must NEVER be reclassified as
+      // 'note' — the non-visit regex only applies to historical encounters.
+      const sourceKind = String(v?.type || '').toLowerCase();
+      const isAppointment = sourceKind === 'appointment';
+      const encType = String(v?.encounter_type || (isAppointment ? '' : sourceKind));
+      const isNonVisit = !isAppointment && (NON_VISIT_RE.test(title) || NON_VISIT_RE.test(encType));
+      // Fingerprint differentiates Encounter vs Appointment so the same Epic
+      // resource ID across both types never collides into one row.
+      const fhirResource = isAppointment ? 'Appointment' : 'Encounter';
       rows.push({
         person_id: personId,
         connection_id: connectionId,
@@ -205,7 +213,7 @@ function buildHealthEventRows(
         source: SOURCE_LABEL,
         ehr_system: EHR_SYSTEM,
         accepted: true,
-        source_fingerprint: fp(EHR_SYSTEM, 'Encounter', vid, iso.slice(0, 10)),
+        source_fingerprint: fp(EHR_SYSTEM, fhirResource, vid, iso.slice(0, 10)),
       });
     }
   }

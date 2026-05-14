@@ -46,6 +46,7 @@ const SMART_SCOPES = [
   'patient/Immunization.read',
   'patient/DiagnosticReport.read',
   'patient/Encounter.read',
+  'patient/Appointment.read',
   'patient/CareTeam.read',
   'patient/DocumentReference.read',
   'patient/Practitioner.read',
