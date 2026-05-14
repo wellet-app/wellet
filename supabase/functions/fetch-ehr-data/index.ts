@@ -1,4 +1,4 @@
-// Supabase Edge Function: fetch-ehr-data (v40 — Phase 2 N-connections fan-out: lookup all connected rows for person, fetch+persist each in parallel via Promise.allSettled, source-tag rows with connection_id, return both legacy flat shape (merged) AND new `connections` array.)
+// Supabase Edge Function: fetch-ehr-data (v41 — Observation.component[] parsing: Epic returns BP, BMI panels, and other multi-value vitals as a single Observation with valueQuantity-bearing components. v40 only read top-level valueQuantity, which is why Mom's chart had 200 observations but 0 vitals persisted — every BP reading was dropped. v41 walks component[] when present, projects each component to its own Wellet observation row keyed by its component LOINC, so 8480-6/8462-4 land as systolic/diastolic in vitals. Panel-style observations without a top-level value AND without components fall through to the existing valueString / valueCodeableConcept paths.)
 // Fetches FHIR R4 resources from the connected EHR provider (Epic),
 // maps them to a simplified Wellet-friendly JSON structure,
 // returns the data to the frontend, AND upserts into medications /
@@ -567,39 +567,114 @@ function mapAllergies(resources: unknown[]) {
   });
 }
 
-function mapObservations(resources: unknown[]) {
-  return (resources as Record<string, unknown>[]).map((r) => {
-    const coding = (r.code as Record<string, unknown>)?.coding as Record<string, unknown>[] || [];
-    const firstCoding = coding[0] || {};
-    let value = '';
-    let unit = '';
+// v41: Some FHIR Observations are panel-style — a parent resource with no
+// top-level value, plus a component[] array where each entry carries its own
+// code + valueQuantity. The canonical example is blood pressure (LOINC 85354-9
+// or Epic-specific codes), which always splits into 8480-6 (systolic) and
+// 8462-4 (diastolic) components. Same pattern for BMI panels (height + weight
+// + BMI components) and many cardiology/respiratory panels.
+//
+// flattenObservation projects one FHIR Observation into one or more Wellet
+// observation rows: either the parent (when it has a top-level value) or one
+// row per component. Each row carries its own LOINC code so isVitalObservation
+// in ehr-persist can recognize it without us having to widen the heuristic.
+function flattenObservation(r: Record<string, unknown>): Record<string, unknown>[] {
+  const parentCoding = ((r.code as Record<string, unknown>)?.coding as Record<string, unknown>[]) || [];
+  const parentFirstCoding = parentCoding[0] || {};
+  const parentName = ((r.code as Record<string, unknown>)?.text as string)
+    || (parentFirstCoding.display as string)
+    || 'Lab result';
+  const effectiveDate = (r.effectiveDateTime as string)
+    || ((r.effectivePeriod as Record<string, unknown>)?.start as string)
+    || '';
+  const status = (r.status as string) || '';
+  const category = (((r.category as Record<string, unknown>[]) || [])[0]
+    ?.coding as Record<string, unknown>[] | undefined)?.[0]?.code as string
+    || '';
+  const referenceRange = ((r.referenceRange as Record<string, unknown>[])?.[0]?.text as string) || '';
 
-    if (r.valueQuantity) {
-      const vq = r.valueQuantity as Record<string, unknown>;
-      value = String(vq.value || '');
-      unit = (vq.unit as string) || '';
-    } else if (r.valueString) {
-      value = r.valueString as string;
-    } else if (r.valueCodeableConcept) {
-      const vcc = r.valueCodeableConcept as Record<string, unknown>;
-      value = (vcc.text as string) || ((vcc.coding as Record<string, unknown>[]))?.[0]?.display as string || '';
+  // Extract value/unit from a FHIR value[x] off any node (parent or component).
+  function readValue(node: Record<string, unknown>): { value: string; unit: string } {
+    if (node.valueQuantity) {
+      const vq = node.valueQuantity as Record<string, unknown>;
+      return { value: String(vq.value ?? ''), unit: (vq.unit as string) || '' };
     }
+    if (node.valueString) return { value: String(node.valueString), unit: '' };
+    if (node.valueCodeableConcept) {
+      const vcc = node.valueCodeableConcept as Record<string, unknown>;
+      const vccText = (vcc.text as string)
+        || (((vcc.coding as Record<string, unknown>[]) || [])[0]?.display as string)
+        || '';
+      return { value: vccText, unit: '' };
+    }
+    return { value: '', unit: '' };
+  }
 
-    return {
+  const components = (r.component as Record<string, unknown>[]) || [];
+  const parentVal = readValue(r);
+  const hasParentValue = parentVal.value !== '';
+  const hasComponents = components.length > 0;
+
+  // Case 1: parent has a value and no components → one row, as before.
+  if (hasParentValue && !hasComponents) {
+    return [{
       type: 'observation',
       source: 'ehr',
-      name: (r.code as Record<string, unknown>)?.text || firstCoding.display || 'Lab result',
-      code: firstCoding.code || '',
-      value: value,
-      unit: unit,
-      reference_range: (r.referenceRange as Record<string, unknown>[])?.length > 0
-        ? (r.referenceRange as Record<string, unknown>[])[0].text || ''
-        : '',
-      status: r.status || '',
-      effective_date: r.effectiveDateTime || (r.effectivePeriod as Record<string, unknown>)?.start || '',
-      category: ((r.category as Record<string, unknown>[]) || [])[0]?.coding?.[0]?.code || '',
-    };
-  });
+      name: parentName,
+      code: (parentFirstCoding.code as string) || '',
+      value: parentVal.value,
+      unit: parentVal.unit,
+      reference_range: referenceRange,
+      status,
+      effective_date: effectiveDate,
+      category,
+    }];
+  }
+
+  // Case 2: component-style observation. Emit one row per component that
+  // actually carries a value, keyed by the component's own LOINC code.
+  if (hasComponents) {
+    const rows: Record<string, unknown>[] = [];
+    for (const c of components) {
+      const cCoding = ((c.code as Record<string, unknown>)?.coding as Record<string, unknown>[]) || [];
+      const cFirstCoding = cCoding[0] || {};
+      const cName = ((c.code as Record<string, unknown>)?.text as string)
+        || (cFirstCoding.display as string)
+        || parentName;
+      const cCode = (cFirstCoding.code as string) || '';
+      const cVal = readValue(c);
+      if (!cVal.value) continue; // skip components with no value
+      const cRefRange = ((c.referenceRange as Record<string, unknown>[])?.[0]?.text as string) || referenceRange;
+      rows.push({
+        type: 'observation',
+        source: 'ehr',
+        name: cName,
+        code: cCode,
+        value: cVal.value,
+        unit: cVal.unit,
+        reference_range: cRefRange,
+        status,
+        effective_date: effectiveDate,
+        category,
+      });
+    }
+    // If components yielded nothing (rare — empty values) AND parent had a
+    // value we already handled it above. If both are empty we drop the row;
+    // a valueless Observation has no signal for the user.
+    return rows;
+  }
+
+  // Case 3: no value, no components. Drop — nothing to persist.
+  return [];
+}
+
+function mapObservations(resources: unknown[]) {
+  const out: Record<string, unknown>[] = [];
+  for (const r of resources as Record<string, unknown>[]) {
+    const rows = flattenObservation(r);
+    for (const row of rows) out.push(row);
+  }
+  return out;
 }
 
 // Map Encounter resources, extracting participant practitioners and sorting most-recent first
