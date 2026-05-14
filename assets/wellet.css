@@ -1481,7 +1481,7 @@
   .ehr-connect-icon { width:44px; height:44px; border-radius:50%; background:var(--mint); display:flex; align-items:center; justify-content:center; margin:0 auto 10px; color:var(--moss); }
   .ehr-connect-title { font-size:var(--type-body); font-weight:500; color:var(--text-primary); margin-bottom:4px; }
   .ehr-connect-desc { font-size:var(--type-meta); color:var(--text-muted); line-height:1.5; }
-  .ehr-status-bar { display:flex; align-items:center; justify-content:space-between; padding:10px 16px; background:var(--mint); border-radius:10px; margin-bottom:12px; }
+  .ehr-status-bar { display:flex; align-items:center; justify-content:space-between; padding:10px 16px; background:var(--mint); border-radius:10px; margin-bottom:20px; }
   .ehr-status-left { display:flex; align-items:center; gap:8px; font-size:var(--type-meta); color:var(--moss-dark); }
   .ehr-status-dot { width:7px; height:7px; border-radius:50%; background:#47B08A; flex-shrink:0; }
   .ehr-status-right { display:flex; align-items:center; gap:8px; }
@@ -2794,11 +2794,12 @@
    bar and the filter chips so it's the first interactive thing you see. */
 .tl-story-header {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 20px 6px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding: 18px 20px 14px;
 }
+.tl-story-header-row + .tl-story-hint { margin-top: 2px; }
 .tl-story-btn {
   display: inline-flex;
   align-items: center;
@@ -2826,12 +2827,28 @@
   font-size: var(--type-meta);
   color: var(--text-muted);
   line-height: 1.45;
-  flex: 1 1 auto;
   min-width: 0;
 }
 @media (max-width: 480px) {
-  .tl-story-header { padding: 12px 16px 4px; gap: 8px; }
-  .tl-story-hint { flex-basis: 100%; font-size: var(--type-micro); }
+  .tl-story-header { padding: 14px 16px 12px; gap: 10px; }
+  .tl-story-hint { font-size: var(--type-micro); }
+}
+/* Filter chips: give air above (after the hint line) and below (before the
+   first timeline group label). Without these, chips squish into the italic
+   hint and the first MAY 2026 month label runs flush against them. */
+.tl-filter-chips {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 8px;
+  padding: 4px 20px 16px;
+  margin-top: 4px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.tl-filter-chips::-webkit-scrollbar { display: none; }
+@media (max-width: 480px) {
+  .tl-filter-chips { padding: 4px 16px 14px; }
 }
 
 /* Modal sheet */
