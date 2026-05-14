@@ -475,6 +475,26 @@ function extractFromPractitionerRoles(roles: Record<string, unknown>[]) {
 
 // ── FHIR → Wellet Mappers ──
 
+// Pull a FHIR Encounter id off a resource that carries an `encounter` reference.
+// Most resources use `r.encounter.reference` (Observation, MedicationRequest,
+// Condition, DiagnosticReport, Procedure). A few — DocumentReference,
+// ServiceRequest — bury it under `r.context.encounter`. Returns the id (no
+// resource prefix) so it joins cleanly against Encounter.id.
+function encounterIdFromResource(r: Record<string, unknown>): string {
+  const direct = (r.encounter as Record<string, unknown>) || null;
+  let ref = (direct?.reference as string) || '';
+  if (!ref) {
+    const ctx = (r.context as Record<string, unknown>) || {};
+    const encRaw = ctx.encounter;
+    if (Array.isArray(encRaw)) {
+      ref = (((encRaw as Record<string, unknown>[])[0] || {}).reference as string) || '';
+    } else if (encRaw && typeof encRaw === 'object') {
+      ref = ((encRaw as Record<string, unknown>).reference as string) || '';
+    }
+  }
+  return ref.startsWith('Encounter/') ? ref.slice('Encounter/'.length) : '';
+}
+
 function mapConditions(resources: unknown[]) {
   return (resources as Record<string, unknown>[]).map((r) => {
     const coding = (r.code as Record<string, unknown>)?.coding as Record<string, unknown>[] || [];
@@ -488,6 +508,7 @@ function mapConditions(resources: unknown[]) {
       status: (((r.clinicalStatus as Record<string, unknown>)?.coding as Record<string, unknown>[] | undefined)?.[0]?.code as string) || (r.clinicalStatus as string) || '',
       onset_date: r.onsetDateTime || (r.onsetPeriod as Record<string, unknown>)?.start || '',
       recorded_date: r.recordedDate || '',
+      encounter_ref: encounterIdFromResource(r),
     };
   });
 }
@@ -523,6 +544,7 @@ function mapMedications(resources: unknown[]) {
       date_asserted: r.dateAsserted || r.authoredOn || '',
       prescriber_ref: prescriberRef,
       prescriber_name: prescriberName,
+      encounter_ref: encounterIdFromResource(r),
     };
   });
 
@@ -592,6 +614,7 @@ function flattenObservation(r: Record<string, unknown>): Record<string, unknown>
     ?.coding as Record<string, unknown>[] | undefined)?.[0]?.code as string
     || '';
   const referenceRange = ((r.referenceRange as Record<string, unknown>[])?.[0]?.text as string) || '';
+  const encounter_ref = encounterIdFromResource(r);
 
   // Extract value/unit from a FHIR value[x] off any node (parent or component).
   function readValue(node: Record<string, unknown>): { value: string; unit: string } {
@@ -628,6 +651,7 @@ function flattenObservation(r: Record<string, unknown>): Record<string, unknown>
       status,
       effective_date: effectiveDate,
       category,
+      encounter_ref,
     }];
   }
 
@@ -656,6 +680,7 @@ function flattenObservation(r: Record<string, unknown>): Record<string, unknown>
         status,
         effective_date: effectiveDate,
         category,
+        encounter_ref,
       });
     }
     // If components yielded nothing (rare — empty values) AND parent had a
@@ -708,15 +733,22 @@ function mapEncounters(resources: unknown[]) {
       || (((firstReason.coding as Record<string, unknown>[]) || [])[0]?.display as string)
       || '';
 
+    // Service provider — a Reference to Organization (e.g. "Duke University Hospital")
+    const svcProvider = (r.serviceProvider as Record<string, unknown>) || {};
+    const serviceProviderName = (svcProvider.display as string) || '';
+
+    const cls = (r.class as Record<string, unknown>) || {};
     return {
       type: 'encounter',
       source: 'ehr',
       id: (r.id as string) || '',
-      name: typeCoding.text || firstCoding.display || (r.class as Record<string, unknown>)?.display || 'Visit',
+      name: typeCoding.text || firstCoding.display || (cls.display as string) || 'Visit',
       status: r.status || '',
       start_date: period.start || '',
       end_date: period.end || '',
-      class: (r.class as Record<string, unknown>)?.code || '',
+      class: (cls.code as string) || '',
+      class_display: (cls.display as string) || '',
+      service_provider: serviceProviderName,
       location: locationDisplay,
       reason: reasonText,
       providers, // [{ ref, name }]
@@ -790,6 +822,8 @@ function mapAppointments(resources: unknown[]) {
       start_date: (r.start as string) || '',
       end_date: (r.end as string) || '',
       class: '',
+      class_display: '',
+      service_provider: '',
       location: locationDisplay,
       reason: reasonText,
       providers,
@@ -996,6 +1030,7 @@ function mapDiagnosticReports(resources: unknown[]) {
       performers: performerNames,
       attachments,
       result_count,
+      encounter_ref: encounterIdFromResource(r),
     };
   });
 }

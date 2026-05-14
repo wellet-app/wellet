@@ -107,6 +107,7 @@ function buildMedicationRows(personId: string, connectionId: string | null, mapp
         active,
         source: SOURCE_LABEL,
         ehr_system: EHR_SYSTEM,
+        encounter_fhir_id: (m?.encounter_ref as string) || null,
         source_fingerprint: fp(EHR_SYSTEM, 'MedicationRequest', name.toLowerCase(), code, dateKey),
       };
     })
@@ -173,6 +174,7 @@ function buildHealthEventRows(
         source: SOURCE_LABEL,
         ehr_system: EHR_SYSTEM,
         accepted: true,
+        encounter_fhir_id: (c?.encounter_ref as string) || null,
         source_fingerprint: fp(EHR_SYSTEM, 'Condition', title.toLowerCase(), code, iso.slice(0, 10)),
       });
     }
@@ -203,6 +205,14 @@ function buildHealthEventRows(
       // Fingerprint differentiates Encounter vs Appointment so the same Epic
       // resource ID across both types never collides into one row.
       const fhirResource = isAppointment ? 'Appointment' : 'Encounter';
+      // Encounter rows store their own FHIR id as the encounter_fhir_id so
+      // child rows (labs/vitals/meds/conditions) can join back to the visit
+      // they belong to. Appointments are future-only and don't gather child
+      // resources, but we still tag them so downstream joins are uniform.
+      const classCode = String(v?.class || '');
+      const classDisplay = String(v?.class_display || '');
+      const serviceProvider = String(v?.service_provider || '');
+      const reasonText = String(v?.reason || '');
       rows.push({
         person_id: personId,
         connection_id: connectionId,
@@ -213,6 +223,12 @@ function buildHealthEventRows(
         source: SOURCE_LABEL,
         ehr_system: EHR_SYSTEM,
         accepted: true,
+        encounter_fhir_id: vid || null,
+        encounter_class_code: classCode || null,
+        encounter_class_display: classDisplay || null,
+        encounter_service_provider: serviceProvider || null,
+        encounter_reason_text: reasonText || null,
+        encounter_period_end: toIsoOrNull(v?.end_date),
         source_fingerprint: fp(EHR_SYSTEM, fhirResource, vid, iso.slice(0, 10)),
       });
     }
@@ -267,6 +283,7 @@ function buildHealthEventRows(
         source: SOURCE_LABEL,
         ehr_system: EHR_SYSTEM,
         accepted: true,
+        encounter_fhir_id: (d?.encounter_ref as string) || null,
         source_fingerprint: fp(EHR_SYSTEM, 'DiagnosticReport', title.toLowerCase(), code, iso.slice(0, 10)),
       });
     }
@@ -319,6 +336,7 @@ function buildLabRows(personId: string, connectionId: string | null, mapped: any
         loinc_code: code || null,
         category: o?.category || 'laboratory',
         source: SOURCE_LABEL,
+        encounter_fhir_id: (o?.encounter_ref as string) || null,
         source_fingerprint: fp(
           EHR_SYSTEM,
           'Observation.lab',
@@ -352,6 +370,7 @@ function buildVitalRows(personId: string, connectionId: string | null, mapped: a
         effective_date: iso,
         loinc_code: code || null,
         source: SOURCE_LABEL,
+        encounter_fhir_id: (o?.encounter_ref as string) || null,
         source_fingerprint: fp(
           EHR_SYSTEM,
           'Observation.vital',
