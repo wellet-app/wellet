@@ -21172,6 +21172,39 @@ function _storyFormatShort(d) {
 // Collect every relevant event in the date range, normalised into
 // { date, kind, title, detail, source } shape. "kind" is one of:
 // visit | er | inpatient | virtual | surgery | diagnosis | lab | med | immunization | report | wellet_noticed | note.
+// Strip noisy EHR title fragments so the narrative reads like prose, not raw
+// Epic strings. We drop redundant location/provider tails and known noise
+// prefixes ("Outpatient \u2014 ", "Refill \u2014 Medication Refill \u2014 ...", etc).
+function _storyCleanTitle(t) {
+  if (!t) return '';
+  var s = String(t).trim();
+  // Drop a leading "Outpatient \u2014 " prefix — adds nothing to the prose.
+  s = s.replace(/^Outpatient\s*[\u2014\-]\s*/i, '');
+  // "Refill \u2014 Medication Refill \u2014 Duke Primary Care of Galloway Ridge" \u2192 "Refill".
+  s = s.replace(/^Refill\b[\s\S]*$/i, 'Refill');
+  // "Patient Message \u2014 DPC Engagement Center Virtual" \u2192 "Patient Message".
+  s = s.replace(/^Patient Message\b[\s\S]*$/i, 'Patient Message');
+  // Collapse "Foo \u2014 Foo" duplicates.
+  s = s.replace(/^([^\u2014]{3,})\s\u2014\s\1\b/i, '$1');
+  // Trim trailing location tail if it repeats the provider ("... \u2014 Duke Primary Care of Galloway Ridge").
+  // Keep the first segment if there are 3+ em-dash segments.
+  var parts = s.split(/\s\u2014\s/);
+  if (parts.length >= 3) s = parts.slice(0, 2).join(' \u2014 ');
+  return s.trim();
+}
+
+// Classify an EHR "visit" row by its raw title so we can route Patient Message
+// rows out of the visit count and into a single summary line.
+function _storyClassifyVisitTitle(rawTitle) {
+  var nm = String(rawTitle || '').toLowerCase();
+  if (/\bpatient message\b/.test(nm) || /\bmessage\b/.test(nm)) return 'patient_message';
+  if (/\brefill\b/.test(nm)) return 'refill';
+  if (/\btelephone|phone call\b/.test(nm)) return 'phone_call';
+  if (/\bletter\b/.test(nm)) return 'letter';
+  if (/\bresult note\b/.test(nm)) return 'result_note';
+  return null;
+}
+
 function _storyCollectEvents(fromDate, toDate) {
   var out = [];
   function inRange(d) {
@@ -21216,14 +21249,27 @@ function _storyCollectEvents(fromDate, toDate) {
       var cls = String(v.class || '').toLowerCase();
       var nm = String(v.name || '').toLowerCase();
       var typ = String(v.type || '').toLowerCase();
-      var kind = 'visit';
-      if (cls === 'emer' || cls === 'emergency' || /\b(er|emergency)\b/.test(nm + ' ' + typ)) kind = 'er';
-      else if (cls === 'imp' || cls === 'inpatient' || /\b(inpatient|hospitalization|admit)\b/.test(nm + ' ' + typ)) kind = 'inpatient';
-      else if (cls === 'virtual' || /\b(telemed|telehealth|video visit|e-?visit)\b/.test(nm + ' ' + typ)) kind = 'virtual';
+      // Filter out non-visit chatter (patient messages, refills, etc.) — they
+      // come through the EHR encounters bucket but aren't "saw a provider".
+      var nonVisit = _storyClassifyVisitTitle(v.name);
+      var kind;
+      if (nonVisit === 'patient_message' || nonVisit === 'phone_call' || nonVisit === 'letter' || nonVisit === 'result_note') {
+        kind = nonVisit;
+      } else if (nonVisit === 'refill') {
+        kind = 'med';
+      } else if (cls === 'emer' || cls === 'emergency' || /\b(er|emergency)\b/.test(nm + ' ' + typ)) {
+        kind = 'er';
+      } else if (cls === 'imp' || cls === 'inpatient' || /\b(inpatient|hospitalization|admit)\b/.test(nm + ' ' + typ)) {
+        kind = 'inpatient';
+      } else if (cls === 'virtual' || /\b(telemed|telehealth|video visit|e-?visit)\b/.test(nm + ' ' + typ)) {
+        kind = 'virtual';
+      } else {
+        kind = 'visit';
+      }
       var detail = '';
       if (v.reason && v.location) detail = v.reason + ' \u2014 ' + v.location;
       else detail = v.location || v.reason || '';
-      push(new Date(v.start_date), kind, v.name || 'Visit', detail, 'from ' + ehrProv);
+      push(new Date(v.start_date), kind, _storyCleanTitle(v.name) || 'Visit', detail, 'from ' + ehrProv);
     });
     (ehr.conditions || []).forEach(function(c) {
       if (c.id && seenIds[c.id]) return;
@@ -21284,30 +21330,162 @@ function _storyBuildNarrative(events, anchorText, cause, personFirstName, fromDa
     return paragraphs.join('\n\n');
   }
 
-  // Group events by month so the story has natural beats.
-  var groups = [];
-  var currentKey = null;
+  // ── Pre-process: filter noise, dedupe repeated refills/visits ────────────
+  // 1) Patient messages, phone calls, letters, result notes: pulled out for a
+  //    single summary line per group ("5 messages with the care team").
+  // 2) Refill rows: collapse N refills of the same medication into one line.
+  // 3) Repeated visit titles within the same group: roll up ("3 PT appointments").
+  var msgKinds = { patient_message: 1, phone_call: 1, letter: 1, result_note: 1 };
+  var prosed = [];
+  var stashedMessages = [];
   events.forEach(function(ev) {
-    var k = ev.date.getFullYear() + '-' + ev.date.getMonth();
-    if (k !== currentKey) {
-      groups.push({ key: k, label: ev.date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }), events: [] });
-      currentKey = k;
-    }
-    groups[groups.length - 1].events.push(ev);
+    if (msgKinds[ev.kind]) { stashedMessages.push(ev); return; }
+    prosed.push(ev);
   });
 
-  // Build a paragraph per month.
+  // Group events by 2-week window so paragraphs have a natural cadence (not
+  // wall-of-text per month, not a paragraph per event).
+  function weekKey(d) {
+    // ISO-ish year + 2-week bucket of the year.
+    var start = new Date(d.getFullYear(), 0, 1);
+    var diff = (d - start) / 86400000;
+    var bi = Math.floor(diff / 14);
+    return d.getFullYear() + '-w' + bi;
+  }
+  function weekLabel(events) {
+    var first = events[0].date;
+    var last  = events[events.length - 1].date;
+    var sameMonth = first.getMonth() === last.getMonth() && first.getFullYear() === last.getFullYear();
+    if (sameMonth) {
+      return first.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }
+    return first.toLocaleDateString('en-US', { month: 'short' }) + '\u2013' +
+           last.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  }
+
+  var groups = [];
+  var byKey = Object.create(null);
+  prosed.forEach(function(ev) {
+    var k = weekKey(ev.date);
+    if (!byKey[k]) {
+      byKey[k] = { key: k, events: [] };
+      groups.push(byKey[k]);
+    }
+    byKey[k].events.push(ev);
+  });
+  // Distribute messages into their group too (so the per-group message line
+  // shows up next to the prose for that window).
+  var msgByKey = Object.create(null);
+  stashedMessages.forEach(function(ev) {
+    var k = weekKey(ev.date);
+    if (!msgByKey[k]) msgByKey[k] = [];
+    msgByKey[k].push(ev);
+  });
+  // Ensure groups exist for windows that only contain messages.
+  Object.keys(msgByKey).forEach(function(k) {
+    if (!byKey[k]) {
+      var first = msgByKey[k][0];
+      byKey[k] = { key: k, events: [] };
+      groups.push(byKey[k]);
+    }
+  });
+  groups.sort(function(a, b) {
+    var ad = (a.events[0] || msgByKey[a.key][0]).date;
+    var bd = (b.events[0] || msgByKey[b.key][0]).date;
+    return ad - bd;
+  });
+
+  // Build a paragraph per group, with dedupe + rollup.
+  // Track the previous group's label so consecutive groups in the same month
+  // don't say "Then in June 2025" three times in a row — instead the second+
+  // use "Later that month, ...".
+  var lastLabelEmitted = null;
   groups.forEach(function(g, gi) {
-    var lead = (gi === 0)
-      ? 'In ' + g.label + ', '
-      : 'Then in ' + g.label + ', ';
+    var groupEvents = g.events.slice();
+    var label = weekLabel(groupEvents.length > 0 ? groupEvents : msgByKey[g.key]);
+    var lead;
+    if (gi === 0) {
+      lead = 'In ' + label + ', ';
+    } else if (label === lastLabelEmitted) {
+      lead = 'Later that month, ';
+    } else {
+      lead = 'Then in ' + label + ', ';
+    }
+    lastLabelEmitted = label;
+
+    // Dedupe refills: collapse same med (case-insensitive cleaned title) into one.
+    var refillCounts = Object.create(null);
+    var refillFirstDate = Object.create(null);
+    var nonRefillMeds = [];
+    var visitCounts = Object.create(null);
+    var visitFirstDate = Object.create(null);
+    var nonVisitEvents = [];
+    var rolledMeds = [];
+    var rolledVisits = [];
+
+    groupEvents.forEach(function(ev) {
+      if (ev.kind === 'med' && /^refill$/i.test(ev.title || '')) {
+        // Try to pull the actual med name from detail; fall back to "Refill".
+        var medName = (ev.detail || '').split(/\s\u00b7\s/)[0].trim() || 'Refill';
+        refillCounts[medName] = (refillCounts[medName] || 0) + 1;
+        if (!refillFirstDate[medName]) refillFirstDate[medName] = ev.date;
+        return;
+      }
+      if (ev.kind === 'visit' || ev.kind === 'virtual') {
+        var key = (ev.title || '').toLowerCase().trim();
+        if (key) {
+          visitCounts[key] = (visitCounts[key] || 0) + 1;
+          if (!visitFirstDate[key]) visitFirstDate[key] = { date: ev.date, title: ev.title, kind: ev.kind, detail: ev.detail };
+        }
+      }
+      nonVisitEvents.push(ev);
+    });
+    // Lowercase-helper for visit titles in prose ("Cardiology Follow-up" → "a cardiology follow-up").
+    function _articleized(t) {
+      var s = (t || 'a visit').replace(/\b(\w)/g, function(_, c) { return c; }).trim();
+      // "Office Visit" -> "an office visit"; keep proper-noun visits as-is.
+      if (/^[A-Z]{2,}/.test(s)) return s; // already an acronym
+      var lower = s.replace(/\b(?!Dr\.|MD|DO|RN|NP|PA|PT|OT|ER|ICU|MRI|CT|EKG|ECG|EEG)([A-Z][a-z]+)/g, function(m) { return m.toLowerCase(); });
+      var first = lower.charAt(0).toLowerCase();
+      var art = /^[aeiou]/.test(first) ? 'an ' : 'a ';
+      return art + lower;
+    }
+
+    // Build rolled-up med refill sentences.
+    Object.keys(refillCounts).forEach(function(med) {
+      var n = refillCounts[med];
+      var word = n === 1 ? 'once' : n === 2 ? 'twice' : n + ' times';
+      rolledMeds.push((med || 'A medication') + ' was refilled ' + word + '.');
+    });
+
+    // Build the prose sentence list, replacing visit repeats with a rollup.
     var sentences = [];
-    g.events.forEach(function(ev, idx) {
+    var visitRolledKeys = Object.create(null);
+    nonVisitEvents.forEach(function(ev) {
+      if ((ev.kind === 'visit' || ev.kind === 'virtual') && visitCounts[(ev.title || '').toLowerCase().trim()] >= 2) {
+        var k = (ev.title || '').toLowerCase().trim();
+        if (visitRolledKeys[k]) return;
+        visitRolledKeys[k] = true;
+        var n = visitCounts[k];
+        var word = n === 2 ? 'twice' : n + ' times';
+        // Use the articleized form so it reads as "3 physical therapy visits".
+        var rolledTitle = _articleized(ev.title).replace(/^an?\s/, '');
+        sentences.push(personRef + ' had ' + rolledTitle + ' ' + word + '.');
+        return;
+      }
       var when = _storyFormatShort(ev.date);
       var s = '';
       switch (ev.kind) {
         case 'er':
-          s = personRef + ' went to the ER on ' + when + (ev.detail ? ' for ' + ev.detail.toLowerCase() : '') + '.';
+          // Only lowercase the reason, keep location proper-cased.
+          var erReason = '';
+          if (ev.detail) {
+            var dParts = ev.detail.split(/\s\u2014\s/);
+            var reasonPart = dParts[0] || '';
+            erReason = ' for ' + reasonPart.charAt(0).toLowerCase() + reasonPart.slice(1);
+            if (dParts.length > 1) erReason += ' at ' + dParts.slice(1).join(', ');
+          }
+          s = personRef + ' went to the ER on ' + when + erReason + '.';
           break;
         case 'inpatient':
           s = personRef + ' was admitted on ' + when + (ev.detail ? ' \u2014 ' + ev.detail : '') + '.';
@@ -21316,66 +21494,83 @@ function _storyBuildNarrative(events, anchorText, cause, personFirstName, fromDa
           s = 'On ' + when + ', ' + personRef.toLowerCase() + ' had surgery: ' + (ev.title || 'procedure') + (ev.detail ? ' (' + ev.detail + ')' : '') + '.';
           break;
         case 'visit':
-          s = 'On ' + when + ', ' + personRef.toLowerCase() + ' saw ' + (ev.title || 'a provider') + (ev.detail ? ' \u2014 ' + ev.detail : '') + '.';
+          s = 'On ' + when + ', ' + personRef.toLowerCase() + ' had ' + _articleized(ev.title) + '.';
           break;
         case 'virtual':
-          s = 'On ' + when + ', ' + personRef.toLowerCase() + ' had a video visit for ' + (ev.title || 'follow-up') + '.';
+          s = 'On ' + when + ', ' + personRef.toLowerCase() + ' had a video visit' + (ev.title ? ' for ' + _articleized(ev.title).replace(/^an?\s/, '') : '') + '.';
           break;
         case 'diagnosis':
           s = 'On ' + when + ', ' + (ev.title || 'a new diagnosis') + ' was added to the chart.';
           break;
         case 'lab':
-          s = (ev.title || 'A lab') + ' was drawn on ' + when + (ev.detail ? ' \u2014 ' + ev.detail : '') + '.';
+          s = (ev.title || 'A lab') + ' was drawn on ' + when + '.';
           break;
         case 'report':
-          s = 'A ' + (ev.title || 'report') + ' came back on ' + when + (ev.detail ? '. ' + ev.detail : '') + (ev.detail ? '' : '.');
-          if (!/\.$/.test(s)) s += '.';
+          s = 'A ' + (ev.title || 'report') + ' came back on ' + when + '.';
           break;
         case 'med':
-          s = 'On ' + when + ', ' + (ev.title || 'a medication was logged') + (ev.detail ? ' (' + ev.detail + ')' : '') + '.';
+          var medTitle = ev.title || 'a medication was logged';
+          if (/^started\s+/i.test(medTitle)) {
+            // "Started Alendronate" → "Mom started Alendronate"
+            var rest = medTitle.replace(/^started\s+/i, '');
+            s = 'On ' + when + ', ' + personRef.toLowerCase() + ' started ' + rest + (ev.detail ? ' (' + ev.detail + ')' : '') + '.';
+          } else {
+            s = 'On ' + when + ', ' + medTitle + (ev.detail ? ' (' + ev.detail + ')' : '') + '.';
+          }
           break;
         case 'immunization':
           s = personRef + ' got ' + (ev.title || 'a vaccine') + ' on ' + when + '.';
           break;
         case 'wellet_noticed':
-          s = 'On ' + when + ', Wellet noticed: ' + (ev.title || '') + (ev.detail ? '. ' + ev.detail : '') + (ev.detail ? '' : '.');
-          if (!/\.$/.test(s)) s += '.';
+          s = 'On ' + when + ', Wellet noticed: ' + (ev.title || '') + '.';
           break;
         default:
-          s = 'On ' + when + ', ' + (ev.title || 'a note was added') + (ev.detail ? ' \u2014 ' + ev.detail : '') + '.';
+          s = 'On ' + when + ', ' + (ev.title || 'a note was added') + '.';
       }
-      // Tidy up double spaces and stray punctuation.
       s = s.replace(/\s+/g, ' ').replace(/\s\./g, '.').trim();
-      // Re-capitalise the person reference if it's a proper noun ("Mom",
-      // "Dad", or a first name) and we lowercased it for mid-sentence flow.
       if (personRef && /^[A-Z]/.test(personRef)) {
         var lower = personRef.toLowerCase();
-        // Word-boundary, but only the lowercase variant produced by our flow.
         s = s.replace(new RegExp('\\b' + lower + '\\b', 'g'), personRef);
       }
       sentences.push(s);
     });
-    // Lead-cap only the very first sentence in the paragraph: lowercase its
-    // initial letter so it flows after the "In June 2025, " lead-in, then
-    // re-capitalise common proper-noun openers (Mom, Dad, the person's name).
-    var paragraph = lead.trim();
-    if (sentences.length > 0) {
-      var first = sentences[0];
-      // Lowercase the first character of the first sentence.
-      var firstLowered = first.charAt(0).toLowerCase() + first.slice(1);
-      paragraph = lead + firstLowered + (sentences.length > 1 ? ' ' + sentences.slice(1).join(' ') : '');
+
+    // Append rolled-up refill sentences after the prose.
+    rolledMeds.forEach(function(line) { sentences.push(line); });
+
+    // Append a single line for any patient messages in this window.
+    var msgs = msgByKey[g.key] || [];
+    if (msgs.length > 0) {
+      var word = msgs.length === 1 ? 'message' : 'messages';
+      sentences.push('There ' + (msgs.length === 1 ? 'was 1 ' : 'were ' + msgs.length + ' ') + word + ' with the care team.');
     }
-    // Re-capitalise a proper-noun start (e.g. "mom" \u2192 "Mom") right after the lead.
-    var properNoun = personRef && /^[A-Z]/.test(personRef) ? personRef : null;
-    if (properNoun) {
-      var leadRe = new RegExp('^(In [^,]+, |Then in [^,]+, )' + properNoun.toLowerCase(), '');
-      paragraph = paragraph.replace(leadRe, '$1' + properNoun);
+
+    if (sentences.length === 0) return;
+
+    // Break into sub-paragraphs of ~5 sentences each for readability.
+    var CHUNK = 5;
+    for (var ci = 0; ci < sentences.length; ci += CHUNK) {
+      var chunk = sentences.slice(ci, ci + CHUNK);
+      var paragraph;
+      if (ci === 0) {
+        // First sub-paragraph carries the lead-in ("In June 2025, ...").
+        var first = chunk[0];
+        var firstLowered = first.charAt(0).toLowerCase() + first.slice(1);
+        paragraph = lead + firstLowered + (chunk.length > 1 ? ' ' + chunk.slice(1).join(' ') : '');
+        var properNoun = personRef && /^[A-Z]/.test(personRef) ? personRef : null;
+        if (properNoun) {
+          var leadRe = new RegExp('^(In [^,]+, |Then in [^,]+, |Later that month, )' + properNoun.toLowerCase(), '');
+          paragraph = paragraph.replace(leadRe, '$1' + properNoun);
+        }
+      } else {
+        paragraph = chunk.join(' ');
+      }
+      paragraphs.push(paragraph.replace(/\s+/g, ' ').trim());
     }
-    paragraphs.push(paragraph.replace(/\s+/g, ' ').trim());
   });
 
   // Closing summary line — counts by kind.
-  var counts = { er: 0, inpatient: 0, surgery: 0, visit: 0, virtual: 0, diagnosis: 0, lab: 0, report: 0, med: 0, immunization: 0, wellet_noticed: 0, note: 0 };
+  var counts = { er: 0, inpatient: 0, surgery: 0, visit: 0, virtual: 0, diagnosis: 0, lab: 0, report: 0, med: 0, immunization: 0, wellet_noticed: 0, note: 0, patient_message: 0 };
   events.forEach(function(ev) { if (counts[ev.kind] != null) counts[ev.kind]++; });
   var allVisits = counts.visit + counts.virtual + counts.er + counts.inpatient + counts.surgery;
   var summaryBits = [];
