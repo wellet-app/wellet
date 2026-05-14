@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Wellet · extract-wishes smoke test</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --moss: #7B8C5C;
+      --moss-dark: #4E5A3C;
+      --ink: #1F1F1B;
+      --paper: #FAF7EE;
+      --rule: #E8E2D3;
+      --muted: #6B6B62;
+      --amber: #B97A20;
+      --crimson: #B23A2A;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font: 15px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif; }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 28px 22px 80px; }
+    h1 { font: 600 22px/1.25 ui-serif, Georgia, "Iowan Old Style", serif; margin: 0 0 4px; letter-spacing: -0.01em; }
+    .eyebrow { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--moss-dark); margin-bottom: 8px; }
+    .sub { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+    .panel { background: #fff; border: 1px solid var(--rule); border-radius: 10px; padding: 18px 18px 16px; margin-bottom: 16px; }
+    .label { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--moss-dark); font-weight: 600; margin-bottom: 6px; }
+    input[type="text"] { width: 100%; padding: 10px 12px; border: 1px solid var(--rule); border-radius: 8px; font: inherit; background: #fff; }
+    button { font: inherit; font-weight: 500; padding: 10px 18px; border: 0; background: var(--moss); color: #fff; border-radius: 8px; cursor: pointer; margin-top: 12px; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.ghost { background: transparent; color: var(--moss-dark); border: 1px solid var(--rule); }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .pill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 99px; background: #F0EDE0; color: var(--moss-dark); margin-right: 6px; }
+    .pill.high { background: #DDE7C7; color: #4E5A3C; }
+    .pill.medium { background: #F0E5C8; color: #6B5A2A; }
+    .pill.low { background: #EADFD2; color: #6B4A2A; }
+    .wish { padding: 14px 4px; border-top: 1px solid var(--rule); }
+    .wish:first-child { border-top: 0; }
+    .wish-content { font: 16px/1.5 ui-serif, Georgia, serif; margin: 4px 0 8px; }
+    .wish-meta { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    .wish-quote { font: italic 13px/1.55 ui-serif, Georgia, serif; color: var(--moss-dark); background: #F6F3E8; border-left: 3px solid var(--moss); padding: 8px 12px; border-radius: 0 6px 6px 0; }
+    pre { background: #1F1F1B; color: #DDE2D0; font: 12px/1.5 ui-monospace, SF Mono, Menlo, monospace; padding: 14px; border-radius: 8px; overflow: auto; max-height: 360px; }
+    .ok { color: var(--moss-dark); font-weight: 600; }
+    .err { color: var(--crimson); font-weight: 600; }
+    .warn { color: var(--amber); font-weight: 600; }
+    details { margin-top: 12px; }
+    summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+    .stat-row { display: flex; gap: 18px; margin: 10px 0 4px; }
+    .stat { font-size: 13px; }
+    .stat-num { font: 600 20px/1 ui-serif, serif; color: var(--ink); display: block; }
+    .stat-label { font-size: 11px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="eyebrow">Wellet · internal</div>
+    <h1>extract-wishes smoke test</h1>
+    <p class="sub">Calls the just-deployed edge function for one loved one and shows what the model surfaces. Uses your existing Wellet session.</p>
+
+    <div class="panel">
+      <div class="label">Sign in</div>
+      <div id="auth-state" style="font-size: 13px; color: var(--muted);">Checking session…</div>
+      <div class="row" id="auth-controls" style="display:none;">
+        <input type="text" id="email" placeholder="email" style="flex:1; min-width:200px;" />
+        <button id="send-magic">Send code</button>
+      </div>
+      <div class="row" id="otp-controls" style="margin-top:10px;">
+        <input type="text" id="otp-code" placeholder="Paste 6-digit code from email" inputmode="numeric" autocomplete="one-time-code" style="flex:1; min-width:200px; letter-spacing:0.3em; font-family: ui-monospace, SF Mono, Menlo, monospace;" />
+        <button id="verify-otp">Verify code</button>
+      </div>
+      <div style="font-size:12px; color:var(--muted); margin-top:8px;">Supabase is sending a 6-digit code instead of a clickable link — enter your email above, click <b>Send code</b>, then paste the code here. If you already got a code from an earlier attempt, just paste it here and hit Verify.</div>
+    </div>
+
+    <div class="panel">
+      <div class="label">Person ID</div>
+      <input type="text" id="person-id" value="2a1e1a92-f091-40d2-9f25-567d9b37fefb" />
+      <div class="row">
+        <button id="run-btn" disabled>Run extract-wishes</button>
+        <button class="ghost" id="list-existing">List existing wishes</button>
+      </div>
+      <div style="font-size:12px; color: var(--muted); margin-top:8px;">Default = Mom (Cheryl Roberts Harris). Replace with another person_id to test a different loved one.</div>
+    </div>
+
+    <div id="status" class="panel" style="display:none;">
+      <div class="label">Status</div>
+      <div id="status-body"></div>
+    </div>
+
+    <div id="results" class="panel" style="display:none;">
+      <div class="label">Suggested wishes</div>
+      <div class="stat-row">
+        <div class="stat"><span class="stat-num" id="stat-suggested">–</span><span class="stat-label">New</span></div>
+        <div class="stat"><span class="stat-num" id="stat-deduped">–</span><span class="stat-label">Deduped</span></div>
+        <div class="stat"><span class="stat-num" id="stat-raw">–</span><span class="stat-label">Raw</span></div>
+        <div class="stat"><span class="stat-num" id="stat-validated">–</span><span class="stat-label">Validated</span></div>
+      </div>
+      <div id="wish-list" style="margin-top:14px;"></div>
+      <details>
+        <summary>Raw JSON response</summary>
+        <pre id="raw-json"></pre>
+      </details>
+    </div>
+  </div>
+
+  <script type="module">
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+    const SUPABASE_URL = 'https://nrpdhxygzyfmyljzfexv.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU';
+    const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: true, storageKey: 'wellet-smoketest' }
+    });
+
+    const authStateEl = document.getElementById('auth-state');
+    const authControlsEl = document.getElementById('auth-controls');
+    const otpControlsEl = document.getElementById('otp-controls');
+    const emailEl = document.getElementById('email');
+    const otpCodeEl = document.getElementById('otp-code');
+    const sendMagicBtn = document.getElementById('send-magic');
+    const verifyOtpBtn = document.getElementById('verify-otp');
+    let pendingEmail = localStorage.getItem('wellet-smoketest-pending-email') || '';
+    const runBtn = document.getElementById('run-btn');
+    const listBtn = document.getElementById('list-existing');
+    const personIdEl = document.getElementById('person-id');
+    const statusEl = document.getElementById('status');
+    const statusBody = document.getElementById('status-body');
+    const resultsEl = document.getElementById('results');
+    const wishListEl = document.getElementById('wish-list');
+    const rawJsonEl = document.getElementById('raw-json');
+
+    function setStatus(html, kind = '') {
+      statusEl.style.display = 'block';
+      statusBody.innerHTML = `<span class="${kind}">${html}</span>`;
+    }
+
+    async function refreshAuth() {
+      const { data: { session } } = await db.auth.getSession();
+      if (session) {
+        authStateEl.innerHTML = `<span class="ok">Signed in</span> as ${session.user.email}`;
+        authControlsEl.style.display = 'none';
+        otpControlsEl.style.display = 'none';
+        runBtn.disabled = false;
+      } else {
+        authStateEl.innerHTML = `<span class="warn">Not signed in</span>`;
+        authControlsEl.style.display = 'flex';
+        otpControlsEl.style.display = 'flex';
+        if (pendingEmail) {
+          emailEl.value = pendingEmail;
+        }
+        runBtn.disabled = true;
+      }
+    }
+
+    async function sendCode(email) {
+      const { error } = await db.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href } });
+      if (error) {
+        setStatus(`Could not send: ${error.message}`, 'err');
+        return false;
+      }
+      pendingEmail = email;
+      localStorage.setItem('wellet-smoketest-pending-email', email);
+      setStatus(`6-digit code sent to ${email}. Paste it below and click Verify.`, 'ok');
+      setTimeout(() => otpCodeEl.focus(), 50);
+      return true;
+    }
+
+    sendMagicBtn.addEventListener('click', async () => {
+      const email = emailEl.value.trim();
+      if (!email) { setStatus('Enter an email first', 'err'); return; }
+      sendMagicBtn.disabled = true;
+      await sendCode(email);
+      sendMagicBtn.disabled = false;
+    });
+
+    async function verifyCode() {
+      const email = (emailEl.value.trim() || pendingEmail);
+      const token = otpCodeEl.value.replace(/\s+/g, '').trim();
+      if (!email) { setStatus('Enter your email first, then request a code', 'err'); return; }
+      if (!token) { setStatus('Paste the 6-digit code from the email', 'err'); return; }
+      verifyOtpBtn.disabled = true;
+      setStatus('Verifying code…', '');
+      const { error } = await db.auth.verifyOtp({ email, token, type: 'email' });
+      verifyOtpBtn.disabled = false;
+      if (error) {
+        setStatus(`Could not verify: ${error.message}`, 'err');
+      } else {
+        localStorage.removeItem('wellet-smoketest-pending-email');
+        pendingEmail = '';
+        setStatus('Signed in.', 'ok');
+      }
+    }
+
+    verifyOtpBtn.addEventListener('click', verifyCode);
+    otpCodeEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') verifyCode(); });
+
+    db.auth.onAuthStateChange(() => refreshAuth());
+
+    runBtn.addEventListener('click', async () => {
+      const personId = personIdEl.value.trim();
+      if (!personId) { setStatus('Enter a person_id', 'err'); return; }
+      const { data: { session } } = await db.auth.getSession();
+      if (!session) { setStatus('Not signed in', 'err'); return; }
+
+      runBtn.disabled = true;
+      setStatus('Calling extract-wishes… this can take 15–40 seconds while gpt-4o reads the record.', '');
+      resultsEl.style.display = 'none';
+      wishListEl.innerHTML = '';
+      const t0 = Date.now();
+
+      try {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/extract-wishes`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey': SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({ person_id: personId }),
+        });
+        const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+        const text = await res.text();
+        let json;
+        try { json = JSON.parse(text); } catch { json = { error: 'non-JSON response', raw: text }; }
+
+        rawJsonEl.textContent = JSON.stringify(json, null, 2);
+        resultsEl.style.display = 'block';
+
+        if (!res.ok) {
+          setStatus(`HTTP ${res.status} after ${elapsed}s — see raw JSON.`, 'err');
+        } else {
+          setStatus(`Finished in ${elapsed}s. Suggested: ${json.suggested ?? 0}, Deduped: ${json.deduped ?? 0}, Raw candidates: ${json.raw_candidates ?? 0}.`, 'ok');
+          document.getElementById('stat-suggested').textContent = json.suggested ?? '–';
+          document.getElementById('stat-deduped').textContent = json.deduped ?? '–';
+          document.getElementById('stat-raw').textContent = json.raw_candidates ?? '–';
+          document.getElementById('stat-validated').textContent = json.validated ?? '–';
+
+          // Pull the actual rows that landed in `wishes` so we can render them.
+          await fetchAndRenderWishes(personId);
+        }
+      } catch (e) {
+        setStatus(`Fetch failed: ${e.message}`, 'err');
+      } finally {
+        runBtn.disabled = false;
+      }
+    });
+
+    listBtn.addEventListener('click', async () => {
+      const personId = personIdEl.value.trim();
+      if (!personId) { setStatus('Enter a person_id', 'err'); return; }
+      setStatus('Loading existing wishes…', '');
+      resultsEl.style.display = 'block';
+      await fetchAndRenderWishes(personId);
+      setStatus('Existing wishes loaded.', 'ok');
+    });
+
+    async function fetchAndRenderWishes(personId) {
+      const { data, error } = await db.from('wishes')
+        .select('id, content, category, source_type, source_id, source_quote, confidence, status, created_at')
+        .eq('person_id', personId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) {
+        wishListEl.innerHTML = `<div class="err">Could not list wishes: ${error.message}</div>`;
+        return;
+      }
+      if (!data || !data.length) {
+        wishListEl.innerHTML = `<div style="color: var(--muted); font-style: italic; padding: 10px 4px;">No wishes recorded for this person yet.</div>`;
+        return;
+      }
+      wishListEl.innerHTML = data.map(w => {
+        const conf = (w.confidence || 'low').toLowerCase();
+        return `
+          <div class="wish">
+            <div>
+              <span class="pill ${conf}">${w.confidence || '—'}</span>
+              <span class="pill">${w.category || '—'}</span>
+              <span class="pill">${w.source_type || '—'}</span>
+              <span class="pill">${w.status || '—'}</span>
+            </div>
+            <div class="wish-content">${escapeHtml(w.content)}</div>
+            ${w.source_quote ? `<div class="wish-quote">“${escapeHtml(w.source_quote)}”</div>` : ''}
+            <div class="wish-meta" style="margin-top:6px;">source_id: <code>${w.source_id || '—'}</code> · ${new Date(w.created_at).toLocaleString()}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function escapeHtml(s) {
+      return String(s || '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+    }
+
+    refreshAuth();
+  </script>
+</body>
+</html>
