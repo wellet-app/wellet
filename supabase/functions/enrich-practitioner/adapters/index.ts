@@ -20,9 +20,11 @@
 import { registerAdapter } from "../../_shared/hospital-directory-registry.ts";
 import { dukeAdapter } from "./duke.ts";
 import { uncAdapter } from "./unc.ts";
+import { wakemedAdapter } from "./wakemed.ts";
 
 registerAdapter(dukeAdapter);
 registerAdapter(uncAdapter);
+registerAdapter(wakemedAdapter);
 
 // Future adapters land here:
 //   import { clevelandAdapter } from "./cleveland.ts";  registerAdapter(clevelandAdapter);
