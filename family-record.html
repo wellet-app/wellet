@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Family Record — Wellet</title>
+<meta name="description" content="A family record from Wellet — the chart that belongs to your family, not the hospital.">
+<meta property="og:title" content="Family Record — Wellet">
+<meta property="og:description" content="A family record from Wellet — the chart that belongs to your family, not the hospital.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://mywellet.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#608F7C">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<script src="/lucide.min.js"></script>
+<style>
+  :root {
+    --moss: #608F7C;
+    --moss-dark: #4F7A68;
+    --mint: #DCE9E2;
+    --mint-deep: #C5D9CE;
+    --cream: #F7F5F0;
+    --warm-white: #FDFCFA;
+    --text-primary: #2C2A26;
+    --text-secondary: #6B6560;
+    --text-muted: #9E9A94;
+    --border: rgba(79,77,92,0.12);
+    --border-medium: rgba(79,77,92,0.2);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--text-primary); min-height: 100vh; }
+
+  .page { max-width: 680px; margin: 0 auto; padding: 24px 20px 56px; }
+
+  /* Header */
+  .header { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+  .logo { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--moss); }
+  .logo svg { width: 22px; height: 22px; }
+  .logo-text { font-family: 'DM Serif Display', serif; font-size: 18px; font-weight: 400; color: var(--moss); }
+  .badge { margin-left: auto; font-size: 11px; color: var(--text-muted); background: var(--mint); padding: 4px 10px; border-radius: 20px; }
+
+  /* Cover */
+  .cover { text-align: left; margin-bottom: 28px; }
+  .eyebrow { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px; }
+  .cover h1 { font-family: 'DM Serif Display', serif; font-size: 38px; font-weight: 400; line-height: 1.1; margin-bottom: 10px; color: var(--text-primary); }
+  .cover .moat { font-family: 'DM Serif Display', serif; font-style: italic; color: var(--moss); font-size: 16px; margin-top: 6px; }
+  .cover .meta { font-size: 13px; color: var(--text-muted); margin-top: 14px; }
+
+  /* Counts strip */
+  .counts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: var(--warm-white); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 20px; }
+  .count { text-align: center; }
+  .count .n { font-family: 'DM Serif Display', serif; font-size: 24px; color: var(--moss-dark); line-height: 1; }
+  .count .l { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-top: 6px; }
+
+  /* CTA */
+  .actions { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 20px; border-radius: 12px; text-decoration: none; font-size: 15px; font-weight: 500; transition: all 160ms ease; cursor: pointer; border: none; font-family: inherit; }
+  .btn-primary { background: var(--moss); color: white; }
+  .btn-primary:hover { background: var(--moss-dark); }
+  .btn-ghost { background: transparent; color: var(--moss-dark); border: 1px solid var(--border-medium); }
+  .btn-ghost:hover { background: var(--mint); }
+
+  /* Wishes preview */
+  .wishes { background: var(--warm-white); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 20px; }
+  .wishes h3 { font-family: 'DM Serif Display', serif; font-weight: 400; font-size: 18px; color: var(--moss-dark); margin-bottom: 4px; }
+  .wishes .sub { font-size: 12px; color: var(--text-muted); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 14px; }
+  .wish-q { font-family: 'DM Serif Display', serif; font-style: italic; font-size: 15px; line-height: 1.55; color: var(--text-primary); padding: 8px 0; border-top: 1px dashed var(--border); }
+  .wish-q:first-of-type { border-top: none; }
+
+  /* Privacy strip */
+  .privacy { background: var(--mint); border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; font-size: 12px; color: var(--moss-dark); line-height: 1.5; display: flex; align-items: flex-start; gap: 8px; }
+  .privacy svg { flex-shrink: 0; margin-top: 1px; width: 14px; height: 14px; }
+
+  /* Footer */
+  .footer { text-align: center; padding: 24px 0 0; border-top: 1px solid var(--border); margin-top: 12px; }
+  .footer-text { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+  .footer-link { color: var(--moss); text-decoration: none; font-weight: 500; }
+  .footer-link:hover { text-decoration: underline; }
+
+  /* States */
+  .error, .loading { text-align: center; padding: 64px 24px; }
+  .error-icon { color: var(--text-muted); margin-bottom: 16px; }
+  .error-title { font-family: 'DM Serif Display', serif; font-size: 22px; margin-bottom: 8px; }
+  .error-text { font-size: 14px; color: var(--text-secondary); line-height: 1.6; max-width: 360px; margin: 0 auto; }
+  .loading-text { font-size: 14px; color: var(--text-muted); margin-top: 12px; }
+  .spinner { width: 28px; height: 28px; border: 2px solid var(--mint); border-top-color: var(--moss); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header class="header">
+    <a class="logo" href="https://mywellet.com">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/></svg>
+      <span class="logo-text">Wellet</span>
+    </a>
+    <span class="badge">Family Record</span>
+  </header>
+
+  <div id="loading-state" class="loading">
+    <div class="spinner"></div>
+    <p class="loading-text">Opening the record…</p>
+  </div>
+
+  <div id="content" style="display:none;">
+    <section class="cover">
+      <div class="eyebrow">A record that belongs to your family</div>
+      <h1 id="person-name">—</h1>
+      <div class="moat">Not the hospital's chart. Theirs.</div>
+      <div class="meta" id="meta">—</div>
+    </section>
+
+    <div class="counts">
+      <div class="count"><div class="n" id="c-wishes">0</div><div class="l">Wishes</div></div>
+      <div class="count"><div class="n" id="c-conditions">0</div><div class="l">Conditions</div></div>
+      <div class="count"><div class="n" id="c-meds">0</div><div class="l">Medications</div></div>
+      <div class="count"><div class="n" id="c-events">0</div><div class="l">Events</div></div>
+    </div>
+
+    <div id="wishes-block" class="wishes" style="display:none;">
+      <h3>In their own words</h3>
+      <div class="sub">A few of their wishes</div>
+      <div id="wishes-list"></div>
+    </div>
+
+    <div class="actions">
+      <a id="download-btn" class="btn btn-primary" href="#" download>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download PDF
+      </a>
+      <a class="btn btn-ghost" href="https://mywellet.com">
+        Make your own family record
+      </a>
+    </div>
+
+    <div class="privacy">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg>
+      <div>This link is shareable but private. It expires automatically. The download link is short-lived and refreshes each time you open this page.</div>
+    </div>
+  </div>
+
+  <div id="error-state" class="error" style="display:none;">
+    <svg class="error-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <h2 class="error-title" id="error-title">This link has expired</h2>
+    <p class="error-text" id="error-text">Family records are available for 180 days. Ask the family member who shared this with you to send a new link.</p>
+    <a class="btn btn-primary" style="margin-top:24px; display:inline-flex;" href="https://mywellet.com">Visit Wellet</a>
+  </div>
+
+  <div class="footer">
+    <p class="footer-text">
+      Wellet is a <a class="footer-link" href="https://mywellet.com">witness system for caregivers</a>.<br>
+      A record that belongs to your family, not the hospital.
+    </p>
+  </div>
+</div>
+
+<script>
+  const SUPABASE_URL = 'https://nrpdhxygzyfmyljzfexv.supabase.co';
+  const FN_URL = SUPABASE_URL + '/functions/v1/family-record-url';
+
+  function getToken() {
+    var u = new URL(window.location.href);
+    return u.searchParams.get('t') || u.searchParams.get('token');
+  }
+
+  function showError(title, text) {
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('content').style.display = 'none';
+    var es = document.getElementById('error-state');
+    es.style.display = 'block';
+    if (title) document.getElementById('error-title').textContent = title;
+    if (text) document.getElementById('error-text').textContent = text;
+  }
+
+  function esc(s) { return (s == null ? '' : String(s)); }
+
+  function formatDate(iso) {
+    try {
+      return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    } catch (e) { return ''; }
+  }
+
+  async function load() {
+    var token = getToken();
+    if (!token) {
+      showError('No record token', 'This URL is missing the share token. Ask for a new link.');
+      return;
+    }
+
+    try {
+      var res = await fetch(FN_URL, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token: token })
+      });
+      var body = await res.json().catch(function() { return { ok: false, error: 'bad_response' }; });
+
+      if (!res.ok || !body.ok) {
+        if (body.error === 'not_found_or_expired') {
+          showError('This link has expired', 'Family records are available for 180 days. Ask the family member who shared this with you to send a new link.');
+        } else {
+          showError('Something went wrong', 'We couldn\u2019t open this record. Please try again or ask for a new link.');
+        }
+        return;
+      }
+
+      render(body);
+    } catch (err) {
+      console.error('family-record load error', err);
+      showError('Something went wrong', 'We couldn\u2019t reach Wellet. Check your connection and try again.');
+    }
+  }
+
+  function render(data) {
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('content').style.display = 'block';
+
+    document.title = (data.person_name || 'Family Record') + ' — Wellet';
+    document.getElementById('person-name').textContent = (data.person_name || 'Family member') + '\u2019s Record';
+    document.getElementById('meta').textContent = 'Compiled ' + formatDate(data.generated_at) + ' \u00b7 link expires ' + formatDate(data.expires_at);
+
+    var c = data.counts || {};
+    document.getElementById('c-wishes').textContent = c.wishes || 0;
+    document.getElementById('c-conditions').textContent = c.conditions || 0;
+    document.getElementById('c-meds').textContent = c.medications || 0;
+    document.getElementById('c-events').textContent = c.events || 0;
+
+    // Wishes preview
+    var snapshot = data.snapshot || {};
+    var preview = Array.isArray(snapshot.wishes_preview) ? snapshot.wishes_preview : [];
+    if (preview.length > 0) {
+      var block = document.getElementById('wishes-block');
+      var list = document.getElementById('wishes-list');
+      list.innerHTML = '';
+      preview.forEach(function(q) {
+        var div = document.createElement('div');
+        div.className = 'wish-q';
+        div.textContent = '\u201C' + esc(q) + '\u201D';
+        list.appendChild(div);
+      });
+      block.style.display = 'block';
+    }
+
+    // Download
+    var btn = document.getElementById('download-btn');
+    btn.href = data.signed_url;
+  }
+
+  load();
+</script>
+</body>
+</html>

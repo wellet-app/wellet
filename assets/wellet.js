@@ -22416,8 +22416,136 @@ async function downloadFamilyRecordPDF() {
   }
 
   pdfAddFooter(doc);
-  doc.save(firstName + '-Family-Record-' + new Date().toISOString().slice(0,10) + '.pdf');
-  showToast('Family record downloaded');
+
+  // Always trigger the local download — the file belongs to the family.
+  var fileName = firstName + '-Family-Record-' + new Date().toISOString().slice(0,10) + '.pdf';
+  doc.save(fileName);
+
+  // Persist live records to Supabase so the family can re-download or share.
+  // Demo mode is download-only.
+  if (!isDemoMode && currentPersonId) {
+    try {
+      var session = await db.auth.getSession();
+      var userId = session && session.data && session.data.session && session.data.session.user && session.data.session.user.id;
+      if (userId) {
+        var pdfBlob = doc.output('blob');
+        var fileSize = (pdfBlob && pdfBlob.size) || 0;
+
+        // Insert metadata row FIRST so we have an id for the storage path.
+        var recordId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : null;
+        var storagePath = userId + '/' + (recordId || Date.now()) + '.pdf';
+
+        var snapshot = {
+          patient: fullName,
+          wishes_preview: (wishes || []).slice(0, 3).map(function(w) {
+            var t = '';
+            try {
+              var ee = w && w.extracted_events;
+              if (ee && typeof ee === 'object') {
+                if (typeof ee.transcript === 'string') t = ee.transcript;
+                else if (typeof ee.text === 'string') t = ee.text;
+                else if (typeof ee.summary === 'string') t = ee.summary;
+              }
+            } catch (e) {}
+            return t.slice(0, 200);
+          }).filter(Boolean)
+        };
+
+        var insertRow = {
+          user_id: userId,
+          person_id: currentPersonId,
+          person_name: fullName,
+          storage_path: storagePath,
+          file_size_bytes: fileSize,
+          wishes_count: (wishes || []).length,
+          conditions_count: (person && person.conditions) ? person.conditions.split(',').filter(function(s){ return s.trim(); }).length : 0,
+          medications_count: (typeof liveMeds !== 'undefined' ? liveMeds.filter(function(m){ return m.active; }).length : 0),
+          events_count: (typeof liveEvents !== 'undefined' ? Math.min(liveEvents.length, 50) : 0),
+          snapshot: snapshot
+        };
+        if (recordId) insertRow.id = recordId;
+
+        var insertRes = await db.from('family_records').insert(insertRow).select('id').single();
+        if (!insertRes.error && insertRes.data) {
+          var savedId = insertRes.data.id;
+          var finalPath = userId + '/' + savedId + '.pdf';
+
+          // If we generated the id client-side it already matches; otherwise
+          // update the storage path to use the server-assigned id.
+          if (finalPath !== storagePath) {
+            await db.from('family_records').update({ storage_path: finalPath }).eq('id', savedId);
+          }
+
+          var upload = await db.storage.from('family-records').upload(finalPath, pdfBlob, {
+            contentType: 'application/pdf',
+            upsert: true
+          });
+          if (upload.error) {
+            console.warn('family-record upload failed', upload.error);
+            // Clean up the orphan row.
+            try { await db.from('family_records').delete().eq('id', savedId); } catch (e) {}
+          }
+        } else if (insertRes.error) {
+          console.warn('family_records insert failed', insertRes.error);
+        }
+      }
+    } catch (persistErr) {
+      // Persistence is best-effort. The user already has the PDF.
+      console.warn('family-record persistence skipped:', persistErr);
+    }
+  }
+
+  showToast('Family record saved');
+}
+
+// Generate a short share token for a family record. 12 chars, url-safe.
+function generateFamilyRecordToken() {
+  var chars = 'abcdefghijkmnpqrstuvwxyz23456789';
+  var out = '';
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    var arr = new Uint8Array(12);
+    crypto.getRandomValues(arr);
+    for (var i = 0; i < 12; i++) out += chars[arr[i] % chars.length];
+  } else {
+    for (var j = 0; j < 12; j++) out += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return out;
+}
+
+// Toggle sharing on a saved family record. Returns the share URL.
+async function shareFamilyRecord(recordId) {
+  if (!recordId) return null;
+  try {
+    var token = generateFamilyRecordToken();
+    var res = await db.from('family_records')
+      .update({ share_token: token })
+      .eq('id', recordId)
+      .select('share_token')
+      .single();
+    if (res.error || !res.data) {
+      showToast('Could not create share link');
+      return null;
+    }
+    var shareUrl = 'https://mywellet.com/family-record.html?t=' + res.data.share_token;
+    try { await navigator.clipboard.writeText(shareUrl); showToast('Share link copied'); }
+    catch (e) { showToast('Share link ready'); }
+    return shareUrl;
+  } catch (e) {
+    console.warn('shareFamilyRecord failed', e);
+    return null;
+  }
+}
+
+// Revoke sharing on a saved family record.
+async function revokeFamilyRecord(recordId) {
+  if (!recordId) return;
+  if (!confirm('Revoke this share link? Anyone with it will lose access.')) return;
+  try {
+    var res = await db.from('family_records')
+      .update({ share_token: null })
+      .eq('id', recordId);
+    if (!res.error) showToast('Share link revoked');
+  } catch (e) { console.warn('revokeFamilyRecord failed', e); }
 }
 
 // ── FEATURE 3: EXPORT FOR VISIT ─────────────────────────────────────────────
