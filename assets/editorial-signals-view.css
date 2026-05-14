@@ -435,3 +435,33 @@
 .cs-rhythm-card--placeholder .cs-rhythm-metric--soft {
   color: #B6AC97;
 }
+
+/* ── CareSignals v1.2 (May 14 2026): stale-data banner ───────────────── */
+.cs-rhythm-stale {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #FFF7E6;
+  border: 1px solid #E8D9A8;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: -2px 0 12px 0;
+}
+.cs-rhythm-stale-icon {
+  flex: 0 0 auto;
+  color: #8A6A1F;
+  margin-top: 1px;
+}
+.cs-rhythm-stale-body { flex: 1 1 auto; }
+.cs-rhythm-stale-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #5C4A1C;
+  letter-spacing: 0.01em;
+  margin-bottom: 2px;
+}
+.cs-rhythm-stale-sub {
+  font-size: 12px;
+  color: #7A6840;
+  line-height: 1.4;
+}

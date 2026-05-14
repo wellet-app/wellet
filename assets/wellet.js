@@ -10161,11 +10161,25 @@ function _buildRhythmHtml(terraData, rhythmAH, checkIns) {
   // see WHY a metric looks weird (e.g. "Steps 0" because background sync
   // hasn't flushed today's writes from Wellet Connect yet).
   var freshLabel = '';
+  var isStale = false; // > 24h old → tiles show "no fresh data" not "0"
   if (ah.lastSyncAt) {
-    try { freshLabel = 'Apple Health \u00b7 last synced ' + formatTimeAgo(ah.lastSyncAt); } catch(_e) {}
+    try {
+      var ageMs = Date.now() - new Date(ah.lastSyncAt).getTime();
+      isStale = ageMs > 24 * 60 * 60 * 1000;
+      freshLabel = 'Apple Health \u00b7 last synced ' + formatTimeAgo(ah.lastSyncAt);
+    } catch(_e) {}
   }
   var html = '';
-  if (freshLabel) {
+  if (isStale) {
+    // Stale banner: tells the user the displayed numbers are old and how to refresh.
+    html += '<div class="cs-rhythm-stale">';
+    html += '<div class="cs-rhythm-stale-icon"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></div>';
+    html += '<div class="cs-rhythm-stale-body">';
+    html += '<div class="cs-rhythm-stale-title">' + escHtml(freshLabel || 'Apple Health is quiet') + '</div>';
+    html += '<div class="cs-rhythm-stale-sub">Open Wellet Connect on your iPhone to refresh today\u2019s heart rate and steps.</div>';
+    html += '</div>';
+    html += '</div>';
+  } else if (freshLabel) {
     html += '<div class="cs-rhythm-freshness">' + escHtml(freshLabel) + '</div>';
   }
   html += '<div class="cs-rhythm-grid">';
@@ -10185,17 +10199,36 @@ function _buildRhythmHtml(terraData, rhythmAH, checkIns) {
     html += '<div class="cs-rhythm-label">Resting heart rate</div>';
     html += '<div class="cs-rhythm-metric">' + mean + ' <span class="cs-rhythm-unit">bpm</span></div>';
     try { html += '<div class="cs-rhythm-spark">' + buildSparkline(src.trend, 120, 28, 'var(--red, #B85450)') + '</div>'; } catch (_e) {}
-    html += '<div class="cs-rhythm-sub">7-day average</div>';
+    html += '<div class="cs-rhythm-sub">' + (isStale ? 'Last 7 days · numbers may be stale' : '7-day average') + '</div>';
     html += '</div>';
   }
-  // Steps sparkline
+  // Steps sparkline — if stale AND today=0, show last non-zero day instead of
+  // a misleading "0 today" headline.
   if (hasSteps) {
     var todaySteps = ah.steps.today || 0;
+    var stepsLabel = 'Today \u00b7 7-day trend';
+    var stepsHeadline = todaySteps.toLocaleString();
+    if (isStale && todaySteps === 0) {
+      var trendArr = ah.steps.trend || [];
+      var lastNonZero = 0;
+      var daysBack = 0;
+      for (var si = trendArr.length - 1; si >= 0; si--) {
+        if (trendArr[si] > 0) { lastNonZero = trendArr[si]; daysBack = trendArr.length - 1 - si; break; }
+      }
+      if (lastNonZero > 0) {
+        stepsHeadline = lastNonZero.toLocaleString();
+        stepsLabel = daysBack === 1 ? 'Yesterday\u2019s steps · awaiting fresh sync'
+                    : daysBack <= 6 ? daysBack + ' days ago · awaiting fresh sync'
+                    : 'Recent steps · awaiting fresh sync';
+      } else {
+        stepsLabel = 'Awaiting fresh sync';
+      }
+    }
     html += '<div class="cs-rhythm-card">';
     html += '<div class="cs-rhythm-label">Steps</div>';
-    html += '<div class="cs-rhythm-metric">' + todaySteps.toLocaleString() + '</div>';
+    html += '<div class="cs-rhythm-metric">' + stepsHeadline + '</div>';
     try { html += '<div class="cs-rhythm-spark">' + buildSparkline(ah.steps.trend, 120, 28, 'var(--moss, #5A6F50)') + '</div>'; } catch (_e) {}
-    html += '<div class="cs-rhythm-sub">Today \u00b7 7-day trend</div>';
+    html += '<div class="cs-rhythm-sub">' + escHtml(stepsLabel) + '</div>';
     html += '</div>';
   }
   // Sleep — prefer family check-in sleep_quality; otherwise show a calm
