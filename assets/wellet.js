@@ -1690,6 +1690,34 @@ function showAppleHealthWebNotice() {
   showToast('Apple Health lives on iPhone \u2014 open Wellet on your iPhone to connect.');
 }
 
+// Tapped from the yellow "last synced 3 days ago" banner. Bounces into Wellet
+// Connect via the universal link so iOS schedules a fresh HealthKit upload.
+// Same wellet:// scheme as connectAppleHealth() but with refresh=1 so the
+// helper app knows it's a re-sync, not a first-time onboarding.
+function refreshAppleHealthFromBanner() {
+  if (!_isIPhone()) {
+    showToast('Open Wellet on your iPhone to refresh Apple Health.');
+    return;
+  }
+  if (!currentPersonId) {
+    showToast('Setting things up \u2014 try again in a moment');
+    return;
+  }
+  var deepLink = 'wellet://connect?type=health&refresh=1'
+               + '&person_id=' + encodeURIComponent(currentPersonId)
+               + '&return='    + encodeURIComponent(location.origin + '/connect-callback?mode=apple');
+  var t0 = Date.now();
+  try { window.location.href = deepLink; } catch(e) { /* swallow */ }
+  // If the app isn't installed, fall back to the install prompt after 800ms.
+  setTimeout(function() {
+    if (document.visibilityState === 'visible' && Date.now() - t0 < 1500) {
+      showWelletConnectInstallPrompt();
+    }
+  }, 800);
+  // Optimistic toast so the user knows the tap registered before the bounce.
+  try { showToast('Opening Wellet Connect to refresh\u2026'); } catch(_e){}
+}
+
 function showWelletConnectInstallPrompt() {
   var ov = document.getElementById('wc-install-overlay');
   if (!ov) return;
@@ -9768,6 +9796,89 @@ function buildSparkline(values, width, height, color) {
     + '</svg>';
 }
 
+// Richer 7-day chart for the rhythm cards: area fill + value labels on max
+// day, dots on each non-zero day, and day-of-week ticks underneath. `values`
+// is the 7-day trend (oldest -> newest). `color` is the stroke color; we
+// derive a soft fill from it.
+function buildRhythmChart(values, width, height, color, unitSuffix) {
+  var W = width;
+  var H = height;
+  var padL = 6, padR = 6, padT = 16, padB = 18;
+  var chartW = W - padL - padR;
+  var chartH = H - padT - padB;
+  var nonZero = (values || []).filter(function(v){ return v > 0; });
+  if (nonZero.length === 0) {
+    return '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"></svg>';
+  }
+  var max = Math.max.apply(null, values);
+  var min = Math.min.apply(null, nonZero);
+  // Pad the visual range so the line never hugs the top/bottom.
+  var rangeRaw = max - min;
+  var pad = rangeRaw > 0 ? rangeRaw * 0.15 : Math.max(1, max * 0.1);
+  var lo = Math.max(0, min - pad);
+  var hi = max + pad;
+  var range = hi - lo || 1;
+  var n = values.length;
+  var stepX = n > 1 ? chartW / (n - 1) : 0;
+  function px(i){ return padL + i * stepX; }
+  function py(v){ return padT + chartH - ((v - lo) / range) * chartH; }
+  // Line points and area points.
+  var linePts = [];
+  var areaPts = [];
+  for (var i = 0; i < n; i++) {
+    var v = values[i];
+    if (v > 0) {
+      linePts.push(px(i) + ',' + py(v));
+      areaPts.push(px(i) + ',' + py(v));
+    }
+  }
+  if (linePts.length === 0) {
+    return '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"></svg>';
+  }
+  // Close the area path along the bottom.
+  var firstX = parseFloat(linePts[0].split(',')[0]);
+  var lastX = parseFloat(linePts[linePts.length-1].split(',')[0]);
+  var baseY = padT + chartH;
+  var areaPath = 'M' + firstX + ',' + baseY + ' L' + areaPts.join(' L') + ' L' + lastX + ',' + baseY + ' Z';
+  // Day labels: oldest = 6 days ago, newest = today.
+  var dayNames = ['S','M','T','W','T','F','S'];
+  var today = new Date();
+  var labels = [];
+  for (var d = n - 1; d >= 0; d--) {
+    var dt = new Date(today.getFullYear(), today.getMonth(), today.getDate() - d);
+    labels.push(dayNames[dt.getDay()]);
+  }
+  // Find max-value index for the headline label.
+  var maxIdx = 0;
+  for (var mi = 0; mi < n; mi++) { if (values[mi] >= values[maxIdx]) maxIdx = mi; }
+  // Build SVG.
+  var svg = '<svg width="100%" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true" style="display:block;">';
+  // Soft grid baseline.
+  svg += '<line x1="' + padL + '" y1="' + (padT + chartH) + '" x2="' + (W - padR) + '" y2="' + (padT + chartH) + '" stroke="#E5DFD2" stroke-width="1"/>';
+  // Area fill.
+  svg += '<path d="' + areaPath + '" fill="' + color + '" fill-opacity="0.12"/>';
+  // Line.
+  svg += '<polyline fill="none" stroke="' + color + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="' + linePts.join(' ') + '"/>';
+  // Dots on each non-zero day.
+  for (var di = 0; di < n; di++) {
+    if (values[di] > 0) {
+      svg += '<circle cx="' + px(di) + '" cy="' + py(values[di]) + '" r="' + (di === maxIdx ? 3 : 2) + '" fill="' + color + '"/>';
+    }
+  }
+  // Max-value label.
+  var maxLabel = (values[maxIdx] >= 1000) ? Math.round(values[maxIdx]/1000*10)/10 + 'k' : Math.round(values[maxIdx]);
+  if (unitSuffix) maxLabel += unitSuffix;
+  var labelX = Math.max(padL + 14, Math.min(W - padR - 14, px(maxIdx)));
+  svg += '<text x="' + labelX + '" y="' + (py(values[maxIdx]) - 6) + '" text-anchor="middle" font-family="DM Sans, system-ui, sans-serif" font-size="10" font-weight="600" fill="#3D3530">' + maxLabel + '</text>';
+  // Day-of-week ticks.
+  for (var li = 0; li < n; li++) {
+    var isToday = (li === n - 1);
+    svg += '<text x="' + px(li) + '" y="' + (H - 4) + '" text-anchor="middle" font-family="DM Sans, system-ui, sans-serif" font-size="9" fill="' + (isToday ? '#3D3530' : '#9B8F7E') + '" font-weight="' + (isToday ? '600' : '400') + '">' + labels[li] + '</text>';
+  }
+  svg += '</svg>';
+  return svg;
+}
+
 function buildProgressRing(percent, size, color) {
   var r = (size - 6) / 2;
   var circ = 2 * Math.PI * r;
@@ -10171,14 +10282,19 @@ function _buildRhythmHtml(terraData, rhythmAH, checkIns) {
   }
   var html = '';
   if (isStale) {
-    // Stale banner: tells the user the displayed numbers are old and how to refresh.
-    html += '<div class="cs-rhythm-stale">';
+    // Stale banner: tells the user the displayed numbers are old and lets them
+    // tap to bounce into Wellet Connect (which resumes HealthKit background
+    // delivery). On iPhone the wellet:// universal link opens the app; on
+    // desktop/Android the click is a no-op visual.
+    var refreshHref = 'javascript:refreshAppleHealthFromBanner();';
+    html += '<a href="' + refreshHref + '" class="cs-rhythm-stale cs-rhythm-stale--tappable" role="button">';
     html += '<div class="cs-rhythm-stale-icon"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></div>';
     html += '<div class="cs-rhythm-stale-body">';
     html += '<div class="cs-rhythm-stale-title">' + escHtml(freshLabel || 'Apple Health is quiet') + '</div>';
-    html += '<div class="cs-rhythm-stale-sub">Open Wellet Connect on your iPhone to refresh today\u2019s heart rate and steps.</div>';
+    html += '<div class="cs-rhythm-stale-sub">Tap to open Wellet Connect on your iPhone and refresh today\u2019s heart rate and steps.</div>';
     html += '</div>';
-    html += '</div>';
+    html += '<div class="cs-rhythm-stale-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>';
+    html += '</a>';
   } else if (freshLabel) {
     html += '<div class="cs-rhythm-freshness">' + escHtml(freshLabel) + '</div>';
   }
@@ -10198,7 +10314,7 @@ function _buildRhythmHtml(terraData, rhythmAH, checkIns) {
     html += '<div class="cs-rhythm-card">';
     html += '<div class="cs-rhythm-label">Resting heart rate</div>';
     html += '<div class="cs-rhythm-metric">' + mean + ' <span class="cs-rhythm-unit">bpm</span></div>';
-    try { html += '<div class="cs-rhythm-spark">' + buildSparkline(src.trend, 120, 28, 'var(--red, #B85450)') + '</div>'; } catch (_e) {}
+    try { html += '<div class="cs-rhythm-spark">' + buildRhythmChart(src.trend, 280, 72, '#B85450', '') + '</div>'; } catch (_e) {}
     html += '<div class="cs-rhythm-sub">' + (isStale ? 'Last 7 days · numbers may be stale' : '7-day average') + '</div>';
     html += '</div>';
   }
@@ -10227,7 +10343,7 @@ function _buildRhythmHtml(terraData, rhythmAH, checkIns) {
     html += '<div class="cs-rhythm-card">';
     html += '<div class="cs-rhythm-label">Steps</div>';
     html += '<div class="cs-rhythm-metric">' + stepsHeadline + '</div>';
-    try { html += '<div class="cs-rhythm-spark">' + buildSparkline(ah.steps.trend, 120, 28, 'var(--moss, #5A6F50)') + '</div>'; } catch (_e) {}
+    try { html += '<div class="cs-rhythm-spark">' + buildRhythmChart(ah.steps.trend, 280, 72, '#5A6F50', '') + '</div>'; } catch (_e) {}
     html += '<div class="cs-rhythm-sub">' + escHtml(stepsLabel) + '</div>';
     html += '</div>';
   }

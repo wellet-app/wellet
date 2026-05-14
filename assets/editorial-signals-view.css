@@ -52,7 +52,9 @@
   line-height: 1.4;
   color: var(--ink-5, #6b6b6b);
   margin: 0;
-  max-width: 32ch;
+  /* Let the lede stretch the full content width so it doesn't break into
+     three lines and push the rest of the view below the fold on mobile. */
+  max-width: none;
 }
 
 /* Hide the now-redundant section-label eyebrow that real-data
@@ -218,20 +220,25 @@
 /* This Week's Rhythm */
 .cs-rhythm-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  /* Single column on mobile so charts actually have room to breathe; on
+     tablet+ we go back to a multi-column layout. */
+  grid-template-columns: 1fr;
   gap: 10px;
 }
-@media (min-width: 720px) {
+@media (min-width: 560px) {
+  .cs-rhythm-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 900px) {
   .cs-rhythm-grid { grid-template-columns: repeat(4, 1fr); }
 }
 .cs-rhythm-card {
   background: #fff;
   border: 1px solid var(--ink-2, #E5DFD2);
   border-radius: 12px;
-  padding: 12px 14px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 .cs-rhythm-label {
   font-size: 11px;
@@ -260,7 +267,13 @@
   margin-left: 2px;
 }
 .cs-rhythm-spark {
-  margin: 2px 0;
+  margin: 6px 0 2px;
+  width: 100%;
+}
+.cs-rhythm-spark svg {
+  width: 100%;
+  height: 72px;
+  display: block;
 }
 .cs-rhythm-sub {
   font-size: 11px;
@@ -440,12 +453,29 @@
 .cs-rhythm-stale {
   display: flex;
   gap: 10px;
-  align-items: flex-start;
+  align-items: center;
   background: #FFF7E6;
   border: 1px solid #E8D9A8;
   border-radius: 8px;
   padding: 10px 12px;
   margin: -2px 0 12px 0;
+}
+.cs-rhythm-stale--tappable {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.cs-rhythm-stale--tappable:hover,
+.cs-rhythm-stale--tappable:active {
+  background: #FCEFC6;
+  border-color: #D9C57F;
+}
+.cs-rhythm-stale-chevron {
+  flex: 0 0 auto;
+  color: #8A6A1F;
+  margin-left: 2px;
 }
 .cs-rhythm-stale-icon {
   flex: 0 0 auto;
