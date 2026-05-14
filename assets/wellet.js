@@ -4871,6 +4871,19 @@ function loadVisitSummary(encId, domId) {
   var payload = buildVisitSummaryPayload(enc);
   payload.person_id = currentPersonId;
 
+  // Hard timeout — the summarize-visit edge function has been silently
+  // timing out on long Duke visits, leaving the card stuck on the italic
+  // "Writing a plain-language summary\u2026" forever. After 30s we flip
+  // to the error state and let the user move on.
+  var resolved = false;
+  var timeoutId = setTimeout(function() {
+    if (resolved) return;
+    resolved = true;
+    entry.summary.state = 'error';
+    entry.summary.error = 'timeout';
+    renderVisitSummaryInto(domId, entry);
+  }, 30000);
+
   db.auth.getSession().then(function(sessionRes) {
     var session = sessionRes.data.session;
     if (!session) throw new Error('no session');
@@ -4887,11 +4900,17 @@ function loadVisitSummary(encId, domId) {
     if (!res || !res.ok) throw new Error('summary fetch failed');
     return res.json();
   }).then(function(data) {
+    if (resolved) return;
+    resolved = true;
+    clearTimeout(timeoutId);
     if (!data || !data.summary) throw new Error(data && data.error ? data.error : 'empty summary');
     entry.summary.state = 'done';
     entry.summary.text = data.summary;
     renderVisitSummaryInto(domId, entry);
   }).catch(function(e) {
+    if (resolved) return;
+    resolved = true;
+    clearTimeout(timeoutId);
     entry.summary.state = 'error';
     entry.summary.error = (e && e.message) || 'unknown error';
     renderVisitSummaryInto(domId, entry);
@@ -4906,23 +4925,85 @@ function renderVisitSummaryInto(domId, entry) {
   } else if (entry.summary.state === 'done') {
     el.innerHTML = '<div style="color:var(--text-primary);">' + escHtml(entry.summary.text) + '</div>';
   } else if (entry.summary.state === 'error') {
-    el.innerHTML = '<div style="color:var(--text-muted);font-style:italic;">Summary unavailable right now.</div>';
+    // 'timeout' = soft (summarize-visit took >30s and likely returned an empty
+    // result on a long Duke visit). Other errors get a quieter generic line.
+    var msg = (entry.summary.error === 'timeout')
+      ? 'Summary is taking longer than usual \u2014 the visit notes are still in the chart below.'
+      : 'Summary unavailable right now \u2014 the visit notes are still in the chart below.';
+    el.innerHTML = '<div style="color:var(--text-muted);font-style:italic;">' + msg + '</div>';
   }
 }
 
-// Open a DocumentReference attachment. Fetches the Binary through our edge function
-// so the browser never sees the EHR access token, then opens it in a new tab.
+// Open a DocumentReference attachment. Fetches the Binary through our edge
+// function so the browser never sees the EHR access token, then opens it in
+// a new tab.
+//
+// Safari popup-blocker fix (2026-05-14): Mobile Safari blocks window.open()
+// that fires after async work because it's no longer in the original
+// user-gesture tick. We work around this by opening an about:blank tab
+// SYNCHRONOUSLY on click, holding the reference, and redirecting it to the
+// blob URL once the fetch resolves. If the fetch fails we close the tab
+// and surface a friendly inline error on the doc link (no more harsh
+// alert() telling the user to reconnect MyChart \u2014 most failures aren't
+// auth problems).
 function openEhrDocument(encId, docId) {
   if (!currentPersonId || !docId) return;
   var entry = visitSummaryCache[encId] || (visitSummaryCache[encId] = { summary: { state: 'idle' }, docs: {} });
   var doc = entry.docs[docId];
-  // Reuse any previously-fetched blob URL while the tab is open
+
+  // Reuse any previously-fetched blob URL while the tab is open. This path
+  // is synchronous so the popup blocker doesn't fire.
   if (doc && doc.state === 'done' && doc.url) {
     window.open(doc.url, '_blank', 'noopener');
     return;
   }
   if (doc && doc.state === 'loading') return;
+
+  // Open the placeholder tab SYNCHRONOUSLY \u2014 inside the click handler, before
+  // any await. Safari treats this as a direct user gesture. If the user has
+  // popups blocked at the OS level, popupWin will be null and we degrade to
+  // an inline error on the doc link.
+  var popupWin = null;
+  try { popupWin = window.open('about:blank', '_blank'); } catch (_eOpen) { popupWin = null; }
+  if (popupWin) {
+    try {
+      popupWin.document.write('<html><head><title>Opening document\u2026</title>'
+        + '<style>body{margin:0;padding:40px 24px;font:15px -apple-system,system-ui,sans-serif;color:#4a4a4a;background:#F7F5F0;text-align:center;}</style>'
+        + '</head><body>Opening document\u2026</body></html>');
+      popupWin.document.close();
+    } catch (_eWrite) { /* cross-origin or other write issue \u2014 the blank tab still works as a redirect target */ }
+  }
+
   entry.docs[docId] = { state: 'loading' };
+  var renderDocError = function(reason) {
+    entry.docs[docId] = { state: 'error', error: reason || 'unknown' };
+    if (popupWin) { try { popupWin.close(); } catch (_e) {} }
+    // Inline error replaces the doc link inside the visit detail. Quieter
+    // than a blocking alert() and lets the caregiver still see the rest
+    // of the visit context. We match by walking every doc link and checking
+    // its onclick attribute \u2014 simpler and safer than building a CSS
+    // selector that has to escape both single and double quotes around an
+    // arbitrary docId.
+    try {
+      var allLinks = document.querySelectorAll('a[onclick*="openEhrDocument"]');
+      var needle = "'" + encId + "','" + docId + "'";
+      for (var li = 0; li < allLinks.length; li++) {
+        var a = allLinks[li];
+        var oc = a.getAttribute('onclick') || '';
+        if (oc.indexOf(needle) === -1) continue;
+        a.style.opacity = '0.55';
+        a.style.pointerEvents = 'none';
+        // Avoid stacking duplicate error messages on retry
+        if (a.parentNode && !a.parentNode.querySelector('.ehr-doc-error-msg')) {
+          var msg = document.createElement('span');
+          msg.className = 'ehr-doc-error-msg';
+          msg.style.cssText = 'display:block;margin-top:6px;font-size:var(--type-micro);color:var(--text-muted);font-style:italic;font-weight:400;';
+          msg.textContent = 'Couldn\u2019t open this document. The hospital may not be sharing it through their API right now.';
+          a.parentNode.appendChild(msg);
+        }
+      }
+    } catch (_e) { /* never let UI feedback crash the flow */ }
+  };
 
   // Find the doc metadata (includes the Epic Binary URL) on the encounter
   var ehrData = getEhrData(currentPersonId);
@@ -4935,7 +5016,7 @@ function openEhrDocument(encId, docId) {
       if (v.documents[j].id === docId) { targetDoc = v.documents[j]; break; }
     }
   }
-  if (!targetDoc) return;
+  if (!targetDoc) { renderDocError('doc_not_found'); return; }
 
   db.auth.getSession().then(function(sessionRes) {
     var session = sessionRes.data.session;
@@ -4958,7 +5039,7 @@ function openEhrDocument(encId, docId) {
     return res.json();
   }).then(function(data) {
     if (!data || !data.data_base64) throw new Error(data && data.error ? data.error : 'empty document');
-    // Decode base64 into a Blob and open it in a new tab
+    // Decode base64 into a Blob and redirect the already-open tab to it.
     var bin = atob(data.data_base64);
     var len = bin.length;
     var bytes = new Uint8Array(len);
@@ -4966,10 +5047,16 @@ function openEhrDocument(encId, docId) {
     var blob = new Blob([bytes], { type: data.content_type || 'application/octet-stream' });
     var url = URL.createObjectURL(blob);
     entry.docs[docId] = { state: 'done', url: url };
-    window.open(url, '_blank', 'noopener');
+    if (popupWin) {
+      try { popupWin.location.href = url; }
+      catch (_eLoc) { window.open(url, '_blank', 'noopener'); }
+    } else {
+      // Popup was blocked at OS level \u2014 try a fresh window.open. This will
+      // likely also be blocked but it's the best fallback we have.
+      window.open(url, '_blank', 'noopener');
+    }
   }).catch(function(e) {
-    entry.docs[docId] = { state: 'error', error: (e && e.message) || 'unknown error' };
-    try { alert('Could not open document. Please try reconnecting Epic MyChart.'); } catch(_e) {}
+    renderDocError((e && e.message) || 'unknown');
   });
 }
 
@@ -14837,6 +14924,21 @@ function renderAskView() {
   var personBar = document.querySelector('#view-ask .ask-person-bar');
   if (!personBar) return;
 
+  // Header-cut-off fix (2026-05-14): when there's only the intro bubble in
+  // chat-area, mark it .is-empty-state so the mobile CSS rule shrinks the
+  // container (flex:0 0 auto) instead of letting it stretch and scroll the
+  // lede out of view. Also force scrollTop to 0 so a prior conversation
+  // scroll position can't hide the bubble when the user re-enters Ask.
+  try {
+    var chatAreaEl = document.getElementById('chat-area');
+    if (chatAreaEl) {
+      var groups = chatAreaEl.querySelectorAll('.chat-group');
+      if (groups.length <= 1) chatAreaEl.classList.add('is-empty-state');
+      else chatAreaEl.classList.remove('is-empty-state');
+      chatAreaEl.scrollTop = 0;
+    }
+  } catch (_eAskScroll) { /* never let UI prep crash the render */ }
+
   var inputElEmpty = document.getElementById('ask-input');
   var chipsEmpty = document.getElementById('suggestion-chips');
   var introBubble = document.querySelector('#chat-area .chat-group.from-wellet .chat-bubble.wellet');
@@ -15336,6 +15438,9 @@ function addUserMessage(text) {
   g.className = 'chat-group from-user';
   g.innerHTML = '<div class="chat-bubble user">' + escHtml(text) + '</div>';
   area.appendChild(g);
+  // Real conversation started — release the empty-state cap so chat-area
+  // expands back to flex:1 and the conversation can scroll.
+  area.classList.remove('is-empty-state');
   area.scrollTop = area.scrollHeight;
 }
 
@@ -15345,6 +15450,7 @@ function addWelletMessage(html) {
   g.className = 'chat-group from-wellet';
   g.innerHTML = '<div class="chat-bubble wellet">' + html + '</div>';
   area.appendChild(g);
+  area.classList.remove('is-empty-state');
   area.scrollTop = area.scrollHeight;
   initIcons();
 }
