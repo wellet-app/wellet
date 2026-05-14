@@ -44,6 +44,12 @@
   gap: 8px;
   border-bottom: 1px solid var(--ink-1);
 }
+@media (max-width: 767px) {
+  /* Tighter on mobile so the pills don't clip under the top chrome. */
+  #view-ask[data-editorial="ask"] .ask-person-bar {
+    padding: 10px var(--gutter, 22px) 8px;
+  }
+}
 #view-ask[data-editorial="ask"] .ask-person-pill {
   background: transparent;
   border: 1px solid var(--ink-2);
@@ -88,6 +94,23 @@
   flex-direction: column;
   gap: 20px;
   background: transparent;
+}
+
+/* On mobile, before any real conversation, don't let chat-area stretch and
+   push the suggestion chips + input bar down — keep the intro bubble snug to the
+   top so chips sit just below the lede. */
+@media (max-width: 767px) {
+  #view-ask[data-editorial="ask"] .chat-area {
+    padding-top: 14px;
+  }
+  #view-ask[data-editorial="ask"] .chat-area:has(> .chat-group:only-child) {
+    flex: 0 0 auto;
+  }
+  /* Fallback for browsers without :has — tighten the empty-state class
+     that wellet.js can set when only the lede bubble is present. */
+  #view-ask[data-editorial="ask"] .chat-area.is-empty-state {
+    flex: 0 0 auto;
+  }
 }
 
 /* ---- Chat groups ---- */

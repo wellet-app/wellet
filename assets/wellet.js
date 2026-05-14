@@ -2143,7 +2143,10 @@ function renderSummarySourceStrip(sources, checkInCount) {
     chips.push('<span class="update-summary-source-chip"><i data-lucide="list"></i>Events</span>');
   }
   if (chips.length === 0) return '';
-  return '<div class="update-summary-sources">' + chips.join('<span class="update-summary-source-sep">·</span>') + '</div>';
+  return '<div class="update-summary-sources-wrap">'
+    + '<div class="update-summary-sources-label">Summary Built From</div>'
+    + '<div class="update-summary-sources">' + chips.join('<span class="update-summary-source-sep">·</span>') + '</div>'
+    + '</div>';
 }
 
 function capitalize(s) {

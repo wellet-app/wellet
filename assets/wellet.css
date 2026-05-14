@@ -1350,7 +1350,9 @@
   .update-summary-verdict-pill.attention .dot { background: #c97840; }
   .update-summary-refresh { background: none; border: none; cursor: pointer; color: var(--moss-dark); display: flex; padding: 4px; border-radius: 6px; opacity: 0.65; transition: opacity 0.15s, background 0.15s; }
   .update-summary-refresh:hover { opacity: 1; background: rgba(255,255,255,0.5); }
-  .update-summary-sources { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: var(--type-micro); color: var(--moss-dark); opacity: 0.85; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid rgba(75, 99, 65, 0.14); }
+  .update-summary-sources-wrap { margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid rgba(75, 99, 65, 0.14); }
+  .update-summary-sources-label { font-family: var(--serif, Georgia, serif); font-size: var(--type-micro); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-5, var(--moss-dark)); font-weight: 500; opacity: 0.75; margin-bottom: 6px; }
+  .update-summary-sources { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: var(--type-micro); color: var(--moss-dark); opacity: 0.85; }
   .update-summary-source-chip { display: inline-flex; align-items: center; gap: 3px; padding: 2px 0; }
   .update-summary-source-chip i { width: 11px; height: 11px; }
   .update-summary-source-sep { opacity: 0.4; padding: 0 2px; }
