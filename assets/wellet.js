@@ -27172,22 +27172,37 @@ function closeWishesList() {
 async function renderWishesList(personId) {
   var body = document.getElementById('wishes-list-body');
   if (!body) return;
-  var wishes = [];
+
+  // Two sources, unioned + sorted by most recent:
+  //   1. Voice-recorded wishes: rows in `documents` with document_type='wish'
+  //   2. AI-surfaced wishes:    rows in `wishes` table from extract-wishes edge fn
+  // Demo mode keeps the original soft demo content so reviewers see something populated.
+  var voiceWishes = [];
+  var aiWishes = [];
+
   if (isDemoMode) {
-    // Quiet demo content so the empty state isn't the only thing reviewers see.
-    wishes = _demoWishesFor(personId);
+    voiceWishes = _demoWishesFor(personId);
   } else {
     try {
-      var res = await db.from('documents')
-        .select('id, file_name, document_type, extracted_events, extraction_status, uploaded_at')
-        .eq('person_id', personId)
-        .eq('document_type', 'wish')
-        .order('uploaded_at', { ascending: false });
-      if (!res.error && res.data) wishes = res.data;
+      var both = await Promise.all([
+        db.from('documents')
+          .select('id, file_name, document_type, extracted_events, extraction_status, uploaded_at')
+          .eq('person_id', personId)
+          .eq('document_type', 'wish')
+          .order('uploaded_at', { ascending: false }),
+        db.from('wishes')
+          .select('id, content, category, source_type, source_id, source_quote, confidence, status, created_at')
+          .eq('person_id', personId)
+          .neq('status', 'archived')
+          .order('created_at', { ascending: false })
+          .limit(200)
+      ]);
+      if (!both[0].error && both[0].data) voiceWishes = both[0].data;
+      if (!both[1].error && both[1].data) aiWishes = both[1].data;
     } catch (e) { /* leave empty rather than crash */ }
   }
 
-  if (!wishes.length) {
+  if (!voiceWishes.length && !aiWishes.length) {
     body.innerHTML = '<div style="text-align:center;padding:32px 12px;">'
       + '<div style="font-size:var(--type-display);opacity:0.25;margin-bottom:12px;"><i data-lucide="heart" style="width:32px;height:32px;"></i></div>'
       + '<div style="font-family:var(--serif),serif;font-style:italic;color:var(--moss-dark);font-size:var(--type-body);line-height:1.55;max-width:34ch;margin:0 auto 10px;">Nothing recorded yet.</div>'
@@ -27197,41 +27212,217 @@ async function renderWishesList(personId) {
     return;
   }
 
+  // Normalize both sources into one render-ready array with a common timestamp.
+  var rows = [];
+  voiceWishes.forEach(function(w) {
+    var ts = w.uploaded_at ? new Date(w.uploaded_at).getTime() : 0;
+    rows.push({ kind: 'voice', ts: ts, data: w });
+  });
+  aiWishes.forEach(function(w) {
+    var ts = w.created_at ? new Date(w.created_at).getTime() : 0;
+    rows.push({ kind: 'ai', ts: ts, data: w });
+  });
+  rows.sort(function(a, b) { return b.ts - a.ts; });
+
   var html = '';
-  wishes.forEach(function(w) {
-    var ts = w.uploaded_at ? new Date(w.uploaded_at) : null;
-    var dateStr = ts ? ts.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-    // Pull the transcript out of extracted_events if the edge function stored it there.
-    var transcript = '';
-    try {
-      var ee = w.extracted_events;
-      if (ee && typeof ee === 'object') {
-        if (typeof ee.transcript === 'string') transcript = ee.transcript;
-        else if (typeof ee.text === 'string') transcript = ee.text;
-        else if (typeof ee.summary === 'string') transcript = ee.summary;
-      }
-    } catch (e) {}
-    var status = w.extraction_status || '';
-    var statusBadge = '';
-    if (status === 'pending' || status === 'processing') {
-      statusBadge = '<span style="font-size:var(--type-micro);color:var(--text-muted);font-style:italic;">Transcribing\u2026</span>';
-    } else if (status === 'failed') {
-      statusBadge = '<span style="font-size:var(--type-micro);color:#C0392B;">Transcription failed</span>';
-    }
-    var bodyText = transcript
-      ? '<p style="font-family:var(--serif),serif;font-style:italic;color:var(--text-primary);font-size:var(--type-body);line-height:1.55;margin:6px 0 0;">\u201C' + escHtml(transcript) + '\u201D</p>'
-      : (statusBadge ? '<div style="margin-top:6px;">' + statusBadge + '</div>' : '<div style="margin-top:6px;font-size:var(--type-micro);color:var(--text-muted);font-style:italic;">Voice recording \u00b7 transcript pending</div>');
-    html += '<div style="padding:14px 4px;border-top:1px solid var(--border, #ECE8DC);">'
-      + '<div style="display:flex;align-items:center;gap:8px;">'
-      +   '<i data-lucide="heart" style="width:13px;height:13px;color:var(--moss);"></i>'
-      +   '<span style="font-size:var(--type-micro);letter-spacing:0.06em;text-transform:uppercase;color:var(--moss-dark);font-weight:500;">Wish</span>'
-      +   '<span style="font-size:var(--type-micro);color:var(--text-muted);margin-left:auto;">' + escHtml(dateStr) + '</span>'
-      + '</div>'
-      + bodyText
-      + '</div>';
+  rows.forEach(function(row) {
+    if (row.kind === 'voice') html += _renderVoiceWishRow(row.data);
+    else html += _renderAiWishRow(row.data);
   });
   body.innerHTML = html;
   initIcons();
+}
+
+function _renderVoiceWishRow(w) {
+  var ts = w.uploaded_at ? new Date(w.uploaded_at) : null;
+  var dateStr = ts ? ts.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  var transcript = '';
+  try {
+    var ee = w.extracted_events;
+    if (ee && typeof ee === 'object') {
+      if (typeof ee.transcript === 'string') transcript = ee.transcript;
+      else if (typeof ee.text === 'string') transcript = ee.text;
+      else if (typeof ee.summary === 'string') transcript = ee.summary;
+    }
+  } catch (e) {}
+  var status = w.extraction_status || '';
+  var statusBadge = '';
+  if (status === 'pending' || status === 'processing') {
+    statusBadge = '<span style="font-size:var(--type-micro);color:var(--text-muted);font-style:italic;">Transcribing\u2026</span>';
+  } else if (status === 'failed') {
+    statusBadge = '<span style="font-size:var(--type-micro);color:#C0392B;">Transcription failed</span>';
+  }
+  var bodyText = transcript
+    ? '<p style="font-family:var(--serif),serif;font-style:italic;color:var(--text-primary);font-size:var(--type-body);line-height:1.55;margin:6px 0 0;">\u201C' + escHtml(transcript) + '\u201D</p>'
+    : (statusBadge ? '<div style="margin-top:6px;">' + statusBadge + '</div>' : '<div style="margin-top:6px;font-size:var(--type-micro);color:var(--text-muted);font-style:italic;">Voice recording \u00b7 transcript pending</div>');
+  return '<div style="padding:14px 4px;border-top:1px solid var(--border, #ECE8DC);">'
+    + '<div style="display:flex;align-items:center;gap:8px;">'
+    +   '<i data-lucide="heart" style="width:13px;height:13px;color:var(--moss);"></i>'
+    +   '<span style="font-size:var(--type-micro);letter-spacing:0.06em;text-transform:uppercase;color:var(--moss-dark);font-weight:500;">Wish</span>'
+    +   '<span style="font-size:var(--type-micro);color:var(--text-muted);margin-left:auto;">' + escHtml(dateStr) + '</span>'
+    + '</div>'
+    + bodyText
+    + '</div>';
+}
+
+function _renderAiWishRow(w) {
+  var ts = w.created_at ? new Date(w.created_at) : null;
+  var dateStr = ts ? ts.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  var category = (w.category || 'other').replace(/_/g, ' ');
+  var conf = (w.confidence || 'low').toLowerCase();
+  var status = (w.status || 'suggested').toLowerCase();
+  var isSuggested = status === 'suggested';
+  var isConfirmed = status === 'confirmed';
+  var pillBg = conf === 'high' ? '#DDE7C7' : (conf === 'medium' ? '#F0E5C8' : '#EADFD2');
+  var pillFg = conf === 'high' ? '#4E5A3C' : (conf === 'medium' ? '#6B5A2A' : '#6B4A2A');
+  var eyebrowLabel = isConfirmed ? 'Confirmed wish' : (status === 'suggested' ? 'Surfaced from records' : 'Wish');
+
+  var actionRow = '';
+  if (isSuggested) {
+    actionRow = '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">'
+      + '<button class="ai-wish-chip ai-wish-confirm" onclick="confirmAiWish(\'' + escHtml(w.id) + '\')" '
+      +   'style="font:inherit;font-size:var(--type-micro);padding:5px 12px;border-radius:99px;border:1px solid var(--moss);background:var(--moss);color:#fff;cursor:pointer;">Confirm</button>'
+      + '<button class="ai-wish-chip ai-wish-edit" onclick="editAiWish(\'' + escHtml(w.id) + '\')" '
+      +   'style="font:inherit;font-size:var(--type-micro);padding:5px 12px;border-radius:99px;border:1px solid var(--border, #ECE8DC);background:transparent;color:var(--moss-dark);cursor:pointer;">Edit</button>'
+      + '<button class="ai-wish-chip ai-wish-archive" onclick="archiveAiWish(\'' + escHtml(w.id) + '\')" '
+      +   'style="font:inherit;font-size:var(--type-micro);padding:5px 12px;border-radius:99px;border:1px solid var(--border, #ECE8DC);background:transparent;color:var(--text-muted);cursor:pointer;">Archive</button>'
+      + '</div>';
+  }
+
+  var quoteBlock = w.source_quote
+    ? '<div style="font-family:var(--serif),serif;font-style:italic;font-size:var(--type-meta);line-height:1.55;color:var(--moss-dark);background:#F6F3E8;border-left:3px solid var(--moss);padding:8px 12px;border-radius:0 6px 6px 0;margin-top:8px;">\u201C' + escHtml(w.source_quote) + '\u201D</div>'
+    : '';
+
+  return '<div data-ai-wish-id="' + escHtml(w.id) + '" style="padding:14px 4px;border-top:1px solid var(--border, #ECE8DC);' + (isSuggested ? '' : 'opacity:0.95;') + '">'
+    + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+    +   '<i data-lucide="' + (isConfirmed ? 'heart' : 'sparkles') + '" style="width:13px;height:13px;color:var(--moss);"></i>'
+    +   '<span style="font-size:var(--type-micro);letter-spacing:0.06em;text-transform:uppercase;color:var(--moss-dark);font-weight:500;">' + escHtml(eyebrowLabel) + '</span>'
+    +   '<span style="font-size:var(--type-micro);padding:1px 8px;border-radius:99px;background:#F0EDE0;color:var(--moss-dark);">' + escHtml(category) + '</span>'
+    +   '<span style="font-size:var(--type-micro);padding:1px 8px;border-radius:99px;background:' + pillBg + ';color:' + pillFg + ';">' + escHtml(conf) + '</span>'
+    +   '<span style="font-size:var(--type-micro);color:var(--text-muted);margin-left:auto;">' + escHtml(dateStr) + '</span>'
+    + '</div>'
+    + '<p style="font-family:var(--serif),serif;font-style:italic;color:var(--text-primary);font-size:var(--type-body);line-height:1.55;margin:8px 0 0;">' + escHtml(w.content || '') + '</p>'
+    + quoteBlock
+    + actionRow
+    + '</div>';
+}
+
+// ── AI WISH ACTIONS ──────────────────────────────────────────────────────────
+
+async function confirmAiWish(wishId) {
+  if (!wishId) return;
+  try {
+    var res = await db.from('wishes')
+      .update({ status: 'confirmed', confirmed_at: new Date().toISOString() })
+      .eq('id', wishId)
+      .select('id')
+      .maybeSingle();
+    if (res.error) { showToast('Could not confirm'); return; }
+    showToast('Confirmed');
+    if (_wishPersonId) await renderWishesList(_wishPersonId);
+  } catch (e) { showToast('Could not confirm'); }
+}
+
+async function archiveAiWish(wishId) {
+  if (!wishId) return;
+  if (!confirm('Archive this wish? You can still see it in the database, but it will be hidden from this list.')) return;
+  try {
+    var res = await db.from('wishes')
+      .update({ status: 'archived' })
+      .eq('id', wishId)
+      .select('id')
+      .maybeSingle();
+    if (res.error) { showToast('Could not archive'); return; }
+    showToast('Archived');
+    if (_wishPersonId) await renderWishesList(_wishPersonId);
+  } catch (e) { showToast('Could not archive'); }
+}
+
+async function editAiWish(wishId) {
+  if (!wishId) return;
+  try {
+    var cur = await db.from('wishes')
+      .select('content')
+      .eq('id', wishId)
+      .maybeSingle();
+    if (cur.error || !cur.data) { showToast('Could not load'); return; }
+    var next = prompt('Edit the wish in their words:', cur.data.content || '');
+    if (next === null) return;
+    var trimmed = String(next).trim();
+    if (!trimmed) { showToast('Wish cannot be empty'); return; }
+    if (trimmed === cur.data.content) return;
+    var res = await db.from('wishes')
+      .update({ content: trimmed.slice(0, 280) })
+      .eq('id', wishId)
+      .select('id')
+      .maybeSingle();
+    if (res.error) { showToast('Could not save'); return; }
+    showToast('Saved');
+    if (_wishPersonId) await renderWishesList(_wishPersonId);
+  } catch (e) { showToast('Could not save'); }
+}
+
+// Calls the extract-wishes edge function for the currently open loved one,
+// throttled to once per 24h per person via localStorage. The button shows
+// remaining wait time when throttled.
+async function surfaceWishesFromRecords() {
+  if (!_wishPersonId) { showToast('Open a profile first'); return; }
+  if (isDemoMode) { showToast('Demo mode \u2014 not available'); return; }
+  var throttleKey = 'wellet:surface-wishes:' + _wishPersonId;
+  var last = 0;
+  try { last = parseInt(localStorage.getItem(throttleKey) || '0', 10) || 0; } catch (e) {}
+  var hoursSince = (Date.now() - last) / (3600 * 1000);
+  if (hoursSince < 24) {
+    var hoursLeft = Math.ceil(24 - hoursSince);
+    showToast('Already checked today \u2014 try again in ' + hoursLeft + 'h');
+    return;
+  }
+
+  var btn = document.getElementById('surface-wishes-btn');
+  var originalHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader-2" style="width:16px;height:16px;"></i> Reading records\u2026';
+    initIcons();
+  }
+
+  try {
+    var session = null;
+    try { var s = await db.auth.getSession(); session = s && s.data ? s.data.session : null; } catch (e) {}
+    if (!session) { showToast('Sign in first'); return; }
+
+    var resp = await fetch(SUPABASE_URL + '/functions/v1/extract-wishes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ person_id: _wishPersonId })
+    });
+    var json = null;
+    try { json = await resp.json(); } catch (e) {}
+    if (!resp.ok) {
+      showToast('Could not read records');
+      return;
+    }
+    try { localStorage.setItem(throttleKey, String(Date.now())); } catch (e) {}
+    var added = (json && typeof json.suggested === 'number') ? json.suggested : 0;
+    if (added > 0) {
+      showToast('Surfaced ' + added + ' new ' + (added === 1 ? 'wish' : 'wishes'));
+    } else {
+      showToast('Nothing new surfaced');
+    }
+    await renderWishesList(_wishPersonId);
+  } catch (e) {
+    showToast('Could not read records');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+      initIcons();
+    }
+  }
 }
 
 function _demoWishesFor(personId) {

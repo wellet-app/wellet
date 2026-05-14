@@ -2339,10 +2339,15 @@
     <div class="qa-sheet-title" id="wishes-list-title">Wishes</div>
     <div class="qa-sheet-sub" id="wishes-list-sub" style="font-family:var(--serif),serif;font-style:italic;">What your loved one wants. In their words, kept safe for the people who need to hear it.</div>
     <div id="wishes-list-body" style="padding:8px 0 4px;"><!-- rendered by renderWishesList() --></div>
-    <div style="padding:16px 4px 4px;">
+    <div style="padding:16px 4px 4px;display:flex;flex-direction:column;gap:8px;">
       <button class="btn-primary" style="width:100%;" onclick="startWishRecording()">
         <i data-lucide="mic" style="width:16px;height:16px;"></i> Record a wish
       </button>
+      <button id="surface-wishes-btn" type="button" onclick="surfaceWishesFromRecords()"
+        style="width:100%;padding:10px 14px;border-radius:8px;border:1px solid var(--border, #ECE8DC);background:transparent;color:var(--moss-dark);font:inherit;font-size:var(--type-meta);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;">
+        <i data-lucide="sparkles" style="width:14px;height:14px;"></i> Surface from records
+      </button>
+      <div style="font-size:var(--type-micro);color:var(--text-muted);text-align:center;line-height:1.5;font-style:italic;">Reads documents, visit notes, and check-ins for wishes they’ve already shared. Once per day.</div>
     </div>
   </div>
 </div>
