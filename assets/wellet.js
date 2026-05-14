@@ -3459,12 +3459,33 @@ function renderTimeline() {
       if (!f || !f.fired_at) return;
       var w = watchById[f.watch_id];
       var desc = (w && w.description) || (w && w.watch_type ? String(w.watch_type).replace(/_/g,' ') : 'a signal worth following');
-      // Trigger value, if it's a simple primitive, becomes the body.
+      // Pull a human-readable body + a tight "measurement" chip out of the
+      // trigger_value blob. Shape varies by watch_type \u2014 see
+      // evaluate-care-signal-watches/index.ts. Defensive throughout.
       var body = '';
+      var measurementChip = '';
       try {
-        if (f.trigger_value && typeof f.trigger_value === 'object') {
-          if (f.trigger_value.summary) body = String(f.trigger_value.summary);
-          else if (f.trigger_value.value !== undefined) body = 'Reading: ' + f.trigger_value.value;
+        var tv = f.trigger_value;
+        if (tv && typeof tv === 'object') {
+          // Body: summary (factualBody persisted by the evaluator) is best;
+          // fall back to a primitive value when present.
+          if (tv.summary) body = String(tv.summary);
+          else if (tv.value !== undefined) body = 'Reading: ' + tv.value;
+          // Measurement chip \u2014 short, glanceable, e.g. "92 bpm", "3,400 steps",
+          // "4 days silent", "new lab". Keep this tiny.
+          if (tv.threshold_bpm !== undefined) {
+            measurementChip = '> ' + tv.threshold_bpm + ' bpm';
+          } else if (tv.threshold !== undefined && tv.baseline_mean !== undefined) {
+            measurementChip = '> ' + tv.threshold + ' bpm (baseline ' + tv.baseline_mean + ')';
+          } else if (tv.threshold_steps !== undefined) {
+            measurementChip = '< ' + Number(tv.threshold_steps).toLocaleString() + ' steps';
+          } else if (tv.age_days !== undefined) {
+            measurementChip = (tv.provider ? (tv.provider + ' \u00b7 ') : '') + Math.floor(tv.age_days) + 'd silent';
+          } else if (tv.kind) {
+            measurementChip = 'New ' + String(tv.kind).replace(/_/g, ' ');
+          } else if (tv.months_threshold !== undefined) {
+            measurementChip = tv.months_threshold + 'mo overdue';
+          }
         }
       } catch(_e) {}
       careSignalTimelineItems.push({
@@ -3474,7 +3495,10 @@ function renderTimeline() {
         notes: body,
         source: 'care_signal',
         _section: 'caresignals',
-        _refId: f.id
+        _refId: f.id,
+        // Custom fields used by the special CareSignals card renderer below.
+        _caresignal_chip: measurementChip,
+        _caresignal_watch_type: w && w.watch_type ? String(w.watch_type) : '',
       });
     });
   } catch (eCS) { try { console.warn('[timeline] CareSignals merge skipped:', eCS); } catch (er) {} }
@@ -3674,6 +3698,21 @@ function renderTimeline() {
     filterChipsHtml = '<div class="tl-filter-chips" role="tablist" aria-label="Filter timeline">'
       + chipBtns + '</div>';
   }
+
+  // "Build health story" header lives above the filter chips and is offered
+  // whenever there's anything in the timeline. Pulls events in a date range
+  // and weaves them into a plain-English narrative you can read aloud at a
+  // specialist visit, copy, download as a PDF, or email to yourself.
+  var storyHeaderHtml = '';
+  if (allEvents.length > 0) {
+    storyHeaderHtml = '<div class="tl-story-header">'
+      + '<button class="tl-story-btn" onclick="openHealthStory()" aria-label="Build a health story from this timeline">'
+      +   '<i data-lucide="book-open" style="width:14px;height:14px;"></i>'
+      +   '<span class="tl-story-btn-label">Build health story</span>'
+      + '</button>'
+      + '<div class="tl-story-hint">A narrative you can read aloud at the next appointment.</div>'
+      + '</div>';
+  }
   // Apply the filter. "All" returns everything.
   var allEventsUnfiltered = allEvents;
   if (activeFilter && activeFilter !== 'all') {
@@ -3702,7 +3741,7 @@ function renderTimeline() {
         + (!ehrData && !isDemoMode ? buildEhrPrompt() : '')
         + '</div>';
     }
-    pane.innerHTML = emptyHeader + emptyChips + '<div class="timeline-section">' + emptyBody + '</div>';
+    pane.innerHTML = emptyHeader + storyHeaderHtml + emptyChips + '<div class="timeline-section">' + emptyBody + '</div>';
     // Append FAB once per render (deduped by id)
     if (!document.querySelector('#tab-timeline .tl-add-fab')) pane.insertAdjacentHTML('beforeend', fabHtml);
     initIcons();
@@ -3720,9 +3759,10 @@ function renderTimeline() {
     months[key].events.push(ev);
   });
 
-  // EHR status bar FIRST, then filter chips, then timeline list. FAB after.
+  // EHR status bar FIRST, then story header, then filter chips, then list.
   var html = '';
   if (ehrData) html += buildEhrStatusBar(ehrData);
+  if (storyHeaderHtml) html += storyHeaderHtml;
   if (filterChipsHtml) html += filterChipsHtml;
   html += '<div class="timeline-section">';
   Object.keys(months).sort().reverse().forEach(function(k) {
@@ -3828,17 +3868,40 @@ function renderTimeline() {
         default:
           pillLabel = 'Added by you';
       }
-      html += '<div class="tl-item">'
-        + '<div class="tl-card ' + typeInfo.border + '" data-ask-lp="' + askKeyTl + '"' + clickAttr + '>'
-        + '<div class="tl-card-type-row"><i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + typeInfo.color + ';"></i>'
-        + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span>'
-        + '</div>'
-        + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
-        + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
-        + '<div class="tl-card-date">' + dateStr
-        + ' \u00B7 <span style="color:' + pillColor + ';' + pillStyle + '">' + escHtml(pillLabel) + '</span>'
-        + '</div>'
-        + '</div></div>';
+      // CareSignals fires get a distinct, standout card: amber-mint accent rail,
+      // sparkles icon, bigger eyebrow, optional measurement chip.
+      if (ev.source === 'care_signal') {
+        // Trim the redundant "Wellet noticed: " prefix on the title \u2014 the eyebrow
+        // already says it.
+        var csTitle = String(ev.title || '').replace(/^Wellet noticed:\s*/i, '');
+        var chip = ev._caresignal_chip || '';
+        html += '<div class="tl-item">'
+          + '<div class="tl-card tl-card-caresignal" data-ask-lp="' + askKeyTl + '"' + clickAttr + '>'
+          + '<div class="tl-cs-accent" aria-hidden="true"></div>'
+          + '<div class="tl-card-type-row tl-cs-eyebrow">'
+          +   '<i data-lucide="sparkles" style="width:13px;height:13px;color:var(--moss-deep,var(--moss));"></i>'
+          +   '<span class="tl-card-type tl-cs-label">Wellet noticed</span>'
+          +   (chip ? '<span class="tl-cs-chip">' + escHtml(chip) + '</span>' : '')
+          + '</div>'
+          + '<div class="tl-card-title tl-cs-title">' + escHtml(csTitle) + '</div>'
+          + (ev.notes ? '<div class="tl-card-body tl-cs-body">' + escHtml(ev.notes) + '</div>' : '')
+          + '<div class="tl-card-date tl-cs-meta">' + dateStr
+          +   ' \u00B7 <span style="color:var(--moss);font-weight:500;font-style:italic;">You asked Wellet to watch this</span>'
+          + '</div>'
+          + '</div></div>';
+      } else {
+        html += '<div class="tl-item">'
+          + '<div class="tl-card ' + typeInfo.border + '" data-ask-lp="' + askKeyTl + '"' + clickAttr + '>'
+          + '<div class="tl-card-type-row"><i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + typeInfo.color + ';"></i>'
+          + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span>'
+          + '</div>'
+          + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
+          + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
+          + '<div class="tl-card-date">' + dateStr
+          + ' \u00B7 <span style="color:' + pillColor + ';' + pillStyle + '">' + escHtml(pillLabel) + '</span>'
+          + '</div>'
+          + '</div></div>';
+      }
     });
   });
   html += '</div>';
@@ -15627,6 +15690,232 @@ async function openShareEmail(url) {
     showToast('Opened in Mail (fallback)');
   }
 }
+
+// ─── ADD OUTSIDE VISIT (manual) ───────────────────────────────────────────
+// Care that happens outside the EHR we're connected to — PT, EMG,
+// nutritionist, an out-of-network ER trip. Same encounter card shape as
+// EHR-sourced visits but with an "Added manually" pill.
+// ─────────────────────────────────────────────────────────────────────────
+var _manualVisitState = {
+  service_slug: null,    // e.g. 'physical_therapy'
+  service_item: null,    // entry from WELLET_MANUAL_VISIT_BY_SLUG
+  file: null,            // optional File pending upload
+};
+
+function openManualVisit(opts) {
+  if (!currentPersonId) { showToast('Pick a family member first.'); return; }
+  _manualVisitState = { service_slug: null, service_item: null, file: null };
+  renderManualVisitPickList();
+  // Reset form state.
+  var d = document.getElementById('manual-visit-date');
+  if (d) {
+    var dateStr = (opts && opts.date) ? opts.date : new Date().toISOString().slice(0,10);
+    d.value = dateStr;
+  }
+  ['manual-visit-other-label','manual-visit-provider','manual-visit-reason','manual-visit-notes'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  var fileLabel = document.getElementById('manual-visit-file-label');
+  if (fileLabel) fileLabel.textContent = 'Choose file (PT eval, EMG report, etc.)';
+  var fileInput = document.getElementById('manual-visit-file');
+  if (fileInput) fileInput.value = '';
+  // Show step 1, hide step 2.
+  document.getElementById('manual-visit-step1').style.display = '';
+  document.getElementById('manual-visit-step2').style.display = 'none';
+  // Personalize subtitle with first name.
+  var sub = document.getElementById('manual-visit-sub');
+  if (sub) {
+    var firstName = (typeof getPersonFirstName === 'function') ? getPersonFirstName() : '';
+    sub.textContent = firstName
+      ? "Care that didn\u2019t come through " + firstName + "\u2019s connected EHR \u2014 physical therapy, EMG, a nutritionist, an outside ER trip."
+      : "Care that didn\u2019t come through the connected EHR \u2014 physical therapy, EMG, a nutritionist, an outside ER trip.";
+  }
+  openSheetAccessible('manual-visit-overlay');
+  initIcons();
+}
+
+function closeManualVisit() {
+  closeSheet('manual-visit-overlay');
+}
+
+function renderManualVisitPickList() {
+  var groups = window.WELLET_MANUAL_VISIT_TYPES || [];
+  var html = '';
+  groups.forEach(function (g) {
+    html += '<div class="manual-visit-group-label">' + escHtml(g.section) + '</div>';
+    html += '<div class="manual-visit-options">';
+    g.items.forEach(function (item) {
+      var classInfo = window.WELLET_ENCOUNTER_CLASS_INFO[item.encounter_class] || {};
+      var dotColor = classInfo.hex || '#4b6341';
+      html += '<button type="button" class="manual-visit-option" data-slug="' + escHtml(item.slug) + '" onclick="pickManualVisitType(\'' + escHtml(item.slug) + '\')">';
+      html += '<span class="manual-visit-option-icon"><i data-lucide="' + escHtml(item.icon) + '"></i></span>';
+      html += '<span class="manual-visit-option-label">' + escHtml(item.label) + '</span>';
+      html += '<span class="manual-visit-option-dot" style="background:' + dotColor + ';" title="' + escHtml(classInfo.label || '') + '"></span>';
+      html += '</button>';
+    });
+    html += '</div>';
+  });
+  var host = document.getElementById('manual-visit-picklist');
+  if (host) {
+    host.innerHTML = html;
+    initIcons();
+  }
+}
+
+function pickManualVisitType(slug) {
+  var item = window.WELLET_MANUAL_VISIT_BY_SLUG[slug];
+  if (!item) return;
+  _manualVisitState.service_slug = slug;
+  _manualVisitState.service_item = item;
+  // Show selected chip on step 2.
+  var classInfo = window.WELLET_ENCOUNTER_CLASS_INFO[item.encounter_class] || {};
+  var sel = document.getElementById('manual-visit-selected');
+  if (sel) {
+    sel.innerHTML =
+      '<span class="manual-visit-selected-icon" style="color:' + (classInfo.hex || '#4b6341') + ';"><i data-lucide="' + escHtml(item.icon) + '"></i></span>'
+      + '<span class="manual-visit-selected-label">' + escHtml(item.label) + '</span>'
+      + '<span class="manual-visit-selected-class">' + escHtml(classInfo.label || '') + '</span>';
+  }
+  // Show or hide the custom label field. Required for 'other', optional otherwise.
+  var otherLabel = document.getElementById('manual-visit-other-label');
+  var otherWrap = otherLabel ? otherLabel.closest('.manual-visit-field') : null;
+  if (otherWrap) {
+    if (slug === 'other') {
+      otherWrap.style.display = '';
+      otherLabel.placeholder = 'What was this visit? (required)';
+      var labelSpan = otherWrap.querySelector('.manual-visit-field-label');
+      if (labelSpan) labelSpan.textContent = 'What was this visit?';
+    } else {
+      // Keep visible but optional \u2014 lets people add detail like "EMG of left leg".
+      otherWrap.style.display = '';
+      otherLabel.placeholder = 'Optional detail \u2014 e.g. ' + (item.label.toLowerCase()) + ' of left leg';
+      var labelSpan2 = otherWrap.querySelector('.manual-visit-field-label');
+      if (labelSpan2) labelSpan2.textContent = 'Custom label (optional)';
+    }
+  }
+  document.getElementById('manual-visit-step1').style.display = 'none';
+  document.getElementById('manual-visit-step2').style.display = '';
+  initIcons();
+  // Move focus to the date input \u2014 most likely first field user wants to set.
+  setTimeout(function () {
+    var d = document.getElementById('manual-visit-date');
+    if (d) d.focus();
+  }, 80);
+}
+
+function manualVisitBackToStep1() {
+  document.getElementById('manual-visit-step1').style.display = '';
+  document.getElementById('manual-visit-step2').style.display = 'none';
+  initIcons();
+}
+
+function onManualVisitFilePicked(input) {
+  var f = input && input.files && input.files[0];
+  var label = document.getElementById('manual-visit-file-label');
+  if (!f) {
+    _manualVisitState.file = null;
+    if (label) label.textContent = 'Choose file (PT eval, EMG report, etc.)';
+    return;
+  }
+  if (f.size > 25 * 1024 * 1024) {
+    showToast('File is over 25MB \u2014 try a smaller one.');
+    input.value = '';
+    _manualVisitState.file = null;
+    return;
+  }
+  _manualVisitState.file = f;
+  if (label) label.textContent = f.name;
+}
+
+async function saveManualVisit() {
+  var item = _manualVisitState.service_item;
+  if (!item) { showToast('Pick a visit type.'); return; }
+  if (!currentPersonId) { showToast('Pick a family member first.'); return; }
+
+  var dateEl = document.getElementById('manual-visit-date');
+  var dateStr = dateEl ? (dateEl.value || '').trim() : '';
+  if (!dateStr) { showToast('Pick a date for the visit.'); if (dateEl) dateEl.focus(); return; }
+
+  var customLabel = (document.getElementById('manual-visit-other-label').value || '').trim();
+  if (item.slug === 'other' && !customLabel) {
+    showToast('Describe what this visit was.');
+    document.getElementById('manual-visit-other-label').focus();
+    return;
+  }
+  var provider = (document.getElementById('manual-visit-provider').value || '').trim();
+  var reason   = (document.getElementById('manual-visit-reason').value   || '').trim();
+  var notes    = (document.getElementById('manual-visit-notes').value    || '').trim();
+
+  // Display label for the timeline card.
+  var displayLabel = customLabel || item.label;
+  // Event title: label \u2014 provider when provided.
+  var title = provider ? (displayLabel + ' \u2014 ' + provider) : displayLabel;
+  var classInfo = window.WELLET_ENCOUNTER_CLASS_INFO[item.encounter_class] || {};
+
+  // Disable the save button while inserting.
+  var btn = document.getElementById('manual-visit-save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+
+  try {
+    // Build event_date as ISO at noon UTC so it lands on the right day in any
+    // viewer's timezone (avoids the "PT visit shows up on the day before" bug).
+    var iso = new Date(dateStr + 'T12:00:00Z').toISOString();
+
+    var row = {
+      person_id: currentPersonId,
+      event_type: 'visit',
+      event_date: iso,
+      title: title,
+      notes: notes || null,
+      source: 'manual',
+      // Encounter metadata so the rollup query treats manual visits the same
+      // as EHR-sourced visits.
+      encounter_class_code: item.encounter_class,
+      encounter_class_display: classInfo.label || null,
+      encounter_service_provider: provider || null,
+      encounter_reason_text: reason || null,
+      manual_service_type: item.slug,
+      manual_service_label: displayLabel,
+    };
+
+    var ins = await db.from('health_events').insert(row).select().single();
+    if (ins.error) {
+      console.error('[manual-visit] insert error', ins.error);
+      showToast('Couldn\u2019t save visit: ' + (ins.error.message || 'unknown error'));
+      if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+      return;
+    }
+
+    // Optional file upload \u2014 ties to the new event via visit_attachments.event_id.
+    if (_manualVisitState.file) {
+      try {
+        await uploadAttachment(_manualVisitState.file, 'manual_visit', 'event', ins.data.id);
+      } catch (e) {
+        console.warn('[manual-visit] attachment failed (visit still saved)', e);
+      }
+    }
+
+    // Refresh local cache + redraw the timeline.
+    try { await loadPersonData(currentPersonId); } catch (e) { console.warn(e); }
+    closeManualVisit();
+    showToast('Added ' + displayLabel + ' on ' + formatDateShort(iso));
+  } catch (e) {
+    console.error('[manual-visit] save error', e);
+    showToast('Couldn\u2019t save visit.');
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+  }
+}
+
+// Small date formatter used in the success toast. Falls back gracefully when
+// the existing app helper isn't in scope.
+function formatDateShort(iso) {
+  try {
+    var d = new Date(iso);
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  } catch (e) { return ''; }
+}
+
 function openExportVisit() {
   var firstName = getPersonFirstName();
   var subEl = document.getElementById('export-sheet-sub');
@@ -20668,6 +20957,563 @@ function getPersonFirstName() {
   if (isDemoMode) return 'John';
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
   return person ? person.name.split(' ')[0] : 'Patient';
+}
+
+// ── HEALTH STORY ────────────────────────────────────────────────────────────
+// Pulls timeline events in a date range and weaves them into plain-English
+// prose a family member can read aloud at a specialist visit. Optional anchor
+// ("This started June 1 when she fell") opens the story. Output is rendered
+// on-screen, can be copied, exported to PDF, or emailed to the signed-in user.
+//
+// Reuses the same merged event sources renderTimeline() uses: liveEvents +
+// EHR data (visits / labs / meds / immunizations / observations / conditions)
+// + medication logs + check-ins + CareSignals fires. Everything in this module
+// is read-only.
+
+window._lastStoryMeta = null;   // { fromIso, toIso, anchor, cause, personName, body }
+window._lastStoryPlain = '';    // plain-text version for copy/email
+window._storyCause = null;
+
+function openHealthStory() {
+  // Reset any previous run.
+  window._lastStoryMeta = null;
+  window._lastStoryPlain = '';
+  window._storyCause = null;
+  var step1 = document.getElementById('story-step1');
+  var step2 = document.getElementById('story-step2');
+  if (step1) step1.style.display = '';
+  if (step2) step2.style.display = 'none';
+  // Clear inputs
+  var anchor = document.getElementById('story-anchor-text');
+  if (anchor) anchor.value = '';
+  // Reset cause chips
+  var chips = document.querySelectorAll('#story-cause-grid .story-cause-chip');
+  chips.forEach(function(c) { c.classList.remove('is-active'); });
+  // Default date range: from = earliest event in current timeline data,
+  // to = today. User can change either.
+  var fromEl = document.getElementById('story-from');
+  var toEl   = document.getElementById('story-to');
+  if (fromEl && toEl) {
+    var earliest = _storyEarliestEventDate();
+    var today = new Date();
+    toEl.value = _storyDateToIsoLocal(today);
+    if (earliest) {
+      fromEl.value = _storyDateToIsoLocal(earliest);
+    } else {
+      // 90 days back as a safe default if we can't find an event date
+      var d = new Date();
+      d.setDate(d.getDate() - 90);
+      fromEl.value = _storyDateToIsoLocal(d);
+    }
+  }
+  if (typeof openSheetAccessible === 'function') openSheetAccessible('story-overlay');
+  else {
+    var sheet = document.getElementById('story-overlay');
+    if (sheet) sheet.classList.add('show');
+  }
+  if (typeof initIcons === 'function') initIcons();
+}
+
+function closeHealthStory() {
+  if (typeof closeSheetAccessible === 'function') closeSheetAccessible('story-overlay');
+  else {
+    var sheet = document.getElementById('story-overlay');
+    if (sheet) sheet.classList.remove('show');
+  }
+}
+
+function storyBackToStep1() {
+  var step1 = document.getElementById('story-step1');
+  var step2 = document.getElementById('story-step2');
+  if (step1) step1.style.display = '';
+  if (step2) step2.style.display = 'none';
+}
+
+function pickStoryCause(btn, cause) {
+  var chips = document.querySelectorAll('#story-cause-grid .story-cause-chip');
+  chips.forEach(function(c) { c.classList.remove('is-active'); });
+  if (window._storyCause === cause) {
+    // Tap again to deselect.
+    window._storyCause = null;
+  } else {
+    window._storyCause = cause;
+    if (btn) btn.classList.add('is-active');
+  }
+}
+
+function _storyDateToIsoLocal(d) {
+  // YYYY-MM-DD in local time. <input type=date> wants local.
+  var y = d.getFullYear();
+  var m = String(d.getMonth() + 1).padStart(2, '0');
+  var day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
+
+function _storyEarliestEventDate() {
+  // Look at liveEvents + EHR data to find the earliest date worth offering as
+  // the default "From". Returns a Date, or null if nothing's loaded yet.
+  var dates = [];
+  (liveEvents || []).forEach(function(e) {
+    if (e && e.event_date) dates.push(new Date(e.event_date));
+  });
+  var ehr = (typeof getEhrData === 'function') ? getEhrData(currentPersonId) : null;
+  if (ehr) {
+    (ehr.visits || []).forEach(function(v) { if (v.start_date) dates.push(new Date(v.start_date)); });
+    (ehr.conditions || []).forEach(function(c) { var d = c.onset_date || c.recorded_date; if (d) dates.push(new Date(d)); });
+    (ehr.observations || []).forEach(function(o) { if (o.effective_date) dates.push(new Date(o.effective_date)); });
+    (ehr.procedures || []).forEach(function(p) { if (p.performed_date) dates.push(new Date(p.performed_date)); });
+    (ehr.diagnostic_reports || []).forEach(function(r) { var d = r.effective_date || r.issued; if (d) dates.push(new Date(d)); });
+    (ehr.medications || []).forEach(function(m) { var d = m.authored_on || m.start_date; if (d) dates.push(new Date(d)); });
+    (ehr.immunizations || []).forEach(function(i) { if (i.date) dates.push(new Date(i.date)); });
+  }
+  var valid = dates.filter(function(d) { return !isNaN(d.getTime()); });
+  if (valid.length === 0) return null;
+  return new Date(Math.min.apply(null, valid.map(function(d){ return d.getTime(); })));
+}
+
+function _storyFormatLong(d) {
+  if (!d || isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
+function _storyFormatShort(d) {
+  if (!d || isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// Collect every relevant event in the date range, normalised into
+// { date, kind, title, detail, source } shape. "kind" is one of:
+// visit | er | inpatient | virtual | surgery | diagnosis | lab | med | immunization | report | wellet_noticed | note.
+function _storyCollectEvents(fromDate, toDate) {
+  var out = [];
+  function inRange(d) {
+    if (!d || isNaN(d.getTime())) return false;
+    return d >= fromDate && d <= toDate;
+  }
+  function push(d, kind, title, detail, source) {
+    if (!inRange(d)) return;
+    out.push({ date: d, kind: kind, title: title || '', detail: detail || '', source: source || '' });
+  }
+  // 1) User-created + voice + share + caresignals + checkin events from liveEvents
+  (liveEvents || []).forEach(function(e) {
+    var d = new Date(e.event_date);
+    var kind = 'note';
+    var et = (e.event_type || '').toLowerCase();
+    if (et === 'appointment') kind = 'visit';
+    else if (et === 'lab_result') kind = 'lab';
+    else if (et === 'condition') kind = 'diagnosis';
+    else if (et === 'medication') kind = 'med';
+    else if (et === 'immunization') kind = 'immunization';
+    else if (et === 'visit') kind = 'visit';
+    if (e.source === 'care_signal') kind = 'wellet_noticed';
+    if (e.source === 'med_log') kind = 'med';
+    var srcLabel = '';
+    if (e.source === 'ehr')         srcLabel = 'EHR';
+    else if (e.source === 'voice')       srcLabel = 'voice note';
+    else if (e.source === 'document')    srcLabel = 'upload';
+    else if (e.source === 'care_signal') srcLabel = 'Wellet noticed';
+    else if (e.source === 'med_log')     srcLabel = 'med log';
+    else if (e.source === 'check_in')    srcLabel = 'check-in';
+    else if (e.source === 'care_circle') srcLabel = 'care circle';
+    else                                 srcLabel = 'added manually';
+    push(d, kind, e.title || '', e.notes || '', srcLabel);
+  });
+  // 2) EHR data — separately because liveEvents doesn't carry full EHR.
+  var ehr = (typeof getEhrData === 'function') ? getEhrData(currentPersonId) : null;
+  if (ehr) {
+    var ehrProv = ehr.provider || 'EHR';
+    var seenIds = Object.create(null);
+    (ehr.visits || ehr.encounters || []).forEach(function(v) {
+      if (v.id) seenIds[v.id] = true;
+      var cls = String(v.class || '').toLowerCase();
+      var nm = String(v.name || '').toLowerCase();
+      var typ = String(v.type || '').toLowerCase();
+      var kind = 'visit';
+      if (cls === 'emer' || cls === 'emergency' || /\b(er|emergency)\b/.test(nm + ' ' + typ)) kind = 'er';
+      else if (cls === 'imp' || cls === 'inpatient' || /\b(inpatient|hospitalization|admit)\b/.test(nm + ' ' + typ)) kind = 'inpatient';
+      else if (cls === 'virtual' || /\b(telemed|telehealth|video visit|e-?visit)\b/.test(nm + ' ' + typ)) kind = 'virtual';
+      var detail = '';
+      if (v.reason && v.location) detail = v.reason + ' \u2014 ' + v.location;
+      else detail = v.location || v.reason || '';
+      push(new Date(v.start_date), kind, v.name || 'Visit', detail, 'from ' + ehrProv);
+    });
+    (ehr.conditions || []).forEach(function(c) {
+      if (c.id && seenIds[c.id]) return;
+      push(new Date(c.onset_date || c.recorded_date), 'diagnosis', c.name || 'Condition', c.clinical_status || '', 'from ' + ehrProv);
+    });
+    (ehr.procedures || []).forEach(function(p) {
+      var nm = String(p.name || '').toLowerCase();
+      var kind = /\b(surgery|surgical|repair|release|reconstruction|implantation|excision|fusion|biopsy|ablation)\b/.test(nm) ? 'surgery' : 'visit';
+      push(new Date(p.performed_date), kind, p.name || 'Procedure', p.body_site || '', 'from ' + ehrProv);
+    });
+    (ehr.observations || []).forEach(function(o) {
+      var detail = (o.value ? String(o.value) + (o.unit ? ' ' + o.unit : '') : '') + (o.interpretation ? ' (' + o.interpretation + ')' : '');
+      push(new Date(o.effective_date), 'lab', o.name || 'Result', detail, 'from ' + ehrProv);
+    });
+    (ehr.diagnostic_reports || []).forEach(function(r) {
+      var dt = r.effective_date || r.issued;
+      var detail = (r.conclusion || '').trim();
+      push(new Date(dt), 'report', r.name || 'Report', detail, 'from ' + ehrProv);
+    });
+    (ehr.medications || []).forEach(function(m) {
+      var dt = m.authored_on || m.start_date;
+      if (!dt) return;
+      var detail = (m.dose || '') + (m.frequency ? ' \u00b7 ' + m.frequency : '');
+      push(new Date(dt), 'med', 'Started ' + (m.name || 'medication'), detail, 'from ' + ehrProv);
+    });
+    (ehr.immunizations || []).forEach(function(i) {
+      push(new Date(i.date), 'immunization', i.name || 'Vaccine', '', 'from ' + ehrProv);
+    });
+  }
+  // Chronological forward order (oldest first — stories read forward).
+  out.sort(function(a, b) { return a.date - b.date; });
+  return out;
+}
+
+// Build a coherent narrative from the collected events.
+function _storyBuildNarrative(events, anchorText, cause, personFirstName, fromDate, toDate) {
+  var paragraphs = [];
+  var she = 'they'; // gender-neutral default
+  // Try to use the person's pronoun if it's stored, otherwise stick with name.
+  var personRef = personFirstName || 'They';
+
+  // OPENING — anchor sentence if provided, otherwise a clean opener.
+  if (anchorText && anchorText.trim()) {
+    paragraphs.push(anchorText.trim());
+  } else {
+    var causeFlavor = '';
+    if (cause === 'fall')        causeFlavor = ' after a fall';
+    else if (cause === 'new_symptom') causeFlavor = ' after a new symptom appeared';
+    else if (cause === 'er_visit')    causeFlavor = ' starting with an ER visit';
+    else if (cause === 'diagnosis')   causeFlavor = ' starting with a new diagnosis';
+    else if (cause === 'surgery')     causeFlavor = ' starting with surgery';
+    paragraphs.push('This is the story of ' + personRef + "'s care from " +
+      _storyFormatLong(fromDate) + ' to ' + _storyFormatLong(toDate) + causeFlavor + '.');
+  }
+
+  if (events.length === 0) {
+    paragraphs.push('There are no recorded events in this window. Once visits, labs, or medications are added or pulled from a connected hospital, they will show up here.');
+    return paragraphs.join('\n\n');
+  }
+
+  // Group events by month so the story has natural beats.
+  var groups = [];
+  var currentKey = null;
+  events.forEach(function(ev) {
+    var k = ev.date.getFullYear() + '-' + ev.date.getMonth();
+    if (k !== currentKey) {
+      groups.push({ key: k, label: ev.date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }), events: [] });
+      currentKey = k;
+    }
+    groups[groups.length - 1].events.push(ev);
+  });
+
+  // Build a paragraph per month.
+  groups.forEach(function(g, gi) {
+    var lead = (gi === 0)
+      ? 'In ' + g.label + ', '
+      : 'Then in ' + g.label + ', ';
+    var sentences = [];
+    g.events.forEach(function(ev, idx) {
+      var when = _storyFormatShort(ev.date);
+      var s = '';
+      switch (ev.kind) {
+        case 'er':
+          s = personRef + ' went to the ER on ' + when + (ev.detail ? ' for ' + ev.detail.toLowerCase() : '') + '.';
+          break;
+        case 'inpatient':
+          s = personRef + ' was admitted on ' + when + (ev.detail ? ' \u2014 ' + ev.detail : '') + '.';
+          break;
+        case 'surgery':
+          s = 'On ' + when + ', ' + personRef.toLowerCase() + ' had surgery: ' + (ev.title || 'procedure') + (ev.detail ? ' (' + ev.detail + ')' : '') + '.';
+          break;
+        case 'visit':
+          s = 'On ' + when + ', ' + personRef.toLowerCase() + ' saw ' + (ev.title || 'a provider') + (ev.detail ? ' \u2014 ' + ev.detail : '') + '.';
+          break;
+        case 'virtual':
+          s = 'On ' + when + ', ' + personRef.toLowerCase() + ' had a video visit for ' + (ev.title || 'follow-up') + '.';
+          break;
+        case 'diagnosis':
+          s = 'On ' + when + ', ' + (ev.title || 'a new diagnosis') + ' was added to the chart.';
+          break;
+        case 'lab':
+          s = (ev.title || 'A lab') + ' was drawn on ' + when + (ev.detail ? ' \u2014 ' + ev.detail : '') + '.';
+          break;
+        case 'report':
+          s = 'A ' + (ev.title || 'report') + ' came back on ' + when + (ev.detail ? '. ' + ev.detail : '') + (ev.detail ? '' : '.');
+          if (!/\.$/.test(s)) s += '.';
+          break;
+        case 'med':
+          s = 'On ' + when + ', ' + (ev.title || 'a medication was logged') + (ev.detail ? ' (' + ev.detail + ')' : '') + '.';
+          break;
+        case 'immunization':
+          s = personRef + ' got ' + (ev.title || 'a vaccine') + ' on ' + when + '.';
+          break;
+        case 'wellet_noticed':
+          s = 'On ' + when + ', Wellet noticed: ' + (ev.title || '') + (ev.detail ? '. ' + ev.detail : '') + (ev.detail ? '' : '.');
+          if (!/\.$/.test(s)) s += '.';
+          break;
+        default:
+          s = 'On ' + when + ', ' + (ev.title || 'a note was added') + (ev.detail ? ' \u2014 ' + ev.detail : '') + '.';
+      }
+      // Tidy up double spaces and stray punctuation.
+      s = s.replace(/\s+/g, ' ').replace(/\s\./g, '.').trim();
+      // Re-capitalise the person reference if it's a proper noun ("Mom",
+      // "Dad", or a first name) and we lowercased it for mid-sentence flow.
+      if (personRef && /^[A-Z]/.test(personRef)) {
+        var lower = personRef.toLowerCase();
+        // Word-boundary, but only the lowercase variant produced by our flow.
+        s = s.replace(new RegExp('\\b' + lower + '\\b', 'g'), personRef);
+      }
+      sentences.push(s);
+    });
+    // Lead-cap only the very first sentence in the paragraph: lowercase its
+    // initial letter so it flows after the "In June 2025, " lead-in, then
+    // re-capitalise common proper-noun openers (Mom, Dad, the person's name).
+    var paragraph = lead.trim();
+    if (sentences.length > 0) {
+      var first = sentences[0];
+      // Lowercase the first character of the first sentence.
+      var firstLowered = first.charAt(0).toLowerCase() + first.slice(1);
+      paragraph = lead + firstLowered + (sentences.length > 1 ? ' ' + sentences.slice(1).join(' ') : '');
+    }
+    // Re-capitalise a proper-noun start (e.g. "mom" \u2192 "Mom") right after the lead.
+    var properNoun = personRef && /^[A-Z]/.test(personRef) ? personRef : null;
+    if (properNoun) {
+      var leadRe = new RegExp('^(In [^,]+, |Then in [^,]+, )' + properNoun.toLowerCase(), '');
+      paragraph = paragraph.replace(leadRe, '$1' + properNoun);
+    }
+    paragraphs.push(paragraph.replace(/\s+/g, ' ').trim());
+  });
+
+  // Closing summary line — counts by kind.
+  var counts = { er: 0, inpatient: 0, surgery: 0, visit: 0, virtual: 0, diagnosis: 0, lab: 0, report: 0, med: 0, immunization: 0, wellet_noticed: 0, note: 0 };
+  events.forEach(function(ev) { if (counts[ev.kind] != null) counts[ev.kind]++; });
+  var allVisits = counts.visit + counts.virtual + counts.er + counts.inpatient + counts.surgery;
+  var summaryBits = [];
+  if (allVisits)        summaryBits.push(allVisits + ' visit' + (allVisits === 1 ? '' : 's'));
+  if (counts.lab + counts.report) summaryBits.push((counts.lab + counts.report) + ' lab' + (counts.lab + counts.report === 1 ? '' : 's') + ' or report' + (counts.lab + counts.report === 1 ? '' : 's'));
+  if (counts.diagnosis) summaryBits.push(counts.diagnosis + ' diagnos' + (counts.diagnosis === 1 ? 'is' : 'es'));
+  if (counts.med)       summaryBits.push(counts.med + ' medication' + (counts.med === 1 ? '' : 's'));
+  if (counts.immunization) summaryBits.push(counts.immunization + ' vaccine' + (counts.immunization === 1 ? '' : 's'));
+  if (summaryBits.length > 0) {
+    paragraphs.push('In summary, this window covered ' + summaryBits.slice(0, -1).join(', ') + (summaryBits.length > 1 ? ', and ' : '') + summaryBits[summaryBits.length - 1] + '.');
+  }
+  return paragraphs.join('\n\n');
+}
+
+function generateHealthStory() {
+  var fromEl = document.getElementById('story-from');
+  var toEl   = document.getElementById('story-to');
+  var anchorEl = document.getElementById('story-anchor-text');
+  if (!fromEl || !toEl) return;
+  if (!fromEl.value || !toEl.value) {
+    if (typeof showToast === 'function') showToast('Pick a date range first');
+    return;
+  }
+  var fromDate = new Date(fromEl.value + 'T00:00:00');
+  var toDate   = new Date(toEl.value   + 'T23:59:59');
+  if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+    if (typeof showToast === 'function') showToast('Those dates look off');
+    return;
+  }
+  if (fromDate > toDate) {
+    if (typeof showToast === 'function') showToast('The From date is after the To date');
+    return;
+  }
+  var personFirstName = (typeof getPersonFirstName === 'function') ? getPersonFirstName() : 'They';
+  var anchorText = anchorEl ? anchorEl.value : '';
+  var cause = window._storyCause || null;
+
+  var events = _storyCollectEvents(fromDate, toDate);
+  var body = _storyBuildNarrative(events, anchorText, cause, personFirstName, fromDate, toDate);
+
+  // Resolve person full name + title.
+  var personFull = personFirstName;
+  try {
+    if (!isDemoMode) {
+      var p = currentPeople.find(function(x){ return x.id === currentPersonId; });
+      if (p && p.name) personFull = p.name;
+    } else {
+      personFull = 'John Bell';
+    }
+  } catch(_e) {}
+
+  var rangeLabel = _storyFormatLong(fromDate) + ' \u2013 ' + _storyFormatLong(toDate);
+  var titleEl = document.getElementById('story-output-title');
+  var metaEl  = document.getElementById('story-output-meta');
+  var bodyEl  = document.getElementById('story-output-body');
+  if (titleEl) titleEl.textContent = personFull + "'s story";
+  if (metaEl)  metaEl.textContent  = rangeLabel + ' \u00b7 ' + events.length + ' event' + (events.length === 1 ? '' : 's');
+  if (bodyEl) {
+    // Render paragraphs as <p>, escape HTML.
+    bodyEl.innerHTML = body.split('\n\n').map(function(para) {
+      return '<p>' + (typeof escHtml === 'function' ? escHtml(para) : para) + '</p>';
+    }).join('');
+  }
+
+  // Stash for copy / PDF / email.
+  window._lastStoryMeta = {
+    fromIso: fromEl.value, toIso: toEl.value,
+    fromDate: fromDate, toDate: toDate,
+    anchor: anchorText, cause: cause,
+    personFull: personFull, personFirst: personFirstName,
+    rangeLabel: rangeLabel, body: body,
+    eventCount: events.length
+  };
+  window._lastStoryPlain = personFull + "'s story\n" + rangeLabel + '\n\n' + body +
+    '\n\n\u2014 Compiled by Wellet \u00b7 A record that belongs to your family, not the hospital.';
+
+  // Reveal step 2.
+  var step1 = document.getElementById('story-step1');
+  var step2 = document.getElementById('story-step2');
+  if (step1) step1.style.display = 'none';
+  if (step2) step2.style.display = '';
+  if (typeof initIcons === 'function') initIcons();
+  // Scroll the sheet up so the new card is visible.
+  var sheet = document.querySelector('#story-overlay .qa-sheet');
+  if (sheet) sheet.scrollTop = 0;
+}
+
+function copyHealthStory() {
+  var text = window._lastStoryPlain || '';
+  if (!text) {
+    if (typeof showToast === 'function') showToast('Build the story first');
+    return;
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() {
+      if (typeof showToast === 'function') showToast('Story copied');
+    }, function() {
+      _storyFallbackCopy(text);
+    });
+  } else {
+    _storyFallbackCopy(text);
+  }
+}
+function _storyFallbackCopy(text) {
+  try {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    if (typeof showToast === 'function') showToast('Story copied');
+  } catch(_e) {
+    if (typeof showToast === 'function') showToast('Copy failed \u2014 try selecting the text');
+  }
+}
+
+function downloadHealthStoryPDF() {
+  var meta = window._lastStoryMeta;
+  if (!meta) {
+    if (typeof showToast === 'function') showToast('Build the story first');
+    return;
+  }
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    if (typeof showToast === 'function') showToast('PDF library not loaded');
+    return;
+  }
+  var doc = new window.jspdf.jsPDF();
+  var pageW = doc.internal.pageSize.getWidth();
+  var pageH = doc.internal.pageSize.getHeight();
+  var marginX = 22;
+  var maxW = pageW - marginX * 2;
+
+  // Cream cover-style background top band.
+  doc.setFillColor(252, 248, 240);
+  doc.rect(0, 0, pageW, pageH, 'F');
+
+  // Eyebrow
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(150, 140, 120);
+  doc.text('WELLET \u00B7 A FAMILY STORY', marginX, 24);
+  doc.setDrawColor(220, 210, 190);
+  doc.setLineWidth(0.3);
+  doc.line(marginX, 28, pageW - marginX, 28);
+
+  // Serif title
+  doc.setFont('Times', 'normal');
+  doc.setFontSize(26);
+  doc.setTextColor(40, 40, 40);
+  var titleStr = (meta.personFull || 'Patient') + "'s story";
+  var titleLines = doc.splitTextToSize(titleStr, maxW);
+  doc.text(titleLines, marginX, 46);
+  var y = 46 + titleLines.length * 9 + 4;
+
+  // Meta row (range + event count)
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(120, 120, 120);
+  doc.text(meta.rangeLabel + '  \u00b7  ' + meta.eventCount + ' event' + (meta.eventCount === 1 ? '' : 's'), marginX, y);
+  y += 10;
+
+  // Body — split into paragraphs, wrap each.
+  doc.setFont('Times', 'normal');
+  doc.setFontSize(12);
+  doc.setTextColor(40, 40, 40);
+  var paragraphs = String(meta.body || '').split(/\n\n+/);
+  paragraphs.forEach(function(para, i) {
+    var lines = doc.splitTextToSize(para, maxW);
+    // Page-break if we'd overflow.
+    var blockH = lines.length * 6 + 4;
+    if (y + blockH > pageH - 22) {
+      doc.addPage();
+      doc.setFillColor(252, 248, 240);
+      doc.rect(0, 0, pageW, pageH, 'F');
+      y = 24;
+      doc.setFont('Times', 'normal');
+      doc.setFontSize(12);
+      doc.setTextColor(40, 40, 40);
+    }
+    doc.text(lines, marginX, y);
+    y += blockH;
+  });
+
+  // Footer on each page.
+  var pageCount = doc.internal.getNumberOfPages();
+  for (var pi = 1; pi <= pageCount; pi++) {
+    doc.setPage(pi);
+    doc.setFont('Times', 'italic');
+    doc.setFontSize(9);
+    doc.setTextColor(96, 143, 124);
+    doc.text('A record that belongs to your family, not the hospital.', marginX, pageH - 18);
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text('Compiled by Wellet \u00b7 mywellet.com', marginX, pageH - 12);
+    doc.text('Page ' + pi + ' of ' + pageCount, pageW - marginX - 22, pageH - 12);
+  }
+
+  var safeName = (meta.personFull || 'patient').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  var fname = 'wellet-' + safeName + '-story-' + meta.fromIso + '-to-' + meta.toIso + '.pdf';
+  doc.save(fname);
+  if (typeof showToast === 'function') showToast('PDF saved');
+}
+
+function emailHealthStory() {
+  var meta = window._lastStoryMeta;
+  if (!meta) {
+    if (typeof showToast === 'function') showToast('Build the story first');
+    return;
+  }
+  var to = '';
+  try { if (currentUser && currentUser.email) to = currentUser.email; } catch(_e) {}
+  var subject = (meta.personFull || 'Patient') + "'s health story \u00b7 " + meta.rangeLabel;
+  var bodyText = (meta.personFull || 'Patient') + "'s story\n" + meta.rangeLabel + '\n\n' + meta.body +
+    '\n\n\u2014 Compiled by Wellet \u00b7 A record that belongs to your family, not the hospital.';
+  // mailto: has a length limit on many clients (~2000 chars), so truncate body
+  // gracefully with a tail note pointing back to the app/PDF.
+  var maxLen = 1800;
+  if (bodyText.length > maxLen) {
+    bodyText = bodyText.substring(0, maxLen) + '\n\n[\u2026 truncated for email. Open Wellet and tap Save as PDF for the full version.]';
+  }
+  var href = 'mailto:' + encodeURIComponent(to) +
+    '?subject=' + encodeURIComponent(subject) +
+    '&body=' + encodeURIComponent(bodyText);
+  window.location.href = href;
 }
 
 // ── FEATURE 1: EMERGENCY SUMMARY PDF ────────────────────────────────────────

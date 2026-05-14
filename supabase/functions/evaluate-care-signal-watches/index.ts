@@ -583,11 +583,20 @@ function lastNDays<T extends { date: string }>(arr: T[], n: number): T[] {
 
 async function fireWatch(w: Watch, decision: FireDecision): Promise<"sent" | "suppressed" | "failed"> {
   // Insert fire row first as 'queued', then update after delivery.
+  // Persist factualBody inside trigger_value so the Living Timeline card has a
+  // ready-made human-readable body without re-running the rule. Mirrors what we
+  // send by email.
+  const tv: Record<string, unknown> = {
+    ...(decision.triggerValue || {}),
+  };
+  if (decision.factualBody && tv.summary === undefined) {
+    tv.summary = decision.factualBody;
+  }
   const { data: fireRow, error: fireErr } = await admin
     .from("care_signal_watch_fires")
     .insert({
       watch_id: w.id,
-      trigger_value: decision.triggerValue || {},
+      trigger_value: tv,
       notification_status: "queued",
       notification_channel: "email",
     })

@@ -1721,6 +1721,154 @@
   </div>
 </div>
 
+<!-- ADD OUTSIDE VISIT SHEET -->
+<div class="qa-overlay" id="manual-visit-overlay" data-editorial="sheet" onclick="if(event.target===this)closeManualVisit()">
+  <div class="qa-sheet manual-visit-sheet">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" aria-label="Close" onclick="closeManualVisit()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title">Add an outside visit</div>
+    <div class="qa-sheet-sub" id="manual-visit-sub">Care that didn't come through the EHR — physical therapy, EMG, a nutritionist, an outside ER trip.</div>
+
+    <!-- Step 1: pick a service type -->
+    <div id="manual-visit-step1" class="manual-visit-step">
+      <div id="manual-visit-picklist"></div>
+    </div>
+
+    <!-- Step 2: details (date, provider, notes, file) -->
+    <div id="manual-visit-step2" class="manual-visit-step" style="display:none;">
+      <button class="manual-visit-back" onclick="manualVisitBackToStep1()"><i data-lucide="chevron-left" style="width:14px;height:14px;"></i> Change type</button>
+      <div class="manual-visit-selected" id="manual-visit-selected"></div>
+
+      <label class="manual-visit-field">
+        <span class="manual-visit-field-label">Custom label (optional)</span>
+        <input type="text" id="manual-visit-other-label" class="manual-visit-input" placeholder="e.g. EMG of left leg" />
+      </label>
+
+      <label class="manual-visit-field">
+        <span class="manual-visit-field-label">Date</span>
+        <input type="date" id="manual-visit-date" class="manual-visit-input" />
+      </label>
+
+      <label class="manual-visit-field">
+        <span class="manual-visit-field-label">Provider or facility (optional)</span>
+        <input type="text" id="manual-visit-provider" class="manual-visit-input" placeholder="e.g. Asheville Physical Therapy" />
+      </label>
+
+      <label class="manual-visit-field">
+        <span class="manual-visit-field-label">Reason / what was treated (optional)</span>
+        <input type="text" id="manual-visit-reason" class="manual-visit-input" placeholder="e.g. lower back, left knee" />
+      </label>
+
+      <label class="manual-visit-field">
+        <span class="manual-visit-field-label">Notes (optional)</span>
+        <textarea id="manual-visit-notes" class="manual-visit-input manual-visit-textarea" rows="3" placeholder="How it went, what the provider said, next steps&hellip;"></textarea>
+      </label>
+
+      <!-- Optional attachment — reuses the existing visit_attachments pipeline. -->
+      <div class="manual-visit-field">
+        <span class="manual-visit-field-label">Attach a document (optional)</span>
+        <input type="file" id="manual-visit-file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.txt" style="display:none;" onchange="onManualVisitFilePicked(this)">
+        <button type="button" class="manual-visit-file-btn" onclick="document.getElementById('manual-visit-file').click()">
+          <i data-lucide="paperclip" style="width:14px;height:14px;"></i>
+          <span id="manual-visit-file-label">Choose file (PT eval, EMG report, etc.)</span>
+        </button>
+      </div>
+
+      <div class="manual-visit-actions">
+        <button class="btn-primary" id="manual-visit-save-btn" onclick="saveManualVisit()">
+          <i data-lucide="check" style="width:15px;height:15px;"></i>
+          Add visit
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- HEALTH STORY SHEET -->
+<!-- Pulls timeline events in a date range and weaves them into a plain-English
+     narrative you can read aloud at a specialist visit. Optional anchor text
+     becomes the opening sentence ("This all started June 1 when she fell down
+     the steps"). Output: on-screen card + PDF download + email-to-self. -->
+<div class="qa-overlay" id="story-overlay" data-editorial="sheet" onclick="if(event.target===this)closeHealthStory()">
+  <div class="qa-sheet story-sheet">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" aria-label="Close" onclick="closeHealthStory()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title">Build a health story</div>
+    <div class="qa-sheet-sub" id="story-sheet-sub">Pick a date range, anchor it to what started everything, and Wellet weaves the timeline into a story you can read aloud at the next appointment.</div>
+
+    <!-- Step 1: range + anchor -->
+    <div id="story-step1" class="story-step">
+      <label class="story-field">
+        <span class="story-field-label">From</span>
+        <input type="date" id="story-from" class="story-input" />
+      </label>
+      <label class="story-field">
+        <span class="story-field-label">To</span>
+        <input type="date" id="story-to" class="story-input" />
+      </label>
+
+      <div class="story-divider"><span>Anchor (optional)</span></div>
+      <div class="story-anchor-hint">A sentence about what started this chapter. Wellet will open the story with it.</div>
+
+      <label class="story-field">
+        <span class="story-field-label">What started this?</span>
+        <textarea id="story-anchor-text" class="story-input story-textarea" rows="2" placeholder="e.g. This all started on June 1st when Mom fell down the steps"></textarea>
+      </label>
+
+      <div class="story-field">
+        <span class="story-field-label">Cause (optional)</span>
+        <div class="story-cause-grid" id="story-cause-grid">
+          <button type="button" class="story-cause-chip" data-cause="fall" onclick="pickStoryCause(this,'fall')">Fall</button>
+          <button type="button" class="story-cause-chip" data-cause="new_symptom" onclick="pickStoryCause(this,'new_symptom')">New symptom</button>
+          <button type="button" class="story-cause-chip" data-cause="er_visit" onclick="pickStoryCause(this,'er_visit')">ER visit</button>
+          <button type="button" class="story-cause-chip" data-cause="diagnosis" onclick="pickStoryCause(this,'diagnosis')">Diagnosis</button>
+          <button type="button" class="story-cause-chip" data-cause="surgery" onclick="pickStoryCause(this,'surgery')">Surgery</button>
+          <button type="button" class="story-cause-chip" data-cause="other" onclick="pickStoryCause(this,'other')">Other</button>
+        </div>
+      </div>
+
+      <div class="story-actions">
+        <button class="btn-primary" id="story-generate-btn" onclick="generateHealthStory()">
+          <i data-lucide="book-open" style="width:15px;height:15px;"></i>
+          Build the story
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 2: generated story output -->
+    <div id="story-step2" class="story-step" style="display:none;">
+      <button class="story-back" onclick="storyBackToStep1()"><i data-lucide="chevron-left" style="width:14px;height:14px;"></i> Change dates or anchor</button>
+
+      <div class="story-output-card" id="story-output-card">
+        <div class="story-output-eyebrow" id="story-output-eyebrow">A WELLET STORY</div>
+        <div class="story-output-title" id="story-output-title"></div>
+        <div class="story-output-meta" id="story-output-meta"></div>
+        <div class="story-output-body" id="story-output-body"></div>
+        <div class="story-output-footer">Compiled by Wellet · A record that belongs to your family, not the hospital.</div>
+      </div>
+
+      <div class="story-output-actions">
+        <button class="story-action-btn" onclick="copyHealthStory()">
+          <i data-lucide="copy" style="width:14px;height:14px;"></i>
+          Copy
+        </button>
+        <button class="story-action-btn" onclick="downloadHealthStoryPDF()">
+          <i data-lucide="file-text" style="width:14px;height:14px;"></i>
+          Save as PDF
+        </button>
+        <button class="story-action-btn" onclick="emailHealthStory()">
+          <i data-lucide="mail" style="width:14px;height:14px;"></i>
+          Email to me
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- UPLOAD SHEET -->
 <input type="file" id="upload-file-input" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.txt,.m4a,.mp3,.wav,.ogg,.webm,.zip,application/zip,audio/mp4,audio/mpeg,audio/wav,audio/ogg,audio/webm" style="display:none;" onchange="handleFileSelected(this)">
 <div class="upload-overlay" id="upload-overlay" data-editorial="sheet" onclick="if(event.target===this)closeUpload()">
@@ -3108,6 +3256,7 @@
 </div>
 
 </div><!-- end page-wrap -->
+<script src="/assets/wellet-manual-visit-types.js?v=20260514-1900"></script>
 <script src="/assets/wellet.js?v=20260514-1900"></script>
 <script src="/guided-demo.js"></script>
 <!-- CARE CIRCLE SHARE SHEET -->

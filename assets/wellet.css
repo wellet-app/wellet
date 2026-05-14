@@ -870,6 +870,59 @@
   .tl-card.blue-border { border-left: 3px solid var(--blue); }
   .tl-card.moss-border { border-left: 3px solid var(--moss); }
   .tl-card.red-border { border-left: 3px solid var(--red); }
+
+  /* ─── CareSignals card on the timeline ──────────────────────────────────
+     Stands out from EHR + manual cards. Mint-tinted background, accent rail
+     in moss-deep, sparkles eyebrow, optional measurement chip. */
+  .tl-card.tl-card-caresignal {
+    position: relative;
+    background: linear-gradient(180deg, #F2F6EE 0%, #E8F0E0 100%);
+    border: 1px solid rgba(75, 99, 65, 0.22);
+    border-left: 0;            /* replaced by .tl-cs-accent for a thicker rail */
+    padding-left: 18px;        /* leave room for the rail */
+    box-shadow: 0 1px 0 rgba(75, 99, 65, 0.04), 0 0 0 1px rgba(75, 99, 65, 0.02) inset;
+  }
+  .tl-card.tl-card-caresignal[onclick]:hover {
+    background: linear-gradient(180deg, #EDF3E8 0%, #E1EBD8 100%);
+    border-color: rgba(75, 99, 65, 0.32);
+  }
+  .tl-card .tl-cs-accent {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    background: linear-gradient(180deg, var(--moss-deep, #2F4525) 0%, var(--moss, #4B6341) 100%);
+    border-radius: 10px 0 0 10px;
+  }
+  .tl-card .tl-cs-eyebrow { gap: 7px; margin-bottom: 5px; }
+  .tl-card .tl-cs-label {
+    color: var(--moss-deep, var(--moss));
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    font-size: var(--type-micro);
+  }
+  .tl-card .tl-cs-chip {
+    margin-left: auto;
+    background: rgba(75, 99, 65, 0.12);
+    color: var(--moss-deep, var(--moss));
+    border: 1px solid rgba(75, 99, 65, 0.22);
+    border-radius: 999px;
+    padding: 1px 9px;
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .tl-card .tl-cs-title {
+    font-family: var(--serif, Georgia, serif);
+    font-weight: 500;
+    font-size: calc(var(--type-body) + 1px);
+    color: var(--ink-9, var(--text-primary));
+    line-height: 1.35;
+    letter-spacing: -0.005em;
+  }
+  .tl-card .tl-cs-body { color: var(--ink-7, var(--text-secondary)); }
+  .tl-card .tl-cs-meta { color: var(--ink-5, var(--text-muted)); }
   .tl-card-type-row { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
   .tl-card-type { font-size: var(--type-micro); letter-spacing: 0.08em; text-transform: uppercase; font-weight: 500; }
   .tl-card-type.appt { color: var(--moss); }
@@ -2729,3 +2782,252 @@
     flex: 0 0 auto;
     background: white;
   }
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * HEALTH STORY
+ * "Build health story" button on the timeline + the modal that turns the
+ * timeline into a narrative the caregiver can read aloud at the next visit.
+ * Visual language: cream/mint editorial — same family as Visit Summary export.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/* Header row on the timeline (button + hint). Lives between the EHR status
+   bar and the filter chips so it's the first interactive thing you see. */
+.tl-story-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px 6px;
+  flex-wrap: wrap;
+}
+.tl-story-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  background: var(--mint, #EAF2EC);
+  color: var(--moss-dark, #3F6A52);
+  border: 1px solid color-mix(in srgb, var(--moss, #608F7C) 35%, transparent);
+  border-radius: 999px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: var(--type-meta);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+}
+.tl-story-btn:hover {
+  background: color-mix(in srgb, var(--mint, #EAF2EC) 70%, white);
+  border-color: var(--moss, #608F7C);
+}
+.tl-story-btn:active { transform: translateY(1px); }
+.tl-story-btn-label { letter-spacing: 0.01em; }
+.tl-story-hint {
+  font-family: var(--serif, 'Lora'), serif;
+  font-style: italic;
+  font-size: var(--type-meta);
+  color: var(--text-muted);
+  line-height: 1.45;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+@media (max-width: 480px) {
+  .tl-story-header { padding: 12px 16px 4px; gap: 8px; }
+  .tl-story-hint { flex-basis: 100%; font-size: var(--type-micro); }
+}
+
+/* Modal sheet */
+#story-overlay .qa-sheet.story-sheet { max-height: 86vh; overflow-y: auto; }
+
+.story-step {
+  padding: 4px 20px 24px;
+}
+
+.story-field {
+  display: block;
+  margin: 14px 0;
+}
+.story-field-label {
+  display: block;
+  font-size: var(--type-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+.story-input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1.5px solid var(--border-medium, #E4DFD5);
+  border-radius: 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: var(--type-body);
+  color: var(--text-primary);
+  background: white;
+  box-sizing: border-box;
+}
+.story-input:focus {
+  outline: none;
+  border-color: var(--moss, #608F7C);
+}
+.story-textarea {
+  resize: vertical;
+  min-height: 64px;
+  line-height: 1.45;
+}
+
+.story-divider {
+  position: relative;
+  text-align: center;
+  margin: 22px 0 8px;
+}
+.story-divider::before {
+  content: '';
+  position: absolute;
+  top: 50%; left: 0; right: 0;
+  height: 1px;
+  background: var(--border-medium, #E4DFD5);
+}
+.story-divider span {
+  position: relative;
+  background: white;
+  padding: 0 12px;
+  font-size: var(--type-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.story-anchor-hint {
+  font-family: var(--serif, 'Lora'), serif;
+  font-style: italic;
+  font-size: var(--type-meta);
+  color: var(--moss-dark, #3F6A52);
+  line-height: 1.5;
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+.story-cause-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+.story-cause-chip {
+  padding: 8px 14px;
+  background: white;
+  border: 1.5px solid var(--border-medium, #E4DFD5);
+  border-radius: 999px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: var(--type-meta);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.story-cause-chip:hover { border-color: var(--moss, #608F7C); }
+.story-cause-chip.is-active {
+  background: var(--moss, #608F7C);
+  border-color: var(--moss, #608F7C);
+  color: white;
+}
+
+.story-actions {
+  margin-top: 22px;
+}
+
+.story-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: 4px 0 14px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: var(--type-meta);
+  color: var(--moss, #608F7C);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* Output card — editorial, cream, serif body */
+.story-output-card {
+  background: linear-gradient(180deg, #FCF8F0 0%, #FFFFFF 100%);
+  border: 1px solid color-mix(in srgb, var(--moss, #608F7C) 22%, transparent);
+  border-radius: 14px;
+  padding: 22px 22px 18px;
+  margin-top: 4px;
+}
+.story-output-eyebrow {
+  font-family: 'DM Sans', sans-serif;
+  font-size: var(--type-micro);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--moss-dark, #3F6A52);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.story-output-title {
+  font-family: var(--serif, 'Lora'), serif;
+  font-size: 22px;
+  line-height: 1.2;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.story-output-meta {
+  font-family: 'DM Sans', sans-serif;
+  font-size: var(--type-meta);
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+.story-output-body {
+  font-family: var(--serif, 'Lora'), serif;
+  font-size: 15.5px;
+  line-height: 1.65;
+  color: var(--text-primary);
+}
+.story-output-body p {
+  margin: 0 0 12px;
+}
+.story-output-body p:last-child { margin-bottom: 0; }
+.story-output-footer {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--moss, #608F7C) 18%, transparent);
+  font-family: var(--serif, 'Lora'), serif;
+  font-style: italic;
+  font-size: var(--type-micro);
+  color: var(--moss-dark, #3F6A52);
+}
+
+.story-output-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+.story-action-btn {
+  flex: 1 1 0;
+  min-width: 96px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 11px 12px;
+  background: white;
+  border: 1.5px solid var(--border-medium, #E4DFD5);
+  border-radius: 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: var(--type-meta);
+  color: var(--text-primary);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.story-action-btn:hover {
+  background: var(--mint, #EAF2EC);
+  border-color: var(--moss, #608F7C);
+  color: var(--moss-dark, #3F6A52);
+}
+@media (max-width: 380px) {
+  .story-action-btn { flex-basis: calc(50% - 4px); }
+}
