@@ -1578,10 +1578,10 @@ function showConnectScreen() {
   var appleCard = document.getElementById('connect-card-apple');
   if (appleSub && appleCard) {
     if (!_isIPhone()) {
-      appleSub.textContent = 'Apple Health lives on iPhone — open Wellet on your iPhone to connect.';
+      appleSub.textContent = 'Apple Health lives on iPhone — open Wellet on your iPhone to connect this one.';
       appleCard.classList.add('is-disabled');
     } else {
-      appleSub.textContent = 'Steps, sleep, heart rate, and anything else on your iPhone.';
+      appleSub.textContent = 'Steps, sleep, heart rate, and anything else on your iPhone. Imports the last 30 days first, then keeps up automatically.';
       appleCard.classList.remove('is-disabled');
     }
   }
@@ -2498,7 +2498,7 @@ function renderUpdateMe() {
   var hasAnyWelletSource = ehrConnected || (typeof liveDocs !== 'undefined' && liveDocs.some(function(d){ return d.extraction_status === 'completed' && d.extracted_events; })) || hasWearable;
   var fullOnboardingActions = '<div style="padding:24px 16px 8px;">'
     + '<div style="font-family:var(--serif);font-size:var(--type-h2);margin-bottom:6px;color:var(--text-primary);">Help Wellet get to know ' + escHtml(subjectName) + '</div>'
-    + '<div style="font-size:var(--type-meta);color:var(--text-secondary);line-height:1.5;margin-bottom:16px;">Upload a document or connect to health records \u2014 Wellet will read, organize, and remember everything.</div>'
+    + '<div style="font-size:var(--type-meta);color:var(--text-secondary);line-height:1.5;margin-bottom:16px;">One source is enough to start. A document is read in seconds. A hospital connection usually fills in under a minute.</div>'
     + '<div class="signals-connect-chips">'
     + '<button class="signals-chip" onclick="openUpload(\'' + escHtml(name) + '\')"><i data-lucide="upload"></i> Upload a Document</button>'
     + '<button class="signals-chip" onclick="startEhrConnect()"><i data-lucide="link"></i> ' + ehrBtnLabel + '</button>'
@@ -2511,7 +2511,7 @@ function renderUpdateMe() {
     + '<div class="visit-prep-icon"><i data-lucide="plus" style="width:18px;height:18px;"></i></div>'
     + '<div class="visit-prep-content">'
     + '<div class="visit-prep-title">Add more to Wellet</div>'
-    + '<div class="visit-prep-desc">Upload a document, connect records, or a wearable.</div>'
+    + '<div class="visit-prep-desc">Upload a document, connect another hospital, or add a wearable.</div>'
     + '</div>'
     + '<i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);"></i>'
     + '</button>';
@@ -2521,7 +2521,7 @@ function renderUpdateMe() {
     + '<div class="update-summary-header">'
     + '<span class="update-summary-label">Wellet summary</span>'
     + '</div>'
-    + '<p class="update-summary-text" style="color:var(--text-secondary);font-style:italic;">As you add documents, appointments, and medications, Wellet will build a personalized summary here.</p>'
+    + '<p class="update-summary-text" style="color:var(--text-secondary);font-style:italic;">Connect a hospital or upload one document and a plain-language summary will appear here \u2014 usually in under a minute.</p>'
     + '<p class="update-summary-text" style="font-family:var(--serif),serif;font-style:italic;color:var(--moss-dark);font-size:var(--type-meta);line-height:1.55;margin-top:10px;">A record that belongs to your family, not the hospital.</p>'
     + '</div>';
 
@@ -14000,7 +14000,7 @@ function buildEhrPrompt() {
 }
 
 // Restore the inline EHR status row from any transient state
-// (e.g. "Syncing health records..." spinner) back to whatever the current
+// (e.g. "Reading your chart…" spinner) back to whatever the current
 // records view normally shows. Used by the watchdog and silent-bail paths
 // in fetchEhrData so the spinner never gets stuck if the sync fails or
 // short-circuits before re-rendering.
@@ -14023,7 +14023,7 @@ function syncNowFromRecords() {
     statusEl.innerHTML = '<div class="terra-inline-list">'
       + '<div class="terra-inline-item" style="opacity:0.7;">'
       + '<span class="terra-status-dot terra-status-dot--inactive"></span>'
-      + 'Syncing health records\u2026'
+      + 'Reading your chart\u2026 usually under a minute'
       + '</div></div>';
   }
   // Watchdog: if the row is still in the spinning state 25s later, the
@@ -14031,9 +14031,9 @@ function syncNowFromRecords() {
   // knows to try again.
   setTimeout(function() {
     var el = document.getElementById('records-ehr-status');
-    if (el && el.innerHTML.indexOf('Syncing health records') !== -1) {
+    if (el && el.innerHTML.indexOf('Reading your chart') !== -1) {
       try { restoreRecordsEhrStatus(); } catch(e){}
-      try { showToast("Sync didn\u2019t finish \u2014 try again"); } catch(e){}
+      try { showToast("Your chart didn\u2019t finish reading \u2014 tap to try again"); } catch(e){}
     }
   }, 25000);
   try {
