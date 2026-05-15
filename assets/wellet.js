@@ -10306,7 +10306,7 @@ async function renderSignalsView() {
       el.innerHTML = '<div class="signals-view">'
         + '<header class="view-header">'
         + '<p class="view-header__eyebrow">Loading\u2026</p>'
-        + '<h1 class="view-header__title">Signals</h1>'
+        + '<h1 class="view-header__title">CareSignals</h1>'
         + '<p class="view-header__lede">Daily rhythms from ' + escHtml(sigFirstName) + '\u2019s wearables, sensors, and medications \u2014 patterns you might miss.</p>'
         + '</header>'
         + '<div class="terra-loading"><i data-lucide="loader" style="width:20px;height:20px;animation:spin 1s linear infinite;"></i>'
@@ -11553,7 +11553,7 @@ async function _paintSignals(el, sigFirstName, activeConns, terraData) {
       var ch = '<div class="signals-view">';
       ch += '<header class="view-header">';
       ch += '<p class="view-header__eyebrow">' + escHtml(_hdrEyebrow) + '</p>';
-      ch += '<h1 class="view-header__title">Signals</h1>';
+      ch += '<h1 class="view-header__title">CareSignals</h1>';
       ch += '<p class="view-header__lede">' + _hdrLede + '</p>';
       ch += '</header>';
       ch += chDevices;
@@ -11792,7 +11792,7 @@ function _renderSignalsDemo(el, data, demoFirstName) {
   var demoName = demoFirstName || 'Dad';
   html += '<header class="view-header">';
   html += '<p class="view-header__eyebrow">Apple Watch \u00b7 Synced 8 min ago</p>';
-  html += '<h1 class="view-header__title">Signals</h1>';
+  html += '<h1 class="view-header__title">CareSignals</h1>';
   html += '<p class="view-header__lede">Daily rhythms from ' + escHtml(demoName) + '\u2019s wearables, sensors, and medications \u2014 patterns you might miss.</p>';
   html += '</header>';
 
