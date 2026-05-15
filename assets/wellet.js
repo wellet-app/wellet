@@ -9628,13 +9628,8 @@ var DEMO_TIMELINE_EXTRAS = {
     { id:'dml-3', medication_id:'dem-lev', taken_at:_demoDaysAgo(2, 20, 0), status:'taken' },
     { id:'dml-4', medication_id:'dem-lis', taken_at:_demoDaysAgo(2, 8, 5),  status:'taken' }
   ],
-  // Daily check-ins — one recent entry
-  checkIns: [
-    { id:'dci-1', mood:'tired', pain_level:2, sleep_quality:'fair',
-      energy_level:'low', appetite:'normal',
-      notes:'A little wobbly this morning, better by afternoon.',
-      checked_in_at:_demoDaysAgo(1, 9, 0) }
-  ]
+  // Daily check-ins — removed from demo to reduce noise on the timeline
+  checkIns: []
 };
 
 // Demo documents — one voice note (becomes "Voice note") and two uploaded
