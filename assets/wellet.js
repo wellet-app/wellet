@@ -1657,6 +1657,10 @@ function _isIPhone() {
 // Connect; if the page is still visible after 800ms (link didn't resolve),
 // shows the install prompt.
 function connectAppleHealth() {
+  if (isDemoMode) {
+    showToast('In the real app, this connects to Apple Health on your iPhone.');
+    return;
+  }
   if (!_isIPhone()) {
     showAppleHealthWebNotice();
     return;
@@ -13184,6 +13188,73 @@ function updateSettingsEhr() {
   }
 }
 
+// ── Connected Sources section header + per-row status (settings view) ────────
+// Updates the "Connected Sources" section label to "{NAME}'S CONNECTED SOURCES"
+// and syncs connection status into the sv-* rows.
+function _updateSvConnectedSourcesHeader() {
+  var label = document.getElementById('sv-connected-sources-label');
+  if (!label) return;
+  var name = getPersonFirstName();
+  if (name && name !== 'Patient') {
+    label.textContent = name.toUpperCase() + '\u2019S CONNECTED SOURCES';
+  } else {
+    label.textContent = 'Connected Sources';
+  }
+
+  // ── EHR row status ──
+  var ehrMeta = document.getElementById('sv-ehr-meta');
+  var ehrLabel = document.getElementById('sv-ehr-label');
+  var ehrStatus = document.getElementById('sv-ehr-status');
+  var ehrData = getEhrData(currentPersonId);
+  if (ehrData && ehrData.provider && ehrData.synced_at) {
+    // Connected — fold status into the row itself.
+    if (ehrLabel) ehrLabel.textContent = 'Health Records';
+    if (ehrMeta) ehrMeta.innerHTML = '<span style="color:var(--moss);font-weight:500;">Connected</span> \u00b7 '
+      + escHtml(ehrData.provider)
+      + ' \u00b7 <span style="color:var(--text-muted);">synced ' + escHtml(formatEventDate(ehrData.synced_at)) + '</span>';
+    if (ehrStatus) ehrStatus.innerHTML = '';
+  } else if (ehrData && ehrData.provider) {
+    if (ehrLabel) ehrLabel.textContent = 'Health Records';
+    if (ehrMeta) ehrMeta.innerHTML = '<span style="color:var(--moss);font-weight:500;">Connected</span> \u00b7 ' + escHtml(ehrData.provider);
+    if (ehrStatus) ehrStatus.innerHTML = '';
+  } else {
+    if (ehrLabel) ehrLabel.textContent = 'Connect Health Records';
+    if (ehrMeta) ehrMeta.textContent = 'Duke, UNC, WakeMed, and more \u2014 read-only';
+    if (ehrStatus) ehrStatus.innerHTML = '';
+  }
+
+  // ── Apple Health row status ──
+  var appleMeta = document.getElementById('sv-apple-health-meta');
+  if (appleMeta) {
+    var appleTs = null;
+    try { appleTs = localStorage.getItem('wellet_apple_health_last_sync_at_' + currentPersonId); } catch(_e) {}
+    if (appleTs && appleTs !== 'null' && appleTs !== 'None') {
+      var ago = _relativeTime(appleTs);
+      appleMeta.innerHTML = '<span style="color:var(--moss);font-weight:500;">Connected</span>'
+        + (ago ? ' \u00b7 last synced ' + escHtml(ago) : '');
+    } else {
+      appleMeta.textContent = 'Wearables & sensors';
+    }
+  }
+}
+
+// Tiny relative-time helper for connection status display.
+function _relativeTime(isoStr) {
+  try {
+    var then = new Date(isoStr).getTime();
+    var now = Date.now();
+    var mins = Math.round((now - then) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + ' min ago';
+    var hrs = Math.round(mins / 60);
+    if (hrs < 24) return hrs + ' hr ago';
+    var days = Math.round(hrs / 24);
+    if (days === 1) return 'yesterday';
+    if (days < 7) return days + ' days ago';
+    return formatEventDate(isoStr);
+  } catch(_e) { return ''; }
+}
+
 // Update profile EHR section
 function updateProfileEhr(personId) {
   var section = document.getElementById('profile-ehr-section');
@@ -19205,6 +19276,7 @@ function switchNavTo(view, skipPush) {
   if (view === 'settings') {
     updateSettingsViewAccount();
     if (!isDemoMode) { try { renderCareCircle(); } catch(e){} }
+    try { _updateSvConnectedSourcesHeader(); } catch(e){}
   }
   // Push history state for back button support
   if (!skipPush && view !== _currentNavView) {

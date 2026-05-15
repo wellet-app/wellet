@@ -1319,21 +1319,21 @@
             <i data-lucide="user-plus" style="width:15px;height:15px;"></i> Invite family member
           </button>
         </div>
-        <!-- Connected Sources -->
+        <!-- Connected Sources (per-person header updated by JS) -->
         <div class="settings-section" style="margin-top:12px;">
-          <div class="settings-section-label">Connected Sources</div>
+          <div class="settings-section-label" id="sv-connected-sources-label">Connected Sources</div>
           <div id="sv-ehr-status"></div>
-          <div class="settings-row" style="cursor:pointer;" onclick="startEhrConnect()">
+          <div class="settings-row" id="sv-ehr-row" style="cursor:pointer;" onclick="startEhrConnect()">
             <div class="settings-row-left">
               <div class="settings-row-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="hospital" style="width:15px;height:15px;"></i></div>
-              <div><div class="settings-row-label" id="sv-ehr-label">Connect Health Records</div><div class="settings-row-meta" id="sv-ehr-meta">Epic, Cerner, MyChart — read-only</div></div>
+              <div><div class="settings-row-label" id="sv-ehr-label">Connect Health Records</div><div class="settings-row-meta" id="sv-ehr-meta">Duke, UNC, WakeMed, and more &mdash; read-only</div></div>
             </div>
             <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
           </div>
-          <div class="settings-row">
+          <div class="settings-row" id="sv-apple-health-row" style="cursor:pointer;" onclick="connectAppleHealth()">
             <div class="settings-row-left">
               <div class="settings-row-icon"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>
-              <div><div class="settings-row-label">Apple Health</div><div class="settings-row-meta">Wearables &amp; sensors</div></div>
+              <div><div class="settings-row-label">Apple Health</div><div class="settings-row-meta" id="sv-apple-health-meta">Wearables &amp; sensors</div></div>
             </div>
             <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
           </div>
