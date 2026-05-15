@@ -18092,6 +18092,7 @@ function switchTab(el, id) {
   el.classList.add('active');
   el.setAttribute('aria-selected', 'true');
   document.getElementById('tab-'+id).classList.add('active');
+  window.scrollTo({ top: 0 });
 }
 
 function switchNavTo(view, skipPush) {
@@ -18099,6 +18100,7 @@ function switchNavTo(view, skipPush) {
   var viewEl = document.getElementById('view-' + view);
   if (!viewEl) { console.warn('switchNavTo: no view for', view); return; }
   viewEl.classList.add('active');
+  window.scrollTo({ top: 0 });
   document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
   // Find the nav button whose data-nav-key matches this view and activate it.
   // Resilient to nav-layout changes (4-button / 6-button / menu re-org).
