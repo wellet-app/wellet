@@ -1657,6 +1657,10 @@ function _isIPhone() {
 // Connect; if the page is still visible after 800ms (link didn't resolve),
 // shows the install prompt.
 function connectAppleHealth() {
+  if (isDemoMode) {
+    showToast('In the real app, this connects to Apple Health on your iPhone.');
+    return;
+  }
   if (!_isIPhone()) {
     showAppleHealthWebNotice();
     return;
@@ -10344,7 +10348,7 @@ async function renderSignalsView() {
       el.innerHTML = '<div class="signals-view">'
         + '<header class="view-header">'
         + '<p class="view-header__eyebrow">Loading\u2026</p>'
-        + '<h1 class="view-header__title">Signals</h1>'
+        + '<h1 class="view-header__title">CareSignals</h1>'
         + '<p class="view-header__lede">Daily rhythms from ' + escHtml(sigFirstName) + '\u2019s wearables, sensors, and medications \u2014 patterns you might miss.</p>'
         + '</header>'
         + '<div class="terra-loading"><i data-lucide="loader" style="width:20px;height:20px;animation:spin 1s linear infinite;"></i>'
@@ -11591,7 +11595,7 @@ async function _paintSignals(el, sigFirstName, activeConns, terraData) {
       var ch = '<div class="signals-view">';
       ch += '<header class="view-header">';
       ch += '<p class="view-header__eyebrow">' + escHtml(_hdrEyebrow) + '</p>';
-      ch += '<h1 class="view-header__title">Signals</h1>';
+      ch += '<h1 class="view-header__title">CareSignals</h1>';
       ch += '<p class="view-header__lede">' + _hdrLede + '</p>';
       ch += '</header>';
       ch += chDevices;
@@ -11830,7 +11834,7 @@ function _renderSignalsDemo(el, data, demoFirstName) {
   var demoName = demoFirstName || 'Dad';
   html += '<header class="view-header">';
   html += '<p class="view-header__eyebrow">Apple Watch \u00b7 Synced 8 min ago</p>';
-  html += '<h1 class="view-header__title">Signals</h1>';
+  html += '<h1 class="view-header__title">CareSignals</h1>';
   html += '<p class="view-header__lede">Daily rhythms from ' + escHtml(demoName) + '\u2019s wearables, sensors, and medications \u2014 patterns you might miss.</p>';
   html += '</header>';
 
@@ -13220,6 +13224,73 @@ function updateSettingsEhr() {
     var connectRow = labelEl ? labelEl.closest('.settings-row') : null;
     if (connectRow) connectRow.style.display = '';
   }
+}
+
+// ── Connected Sources section header + per-row status (settings view) ────────
+// Updates the "Connected Sources" section label to "{NAME}'S CONNECTED SOURCES"
+// and syncs connection status into the sv-* rows.
+function _updateSvConnectedSourcesHeader() {
+  var label = document.getElementById('sv-connected-sources-label');
+  if (!label) return;
+  var name = getPersonFirstName();
+  if (name && name !== 'Patient') {
+    label.textContent = name.toUpperCase() + '\u2019S CONNECTED SOURCES';
+  } else {
+    label.textContent = 'Connected Sources';
+  }
+
+  // ── EHR row status ──
+  var ehrMeta = document.getElementById('sv-ehr-meta');
+  var ehrLabel = document.getElementById('sv-ehr-label');
+  var ehrStatus = document.getElementById('sv-ehr-status');
+  var ehrData = getEhrData(currentPersonId);
+  if (ehrData && ehrData.provider && ehrData.synced_at) {
+    // Connected — fold status into the row itself.
+    if (ehrLabel) ehrLabel.textContent = 'Health Records';
+    if (ehrMeta) ehrMeta.innerHTML = '<span style="color:var(--moss);font-weight:500;">Connected</span> \u00b7 '
+      + escHtml(ehrData.provider)
+      + ' \u00b7 <span style="color:var(--text-muted);">synced ' + escHtml(formatEventDate(ehrData.synced_at)) + '</span>';
+    if (ehrStatus) ehrStatus.innerHTML = '';
+  } else if (ehrData && ehrData.provider) {
+    if (ehrLabel) ehrLabel.textContent = 'Health Records';
+    if (ehrMeta) ehrMeta.innerHTML = '<span style="color:var(--moss);font-weight:500;">Connected</span> \u00b7 ' + escHtml(ehrData.provider);
+    if (ehrStatus) ehrStatus.innerHTML = '';
+  } else {
+    if (ehrLabel) ehrLabel.textContent = 'Connect Health Records';
+    if (ehrMeta) ehrMeta.textContent = 'Duke, UNC, WakeMed, and more \u2014 read-only';
+    if (ehrStatus) ehrStatus.innerHTML = '';
+  }
+
+  // ── Apple Health row status ──
+  var appleMeta = document.getElementById('sv-apple-health-meta');
+  if (appleMeta) {
+    var appleTs = null;
+    try { appleTs = localStorage.getItem('wellet_apple_health_last_sync_at_' + currentPersonId); } catch(_e) {}
+    if (appleTs && appleTs !== 'null' && appleTs !== 'None') {
+      var ago = _relativeTime(appleTs);
+      appleMeta.innerHTML = '<span style="color:var(--moss);font-weight:500;">Connected</span>'
+        + (ago ? ' \u00b7 last synced ' + escHtml(ago) : '');
+    } else {
+      appleMeta.textContent = 'Wearables & sensors';
+    }
+  }
+}
+
+// Tiny relative-time helper for connection status display.
+function _relativeTime(isoStr) {
+  try {
+    var then = new Date(isoStr).getTime();
+    var now = Date.now();
+    var mins = Math.round((now - then) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + ' min ago';
+    var hrs = Math.round(mins / 60);
+    if (hrs < 24) return hrs + ' hr ago';
+    var days = Math.round(hrs / 24);
+    if (days === 1) return 'yesterday';
+    if (days < 7) return days + ' days ago';
+    return formatEventDate(isoStr);
+  } catch(_e) { return ''; }
 }
 
 // Update profile EHR section
@@ -18416,12 +18487,16 @@ function _headerMenuOutsideClick(e) {
 }
 
 function openSettings() {
-  // P4: Navigate to full-page settings view
-  updateSettingsAccount();
-  updateSettingsEhr();
-  if (!isDemoMode) { renderCareCircle(); }
-  renderSettingsPlanCard();
-  try { updatePhase2ToggleUI(); } catch(e){}
+  // P4: Navigate to full-page settings view.
+  // Defensive try-catch around each update so a single failure can't
+  // prevent the view from rendering.
+  try { updateSettingsAccount(); } catch(_e) {}
+  try { updateSettingsEhr(); } catch(_e) {}
+  if (!isDemoMode) { try { renderCareCircle(); } catch(_e) {} }
+  try { renderSettingsPlanCard(); } catch(_e) {}
+  try { updatePhase2ToggleUI(); } catch(_e) {}
+  // Update the Connected Sources section header with the active person's name.
+  try { _updateSvConnectedSourcesHeader(); } catch(_e) {}
   switchNavTo('settings');
   initIcons();
 }
@@ -19239,6 +19314,7 @@ function switchNavTo(view, skipPush) {
   if (view === 'settings') {
     updateSettingsViewAccount();
     if (!isDemoMode) { try { renderCareCircle(); } catch(e){} }
+    try { _updateSvConnectedSourcesHeader(); } catch(e){}
   }
   // Push history state for back button support
   if (!skipPush && view !== _currentNavView) {
@@ -24921,17 +24997,28 @@ renderPersonSwitcher = function() {
   initIcons();
 };
 
-// Override renderAskView to hide archived/closed in ask person bar
+// Override renderAskView to hide archived/closed in ask person bar and show
+// an empty-state when the active person has no records.
 var _origRenderAskView = renderAskView;
 renderAskView = function() {
   if (isDemoMode) return;
   var personBar = document.querySelector('#view-ask .ask-person-bar');
-  if (!personBar || !currentPeople.length) return;
+
+  // No people at all → fall back to original which renders a "Connect a chart" CTA.
+  if (!currentPeople.length) {
+    try { _origRenderAskView(); } catch(_e) {}
+    return;
+  }
+  if (!personBar) return;
+
+  // Filter out archived/closed people for the pill bar.
+  var visiblePeople = currentPeople.filter(function(p) {
+    var status = p.care_status || 'active';
+    return status !== 'archived' && status !== 'closed';
+  });
 
   var pillsHtml = '';
-  currentPeople.forEach(function(p) {
-    var status = p.care_status || 'active';
-    if (status === 'archived' || status === 'closed') return;
+  visiblePeople.forEach(function(p) {
     var active = p.id === currentPersonId ? ' active' : '';
     pillsHtml += '<button class="ask-person-pill' + active + '" onclick="selectAskRealPerson(this,\'' + p.id + '\')">'
       + '<span style="width:6px;height:6px;border-radius:50%;background:currentColor;opacity:0.7;display:inline-block;"></span>'
@@ -24941,10 +25028,41 @@ renderAskView = function() {
 
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
   var firstName = person ? person.name.split(' ')[0] : '';
-  var inputEl = document.getElementById('ask-input');
-  if (inputEl) inputEl.placeholder = 'Ask about ' + escHtml(possSegment(firstName, true)) + ' health\u2026';
+
+  // Check whether the active person has any records.
+  var ehrData = getEhrData(currentPersonId) || {};
+  var hasObs = (ehrData.observations || []).length > 0;
+  var hasMeds = (ehrData.medications || []).length > 0;
+  var hasConds = (ehrData.conditions || []).length > 0;
+  var hasLiveData = (liveEvents || []).length > 0 || (liveMeds || []).length > 0;
+  var hasRecords = hasObs || hasMeds || hasConds || hasLiveData;
 
   var chatArea = document.getElementById('chat-area');
+  var chips = document.getElementById('suggestion-chips');
+  var inputEl = document.getElementById('ask-input');
+
+  if (!hasRecords) {
+    // Empty state — person has no records yet.
+    if (chatArea) {
+      chatArea.innerHTML = '<div style="text-align:center;padding:40px 24px 20px;">'
+        + '<div style="font-size:var(--type-body);color:#2C2A26;line-height:1.6;max-width:320px;margin:0 auto;">'
+        + 'Wellet answers from what\u2019s in your loved one\u2019s records. Add records for ' + escHtml(firstName)
+        + ' to <em style="color:#B8731C;font-style:italic;">unlock</em> Ask Wellet for them.'
+        + '</div>'
+        + '<button onclick="showConnectScreen()" style="margin-top:20px;padding:12px 24px;background:var(--moss);color:#fff;border:none;border-radius:999px;font-size:var(--type-body);font-weight:600;font-family:inherit;cursor:pointer;">'
+        + 'Add records for ' + escHtml(firstName) + '</button>'
+        + '<div style="margin-top:16px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.5;">'
+        + 'Or <em style="color:#B8731C;font-style:italic;">switch</em> to a different family member at the top of the screen.'
+        + '</div></div>';
+    }
+    if (chips) { chips.innerHTML = ''; chips.style.display = 'none'; }
+    if (inputEl) inputEl.placeholder = 'Add records to ask questions\u2026';
+    return;
+  }
+
+  // Normal state — person has records, render the full Ask interface.
+  if (inputEl) inputEl.placeholder = 'Ask about ' + escHtml(possSegment(firstName, true)) + ' health\u2026';
+
   if (chatArea) {
     var firstBubble = chatArea.querySelector('.chat-group.from-wellet .chat-bubble.wellet');
     if (firstBubble && firstBubble.textContent.indexOf('Ask me anything about') !== -1) {
@@ -24952,8 +25070,19 @@ renderAskView = function() {
     }
   }
 
-  var chips = document.getElementById('suggestion-chips');
   if (chips) {
+    try {
+      if (typeof buildAskChips === 'function') {
+        var smartChips = buildAskChips(firstName, currentPersonId);
+        if (smartChips && smartChips.length) {
+          chips.innerHTML = smartChips.map(function(c) {
+            return '<button class="chip" onclick="askQuestion(this.textContent)">' + escHtml(c) + '</button>';
+          }).join('');
+          chips.style.display = 'flex';
+          return;
+        }
+      }
+    } catch(_e) {}
     chips.innerHTML =
       '<button class="chip" onclick="askQuestion(this.textContent)">What medications is ' + escHtml(firstName) + ' taking?</button>'
       + '<button class="chip" onclick="askQuestion(this.textContent)">Summarize recent health events</button>'
