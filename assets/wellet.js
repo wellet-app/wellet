@@ -9223,12 +9223,59 @@ function showAuthScreen() {
 function enterDemoMode() {
   // Called from auth screen - goes straight to demo
   // Skip welcome audio if guided demo is active (narration handles its own audio)
-  if (new URLSearchParams(window.location.search).get('demo') !== 'guided') {
+  var isGuided = new URLSearchParams(window.location.search).get('demo') === 'guided';
+  if (!isGuided) {
     try { new Audio('welcome-to-wellet.mp3').play(); } catch(e) {}
   }
   showApp();
   switchNavTo('home');
   document.querySelectorAll('.tab')[0].click();
+
+  // D3: nudge cold traffic toward care-team chips. After 8 seconds in
+  // free-roam demo mode, show a brief toast pointing to the diagnosis
+  // tap-through feature. Skipped in guided demo (narration handles it).
+  if (!isGuided) {
+    setTimeout(function() {
+      if (!isDemoMode) return; // user already left demo
+      _showDemoNudge();
+    }, 8000);
+  }
+}
+
+function _showDemoNudge() {
+  if (document.getElementById('demo-nudge-toast')) return;
+  var t = document.createElement('div');
+  t.id = 'demo-nudge-toast';
+  t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);'
+    + 'max-width:340px;width:calc(100% - 40px);background:rgba(20,20,20,0.92);color:white;'
+    + 'padding:14px 18px;border-radius:14px;font-family:"DM Sans",sans-serif;font-size:14px;'
+    + 'line-height:1.5;text-align:center;z-index:9999;opacity:0;cursor:pointer;'
+    + 'transition:opacity 0.4s ease,transform 0.4s ease;'
+    + 'backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);'
+    + 'box-shadow:0 4px 20px rgba(0,0,0,0.25);';
+  t.innerHTML = '<span style="font-size:15px;">Try this</span><br>'
+    + '<span style="color:rgba(255,255,255,0.75);">Tap a diagnosis in Records to see what your care team might not mention.</span>';
+  t.onclick = function() {
+    t.style.opacity = '0';
+    t.style.transform = 'translateX(-50%) translateY(20px)';
+    setTimeout(function() { t.remove(); }, 400);
+    switchNavTo('records');
+  };
+  document.body.appendChild(t);
+  requestAnimationFrame(function() {
+    requestAnimationFrame(function() {
+      t.style.opacity = '1';
+      t.style.transform = 'translateX(-50%) translateY(0)';
+    });
+  });
+  // Auto-dismiss after 8 seconds
+  setTimeout(function() {
+    if (t.parentNode) {
+      t.style.opacity = '0';
+      t.style.transform = 'translateX(-50%) translateY(20px)';
+      setTimeout(function() { if (t.parentNode) t.remove(); }, 400);
+    }
+  }, 8000);
 }
 
 function showApp() {
