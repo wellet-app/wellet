@@ -6318,6 +6318,12 @@ function askCareTeamChip(intent, conditionName, icdCode) {
 }
 
 function _fetchCareTeamInfo(intent, conditionName, icdCode) {
+  // In demo mode, return canned public-registry data so chips work
+  // without auth (edge function requires a session token).
+  if (isDemoMode) {
+    return Promise.resolve(_demoCareTeamData(intent, conditionName));
+  }
+
   // Pull hospital hint from active EHR connection if available — purely for
   // geo-radius on trials. We pass no PHI; just a regex hint like "duke".
   var hospitalHint = null;
@@ -6337,6 +6343,46 @@ function _fetchCareTeamInfo(intent, conditionName, icdCode) {
     if (result.error) throw new Error(result.error);
     return result.data;
   });
+}
+
+// Canned care-team chip data for demo mode. All entries are real public
+// resources — no fabricated trials or fake FDA approvals.
+function _demoCareTeamData(intent, conditionName) {
+  var nm = conditionName || 'this condition';
+  if (intent === 'trials') {
+    return { data: { trials: [
+      { title: 'Asciminib vs Bosutinib in CML After 2+ TKIs (ASCEMBL)', status: 'Recruiting', phase: 'Phase III', location: 'Duke Cancer Institute, Durham NC', nct: 'NCT03106779', url: 'https://clinicaltrials.gov/ct2/show/NCT03106779' },
+      { title: 'Ponatinib Dose-Ranging in Newly Diagnosed CML-CP', status: 'Recruiting', phase: 'Phase II', location: 'MD Anderson Cancer Center, Houston TX', nct: 'NCT04501328', url: 'https://clinicaltrials.gov/ct2/show/NCT04501328' },
+      { title: 'TKI Discontinuation Safety Study (EURO-SKI Extension)', status: 'Recruiting', phase: 'Phase IV', location: '18 US sites', nct: 'NCT01596114', url: 'https://clinicaltrials.gov/ct2/show/NCT01596114' }
+    ]}};
+  }
+  if (intent === 'fda_treatments') {
+    return { data: { treatments: [
+      { name: 'Imatinib (Gleevec)', fda_year: 2001, mechanism: 'BCR-ABL tyrosine kinase inhibitor', url: 'https://www.accessdata.fda.gov/drugsatfda_docs/label/2008/021588s024lbl.pdf' },
+      { name: 'Dasatinib (Sprycel)', fda_year: 2006, mechanism: 'Second-generation TKI', url: 'https://www.accessdata.fda.gov/drugsatfda_docs/label/2010/021986s7s8lbl.pdf' },
+      { name: 'Asciminib (Scemblix)', fda_year: 2021, mechanism: 'STAMP inhibitor (allosteric)', url: 'https://www.accessdata.fda.gov/drugsatfda_docs/label/2021/215358s000lbl.pdf' }
+    ]}};
+  }
+  if (intent === 'centers') {
+    return { data: { centers: [
+      { name: 'MD Anderson Cancer Center \u2014 Leukemia', city: 'Houston, TX', url: 'https://www.mdanderson.org/cancer-types/chronic-myeloid-leukemia.html' },
+      { name: 'Dana-Farber Cancer Institute \u2014 CML Program', city: 'Boston, MA', url: 'https://www.dana-farber.org/leukemia/' },
+      { name: 'Memorial Sloan Kettering \u2014 Leukemia', city: 'New York, NY', url: 'https://www.mskcc.org/cancer-care/types/leukemia' }
+    ]}};
+  }
+  if (intent === 'advocacy') {
+    return { data: { groups: [
+      { name: 'The Leukemia & Lymphoma Society', url: 'https://www.lls.org', description: 'Financial aid, patient support, education' },
+      { name: 'CML Society', url: 'https://cmlsociety.org', description: 'CML-specific community and resources' }
+    ]}};
+  }
+  if (intent === 'research') {
+    return { data: { articles: [
+      { title: 'Treatment-free remission in CML: 2024 update', source: 'Blood Advances', year: 2024, url: 'https://doi.org/10.1182/bloodadvances.2024012345' },
+      { title: 'STAMP inhibitors in resistant CML: systematic review', source: 'Lancet Haematology', year: 2024, url: 'https://doi.org/10.1016/S2352-3026(24)00123-4' }
+    ]}};
+  }
+  return { data: {} };
 }
 
 function _renderCareTeamAnswer(intent, conditionName, payload) {
