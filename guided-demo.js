@@ -175,17 +175,23 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
 
   // ── DEMO RESPONSE INJECTION (5A) ───────────────────────────────────────────────────────────────────────
   function gdInjectDemoResponse(text) {
-    // Simulate typing delay then call addWelletMessage
+    // Show typing dots immediately so it feels like Wellet is "thinking"
+    var typingId = (typeof showTyping === 'function') ? showTyping() : null;
+    // Reveal the response at ~3.5s — realistic thinking delay
     setTimeout(function() {
-      if (typeof removeTyping === 'function') {
-        // Try to remove any active typing indicator
-        var typingEls = document.querySelectorAll('.typing-indicator');
-        typingEls.forEach(function(el) { el.remove(); });
+      if (typingId && typeof removeTyping === 'function') {
+        removeTyping(typingId);
       }
+      // Belt-and-suspenders: remove any leftover typing indicators
+      var dots = document.querySelectorAll('.typing-dot');
+      dots.forEach(function(el) {
+        var bubble = el.closest('.chat-group');
+        if (bubble) bubble.remove();
+      });
       if (typeof addWelletMessage === 'function') {
         addWelletMessage(text);
       }
-    }, 1200);
+    }, 3500);
   }
 
   // Patch sendAskMessage to inject canned response in guided demo
