@@ -1803,61 +1803,81 @@ async function loadPersonData(personId) {
     return query.or('connection_id.is.null,connection_id.in.(' + inList + ')');
   }
 
+  // Each table load is wrapped in try/catch so a single failing query
+  // (expired token, network blip, malformed filter) doesn't abort the
+  // whole function and leave downstream re-renders un-called. Globals
+  // are reset to [] on failure so stale data from the previous person
+  // doesn't leak through.
+
   // Load events
-  const { data: events } = await _scopeToActiveConns(
-    db.from('health_events')
-      .select('*')
-      .eq('person_id', personId)
-  ).order('event_date', { ascending: false });
-  liveEvents = events || [];
+  try {
+    const { data: events } = await _scopeToActiveConns(
+      db.from('health_events')
+        .select('*')
+        .eq('person_id', personId)
+    ).order('event_date', { ascending: false });
+    liveEvents = events || [];
+  } catch (_e) { console.warn('[loadPersonData] events failed:', _e); liveEvents = []; }
 
   // Load meds
-  const { data: meds } = await _scopeToActiveConns(
-    db.from('medications')
-      .select('*')
-      .eq('person_id', personId)
-  ).order('created_at', { ascending: true });
-  liveMeds = meds || [];
+  try {
+    const { data: meds } = await _scopeToActiveConns(
+      db.from('medications')
+        .select('*')
+        .eq('person_id', personId)
+    ).order('created_at', { ascending: true });
+    liveMeds = meds || [];
+  } catch (_e) { console.warn('[loadPersonData] meds failed:', _e); liveMeds = []; }
 
   // Load documents (app-owned, no connection_id filter)
-  const { data: docs } = await db
-    .from('documents')
-    .select('*')
-    .eq('person_id', personId)
-    .order('uploaded_at', { ascending: false });
-  liveDocs = docs || [];
+  try {
+    const { data: docs } = await db
+      .from('documents')
+      .select('*')
+      .eq('person_id', personId)
+      .order('uploaded_at', { ascending: false });
+    liveDocs = docs || [];
+  } catch (_e) { console.warn('[loadPersonData] docs failed:', _e); liveDocs = []; }
 
   // Load lab results
-  const { data: labs } = await _scopeToActiveConns(
-    db.from('lab_results')
-      .select('*')
-      .eq('person_id', personId)
-  ).order('effective_date', { ascending: false });
-  liveLabs = labs || [];
+  try {
+    const { data: labs } = await _scopeToActiveConns(
+      db.from('lab_results')
+        .select('*')
+        .eq('person_id', personId)
+    ).order('effective_date', { ascending: false });
+    liveLabs = labs || [];
+  } catch (_e) { console.warn('[loadPersonData] labs failed:', _e); liveLabs = []; }
 
   // Load vitals
-  const { data: vitals } = await _scopeToActiveConns(
-    db.from('vitals')
-      .select('*')
-      .eq('person_id', personId)
-  ).order('effective_date', { ascending: false });
-  liveVitals = vitals || [];
+  try {
+    const { data: vitals } = await _scopeToActiveConns(
+      db.from('vitals')
+        .select('*')
+        .eq('person_id', personId)
+    ).order('effective_date', { ascending: false });
+    liveVitals = vitals || [];
+  } catch (_e) { console.warn('[loadPersonData] vitals failed:', _e); liveVitals = []; }
 
   // Load allergies
-  const { data: allergies } = await _scopeToActiveConns(
-    db.from('allergies')
-      .select('*')
-      .eq('person_id', personId)
-  ).order('created_at', { ascending: false });
-  liveAllergies = allergies || [];
+  try {
+    const { data: allergies } = await _scopeToActiveConns(
+      db.from('allergies')
+        .select('*')
+        .eq('person_id', personId)
+    ).order('created_at', { ascending: false });
+    liveAllergies = allergies || [];
+  } catch (_e) { console.warn('[loadPersonData] allergies failed:', _e); liveAllergies = []; }
 
   // Load care circle members
-  const { data: circle } = await db
-    .from('care_circle_members')
-    .select('*')
-    .eq('person_id', personId)
-    .order('created_at', { ascending: true });
-  liveCareCircle = circle || [];
+  try {
+    const { data: circle } = await db
+      .from('care_circle_members')
+      .select('*')
+      .eq('person_id', personId)
+      .order('created_at', { ascending: true });
+    liveCareCircle = circle || [];
+  } catch (_e) { console.warn('[loadPersonData] care circle failed:', _e); liveCareCircle = []; }
 
   // Load cached EHR data and auto-refresh if stale
   loadEhrCache(personId);
@@ -2078,8 +2098,22 @@ async function switchToRealPerson(personId, el) {
   el.classList.add('active');
   applyPersonBg(personId);
   showSkeletons();
-  await loadPersonData(personId);
+  try {
+    await loadPersonData(personId);
+  } catch (_loadErr) {
+    // loadPersonData can throw on network errors, expired tokens, or
+    // malformed Postgrest queries. The re-renders below MUST still fire
+    // so the UI reflects the newly selected person (even if with empty
+    // data). Prior to this fix, a throw here left the pill indicator on
+    // the new person but all content frozen on the previous person.
+    console.warn('[switchToRealPerson] loadPersonData failed, re-rendering with available data:', _loadErr);
+  }
   hideSkeletons();
+  // Re-render person pills so the active state is authoritative from the
+  // switcher's own render path, not just from the DOM class manipulation
+  // above. This also picks up any care_status changes that loadPersonData
+  // might have refreshed.
+  renderPersonSwitcher();
   // Home-view paints (always safe to refresh — they read currentPersonId)
   renderUpdateMe();
   renderTimeline();
@@ -4039,7 +4073,11 @@ function renderPeopleView() {
 }
 
 async function switchToRealPersonNav(personId) {
-  await loadPersonData(personId);
+  try {
+    await loadPersonData(personId);
+  } catch (_e) {
+    console.warn('[switchToRealPersonNav] loadPersonData failed:', _e);
+  }
   renderPersonSwitcher();
   renderUpdateMe();
   renderTimeline();
