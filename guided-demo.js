@@ -119,10 +119,10 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
         if (chips) chips.style.display = 'flex';
       }
     },
-    // 9 — Type question
+    // 9 — Type question (caption blank — let the typing effect carry the moment)
     {
       audio: '09-ask-question.mp3',
-      caption: '"Is Dad\'s blood pressure getting better since the medication change?"',
+      caption: '',
       duration: 6500,
       action: function() {
         var chips = document.getElementById('suggestion-chips');
