@@ -90,10 +90,46 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
         gdScrollTo('#view-records', 100);
       }
     },
+    // 6b — Tap into a diagnosis → care-team chips
+    {
+      audio: '06b-care-team-chips.mp3',
+      caption: 'Tap any diagnosis and Wellet shows what your care team might not tell you \u2014 clinical trials, specialist centers, advocacy groups.',
+      duration: 8000,
+      action: function() {
+        switchNavTo('records');
+        setTimeout(function() {
+          openConditionDetail('demo-cond-cml');
+          setTimeout(function() {
+            var firstChip = document.querySelector('[data-care-team-intent]');
+            if (firstChip) {
+              var section = firstChip.parentElement;
+              if (section && section.parentElement) section = section.parentElement;
+              section.style.transition = 'box-shadow 0.4s ease';
+              section.style.boxShadow = '0 0 0 3px rgba(96,143,124,0.45), 0 0 24px rgba(96,143,124,0.15)';
+              section.style.borderRadius = '14px';
+              section.dataset.gdHighlight = '1';
+              section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+              gdScrollTo('.records-detail-view', 200);
+            }
+          }, 400);
+        }, 300);
+      }
+    },
+    // 6c — Auto-tap clinical trials chip → canned response
+    {
+      audio: '06c-trials-response.mp3',
+      caption: 'Real results from public registries \u2014 recruiting trials, FDA treatments, research \u2014 sourced and linked so you can verify everything.',
+      duration: 9000,
+      action: function() {
+        gdClearHighlight();
+        askCareTeamChip('trials', 'CML (Chronic Myeloid Leukemia)', 'C92.10');
+      }
+    },
     // 7 — CareSignals
     {
       audio: '07-caresignals.mp3',
-      caption: 'CareSignals brings in wearable data and home sensors. Dad\'s heart rate, steps, sleep — and the medicine cabinet opened at 8:12 this morning.',
+      caption: 'CareSignals brings in wearable data and home sensors. Dad\'s heart rate, steps, sleep \u2014 and the medicine cabinet opened at 8:12 this morning.',
       duration: 8500,
       action: function() {
         switchNavTo('signals');
@@ -260,7 +296,7 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
       + '<div style="display:flex;flex-direction:column;gap:14px;width:100%;max-width:340px;margin-bottom:36px;">'
       + '  <a href="https://mywellet.com" style="display:flex;align-items:center;justify-content:center;gap:8px;background:white;color:#3A6152;border-radius:14px;padding:16px 24px;font-size:17px;font-weight:600;text-decoration:none;transition:transform 0.2s;">Try it yourself <span style="font-size:20px;">→</span></a>'
       + '  <span style="color:rgba(255,255,255,0.5);font-size:13px;">mywellet.com</span>'
-      + '  <a href="https://getwellet.com" style="display:flex;align-items:center;justify-content:center;gap:8px;background:transparent;color:white;border:2px solid rgba(255,255,255,0.5);border-radius:14px;padding:14px 24px;font-size:17px;font-weight:500;text-decoration:none;transition:border-color 0.2s;">Join the waitlist <span style="font-size:20px;">→</span></a>'
+      + '  <a href="https://getwellet.com" style="display:flex;align-items:center;justify-content:center;gap:8px;background:transparent;color:white;border:2px solid rgba(255,255,255,0.5);border-radius:14px;padding:14px 24px;font-size:17px;font-weight:500;text-decoration:none;transition:border-color 0.2s;">Learn more <span style="font-size:20px;">→</span></a>'
       + '  <span style="color:rgba(255,255,255,0.5);font-size:13px;">getwellet.com</span>'
       + '</div>'
       + '<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-bottom:auto;">'
