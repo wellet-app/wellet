@@ -866,10 +866,10 @@
     100% { background: transparent; box-shadow: 0 0 0 0 rgba(75, 99, 65, 0); }
   }
   .tl-target-flash { animation: tlTargetFlash 2s ease-out; border-radius: 8px; }
-  .tl-card.amber-border { border-left: 3px solid var(--amber); }
-  .tl-card.blue-border { border-left: 3px solid var(--blue); }
-  .tl-card.moss-border { border-left: 3px solid var(--moss); }
-  .tl-card.red-border { border-left: 3px solid var(--red); }
+  .tl-card.amber-border { border-left: 3px solid var(--amber); padding-left: 16px; }
+  .tl-card.blue-border { border-left: 3px solid var(--blue); padding-left: 16px; }
+  .tl-card.moss-border { border-left: 3px solid var(--moss); padding-left: 16px; }
+  .tl-card.red-border { border-left: 3px solid var(--red); padding-left: 16px; }
   .tl-card-type-row { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
   .tl-card-type { font-size: var(--type-micro); letter-spacing: 0.08em; text-transform: uppercase; font-weight: 500; }
   .tl-card-type.appt { color: var(--moss); }
