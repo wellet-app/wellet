@@ -1359,14 +1359,14 @@
             </div>
             <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
           </div>
-          <div class="settings-row" style="cursor:pointer;" onclick="window.open('https://mywellet.com/privacy','_blank')">
+          <div class="settings-row" style="cursor:pointer;" onclick="window.open('https://getwellet.com/privacy','_blank')">
             <div class="settings-row-left">
               <div class="settings-row-icon"><i data-lucide="shield" style="width:15px;height:15px;"></i></div>
               <div><div class="settings-row-label">Privacy policy</div><div class="settings-row-meta">How your data is protected</div></div>
             </div>
             <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
           </div>
-          <div class="settings-row" style="cursor:pointer;" onclick="window.open('https://mywellet.com/terms','_blank')">
+          <div class="settings-row" style="cursor:pointer;" onclick="window.open('https://getwellet.com/terms','_blank')">
             <div class="settings-row-left">
               <div class="settings-row-icon"><i data-lucide="file-text" style="width:15px;height:15px;"></i></div>
               <div><div class="settings-row-label">Terms of service</div></div>
@@ -1384,10 +1384,18 @@
             </div>
             <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
           </div>
+          <div class="settings-row" style="cursor:pointer;" onclick="openBugReportSheet()">
+            <div class="settings-row-left">
+              <div class="settings-row-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="bug" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Report a bug</div><div class="settings-row-meta">Something broken? Let us know</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+          </div>
           <div class="settings-row">
             <div class="settings-row-left">
               <div class="settings-row-icon"><i data-lucide="info" style="width:15px;height:15px;"></i></div>
-              <div><div class="settings-row-label">About Wellet</div><div class="settings-row-meta" style="font-family:var(--serif),serif;font-style:italic;">A record that belongs to your family, not the hospital. · v1.0</div></div>
+              <!-- TODO: replace hardcoded version with build-time constant -->
+              <div><div class="settings-row-label">About Wellet</div><div class="settings-row-meta" style="font-family:var(--serif),serif;font-style:italic;">A record that belongs to your family, not the hospital. &middot; v0.1.0-soft-launch</div></div>
             </div>
           </div>
         </div>

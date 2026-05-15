@@ -18378,12 +18378,16 @@ function _headerMenuOutsideClick(e) {
 }
 
 function openSettings() {
-  // P4: Navigate to full-page settings view
-  updateSettingsAccount();
-  updateSettingsEhr();
-  if (!isDemoMode) { renderCareCircle(); }
-  renderSettingsPlanCard();
-  try { updatePhase2ToggleUI(); } catch(e){}
+  // P4: Navigate to full-page settings view.
+  // Defensive try-catch around each update so a single failure can't
+  // prevent the view from rendering.
+  try { updateSettingsAccount(); } catch(_e) {}
+  try { updateSettingsEhr(); } catch(_e) {}
+  if (!isDemoMode) { try { renderCareCircle(); } catch(_e) {} }
+  try { renderSettingsPlanCard(); } catch(_e) {}
+  try { updatePhase2ToggleUI(); } catch(_e) {}
+  // Update the Connected Sources section header with the active person's name.
+  try { _updateSvConnectedSourcesHeader(); } catch(_e) {}
   switchNavTo('settings');
   initIcons();
 }
