@@ -12,6 +12,102 @@ const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   }
 });
 
+// ── SILENT TOKEN REFRESH ────────────────────────────────────────────────────
+// Proactively refreshes the Supabase JWT every 4 minutes so edge-function
+// calls never hit an expired token — even on backgrounded mobile tabs where
+// the SDK's built-in refresh can miss.
+
+var _tokenRefreshInterval = null;
+
+function _logTokenRefresh(msg) {
+  if (typeof console !== 'undefined') console.log('[TokenRefresh] ' + msg);
+}
+
+/** Start a 4-minute interval that calls db.auth.refreshSession(). */
+function _startTokenRefreshTimer() {
+  _stopTokenRefreshTimer();
+  _logTokenRefresh('Timer started (every 4 min)');
+  _tokenRefreshInterval = setInterval(async function () {
+    try {
+      var res = await db.auth.refreshSession();
+      if (res.error) {
+        _logTokenRefresh('Refresh failed: ' + res.error.message);
+      } else {
+        _logTokenRefresh('Token refreshed OK');
+      }
+    } catch (e) {
+      _logTokenRefresh('Refresh exception: ' + e.message);
+    }
+  }, 4 * 60 * 1000);
+}
+
+/** Stop the proactive refresh timer (called on logout). */
+function _stopTokenRefreshTimer() {
+  if (_tokenRefreshInterval) {
+    clearInterval(_tokenRefreshInterval);
+    _tokenRefreshInterval = null;
+  }
+}
+
+/**
+ * Get a valid access token, refreshing if needed.
+ * @param {boolean} [forceRefresh=false] - force a token refresh
+ * @returns {Promise<string|null>} access token or null
+ */
+async function _getAuthToken(forceRefresh) {
+  try {
+    if (forceRefresh) {
+      var ref = await db.auth.refreshSession();
+      if (ref.error) { _logTokenRefresh('Force refresh failed: ' + ref.error.message); return null; }
+      return ref.data.session?.access_token || null;
+    }
+    var s = await db.auth.getSession();
+    return s.data.session?.access_token || null;
+  } catch (e) {
+    _logTokenRefresh('_getAuthToken error: ' + e.message);
+    return null;
+  }
+}
+
+/**
+ * Call a Supabase edge function with automatic 401 retry.
+ * On 401, refreshes the token once and retries. Returns the parsed JSON body.
+ * @param {string} fnName - edge function name (e.g. 'ask-wellet')
+ * @param {object} body - request payload
+ * @returns {Promise<{data: any, error: string|null}>}
+ */
+async function callEdgeFn(fnName, body) {
+  var url = SUPABASE_URL + '/functions/v1/' + fnName;
+  async function _call(token) {
+    var resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify(body)
+    });
+    return resp;
+  }
+  try {
+    var token = await _getAuthToken(false);
+    if (!token) return { data: null, error: 'no_session' };
+    var resp = await _call(token);
+    if (resp.status === 401) {
+      _logTokenRefresh('401 from ' + fnName + ', retrying with fresh token');
+      token = await _getAuthToken(true);
+      if (!token) return { data: null, error: 'refresh_failed' };
+      resp = await _call(token);
+    }
+    if (!resp.ok) return { data: null, error: 'http_' + resp.status };
+    var data = await resp.json();
+    return { data: data, error: null };
+  } catch (e) {
+    return { data: null, error: e.message };
+  }
+}
+
 // ── GLOBAL STATE ─────────────────────────────────────────────────────────────
 var isDemoMode = false;
 var currentUser = null;
@@ -1042,6 +1138,7 @@ function showAuthFormState() {
 async function checkAlphaAllowlist(_email) { return true; }
 
 async function handleLogout() {
+  _stopTokenRefreshTimer();
   clearPhiFromStorage();
   try { localStorage.removeItem('wellet_last_person_id'); } catch(e) {}
   await db.auth.signOut();
@@ -1240,6 +1337,7 @@ async function loadUserData() {
       applyPersonBg(currentPersonId);
       await loadPersonData(currentPersonId);
       showAuthenticatedApp();
+      _startTokenRefreshTimer();
     }
   } catch (loadErr) {
     console.error('loadUserData error:', loadErr);
@@ -6211,7 +6309,6 @@ function askCareTeamChip(intent, conditionName, icdCode) {
 }
 
 function _fetchCareTeamInfo(intent, conditionName, icdCode) {
-  var ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU';
   // Pull hospital hint from active EHR connection if available — purely for
   // geo-radius on trials. We pass no PHI; just a regex hint like "duke".
   var hospitalHint = null;
@@ -6220,29 +6317,17 @@ function _fetchCareTeamInfo(intent, conditionName, icdCode) {
     if (conns.length > 0) hospitalHint = conns[0].fhir_base_url || conns[0].hospital_name || null;
   } catch (_e) {}
 
-  return (async function() {
-    var sess = await db.auth.getSession();
-    var tok = sess && sess.data && sess.data.session && sess.data.session.access_token;
-    if (!tok) throw new Error('No session token');
-    var resp = await fetch('https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/fetch-care-team-info', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + tok,
-        'apikey': ANON_KEY
-      },
-      body: JSON.stringify({
-        intent: intent,
-        condition_text: conditionName,
-        icd10: icdCode || '',
-        person_id: currentPersonId,
-        hospital_hint: hospitalHint,
-        max_results: 5
-      })
-    });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    return await resp.json();
-  })();
+  return callEdgeFn('fetch-care-team-info', {
+    intent: intent,
+    condition_text: conditionName,
+    icd10: icdCode || '',
+    person_id: currentPersonId,
+    hospital_hint: hospitalHint,
+    max_results: 5
+  }).then(function(result) {
+    if (result.error) throw new Error(result.error);
+    return result.data;
+  });
 }
 
 function _renderCareTeamAnswer(intent, conditionName, payload) {
@@ -14564,32 +14649,17 @@ async function confirmWatchProposal(key, btnEl) {
   if (!prop) { showToast && showToast('That option expired \u2014 ask again.'); return; }
   if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Saving\u2026'; }
   try {
-    var token = null;
-    try {
-      var s = await db.auth.getSession();
-      token = (s && s.data && s.data.session && s.data.session.access_token) || null;
-    } catch(_e){}
-    if (!token) {
-      addWelletMessage('Your session expired. Please sign out and sign back in, then try again.');
+    var result = await callEdgeFn('create-care-signal-watch', {
+      person_id: prop.person_id,
+      watch_type: prop.watch_type,
+      parameters: prop.parameters
+    });
+    if (result.error === 'no_session' || result.error === 'refresh_failed') {
+      addWelletMessage('I couldn\u2019t verify your session. Please sign out and sign back in, then try again.');
       if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Confirm'; }
       return;
     }
-    var res = await fetch(
-      'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/create-care-signal-watch',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + token,
-          'apikey': ANON_KEY
-        },
-        body: JSON.stringify({
-          person_id: prop.person_id,
-          watch_type: prop.watch_type,
-          parameters: prop.parameters
-        })
-      }
-    );
+    var res = result.error ? { ok: false, status: 500, text: async function() { return result.error; } } : { ok: true, json: async function() { return result.data; } };
     if (res.ok) {
       var saved = await res.json().catch(function(){ return {}; });
       // Replace the card with a confirmation message
@@ -15305,7 +15375,7 @@ function sendAskMessage() {
         }
         if (!token) {
           removeTyping(typingId);
-          addWelletMessage('Your session expired. Please sign out and sign back in so I can access ' + escHtml((currentPeople.find(function(p){return p.id===currentPersonId;}) || {}).name || 'your records') + '.');
+          addWelletMessage('I\u2019m having trouble connecting right now. Please try again in a moment, or sign out and back in if it keeps happening.');
           return;
         }
         var res = await callAskWellet(token);
@@ -15350,12 +15420,12 @@ function sendAskMessage() {
           }
         } else if (res.status === 401) {
           console.error('ask-wellet 401 after double refresh; prompting re-auth');
-          addWelletMessage('I\u2019m having trouble verifying your session. Tap the menu and sign out, then sign back in and I\u2019ll be ready.');
+          addWelletMessage('I couldn\u2019t verify your session after retrying. Please sign out and sign back in \u2014 I\u2019ll be ready when you return.');
         } else if (res.status === 404) {
           var errBody404 = '';
           try { errBody404 = await res.text(); } catch(_e){}
           console.error('ask-wellet 404', errBody404);
-          addWelletMessage('I couldn\u2019t look up those records just now. Please sign out and sign back in, then try again.');
+          addWelletMessage('I couldn\u2019t look up those records just now. Please try again in a moment.');
         } else {
           var errBody = '';
           try { errBody = await res.text(); } catch(_e){}
