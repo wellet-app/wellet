@@ -4843,6 +4843,7 @@ function _rdConditionsContent(ehrConditions, ehrData, ehrProvider) {
 
   function condRow(c, idx, pfx) {
     var did = 'cond-'+pfx+'-'+idx;
+    var chipId = 'cond-chips-'+pfx+'-'+idx;
     var badge = c.status==='active'
       ? '<span class="record-badge amber">Active</span>'
       : '<span class="record-badge moss">'+escHtml(c.status||'Recorded')+'</span>';
@@ -4851,21 +4852,39 @@ function _rdConditionsContent(ehrConditions, ehrData, ehrProvider) {
     if (c.recorded_date) meta.push('Recorded: '+formatEventDate(c.recorded_date));
     if (c.code)          meta.push('Code: '+escHtml(c.code));
     if (c.status)        meta.push('Status: '+escHtml(c.status));
-    // If the condition has an id, tapping opens the detail view with care-team
-    // chips. Otherwise falls back to inline-expand toggle.
+    // If the condition has an id, tapping the ROW opens the detail view with
+    // care-team chips. Otherwise falls back to inline-expand toggle.
     var clickHandler = c.id
       ? 'openConditionDetail(\'' + _escAttr(c.id) + '\')'
       : "var d=document.getElementById('"+did+"');d.style.display=d.style.display==='none'?'block':'none'";
     var chevron = c.id
       ? '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);flex-shrink:0;"></i>'
       : '';
+
+    // Inline "what your care team didn't mention" affordance — tap to reveal
+    // chips without navigating away from the list.
+    var affordance = '<div onclick="event.stopPropagation();_toggleCondChipRail(\'' + chipId + '\',this)" '
+      + 'style="display:flex;align-items:center;gap:5px;cursor:pointer;min-height:40px;padding:6px 0 2px;">'
+      + '<span class="cond-chip-arrow" style="display:inline-block;font-size:13px;color:var(--moss-text,#4F7A68);transition:transform 0.2s ease;">\u2193</span>'
+      + '<span style="font-family:\'DM Sans\',sans-serif;font-size:13px;color:var(--moss-text,#4F7A68);">'
+      + 'what your care team didn\u2019t mention</span></div>';
+
+    // Chip rail container (collapsed by default)
+    var chipRail = '<div id="' + chipId + '" style="overflow:hidden;max-height:0;transition:max-height 0.2s ease-out;width:100%;">'
+      + '<div style="padding:8px 0 4px;">'
+      + _inlineChipContent(c)
+      + '</div></div>';
+
     return '<div class="record-row" style="cursor:pointer;flex-wrap:wrap;" onclick="'+clickHandler+'">'
       + '<div class="record-icon moss"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>'
       + '<div style="flex:1;"><div class="record-label">'+escHtml(c.name)+'</div>'
-      + '<div class="record-meta">'+(c.onset_date?'Since '+formatEventDate(c.onset_date):(c.recorded_date?formatEventDate(c.recorded_date):''))+'</div></div>'
+      + '<div class="record-meta">'+(c.onset_date?'Since '+formatEventDate(c.onset_date):(c.recorded_date?formatEventDate(c.recorded_date):''))+'</div>'
+      + affordance
+      + '</div>'
       + badge
       + chevron
       + (!c.id && meta.length?'<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.6;">'+meta.join('<br>')+'</div>':'')
+      + chipRail
       + '</div>';
   }
 
@@ -4882,6 +4901,77 @@ function _rdConditionsContent(ehrConditions, ehrData, ehrProvider) {
     condResolved.forEach(function(c,i){ html += condRow(c,i,'res'); });
   }
   return html;
+}
+
+// ── Inline chip rail for conditions list (tap-to-reveal) ──
+// Shows care-team chips inline in the conditions list without navigating
+// away. Single-open policy: only one rail expanded at a time.
+var _openCondChipRailId = null;
+
+function _inlineChipContent(cond) {
+  if (!cond || !cond.name) return '';
+  // No ICD-10 code or sensitive condition → show empty state
+  if (!cond.code || _careTeamChipsHideAll(cond.code)) {
+    return '<div style="font-size:13px;color:var(--text-muted);padding:4px 0;font-style:italic;">'
+      + 'Care-team context coming soon for this condition.</div>';
+  }
+  var nmAttr = _escAttr(cond.name);
+  var codeAttr = _escAttr(cond.code || '');
+  function chip(intent, label, icon) {
+    if (!_careTeamChipIntentAllowed(cond.code, intent)) return '';
+    return '<button type="button" data-care-team-intent="' + intent + '" data-condition-name="' + nmAttr + '" data-icd10="' + codeAttr + '" '
+      + 'onclick="event.stopPropagation();askCareTeamChip(this.dataset.careTeamIntent,this.dataset.conditionName,this.dataset.icd10)" '
+      + 'style="display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:10px 12px;background:#fff;border:1px solid var(--border);border-radius:10px;cursor:pointer;font-size:13px;color:var(--text-primary);transition:background 0.15s;">'
+      +   '<i data-lucide="' + icon + '" style="width:14px;height:14px;color:var(--moss);flex-shrink:0;"></i>'
+      +   '<span style="flex:1;">' + label + '</span>'
+      +   '<i data-lucide="chevron-right" style="width:14px;height:14px;color:var(--text-muted);flex-shrink:0;"></i>'
+      + '</button>';
+  }
+  var chipsHtml = ''
+    + chip('trials',         'Recruiting trials nearby',  'flask-conical')
+    + chip('fda_treatments', 'FDA-approved treatments',   'pill')
+    + chip('centers',        'Centers of excellence',     'building-2')
+    + chip('advocacy',       'Patient advocacy groups',   'heart-handshake')
+    + chip('research',       'Recent research',           'book-open');
+  if (!chipsHtml) {
+    return '<div style="font-size:13px;color:var(--text-muted);padding:4px 0;font-style:italic;">'
+      + 'Care-team context coming soon for this condition.</div>';
+  }
+  return '<div style="display:flex;flex-direction:column;gap:6px;">' + chipsHtml + '</div>';
+}
+
+function _toggleCondChipRail(chipId, affordanceEl) {
+  var rail = document.getElementById(chipId);
+  if (!rail) return;
+  var isOpen = rail.style.maxHeight && rail.style.maxHeight !== '0px';
+
+  // Collapse previously open rail (single-open policy)
+  if (_openCondChipRailId && _openCondChipRailId !== chipId) {
+    var prev = document.getElementById(_openCondChipRailId);
+    if (prev) {
+      prev.style.maxHeight = '0px';
+      // Reset previous arrow
+      var prevRow = prev.closest('.record-row');
+      if (prevRow) {
+        var prevArrow = prevRow.querySelector('.cond-chip-arrow');
+        if (prevArrow) prevArrow.style.transform = '';
+      }
+    }
+  }
+
+  var arrow = affordanceEl ? affordanceEl.querySelector('.cond-chip-arrow') : null;
+
+  if (isOpen) {
+    rail.style.maxHeight = '0px';
+    if (arrow) arrow.style.transform = '';
+    _openCondChipRailId = null;
+  } else {
+    rail.style.maxHeight = rail.scrollHeight + 'px';
+    if (arrow) arrow.style.transform = 'rotate(180deg)';
+    _openCondChipRailId = chipId;
+    // Re-init lucide icons inside the newly revealed rail
+    try { initIcons(); } catch(_e) {}
+  }
 }
 
 function _rdAllergiesContent(liveAllergies, ehrAllergies, ehrData, ehrProvider) {
