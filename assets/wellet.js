@@ -24883,17 +24883,28 @@ renderPersonSwitcher = function() {
   initIcons();
 };
 
-// Override renderAskView to hide archived/closed in ask person bar
+// Override renderAskView to hide archived/closed in ask person bar and show
+// an empty-state when the active person has no records.
 var _origRenderAskView = renderAskView;
 renderAskView = function() {
   if (isDemoMode) return;
   var personBar = document.querySelector('#view-ask .ask-person-bar');
-  if (!personBar || !currentPeople.length) return;
+
+  // No people at all → fall back to original which renders a "Connect a chart" CTA.
+  if (!currentPeople.length) {
+    try { _origRenderAskView(); } catch(_e) {}
+    return;
+  }
+  if (!personBar) return;
+
+  // Filter out archived/closed people for the pill bar.
+  var visiblePeople = currentPeople.filter(function(p) {
+    var status = p.care_status || 'active';
+    return status !== 'archived' && status !== 'closed';
+  });
 
   var pillsHtml = '';
-  currentPeople.forEach(function(p) {
-    var status = p.care_status || 'active';
-    if (status === 'archived' || status === 'closed') return;
+  visiblePeople.forEach(function(p) {
     var active = p.id === currentPersonId ? ' active' : '';
     pillsHtml += '<button class="ask-person-pill' + active + '" onclick="selectAskRealPerson(this,\'' + p.id + '\')">'
       + '<span style="width:6px;height:6px;border-radius:50%;background:currentColor;opacity:0.7;display:inline-block;"></span>'
@@ -24903,10 +24914,41 @@ renderAskView = function() {
 
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
   var firstName = person ? person.name.split(' ')[0] : '';
-  var inputEl = document.getElementById('ask-input');
-  if (inputEl) inputEl.placeholder = 'Ask about ' + escHtml(possSegment(firstName, true)) + ' health\u2026';
+
+  // Check whether the active person has any records.
+  var ehrData = getEhrData(currentPersonId) || {};
+  var hasObs = (ehrData.observations || []).length > 0;
+  var hasMeds = (ehrData.medications || []).length > 0;
+  var hasConds = (ehrData.conditions || []).length > 0;
+  var hasLiveData = (liveEvents || []).length > 0 || (liveMeds || []).length > 0;
+  var hasRecords = hasObs || hasMeds || hasConds || hasLiveData;
 
   var chatArea = document.getElementById('chat-area');
+  var chips = document.getElementById('suggestion-chips');
+  var inputEl = document.getElementById('ask-input');
+
+  if (!hasRecords) {
+    // Empty state — person has no records yet.
+    if (chatArea) {
+      chatArea.innerHTML = '<div style="text-align:center;padding:40px 24px 20px;">'
+        + '<div style="font-size:var(--type-body);color:#2C2A26;line-height:1.6;max-width:320px;margin:0 auto;">'
+        + 'Wellet answers from what\u2019s in your loved one\u2019s records. Add records for ' + escHtml(firstName)
+        + ' to <em style="color:#B8731C;font-style:italic;">unlock</em> Ask Wellet for them.'
+        + '</div>'
+        + '<button onclick="showConnectScreen()" style="margin-top:20px;padding:12px 24px;background:var(--moss);color:#fff;border:none;border-radius:999px;font-size:var(--type-body);font-weight:600;font-family:inherit;cursor:pointer;">'
+        + 'Add records for ' + escHtml(firstName) + '</button>'
+        + '<div style="margin-top:16px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.5;">'
+        + 'Or <em style="color:#B8731C;font-style:italic;">switch</em> to a different family member at the top of the screen.'
+        + '</div></div>';
+    }
+    if (chips) { chips.innerHTML = ''; chips.style.display = 'none'; }
+    if (inputEl) inputEl.placeholder = 'Add records to ask questions\u2026';
+    return;
+  }
+
+  // Normal state — person has records, render the full Ask interface.
+  if (inputEl) inputEl.placeholder = 'Ask about ' + escHtml(possSegment(firstName, true)) + ' health\u2026';
+
   if (chatArea) {
     var firstBubble = chatArea.querySelector('.chat-group.from-wellet .chat-bubble.wellet');
     if (firstBubble && firstBubble.textContent.indexOf('Ask me anything about') !== -1) {
@@ -24914,8 +24956,19 @@ renderAskView = function() {
     }
   }
 
-  var chips = document.getElementById('suggestion-chips');
   if (chips) {
+    try {
+      if (typeof buildAskChips === 'function') {
+        var smartChips = buildAskChips(firstName, currentPersonId);
+        if (smartChips && smartChips.length) {
+          chips.innerHTML = smartChips.map(function(c) {
+            return '<button class="chip" onclick="askQuestion(this.textContent)">' + escHtml(c) + '</button>';
+          }).join('');
+          chips.style.display = 'flex';
+          return;
+        }
+      }
+    } catch(_e) {}
     chips.innerHTML =
       '<button class="chip" onclick="askQuestion(this.textContent)">What medications is ' + escHtml(firstName) + ' taking?</button>'
       + '<button class="chip" onclick="askQuestion(this.textContent)">Summarize recent health events</button>'
