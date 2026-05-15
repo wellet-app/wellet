@@ -158,7 +158,7 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
         openEmergencySummary();
         setTimeout(function() {
           closeSheet('emergency-overlay');
-        }, 8000);
+        }, 8600);  // audio is 8385ms — keep overlay visible through narration
       }
     },
     // 11 — Closing with end card
