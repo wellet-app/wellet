@@ -12,6 +12,102 @@ const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   }
 });
 
+// ── SILENT TOKEN REFRESH ────────────────────────────────────────────────────
+// Proactively refreshes the Supabase JWT every 4 minutes so edge-function
+// calls never hit an expired token — even on backgrounded mobile tabs where
+// the SDK's built-in refresh can miss.
+
+var _tokenRefreshInterval = null;
+
+function _logTokenRefresh(msg) {
+  if (typeof console !== 'undefined') console.log('[TokenRefresh] ' + msg);
+}
+
+/** Start a 4-minute interval that calls db.auth.refreshSession(). */
+function _startTokenRefreshTimer() {
+  _stopTokenRefreshTimer();
+  _logTokenRefresh('Timer started (every 4 min)');
+  _tokenRefreshInterval = setInterval(async function () {
+    try {
+      var res = await db.auth.refreshSession();
+      if (res.error) {
+        _logTokenRefresh('Refresh failed: ' + res.error.message);
+      } else {
+        _logTokenRefresh('Token refreshed OK');
+      }
+    } catch (e) {
+      _logTokenRefresh('Refresh exception: ' + e.message);
+    }
+  }, 4 * 60 * 1000);
+}
+
+/** Stop the proactive refresh timer (called on logout). */
+function _stopTokenRefreshTimer() {
+  if (_tokenRefreshInterval) {
+    clearInterval(_tokenRefreshInterval);
+    _tokenRefreshInterval = null;
+  }
+}
+
+/**
+ * Get a valid access token, refreshing if needed.
+ * @param {boolean} [forceRefresh=false] - force a token refresh
+ * @returns {Promise<string|null>} access token or null
+ */
+async function _getAuthToken(forceRefresh) {
+  try {
+    if (forceRefresh) {
+      var ref = await db.auth.refreshSession();
+      if (ref.error) { _logTokenRefresh('Force refresh failed: ' + ref.error.message); return null; }
+      return ref.data.session?.access_token || null;
+    }
+    var s = await db.auth.getSession();
+    return s.data.session?.access_token || null;
+  } catch (e) {
+    _logTokenRefresh('_getAuthToken error: ' + e.message);
+    return null;
+  }
+}
+
+/**
+ * Call a Supabase edge function with automatic 401 retry.
+ * On 401, refreshes the token once and retries. Returns the parsed JSON body.
+ * @param {string} fnName - edge function name (e.g. 'ask-wellet')
+ * @param {object} body - request payload
+ * @returns {Promise<{data: any, error: string|null}>}
+ */
+async function callEdgeFn(fnName, body) {
+  var url = SUPABASE_URL + '/functions/v1/' + fnName;
+  async function _call(token) {
+    var resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify(body)
+    });
+    return resp;
+  }
+  try {
+    var token = await _getAuthToken(false);
+    if (!token) return { data: null, error: 'no_session' };
+    var resp = await _call(token);
+    if (resp.status === 401) {
+      _logTokenRefresh('401 from ' + fnName + ', retrying with fresh token');
+      token = await _getAuthToken(true);
+      if (!token) return { data: null, error: 'refresh_failed' };
+      resp = await _call(token);
+    }
+    if (!resp.ok) return { data: null, error: 'http_' + resp.status };
+    var data = await resp.json();
+    return { data: data, error: null };
+  } catch (e) {
+    return { data: null, error: e.message };
+  }
+}
+
 // ── GLOBAL STATE ─────────────────────────────────────────────────────────────
 var isDemoMode = false;
 var currentUser = null;
@@ -1042,6 +1138,7 @@ function showAuthFormState() {
 async function checkAlphaAllowlist(_email) { return true; }
 
 async function handleLogout() {
+  _stopTokenRefreshTimer();
   clearPhiFromStorage();
   try { localStorage.removeItem('wellet_last_person_id'); } catch(e) {}
   await db.auth.signOut();
@@ -1240,6 +1337,7 @@ async function loadUserData() {
       applyPersonBg(currentPersonId);
       await loadPersonData(currentPersonId);
       showAuthenticatedApp();
+      _startTokenRefreshTimer();
     }
   } catch (loadErr) {
     console.error('loadUserData error:', loadErr);
@@ -4753,12 +4851,21 @@ function _rdConditionsContent(ehrConditions, ehrData, ehrProvider) {
     if (c.recorded_date) meta.push('Recorded: '+formatEventDate(c.recorded_date));
     if (c.code)          meta.push('Code: '+escHtml(c.code));
     if (c.status)        meta.push('Status: '+escHtml(c.status));
-    return '<div class="record-row" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\''+did+'\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
+    // If the condition has an id, tapping opens the detail view with care-team
+    // chips. Otherwise falls back to inline-expand toggle.
+    var clickHandler = c.id
+      ? 'openConditionDetail(\'' + _escAttr(c.id) + '\')'
+      : "var d=document.getElementById('"+did+"');d.style.display=d.style.display==='none'?'block':'none'";
+    var chevron = c.id
+      ? '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);flex-shrink:0;"></i>'
+      : '';
+    return '<div class="record-row" style="cursor:pointer;flex-wrap:wrap;" onclick="'+clickHandler+'">'
       + '<div class="record-icon moss"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>'
       + '<div style="flex:1;"><div class="record-label">'+escHtml(c.name)+'</div>'
       + '<div class="record-meta">'+(c.onset_date?'Since '+formatEventDate(c.onset_date):(c.recorded_date?formatEventDate(c.recorded_date):''))+'</div></div>'
       + badge
-      + (meta.length?'<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.6;">'+meta.join('<br>')+'</div>':'')
+      + chevron
+      + (!c.id && meta.length?'<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.6;">'+meta.join('<br>')+'</div>':'')
       + '</div>';
   }
 
@@ -6211,7 +6318,6 @@ function askCareTeamChip(intent, conditionName, icdCode) {
 }
 
 function _fetchCareTeamInfo(intent, conditionName, icdCode) {
-  var ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU';
   // Pull hospital hint from active EHR connection if available — purely for
   // geo-radius on trials. We pass no PHI; just a regex hint like "duke".
   var hospitalHint = null;
@@ -6220,29 +6326,17 @@ function _fetchCareTeamInfo(intent, conditionName, icdCode) {
     if (conns.length > 0) hospitalHint = conns[0].fhir_base_url || conns[0].hospital_name || null;
   } catch (_e) {}
 
-  return (async function() {
-    var sess = await db.auth.getSession();
-    var tok = sess && sess.data && sess.data.session && sess.data.session.access_token;
-    if (!tok) throw new Error('No session token');
-    var resp = await fetch('https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/fetch-care-team-info', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + tok,
-        'apikey': ANON_KEY
-      },
-      body: JSON.stringify({
-        intent: intent,
-        condition_text: conditionName,
-        icd10: icdCode || '',
-        person_id: currentPersonId,
-        hospital_hint: hospitalHint,
-        max_results: 5
-      })
-    });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    return await resp.json();
-  })();
+  return callEdgeFn('fetch-care-team-info', {
+    intent: intent,
+    condition_text: conditionName,
+    icd10: icdCode || '',
+    person_id: currentPersonId,
+    hospital_hint: hospitalHint,
+    max_results: 5
+  }).then(function(result) {
+    if (result.error) throw new Error(result.error);
+    return result.data;
+  });
 }
 
 function _renderCareTeamAnswer(intent, conditionName, payload) {
@@ -9881,8 +9975,11 @@ document.addEventListener('visibilitychange', function() {
 // Demo EHR data for Dad
 var DEMO_EHR_DATA = {
   conditions: [
-    { type:'condition', source:'ehr', name:"Parkinson's disease", code:'49049000', status:'active', onset_date:'2023-06-15', recorded_date:'2023-06-15' },
-    { type:'condition', source:'ehr', name:'Essential hypertension', code:'59621000', status:'active', onset_date:'2020-03-10', recorded_date:'2020-03-10' }
+    { id:'demo-cond-htn', type:'condition', source:'manual', name:'Hypertension', code:'I10', status:'active', onset_date:'2022-04-01', recorded_date:'2022-04-01' },
+    { id:'demo-cond-cml', type:'condition', source:'manual', name:'CML (Chronic Myeloid Leukemia)', code:'C92.10', status:'active', onset_date:'2019-01-15', recorded_date:'2019-01-15' },
+    { id:'demo-cond-glaucoma', type:'condition', source:'manual', name:'Glaucoma', code:'H40.9', status:'active', onset_date:'2020-06-01', recorded_date:'2020-06-01' },
+    { id:'demo-cond-parkinsons', type:'condition', source:'ehr', name:"Parkinson's disease", code:'G20', status:'active', onset_date:'2023-06-15', recorded_date:'2023-06-15' },
+    { id:'demo-cond-htn-ehr', type:'condition', source:'ehr', name:'Essential hypertension', code:'I10', status:'active', onset_date:'2020-03-10', recorded_date:'2020-03-10' }
   ],
   medications: [
     { type:'medication', source:'ehr', name:'Levodopa/Carbidopa 25-100mg', code:'197741', status:'active', dosage:'1 tablet three times daily', frequency:'3x daily', date_asserted:'2023-07-01' },
@@ -9907,6 +10004,22 @@ var DEMO_EHR_DATA = {
     { type:'procedure', source:'ehr', name:'Electroencephalogram (EEG)', code:'54093003', status:'completed', performed_date:'2026-01-10' }
   ],
   provider: 'Duke Health (Epic)',
+  synced_at: new Date().toISOString()
+};
+
+// Demo EHR data for Mom — enables care-team chips on Mom's conditions
+var DEMO_EHR_DATA_MOM = {
+  conditions: [
+    { id:'demo-cond-diabetes', type:'condition', source:'ehr', name:'Type 2 diabetes mellitus', code:'E11.9', status:'active', onset_date:'2019-08-12', recorded_date:'2019-08-12' },
+    { id:'demo-cond-ra', type:'condition', source:'ehr', name:'Rheumatoid arthritis', code:'M06.9', status:'active', onset_date:'2021-03-05', recorded_date:'2021-03-05' },
+    { id:'demo-cond-hypothyroidism', type:'condition', source:'manual', name:'Hypothyroidism', code:'E03.9', status:'active', onset_date:'2015-01-20', recorded_date:'2015-01-20' },
+    { id:'demo-cond-hypercholesterolemia', type:'condition', source:'manual', name:'Hypercholesterolemia', code:'E78.0', status:'active', onset_date:'2018-06-10', recorded_date:'2018-06-10' }
+  ],
+  medications: [],
+  allergies: [],
+  observations: [],
+  encounters: [],
+  provider: 'UNC Health Care (Epic)',
   synced_at: new Date().toISOString()
 };
 
@@ -12220,6 +12333,7 @@ function _legacyGetEhrData(personId) {
     var pills = document.querySelectorAll('#view-records .person-pill, .person-pill.active');
     var isDad = !personId || personId === 'dad';
     if (isDad) return DEMO_EHR_DATA;
+    if (personId === 'mom') return DEMO_EHR_DATA_MOM;
     return null;
   }
   return ehrCache[personId] || loadEhrCache(personId);
@@ -14564,32 +14678,26 @@ async function confirmWatchProposal(key, btnEl) {
   if (!prop) { showToast && showToast('That option expired \u2014 ask again.'); return; }
   if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Saving\u2026'; }
   try {
-    var token = null;
-    try {
-      var s = await db.auth.getSession();
-      token = (s && s.data && s.data.session && s.data.session.access_token) || null;
-    } catch(_e){}
-    if (!token) {
-      addWelletMessage('Your session expired. Please sign out and sign back in, then try again.');
-      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Confirm'; }
-      return;
-    }
-    var res = await fetch(
-      'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/create-care-signal-watch',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + token,
-          'apikey': ANON_KEY
-        },
-        body: JSON.stringify({
-          person_id: prop.person_id,
-          watch_type: prop.watch_type,
-          parameters: prop.parameters
-        })
+    var result = await callEdgeFn('create-care-signal-watch', {
+      person_id: prop.person_id,
+      watch_type: prop.watch_type,
+      parameters: prop.parameters
+    });
+    if (result.error === 'no_session' || result.error === 'refresh_failed') {
+      addWelletMessage('I couldn\u2019t verify your session. One moment\u2026');
+      var retryToken = await _getAuthToken(true);
+      if (!retryToken) {
+        addWelletMessage('Your session couldn\u2019t be refreshed. Please sign out and sign back in, then try again.');
+        if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Confirm'; }
+        return;
       }
-    );
+      result = await callEdgeFn('create-care-signal-watch', {
+        person_id: prop.person_id,
+        watch_type: prop.watch_type,
+        parameters: prop.parameters
+      });
+    }
+    var res = result.error ? { ok: false, status: 500 } : { ok: true, json: async function() { return result.data; } };
     if (res.ok) {
       var saved = await res.json().catch(function(){ return {}; });
       // Replace the card with a confirmation message
