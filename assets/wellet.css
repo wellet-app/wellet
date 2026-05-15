@@ -338,7 +338,7 @@
   .app-logo-row { display: flex; align-items: center; gap: 10px; }
   .app-icon { width: 30px; height: 30px; border-radius: 7px; overflow: hidden; flex-shrink: 0; }
   .app-wordmark { height: 24px; display: block; }
-  .app-wordmark path { fill: #3D6B58; }
+  .app-wordmark path { fill: var(--moss-text, #4F7A68); }
   .header-meta { font-size: var(--type-meta); color: var(--text-muted); margin-top: 1px; }
   .header-actions { display: flex; gap: 8px; }
   .icon-btn { min-width: 44px; min-height: 44px; border-radius: 50%; background: var(--mint); display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; color: var(--moss); transition: background 0.15s; }
