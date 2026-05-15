@@ -1532,12 +1532,12 @@ function refreshConnectScreenStatus() {
   _markConnectCard('connect-card-apple', appleConnected);
   _markConnectCard('connect-card-terra', terraConnected);
 
-  // Update the bottom CTA: "I'll do this later" if nothing connected,
-  // "Done" once at least one source is in place.
+  // Update the bottom CTA: "Skip for now \u2014 you can connect anything from Settings"
+  // if nothing connected, "Done" once at least one source is in place.
   var skipBtn = document.querySelector('#connect-data-screen .connect-skip-btn');
   if (skipBtn) {
     var anyConnected = ehrConnected || terraConnected || appleConnected;
-    skipBtn.textContent = anyConnected ? 'Done' : "I'll do this later";
+    skipBtn.textContent = anyConnected ? 'Done' : 'Skip for now \u2014 you can connect anything from Settings';
     skipBtn.classList.toggle('connect-skip-btn--primary', anyConnected);
   }
 }
@@ -1599,7 +1599,7 @@ function hideConnectScreen() {
   _clearConnectScreenActive();
 }
 
-// User taps "I'll do this later" — go to Home. Self-person row is already
+// User taps the skip CTA — go to Home. Self-person row is already
 // created and persisted; mode is locked. Connections can happen any time
 // from Settings.
 function skipConnectScreen() {
@@ -19370,7 +19370,7 @@ var obChat = {
 };
 
 var _obChatSituations = [
-  { id: 'aging_parent', label: 'An aging parent' },
+  { id: 'aging_parent', label: 'An aging loved one' },
   { id: 'partner',      label: 'My partner or spouse' },
   { id: 'child',        label: 'My child' },
   { id: 'self',         label: 'Myself' },
