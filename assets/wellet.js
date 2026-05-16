@@ -265,6 +265,12 @@ async function acceptInvite() {
 
 // ── AUTH FLOW ────────────────────────────────────────────────────────────────
 async function initApp() {
+  // Zero-auth /try route — show try screen and skip auth entirely
+  if (typeof tryCheckRoute === 'function' && tryCheckRoute()) {
+    showTryScreen();
+    return;
+  }
+
   // Check for invite token in URL first
   var hasInvite = await checkInviteOnLoad();
 
