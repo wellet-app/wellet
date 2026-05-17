@@ -6224,8 +6224,22 @@ function _loadTrialsTile() {
     var trials = (data && Array.isArray(data.trials)) ? data.trials : [];
 
     if (trials.length === 0) {
-      var tileContainer = document.getElementById('trials-tile-container');
-      if (tileContainer) tileContainer.style.display = 'none';
+      // Honest empty state — tell the user we looked. Tap-out goes to the
+      // canonical ClinicalTrials.gov search so they can verify independently.
+      var ctSearchUrl = 'https://clinicaltrials.gov/search?cond='
+        + encodeURIComponent(conditionText || '');
+      inner.innerHTML = _tileEmptyHtml(
+        'No recruiting trials within 50 miles on ClinicalTrials.gov for \u201C'
+          + (conditionText || 'this condition') + '.\u201D',
+        'Search ClinicalTrials.gov',
+        ctSearchUrl
+      );
+      try {
+        _wa.track('feature', 'trials_tile_viewed', {
+          condition_code: conditionCode,
+          trials_count: 0
+        });
+      } catch(e) {}
       return;
     }
 
@@ -6286,6 +6300,37 @@ function openTrialDetail(nctId, url) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// SHARED TILE HELPERS — empty-state renderer, external open
+// Used by all 5 diagnosis tiles (Trials · FDA · Centers · Advocacy · Research)
+// when the public registry returns zero rows. Honors Wellet's "we surface, you
+// decide" voice — even when there's nothing to surface, we tell the user we
+// looked. Tap-out (when provided) goes to the canonical public search URL.
+function _tileOpenExternalUrl(url) {
+  if (!url) return;
+  try {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
+      window.Capacitor.Plugins.Browser.open({ url: url });
+      return;
+    }
+  } catch(_e) {}
+  window.open(url, '_blank', 'noopener');
+}
+
+function _tileEmptyHtml(message, ctaLabel, ctaUrl) {
+  var safeMsg = (typeof escHtml === 'function') ? escHtml(message) : String(message);
+  var html = '<div class="editorial-tile-empty">'
+    + '<div class="editorial-tile-empty-text">' + safeMsg + '</div>';
+  if (ctaUrl && ctaLabel) {
+    var escUrl = (typeof _escAttr === 'function') ? _escAttr(ctaUrl) : String(ctaUrl);
+    var escLabel = (typeof escHtml === 'function') ? escHtml(ctaLabel) : String(ctaLabel);
+    html += '<button type="button" class="editorial-tile-empty-cta" '
+      + 'onclick="_tileOpenExternalUrl(\'' + escUrl + '\')">'
+      + escLabel + ' \u203A</button>';
+  }
+  html += '</div>';
+  return html;
+}
+
 // DIAGNOSIS TILES 2-5 (FDA · Centers · Advocacy · Research) — shipped 2026-05-17
 // ═══════════════════════════════════════════════════════════════════════════
 // ============================================================================
@@ -6395,8 +6440,13 @@ function _loadFdaTreatmentsTile() {
     var treatments = (data && Array.isArray(data.treatments)) ? data.treatments : [];
 
     if (treatments.length === 0) {
-      var tileContainer = document.getElementById('fda-tile-container');
-      if (tileContainer) tileContainer.style.display = 'none';
+      var fdaSearchUrl = 'https://dailymed.nlm.nih.gov/dailymed/search.cfm?query='
+        + encodeURIComponent(conditionText || conditionCode || '');
+      inner.innerHTML = _tileEmptyHtml(
+        'No FDA-approved drug labels in openFDA for \u201C'
+          + (conditionText || 'this condition') + '.\u201D',
+        'Search DailyMed', fdaSearchUrl);
+      try { if (typeof _wa !== 'undefined' && _wa.track) _wa.track('feature','fda_tile_viewed',{condition_code:conditionCode,treatment_count:0}); } catch(e){}
       return;
     }
 
@@ -6592,8 +6642,11 @@ function _loadCentersTile() {
 
     var centers = (data && Array.isArray(data.centers)) ? data.centers : [];
     if (centers.length === 0) {
-      var tile = document.getElementById('centers-tile-container');
-      if (tile) tile.style.display = 'none';
+      inner.innerHTML = _tileEmptyHtml(
+        'No designated centers in our curated list for \u201C'
+          + (conditionText || 'this condition') + '.\u201D',
+        '', '');
+      try { if (typeof _wa !== 'undefined' && _wa.track) _wa.track('feature','centers_tile_viewed',{condition_code:conditionCode,center_count:0}); } catch(e){}
       return;
     }
 
@@ -6793,8 +6846,11 @@ function _loadAdvocacyTile() {
 
     var groups = (data && Array.isArray(data.groups)) ? data.groups : [];
     if (groups.length === 0) {
-      var tile = document.getElementById('advocacy-tile-container');
-      if (tile) tile.style.display = 'none';
+      inner.innerHTML = _tileEmptyHtml(
+        'No advocacy groups in our curated list for \u201C'
+          + (conditionText || 'this condition') + '.\u201D',
+        '', '');
+      try { if (typeof _wa !== 'undefined' && _wa.track) _wa.track('feature','advocacy_tile_viewed',{condition_code:conditionCode,group_count:0}); } catch(e){}
       return;
     }
 
@@ -6971,8 +7027,13 @@ function _loadResearchPapersTile() {
     var papers = (data && Array.isArray(data.papers)) ? data.papers : [];
 
     if (papers.length === 0) {
-      var tile = document.getElementById('research-tile-container');
-      if (tile) tile.style.display = 'none';
+      var pmSearchUrl = 'https://pubmed.ncbi.nlm.nih.gov/?term='
+        + encodeURIComponent((conditionText || conditionCode || '') + ' AND review[pt]');
+      inner.innerHTML = _tileEmptyHtml(
+        'No recent reviews on PubMed for \u201C'
+          + (conditionText || 'this condition') + '.\u201D',
+        'Search PubMed', pmSearchUrl);
+      try { if (typeof _wa !== 'undefined' && _wa.track) _wa.track('feature','research_tile_viewed',{condition_code:conditionCode,paper_count:0}); } catch(e){}
       return;
     }
 
