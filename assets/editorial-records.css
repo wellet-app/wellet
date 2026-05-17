@@ -599,3 +599,92 @@
     height: 20px;
   }
 }
+
+/* ============================================================
+   Trials Tile v1
+   Scoped to .editorial-trials-tile — remove this block to
+   roll back the tile without touching other styles.
+   ============================================================ */
+
+.editorial-trials-tile {
+  margin-top: 22px;
+}
+
+.editorial-trials-eyebrow {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: var(--type-micro, 11px);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-5, #6b6b6b);
+  margin: 0 0 8px;
+}
+
+.editorial-trials-card {
+  background: #fff;
+  border: 1px solid var(--border, rgba(20,33,28,0.10));
+  border-radius: 12px;
+  overflow: hidden;
+  padding: 0;
+}
+
+.editorial-trials-count {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: var(--type-meta, 13px);
+  font-weight: 500;
+  color: var(--text-secondary, #5a6b63);
+  padding: 12px 14px 8px;
+}
+
+.editorial-trials-rows {
+  border-top: 1px solid var(--border, rgba(20,33,28,0.08));
+}
+
+.editorial-trials-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 11px 14px;
+  background: #fff;
+  border: 0;
+  border-bottom: 1px solid var(--border, rgba(20,33,28,0.08));
+  cursor: pointer;
+  transition: background 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.editorial-trials-row:last-child {
+  border-bottom: 0;
+}
+.editorial-trials-row:active,
+.editorial-trials-row:focus-visible {
+  background: var(--mint, #EEF5F0);
+  outline: none;
+}
+
+.editorial-trials-row-title {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: var(--type-body, 14px);
+  font-weight: 500;
+  color: var(--text-primary, #14211c);
+  line-height: 1.35;
+  margin-bottom: 3px;
+}
+
+.editorial-trials-row-meta {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: var(--type-meta, 13px);
+  font-weight: 400;
+  color: var(--text-secondary, #5a6b63);
+  line-height: 1.3;
+}
+
+.editorial-trials-disclaimer {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: var(--type-micro, 11px);
+  font-weight: 400;
+  color: var(--text-muted, #8a9e95);
+  line-height: 1.4;
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--border, rgba(20,33,28,0.06));
+  background: var(--bg, #F7F5F0);
+}

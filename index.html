@@ -1492,6 +1492,17 @@
             <button id="phase2-toggle-btn" type="button" onclick="togglePhase2Flag()" style="flex:0 0 auto;background:#eef2f0;border:1px solid var(--border);color:var(--text-primary);font-size:var(--type-meta);font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;">Turn on</button>
           </div>
         </div>
+        <!-- Records preferences: Trials tile toggle -->
+        <div class="settings-section" style="margin-top:12px;">
+          <div class="settings-section-label">Records</div>
+          <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div class="settings-row-left" style="flex:1;min-width:0;">
+              <div class="settings-row-icon" style="background:#E8F5E9;color:#4CAF50;"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Show trials on condition pages</div><div class="settings-row-meta" id="trials-toggle-desc">Wellet surfaces recruiting studies from ClinicalTrials.gov, the public registry. You decide whether to look.</div></div>
+            </div>
+            <button id="trials-toggle-btn" type="button" onclick="toggleTrialsTileFlag()" style="flex:0 0 auto;background:var(--moss);border:1px solid var(--moss);color:#fff;font-size:var(--type-meta);font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;">On</button>
+          </div>
+        </div>
       </div>
     </div><!-- end view-settings -->
 

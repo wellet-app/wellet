@@ -6100,18 +6100,181 @@ function openConditionDetail(refId) {
     + '</div>'
     + relatedHtml
     + renderCareTeamChipSection(cond)
+    + renderTrialsTile(cond.code || '', cond.name || '', currentPersonId)
     + _detailAskCta(askKey)
     + '</div>';
 
   _recordsDetailSection = 'conditions:' + (cond.id || '');
   view.innerHTML = html;
   initIcons();
+  // Load the Trials tile asynchronously — fetch fires after DOM is ready.
+  try { _loadTrialsTile(); } catch(_e) {}
   try {
     var card = view.querySelector('[data-ask-lp="' + askKey + '"]');
     if (card && typeof attachAskLongPress === 'function') {
       attachAskLongPress(card, window._askCtxRegistry[askKey]);
     }
   } catch (_e) {}
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// TRIALS TILE v1
+// Surfaces recruiting studies from ClinicalTrials.gov on the Condition
+// detail screen. Public-registry data only — no app-side interpretation.
+//
+// Four bright lines (non-negotiable):
+//   1. Wellet never claims a match. No eligibility language anywhere.
+//   2. All data is public-registry, returned verbatim from the registry.
+//   3. Tap-out always goes to clinicaltrials.gov — never embedded.
+//   4. Persistent disclaimer on every populated tile view.
+//
+// Voice: "surfaces" not "recommends". "loved one" not "parent".
+//        "notices" / "watches for" not "track" / "monitor".
+//        CareSignals is one word.
+// ────────────────────────────────────────────────────────────────────────────
+
+var TRIALS_PREF_KEY = 'welletShowTrials';
+
+function isTrialsTileEnabled() {
+  try {
+    var v = localStorage.getItem(TRIALS_PREF_KEY);
+    if (v === null) {
+      localStorage.setItem(TRIALS_PREF_KEY, '1');
+      return true;
+    }
+    return v === '1';
+  } catch(e) { return true; }
+}
+
+function renderTrialsTile(conditionCode, conditionText, personId) {
+  if (!isTrialsTileEnabled()) return '';
+  if (typeof _careTeamChipsHideAll === 'function' && _careTeamChipsHideAll(conditionCode)) return '';
+  if (!conditionCode || !conditionText) return '';
+
+  return '<div id="trials-tile-container" class="editorial-trials-tile" style="margin-top:22px;" '
+    + 'data-condition-code="' + _escAttr(conditionCode) + '" '
+    + 'data-condition-text="' + _escAttr(conditionText) + '" '
+    + 'data-person-id="' + _escAttr(personId || '') + '">'
+    + '<div class="editorial-trials-eyebrow">Trials near you \u00B7 public registry</div>'
+    + '<div id="trials-tile-inner" class="editorial-trials-card">'
+    +   '<div style="color:var(--text-muted);font-size:var(--type-meta);padding:14px 0;">Looking up trials near you\u2026</div>'
+    + '</div>'
+    + '</div>';
+}
+
+function _loadTrialsTile() {
+  var container = document.getElementById('trials-tile-container');
+  if (!container) return;
+
+  var conditionCode = container.dataset.conditionCode || '';
+  var conditionText = container.dataset.conditionText || '';
+  var personId      = container.dataset.personId || '';
+
+  var hospitalHint = '';
+  try {
+    var ehrData = typeof getEhrData === 'function' ? getEhrData(personId || currentPersonId) : null;
+    if (ehrData && ehrData.fhir_base_url) hospitalHint = ehrData.fhir_base_url;
+    if (!hospitalHint && ehrData && ehrData.connections) {
+      var connIds = Object.keys(ehrData.connections);
+      if (connIds.length > 0) {
+        var firstConn = ehrData.connections[connIds[0]];
+        hospitalHint = (firstConn && firstConn.fhir_base_url) || '';
+      }
+    }
+  } catch(e) {}
+
+  var supabaseUrl = (typeof db !== 'undefined' && db.supabaseUrl) || 'https://nrpdhxygzyfmyljzfexv.supabase.co';
+  var fnUrl = supabaseUrl.replace(/\/$/, '') + '/functions/v1/fetch-clinical-trials';
+
+  var authToken = '';
+  try {
+    var session = db && db.auth && db.auth.session && db.auth.session();
+    authToken = (session && session.access_token) || '';
+  } catch(e) {}
+
+  fetch(fnUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': authToken ? 'Bearer ' + authToken : '',
+      'apikey': (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : ''
+    },
+    body: JSON.stringify({
+      condition_code: conditionCode,
+      condition_text: conditionText,
+      person_id: personId,
+      hospital_id: hospitalHint,
+      radius_miles: 50,
+      max_results: 10
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var inner = document.getElementById('trials-tile-inner');
+    if (!inner) return;
+
+    var trials = (data && Array.isArray(data.trials)) ? data.trials : [];
+
+    if (trials.length === 0) {
+      var tileContainer = document.getElementById('trials-tile-container');
+      if (tileContainer) tileContainer.style.display = 'none';
+      return;
+    }
+
+    var countLabel = trials.length + ' trial' + (trials.length !== 1 ? 's' : '') + ' recruiting within 50 mi';
+
+    var rowsHtml = '';
+    trials.forEach(function(trial) {
+      if (!trial || !trial.nct_id) return;
+      var title   = escHtml(trial.title || 'Untitled study');
+      var sponsor = escHtml(trial.sponsor || '');
+      var nctId   = escHtml(trial.nct_id);
+      var distStr = (trial.distance_miles != null) ? ' \u00B7 ' + escHtml(String(trial.distance_miles)) + ' mi' : '';
+      var url     = escHtml(trial.url || 'https://clinicaltrials.gov');
+
+      rowsHtml += '<button type="button" class="editorial-trials-row" '
+        + 'onclick="openTrialDetail(\'' + _escAttr(trial.nct_id) + '\', \'' + _escAttr(trial.url || 'https://clinicaltrials.gov') + '\')">'
+        +   '<div class="editorial-trials-row-title">' + title + '</div>'
+        +   '<div class="editorial-trials-row-meta">' + sponsor + distStr + ' \u00B7 ' + nctId + '</div>'
+        + '</button>';
+    });
+
+    var disclaimerPronoun = 'their';
+    try {
+      var p = (currentPeople || []).find(function(x) { return x && x.id === (personId || currentPersonId); });
+      if (p) {
+        if (p.pronouns === 'she/her' || p.gender === 'female') disclaimerPronoun = 'her';
+        else if (p.pronouns === 'he/him' || p.gender === 'male') disclaimerPronoun = 'his';
+      }
+    } catch(e) {}
+    var disclaimer = 'Public registry. Talk to ' + disclaimerPronoun + ' care team before applying.';
+
+    inner.innerHTML = '<div class="editorial-trials-count">' + escHtml(countLabel) + '</div>'
+      + '<div class="editorial-trials-rows">' + rowsHtml + '</div>'
+      + '<div class="editorial-trials-disclaimer">' + escHtml(disclaimer) + '</div>';
+
+    try {
+      _wa.track('feature', 'trials_tile_viewed', {
+        condition_code: conditionCode,
+        trials_count: trials.length
+      });
+    } catch(e) {}
+  })
+  .catch(function() {
+    var tileContainer = document.getElementById('trials-tile-container');
+    if (tileContainer) tileContainer.style.display = 'none';
+  });
+}
+
+function openTrialDetail(nctId, url) {
+  if (!url) url = nctId ? 'https://clinicaltrials.gov/study/' + encodeURIComponent(nctId) : 'https://clinicaltrials.gov';
+  try {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
+      window.Capacitor.Plugins.Browser.open({ url: url });
+      return;
+    }
+  } catch(_e) {}
+  window.open(url, '_blank', 'noopener');
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -12247,6 +12410,37 @@ function togglePhase2Flag() {
   // immediately without a hard reload.
   try { if (typeof renderRecordsView === 'function') renderRecordsView(); } catch(e){}
   try { if (typeof renderTimeline === 'function') renderTimeline(); } catch(e){}
+}
+
+// ── TRIALS TILE TOGGLE ───────────────────────────────────────────────────────────────────
+function updateTrialsToggleUI() {
+  var btn  = document.getElementById('trials-toggle-btn');
+  if (!btn) return;
+  var on = isTrialsTileEnabled();
+  if (on) {
+    btn.textContent  = 'On';
+    btn.style.background   = 'var(--moss)';
+    btn.style.color        = '#fff';
+    btn.style.borderColor  = 'var(--moss)';
+  } else {
+    btn.textContent  = 'Off';
+    btn.style.background   = '#eef2f0';
+    btn.style.color        = 'var(--text-primary)';
+    btn.style.borderColor  = 'var(--border)';
+  }
+}
+
+function toggleTrialsTileFlag() {
+  try {
+    if (isTrialsTileEnabled()) {
+      localStorage.setItem(TRIALS_PREF_KEY, '0');
+      try { showToast('Trials tile off'); } catch(e) {}
+    } else {
+      localStorage.setItem(TRIALS_PREF_KEY, '1');
+      try { showToast('Trials tile on'); } catch(e) {}
+    }
+  } catch(e) { console.warn('trials toggle:', e); }
+  updateTrialsToggleUI();
 }
 
 // Check if cached EHR data is stale (older than 15 minutes).
@@ -18501,6 +18695,7 @@ function openSettings() {
   if (!isDemoMode) { try { renderCareCircle(); } catch(_e) {} }
   try { renderSettingsPlanCard(); } catch(_e) {}
   try { updatePhase2ToggleUI(); } catch(_e) {}
+  try { updateTrialsToggleUI(); } catch(_e) {}
   // Update the Connected Sources section header with the active person's name.
   try { _updateSvConnectedSourcesHeader(); } catch(_e) {}
   switchNavTo('settings');
