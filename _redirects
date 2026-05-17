@@ -6,6 +6,7 @@
 /terms            /terms.html        200
 /how-it-works     /how-it-works.html 200
 /your-data        /your-data.html    200
+/support          /support.html      200
 # Wellet Connect iOS auth bridge — catches Supabase magic-link redirect
 # and re-launches the app via welletconnect:// deep link
 /connect/start    /connect/start.html 200
