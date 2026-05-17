@@ -10157,6 +10157,25 @@ function showAuthScreen() {
   // Hide bug report button when logged out
   var bugBtn = document.getElementById('bug-report-btn');
   if (bugBtn) bugBtn.style.display = 'none';
+  // Pre-fill email from ?email= URL param (from getwellet.com inline signup).
+  // Falls back to localStorage if no URL param. Does not overwrite a value
+  // the user has already typed in the field.
+  try {
+    var emailInput = document.getElementById('auth-email');
+    if (emailInput && !emailInput.value) {
+      var urlEmail = null;
+      try {
+        urlEmail = new URLSearchParams(window.location.search).get('email');
+      } catch (_e) {}
+      if (urlEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(urlEmail)) {
+        emailInput.value = urlEmail.trim().toLowerCase();
+      } else {
+        var stored = null;
+        try { stored = localStorage.getItem('wellet_last_signin_email'); } catch (_e) {}
+        if (stored) emailInput.value = stored;
+      }
+    }
+  } catch (_e) {}
   window.scrollTo(0, 0);
   initIcons();
 }
