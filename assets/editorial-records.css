@@ -688,3 +688,391 @@
   border-top: 1px solid var(--border, rgba(20,33,28,0.06));
   background: var(--bg, #F7F5F0);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DIAGNOSIS TILES 2-5 (FDA · Centers · Advocacy · Research) — shipped 2026-05-17
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* ============================================================
+   FDA Treatments Tile v1
+   Scoped to .editorial-fda-tile — remove this block to
+   roll back the tile without touching other styles.
+
+   Cloned from .editorial-trials-* with namespace swap only.
+   Same colors, same spacing — all five tiles share one visual
+   language so the "What your care team might not tell you"
+   section reads as a cohesive unit.
+   ============================================================ */
+
+.editorial-fda-tile {
+  margin-top: 22px;
+}
+
+.editorial-fda-eyebrow {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: var(--type-micro, 11px);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-5, #6b6b6b);
+  margin: 0 0 8px;
+}
+
+.editorial-fda-card {
+  background: #fff;
+  border: 1px solid var(--border, rgba(20,33,28,0.10));
+  border-radius: 12px;
+  overflow: hidden;
+  padding: 0;
+}
+
+.editorial-fda-count {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: var(--type-meta, 13px);
+  font-weight: 500;
+  color: var(--text-secondary, #5a6b63);
+  padding: 12px 14px 8px;
+}
+
+.editorial-fda-rows {
+  border-top: 1px solid var(--border, rgba(20,33,28,0.08));
+}
+
+.editorial-fda-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 11px 14px;
+  background: #fff;
+  border: 0;
+  border-bottom: 1px solid var(--border, rgba(20,33,28,0.08));
+  cursor: pointer;
+  transition: background 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.editorial-fda-row:last-child {
+  border-bottom: 0;
+}
+.editorial-fda-row:active,
+.editorial-fda-row:focus-visible {
+  background: var(--mint, #EEF5F0);
+  outline: none;
+}
+
+.editorial-fda-row-title {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: var(--type-body, 14px);
+  font-weight: 600;
+  color: var(--text-primary, #14211c);
+  line-height: 1.35;
+  margin-bottom: 3px;
+}
+
+.editorial-fda-row-meta {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: var(--type-meta, 13px);
+  font-weight: 400;
+  color: var(--text-secondary, #5a6b63);
+  line-height: 1.3;
+}
+
+.editorial-fda-disclaimer {
+  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-size: var(--type-micro, 11px);
+  font-weight: 400;
+  color: var(--text-muted, #8a9e95);
+  line-height: 1.4;
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--border, rgba(20,33,28,0.06));
+  background: var(--bg, #F7F5F0);
+}
+/* ============================================================================
+   editorial-records.css — Centers of Excellence Tile additions
+   Tile 3 of 5 — namespace: .editorial-centers-*
+   Clone of .editorial-trials-* block — same colors, same spacing.
+   2026-05-17
+   ============================================================================ */
+
+/* ─── OUTER TILE ─────────────────────────────────────────────────────────── */
+
+.editorial-centers-tile {
+  margin-top: 22px;
+  margin-bottom: 0;
+}
+
+/* ─── EYEBROW ────────────────────────────────────────────────────────────── */
+
+.editorial-centers-eyebrow {
+  font-size: var(--type-eyebrow, 10px);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted, #8e8e93);
+  margin-bottom: 8px;
+}
+
+/* ─── CARD SHELL ─────────────────────────────────────────────────────────── */
+
+.editorial-centers-card {
+  background: var(--surface-secondary, #f2f2f7);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* dark mode */
+@media (prefers-color-scheme: dark) {
+  .editorial-centers-card {
+    background: var(--surface-secondary-dark, #1c1c1e);
+  }
+}
+
+/* ─── SUMMARY LINE ───────────────────────────────────────────────────────── */
+
+.editorial-centers-summary {
+  font-size: var(--type-meta, 12px);
+  font-weight: 500;
+  color: var(--text-secondary, #636366);
+  padding: 12px 14px 6px;
+}
+
+/* ─── ROWS ───────────────────────────────────────────────────────────────── */
+
+.editorial-centers-rows {
+  padding: 0 0 4px;
+}
+
+.editorial-centers-row {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 14px;
+  border-bottom: 0.5px solid var(--separator, rgba(60,60,67,0.12));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease;
+}
+
+.editorial-centers-row:last-child {
+  border-bottom: none;
+}
+
+.editorial-centers-row:active {
+  background: var(--surface-active, rgba(0,0,0,0.06));
+}
+
+@media (prefers-color-scheme: dark) {
+  .editorial-centers-row {
+    border-bottom-color: rgba(255,255,255,0.08);
+  }
+  .editorial-centers-row:active {
+    background: rgba(255,255,255,0.06);
+  }
+}
+
+/* ─── ROW CONTENT ────────────────────────────────────────────────────────── */
+
+.editorial-centers-row-name {
+  font-size: var(--type-body, 15px);
+  font-weight: 600;
+  color: var(--text-primary, #1c1c1e);
+  line-height: 1.35;
+  margin-bottom: 3px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .editorial-centers-row-name {
+    color: var(--text-primary-dark, #f2f2f7);
+  }
+}
+
+.editorial-centers-row-meta {
+  font-size: var(--type-meta, 12px);
+  color: var(--text-muted, #8e8e93);
+  line-height: 1.4;
+}
+
+/* ─── DISCLOSURE CHEVRON (optional, mirrors Trials tile) ─────────────────── */
+
+.editorial-centers-row::after {
+  content: '';
+  display: block;
+  width: 0;
+  height: 0;
+}
+
+/* ─── DISCLAIMER ─────────────────────────────────────────────────────────── */
+
+.editorial-centers-disclaimer {
+  font-size: var(--type-fine, 11px);
+  color: var(--text-muted, #8e8e93);
+  padding: 8px 14px 12px;
+  line-height: 1.4;
+}
+/* ============================================================================
+   Tile 4 — Patient-Advocacy Groups CSS
+   Add to assets/editorial-records.css, after the .editorial-trials-* block
+   (currently around line 690).
+   Namespace: .editorial-advocacy-*
+   ============================================================================ */
+
+/* Container — matches .editorial-trials-tile spacing */
+.editorial-advocacy-tile {
+  margin-top: 22px;
+}
+
+/* Eyebrow label — all-caps muted text, same as trials tile */
+.editorial-advocacy-eyebrow {
+  font-size: var(--type-meta, 11px);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted, #888);
+  margin-bottom: 6px;
+}
+
+/* Card container */
+.editorial-advocacy-card {
+  background: var(--surface-2, #f9f9f9);
+  border-radius: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-subtle, #ebebeb);
+}
+
+/* Count label: "{N} advocacy groups for this condition" */
+.editorial-advocacy-count {
+  font-size: var(--type-meta, 12px);
+  color: var(--text-muted, #888);
+  margin-bottom: 10px;
+}
+
+/* Each org row — tappable */
+.editorial-advocacy-row {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-subtle, #ebebeb);
+}
+
+.editorial-advocacy-row:last-of-type {
+  border-bottom: none;
+  padding-bottom: 4px;
+}
+
+/* Org name — bold */
+.editorial-advocacy-name {
+  font-size: var(--type-body, 14px);
+  font-weight: 600;
+  color: var(--text-primary, #111);
+  margin-bottom: 2px;
+}
+
+/* Tagline — muted body */
+.editorial-advocacy-meta {
+  font-size: var(--type-meta, 12px);
+  color: var(--text-muted, #666);
+  line-height: 1.4;
+}
+
+/* Phone tap-to-call link — rendered below tagline */
+.editorial-advocacy-phone {
+  margin-top: 4px;
+}
+
+.editorial-advocacy-phone-link {
+  font-size: var(--type-meta, 12px);
+  color: var(--color-link, #0071e3);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.editorial-advocacy-phone-link:hover {
+  text-decoration: underline;
+}
+
+/* Disclaimer — same muted footer style as trials tile */
+.editorial-advocacy-disclaimer {
+  font-size: var(--type-micro, 11px);
+  color: var(--text-muted, #999);
+  margin-top: 12px;
+  line-height: 1.4;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-subtle, #ebebeb);
+}
+/* ============================================================================
+   Tile 5 — Recent Research
+   Append to assets/editorial-records.css
+   Cloned from .editorial-trials-* namespace (lines 603–690 in shipped file).
+   ============================================================================ */
+
+/* Container */
+.editorial-research-tile {
+  margin-top: 22px;
+}
+
+/* Eyebrow — neutral (not CareSignals teal) */
+.editorial-research-eyebrow {
+  font-size: var(--type-eyebrow, 10px);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+/* Card wrapper */
+.editorial-research-card {
+  background: var(--surface-card, #fff);
+  border: 1px solid var(--border-subtle, rgba(0,0,0,.08));
+  border-radius: 12px;
+  padding: 0 16px;
+  overflow: hidden;
+}
+
+/* Count label */
+.editorial-research-count {
+  font-size: var(--type-meta, 12px);
+  color: var(--text-muted);
+  padding: 12px 0 8px;
+  border-bottom: 1px solid var(--border-subtle, rgba(0,0,0,.06));
+}
+
+/* Each paper row */
+.editorial-research-row {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-subtle, rgba(0,0,0,.06));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.editorial-research-row:last-of-type {
+  border-bottom: none;
+}
+
+.editorial-research-row:active {
+  background: var(--surface-active, rgba(0,0,0,.04));
+  margin: 0 -16px;
+  padding: 12px 16px;
+  border-radius: 0;
+}
+
+/* Paper title — bold */
+.editorial-research-row-title {
+  font-size: var(--type-body, 14px);
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+/* Meta line: journal, date, authors */
+.editorial-research-row-meta {
+  font-size: var(--type-meta, 12px);
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+/* Disclaimer */
+.editorial-research-disclaimer {
+  font-size: var(--type-fine, 11px);
+  color: var(--text-muted);
+  padding: 10px 0 14px;
+  line-height: 1.45;
+  border-top: 1px solid var(--border-subtle, rgba(0,0,0,.06));
+  margin-top: 2px;
+}

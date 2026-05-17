@@ -1503,6 +1503,46 @@
             <button id="trials-toggle-btn" type="button" onclick="toggleTrialsTileFlag()" style="flex:0 0 auto;background:var(--moss);border:1px solid var(--moss);color:#fff;font-size:var(--type-meta);font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;">On</button>
           </div>
         </div>
+        <!-- Records preferences: FDA treatments tile toggle -->
+        <div class="settings-section" style="margin-top:12px;">
+          <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div class="settings-row-left" style="flex:1;min-width:0;">
+              <div class="settings-row-icon" style="background:#E3F2FD;color:#1565C0;"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Show FDA-approved treatments on condition pages</div><div class="settings-row-meta" id="fda-toggle-desc">Wellet surfaces FDA-approved drug labels from the openFDA public registry. You decide whether to look.</div></div>
+            </div>
+            <button id="fda-toggle-btn" type="button" onclick="toggleFdaTreatmentsTileFlag()" style="flex:0 0 auto;background:var(--moss);border:1px solid var(--moss);color:#fff;font-size:var(--type-meta);font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;">On</button>
+          </div>
+        </div>
+        <!-- Records preferences: Centers of excellence tile toggle -->
+        <div class="settings-section" style="margin-top:12px;">
+          <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div class="settings-row-left" style="flex:1;min-width:0;">
+              <div class="settings-row-icon" style="background:#F3E5F5;color:#8E24AA;"><i data-lucide="hospital" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Show centers of excellence on condition pages</div><div class="settings-row-meta" id="centers-toggle-desc">Wellet surfaces NCI- and society-designated centers from a curated list. You decide whether to look.</div></div>
+            </div>
+            <button id="centers-toggle-btn" type="button" onclick="toggleCentersTileFlag()" style="flex:0 0 auto;background:var(--moss);border:1px solid var(--moss);color:#fff;font-size:var(--type-meta);font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;">On</button>
+          </div>
+        </div>
+        <!-- Records preferences: Patient-advocacy groups tile toggle -->
+        <div class="settings-section" style="margin-top:12px;">
+          <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div class="settings-row-left" style="flex:1;min-width:0;">
+              <div class="settings-row-icon" style="background:#FFF3E0;color:#E65100;"><i data-lucide="heart-handshake" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Show patient-advocacy groups on condition pages</div><div class="settings-row-meta" id="advocacy-toggle-desc">Wellet surfaces independent nonprofits from a curated list. Wellet does not endorse or share data.</div></div>
+            </div>
+            <button id="advocacy-toggle-btn" type="button" onclick="toggleAdvocacyTileFlag()" style="flex:0 0 auto;background:var(--moss);border:1px solid var(--moss);color:#fff;font-size:var(--type-meta);font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;">On</button>
+          </div>
+        </div>
+        <!-- Records preferences: Recent research tile toggle -->
+        <div class="settings-section" style="margin-top:12px;">
+          <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div class="settings-row-left" style="flex:1;min-width:0;">
+              <div class="settings-row-icon" style="background:#E0F7FA;color:#00838F;"><i data-lucide="book-open" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Show recent research on condition pages</div><div class="settings-row-meta" id="research-toggle-desc">Wellet surfaces recent review articles from PubMed, the NIH public registry. You decide whether to look.</div></div>
+            </div>
+            <button id="research-toggle-btn" type="button" onclick="toggleResearchTileFlag()" style="flex:0 0 auto;background:var(--moss);border:1px solid var(--moss);color:#fff;font-size:var(--type-meta);font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;">On</button>
+          </div>
+        </div>
       </div>
     </div><!-- end view-settings -->
 

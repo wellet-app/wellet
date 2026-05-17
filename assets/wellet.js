@@ -6101,6 +6101,10 @@ function openConditionDetail(refId) {
     + relatedHtml
     + renderCareTeamChipSection(cond)
     + renderTrialsTile(cond.code || '', cond.name || '', currentPersonId)
+    + renderFdaTreatmentsTile(cond.code || '', cond.name || '', currentPersonId)
+    + renderCentersTile(cond.code || '', cond.name || '', currentPersonId)
+    + renderAdvocacyTile(cond.code || '', cond.name || '', currentPersonId)
+    + renderResearchPapersTile(cond.code || '', cond.name || '', currentPersonId)
     + _detailAskCta(askKey)
     + '</div>';
 
@@ -6109,6 +6113,10 @@ function openConditionDetail(refId) {
   initIcons();
   // Load the Trials tile asynchronously — fetch fires after DOM is ready.
   try { _loadTrialsTile(); } catch(_e) {}
+  try { _loadFdaTreatmentsTile(); } catch(_e) {}
+  try { _loadCentersTile(); } catch(_e) {}
+  try { _loadAdvocacyTile(); } catch(_e) {}
+  try { _loadResearchPapersTile(); } catch(_e) {}
   try {
     var card = view.querySelector('[data-ask-lp="' + askKey + '"]');
     if (card && typeof attachAskLongPress === 'function') {
@@ -6276,6 +6284,807 @@ function openTrialDetail(nctId, url) {
   } catch(_e) {}
   window.open(url, '_blank', 'noopener');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIAGNOSIS TILES 2-5 (FDA · Centers · Advocacy · Research) — shipped 2026-05-17
+// ═══════════════════════════════════════════════════════════════════════════
+// ============================================================================
+// FDA TREATMENTS TILE — wellet.js additions
+// Append this block to assets/wellet.js
+//
+// Contains:
+//   1. PREF_KEY constant + isEnabled guard
+//   2. renderFdaTreatmentsTile() — returns HTML string
+//   3. _loadFdaTreatmentsTile() — async loader (fetch → DOM)
+//   4. openFdaTreatmentDetail() — tap handler (Capacitor.Browser / window.open)
+//   5. updateFdaToggleUI() — settings toggle UI updater
+//   6. toggleFdaTreatmentsTileFlag() — settings toggle action
+//
+// Anchor instructions: see wellet_js_anchors.md
+// ============================================================================
+
+// ────────────────────────────────────────────────────────────────────────────
+// FDA TREATMENTS TILE v1
+// Surfaces FDA-approved drug labels from openFDA on the Condition detail
+// screen. Public-registry data only — no app-side interpretation.
+//
+// Bright lines (non-negotiable):
+//   1. Wellet never claims a match. No eligibility language anywhere.
+//   2. All data is public FDA label data, verbatim from openFDA.
+//   3. Tap-out always goes to DailyMed — the canonical public source.
+//   4. Persistent disclaimer on every populated tile view.
+//
+// Voice: "surfaces" not "recommends". "loved one" not "parent".
+//        "notices" / "watches for" not "track" / "monitor".
+//        CareSignals is one word.
+// ────────────────────────────────────────────────────────────────────────────
+
+var FDA_TREATMENTS_PREF_KEY = 'welletShowFdaTreatments';
+
+function isFdaTreatmentsTileEnabled() {
+  try {
+    var v = localStorage.getItem(FDA_TREATMENTS_PREF_KEY);
+    if (v === null) {
+      localStorage.setItem(FDA_TREATMENTS_PREF_KEY, '1');
+      return true;
+    }
+    return v === '1';
+  } catch(e) { return true; }
+}
+
+// ── Render ───────────────────────────────────────────────────────────────────
+// Returns the static shell HTML (with a "Loading…" placeholder inside the
+// card). _loadFdaTreatmentsTile() fills the card after the view is in DOM.
+
+function renderFdaTreatmentsTile(conditionCode, conditionText, personId) {
+  if (!isFdaTreatmentsTileEnabled()) return '';
+  if (typeof _careTeamChipsHideAll === 'function' && _careTeamChipsHideAll(conditionCode)) return '';
+  if (!conditionCode || !conditionText) return '';
+
+  return '<div id="fda-tile-container" class="editorial-fda-tile" style="margin-top:22px;" '
+    + 'data-condition-code="' + _escAttr(conditionCode) + '" '
+    + 'data-condition-text="' + _escAttr(conditionText) + '" '
+    + 'data-person-id="'      + _escAttr(personId || '') + '">'
+    + '<div class="editorial-fda-eyebrow">FDA-approved treatments \u00B7 openFDA</div>'
+    + '<div id="fda-tile-inner" class="editorial-fda-card">'
+    +   '<div style="color:var(--text-muted);font-size:var(--type-meta);padding:14px 0;">Loading\u2026</div>'
+    + '</div>'
+    + '</div>';
+}
+
+// ── Async Loader ─────────────────────────────────────────────────────────────
+// Called from openConditionDetail AFTER view.innerHTML is set.
+// Reads dataset from the container element so it works even if currentPerson
+// context changes between render and load.
+
+function _loadFdaTreatmentsTile() {
+  var container = document.getElementById('fda-tile-container');
+  if (!container) return;
+
+  var conditionCode = container.dataset.conditionCode || '';
+  var conditionText = container.dataset.conditionText || '';
+  var personId      = container.dataset.personId || '';
+
+  var supabaseUrl = (typeof db !== 'undefined' && db.supabaseUrl) || 'https://nrpdhxygzyfmyljzfexv.supabase.co';
+  var fnUrl = supabaseUrl.replace(/\/$/, '') + '/functions/v1/fetch-fda-treatments';
+
+  var authToken = '';
+  try {
+    var session = db && db.auth && db.auth.session && db.auth.session();
+    authToken = (session && session.access_token) || '';
+  } catch(e) {}
+
+  fetch(fnUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': authToken ? 'Bearer ' + authToken : '',
+      'apikey': (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : ''
+    },
+    body: JSON.stringify({
+      condition_code: conditionCode,
+      condition_text: conditionText,
+      person_id: personId
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var inner = document.getElementById('fda-tile-inner');
+    if (!inner) return;
+
+    var treatments = (data && Array.isArray(data.treatments)) ? data.treatments : [];
+
+    if (treatments.length === 0) {
+      var tileContainer = document.getElementById('fda-tile-container');
+      if (tileContainer) tileContainer.style.display = 'none';
+      return;
+    }
+
+    var n = treatments.length;
+    var countLabel = n + ' FDA-approved treatment' + (n !== 1 ? 's' : '') + ' for this condition';
+
+    var rowsHtml = '';
+    treatments.forEach(function(t) {
+      if (!t) return;
+      var brandDisplay = escHtml(t.brand_name || t.generic_name || 'Unknown');
+      var metaDisplay  = escHtml(
+        (t.generic_name || '') + (t.manufacturer ? ' \u00B7 ' + t.manufacturer : '')
+      );
+      var setId = t.set_id || '';
+      var url   = t.url   || 'https://www.fda.gov/drugs';
+
+      rowsHtml += '<button type="button" class="editorial-fda-row" '
+        + 'onclick="openFdaTreatmentDetail(\'' + _escAttr(setId) + '\', \'' + _escAttr(url) + '\')">'
+        +   '<div class="editorial-fda-row-title">' + brandDisplay + '</div>'
+        +   '<div class="editorial-fda-row-meta">'  + metaDisplay  + '</div>'
+        + '</button>';
+    });
+
+    // Pronoun-aware disclaimer
+    var disclaimerPronoun = 'their';
+    try {
+      var p = (currentPeople || []).find(function(x) {
+        return x && x.id === (personId || currentPersonId);
+      });
+      if (p) {
+        if (p.pronouns === 'she/her' || p.gender === 'female')      disclaimerPronoun = 'her';
+        else if (p.pronouns === 'he/him' || p.gender === 'male')    disclaimerPronoun = 'his';
+      }
+    } catch(e) {}
+    var disclaimer = 'Public FDA labels. Talk to ' + disclaimerPronoun + ' care team before any treatment change.';
+
+    inner.innerHTML = '<div class="editorial-fda-count">' + escHtml(countLabel) + '</div>'
+      + '<div class="editorial-fda-rows">' + rowsHtml + '</div>'
+      + '<div class="editorial-fda-disclaimer">' + escHtml(disclaimer) + '</div>';
+
+    try {
+      _wa.track('feature', 'fda_treatments_tile_viewed', {
+        condition_code: conditionCode,
+        treatment_count: treatments.length
+      });
+    } catch(e) {}
+  })
+  .catch(function() {
+    var tileContainer = document.getElementById('fda-tile-container');
+    if (tileContainer) tileContainer.style.display = 'none';
+  });
+}
+
+// ── Tap handler ───────────────────────────────────────────────────────────────
+// Opens the DailyMed SPL or FDA DAF page in the system browser.
+// Same Capacitor.Browser / window.open pattern as openTrialDetail.
+
+function openFdaTreatmentDetail(setId, url) {
+  if (!url) {
+    url = setId
+      ? 'https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid=' + encodeURIComponent(setId)
+      : 'https://www.fda.gov/drugs';
+  }
+  try {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
+      window.Capacitor.Plugins.Browser.open({ url: url });
+      return;
+    }
+  } catch(_e) {}
+  window.open(url, '_blank', 'noopener');
+}
+
+// ── Settings toggle ───────────────────────────────────────────────────────────
+// Mirrors updateTrialsToggleUI / toggleTrialsTileFlag exactly.
+
+function updateFdaToggleUI() {
+  var btn = document.getElementById('fda-toggle-btn');
+  if (!btn) return;
+  var on = isFdaTreatmentsTileEnabled();
+  if (on) {
+    btn.textContent      = 'On';
+    btn.style.background  = 'var(--moss)';
+    btn.style.color       = '#fff';
+    btn.style.borderColor = 'var(--moss)';
+  } else {
+    btn.textContent      = 'Off';
+    btn.style.background  = '#eef2f0';
+    btn.style.color       = 'var(--text-primary)';
+    btn.style.borderColor = 'var(--border)';
+  }
+}
+
+function toggleFdaTreatmentsTileFlag() {
+  try {
+    if (isFdaTreatmentsTileEnabled()) {
+      localStorage.setItem(FDA_TREATMENTS_PREF_KEY, '0');
+      try { showToast('FDA treatments tile off'); } catch(e) {}
+    } else {
+      localStorage.setItem(FDA_TREATMENTS_PREF_KEY, '1');
+      try { showToast('FDA treatments tile on'); } catch(e) {}
+    }
+  } catch(e) { console.warn('fda toggle:', e); }
+  updateFdaToggleUI();
+}
+// ============================================================================
+// wellet.js ADDITIONS — Tile 3: Centers of Excellence
+// Add these blocks to assets/wellet.js per wellet_js_anchors.md
+// 2026-05-17
+// ============================================================================
+
+// ─── PREF KEY & TOGGLE ───────────────────────────────────────────────────────
+
+var CENTERS_PREF_KEY = 'welletShowCenters';
+
+function isCentersTileEnabled() {
+  try {
+    var v = localStorage.getItem(CENTERS_PREF_KEY);
+    if (v === null) {
+      localStorage.setItem(CENTERS_PREF_KEY, '1');
+      return true;
+    }
+    return v === '1';
+  } catch (e) { return true; }
+}
+
+// ─── RENDER FUNCTION — returns HTML string ───────────────────────────────────
+// Called from openConditionDetail() during html build phase.
+// Sits AFTER renderFDATreatmentsTile() and BEFORE renderAdvocacyGroupsTile()
+// per rendering order: Trials → FDA → Centers → Advocacy → Research
+
+function renderCentersTile(conditionCode, conditionText, personId) {
+  if (!isCentersTileEnabled()) return '';
+  if (typeof _careTeamChipsHideAll === 'function' && _careTeamChipsHideAll(conditionCode)) return '';
+  if (!conditionCode || !conditionText) return '';
+
+  return '<div id="centers-tile-container" class="editorial-centers-tile" style="margin-top:22px;" '
+    + 'data-condition-code="' + _escAttr(conditionCode) + '" '
+    + 'data-condition-text="' + _escAttr(conditionText) + '" '
+    + 'data-person-id="' + _escAttr(personId || '') + '">'
+    + '<div class="editorial-centers-eyebrow">Centers of excellence &middot; curated</div>'
+    + '<div id="centers-tile-inner" class="editorial-centers-card">'
+    +   '<div style="color:var(--text-muted);font-size:var(--type-meta);padding:14px 0;">Loading\u2026</div>'
+    + '</div>'
+    + '</div>';
+}
+
+// ─── ASYNC LOADER — called after view.innerHTML is set ────────────────────────
+
+function _loadCentersTile() {
+  var container = document.getElementById('centers-tile-container');
+  if (!container) return;
+
+  var conditionCode = container.dataset.conditionCode || '';
+  var conditionText = container.dataset.conditionText || '';
+  var personId      = container.dataset.personId || '';
+
+  // Resolve hospital hint from EHR data if available
+  var hospitalHint = '';
+  try {
+    var ehr = (typeof getEhrData === 'function') ? getEhrData(personId) : null;
+    hospitalHint = (ehr && ehr.hospital_id) ? ehr.hospital_id : '';
+  } catch (e) {}
+
+  var supabaseUrl = (typeof db !== 'undefined' && db.supabaseUrl)
+    ? db.supabaseUrl
+    : 'https://nrpdhxygzyfmyljzfexv.supabase.co';
+  var fnUrl = supabaseUrl.replace(/\/$/, '') + '/functions/v1/fetch-centers-of-excellence';
+
+  var authToken = '';
+  try {
+    var session = db && db.auth && db.auth.session && db.auth.session();
+    authToken = (session && session.access_token) || '';
+  } catch (e) {}
+
+  fetch(fnUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': authToken ? 'Bearer ' + authToken : '',
+      'apikey': (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : ''
+    },
+    body: JSON.stringify({
+      condition_code: conditionCode,
+      condition_text: conditionText,
+      person_id: personId,
+      hospital_id: hospitalHint
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var inner = document.getElementById('centers-tile-inner');
+    if (!inner) return;
+
+    var centers = (data && Array.isArray(data.centers)) ? data.centers : [];
+    if (centers.length === 0) {
+      var tile = document.getElementById('centers-tile-container');
+      if (tile) tile.style.display = 'none';
+      return;
+    }
+
+    // Build count summary: "5 centers within 280 mi"
+    var furthest = centers[centers.length - 1].distance_miles || 0;
+    var noun = centers.length === 1 ? 'center' : 'centers';
+    var summary = centers.length + ' ' + noun + ' within ' + furthest + ' mi';
+
+    // Pronoun-aware disclaimer
+    var pronoun = 'their';
+    try {
+      var profile = (typeof getPersonProfile === 'function') ? getPersonProfile(personId) : null;
+      if (profile && profile.pronouns) {
+        if (profile.pronouns === 'she/her') pronoun = 'her';
+        else if (profile.pronouns === 'he/him') pronoun = 'his';
+      }
+    } catch (e) {}
+
+    // Build rows
+    var rows = '';
+    for (var i = 0; i < centers.length; i++) {
+      var c = centers[i];
+      var escapedName = _escAttr(c.name || '');
+      var escapedUrl  = _escAttr(c.url  || '');
+      rows += '<div class="editorial-centers-row" '
+        + 'onclick="openCenterDetail(\'' + escapedName + '\',\'' + escapedUrl + '\')" '
+        + 'role="button" tabindex="0" '
+        + 'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){openCenterDetail(\'' + escapedName + '\',\'' + escapedUrl + '\')}">'
+        + '<div class="editorial-centers-row-name">' + _escHtml(c.name || '') + '</div>'
+        + '<div class="editorial-centers-row-meta">'
+        +   _escHtml(c.designation || '') + ' &middot; ' + _escHtml(c.city || '') + ', ' + _escHtml(c.state || '')
+        +   ' &middot; ' + (c.distance_miles || 0) + ' mi'
+        + '</div>'
+        + '</div>';
+    }
+
+    inner.innerHTML = ''
+      + '<div class="editorial-centers-summary">' + _escHtml(summary) + '</div>'
+      + '<div class="editorial-centers-rows">' + rows + '</div>'
+      + '<div class="editorial-centers-disclaimer">'
+      +   'Independent designations. Talk to ' + pronoun + ' care team about referrals.'
+      + '</div>';
+
+    // Analytics
+    try {
+      if (typeof _wa !== 'undefined' && typeof _wa.track === 'function') {
+        _wa.track('feature', 'centers_tile_viewed', {
+          condition_code: conditionCode,
+          center_count: centers.length
+        });
+      }
+    } catch (e) {}
+  })
+  .catch(function() {
+    var tile = document.getElementById('centers-tile-container');
+    if (tile) tile.style.display = 'none';
+  });
+}
+
+// ─── TAP-OUT HANDLER ─────────────────────────────────────────────────────────
+// Opens institution homepage. Uses Capacitor.Browser on native; window.open on web.
+
+function openCenterDetail(name, url) {
+  if (!url) return;
+  try {
+    if (typeof Capacitor !== 'undefined'
+        && Capacitor.Plugins
+        && Capacitor.Plugins.Browser) {
+      Capacitor.Plugins.Browser.open({ url: url });
+    } else {
+      window.open(url, '_blank', 'noopener');
+    }
+  } catch (e) {
+    window.open(url, '_blank', 'noopener');
+  }
+}
+
+// ─── SETTINGS TOGGLE HANDLERS ────────────────────────────────────────────────
+// Mirror of updateTrialsToggleUI / toggleTrialsTileFlag
+
+function updateCentersToggleUI() {
+  var btn = document.getElementById('centers-toggle-btn');
+  if (!btn) return;
+  var on = isCentersTileEnabled();
+  if (on) {
+    btn.textContent      = 'On';
+    btn.style.background  = 'var(--moss)';
+    btn.style.color       = '#fff';
+    btn.style.borderColor = 'var(--moss)';
+  } else {
+    btn.textContent      = 'Off';
+    btn.style.background  = '#eef2f0';
+    btn.style.color       = 'var(--text-primary)';
+    btn.style.borderColor = 'var(--border)';
+  }
+}
+
+function toggleCentersTileFlag() {
+  try {
+    if (isCentersTileEnabled()) {
+      localStorage.setItem(CENTERS_PREF_KEY, '0');
+      try { showToast('Centers of excellence off'); } catch(e) {}
+    } else {
+      localStorage.setItem(CENTERS_PREF_KEY, '1');
+      try { showToast('Centers of excellence on'); } catch(e) {}
+    }
+  } catch (e) { console.warn('centers toggle:', e); }
+  updateCentersToggleUI();
+}
+// ============================================================================
+// Tile 4 — Patient-Advocacy Groups
+// Add to assets/wellet.js (see wellet_js_anchors.md for exact insertion points)
+//
+// Functions added:
+//   isAdvocacyEnabled()
+//   renderAdvocacyTile(conditionCode, conditionText, personId)
+//   _loadAdvocacyTile()
+//   openAdvocacyDetail(name, url)
+//   updateAdvocacyToggleUI()
+//   toggleAdvocacyTileFlag()
+//
+// Settings pref key: 'welletShowAdvocacy'
+// Edge function: fetch-advocacy-groups
+// Eyebrow: Patient-advocacy groups · curated
+// Disclaimer: Independent nonprofits. Wellet does not endorse or share data.
+// Analytics event: advocacy_tile_viewed { condition_code, group_count }
+// ============================================================================
+
+// ── 1. Preference helper ────────────────────────────────────────────────────
+var ADVOCACY_PREF_KEY = 'welletShowAdvocacy';
+
+function isAdvocacyEnabled() {
+  try {
+    var v = localStorage.getItem(ADVOCACY_PREF_KEY);
+    if (v === null) {
+      localStorage.setItem(ADVOCACY_PREF_KEY, '1');
+      return true;
+    }
+    return v === '1';
+  } catch(e) { return true; }
+}
+
+// ── 2. Render function — returns HTML string ─────────────────────────────────
+// Called synchronously inside openConditionDetail's html concatenation.
+// Tile sits between Centers of Excellence (Tile 3) and Recent Research (Tile 5).
+function renderAdvocacyTile(conditionCode, conditionText, personId) {
+  if (!isAdvocacyEnabled()) return '';
+  if (typeof _careTeamChipsHideAll === 'function' && _careTeamChipsHideAll(conditionCode)) return '';
+  if (!conditionCode || !conditionText) return '';
+
+  return '<div id="advocacy-tile-container" class="editorial-advocacy-tile" style="margin-top:22px;" '
+    + 'data-condition-code="' + _escAttr(conditionCode) + '" '
+    + 'data-condition-text="' + _escAttr(conditionText) + '" '
+    + 'data-person-id="' + _escAttr(personId || '') + '">'
+    + '<div class="editorial-advocacy-eyebrow">Patient-advocacy groups \u00b7 curated</div>'
+    + '<div id="advocacy-tile-inner" class="editorial-advocacy-card">'
+    +   '<div style="color:var(--text-muted);font-size:var(--type-meta);padding:14px 0;">Loading\u2026</div>'
+    + '</div>'
+    + '</div>';
+}
+
+// ── 3. Async loader — called from openConditionDetail AFTER view.innerHTML ──
+function _loadAdvocacyTile() {
+  var container = document.getElementById('advocacy-tile-container');
+  if (!container) return;
+
+  var conditionCode = container.dataset.conditionCode || '';
+  var conditionText = container.dataset.conditionText || '';
+  var personId      = container.dataset.personId || '';
+
+  var supabaseUrl = (typeof db !== 'undefined' && db.supabaseUrl) || 'https://nrpdhxygzyfmyljzfexv.supabase.co';
+  var fnUrl = supabaseUrl.replace(/\/$/, '') + '/functions/v1/fetch-advocacy-groups';
+
+  var authToken = '';
+  try {
+    var session = db && db.auth && db.auth.session && db.auth.session();
+    authToken = (session && session.access_token) || '';
+  } catch(e) {}
+
+  fetch(fnUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': authToken ? 'Bearer ' + authToken : '',
+      'apikey': (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : ''
+    },
+    body: JSON.stringify({
+      condition_code: conditionCode,
+      condition_text: conditionText,
+      person_id: personId
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var inner = document.getElementById('advocacy-tile-inner');
+    if (!inner) return;
+
+    var groups = (data && Array.isArray(data.groups)) ? data.groups : [];
+    if (groups.length === 0) {
+      var tile = document.getElementById('advocacy-tile-container');
+      if (tile) tile.style.display = 'none';
+      return;
+    }
+
+    // Count label: "{N} advocacy group{s} for this condition"
+    var plural = groups.length === 1 ? '' : 's';
+    var countLabel = groups.length + ' advocacy group' + plural + ' for this condition';
+
+    var html = '<div class="editorial-advocacy-count">' + _escHtml(countLabel) + '</div>';
+
+    groups.forEach(function(g) {
+      html += '<div class="editorial-advocacy-row" onclick="openAdvocacyDetail(' + JSON.stringify(g.name) + ',' + JSON.stringify(g.url) + ')" style="cursor:pointer;">';
+      html += '<div class="editorial-advocacy-name">' + _escHtml(g.name) + '</div>';
+      html += '<div class="editorial-advocacy-meta">' + _escHtml(g.tagline) + '</div>';
+      if (g.phone) {
+        // Render tap-to-call link inline; stop propagation so row click doesn't also fire
+        var phoneFormatted = g.phone;
+        html += '<div class="editorial-advocacy-phone">'
+          + '<a href="tel:' + _escAttr(phoneFormatted) + '" '
+          + 'onclick="event.stopPropagation();" '
+          + 'class="editorial-advocacy-phone-link">'
+          + _escHtml(phoneFormatted)
+          + '</a></div>';
+      }
+      html += '</div>';
+    });
+
+    html += '<div class="editorial-advocacy-disclaimer">Independent nonprofits. Wellet does not endorse or share data.</div>';
+
+    inner.innerHTML = html;
+
+    // Analytics
+    if (typeof _wa !== 'undefined' && typeof _wa.track === 'function') {
+      try {
+        _wa.track('feature', 'advocacy_tile_viewed', {
+          condition_code: conditionCode,
+          group_count: groups.length
+        });
+      } catch(e) {}
+    }
+  })
+  .catch(function() {
+    var tile = document.getElementById('advocacy-tile-container');
+    if (tile) tile.style.display = 'none';
+  });
+}
+
+// ── 4. Tap-out handler ────────────────────────────────────────────────────────
+function openAdvocacyDetail(name, url) {
+  if (!url) return;
+  try {
+    if (typeof Capacitor !== 'undefined' && Capacitor.Plugins && Capacitor.Plugins.Browser) {
+      Capacitor.Plugins.Browser.open({ url: url });
+    } else {
+      window.open(url, '_blank', 'noopener');
+    }
+  } catch(e) {
+    window.open(url, '_blank', 'noopener');
+  }
+}
+
+// ── 5. Settings toggle UI helper ─────────────────────────────────────────────
+// Mirror of updateTrialsToggleUI — call this when Settings sheet opens
+function updateAdvocacyToggleUI() {
+  var btn = document.getElementById('advocacy-toggle-btn');
+  if (!btn) return;
+  var on = isAdvocacyEnabled();
+  if (on) {
+    btn.textContent      = 'On';
+    btn.style.background  = 'var(--moss)';
+    btn.style.color       = '#fff';
+    btn.style.borderColor = 'var(--moss)';
+  } else {
+    btn.textContent      = 'Off';
+    btn.style.background  = '#eef2f0';
+    btn.style.color       = 'var(--text-primary)';
+    btn.style.borderColor = 'var(--border)';
+  }
+}
+
+// ── 6. Settings toggle flag handler ──────────────────────────────────────────
+// Called from index.html button onclick="toggleAdvocacyTileFlag()"
+function toggleAdvocacyTileFlag() {
+  try {
+    if (isAdvocacyEnabled()) {
+      localStorage.setItem(ADVOCACY_PREF_KEY, '0');
+      try { showToast('Advocacy groups off'); } catch(e) {}
+    } else {
+      localStorage.setItem(ADVOCACY_PREF_KEY, '1');
+      try { showToast('Advocacy groups on'); } catch(e) {}
+    }
+  } catch (e) { console.warn('advocacy toggle:', e); }
+  updateAdvocacyToggleUI();
+}
+// =============================================================================
+// Tile 5 — Recent Research (PubMed reviews + meta-analyses)
+// Append this block to assets/wellet.js
+// See wellet_js_anchors.md for exact insertion points.
+// =============================================================================
+
+// ---------------------------------------------------------------------------
+// Pref key + toggle helper
+// ---------------------------------------------------------------------------
+var RESEARCH_PREF_KEY = 'welletShowResearch';
+
+function isResearchTileEnabled() {
+  try {
+    var v = localStorage.getItem(RESEARCH_PREF_KEY);
+    if (v === null) {
+      localStorage.setItem(RESEARCH_PREF_KEY, '1');
+      return true;
+    }
+    return v === '1';
+  } catch(e) { return true; }
+}
+
+// ---------------------------------------------------------------------------
+// Render function — returns HTML string, does NOT touch the DOM
+// ---------------------------------------------------------------------------
+function renderResearchPapersTile(conditionCode, conditionText, personId) {
+  if (!isResearchTileEnabled()) return '';
+  if (typeof _careTeamChipsHideAll === 'function' && _careTeamChipsHideAll(conditionCode)) return '';
+  if (!conditionCode || !conditionText) return '';
+
+  return '<div id="research-tile-container" class="editorial-research-tile" style="margin-top:22px;" '
+    + 'data-condition-code="' + _escAttr(conditionCode) + '" '
+    + 'data-condition-text="' + _escAttr(conditionText) + '" '
+    + 'data-person-id="' + _escAttr(personId || '') + '">'
+    + '<div class="editorial-research-eyebrow">Recent research · PubMed reviews</div>'
+    + '<div id="research-tile-inner" class="editorial-research-card">'
+    +   '<div style="color:var(--text-muted);font-size:var(--type-meta);padding:14px 0;">Loading…</div>'
+    + '</div>'
+    + '</div>';
+}
+
+// ---------------------------------------------------------------------------
+// Async loader — call after view.innerHTML is set in openConditionDetail
+// ---------------------------------------------------------------------------
+function _loadResearchPapersTile() {
+  var container = document.getElementById('research-tile-container');
+  if (!container) return;
+
+  var conditionCode = container.dataset.conditionCode || '';
+  var conditionText = container.dataset.conditionText || '';
+  var personId      = container.dataset.personId || '';
+
+  var supabaseUrl = (typeof db !== 'undefined' && db.supabaseUrl)
+    || 'https://nrpdhxygzyfmyljzfexv.supabase.co';
+  var fnUrl = supabaseUrl.replace(/\/$/, '') + '/functions/v1/fetch-research-papers';
+
+  var authToken = '';
+  try {
+    var session = db && db.auth && db.auth.session && db.auth.session();
+    authToken = (session && session.access_token) || '';
+  } catch(e) {}
+
+  fetch(fnUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': authToken ? 'Bearer ' + authToken : '',
+      'apikey': (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : ''
+    },
+    body: JSON.stringify({
+      condition_code: conditionCode,
+      condition_text: conditionText,
+      person_id: personId
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var inner = document.getElementById('research-tile-inner');
+    if (!inner) return;
+
+    var papers = (data && Array.isArray(data.papers)) ? data.papers : [];
+
+    if (papers.length === 0) {
+      var tile = document.getElementById('research-tile-container');
+      if (tile) tile.style.display = 'none';
+      return;
+    }
+
+    // Pronoun for disclaimer
+    var pronoun = 'their';
+    try {
+      if (typeof currentPersonId !== 'undefined' && currentPersonId && typeof getPersonPronoun === 'function') {
+        pronoun = getPersonPronoun(currentPersonId) || 'their';
+      }
+    } catch(e) {}
+
+    // Count label — "N recent review[s] from PubMed" (no "from PubMed" if N=1)
+    var n = papers.length;
+    var countLabel = n === 1
+      ? '1 recent review'
+      : n + ' recent reviews from PubMed';
+
+    var rows = '';
+    for (var i = 0; i < papers.length; i++) {
+      var p = papers[i];
+      var pmid = _escAttr(p.pmid || '');
+      var url  = _escAttr(p.url  || 'https://pubmed.ncbi.nlm.nih.gov/');
+      var title = _escHtml(p.title || '');
+      var meta  = _escHtml((p.journal || '') + (p.pub_date ? ', ' + p.pub_date : '')
+                         + (p.authors_short ? ' · ' + p.authors_short : ''));
+
+      rows += '<div class="editorial-research-row" '
+            + 'data-pmid="' + pmid + '" '
+            + 'data-url="' + url + '" '
+            + 'onclick="openResearchPaperDetail(\'' + pmid + '\', \'' + url + '\')">'
+            + '<div class="editorial-research-row-title">' + title + '</div>'
+            + '<div class="editorial-research-row-meta">' + meta + '</div>'
+            + '</div>';
+    }
+
+    var disclaimer = 'Public research summaries. Reading them is not a substitute for '
+      + pronoun + ' care team\u2019s interpretation.';
+
+    inner.innerHTML = ''
+      + '<div class="editorial-research-count">' + _escHtml(countLabel) + '</div>'
+      + rows
+      + '<div class="editorial-research-disclaimer">' + _escHtml(disclaimer) + '</div>';
+
+    // Analytics — no PII, no item-level IDs
+    try {
+      if (typeof _wa !== 'undefined' && typeof _wa.track === 'function') {
+        _wa.track('feature', 'research_papers_tile_viewed', {
+          condition_code: conditionCode,
+          paper_count: papers.length
+        });
+      }
+    } catch(e) {}
+  })
+  .catch(function() {
+    var tile = document.getElementById('research-tile-container');
+    if (tile) tile.style.display = 'none';
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Tap handler — opens PubMed abstract in Capacitor browser or new tab
+// ---------------------------------------------------------------------------
+function openResearchPaperDetail(pmid, url) {
+  var target = url || ('https://pubmed.ncbi.nlm.nih.gov/' + pmid + '/');
+  try {
+    if (typeof Capacitor !== 'undefined'
+        && Capacitor.Plugins
+        && Capacitor.Plugins.Browser) {
+      Capacitor.Plugins.Browser.open({ url: target });
+    } else {
+      window.open(target, '_blank', 'noopener');
+    }
+  } catch(e) {
+    window.open(target, '_blank', 'noopener');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Settings toggle — mirrors updateTrialsToggleUI / toggleTrialsTileFlag
+// ---------------------------------------------------------------------------
+function updateResearchToggleUI() {
+  var btn = document.getElementById('research-toggle-btn');
+  if (!btn) return;
+  var on = isResearchTileEnabled();
+  if (on) {
+    btn.textContent      = 'On';
+    btn.style.background  = 'var(--moss)';
+    btn.style.color       = '#fff';
+    btn.style.borderColor = 'var(--moss)';
+  } else {
+    btn.textContent      = 'Off';
+    btn.style.background  = '#eef2f0';
+    btn.style.color       = 'var(--text-primary)';
+    btn.style.borderColor = 'var(--border)';
+  }
+}
+
+function toggleResearchTileFlag() {
+  try {
+    if (isResearchTileEnabled()) {
+      localStorage.setItem(RESEARCH_PREF_KEY, '0');
+      try { showToast('Research papers off'); } catch(e) {}
+    } else {
+      localStorage.setItem(RESEARCH_PREF_KEY, '1');
+      try { showToast('Research papers on'); } catch(e) {}
+    }
+  } catch (e) { console.warn('research toggle:', e); }
+  updateResearchToggleUI();
+}
+
+// ─── END DIAGNOSIS TILES 2-5 ─────────────────────────────────────────────────
+
 
 // ────────────────────────────────────────────────────────────────────────────
 // CARE-TEAM CHIPS · "What your care team might not tell you"
@@ -18696,6 +19505,10 @@ function openSettings() {
   try { renderSettingsPlanCard(); } catch(_e) {}
   try { updatePhase2ToggleUI(); } catch(_e) {}
   try { updateTrialsToggleUI(); } catch(_e) {}
+  try { updateFdaToggleUI(); } catch(_e) {}
+  try { updateCentersToggleUI(); } catch(_e) {}
+  try { updateAdvocacyToggleUI(); } catch(_e) {}
+  try { updateResearchToggleUI(); } catch(_e) {}
   // Update the Connected Sources section header with the active person's name.
   try { _updateSvConnectedSourcesHeader(); } catch(_e) {}
   switchNavTo('settings');
