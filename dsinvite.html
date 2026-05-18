@@ -239,6 +239,11 @@
  */
 (function () {
   // ---- helpers -----------------------------------------------------------
+  // Edge function lives on the Supabase project, not on mywellet.com.
+  // Netlify's SPA catch-all (/* -> /index.html) swallows /functions/v1/* paths,
+  // so we must hit Supabase directly. CSP already allows https://*.supabase.co.
+  var SUPABASE_URL = 'https://nrpdhxygzyfmyljzfexv.supabase.co';
+  var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU';
   var qs = new URLSearchParams(location.search);
   var token = qs.get('dsinvite') || qs.get('token') || '';
   var FIXTURE = window.WELLET_INVITE_FIXTURE || null;
@@ -384,9 +389,13 @@
   function resendToPhone(invite, btn) {
     btn.textContent = 'Sending…';
     btn.style.opacity = '0.7';
-    fetch('/functions/v1/data-source-invite?action=resend', {
+    fetch(SUPABASE_URL + '/functions/v1/data-source-invite?action=resend', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+      },
       body: JSON.stringify({ token: invite.token })
     }).then(function (r) { return r.json(); }).then(function (d) {
       if (d && d.ok) {
@@ -435,8 +444,12 @@
   if (FIXTURE) { hydrate(FIXTURE); return; }
   if (!token) { renderExpired(); return; }
 
-  fetch('/functions/v1/data-source-invite?action=lookup&token=' + encodeURIComponent(token), {
-    headers: {'Content-Type': 'application/json'}
+  fetch(SUPABASE_URL + '/functions/v1/data-source-invite?action=lookup&token=' + encodeURIComponent(token), {
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+    }
   })
     .then(function (r) { return r.json(); })
     .then(hydrate)
