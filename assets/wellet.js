@@ -469,9 +469,10 @@ function openSendConnectLinkModal(opts) {
         action: 'create',
         person_id: personId,
         data_source: dataSource,
-        loved_one_phone: toSend
+        target_contact: toSend
       };
       if (dataSource === 'ehr' && hospitalName) payload.hospital_name = hospitalName;
+      if (dataSource === 'ehr' && opts.fhirBaseUrl) payload.fhir_base_url = opts.fhirBaseUrl;
       var res = await fetch(SUPABASE_URL + '/functions/v1/data-source-invite', {
         method: 'POST',
         headers: {
@@ -513,9 +514,9 @@ async function renderDsInvitePending(personId) {
   try {
     var { data: pending, error } = await db
       .from('data_source_invites_pending')
-      .select('id, data_source, loved_one_phone, sent_at, expires_at, hospital_name, resend_count')
+      .select('id, token, data_source, target_contact, created_at, expires_at, hospital_name, resend_count')
       .eq('person_id', personId)
-      .order('sent_at', { ascending: false });
+      .order('created_at', { ascending: false });
     if (error) { console.warn('[dsinvite] pending fetch error:', error); return; }
     if (!pending || pending.length === 0) { host.innerHTML = ''; clearDsInvitePoll(personId); return; }
 
@@ -527,14 +528,14 @@ async function renderDsInvitePending(personId) {
       var sourceLabel = (inv.data_source === 'ehr')
         ? (inv.hospital_name || 'hospital chart')
         : 'Apple Health';
-      var sentRel = _relativeTime(inv.sent_at);
+      var sentRel = _relativeTime(inv.created_at);
       html += '<div class="ds-invite-pending" style="background:var(--cream);border:1px solid rgba(0,0,0,0.06);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;margin:8px 0;">'
         + '<div style="width:32px;height:32px;border-radius:50%;background:white;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="clock" style="width:16px;height:16px;color:var(--moss);"></i></div>'
         + '<div style="flex:1;min-width:0;">'
         + '<div style="font-size:var(--type-body);color:var(--text-primary);line-height:1.4;">Waiting for ' + escHtml(firstName) + ' to connect ' + escHtml(sourceLabel) + '</div>'
         + '<div style="font-size:var(--type-micro);color:var(--text-muted);margin-top:2px;">Texted ' + sentRel + (inv.resend_count > 0 ? ' \u00B7 ' + inv.resend_count + ' resend' + (inv.resend_count === 1 ? '' : 's') : '') + '</div>'
         + '</div>'
-        + '<button onclick="resendDsInvite(\'' + inv.id + '\')" style="background:white;border:1px solid var(--moss);color:var(--moss);border-radius:10px;padding:8px 14px;font-size:var(--type-meta);font-family:DM Sans,sans-serif;cursor:pointer;flex:none;">Resend</button>'
+        + '<button onclick="resendDsInvite(\'' + inv.token + '\')" style="background:white;border:1px solid var(--moss);color:var(--moss);border-radius:10px;padding:8px 14px;font-size:var(--type-meta);font-family:DM Sans,sans-serif;cursor:pointer;flex:none;">Resend</button>'
         + '</div>';
     });
     host.innerHTML = html;
@@ -559,13 +560,13 @@ function clearDsInvitePoll(personId) {
   }
 }
 
-async function resendDsInvite(inviteId) {
-  if (!inviteId) return;
+async function resendDsInvite(inviteToken) {
+  if (!inviteToken) return;
   try {
     var res = await fetch(SUPABASE_URL + '/functions/v1/data-source-invite', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
-      body: JSON.stringify({ action: 'resend', invite_id: inviteId })
+      body: JSON.stringify({ action: 'resend', token: inviteToken })
     });
     var data = await res.json().catch(function () { return null; });
     if (!res.ok || (data && data.error)) {
