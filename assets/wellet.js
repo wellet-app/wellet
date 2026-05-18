@@ -1662,6 +1662,11 @@ function _isIPhone() {
 // Apple Health connect — iPhone only. Tries the universal link to Wellet
 // Connect; if the page is still visible after 800ms (link didn't resolve),
 // shows the install prompt.
+// Tracks the last wellet:// attempt so the install-prompt timer can decide
+// whether the link actually succeeded (page went hidden → app opened) or
+// silently failed (page stayed visible → app not installed).
+var _wcDeepLinkAttemptedAt = 0;
+
 function connectAppleHealth() {
   if (isDemoMode) {
     showToast('In the real app, this connects to Apple Health on your iPhone.');
@@ -1684,13 +1689,20 @@ function connectAppleHealth() {
   var deepLink = 'wellet://connect?type=health'
                + '&person_id=' + encodeURIComponent(currentPersonId)
                + '&return='    + encodeURIComponent(location.origin + '/connect-callback?mode=apple');
-  var t0 = Date.now();
+  _wcDeepLinkAttemptedAt = Date.now();
+  var t0 = _wcDeepLinkAttemptedAt;
   // Use location.href; Safari handles wellet:// → universal link → app open.
   // If the AASA file or app aren't installed, control returns here in <800ms
   // and document.visibilityState stays 'visible'.
   try { window.location.href = deepLink; } catch(e) { /* swallow */ }
   setTimeout(function() {
-    if (document.visibilityState === 'visible' && Date.now() - t0 < 1500) {
+    // Only show the install prompt if the page is still visible AND nothing
+    // backgrounded the tab since we fired. If the user came back already,
+    // they either successfully opened Wellet Connect or chose not to — either
+    // way, the install prompt is wrong now.
+    if (document.visibilityState === 'visible'
+        && Date.now() - t0 < 1500
+        && _wcDeepLinkAttemptedAt === t0) {
       showWelletConnectInstallPrompt();
     }
   }, 800);
@@ -1716,11 +1728,14 @@ function refreshAppleHealthFromBanner() {
   var deepLink = 'wellet://connect?type=health&refresh=1'
                + '&person_id=' + encodeURIComponent(currentPersonId)
                + '&return='    + encodeURIComponent(location.origin + '/connect-callback?mode=apple');
-  var t0 = Date.now();
+  _wcDeepLinkAttemptedAt = Date.now();
+  var t0 = _wcDeepLinkAttemptedAt;
   try { window.location.href = deepLink; } catch(e) { /* swallow */ }
   // If the app isn't installed, fall back to the install prompt after 800ms.
   setTimeout(function() {
-    if (document.visibilityState === 'visible' && Date.now() - t0 < 1500) {
+    if (document.visibilityState === 'visible'
+        && Date.now() - t0 < 1500
+        && _wcDeepLinkAttemptedAt === t0) {
       showWelletConnectInstallPrompt();
     }
   }, 800);
@@ -1738,6 +1753,22 @@ function hideWelletConnectInstallPrompt() {
   var ov = document.getElementById('wc-install-overlay');
   if (ov) ov.style.display = 'none';
 }
+
+// If the user fired a wellet:// deep link and then came back to this tab
+// (Wellet Connect opened, did its thing, user switched back via app switcher
+// or by closing the in-app browser), there's nothing useful left for the
+// install prompt to do. Dismiss it on return so it doesn't sit on screen.
+// Also bumps _wcDeepLinkAttemptedAt so any in-flight 800ms timer no-ops.
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState !== 'visible') return;
+  if (_wcDeepLinkAttemptedAt === 0) return;
+  var sinceAttempt = Date.now() - _wcDeepLinkAttemptedAt;
+  // If we returned to the tab within 60s of firing wellet://, assume the
+  // round-trip happened. Beyond 60s the return is probably unrelated.
+  if (sinceAttempt > 60000) return;
+  _wcDeepLinkAttemptedAt = 0; // one-shot; reset so a later attempt is fresh
+  hideWelletConnectInstallPrompt();
+});
 
 // ── WELLET CONNECT INSTALL NUDGE ──────────────────────────────────────────────
 // Shared helper: copies currentPersonId to clipboard then opens TestFlight.
