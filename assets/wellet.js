@@ -263,12 +263,384 @@ async function acceptInvite() {
   }
 }
 
+// ── DATA-SOURCE INVITE (loved-one SMS landing) ─────────────────────────────
+//
+// When a caregiver hits "Send Mom her connect link", the dsinvite landing page
+// (/dsinvite?token=...) bounces the loved one back here with
+// `?dsinvite=<uuid>&autoconnect=ehr` (for Duke/MyChart) or sends them to
+// /connect/loved-one (for Apple Health, which needs the iOS bridge).
+//
+// Job of this module:
+//   1. On load: stash the dsinvite token so it survives the magic-link
+//      round-trip (Supabase strips arbitrary URL params on email-link auth,
+//      so we copy into localStorage).
+//   2. After sign-in completes AND a person row exists, auto-launch the
+//      existing Epic OAuth flow targeted at the invite's hospital.
+//   3. After EHR callback success, fire-and-forget consume_self so the
+//      caregiver gets the "connected" notification and their pending
+//      view flips.
+//
+// Voice note: this is the loved one (Mom/Dad/Aunt) opening their daughter's
+// text. Keep all toasts in "loved one"/"family member" voice, never
+// "caregiver/parent".
+var _pendingDsInviteToken = null;
+var _pendingDsAutoconnect = null;
+var _dsInviteData = null;
+var _dsInviteConsumeFired = false;
+
+function _readDsInviteFromUrlOrStorage() {
+  var params = new URLSearchParams(window.location.search);
+  var token = params.get('dsinvite');
+  var auto = params.get('autoconnect');
+  if (token) {
+    if (!/^[a-f0-9\-]{36}$/.test(token)) {
+      console.warn('[dsinvite] bad token format, ignoring');
+      return;
+    }
+    _pendingDsInviteToken = token;
+    _pendingDsAutoconnect = (auto === 'ehr') ? 'ehr' : null;
+    try {
+      localStorage.setItem('wellet_ds_invite_token', token);
+      if (_pendingDsAutoconnect) localStorage.setItem('wellet_ds_invite_autoconnect', _pendingDsAutoconnect);
+    } catch (e) {}
+    return;
+  }
+  // Recover from localStorage (post magic-link return)
+  try {
+    var stored = localStorage.getItem('wellet_ds_invite_token');
+    if (stored && /^[a-f0-9\-]{36}$/.test(stored)) {
+      _pendingDsInviteToken = stored;
+      _pendingDsAutoconnect = localStorage.getItem('wellet_ds_invite_autoconnect');
+    }
+  } catch (e) {}
+}
+
+async function _lookupDsInvite(token) {
+  try {
+    var res = await fetch(SUPABASE_URL + '/functions/v1/data-source-invite?action=lookup&token=' + encodeURIComponent(token), {
+      headers: { 'apikey': SUPABASE_ANON_KEY }
+    });
+    var data = await res.json();
+    if (!res.ok || data.error) {
+      console.warn('[dsinvite] lookup failed:', data && data.error);
+      return null;
+    }
+    return data.invite || data;
+  } catch (e) {
+    console.error('[dsinvite] lookup error:', e);
+    return null;
+  }
+}
+
+// Called AFTER sign-in completes and loadUserData() has run. If the user has
+// no self-person yet (brand-new account), the existing app_mode prompt will
+// run; once they pick "Me" (chooseModeMe) the self-person is created and the
+// connect screen opens. We listen for that and auto-fire startEhrConnect().
+// If they already have a self-person, we fire immediately.
+function maybeRunDsAutoconnect() {
+  if (!_pendingDsInviteToken || _pendingDsAutoconnect !== 'ehr') return;
+  if (!currentUser) return;
+  // The hospital chart is the loved one's OWN chart — we must target the
+  // is_self person row, not a loved-one row this user may also have in their
+  // currentPeople list (e.g. a returning caregiver who also has loved ones).
+  // If a self person exists, switch currentPersonId to it; if not, no-op and
+  // wait for chooseModeMe() to create one and re-invoke us.
+  try {
+    var selfPerson = (currentPeople || []).find(function (p) { return p && p.is_self === true; });
+    if (selfPerson) {
+      if (currentPersonId !== selfPerson.id) {
+        setCurrentPersonId(selfPerson.id);
+      }
+    }
+  } catch (e) {}
+  if (!currentPersonId) {
+    console.log('[dsinvite] waiting for self-person before EHR autoconnect');
+    return;
+  }
+  if (_dsInviteData && _dsInviteData.consumed_at) {
+    console.log('[dsinvite] invite already consumed, skipping autoconnect');
+    return;
+  }
+  // Pre-seed the hospital picker if we know the hospital. For Duke specifically
+  // we know the FHIR base URL, so we can skip the picker entirely. For other
+  // hospitals we open the picker pre-filtered.
+  var hospitalHint = (_dsInviteData && _dsInviteData.hospital_name) || '';
+  try { showToast('Opening your hospital sign-in\u2026'); } catch (e) {}
+  // Use a short delay so the toast paints before the OAuth redirect.
+  setTimeout(function () {
+    try {
+      // For Duke we know the FHIR base; route directly via beginEhrOAuth
+      // (the same function selectHospital() uses after picker selection).
+      if (/duke/i.test(hospitalHint)) {
+        // Duke prod FHIR base — must match what the Confidential client is registered against.
+        beginEhrOAuth('https://apporchard.epic.com/interconnect-aocurprd-oauth/api/FHIR/R4', 'Duke Health', false);
+      } else {
+        // Open the picker and let the loved one search. Pre-fill the input so the
+        // first hits match.
+        startEhrConnect();
+        setTimeout(function () {
+          var input = document.getElementById('hospital-picker-input');
+          if (input && hospitalHint) {
+            input.value = hospitalHint;
+            input.dispatchEvent(new Event('input'));
+          }
+        }, 300);
+      }
+      // Whatever path we take, only fire once.
+      _pendingDsAutoconnect = null;
+      try { localStorage.removeItem('wellet_ds_invite_autoconnect'); } catch (e) {}
+    } catch (e) {
+      console.error('[dsinvite] autoconnect failed:', e);
+    }
+  }, 400);
+}
+
+// ── CAREGIVER: "Send Mom her connect link" ─────────────────────────────
+//
+// Caregiver opens their loved one's profile, taps "Send Mom her connect link"
+// on either the Apple Health or EHR card, picks a data source, optionally
+// confirms a phone number on file, and we POST {action:'create'} to the
+// data-source-invite edge function. The function sends the SMS through
+// Twilio (Messaging Service +1 743 500 2846) and we surface a success toast.
+// The caregiver-side "Waiting for [name]" status is built from the
+// data_source_invites_pending view (renderDsInvitePending below).
+//
+// Voice: never "caregiver/parent". Always "family member"/"loved one".
+
+// Open the modal. dataSource is 'apple_health' | 'ehr'. personId defaults to
+// currentPersonId. The phone we send to defaults to the loved one's people.phone
+// on file; we let the caregiver edit before sending.
+function openSendConnectLinkModal(opts) {
+  opts = opts || {};
+  var personId = opts.personId || currentPersonId;
+  var dataSource = opts.dataSource || 'apple_health';
+  if (!personId) { showToast('Pick a loved one first'); return; }
+  var person = (currentPeople || []).find(function (p) { return p && p.id === personId; });
+  if (!person) { showToast('Loved one not found'); return; }
+  if (person.is_self) { showToast('That\u2019s your own row \u2014 use Connect instead'); return; }
+
+  var firstName = (person.name || 'them').split(' ')[0];
+  var phone = (person.phone || '').trim();
+  var hospitalName = opts.hospitalName || '';
+
+  var existing = document.getElementById('ds-invite-overlay');
+  if (existing) existing.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'ds-invite-overlay';
+  overlay.className = 'sheet-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:10000;display:flex;align-items:flex-end;justify-content:center;';
+
+  var sheet = document.createElement('div');
+  sheet.className = 'sheet';
+  sheet.style.cssText = 'background:white;border-radius:20px 20px 0 0;width:100%;max-width:520px;padding:24px 20px 32px;box-shadow:0 -8px 24px rgba(0,0,0,0.15);';
+
+  var sourceLabel = (dataSource === 'ehr')
+    ? (hospitalName ? (hospitalName + ' chart') : 'their hospital chart')
+    : 'Apple Health';
+  var explainer = (dataSource === 'ehr')
+    ? ('You\u2019ll get a notification the moment ' + escHtml(firstName) + ' signs in to ' + escHtml(sourceLabel) + ' and shares with you. Nothing happens on their side until they say yes.')
+    : ('We\u2019ll text ' + escHtml(firstName) + ' a link. They\u2019ll tap once to share Apple Health from their iPhone. You\u2019ll get a notification when it\u2019s done.');
+
+  sheet.innerHTML =
+    '<div style="font-family:var(--serif);font-size:var(--type-h2);margin-bottom:6px;color:var(--text-primary);">Send ' + escHtml(firstName) + ' a connect link</div>'
+    + '<div style="font-size:var(--type-meta);color:var(--text-secondary);margin-bottom:18px;line-height:1.55;">' + explainer + '</div>'
+    + '<label style="display:block;font-size:var(--type-micro);color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.04em;">' + escHtml(firstName) + '\u2019s mobile number</label>'
+    + '<input id="ds-invite-phone" type="tel" autocomplete="tel" inputmode="tel" value="' + escAttr(phone) + '" placeholder="(555) 123-4567" style="width:100%;padding:14px;font-size:var(--type-body);border:1.5px solid var(--cream);border-radius:12px;margin-bottom:16px;font-family:DM Sans,sans-serif;box-sizing:border-box;">'
+    + '<button id="ds-invite-send" style="width:100%;background:var(--moss);color:white;border:none;border-radius:12px;padding:14px;font-size:var(--type-body);font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:8px;"><i data-lucide="send" style="width:16px;height:16px;"></i> Send text</button>'
+    + '<button id="ds-invite-cancel" style="width:100%;background:none;color:var(--text-muted);border:none;padding:8px;font-size:var(--type-meta);cursor:pointer;font-family:DM Sans,sans-serif;">Not now</button>'
+    + '<div style="font-size:var(--type-micro);color:var(--text-muted);text-align:center;margin-top:14px;line-height:1.4;">The link only works on ' + escHtml(firstName) + '\u2019s phone. You\u2019ll see a notification here when it\u2019s connected.</div>';
+
+  overlay.appendChild(sheet);
+  document.body.appendChild(overlay);
+  initIcons();
+
+  document.getElementById('ds-invite-cancel').onclick = function () { overlay.remove(); };
+  document.getElementById('ds-invite-send').onclick = async function () {
+    var phoneInput = document.getElementById('ds-invite-phone');
+    var toSend = (phoneInput && phoneInput.value || '').trim();
+    if (!toSend) { showToast('Add a mobile number first'); return; }
+    var sendBtn = document.getElementById('ds-invite-send');
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.style.opacity = 0.6; sendBtn.textContent = 'Sending\u2026'; }
+    try {
+      var session = (await db.auth.getSession()).data.session;
+      if (!session) { showToast('Please sign in again'); return; }
+      var payload = {
+        action: 'create',
+        person_id: personId,
+        data_source: dataSource,
+        loved_one_phone: toSend
+      };
+      if (dataSource === 'ehr' && hospitalName) payload.hospital_name = hospitalName;
+      var res = await fetch(SUPABASE_URL + '/functions/v1/data-source-invite', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': 'Bearer ' + session.access_token
+        },
+        body: JSON.stringify(payload)
+      });
+      var data = await res.json().catch(function () { return null; });
+      if (!res.ok || (data && data.error)) {
+        var msg = (data && (data.message || data.error)) || ('HTTP ' + res.status);
+        showToast('Couldn\u2019t send: ' + msg);
+        if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = 1; sendBtn.innerHTML = '<i data-lucide="send" style="width:16px;height:16px;"></i> Send text'; initIcons(); }
+        return;
+      }
+      overlay.remove();
+      showToast('Sent to ' + firstName + ' \u2014 we\u2019ll let you know when they connect.');
+      // Re-render the per-person area so the "Waiting for [name]" state
+      // appears immediately rather than after a route change.
+      try { renderDsInvitePending(personId); } catch (e) {}
+    } catch (e) {
+      console.error('[dsinvite] create failed:', e);
+      showToast('Network error \u2014 try again');
+      if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = 1; sendBtn.innerHTML = '<i data-lucide="send" style="width:16px;height:16px;"></i> Send text'; initIcons(); }
+    }
+  };
+}
+
+// Render "Waiting for [name] to connect\u2026" state. Reads from the
+// data_source_invites_pending view (RLS scoped to caregiver_user_id) and polls
+// every 8s while the modal is mounted so the state flips to "Connected" the
+// moment consume_self lands.
+var _dsInvitePollTimers = {};
+
+async function renderDsInvitePending(personId) {
+  var host = document.getElementById('ds-invite-pending-host-' + personId);
+  if (!host) return; // host element is rendered by the EHR/Apple Health card builder when no connection exists
+  try {
+    var { data: pending, error } = await db
+      .from('data_source_invites_pending')
+      .select('id, data_source, loved_one_phone, sent_at, expires_at, hospital_name, resend_count')
+      .eq('person_id', personId)
+      .order('sent_at', { ascending: false });
+    if (error) { console.warn('[dsinvite] pending fetch error:', error); return; }
+    if (!pending || pending.length === 0) { host.innerHTML = ''; clearDsInvitePoll(personId); return; }
+
+    var person = (currentPeople || []).find(function (p) { return p && p.id === personId; });
+    var firstName = (person && person.name || 'them').split(' ')[0];
+
+    var html = '';
+    pending.forEach(function (inv) {
+      var sourceLabel = (inv.data_source === 'ehr')
+        ? (inv.hospital_name || 'hospital chart')
+        : 'Apple Health';
+      var sentRel = _relativeTime(inv.sent_at);
+      html += '<div class="ds-invite-pending" style="background:var(--cream);border:1px solid rgba(0,0,0,0.06);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;margin:8px 0;">'
+        + '<div style="width:32px;height:32px;border-radius:50%;background:white;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="clock" style="width:16px;height:16px;color:var(--moss);"></i></div>'
+        + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-size:var(--type-body);color:var(--text-primary);line-height:1.4;">Waiting for ' + escHtml(firstName) + ' to connect ' + escHtml(sourceLabel) + '</div>'
+        + '<div style="font-size:var(--type-micro);color:var(--text-muted);margin-top:2px;">Texted ' + sentRel + (inv.resend_count > 0 ? ' \u00B7 ' + inv.resend_count + ' resend' + (inv.resend_count === 1 ? '' : 's') : '') + '</div>'
+        + '</div>'
+        + '<button onclick="resendDsInvite(\'' + inv.id + '\')" style="background:white;border:1px solid var(--moss);color:var(--moss);border-radius:10px;padding:8px 14px;font-size:var(--type-meta);font-family:DM Sans,sans-serif;cursor:pointer;flex:none;">Resend</button>'
+        + '</div>';
+    });
+    host.innerHTML = html;
+    initIcons();
+    schedulePollDsInvite(personId);
+  } catch (e) {
+    console.error('[dsinvite] renderDsInvitePending failed:', e);
+  }
+}
+
+function schedulePollDsInvite(personId) {
+  clearDsInvitePoll(personId);
+  _dsInvitePollTimers[personId] = setTimeout(function () {
+    renderDsInvitePending(personId);
+  }, 8000);
+}
+
+function clearDsInvitePoll(personId) {
+  if (_dsInvitePollTimers[personId]) {
+    clearTimeout(_dsInvitePollTimers[personId]);
+    delete _dsInvitePollTimers[personId];
+  }
+}
+
+async function resendDsInvite(inviteId) {
+  if (!inviteId) return;
+  try {
+    var res = await fetch(SUPABASE_URL + '/functions/v1/data-source-invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+      body: JSON.stringify({ action: 'resend', invite_id: inviteId })
+    });
+    var data = await res.json().catch(function () { return null; });
+    if (!res.ok || (data && data.error)) {
+      showToast('Couldn\u2019t resend: ' + ((data && (data.message || data.error)) || ('HTTP ' + res.status)));
+      return;
+    }
+    showToast('Sent again.');
+    try { renderDsInvitePending(currentPersonId); } catch (e) {}
+  } catch (e) {
+    showToast('Network error \u2014 try again');
+  }
+}
+
+// Helper: HTML-attr escape (we already have escHtml for text content;
+// inputs need single + double quote escaping)
+function escAttr(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// Fire-and-forget consume_self. Called after the EHR callback succeeds OR
+// after Apple Health connects (Apple Health on web is iPhone-only and goes
+// through Wellet Connect on iOS, so for web this only fires on EHR). Safe to
+// call multiple times — the edge function is idempotent on consumed_at.
+async function consumeDsInviteSelf() {
+  if (_dsInviteConsumeFired) return;
+  if (!_pendingDsInviteToken) return;
+  _dsInviteConsumeFired = true;
+  try {
+    var sessRes = await db.auth.getSession();
+    var session = sessRes.data.session;
+    if (!session) {
+      _dsInviteConsumeFired = false;
+      return;
+    }
+    var res = await fetch(SUPABASE_URL + '/functions/v1/data-source-invite', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + session.access_token
+      },
+      body: JSON.stringify({ action: 'consume_self', token: _pendingDsInviteToken })
+    });
+    var data = await res.json().catch(function () { return null; });
+    console.log('[dsinvite] consume_self status', res.status, data);
+    if (res.ok) {
+      try { localStorage.removeItem('wellet_ds_invite_token'); } catch (e) {}
+      try { localStorage.removeItem('wellet_ds_invite_autoconnect'); } catch (e) {}
+      _pendingDsInviteToken = null;
+    }
+  } catch (e) {
+    console.error('[dsinvite] consume_self error:', e);
+    _dsInviteConsumeFired = false; // allow retry on next callback
+  }
+}
+
 // ── AUTH FLOW ────────────────────────────────────────────────────────────────
 async function initApp() {
   // Zero-auth /try route — show try screen and skip auth entirely
   if (typeof tryCheckRoute === 'function' && tryCheckRoute()) {
     showTryScreen();
     return;
+  }
+
+  // Capture dsinvite token from URL (or recover from localStorage post-magic-link).
+  // Lookup is async and non-blocking; we just need _dsInviteData to know the
+  // hospital name when autoconnect fires.
+  _readDsInviteFromUrlOrStorage();
+  if (_pendingDsInviteToken) {
+    _lookupDsInvite(_pendingDsInviteToken).then(function (inv) { _dsInviteData = inv; });
   }
 
   // Check for invite token in URL first
@@ -333,6 +705,12 @@ async function initApp() {
           if (_pendingInviteToken && _inviteData) {
             await acceptInvite();
           }
+          // Loved-one data-source invite autoconnect. If currentPersonId is
+          // already set (returning user who already has a self-person), this
+          // fires Epic OAuth now. If they're brand-new, currentPersonId is
+          // null and this no-ops — it gets re-invoked from chooseModeMe()
+          // after the self-person row is created.
+          try { maybeRunDsAutoconnect(); } catch (e) { console.warn('[dsinvite] autoconnect failed:', e); }
         }
       } else if (event === 'SIGNED_OUT') {
         currentUser = null;
@@ -1335,9 +1713,17 @@ async function chooseModeMe() {
     await loadPersonData(currentPersonId);
 
     hideModeQuestion();
-    // Step 5a: route Me users to the Connect-your-data screen so they can wire up
-    // EHR / Apple Health / Terra before landing on Home. Skip lands on Home.
-    showConnectScreen();
+    // If this user landed via a loved-one data-source invite (?dsinvite=...&
+    // autoconnect=ehr), skip the standard Connect-your-data screen and go
+    // straight to the EHR OAuth flow they were sent here for. Otherwise
+    // route Me users to the regular Connect screen.
+    if (_pendingDsInviteToken && _pendingDsAutoconnect === 'ehr') {
+      try { maybeRunDsAutoconnect(); } catch (e) { console.warn('[dsinvite] post-chooseModeMe autoconnect failed:', e); }
+    } else {
+      // Step 5a: route Me users to the Connect-your-data screen so they can wire up
+      // EHR / Apple Health / Terra before landing on Home. Skip lands on Home.
+      showConnectScreen();
+    }
   } catch (e) {
     console.error('chooseModeMe failed:', e);
     showToast('Something went wrong \u2014 please try again');
@@ -14020,6 +14406,8 @@ function handleEhrCallback() {
         try { fetchEhrData(personId, true); } catch(_e) {}
         // Re-open the connect screen and refresh status so EHR shows ✓.
         try { showConnectScreen(); } catch(_e) {}
+        // Loved-one invite: mark consumed for the caregiver notification.
+        try { consumeDsInviteSelf(); } catch (_dsErr) { console.warn('[dsinvite] consume_self failed:', _dsErr); }
         // Clear the legacy onboarding-chat flag if it was also set so it
         // doesn't fire later.
         try { localStorage.removeItem('wellet_ob_ehr_return'); } catch(_e) {}
@@ -14031,6 +14419,9 @@ function handleEhrCallback() {
       if (fromOnboarding) {
         showToast('Health records connected!');
         var hospital = data.hospital_name || data.provider || 'your hospital';
+        // Loved-one invite consume — fire here too in case the loved one
+        // ended up in the onboarding flow rather than the connect screen.
+        try { consumeDsInviteSelf(); } catch (_dsErr) { console.warn('[dsinvite] consume_self failed:', _dsErr); }
         // Mark onboarding state so the chat knows EHR is connected (used by
         // obShowConnectChips to hide the already-completed option if the user
         // comes back to it later).
@@ -14050,6 +14441,10 @@ function handleEhrCallback() {
       // Take the user straight to Records so they can watch the data land
       try { switchNavTo('records'); } catch(e) { console.warn('switchNavTo(records) after EHR connect failed:', e); }
       fetchEhrData(personId, true);
+      // Loved-one invite: mark consumed so the caregiver gets the connected
+      // notification. Fire-and-forget — the loved one is already connected
+      // either way.
+      try { consumeDsInviteSelf(); } catch (_dsErr) { console.warn('[dsinvite] consume_self failed:', _dsErr); }
       // After a short delay, ask if they'd like a heads-up when new records arrive.
       var _hospitalName = data.hospital_name || data.provider || 'your hospital';
       setTimeout(function() {
@@ -14433,12 +14828,30 @@ function updateProfileEhr(personId) {
       + '</div></div>';
     initIcons();
   } else {
-    section.innerHTML = '<div class="ehr-connect-card" onclick="startEhrConnect()">'
+    // Loved-one (not is_self) gets a "Send connect link" button + pending host
+    // for the SMS invite flow, alongside the direct "Connect Health Records"
+    // tile. is_self users see only the direct tile (they connect themselves).
+    var _person = (currentPeople || []).find(function(p){ return p && p.id === pid; });
+    var _isLovedOne = _person && _person.is_self !== true;
+    var _firstName = _person && _person.name ? String(_person.name).split(' ')[0] : 'them';
+    var html = '<div class="ehr-connect-card" onclick="startEhrConnect()">'
       + '<div class="ehr-connect-icon"><i data-lucide="hospital" style="width:22px;height:22px;"></i></div>'
       + '<div class="ehr-connect-title">Connect Health Records</div>'
       + '<div class="ehr-connect-desc">Import medications, conditions, and lab results from your provider</div>'
       + '</div>';
+    if (_isLovedOne) {
+      html += '<button class="ds-invite-send-btn" onclick="event.stopPropagation();openSendConnectLinkModal({personId:\'' + escAttr(pid) + '\', dataSource:\'ehr\'})" '
+        + 'style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:10px;padding:12px 14px;border:1px solid var(--border, #E5E5E7);background:#FFF;color:var(--text, #111);border-radius:12px;font-size:var(--type-body, 15px);font-weight:500;cursor:pointer;">'
+        + '<i data-lucide="message-square" style="width:16px;height:16px;"></i>'
+        + 'Text ' + escHtml(_firstName) + ' a connect link'
+        + '</button>';
+      html += '<div id="ds-invite-pending-host-' + escAttr(pid) + '" style="margin-top:10px;"></div>';
+    }
+    section.innerHTML = html;
     initIcons();
+    if (_isLovedOne) {
+      try { renderDsInvitePending(pid); } catch (e) { console.warn('renderDsInvitePending:', e); }
+    }
   }
 }
 

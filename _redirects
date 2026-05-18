@@ -11,4 +11,16 @@
 # and re-launches the app via welletconnect:// deep link
 /connect/start    /connect/start.html 200
 /connect/start/   /connect/start.html 200
+# Loved-one landing — caregivers send /?dsinvite=<token> via SMS so the URL
+# is as short as possible. We route both shapes (root + path) to the
+# dsinvite.html landing page. landing_responsive.html reads ?dsinvite= or ?token=.
+/dsinvite         /dsinvite.html     200
+/dsinvite/        /dsinvite.html     200
+# Loved-one app-handoff page — deep-links wellet://connect?dsinvite=<token>
+# and falls back to a TestFlight install card if the app isn't installed.
+/connect/loved-one  /connect/loved-one.html 200
+/connect/loved-one/ /connect/loved-one.html 200
+# NOTE: /?dsinvite=<token> is NOT redirected. wellet.js handles dsinvite +
+# optional autoconnect=ehr at the root (sign-in-first reuses existing Epic
+# OAuth). The standalone /dsinvite landing is for unauth/loved-one SMS hits.
 /*                /index.html        200
