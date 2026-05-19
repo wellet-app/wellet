@@ -5175,18 +5175,22 @@ function _rdMedsContent(activeMeds, ehrMeds, ehrData, ehrProvider) {
         + '</div>';
     });
     ehrMeds.forEach(function(med, idx) {
-      var did = 'ehr-med-'+idx;
-      var mp = [];
-      if (med.dosage) mp.push(escHtml(med.dosage));
-      if (med.frequency) mp.push(escHtml(med.frequency));
-      if (med.status) mp.push('Status: '+escHtml(med.status));
-      if (med.date_asserted) mp.push('Prescribed: '+escHtml(med.date_asserted));
-      html += '<div class="record-row" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\''+did+'\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
+      // Tap an EHR medication row → full detail screen with the four public-
+      // data tiles (About, How to use, Side effects, Interactions) sourced from
+      // RxNorm / MedlinePlus / openFDA. Previously this row only toggled an
+      // inline expand/collapse so the family never saw the rich detail their
+      // patient portal already shows. EHR med rows must carry a stable id so
+      // openMedicationDetail() can look the row up via _findEhrItemById.
+      var refId = med.id || med._refId || '';
+      var onclickAttr = refId
+        ? 'onclick="openMedicationDetail(\''+refId.replace(/'/g, "\\'")+'\')"'
+        : 'onclick="openRecordsDetail(\'medications\')"';
+      html += '<div class="record-row" style="cursor:pointer;" '+onclickAttr+'>'
         + '<div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>'
-        + '<div style="flex:1;"><div class="record-label">'+escHtml(med.name)+' '+ehrBadgeHtml()+'</div>'
+        + '<div style="flex:1;min-width:0;"><div class="record-label">'+escHtml(med.name)+' '+ehrBadgeHtml()+'</div>'
         + '<div class="record-meta">'+escHtml(med.dosage||med.frequency||'')+'</div></div>'
         + rowProviderBadge(med, ehrProvider, ehrData)
-        + '<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.6;">'+mp.join('<br>')+'</div>'
+        + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);flex-shrink:0;margin-left:6px;"></i>'
         + '</div>';
     });
   }
@@ -6228,6 +6232,13 @@ function _findEhrItemById(kind, refId) {
     var conds2 = ehrData.conditions || [];
     for (var n = 0; n < conds2.length; n++) {
       if (conds2[n].id === refId) return conds2[n];
+    }
+    return null;
+  }
+  if (kind === 'medication') {
+    var meds = ehrData.medications || [];
+    for (var p = 0; p < meds.length; p++) {
+      if (meds[p].id === refId) return meds[p];
     }
     return null;
   }
@@ -7562,6 +7573,205 @@ function openResearchPaperDetail(pmid, url) {
     window.open(target, '_blank', 'noopener');
   }
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// MEDICATION DETAIL v2 — public-source medication info
+// Shipped 2026-05-19. Tap an EHR med row → detail screen with four tiles
+// sourced from RxNorm + MedlinePlus + openFDA (fetch-medication-detail edge fn).
+//
+// Bright lines (non-negotiable):
+//   1. Wellet never offers medical advice. We surface what U.S. NLM and FDA
+//      publish, verbatim, with a tap-out to the canonical source on every tile.
+//   2. Voice: "loved one" / "family member" — never "parent".
+//             "notices" / "watches for" — never "track" / "monitor".
+//             CareSignals is one word.
+//   3. Persistent attribution on every populated tile (mirrors trials tile).
+// ────────────────────────────────────────────────────────────────────────────
+
+function openMedicationDetail(refId) {
+  var view = document.getElementById('view-records');
+  if (!view) return;
+  var med = _findEhrItemById('medication', refId);
+  if (!med) {
+    if (typeof openRecordsDetail === 'function') openRecordsDetail('medications');
+    return;
+  }
+
+  var doseLabel  = med.dosage || '';
+  var freqLabel  = med.frequency || '';
+  var statusLabel = med.status || '';
+  if (statusLabel) statusLabel = statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1).toLowerCase();
+  var prescribedLabel = med.date_asserted ? formatEventDate(med.date_asserted) : '';
+  var prescriberLabel = med.prescriber || (med.requester && med.requester.display) || '';
+
+  // Register Ask Wellet context — long-press the header card to ask about
+  // this exact medication.
+  if (!window._askCtxRegistry) window._askCtxRegistry = {};
+  var askKey = 'med_' + (med.id || Object.keys(window._askCtxRegistry).length);
+  window._askCtxRegistry[askKey] = {
+    kind: 'medication',
+    name: med.name || 'Medication',
+    date: med.date_asserted || '',
+    status: statusLabel,
+    meta: { dose: doseLabel, frequency: freqLabel, prescriber: prescriberLabel }
+  };
+
+  var html = '<div class="records-detail-view">'
+    + _detailBackBar('medications', 'Medications')
+    + '<div style="font-size:var(--type-h1);font-weight:700;color:var(--text-primary);line-height:1.3;margin-bottom:4px;">' + escHtml(med.name || 'Medication') + '</div>'
+    + (doseLabel ? '<div style="font-size:var(--type-body);color:var(--text-secondary);margin-bottom:18px;">' + escHtml(doseLabel) + (freqLabel ? ' \u00B7 ' + escHtml(freqLabel) : '') + '</div>' : '<div style="margin-bottom:18px;"></div>')
+    + '<div data-ask-lp="' + askKey + '" style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:6px 16px;">'
+    +   _detailRow('Dose', doseLabel)
+    +   _detailRow('Frequency', freqLabel)
+    +   _detailRow('Status', statusLabel)
+    +   _detailRow('Prescribed', prescribedLabel)
+    +   _detailRow('Prescriber', prescriberLabel)
+    + '</div>'
+    + renderMedPillTile(med)
+    + renderMedAboutTile(med)
+    + renderMedUseTile(med)
+    + renderMedSideEffectsTile(med)
+    + renderMedInteractionsTile(med)
+    + renderMedFullLabelTile(med)
+    + _detailAskCta(askKey)
+    + '</div>';
+
+  _recordsDetailSection = 'medications:' + (med.id || '');
+  view.innerHTML = html;
+  initIcons();
+  // One edge-fn call fills every tile — fired once after DOM is in place.
+  try { _loadMedicationDetailTiles(med); } catch(_e) {}
+  try {
+    var card = view.querySelector('[data-ask-lp="' + askKey + '"]');
+    if (card && typeof attachAskLongPress === 'function') {
+      attachAskLongPress(card, window._askCtxRegistry[askKey]);
+    }
+  } catch (_e) {}
+}
+
+// ── Tile shells — all five share the same loader (_loadMedicationDetailTiles) ──
+
+function _medTileShell(id, eyebrow, placeholder) {
+  return '<div id="' + id + '-container" class="editorial-trials-tile" style="margin-top:22px;">'
+    + '<div class="editorial-trials-eyebrow">' + escHtml(eyebrow) + '</div>'
+    + '<div id="' + id + '-inner" class="editorial-trials-card">'
+    +   '<div style="color:var(--text-muted);font-size:var(--type-meta);padding:14px 0;">' + escHtml(placeholder) + '</div>'
+    + '</div>'
+    + '</div>';
+}
+
+function renderMedPillTile(med)         { return _medTileShell('med-pill',     'What this pill looks like \u00B7 openFDA',                          'Looking up the pill\u2026'); }
+function renderMedAboutTile(med)        { return _medTileShell('med-about',    'About this medicine \u00B7 MedlinePlus, U.S. National Library of Medicine', 'Looking up plain-English information\u2026'); }
+function renderMedUseTile(med)          { return _medTileShell('med-use',      'How to use \u00B7 MedlinePlus, U.S. National Library of Medicine',  'Looking up usage information\u2026'); }
+function renderMedSideEffectsTile(med)  { return _medTileShell('med-side',     'Side effects \u00B7 MedlinePlus, U.S. National Library of Medicine','Looking up side effects\u2026'); }
+function renderMedInteractionsTile(med) { return _medTileShell('med-inter',    'Interactions and warnings \u00B7 FDA drug label (openFDA)',         'Looking up interactions\u2026'); }
+function renderMedFullLabelTile(med)    { return _medTileShell('med-label',    'Full leaflet \u00B7 public sources',                                'Looking up the full label\u2026'); }
+
+// ── Single loader fans out one edge-fn call across all six tiles ──
+function _loadMedicationDetailTiles(med) {
+  if (!med || !med.name) return;
+
+  var supabaseUrl = (typeof db !== 'undefined' && db.supabaseUrl) || 'https://nrpdhxygzyfmyljzfexv.supabase.co';
+  var fnUrl = supabaseUrl.replace(/\/$/, '') + '/functions/v1/fetch-medication-detail';
+
+  var authToken = '';
+  try {
+    var session = db && db.auth && db.auth.session && db.auth.session();
+    authToken = (session && session.access_token) || '';
+  } catch(e) {}
+
+  // RxNorm code may already be attached if Epic resolved it on its side.
+  var rxcui = '';
+  if (med && med.code) {
+    // Some Epic payloads stash the RxCUI in code.coding[].system + code
+    if (typeof med.code === 'string') rxcui = med.code;
+  }
+
+  fetch(fnUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': authToken ? 'Bearer ' + authToken : '',
+      'apikey': (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : ''
+    },
+    body: JSON.stringify({
+      name: med.name || '',
+      rxcui: rxcui || '',
+      person_id: (typeof currentPersonId !== 'undefined') ? currentPersonId : ''
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) { _renderMedTilesFromPayload(data || {}); })
+  .catch(function(err) {
+    console.warn('[med detail] fetch failed:', err);
+    _renderMedTilesFromPayload({});
+  });
+}
+
+function _renderMedTilesFromPayload(data) {
+  // PILL TILE
+  var pillInner = document.getElementById('med-pill-inner');
+  if (pillInner) {
+    var p = data && data.pill;
+    if (p && (p.shape || p.color || p.imprint || p.text || p.size_mm)) {
+      var bits = [];
+      if (p.color)   bits.push('<div class="editorial-meta-row"><span style="color:var(--text-secondary);">Color</span><span style="color:var(--text-primary);font-weight:500;text-transform:capitalize;">' + escHtml(p.color) + '</span></div>');
+      if (p.shape)   bits.push('<div class="editorial-meta-row"><span style="color:var(--text-secondary);">Shape</span><span style="color:var(--text-primary);font-weight:500;text-transform:capitalize;">' + escHtml(p.shape) + '</span></div>');
+      if (p.imprint) bits.push('<div class="editorial-meta-row"><span style="color:var(--text-secondary);">Imprint</span><span style="color:var(--text-primary);font-weight:500;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">' + escHtml(p.imprint) + '</span></div>');
+      if (p.size_mm) bits.push('<div class="editorial-meta-row"><span style="color:var(--text-secondary);">Size</span><span style="color:var(--text-primary);font-weight:500;">' + escHtml(p.size_mm) + '</span></div>');
+      if (p.ndc)     bits.push('<div class="editorial-meta-row"><span style="color:var(--text-secondary);">NDC</span><span style="color:var(--text-muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">' + escHtml(p.ndc) + '</span></div>');
+      var pillHtml = '<div style="display:grid;gap:8px;padding:6px 0 4px;">' + bits.join('') + '</div>';
+      if (p.text) pillHtml += '<div style="margin-top:10px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.5;white-space:pre-wrap;">' + escHtml(p.text.slice(0, 400)) + (p.text.length > 400 ? '\u2026' : '') + '</div>';
+      pillHtml += '<div class="editorial-tile-attribution" style="margin-top:12px;font-size:var(--type-micro);color:var(--text-muted);">Pill description from openFDA. RxImage retired May 2026.</div>';
+      pillInner.innerHTML = pillHtml;
+    } else {
+      pillInner.innerHTML = _tileEmptyHtml('No public pill description on file for this medication.', '', '');
+    }
+  }
+
+  // Helper: paint a text tile with attribution + tap-out
+  function paintTextTile(innerId, payload, fallbackMsg) {
+    var inner = document.getElementById(innerId);
+    if (!inner) return;
+    if (payload && payload.text) {
+      var html = '<div style="font-size:var(--type-meta);color:var(--text-primary);line-height:1.6;white-space:pre-wrap;">' + escHtml(payload.text) + '</div>';
+      html += '<div class="editorial-tile-attribution" style="margin-top:12px;font-size:var(--type-micro);color:var(--text-muted);">From ' + escHtml(payload.source || 'public source') + '.</div>';
+      if (payload.url) {
+        html += '<button type="button" class="editorial-tile-empty-cta" style="margin-top:10px;" onclick="_tileOpenExternalUrl(\'' + _escAttr(payload.url) + '\')">Read the full leaflet \u203A</button>';
+      }
+      inner.innerHTML = html;
+    } else {
+      inner.innerHTML = _tileEmptyHtml(fallbackMsg, '', '');
+    }
+  }
+
+  paintTextTile('med-about-inner',  data && data.about,        'No plain-English summary on file from MedlinePlus or openFDA for this medication.');
+  paintTextTile('med-use-inner',    data && data.use,          'No usage information on file from MedlinePlus or openFDA for this medication.');
+  paintTextTile('med-side-inner',   data && data.side_effects, 'No side-effect information on file from MedlinePlus or openFDA for this medication.');
+  paintTextTile('med-inter-inner',  data && data.interactions, 'No drug-interaction information on file in the FDA label for this medication.');
+
+  // FULL LABEL TILE — two tap-outs (MedlinePlus + openFDA)
+  var labelInner = document.getElementById('med-label-inner');
+  if (labelInner) {
+    var fl = data && data.full_label;
+    if (fl && (fl.medlineplus_url || fl.openfda_url)) {
+      var lh = '<div style="font-size:var(--type-meta);color:var(--text-secondary);line-height:1.6;">Open the canonical public-source leaflet for this medication.</div>'
+        + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">';
+      if (fl.medlineplus_url) lh += '<button type="button" class="editorial-tile-empty-cta" onclick="_tileOpenExternalUrl(\'' + _escAttr(fl.medlineplus_url) + '\')">MedlinePlus \u203A</button>';
+      if (fl.openfda_url)     lh += '<button type="button" class="editorial-tile-empty-cta" onclick="_tileOpenExternalUrl(\'' + _escAttr(fl.openfda_url)     + '\')">FDA drug label \u203A</button>';
+      lh += '</div>';
+      lh += '<div class="editorial-tile-attribution" style="margin-top:12px;font-size:var(--type-micro);color:var(--text-muted);">Public sources \u00B7 U.S. National Library of Medicine and the U.S. Food and Drug Administration.</div>';
+      labelInner.innerHTML = lh;
+    } else {
+      labelInner.innerHTML = _tileEmptyHtml('No public leaflet on file for this medication.', '', '');
+    }
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// END MEDICATION DETAIL v2
+// ────────────────────────────────────────────────────────────────────────────
+
 
 // ---------------------------------------------------------------------------
 // Settings toggle — mirrors updateTrialsToggleUI / toggleTrialsTileFlag
