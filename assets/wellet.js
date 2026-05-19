@@ -11664,7 +11664,38 @@ var DEMO_EHR_DATA = {
     { type:'observation', source:'ehr', name:'Hemoglobin', code:'718-7', value:'14.2', unit:'g/dL', reference_range:'13.5-17.5', status:'final', effective_date:'2026-03-28', category:'laboratory' },
     { type:'observation', source:'ehr', name:'Comprehensive metabolic panel', code:'24323-8', value:'', unit:'', reference_range:'', status:'final', effective_date:'2026-03-15', category:'laboratory' },
     { type:'observation', source:'ehr', name:'Glucose', code:'2345-7', value:'98', unit:'mg/dL', reference_range:'70-100', status:'final', effective_date:'2026-03-15', category:'laboratory' },
-    { type:'observation', source:'ehr', name:'Creatinine', code:'2160-0', value:'1.0', unit:'mg/dL', reference_range:'0.7-1.3', status:'final', effective_date:'2026-03-15', category:'laboratory' }
+    { type:'observation', source:'ehr', name:'Creatinine', code:'2160-0', value:'1.0', unit:'mg/dL', reference_range:'0.7-1.3', status:'final', effective_date:'2026-03-15', category:'laboratory' },
+    // ── Vital signs: 12-visit BP series + weight trend, so CareSignals "From your chart" can render BP + weight cards. Morning readings (am visits) run ~15 mmHg higher than afternoon — matches the L1 "Blood pressure runs higher in the morning" pattern. ──
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'144', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2025-09-22', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'88', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2025-09-22', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'128', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2025-10-18', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'78', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2025-10-18', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'146', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2025-11-20', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'92', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2025-11-20', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'130', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2025-12-12', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'80', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2025-12-12', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'142', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2026-01-08', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'86', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2026-01-08', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'126', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2026-01-22', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'78', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2026-01-22', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'138', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2026-02-15', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'88', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2026-02-15', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'124', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2026-03-15', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'76', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2026-03-15', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'140', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2026-03-28', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'86', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2026-03-28', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'144', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2026-04-08', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'90', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2026-04-08', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'128', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2026-04-22', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'78', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2026-04-22', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'142', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2026-05-15', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'88', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2026-05-15', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Body weight', code:'29463-7', value:'172', unit:'lb', reference_range:'', status:'final', effective_date:'2025-09-22', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Body weight', code:'29463-7', value:'170', unit:'lb', reference_range:'', status:'final', effective_date:'2025-11-20', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Body weight', code:'29463-7', value:'169', unit:'lb', reference_range:'', status:'final', effective_date:'2026-01-08', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Body weight', code:'29463-7', value:'168', unit:'lb', reference_range:'', status:'final', effective_date:'2026-02-15', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Body weight', code:'29463-7', value:'168', unit:'lb', reference_range:'', status:'final', effective_date:'2026-03-28', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Body weight', code:'29463-7', value:'167', unit:'lb', reference_range:'', status:'final', effective_date:'2026-05-15', category:'vital-signs' }
   ],
   encounters: [
     { type:'encounter', source:'ehr', name:'Office visit — Neurology', status:'finished', start_date:'2026-03-28', end_date:'2026-03-28', class:'AMB' },
@@ -13547,11 +13578,40 @@ function _renderSignalsDemo(el, data, demoFirstName) {
   var demoEhr = (typeof DEMO_EHR_DATA !== 'undefined') ? DEMO_EHR_DATA : null;
   var demoEhrTrends = null;
   if (demoEhr) {
+    // Build BP + weight trends from the new vital-signs observation seeds so the
+    // CareSignals "From your chart" section renders the same BP + weight cards
+    // that ship in the live product.
+    var _vitals = (demoEhr.observations || []).filter(function(o){ return o.category === 'vital-signs'; });
+    var _sysObs = _vitals.filter(function(o){ return o.code === '8480-6'; }).sort(function(a,b){ return a.effective_date.localeCompare(b.effective_date); });
+    var _diaObs = _vitals.filter(function(o){ return o.code === '8462-4'; }).sort(function(a,b){ return a.effective_date.localeCompare(b.effective_date); });
+    var _wtObs  = _vitals.filter(function(o){ return o.code === '29463-7'; }).sort(function(a,b){ return a.effective_date.localeCompare(b.effective_date); });
+    var _bp = null;
+    if (_sysObs.length > 0 && _diaObs.length > 0) {
+      var _latestSys = _sysObs[_sysObs.length-1];
+      var _latestDia = _diaObs[_diaObs.length-1];
+      _bp = {
+        latest: _latestSys.value + '/' + _latestDia.value,
+        latestDate: _latestSys.effective_date,
+        systolic: _sysObs.map(function(o){ return parseInt(o.value, 10); }),
+        diastolic: _diaObs.map(function(o){ return parseInt(o.value, 10); }),
+        summary: 'Morning readings run ~15 mmHg higher than afternoon'
+      };
+    }
+    var _wt = null;
+    if (_wtObs.length > 0) {
+      var _latestWt = _wtObs[_wtObs.length-1];
+      _wt = {
+        latest: _latestWt.value + ' lb',
+        latestDate: _latestWt.effective_date,
+        values: _wtObs.map(function(o){ return parseFloat(o.value); }),
+        summary: 'Down 5 lb over 8 months'
+      };
+    }
     demoEhrTrends = {
       meds: demoEhr.medications || [],
       conditions: demoEhr.conditions || [],
-      bp: null, // no live BP data in demo seed
-      weight: null
+      bp: _bp,
+      weight: _wt
     };
   }
 
@@ -13589,9 +13649,16 @@ function _renderSignalsDemo(el, data, demoFirstName) {
   // \u2500\u2500 2. From your chart (EHR trends) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   // For demo we build a lightweight static "From your chart" section using
   // DEMO_EHR_DATA instead of calling the async _loadEhrTrends() edge function.
-  if (demoEhrTrends && (demoEhrTrends.meds.length > 0 || demoEhrTrends.conditions.length > 0)) {
+  if (demoEhrTrends && (demoEhrTrends.meds.length > 0 || demoEhrTrends.conditions.length > 0 || demoEhrTrends.bp || demoEhrTrends.weight)) {
     ch += '<section class="cs-section cs-section--ehr-trends">';
     ch += '<div class="cs-section-eyebrow">From ' + escHtml(demoName) + '\u2019s chart</div>';
+    // Shipped BP + weight cards — delegate to the live renderer so demo matches production.
+    if ((demoEhrTrends.bp || demoEhrTrends.weight) && typeof _buildEhrTrendsHtml === 'function') {
+      // Pass a copy without meds/conditions so the live renderer only emits the
+      // BP + weight cards (we already render meds + conditions below in the
+      // simpler demo mini-lists, which match the rest of the demo's aesthetic).
+      ch += _buildEhrTrendsHtml({ bp: demoEhrTrends.bp, weight: demoEhrTrends.weight, labs: [], meds: [] }, demoName);
+    }
     // Active medications mini-list
     if (demoEhrTrends.meds.length > 0) {
       ch += '<div class="cs-ehr-card">';
