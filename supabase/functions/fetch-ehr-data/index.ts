@@ -1207,15 +1207,36 @@ async function refreshAccessTokenIfNeeded(
 
   if (!res.ok) {
     const errText = await res.text();
+    const respHeaders: Record<string, string> = {};
+    for (const [k, v] of res.headers.entries()) {
+      if (/^(www-authenticate|x-epic|x-request-id|content-type|date)$/i.test(k)) {
+        respHeaders[k] = v;
+      }
+    }
     console.error('[fetch-ehr-data] Refresh exchange failed', {
       status: res.status,
-      err: errText.slice(0, 300),
+      body: errText.slice(0, 1000),
+      headers: respHeaders,
+      person_id: conn.person_id,
+      conn_id: conn.id,
       tokenUrl: conn.token_url,
       clientId: conn.client_id_used,
+      fhir_base_url: conn.fhir_base_url,
+      is_legacy_public: isLegacyPublic,
+      refresh_token_age_days: conn.created_at ? Math.floor((Date.now() - new Date(conn.created_at).getTime()) / 86400000) : null,
     });
     await admin.from('ehr_connections')
       .update({ needs_reconnect: true })
       .eq('id', conn.id);
+    // Drop a sync_log row so the Duke watcher cron sees refresh failures.
+    try {
+      await admin.from('ehr_sync_log').insert({
+        person_id: conn.person_id,
+        patient_id: conn.patient_id,
+        status: res.status,
+        result_counts: { refresh_error: true, epic_body: errText.slice(0, 500), epic_headers: respHeaders },
+      });
+    } catch (_) { /* best-effort */ }
     return { ok: false, detail: `refresh_rejected_${res.status}` };
   }
 

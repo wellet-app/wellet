@@ -827,7 +827,27 @@ Deno.serve(async (req) => {
 
       if (!tokenRes.ok) {
         const errText = await tokenRes.text();
-        console.error('[epic-auth] refresh failed', { status: tokenRes.status, body: errText.slice(0, 400) });
+        // Capture response headers (Epic sometimes returns the real reason in
+        // WWW-Authenticate, X-Epic-Error-Id, or a request id we can quote
+        // back to them). Stringify keys we care about — Headers isn't JSON.
+        const respHeaders: Record<string, string> = {};
+        for (const [k, v] of tokenRes.headers.entries()) {
+          if (/^(www-authenticate|x-epic|x-request-id|content-type|date)$/i.test(k)) {
+            respHeaders[k] = v;
+          }
+        }
+        console.error('[epic-auth] refresh failed', {
+          status: tokenRes.status,
+          body: errText.slice(0, 1000),
+          headers: respHeaders,
+          person_id,
+          conn_id: conn.id,
+          client_id_used: conn.client_id_used,
+          fhir_base_url: conn.fhir_base_url,
+          token_url: tokenUrl,
+          is_legacy_public: isLegacyPublic,
+          refresh_token_age_days: conn.created_at ? Math.floor((Date.now() - new Date(conn.created_at).getTime()) / 86400000) : null,
+        });
 
         // Refresh tokens expire too (Epic = 90 days rolling). On refresh
         // failure, flag the connection so the UI can prompt a reconnect
@@ -837,10 +857,22 @@ Deno.serve(async (req) => {
           .eq('person_id', person_id)
           .eq('user_id', user.id);
 
+        // Also write a sync_log row so the Duke watcher cron can see refresh
+        // failures without grepping edge function logs.
+        try {
+          await admin.from('ehr_sync_log').insert({
+            person_id,
+            patient_id: conn.patient_id,
+            status: tokenRes.status,
+            result_counts: { refresh_error: true, epic_body: errText.slice(0, 500), epic_headers: respHeaders },
+          });
+        } catch (_) { /* best-effort logging */ }
+
         return jsonResponse({
           error: 'refresh_failed',
           epic_status: tokenRes.status,
-          epic_body: errText.slice(0, 400),
+          epic_body: errText.slice(0, 1000),
+          epic_headers: respHeaders,
         }, 502);
       }
 

@@ -16191,12 +16191,44 @@ function evaluateReconnectBanner() {
       var nowMs = Date.now();
       var staleMs = 7 * 24 * 60 * 60 * 1000;
 
-      // 1. needs_reconnect — first hit wins
+      // 1. needs_reconnect — first hit wins. 2026-05-19: try a silent refresh
+      //    against epic-auth BEFORE showing the banner. Background sync runs
+      //    hourly but the user may open the app between cron ticks; if our
+      //    refresh_token is still valid, a transparent refresh clears the
+      //    flag and avoids a needless OAuth round-trip. Guarded per-session
+      //    so we don't hammer Epic on every person switch.
+      var needsReconnectConn = null;
       for (var i = 0; i < conns.length; i++) {
-        if (conns[i].needs_reconnect === true) {
-          _bannerRender({ kind: 'needs_reconnect', connection_id: conns[i].id, hospital_name: conns[i].hospital_name, fhir_base_url: conns[i].fhir_base_url });
+        if (conns[i].needs_reconnect === true) { needsReconnectConn = conns[i]; break; }
+      }
+      if (needsReconnectConn) {
+        window.__welletRefreshAttempted = window.__welletRefreshAttempted || {};
+        var connId = needsReconnectConn.id;
+        if (window.__welletRefreshAttempted[connId]) {
+          // Already tried this session and it didn't clear — render the banner.
+          _bannerRender({ kind: 'needs_reconnect', connection_id: connId, hospital_name: needsReconnectConn.hospital_name, fhir_base_url: needsReconnectConn.fhir_base_url });
           return;
         }
+        window.__welletRefreshAttempted[connId] = true;
+        // Hide any stale banner while we try the silent refresh.
+        _bannerHide();
+        tryEpicRefresh(personId).then(function(result) {
+          if (result && result.ok) {
+            // Refresh worked — pull fresh data, no banner needed.
+            try { loadPersonData(personId); } catch(e) { console.warn('[banner] reload after silent refresh failed', e); }
+            try { updateHeaderSyncMeta(); } catch(e) {}
+            return;
+          }
+          // Refresh failed (expired refresh_token, no session, Epic rejected) —
+          // re-check the connection: epic-auth may have flipped status to
+          // 'needs_reconnect' as a side effect, in which case we should still
+          // show the banner. Use the conn we already have.
+          _bannerRender({ kind: 'needs_reconnect', connection_id: connId, hospital_name: needsReconnectConn.hospital_name, fhir_base_url: needsReconnectConn.fhir_base_url });
+        }).catch(function(err) {
+          console.warn('[banner] silent refresh threw', err);
+          _bannerRender({ kind: 'needs_reconnect', connection_id: connId, hospital_name: needsReconnectConn.hospital_name, fhir_base_url: needsReconnectConn.fhir_base_url });
+        });
+        return;
       }
 
       // 2. scope regression — today's `ehr_sync_log` schema is person-level
