@@ -13694,7 +13694,6 @@ function _renderSignalsDemo(el, data, demoFirstName) {
   el.innerHTML = ch;
   if (typeof initIcons === 'function') initIcons();
 }
-}
 
 // Load cached EHR data from localStorage
 function loadEhrCache(personId) {
