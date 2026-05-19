@@ -150,6 +150,19 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
         }, 8000);
       }
     },
+    // 10c — Resources (the "/me" hub for clinical trials, conditions research, support)
+    {
+      // Optional audio — narration will play only if 10c-resources.mp3 is recorded.
+      // If missing, the step still runs on the duration fallback below.
+      audio: '10c-resources.mp3',
+      caption: 'And Resources \u2014 clinical trials, condition research, support groups, and treatment options, all surfaced for your loved one\u2019s specific chart.',
+      duration: 7500,
+      action: function() {
+        gdClearHighlight();
+        try { switchNavTo('resources'); } catch (e) {}
+        gdScrollTo('#view-resources', 100);
+      }
+    },
     // 11 — Closing with end card
     {
       audio: '11-closing.mp3',
