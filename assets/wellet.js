@@ -11735,7 +11735,7 @@ var DEMO_TIMELINE_EXTRAS = {
   // Outbound shares + view receipts (3 opens demonstrates the rollup card)
   shares: [
     { id:'ds-1', person_id:'demo-cheryl',
-      summary_text:"Cheryl had her neurology follow-up Thursday. Levodopa dose unchanged. Next visit Jul 22.",
+      summary_text:"Don had his neurology follow-up Thursday. Levodopa dose unchanged. Next visit Jul 22.",
       created_at:_demoDaysAgo(9, 19, 0), expires_at:_demoDaysAgo(-21, 19, 0) }
   ],
   shareEvents: [
@@ -11778,7 +11778,7 @@ var DEMO_DOCS = [
     document_type:'voice_note',
     uploaded_at:_demoDaysAgo(5, 11, 12),
     extraction_status:'complete',
-    extracted_events:{ summary:'Cheryl seemed a little more tired this morning. Took her morning meds at 8:10. Mentioned her left hand was shaking more than usual.' }
+    extracted_events:{ summary:'Don seemed a little more tired this morning. Took his morning meds at 8:10. Mentioned his left hand was shaking more than usual.' }
   },
   { id:'ddoc-lab-1', person_id:'demo-cheryl',
     file_name:'Quest labs — March 2026.pdf',
@@ -17133,7 +17133,7 @@ function buildDemoContext(person) {
       + 'No significant changes this month. Next appointment is April 4.';
   }
   // Dad — built from DEMO_EHR_DATA + DEMO_CARESIGNALS
-  var ctx = 'Patient: Dad (John Bell), age 74\n'
+  var ctx = 'Patient: Dad (Don Bell), age 74\n'
     + 'Relationship: Father\n'
     + 'Conditions: Parkinson\'s disease (active, onset June 2023), Essential hypertension (active, onset March 2020)\n'
     + 'Allergies: Sulfonamide (moderate — skin rash, hives)\n'
@@ -17520,7 +17520,7 @@ function openShareFamily() {
 
   var firstName = getPersonFirstName();
   var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
-  var fullName = isDemoMode ? 'John Bell' : (person ? person.name : 'your loved one');
+  var fullName = isDemoMode ? 'Don Bell' : (person ? person.name : 'your loved one');
 
   // Update subtitle
   document.getElementById('share-sheet-sub').textContent = 'Send a summary of what\u2019s going on with ' + firstName;
@@ -17572,7 +17572,7 @@ var _lastShareUrl = '';
 function gatherSharePayload() {
   var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
   var firstName = getPersonFirstName();
-  var fullName = isDemoMode ? 'John Bell' : (person ? person.name : 'Patient');
+  var fullName = isDemoMode ? 'Don Bell' : (person ? person.name : 'Patient');
   var summaryText = document.getElementById('share-preview-text').textContent || '';
   var includeNotes = document.getElementById('share-toggle-notes').classList.contains('on');
   var includeMeds = document.getElementById('share-toggle-meds').classList.contains('on');
@@ -17782,7 +17782,7 @@ function copyShareLink() {
 async function openShareEmail(url) {
   var firstName = getPersonFirstName();
   var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
-  var fullName = isDemoMode ? 'John Bell' : (person ? person.name : firstName);
+  var fullName = isDemoMode ? 'Don Bell' : (person ? person.name : firstName);
 
   // Gather selected recipients
   var recipients = [];
@@ -23130,7 +23130,17 @@ function pdfAddFooter(doc) {
 }
 
 function getPersonFirstName() {
-  if (isDemoMode) return 'John';
+  if (isDemoMode) {
+    // Demo characters are Don Bell (Dad) and Margaret Bell (Mom). Resolve
+    // from _currentAskPerson when set, then fall back to which Records pill
+    // is visible (records-mom shown means Mom). Default to Don.
+    if (typeof _currentAskPerson !== 'undefined' && _currentAskPerson === 'mom') return 'Margaret';
+    try {
+      var momEl = document.getElementById('records-mom');
+      if (momEl && momEl.style.display !== 'none') return 'Margaret';
+    } catch(_e) {}
+    return 'Don';
+  }
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
   return person ? person.name.split(' ')[0] : 'Patient';
 }
@@ -23705,7 +23715,7 @@ function generateHealthStory() {
       var p = currentPeople.find(function(x){ return x.id === currentPersonId; });
       if (p && p.name) personFull = p.name;
     } else {
-      personFull = 'John Bell';
+      personFull = 'Don Bell';
     }
   } catch(_e) {}
 
@@ -23907,7 +23917,7 @@ function downloadEmergencyPDF() {
   if (isDemoMode) {
     // Demo mode: use hardcoded demo data
     y = pdfAddSection(doc, 'Patient', y, [
-      { label: 'Name', value: 'John Bell' },
+      { label: 'Name', value: 'Don Bell' },
       { label: 'Date of birth', value: 'March 4, 1954 (Age 71)' },
       { label: 'Emergency contact', value: 'Sarah Bell \u00b7 (919) 555-0142' },
       { label: 'Allergies', value: 'Penicillin (rash)' }
@@ -24008,7 +24018,7 @@ function downloadSharePDF() {
   var y = 25;
   var firstName = getPersonFirstName();
   var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
-  var fullName = isDemoMode ? 'John Bell' : (person ? person.name : 'Patient');
+  var fullName = isDemoMode ? 'Don Bell' : (person ? person.name : 'Patient');
 
   // Header
   doc.setFont('Helvetica', 'bold');
@@ -24123,10 +24133,10 @@ async function downloadFamilyRecordPDF() {
   var pageW = doc.internal.pageSize.getWidth();
   var pageH = doc.internal.pageSize.getHeight();
 
-  // Resolve person (demo: 'John Bell'; live: currentPersonId)
+  // Resolve person (demo: 'Don Bell'; live: currentPersonId)
   var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
   if (!isDemoMode && !person) { showToast('Open a profile first'); return; }
-  var fullName  = isDemoMode ? 'John Bell' : person.name;
+  var fullName  = isDemoMode ? 'Don Bell' : person.name;
   var firstName = getPersonFirstName();
 
   // ── COVER PAGE ────────────────────────────────────────────────────────────
@@ -24859,7 +24869,7 @@ async function generateVisitExport() {
   try {
     var firstName = getPersonFirstName();
     var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
-    var fullName = isDemoMode ? 'John Bell' : (person ? person.name : 'Patient');
+    var fullName = isDemoMode ? 'Don Bell' : (person ? person.name : 'Patient');
 
     // Gather medications
     var medications = [];
@@ -27448,8 +27458,8 @@ async function openShareHistory() {
   if (isDemoMode) {
     var now = new Date();
     var demoShares = [
-      { token: 'demo1', person_name: 'John Bell', created_at: new Date(now - 2 * 86400000).toISOString(), expires_at: new Date(now + 5 * 86400000).toISOString() },
-      { token: 'demo2', person_name: 'John Bell', created_at: new Date(now - 10 * 86400000).toISOString(), expires_at: new Date(now - 3 * 86400000).toISOString() }
+      { token: 'demo1', person_name: 'Don Bell', created_at: new Date(now - 2 * 86400000).toISOString(), expires_at: new Date(now + 5 * 86400000).toISOString() },
+      { token: 'demo2', person_name: 'Don Bell', created_at: new Date(now - 10 * 86400000).toISOString(), expires_at: new Date(now - 3 * 86400000).toISOString() }
     ];
     renderShareHistory(demoShares);
     return;
@@ -27550,7 +27560,7 @@ async function exportAllData(format) {
     var shares = [];
 
     if (isDemoMode) {
-      people = [{ name: 'John Bell', relationship: 'Father', conditions: 'CML, Hypertension' }];
+      people = [{ name: 'Don Bell', relationship: 'Father', conditions: 'CML, Hypertension' }];
       healthEvents = liveEvents.length > 0 ? liveEvents : [{ title: 'Demo event', event_type: 'note', event_date: new Date().toISOString() }];
       medications = liveMeds.length > 0 ? liveMeds : [{ name: 'Lisinopril', dose: '20mg', frequency: 'daily', active: true }];
       careCircle = liveCareCircle;
@@ -29487,8 +29497,8 @@ async function openWishesList(personId) {
   // Demo fallback: the static demo person cards aren't in currentPeople, so map
   // the well-known ids back to the names the rest of the demo uses.
   if ((!person) && isDemoMode) {
-    if (personId === 'dad') _wishPersonName = 'John Bell';
-    else if (personId === 'mom') _wishPersonName = 'Mary Bell';
+    if (personId === 'dad') _wishPersonName = 'Don Bell';
+    else if (personId === 'mom') _wishPersonName = 'Margaret Bell';
   }
   var firstName = _wishPersonName.split(' ')[0];
   // "your loved one" should stay intact, not get split to "your".
