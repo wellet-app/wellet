@@ -6666,18 +6666,14 @@ function _loadTrialsTile() {
   var supabaseUrl = (typeof db !== 'undefined' && db.supabaseUrl) || 'https://nrpdhxygzyfmyljzfexv.supabase.co';
   var fnUrl = supabaseUrl.replace(/\/$/, '') + '/functions/v1/fetch-clinical-trials';
 
-  var authToken = '';
-  try {
-    var session = db && db.auth && db.auth.session && db.auth.session();
-    authToken = (session && session.access_token) || '';
-  } catch(e) {}
-
-  fetch(fnUrl, {
+  function _fireTrialsFetch(authToken) {
+    var anonKey = (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : '';
+    fetch(fnUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': authToken ? 'Bearer ' + authToken : '',
-      'apikey': (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : ''
+      'Authorization': 'Bearer ' + (authToken || anonKey),
+      'apikey': anonKey
     },
     body: JSON.stringify({
       condition_code: conditionCode,
@@ -6688,7 +6684,7 @@ function _loadTrialsTile() {
       max_results: 10
     })
   })
-  .then(function(r) { return r.json(); })
+  .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
   .then(function(data) {
     var inner = document.getElementById('trials-tile-inner');
     if (!inner) return;
@@ -6758,6 +6754,13 @@ function _loadTrialsTile() {
     var tileContainer = document.getElementById('trials-tile-container');
     if (tileContainer) tileContainer.style.display = 'none';
   });
+  }
+  try {
+    db.auth.getSession().then(function(sessionRes) {
+      var session = sessionRes && sessionRes.data && sessionRes.data.session;
+      _fireTrialsFetch((session && session.access_token) || '');
+    }).catch(function() { _fireTrialsFetch(''); });
+  } catch(e) { _fireTrialsFetch(''); }
 }
 
 function openTrialDetail(nctId, url) {
@@ -6885,18 +6888,14 @@ function _loadFdaTreatmentsTile() {
   var supabaseUrl = (typeof db !== 'undefined' && db.supabaseUrl) || 'https://nrpdhxygzyfmyljzfexv.supabase.co';
   var fnUrl = supabaseUrl.replace(/\/$/, '') + '/functions/v1/fetch-fda-treatments';
 
-  var authToken = '';
-  try {
-    var session = db && db.auth && db.auth.session && db.auth.session();
-    authToken = (session && session.access_token) || '';
-  } catch(e) {}
-
-  fetch(fnUrl, {
+  function _fireFdaFetch(authToken) {
+    var anonKey = (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : '';
+    fetch(fnUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': authToken ? 'Bearer ' + authToken : '',
-      'apikey': (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : ''
+      'Authorization': 'Bearer ' + (authToken || anonKey),
+      'apikey': anonKey
     },
     body: JSON.stringify({
       condition_code: conditionCode,
@@ -6904,7 +6903,7 @@ function _loadFdaTreatmentsTile() {
       person_id: personId
     })
   })
-  .then(function(r) { return r.json(); })
+  .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
   .then(function(data) {
     var inner = document.getElementById('fda-tile-inner');
     if (!inner) return;
@@ -6970,6 +6969,13 @@ function _loadFdaTreatmentsTile() {
     var tileContainer = document.getElementById('fda-tile-container');
     if (tileContainer) tileContainer.style.display = 'none';
   });
+  }
+  try {
+    db.auth.getSession().then(function(sessionRes) {
+      var session = sessionRes && sessionRes.data && sessionRes.data.session;
+      _fireFdaFetch((session && session.access_token) || '');
+    }).catch(function() { _fireFdaFetch(''); });
+  } catch(e) { _fireFdaFetch(''); }
 }
 
 // ── Tap handler ───────────────────────────────────────────────────────────────
@@ -7087,18 +7093,14 @@ function _loadCentersTile() {
     : 'https://nrpdhxygzyfmyljzfexv.supabase.co';
   var fnUrl = supabaseUrl.replace(/\/$/, '') + '/functions/v1/fetch-centers-of-excellence';
 
-  var authToken = '';
-  try {
-    var session = db && db.auth && db.auth.session && db.auth.session();
-    authToken = (session && session.access_token) || '';
-  } catch (e) {}
-
-  fetch(fnUrl, {
+  function _fireCentersFetch(authToken) {
+    var anonKey = (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : '';
+    fetch(fnUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': authToken ? 'Bearer ' + authToken : '',
-      'apikey': (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : ''
+      'Authorization': 'Bearer ' + (authToken || anonKey),
+      'apikey': anonKey
     },
     body: JSON.stringify({
       condition_code: conditionCode,
@@ -7107,7 +7109,7 @@ function _loadCentersTile() {
       hospital_id: hospitalHint
     })
   })
-  .then(function(r) { return r.json(); })
+  .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
   .then(function(data) {
     var inner = document.getElementById('centers-tile-inner');
     if (!inner) return;
@@ -7176,6 +7178,13 @@ function _loadCentersTile() {
     var tile = document.getElementById('centers-tile-container');
     if (tile) tile.style.display = 'none';
   });
+  }
+  try {
+    db.auth.getSession().then(function(sessionRes) {
+      var session = sessionRes && sessionRes.data && sessionRes.data.session;
+      _fireCentersFetch((session && session.access_token) || '');
+    }).catch(function() { _fireCentersFetch(''); });
+  } catch(e) { _fireCentersFetch(''); }
 }
 
 // ─── TAP-OUT HANDLER ─────────────────────────────────────────────────────────
@@ -7292,18 +7301,14 @@ function _loadAdvocacyTile() {
   var supabaseUrl = (typeof db !== 'undefined' && db.supabaseUrl) || 'https://nrpdhxygzyfmyljzfexv.supabase.co';
   var fnUrl = supabaseUrl.replace(/\/$/, '') + '/functions/v1/fetch-advocacy-groups';
 
-  var authToken = '';
-  try {
-    var session = db && db.auth && db.auth.session && db.auth.session();
-    authToken = (session && session.access_token) || '';
-  } catch(e) {}
-
-  fetch(fnUrl, {
+  function _fireAdvocacyFetch(authToken) {
+    var anonKey = (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : '';
+    fetch(fnUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': authToken ? 'Bearer ' + authToken : '',
-      'apikey': (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : ''
+      'Authorization': 'Bearer ' + (authToken || anonKey),
+      'apikey': anonKey
     },
     body: JSON.stringify({
       condition_code: conditionCode,
@@ -7311,7 +7316,7 @@ function _loadAdvocacyTile() {
       person_id: personId
     })
   })
-  .then(function(r) { return r.json(); })
+  .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
   .then(function(data) {
     var inner = document.getElementById('advocacy-tile-inner');
     if (!inner) return;
@@ -7367,6 +7372,13 @@ function _loadAdvocacyTile() {
     var tile = document.getElementById('advocacy-tile-container');
     if (tile) tile.style.display = 'none';
   });
+  }
+  try {
+    db.auth.getSession().then(function(sessionRes) {
+      var session = sessionRes && sessionRes.data && sessionRes.data.session;
+      _fireAdvocacyFetch((session && session.access_token) || '');
+    }).catch(function() { _fireAdvocacyFetch(''); });
+  } catch(e) { _fireAdvocacyFetch(''); }
 }
 
 // ── 4. Tap-out handler ────────────────────────────────────────────────────────
@@ -7472,18 +7484,14 @@ function _loadResearchPapersTile() {
     || 'https://nrpdhxygzyfmyljzfexv.supabase.co';
   var fnUrl = supabaseUrl.replace(/\/$/, '') + '/functions/v1/fetch-research-papers';
 
-  var authToken = '';
-  try {
-    var session = db && db.auth && db.auth.session && db.auth.session();
-    authToken = (session && session.access_token) || '';
-  } catch(e) {}
-
-  fetch(fnUrl, {
+  function _fireResearchFetch(authToken) {
+    var anonKey = (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : '';
+    fetch(fnUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': authToken ? 'Bearer ' + authToken : '',
-      'apikey': (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : ''
+      'Authorization': 'Bearer ' + (authToken || anonKey),
+      'apikey': anonKey
     },
     body: JSON.stringify({
       condition_code: conditionCode,
@@ -7491,7 +7499,7 @@ function _loadResearchPapersTile() {
       person_id: personId
     })
   })
-  .then(function(r) { return r.json(); })
+  .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
   .then(function(data) {
     var inner = document.getElementById('research-tile-inner');
     if (!inner) return;
@@ -7563,6 +7571,13 @@ function _loadResearchPapersTile() {
     var tile = document.getElementById('research-tile-container');
     if (tile) tile.style.display = 'none';
   });
+  }
+  try {
+    db.auth.getSession().then(function(sessionRes) {
+      var session = sessionRes && sessionRes.data && sessionRes.data.session;
+      _fireResearchFetch((session && session.access_token) || '');
+    }).catch(function() { _fireResearchFetch(''); });
+  } catch(e) { _fireResearchFetch(''); }
 }
 
 // ---------------------------------------------------------------------------
