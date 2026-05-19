@@ -596,11 +596,15 @@
         <button class="bvc-secondary" onclick="openWishesList('dad')">Review John’s wishes first</button>
       </div>
       <div class="update-me-section">
-        <div class="update-card">
-          <div class="update-label">What's going on with Dad right now</div>
-          <p class="update-text">Dad is <strong>2 months post-op</strong> from his second peroneal knee release and attending PT twice weekly for leg rehab. His oncology CML test came back <strong>&lt;0.001</strong> — continued improvement. Blood pressure has been <strong>running higher this week</strong> (avg 142/89) since his Hydrochlorothiazide dose adjusted in February, something Dr. Johnson is watching closely.</p>
-          <div class="update-meta">Generated from 47 health events · <a>Ask a follow-up</a></div>
+        <div class="update-summary-card">
+          <div class="update-summary-header">
+            <div class="update-summary-titlerow"><span class="update-summary-label">Wellet summary</span><span class="update-summary-verdict-pill attention"><span class="dot"></span>Needs attention</span></div>
+            <button class="update-summary-refresh" onclick="" title="Refresh summary"><i data-lucide="refresh-cw" style="width:13px;height:13px;"></i></button>
+          </div>
+          <div class="update-summary-text">Dad is <strong>2 months post-op</strong> from his second peroneal knee release and attending PT twice weekly for leg rehab. His oncology CML test came back <strong>&lt;0.001</strong> — continued improvement. Blood pressure has been <strong>running higher this week</strong> (avg 142/89) since his Hydrochlorothiazide dose adjusted in February, something Dr. Johnson is watching closely.</div>
+          <div class="update-summary-byline"><i data-lucide="sparkles"></i><span class="update-summary-byline-main">Wellet · written from 4 sources · 12 min ago</span><span class="update-summary-byline-sep">·</span><span class="update-summary-byline-viewed">Viewed 9:14 AM</span></div>
         </div>
+        <button onclick="openShareFamily()" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px 16px;margin-top:10px;background:white;border:1.5px solid var(--moss);border-radius:10px;color:var(--moss);font-family:'DM Sans',sans-serif;font-size:var(--type-meta);font-weight:500;cursor:pointer;"><i data-lucide="share-2" style="width:15px;height:15px;"></i> Share this update</button>
       </div>
       <div class="upcoming-block">
         <div class="upcoming-section-label">Upcoming for Dad</div>
@@ -643,11 +647,6 @@
           <div class="alert-title">Blood pressure pattern noticed</div>
           <div class="alert-body">Readings have been consistently higher since February 18. May be related to the Hydrochlorothiazide adjustment. Dr. Johnson is aware.</div>
         </div>
-      </div>
-      <div class="quick-actions">
-        <button class="qa-btn" onclick="openEmergencySummary()"><span class="qa-icon"><i data-lucide="file-heart" style="width:18px;height:18px;"></i></span>Emergency summary</button>
-        <button class="qa-btn" onclick="openShareFamily()"><span class="qa-icon"><i data-lucide="share-2" style="width:18px;height:18px;"></i></span>Share with family</button>
-        <button class="qa-btn" onclick="openExportVisit()"><span class="qa-icon"><i data-lucide="file-text" style="width:18px;height:18px;"></i></span>Export for visit</button>
       </div>
       <div class="timeline-section" style="margin-top:16px;">
         <p class="section-label">Recent activity</p>
@@ -709,11 +708,15 @@
         <button class="bvc-secondary" onclick="openWishesList('mom')">Review Cheryl’s wishes first</button>
       </div>
       <div class="update-me-section">
-        <div class="update-card">
-          <div class="update-label">What's going on with Mom right now</div>
-          <p class="update-text">Mom has been managing her <strong>Type 2 diabetes</strong> well — her last A1C was <strong>6.8%</strong>, down from 7.1% in October. She started a <strong>new walking routine</strong> three weeks ago and has been consistent. Her rheumatologist adjusted her <strong>Methotrexate</strong> last month for her RA, and she’s reporting less joint stiffness in the mornings.</p>
-          <div class="update-meta">Generated from 31 health events · <a>Ask a follow-up</a></div>
+        <div class="update-summary-card">
+          <div class="update-summary-header">
+            <div class="update-summary-titlerow"><span class="update-summary-label">Wellet summary</span><span class="update-summary-verdict-pill active"><span class="dot"></span>Active week</span></div>
+            <button class="update-summary-refresh" onclick="" title="Refresh summary"><i data-lucide="refresh-cw" style="width:13px;height:13px;"></i></button>
+          </div>
+          <div class="update-summary-text">Mom has been managing her <strong>Type 2 diabetes</strong> well — her last A1C was <strong>6.8%</strong>, down from 7.1% in October. She started a <strong>new walking routine</strong> three weeks ago and has been consistent. Her rheumatologist adjusted her <strong>Methotrexate</strong> last month for her RA, and she's reporting less joint stiffness in the mornings.</div>
+          <div class="update-summary-byline"><i data-lucide="sparkles"></i><span class="update-summary-byline-main">Wellet · written from 2 sources · 5 min ago</span><span class="update-summary-byline-sep">·</span><span class="update-summary-byline-viewed">Viewed 10:22 AM</span></div>
         </div>
+        <button onclick="openShareFamily()" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px 16px;margin-top:10px;background:white;border:1.5px solid var(--moss);border-radius:10px;color:var(--moss);font-family:'DM Sans',sans-serif;font-size:var(--type-meta);font-weight:500;cursor:pointer;"><i data-lucide="share-2" style="width:15px;height:15px;"></i> Share this update</button>
       </div>
       <div class="upcoming-block">
         <div class="upcoming-section-label">Upcoming for Mom</div>
@@ -749,11 +752,6 @@
           <div class="visit-prep-sub">AI questions based on recent health changes</div>
         </div>
         <button class="visit-prep-btn" onclick="openVisitPrep(false)">Prepare →</button>
-      </div>
-      <div class="quick-actions">
-        <button class="qa-btn" onclick="openEmergencySummary()"><span class="qa-icon"><i data-lucide="file-heart" style="width:18px;height:18px;"></i></span>Emergency summary</button>
-        <button class="qa-btn" onclick="openShareFamily()"><span class="qa-icon"><i data-lucide="share-2" style="width:18px;height:18px;"></i></span>Share with family</button>
-        <button class="qa-btn" onclick="openExportVisit()"><span class="qa-icon"><i data-lucide="file-text" style="width:18px;height:18px;"></i></span>Export for visit</button>
       </div>
       <div class="timeline-section" style="margin-top:16px;">
         <p class="section-label">Recent activity</p>
@@ -902,10 +900,9 @@
       <div class="view-header">
         <div class="people-eyebrow" id="people-eyebrow"></div>
         <div class="view-title">People</div>
-        <div class="view-subtitle">The people you care for, and the family who helps.</div>
+        <div class="view-subtitle">Everyone you’re caring for</div>
       </div>
       <div class="people-section" id="people-list">
-        <div style="font-size:var(--type-micro);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin:4px 2px 10px;">Who you are caring for</div>
         <!-- populated by renderPeople() or demo content -->
         <div class="person-card">
           <div class="person-card-top">
@@ -914,23 +911,16 @@
               <div class="person-card-name">John Bell</div>
               <div class="person-card-rel">Dad · Age 71</div>
             </div>
-            <div class="person-card-status watching">
-              <i data-lucide="triangle-alert" style="width:13px;height:13px;"></i> Watching
-            </div>
+            <div class="person-card-status stable"><i data-lucide="check-circle" style="width:13px;height:13px;"></i> Active</div>
             <button class="remove-btn" onclick="confirmRemove('John Bell', this)" title="Remove person">
               <i data-lucide="x" style="width:16px;height:16px;"></i>
             </button>
           </div>
-          <div class="person-card-stats">
-            <div class="person-stat"><div class="person-stat-val">6</div><div class="person-stat-label">Medications</div></div>
-            <div class="person-stat"><div class="person-stat-val">4</div><div class="person-stat-label">Diagnoses</div></div>
-            <div class="person-stat"><div class="person-stat-val">Mar 16</div><div class="person-stat-label">Next appt</div></div>
-          </div>
           <div class="person-card-action">
-            <button class="card-action-btn" onclick="switchNavTo('home')">Summary</button>
-            <button class="card-action-btn">Emergency summary</button>
-            <button class="card-action-btn" onclick="openUpload('John Bell')">Add document</button>
+            <button class="card-action-btn" onclick="switchNavTo('home')">Update</button>
+            <button class="card-action-btn" onclick="openAddEvent()">Add event</button>
             <button class="card-action-btn" onclick="openWishesList('dad')" title="Wishes"><i data-lucide="heart" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:3px;"></i>Wishes</button>
+            <button class="card-action-btn" onclick=""><i data-lucide="pencil" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:3px;"></i>Edit profile</button>
           </div>
         </div>
         <div class="person-card">
@@ -940,37 +930,21 @@
               <div class="person-card-name">Mary Bell</div>
               <div class="person-card-rel">Mom · Age 68</div>
             </div>
-            <div class="person-card-status stable">
-              <i data-lucide="check-circle" style="width:13px;height:13px;"></i> Stable
-            </div>
+            <div class="person-card-status stable"><i data-lucide="check-circle" style="width:13px;height:13px;"></i> Active</div>
             <button class="remove-btn" onclick="confirmRemove('Mary Bell', this)" title="Remove person">
               <i data-lucide="x" style="width:16px;height:16px;"></i>
             </button>
           </div>
-          <div class="person-card-stats">
-            <div class="person-stat"><div class="person-stat-val">3</div><div class="person-stat-label">Medications</div></div>
-            <div class="person-stat"><div class="person-stat-val">2</div><div class="person-stat-label">Diagnoses</div></div>
-            <div class="person-stat"><div class="person-stat-val">Apr 4</div><div class="person-stat-label">Next appt</div></div>
-          </div>
           <div class="person-card-action">
-            <button class="card-action-btn">Summary</button>
-            <button class="card-action-btn">Emergency summary</button>
-            <button class="card-action-btn" onclick="openUpload('Mary Bell')">Add document</button>
+            <button class="card-action-btn" onclick="switchPerson(null, 'mom');switchNavTo('home')">Update</button>
+            <button class="card-action-btn" onclick="openAddEvent()">Add event</button>
             <button class="card-action-btn" onclick="openWishesList('mom')" title="Wishes"><i data-lucide="heart" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:3px;"></i>Wishes</button>
+            <button class="card-action-btn" onclick=""><i data-lucide="pencil" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:3px;"></i>Edit profile</button>
           </div>
         </div>
         <button class="add-person-btn" onclick="showOnboarding()">
           <i data-lucide="plus" style="width:16px;height:16px;"></i>
           Add another person
-        </button>
-        <div style="font-size:var(--type-micro);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin:22px 2px 10px;">Care Circle</div>
-        <button style="display:flex;align-items:center;gap:10px;width:100%;justify-content:flex-start;padding:14px;background:var(--cream);border:1px solid var(--line);border-radius:12px;font-size:var(--type-body);font-weight:500;color:var(--ink);cursor:pointer;" onclick="openCareCircle()">
-          <i data-lucide="heart-handshake" style="width:18px;height:18px;color:var(--moss);flex-shrink:0;"></i>
-          <div style="flex:1;text-align:left;">
-            <div>Care Circle</div>
-            <div style="font-size:var(--type-meta);font-weight:400;color:var(--muted);margin-top:2px;">Family and friends you share updates with</div>
-          </div>
-          <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--muted);"></i>
         </button>
       </div>
     </div><!-- end view-people -->

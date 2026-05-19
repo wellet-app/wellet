@@ -11645,12 +11645,15 @@ document.addEventListener('visibilitychange', function() {
 // Demo EHR data for Dad
 var DEMO_EHR_DATA = {
   conditions: [
-    { type:'condition', source:'ehr', name:"Parkinson's disease", code:'49049000', status:'active', onset_date:'2023-06-15', recorded_date:'2023-06-15' },
-    { type:'condition', source:'ehr', name:'Essential hypertension', code:'59621000', status:'active', onset_date:'2020-03-10', recorded_date:'2020-03-10' }
+    { id:'demo-cond-parkinsons', type:'condition', source:'ehr', name:"Parkinson's disease", code:'49049000', status:'active', onset_date:'2023-06-15', recorded_date:'2023-06-15' },
+    { id:'demo-cond-htn', type:'condition', source:'ehr', name:'Essential hypertension', code:'59621000', status:'active', onset_date:'2020-03-10', recorded_date:'2020-03-10' }
   ],
   medications: [
-    { type:'medication', source:'ehr', name:'Levodopa/Carbidopa 25-100mg', code:'197741', status:'active', dosage:'1 tablet three times daily', frequency:'3x daily', date_asserted:'2023-07-01' },
-    { type:'medication', source:'ehr', name:'Lisinopril 20mg', code:'314077', status:'active', dosage:'1 tablet daily', frequency:'Once daily', date_asserted:'2020-04-01' }
+    { id:'demo-med-levodopa', type:'medication', source:'ehr', name:'Levodopa/Carbidopa 25-100mg', code:'197741', status:'active', dosage:'1 tablet three times daily', frequency:'3x daily', date_asserted:'2023-07-01' },
+    { id:'demo-med-lisinopril', type:'medication', source:'ehr', name:'Lisinopril 20mg', code:'314077', status:'active', dosage:'1 tablet daily', frequency:'Once daily', date_asserted:'2020-04-01' },
+    { id:'demo-med-gleevec', type:'medication', source:'ehr', name:'Gleevec (Imatinib) 400mg', code:'354373', status:'active', dosage:'1 capsule daily', frequency:'Once daily', date_asserted:'2019-08-01' },
+    { id:'demo-med-hctz', type:'medication', source:'ehr', name:'Hydrochlorothiazide 25mg', code:'310429', status:'active', dosage:'1 tablet daily', frequency:'Once daily', date_asserted:'2022-04-01' },
+    { id:'demo-med-lisinopril-2', type:'medication', source:'ehr', name:'Lisinopril 20mg (Primary Care)', code:'314077', status:'active', dosage:'1 tablet daily', frequency:'Once daily', date_asserted:'2022-04-01' }
   ],
   allergies: [
     { type:'allergy', source:'ehr', name:'Sulfonamide', code:'387406002', severity:'moderate', reactions:['Skin rash','Hives'], status:'active', recorded_date:'2019-11-20' }
@@ -13527,208 +13530,170 @@ function openAskWithWatchContext(metric, personName) {
   }, 60);
 }
 
-// Demo-mode renderer (unchanged legacy path)
+// Demo-mode renderer — aligned with live _paintSignals() structure.
+// Uses DEMO_TIMELINE_EXTRAS watches + check-ins + DEMO_EHR_DATA for EHR trends.
+// Preserves the wearable data section (demo has Apple Watch data) but removes
+// the legacy medication checklist, adherence chart, and home sensors sections.
 function _renderSignalsDemo(el, data, demoFirstName) {
-  var now = new Date();
-  var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  var dateStr = days[now.getDay()] + ', ' + months[now.getMonth()] + ' ' + now.getDate();
-  var dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-
-  var cabinetHour = -1;
-  var cabinetTimeStr = '';
-  for (var si = 0; si < data.sensors.length; si++) {
-    if (data.sensors[si].id === 'medcabinet') {
-      cabinetTimeStr = data.sensors[si].lastEvent;
-      var cParts = cabinetTimeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
-      if (cParts) {
-        cabinetHour = parseInt(cParts[1], 10);
-        if (cParts[3].toUpperCase() === 'PM' && cabinetHour !== 12) cabinetHour += 12;
-        if (cParts[3].toUpperCase() === 'AM' && cabinetHour === 12) cabinetHour = 0;
-      }
-      break;
-    }
-  }
-
-  var html = '<div class="signals-view">';
-
-  // ── Editorial view header (Fraunces masthead anchor) ──
   var demoName = demoFirstName || 'Dad';
-  html += '<header class="view-header">';
-  html += '<p class="view-header__eyebrow">Apple Watch \u00b7 Synced 8 min ago</p>';
-  html += '<h1 class="view-header__title">CareSignals</h1>';
-  html += '<p class="view-header__lede">Daily rhythms from ' + escHtml(demoName) + '\u2019s wearables, sensors, and medications \u2014 patterns you might miss.</p>';
-  html += '</header>';
 
-  // ── Section 1: Medication Tracker ──────────────────────────────────────
-  html += '<div class="signals-section">';
-  html += '<div class="signals-section-title">Today\u2019s Medications</div>';
-  html += '<div class="signals-section-sub">' + escHtml(dateStr) + '</div>';
-  html += '<div class="signals-card">';
-  for (var mi = 0; mi < data.medications.length; mi++) {
-    var med = data.medications[mi];
-    html += '<div class="med-item">';
-    html += '<div class="med-icon-wrap"><i data-lucide="pill"></i></div>';
-    html += '<div class="med-info">';
-    html += '<div class="med-name">' + escHtml(med.name) + '</div>';
-    html += '<div class="med-dose">' + escHtml(med.dose) + ' \u00b7 ' + escHtml(med.frequency) + '</div>';
-    html += '<div class="med-times">';
-    for (var ti = 0; ti < med.times.length; ti++) {
-      var status = getMedStatus(med.times[ti], now, cabinetHour);
-      var badgeClass = 'med-badge med-badge--' + status;
-      var statusIcon = '';
-      var statusLabel = '';
-      if (status === 'taken') { statusIcon = ''; statusLabel = 'Taken'; }
-      else if (status === 'missed') { statusIcon = ''; statusLabel = 'Missed'; }
-      else if (status === 'due') { statusIcon = ''; statusLabel = 'Due now'; }
-      else { statusIcon = ''; statusLabel = 'Upcoming'; }
-      html += '<span class="' + badgeClass + '">' + formatTime12(med.times[ti]) + ' \u00b7 ' + statusLabel + '</span>';
+  // Pull demo watches + check-ins from the timeline extras seed data.
+  var demoExtras = (typeof DEMO_TIMELINE_EXTRAS !== 'undefined') ? DEMO_TIMELINE_EXTRAS : {};
+  var watches = demoExtras.careSignalWatches || [];
+  var checkIns = demoExtras.checkIns || [];
+
+  // Demo EHR trends — build a lightweight representation from DEMO_EHR_DATA
+  // so the "From your chart" section renders something honest.
+  var demoEhr = (typeof DEMO_EHR_DATA !== 'undefined') ? DEMO_EHR_DATA : null;
+  var demoEhrTrends = null;
+  if (demoEhr) {
+    demoEhrTrends = {
+      meds: demoEhr.medications || [],
+      conditions: demoEhr.conditions || [],
+      bp: null, // no live BP data in demo seed
+      weight: null
+    };
+  }
+
+  var ch = '<div class="signals-view">';
+
+  // \u2500\u2500 Editorial masthead \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  var activeWatches = watches.filter(function(w){ return w.active !== false; });
+  var eyebrowBits = [];
+  if (activeWatches.length > 0) {
+    eyebrowBits.push(activeWatches.length === 1 ? '1 thing to notice' : activeWatches.length + ' things to notice');
+  }
+  eyebrowBits.push('Apple Watch \u00b7 Synced 8 min ago');
+  var eyebrow = eyebrowBits.join(' \u00b7 ');
+  var lede = 'What Wellet is noticing for ' + escHtml(demoName) + ' \u2014 quiet patterns and check-ins from the people closest to them.';
+
+  ch += '<header class="view-header">';
+  ch += '<p class="view-header__eyebrow">' + escHtml(eyebrow) + '</p>';
+  ch += '<h1 class="view-header__title">CareSignals</h1>';
+  ch += '<p class="view-header__lede">' + lede + '</p>';
+  ch += '</header>';
+
+  // \u2500\u2500 1. What to notice (watches) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  ch += '<section class="cs-section cs-section--watches">';
+  ch += '<div class="cs-section-head">';
+  ch += '<div class="cs-section-eyebrow">What to notice</div>';
+  ch += '<button type="button" class="cs-section-action" onclick="openAddWatchModal()">';
+  ch += '<i data-lucide="plus" style="width:13px;height:13px;"></i><span>Tell Wellet what to notice</span>';
+  ch += '</button>';
+  ch += '</div>';
+  ch += (typeof _renderWatchesSectionHtml === 'function')
+    ? _renderWatchesSectionHtml(watches, demoName)
+    : '';
+  ch += '</section>';
+
+  // \u2500\u2500 2. From your chart (EHR trends) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  // For demo we build a lightweight static "From your chart" section using
+  // DEMO_EHR_DATA instead of calling the async _loadEhrTrends() edge function.
+  if (demoEhrTrends && (demoEhrTrends.meds.length > 0 || demoEhrTrends.conditions.length > 0)) {
+    ch += '<section class="cs-section cs-section--ehr-trends">';
+    ch += '<div class="cs-section-eyebrow">From ' + escHtml(demoName) + '\u2019s chart</div>';
+    // Active medications mini-list
+    if (demoEhrTrends.meds.length > 0) {
+      ch += '<div class="cs-ehr-card">';
+      ch += '<div class="cs-ehr-card-title"><i data-lucide="pill" style="width:14px;height:14px;color:var(--amber);"></i> Active medications from EHR</div>';
+      ch += '<div class="cs-ehr-card-body">';
+      demoEhrTrends.meds.slice(0, 4).forEach(function(m) {
+        ch += '<div class="cs-ehr-med-row">'
+          + '<span class="cs-ehr-med-name">' + escHtml(m.name || '') + '</span>'
+          + (m.dosage ? '<span class="cs-ehr-med-dose">' + escHtml(m.dosage) + '</span>' : '')
+          + '</div>';
+      });
+      ch += '</div></div>';
     }
-    html += '</div></div></div>';
-  }
-  html += '</div>';
-
-  // Adherence signal card
-  if (cabinetHour >= 0) {
-    html += '<div class="adherence-signal">';
-    html += '<i data-lucide="check-circle"></i>';
-    html += '<div class="adherence-signal-text">Medicine cabinet opened at ' + escHtml(cabinetTimeStr) + ' \u2014 matches morning medication window</div>';
-    html += '</div>';
-  }
-
-  // Weekly adherence chart
-  html += '<div class="signals-card" style="margin-top:10px;">';
-  html += '<div class="signals-label">Weekly Adherence</div>';
-  html += '<div class="adherence-chart">';
-  for (var ai = 0; ai < data.weeklyAdherence.length; ai++) {
-    var pct = data.weeklyAdherence[ai];
-    var barH = Math.max(4, pct / 100 * 48);
-    var barClass = 'adherence-bar';
-    if (pct === 100) barClass += ' adherence-bar--full';
-    else if (pct > 0) barClass += ' adherence-bar--partial';
-    else barClass += ' adherence-bar--zero';
-    html += '<div class="adherence-bar-wrap">';
-    html += '<div class="' + barClass + '" style="height:' + barH + 'px"></div>';
-    html += '<div class="adherence-day">' + dayNames[ai] + '</div>';
-    html += '</div>';
-  }
-  html += '</div></div>';
-  html += '</div>';
-
-  // ── Section 2: Wearable Data ──────────────────────────────────────────
-  var w = data.wearable;
-  html += '<div class="signals-section">';
-  html += '<div class="signals-section-title">' + escHtml(w.device) + ' \u00b7 ' + escHtml(w.personName) + '<span class="wearable-sync">' + escHtml(w.lastSync) + '</span></div>';
-  html += '<div class="signals-section-sub">via Health Sharing</div>';
-  html += '<div class="wearable-grid">';
-
-  // Heart rate card
-  html += '<div class="wearable-card">';
-  html += '<div class="signals-label">' + t('signals.heartRate') + '</div>';
-  html += '<div class="signals-metric">' + w.heartRate.current + ' <span style="font-size:var(--type-body);font-weight:400;color:var(--text-secondary);">bpm</span></div>';
-  html += '<div class="wearable-sparkline">' + buildSparkline(w.heartRate.trend, 120, 28, 'var(--signal-warm)') + '</div>';
-  html += '<div class="signals-metric-sm">' + w.heartRate.min + '\u2013' + w.heartRate.max + ' today</div>';
-  html += '</div>';
-
-  // Steps card
-  var stepsPct = Math.round(w.steps.today / w.steps.goal * 100);
-  html += '<div class="wearable-card">';
-  html += '<div class="signals-label">' + t('signals.steps') + '</div>';
-  html += '<div class="signals-metric">' + w.steps.today.toLocaleString() + '</div>';
-  html += '<div class="progress-ring-wrap">';
-  html += buildProgressRing(stepsPct, 40, 'var(--moss)');
-  html += '<div class="progress-ring-label">' + stepsPct + '% of goal</div>';
-  html += '</div>';
-  html += '</div>';
-
-  // Sleep card
-  var sleepH = Math.floor(w.sleep.total / 60);
-  var sleepM = w.sleep.total % 60;
-  html += '<div class="wearable-card">';
-  html += '<div class="signals-label">' + t('signals.sleep') + '</div>';
-  html += '<div class="signals-metric">' + sleepH + 'h ' + sleepM + 'm</div>';
-  html += buildSleepBar(w.sleep);
-  html += '<div class="signals-metric-sm">' + escHtml(w.sleep.bedTime) + ' \u2013 ' + escHtml(w.sleep.wakeTime) + '</div>';
-  html += '</div>';
-
-  // Blood oxygen card
-  html += '<div class="wearable-card">';
-  html += '<div class="signals-label">' + t('signals.bloodOxygen') + '</div>';
-  html += '<div class="signals-metric">' + w.spo2.current + '<span style="font-size:var(--type-body);font-weight:400;">%</span></div>';
-  html += '<div style="display:flex;align-items:center;gap:4px;margin-top:4px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--moss);display:inline-block;"></span><span class="signals-metric-sm">' + w.spo2.min + '\u2013' + w.spo2.max + '% range</span></div>';
-  html += '</div>';
-
-  html += '</div>';
-
-  // Trend alert
-  html += '<div class="trend-alert">';
-  html += '<div class="trend-alert-title"><i data-lucide="trending-up"></i>Resting heart rate trending up</div>';
-  html += '<div class="trend-alert-body">Resting heart rate has increased 8 bpm over the last 2 weeks (56 \u2192 64 bpm). This could reflect medication changes, reduced activity, or stress. Worth noting at the next appointment.</div>';
-  html += '</div>';
-
-  html += '</div>';
-
-  // ── Section 3: Home Sensors ───────────────────────────────────────────
-  html += '<div class="signals-section">';
-  html += '<div class="signals-section-title">Home Sensors</div>';
-  html += '<div class="signals-section-sub">Zigbee \u00b7 ' + data.sensors.length + ' devices</div>';
-  html += '<div class="signals-card">';
-  for (var sei = 0; sei < data.sensors.length; sei++) {
-    var s = data.sensors[sei];
-    html += '<div class="sensor-item">';
-    html += '<div class="sensor-icon-wrap"><i data-lucide="' + escHtml(s.icon) + '"></i></div>';
-    html += '<div class="sensor-info">';
-    html += '<div class="sensor-name">' + escHtml(s.name) + '</div>';
-    html += '<div class="sensor-detail">Last: ' + escHtml(s.lastEvent) + ' \u00b7 ' + s.eventsToday + ' event' + (s.eventsToday !== 1 ? 's' : '') + ' today</div>';
-    html += '</div>';
-    html += '<div class="sensor-status"></div>';
-    html += '</div>';
-  }
-  html += '</div>';
-
-  // Daily routine timeline
-  html += '<div class="signals-card" style="margin-top:10px;">';
-  html += '<div class="signals-label">Today\u2019s Activity</div>';
-  html += '<div class="signals-timeline">';
-  for (var tli = 0; tli < data.timeline.length; tli++) {
-    var ev = data.timeline[tli];
-    var hlClass = ev.highlight ? ' tl-event--highlight' : '';
-    html += '<div class="tl-event' + hlClass + '">';
-    html += '<div class="tl-dot" aria-hidden="true"></div>';
-    html += '<div class="tl-time">' + escHtml(ev.time) + '</div>';
-    html += '<div class="tl-desc"><i data-lucide="' + escHtml(ev.icon) + '"></i>' + escHtml(ev.event);
-    if (ev.note) html += ' <span style="color:var(--text-muted);font-size:var(--type-micro);">(' + escHtml(ev.note) + ')</span>';
-    html += '</div>';
-    html += '</div>';
-  }
-  html += '</div></div>';
-  html += '</div>';
-
-  // ── Section 4: Pattern Detection ──────────────────────────────────────
-  html += '<div class="signals-section">';
-  html += '<div class="signals-section-title">Patterns</div>';
-  html += '<div class="signals-section-sub">AI analysis across all signals</div>';
-  for (var pi = 0; pi < data.patterns.length; pi++) {
-    var p = data.patterns[pi];
-    html += '<div class="pattern-card pattern-card--' + escHtml(p.accent) + '">';
-    // L1 v1: "Recurring" eyebrow flags patterns that span multiple days
-    if (p.recurring) {
-      html += '<div class="pattern-eyebrow">RECURRING \u00B7 WELLET NOTICED</div>';
+    // Active conditions mini-list
+    if (demoEhrTrends.conditions.length > 0) {
+      ch += '<div class="cs-ehr-card" style="margin-top:10px;">';
+      ch += '<div class="cs-ehr-card-title"><i data-lucide="heart-pulse" style="width:14px;height:14px;color:var(--moss);"></i> Active conditions from EHR</div>';
+      ch += '<div class="cs-ehr-card-body">';
+      demoEhrTrends.conditions.slice(0, 4).forEach(function(c) {
+        ch += '<div class="cs-ehr-med-row">'
+          + '<span class="cs-ehr-med-name">' + escHtml(c.name || '') + '</span>'
+          + (c.status ? '<span class="cs-ehr-med-dose">' + escHtml(c.status) + '</span>' : '')
+          + '</div>';
+      });
+      ch += '</div></div>';
     }
-    html += '<div class="pattern-title"><i data-lucide="' + escHtml(p.icon) + '"></i>' + escHtml(p.title) + '</div>';
-    html += '<div class="pattern-body">' + escHtml(p.body) + '</div>';
-    html += '<div class="pattern-sources">';
-    for (var psi = 0; psi < p.sources.length; psi++) {
-      html += '<span class="pattern-source">' + escHtml(p.sources[psi]) + '</span>';
-    }
-    html += '</div></div>';
+    ch += '</section>';
   }
-  html += '</div>';
 
-  html += '</div>';
+  // \u2500\u2500 3. This week\u2019s rhythm (wearable) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  // Use the legacy wearable grid section which has the demo Apple Watch data.
+  var w = data && data.wearable ? data.wearable : null;
+  if (w) {
+    ch += '<section class="cs-section cs-section--rhythm">';
+    ch += '<div class="cs-section-eyebrow">This week\u2019s rhythm</div>';
+    ch += '<div class="wearable-grid">';
+    // Heart rate card
+    if (w.heartRate) {
+      ch += '<div class="wearable-card">';
+      ch += '<div class="signals-label">' + (typeof t === 'function' ? t('signals.heartRate') : 'Heart rate') + '</div>';
+      ch += '<div class="signals-metric">' + escHtml(String(w.heartRate.current)) + ' <span style="font-size:var(--type-body);font-weight:400;color:var(--text-secondary);">bpm</span></div>';
+      if (w.heartRate.trend && typeof buildSparkline === 'function') {
+        ch += '<div class="wearable-sparkline">' + buildSparkline(w.heartRate.trend, 120, 28, 'var(--signal-warm)') + '</div>';
+      }
+      ch += '<div class="signals-metric-sm">' + w.heartRate.min + '\u2013' + w.heartRate.max + ' today</div>';
+      ch += '</div>';
+    }
+    // Steps card
+    if (w.steps) {
+      var stepsPct = Math.round(w.steps.today / w.steps.goal * 100);
+      ch += '<div class="wearable-card">';
+      ch += '<div class="signals-label">' + (typeof t === 'function' ? t('signals.steps') : 'Steps') + '</div>';
+      ch += '<div class="signals-metric">' + w.steps.today.toLocaleString() + '</div>';
+      if (typeof buildProgressRing === 'function') {
+        ch += '<div class="progress-ring-wrap">';
+        ch += buildProgressRing(stepsPct, 40, 'var(--moss)');
+        ch += '<div class="progress-ring-label">' + stepsPct + '% of goal</div>';
+        ch += '</div>';
+      }
+      ch += '</div>';
+    }
+    // Sleep card
+    if (w.sleep) {
+      var sleepH = Math.floor(w.sleep.total / 60);
+      var sleepM = w.sleep.total % 60;
+      ch += '<div class="wearable-card">';
+      ch += '<div class="signals-label">' + (typeof t === 'function' ? t('signals.sleep') : 'Sleep') + '</div>';
+      ch += '<div class="signals-metric">' + sleepH + 'h ' + sleepM + 'm</div>';
+      if (typeof buildSleepBar === 'function') ch += buildSleepBar(w.sleep);
+      ch += '</div>';
+    }
+    ch += '</div></section>';
+  }
 
-  el.innerHTML = html;
-  initIcons();
+  // \u2500\u2500 4. Care circle check-ins \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  ch += '<section class="cs-section cs-section--circle">';
+  ch += '<div class="cs-section-eyebrow">Care circle check-ins</div>';
+  ch += (typeof _renderCircleSectionHtml === 'function')
+    ? _renderCircleSectionHtml(checkIns, demoName)
+    : '';
+  ch += '</section>';
+
+  // \u2500\u2500 5. Wearables & devices \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  // Show a static demo device card (Apple Watch) to illustrate the connection UI.
+  ch += '<section class="cs-section cs-section--devices">';
+  ch += '<div class="cs-section-eyebrow">Wearables &amp; devices</div>';
+  ch += '<div class="cs-device-card">';
+  ch += '<div class="cs-device-card-top">';
+  ch += '<i data-lucide="watch" style="width:20px;height:20px;color:var(--moss);"></i>';
+  ch += '<div class="cs-device-card-meta">';
+  ch += '<div class="cs-device-card-name">Apple Watch</div>';
+  ch += '<div class="cs-device-card-sub">via Health Sharing \u00b7 Synced 8 min ago</div>';
+  ch += '</div>';
+  ch += '<span class="cs-device-card-status">Connected</span>';
+  ch += '</div></div>';
+  ch += '</section>';
+
+  ch += '</div>'; // .signals-view
+
+  el.innerHTML = ch;
+  if (typeof initIcons === 'function') initIcons();
+}
 }
 
 // Load cached EHR data from localStorage
@@ -21138,6 +21103,7 @@ function switchNavTo(view, skipPush) {
   document.getElementById('header-tab-bar').style.display = isHome ? 'flex' : 'none';
   if (view === 'signals') { renderSignalsView(); }
   if (view === 'resources') { renderResourcesView(); }
+  if (view === 'records') { try { renderRecordsView(); } catch(_e) {} }
   if (view === 'people' && !isDemoMode) { renderPeopleView(); }
   if (view === 'ask' && !isDemoMode) { renderAskView(); }
   if (view === 'settings') {
@@ -29492,6 +29458,10 @@ async function renderWishesList(personId) {
 
   if (isDemoMode) {
     voiceWishes = _demoWishesFor(personId);
+    // Show an AI-surfaced wish for Dad so reviewers see the full Wishes surface.
+    if (personId === 'dad' || personId === null || personId === undefined) {
+      if (typeof _demoAiWishForDad === 'function') aiWishes = [_demoAiWishForDad()];
+    }
   } else {
     try {
       var both = await Promise.all([
@@ -29737,13 +29707,18 @@ async function surfaceWishesFromRecords() {
 
 function _demoWishesFor(personId) {
   // Two soft wishes per demo person so reviewers see the feature populated.
+  // One AI-surfaced wish is included to show the wish-extraction feature.
   var now = Date.now();
   var d = function(daysAgo) { return new Date(now - daysAgo * 24 * 3600 * 1000).toISOString(); };
   if (personId === 'dad' || personId === null || personId === undefined) {
-    return [
+    // voiceWishes returned as document-shaped objects; aiWish matches the `wishes` table shape
+    var dadVoice = [
       { id: 'w-dad-1', document_type: 'wish', extraction_status: 'completed', uploaded_at: d(12), extracted_events: { transcript: 'He said again today: no more hospitals if it gets to that. He wants to be home, with the dog, with the windows open.' } },
       { id: 'w-dad-2', document_type: 'wish', extraction_status: 'completed', uploaded_at: d(34), extracted_events: { transcript: 'Wants Joanne to make medical decisions, not the kids. He was very clear about it.' } }
     ];
+    // _renderWishesList merges voice + ai rows by kind; return voice wishes only from this
+    // function. The AI wish is injected directly inside renderWishesList for demo mode.
+    return dadVoice;
   }
   if (personId === 'mom') {
     return [
@@ -29751,6 +29726,23 @@ function _demoWishesFor(personId) {
     ];
   }
   return [];
+}
+
+// AI-surfaced demo wish — shown for Dad to demonstrate the AI wish-extraction feature.
+// Shape matches the `wishes` table (used by _renderAiWishRow).
+function _demoAiWishForDad() {
+  var now = Date.now();
+  var d = function(daysAgo) { return new Date(now - daysAgo * 24 * 3600 * 1000).toISOString(); };
+  return {
+    id: 'w-dad-ai-1',
+    content: 'No aggressive interventions. He wants comfort care if the CML progresses beyond remission.',
+    category: 'end_of_life',
+    source_type: 'ai_extracted',
+    source_quote: 'I’ve had a good run. If the leukemia comes back hard, I don’t want them doing heroics.',
+    confidence: 'high',
+    status: 'suggested',
+    created_at: d(7)
+  };
 }
 
 // ── WISH RECORDING ───────────────────────────────────────────────────────────

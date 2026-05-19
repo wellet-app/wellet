@@ -33,7 +33,7 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
         enterDemoMode();
         switchNavTo('home');
         document.querySelectorAll('.tab')[0].click();
-        gdScrollTo('#tab-update .update-card', 200);
+        gdScrollTo('#tab-update .update-summary-card', 200);
       }
     },
     // 2 — Summary highlight
@@ -44,8 +44,8 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
       action: function() {
         switchNavTo('home');
         document.querySelectorAll('.tab')[0].click();
-        gdHighlight('#tab-update .update-card');
-        gdScrollTo('#tab-update .update-card', 100);
+        gdHighlight('#tab-update .update-summary-card');
+        gdScrollTo('#tab-update .update-summary-card', 100);
       }
     },
     // 3 — Timeline
@@ -257,7 +257,7 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
       + '  <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);">AI health summaries</span>'
       + '  <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);">EHR integration</span>'
       + '  <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);">Wearable rhythm</span>'
-      + '  <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);">Home sensors</span>'
+      + '  <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);">CareSignals</span>'
       + '  <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);">HIPAA compliant</span>'
       + '</div>';
     document.body.appendChild(ec);
