@@ -95,7 +95,9 @@ Deno.serve(async (req) => {
         language: "en",
       };
       if (lockedProvider) {
-        terraPayload.providers = [String(lockedProvider).toUpperCase()];
+        // Terra wants a comma-separated STRING, not an array.
+        // (Passing an array makes Terra's API return 500 instead of using it.)
+        terraPayload.providers = String(lockedProvider).toUpperCase();
       }
 
       const terraRes = await fetch("https://api.tryterra.co/v2/auth/generateWidgetSession", {
