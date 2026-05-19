@@ -5219,21 +5219,26 @@ function _rdConditionsContent(ehrConditions, ehrData, ehrProvider) {
     + condActive.length+' active \u00B7 '+condPrev.length+' preventive \u00B7 '+condResolved.length+' historical'+'</div>';
 
   function condRow(c, idx, pfx) {
-    var did = 'cond-'+pfx+'-'+idx;
+    // Tap → open the full detail screen (onset, recorded, status, related
+    // visits, care team chip, and the five public-data tiles: clinical trials,
+    // FDA treatments, centers of excellence, advocacy groups, research papers).
+    // Previously this row just toggled an inline expand/collapse — so taps
+    // never reached openConditionDetail() and none of the tiles ever rendered.
+    // The .condition-card class is kept so attachAskLongPressAll() still binds
+    // long-press → Ask Wellet with kind='condition' (see L5050).
+    var refId = c.id || '';
     var badge = c.status==='active'
       ? '<span class="record-badge amber">Active</span>'
       : '<span class="record-badge moss">'+escHtml(c.status||'Recorded')+'</span>';
-    var meta = [];
-    if (c.onset_date)    meta.push('Onset: '+formatEventDate(c.onset_date));
-    if (c.recorded_date) meta.push('Recorded: '+formatEventDate(c.recorded_date));
-    if (c.code)          meta.push('Code: '+escHtml(c.code));
-    if (c.status)        meta.push('Status: '+escHtml(c.status));
-    return '<div class="record-row" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\''+did+'\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
+    var onclickAttr = refId
+      ? 'onclick="openConditionDetail(\''+refId.replace(/'/g, "\\'")+'\')"'
+      : 'onclick="openRecordsDetail(\'conditions\')"';
+    return '<div class="record-row condition-card" style="cursor:pointer;" '+onclickAttr+'>'
       + '<div class="record-icon moss"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>'
       + '<div style="flex:1;"><div class="record-label">'+escHtml(c.name)+'</div>'
       + '<div class="record-meta">'+(c.onset_date?'Since '+formatEventDate(c.onset_date):(c.recorded_date?formatEventDate(c.recorded_date):''))+'</div></div>'
       + badge
-      + (meta.length?'<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.6;">'+meta.join('<br>')+'</div>':'')
+      + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);flex-shrink:0;margin-left:6px;"></i>'
       + '</div>';
   }
 
@@ -6096,6 +6101,8 @@ function openRecordsDetail(section) {
         var m = /^Status:\s*(.+)$/i.exec(notes);
         if (m) status = (m[1] || '').trim().toLowerCase();
         return {
+          // Stable id so openConditionDetail() can look this row up by refId.
+          id: e.ref_id || e._refId || e.id || '',
           name: e.title || '',
           code: '',
           status: status,
@@ -7929,6 +7936,8 @@ function renderRecordsView() {
         var m = /^Status:\s*(.+)$/i.exec(notes);
         if (m) status = (m[1] || '').trim().toLowerCase();
         return {
+          // Stable id so openConditionDetail() can look this row up by refId.
+          id: e.ref_id || e._refId || e.id || '',
           name: e.title || '',
           code: '',
           status: status,
@@ -16533,6 +16542,11 @@ function promptNewRecordsWatchOptIn(personId, hospitalName) {
           body: JSON.stringify({
             person_id: personId,
             watch_type: 'new_record_arrived',
+            // create-care-signal-watch v7 requires a non-empty description.
+            // The hospital name gives the caregiver a recognisable label in
+            // the Settings list later ("New records at Duke Health").
+            description: 'Notify me when new records arrive'
+              + (hospitalName ? ' at ' + hospitalName : ''),
             parameters: { kinds: ['lab', 'visit', 'imaging', 'discharge', 'medication'] }
           })
         }
