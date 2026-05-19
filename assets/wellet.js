@@ -435,12 +435,18 @@ function openSendConnectLinkModal(opts) {
   sheet.className = 'sheet';
   sheet.style.cssText = 'background:white;border-radius:20px 20px 0 0;width:100%;max-width:520px;padding:24px 20px 32px;box-shadow:0 -8px 24px rgba(0,0,0,0.15);';
 
-  var sourceLabel = (dataSource === 'ehr')
-    ? (hospitalName ? (hospitalName + ' chart') : 'their hospital chart')
-    : 'Apple Health';
-  var explainer = (dataSource === 'ehr')
-    ? ('You\u2019ll get a notification the moment ' + escHtml(firstName) + ' signs in to ' + escHtml(sourceLabel) + ' and shares with you. Nothing happens on their side until they say yes.')
-    : ('We\u2019ll text ' + escHtml(firstName) + ' a link. They\u2019ll tap once to share Apple Health from their iPhone. You\u2019ll get a notification when it\u2019s done.');
+  var sourceLabel;
+  var explainer;
+  if (dataSource === 'ehr') {
+    sourceLabel = hospitalName ? (hospitalName + ' chart') : 'their hospital chart';
+    explainer = 'You\u2019ll get a notification the moment ' + escHtml(firstName) + ' signs in to ' + escHtml(sourceLabel) + ' and shares with you. Nothing happens on their side until they say yes.';
+  } else if (dataSource === 'wearable') {
+    sourceLabel = 'their wearable';
+    explainer = 'We\u2019ll text ' + escHtml(firstName) + ' a link. They\u2019ll pick their tracker \u2014 Fitbit, Garmin, Oura, Whoop, or Withings \u2014 and tap once to share. You\u2019ll see the first records as soon as they connect.';
+  } else {
+    sourceLabel = 'Apple Health';
+    explainer = 'We\u2019ll text ' + escHtml(firstName) + ' a link. They\u2019ll tap once to share Apple Health from their iPhone. You\u2019ll get a notification when it\u2019s done.';
+  }
 
   sheet.innerHTML =
     '<div style="font-family:var(--serif);font-size:var(--type-h2);margin-bottom:6px;color:var(--text-primary);">Send ' + escHtml(firstName) + ' a connect link</div>'
@@ -473,6 +479,8 @@ function openSendConnectLinkModal(opts) {
       };
       if (dataSource === 'ehr' && hospitalName) payload.hospital_name = hospitalName;
       if (dataSource === 'ehr' && opts.fhirBaseUrl) payload.fhir_base_url = opts.fhirBaseUrl;
+      // For 'wearable' the loved one picks the provider (Fitbit/Garmin/Oura/Whoop/Withings)
+      // inside the dsinvite landing — we send the invite open-ended.
       var res = await fetch(SUPABASE_URL + '/functions/v1/data-source-invite', {
         method: 'POST',
         headers: {
@@ -525,9 +533,10 @@ async function renderDsInvitePending(personId) {
 
     var html = '';
     pending.forEach(function (inv) {
-      var sourceLabel = (inv.data_source === 'ehr')
-        ? (inv.hospital_name || 'hospital chart')
-        : 'Apple Health';
+      var sourceLabel;
+      if (inv.data_source === 'ehr') sourceLabel = inv.hospital_name || 'hospital chart';
+      else if (inv.data_source === 'wearable') sourceLabel = 'their wearable';
+      else sourceLabel = 'Apple Health';
       var sentRel = _relativeTime(inv.created_at);
       html += '<div class="ds-invite-pending" style="background:var(--cream);border:1px solid rgba(0,0,0,0.06);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;margin:8px 0;">'
         + '<div style="width:32px;height:32px;border-radius:50%;background:white;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="clock" style="width:16px;height:16px;color:var(--moss);"></i></div>'
@@ -14845,6 +14854,13 @@ function updateProfileEhr(personId) {
         + 'style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:10px;padding:12px 14px;border:1px solid var(--border, #E5E5E7);background:#FFF;color:var(--text, #111);border-radius:12px;font-size:var(--type-body, 15px);font-weight:500;cursor:pointer;">'
         + '<i data-lucide="message-square" style="width:16px;height:16px;"></i>'
         + 'Text ' + escHtml(_firstName) + ' a connect link'
+        + '</button>';
+      // Wearable invite — Fitbit/Garmin/Oura/Whoop/Withings. Loved one picks
+      // their tracker on the dsinvite landing; provider is set at consume.
+      html += '<button class="ds-invite-send-btn ds-invite-wearable-btn" onclick="event.stopPropagation();openSendConnectLinkModal({personId:\'' + escAttr(pid) + '\', dataSource:\'wearable\'})" '
+        + 'style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:8px;padding:12px 14px;border:1px solid var(--border, #E5E5E7);background:#FFF;color:var(--text, #111);border-radius:12px;font-size:var(--type-body, 15px);font-weight:500;cursor:pointer;">'
+        + '<i data-lucide="watch" style="width:16px;height:16px;"></i>'
+        + 'Text ' + escHtml(_firstName) + ' a wearable invite'
         + '</button>';
       html += '<div id="ds-invite-pending-host-' + escAttr(pid) + '" style="margin-top:10px;"></div>';
     }

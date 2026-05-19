@@ -9,10 +9,16 @@
  *   - body: weight, body fat, height → vitals
  *   - daily: resting HR, HRV, SpO2, steps summary → vitals + health_events
  *   - sleep: sleep stages, duration → health_events
- *   - auth events: user_auth, deauth → terra_connections status updates
+ *   - user_auth: NEW connection completed via Terra widget → create terra_connections row
+ *                If reference_id starts with "invite:", consume the dsinvite + notify caregiver
+ *   - user_reauth, deauth/auth_revoked: connection status updates
  *
  * All data is mapped to Wellet's existing vitals + health_events tables
  * with source='terra' and ehr_system='terra_{provider}'.
+ *
+ * 2026-05-18 v19: TERRA_WEBHOOK_SECRET confirmed working via signed test.
+ * Removed invite-bypass — HMAC verification is now enforced for ALL deliveries
+ * including invite-driven user_auth. Terra signs every webhook, so this is safe.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -28,7 +34,6 @@ async function verifyTerraSignature(
 ): Promise<boolean> {
   if (!signatureHeader || !secret) return false;
 
-  // Parse header: t=<timestamp>,v1=<signature>
   const parts: Record<string, string> = {};
   for (const pair of signatureHeader.split(",")) {
     const [key, val] = pair.split("=", 2);
@@ -39,11 +44,9 @@ async function verifyTerraSignature(
   const signature = parts["v1"];
   if (!timestamp || !signature) return false;
 
-  // Check timestamp freshness (5 minute tolerance)
   const now = Math.floor(Date.now() / 1000);
   if (Math.abs(now - parseInt(timestamp, 10)) > 300) return false;
 
-  // Compute expected HMAC
   const signedPayload = timestamp + "." + rawBody;
   const key = await crypto.subtle.importKey(
     "raw",
@@ -57,7 +60,6 @@ async function verifyTerraSignature(
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 
-  // Constant-time comparison
   if (expected.length !== signature.length) return false;
   let diff = 0;
   for (let i = 0; i < expected.length; i++) {
@@ -117,7 +119,6 @@ function mapDailyData(
     new Date().toISOString();
   const ehrSystem = "terra_" + provider;
 
-  // Heart rate
   const hrData = data.heart_rate_data as Record<string, unknown> | undefined;
   if (hrData) {
     const summary = hrData.summary as Record<string, number> | undefined;
@@ -147,7 +148,6 @@ function mapDailyData(
     }
   }
 
-  // HRV
   const hrvData = data.heart_rate_variability_data as Record<string, unknown> | undefined;
   if (hrvData) {
     const hrvSummary = hrvData.summary as Record<string, number> | undefined;
@@ -165,7 +165,6 @@ function mapDailyData(
     }
   }
 
-  // SpO2
   const oxyData = data.oxygen_data as Record<string, unknown> | undefined;
   if (oxyData) {
     const avgSat = (oxyData as Record<string, number>).avg_saturation_percentage;
@@ -183,7 +182,6 @@ function mapDailyData(
     }
   }
 
-  // Steps
   const steps = data.steps as number | undefined;
   if (steps && steps > 0) {
     events.push({
@@ -197,7 +195,6 @@ function mapDailyData(
     });
   }
 
-  // Distance
   const distData = data.distance_data as Record<string, unknown> | undefined;
   if (distData) {
     const distSummary = distData.summary as Record<string, number> | undefined;
@@ -215,7 +212,6 @@ function mapDailyData(
     }
   }
 
-  // Calories
   const calData = data.calories_data as Record<string, unknown> | undefined;
   if (calData) {
     const netCal = (calData as Record<string, number>).net_activity_calories;
@@ -271,13 +267,11 @@ function mapSleepData(
     new Date().toISOString();
   const ehrSystem = "terra_" + provider;
 
-  // Total sleep duration
   const sleepDurations = data.sleep_durations_data as Record<string, unknown> | undefined;
   if (sleepDurations) {
     const asleep = sleepDurations.asleep as Record<string, number> | undefined;
     const other = sleepDurations.other as Record<string, number> | undefined;
 
-    // Total duration
     const totalSeconds = (asleep?.duration_asleep_state_seconds || 0) +
       (asleep?.duration_deep_sleep_state_seconds || 0) +
       (asleep?.duration_REM_sleep_state_seconds || 0) +
@@ -295,7 +289,6 @@ function mapSleepData(
       });
     }
 
-    // Individual stages
     if (asleep?.duration_deep_sleep_state_seconds && asleep.duration_deep_sleep_state_seconds > 0) {
       events.push({
         person_id: personId,
@@ -319,7 +312,6 @@ function mapSleepData(
       });
     }
 
-    // Awake time
     if (other?.duration_awake_state_seconds && other.duration_awake_state_seconds > 0) {
       events.push({
         person_id: personId,
@@ -348,17 +340,14 @@ function mapActivityData(
   const ehrSystem = "terra_" + provider;
   const activityName = metadata?.name || "Workout";
 
-  // Duration
   const activeDurations = data.active_durations_data as Record<string, number> | undefined;
   const activitySeconds = activeDurations?.activity_seconds || 0;
   const durationStr = activitySeconds > 0 ? " (" + secondsToHm(activitySeconds) + ")" : "";
 
-  // Calories
   const calData = data.calories_data as Record<string, number> | undefined;
   const calories = calData?.net_activity_calories || 0;
   const calStr = calories > 0 ? " · " + Math.round(calories) + " kcal" : "";
 
-  // Distance
   const distData = data.distance_data as Record<string, unknown> | undefined;
   const distSummary = distData?.summary as Record<string, number> | undefined;
   const meters = distSummary?.distance_meters || 0;
@@ -374,7 +363,6 @@ function mapActivityData(
     export_job_id: null,
   });
 
-  // Heart rate during workout
   const hrData = data.heart_rate_data as Record<string, unknown> | undefined;
   if (hrData) {
     const hrSummary = hrData.summary as Record<string, number> | undefined;
@@ -395,10 +383,113 @@ function mapActivityData(
   return { vitals, events };
 }
 
+// ── user_auth handler (invite-aware) ────────────────────────────────────────
+// Handles the user_auth payload Terra sends when a user completes the widget.
+// If reference_id starts with "invite:", we link the new connection to the
+// caregiver from the dsinvite + fire the consume notification.
+
+async function handleUserAuth(
+  payload: Record<string, unknown>,
+  db: ReturnType<typeof createClient>,
+): Promise<{ ok: boolean; note: string }> {
+  const user = payload.user as Record<string, string> | undefined;
+  const terraUserId = user?.user_id;
+  const provider = user?.provider || "unknown";
+  const referenceId = (user?.reference_id as string) || (payload.reference_id as string) || "";
+
+  if (!terraUserId) {
+    return { ok: false, note: "no terra_user_id" };
+  }
+
+  // INVITE-DRIVEN auth
+  if (referenceId.startsWith("invite:")) {
+    const token = referenceId.slice("invite:".length);
+    if (!token) return { ok: false, note: "empty invite token" };
+
+    const { data: invite, error: invErr } = await db
+      .from("data_source_invites")
+      .select("id, token, data_source, caregiver_user_id, person_id, consumed_at, expires_at, wearable_provider")
+      .eq("token", token)
+      .single();
+
+    if (invErr || !invite) {
+      console.warn("terra-webhook user_auth: invite not found for token=" + token);
+      return { ok: false, note: "invite not found" };
+    }
+
+    if (invite.data_source !== "wearable") {
+      return { ok: false, note: "invite is not wearable" };
+    }
+
+    // Upsert the terra_connections row, owned by the caregiver
+    const { error: connErr } = await db
+      .from("terra_connections")
+      .upsert(
+        {
+          user_id: invite.caregiver_user_id,
+          person_id: invite.person_id,
+          terra_user_id: terraUserId,
+          provider: provider,
+          status: "active",
+          connected_at: new Date().toISOString(),
+          disconnected_at: null,
+        },
+        { onConflict: "terra_user_id" },
+      );
+
+    if (connErr) {
+      console.error("terra-webhook user_auth: terra_connections upsert failed:", connErr.message);
+      return { ok: false, note: "connection upsert failed: " + connErr.message };
+    }
+
+    // Mark the invite consumed + fire caregiver notification via data-source-invite
+    // We call the edge fn with the service-role JWT so it runs as a trusted server.
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    try {
+      const consumeRes = await fetch(supabaseUrl + "/functions/v1/data-source-invite", {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + serviceKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "consume",
+          token: token,
+          wearable_provider: provider,
+          terra_user_id: terraUserId,
+        }),
+      });
+      if (!consumeRes.ok) {
+        const errText = await consumeRes.text();
+        console.warn("terra-webhook user_auth: consume failed:", consumeRes.status, errText);
+        // Fall back: mark consumed inline so it can't be replayed
+        await db
+          .from("data_source_invites")
+          .update({ consumed_at: new Date().toISOString(), wearable_provider: provider })
+          .eq("id", invite.id);
+        return { ok: true, note: "connection created; consume edge fn failed; marked consumed inline" };
+      }
+    } catch (e) {
+      console.warn("terra-webhook user_auth: consume call threw:", String(e));
+      await db
+        .from("data_source_invites")
+        .update({ consumed_at: new Date().toISOString(), wearable_provider: provider })
+        .eq("id", invite.id);
+      return { ok: true, note: "connection created; consume threw; marked consumed inline" };
+    }
+
+    return { ok: true, note: "invite-driven connection created for caregiver=" + invite.caregiver_user_id };
+  }
+
+  // IN-APP auth — reference_id is "{user_id}:{person_id}" (handled client-side via terra-auth store action)
+  // Nothing to do here — the client calls store after widget completion.
+  return { ok: true, note: "in-app auth, no-op (client handles store)" };
+}
+
 // ── Main Handler ────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
-  // CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", {
       headers: {
@@ -419,10 +510,9 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: "Server misconfigured" }), { status: 500 });
   }
 
-  // Read raw body for HMAC verification
   const rawBody = await req.text();
 
-  // Verify HMAC signature
+  // HMAC verification — enforced for ALL Terra deliveries (v19, secret confirmed 2026-05-18).
   const sigHeader = req.headers.get("terra-signature") || "";
   const verified = await verifyTerraSignature(rawBody, sigHeader, webhookSecret);
   if (!verified) {
@@ -444,9 +534,15 @@ Deno.serve(async (req) => {
 
   const payloadType = payload.type as string;
 
+  // ── user_auth (NEW: invite-driven branch) ───────────────────────────────
+  if (payloadType === "user_auth") {
+    const result = await handleUserAuth(payload, db);
+    console.log("Terra webhook: user_auth →", result);
+    return new Response(JSON.stringify({ success: result.ok, note: result.note }), { status: 200 });
+  }
+
   // ── Auth events ─────────────────────────────────────────────────────────
   if (payloadType === "user_reauth") {
-    // User reconnected — update status
     const terraUserId = (payload.user as Record<string, string>)?.user_id;
     if (terraUserId) {
       await db
@@ -469,7 +565,6 @@ Deno.serve(async (req) => {
   }
 
   // ── Data events ─────────────────────────────────────────────────────────
-  // Look up connection to find person_id
   const user = payload.user as Record<string, string> | undefined;
   const terraUserId = user?.user_id;
   const provider = user?.provider || "unknown";
@@ -492,10 +587,9 @@ Deno.serve(async (req) => {
   }
 
   const personId = conn.person_id;
-  let allVitals: VitalRow[] = [];
-  let allEvents: EventRow[] = [];
+  const allVitals: VitalRow[] = [];
+  const allEvents: EventRow[] = [];
 
-  // Process data array (Terra sends array of data objects)
   const dataArray = (payload.data || []) as Record<string, unknown>[];
   for (const item of dataArray) {
     if (payloadType === "daily" || payloadType === "daily_summary") {
@@ -515,19 +609,16 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Batch insert vitals
   if (allVitals.length > 0) {
     const { error: vErr } = await db.from("vitals").insert(allVitals);
     if (vErr) console.error("Terra webhook: vitals insert error:", vErr.message);
   }
 
-  // Batch insert health events
   if (allEvents.length > 0) {
     const { error: eErr } = await db.from("health_events").insert(allEvents);
     if (eErr) console.error("Terra webhook: health_events insert error:", eErr.message);
   }
 
-  // Update last_data_at on the connection
   await db
     .from("terra_connections")
     .update({ last_data_at: new Date().toISOString() })

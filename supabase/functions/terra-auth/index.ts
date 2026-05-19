@@ -2,10 +2,18 @@
  * terra-auth — manages Terra API user authentication.
  *
  * Actions:
- *   generate  — creates a Terra widget session URL for wearable connection
- *   store     — saves the connection after successful widget auth
- *   list      — returns active connections for a person
- *   disconnect — deactivates a connection
+ *   generate              — creates a Terra widget session URL for wearable connection (in-app, requires JWT)
+ *   generate_from_invite  — creates a Terra widget session URL from a dsinvite token (no JWT — loved one may have no account)
+ *   store                 — saves the connection after successful widget auth (in-app)
+ *   list                  — returns active connections for a person
+ *   disconnect            — deactivates a connection
+ *
+ * reference_id format:
+ *   in-app:        "{user_id}:{person_id}"
+ *   invite-driven: "invite:{token}"
+ *
+ * terra-webhook parses reference_id on user_auth events to route the new
+ * terra_connections row to the right caregiver_user_id + person_id.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -25,13 +33,102 @@ Deno.serve(async (req) => {
     });
 
   try {
-    // Authenticate the caller
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const db = createClient(supabaseUrl, serviceKey);
+
+    const body = await req.json();
+    const { action } = body;
+
+    if (!action) {
+      return json({ error: "action required" }, 400);
+    }
+
+    // ============================================================
+    // generate_from_invite — NO JWT required (loved one may have no account)
+    // ============================================================
+    if (action === "generate_from_invite") {
+      const { invite_token, provider } = body;
+      if (!invite_token) {
+        return json({ error: "invite_token required" }, 400);
+      }
+
+      // Look up the invite row via service role
+      const { data: invite, error: inviteErr } = await db
+        .from("data_source_invites")
+        .select("id, token, data_source, caregiver_user_id, person_id, expires_at, consumed_at, wearable_provider")
+        .eq("token", invite_token)
+        .single();
+
+      if (inviteErr || !invite) {
+        return json({ error: "Invite not found" }, 404);
+      }
+
+      if (invite.data_source !== "wearable") {
+        return json({ error: "Invite is not for a wearable" }, 400);
+      }
+
+      if (invite.consumed_at) {
+        return json({ error: "Invite already consumed" }, 410);
+      }
+
+      if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
+        return json({ error: "Invite expired" }, 410);
+      }
+
+      const terraApiKey = Deno.env.get("TERRA_API_KEY");
+      const terraDevId = Deno.env.get("TERRA_DEV_ID");
+      if (!terraApiKey || !terraDevId) {
+        return json({ error: "Terra API not configured" }, 500);
+      }
+
+      // If a specific provider was passed (or the invite was created with a
+      // pre-picked provider), include it to skip Terra's own picker.
+      const lockedProvider = provider || invite.wearable_provider || null;
+
+      const terraPayload: Record<string, unknown> = {
+        reference_id: "invite:" + invite.token,
+        auth_success_redirect_url:
+          "https://mywellet.com/dsinvite?token=" + encodeURIComponent(invite.token) + "&terra_auth=success",
+        auth_failure_redirect_url:
+          "https://mywellet.com/dsinvite?token=" + encodeURIComponent(invite.token) + "&terra_auth=failure",
+        language: "en",
+      };
+      if (lockedProvider) {
+        terraPayload.providers = [String(lockedProvider).toUpperCase()];
+      }
+
+      const terraRes = await fetch("https://api.tryterra.co/v2/auth/generateWidgetSession", {
+        method: "POST",
+        headers: {
+          "dev-id": terraDevId,
+          "x-api-key": terraApiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(terraPayload),
+      });
+
+      if (!terraRes.ok) {
+        const errText = await terraRes.text();
+        console.error("Terra generateWidgetSession (invite) error:", terraRes.status, errText);
+        return json({ error: "Failed to create widget session" }, 502);
+      }
+
+      const terraData = await terraRes.json();
+      return json({
+        widget_url: terraData.url,
+        session_id: terraData.session_id,
+      });
+    }
+
+    // ============================================================
+    // All other actions require a JWT
+    // ============================================================
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return json({ error: "No authorization header" }, 401);
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const anonClient = createClient(
       supabaseUrl,
       Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -45,22 +142,13 @@ Deno.serve(async (req) => {
       return json({ error: "Unauthorized" }, 401);
     }
 
-    const db = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const { person_id } = body;
 
-    const body = await req.json();
-    const { action, person_id } = body;
-
-    if (!action) {
-      return json({ error: "action required" }, 400);
-    }
-
-    // ── Generate Widget Session ───────────────────────────────────────────
     if (action === "generate") {
       if (!person_id) {
         return json({ error: "person_id required" }, 400);
       }
 
-      // Verify the person belongs to this user
       const { data: person, error: personErr } = await db
         .from("people")
         .select("id")
@@ -78,7 +166,6 @@ Deno.serve(async (req) => {
         return json({ error: "Terra API not configured" }, 500);
       }
 
-      // Generate widget session via Terra API
       const terraRes = await fetch("https://api.tryterra.co/v2/auth/generateWidgetSession", {
         method: "POST",
         headers: {
@@ -107,14 +194,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── Store Connection ──────────────────────────────────────────────────
     if (action === "store") {
       const { terra_user_id, provider } = body;
       if (!person_id || !terra_user_id) {
         return json({ error: "person_id and terra_user_id required" }, 400);
       }
 
-      // Verify the person belongs to this user
       const { data: person, error: personErr } = await db
         .from("people")
         .select("id")
@@ -126,7 +211,6 @@ Deno.serve(async (req) => {
         return json({ error: "Person not found" }, 404);
       }
 
-      // Upsert connection (in case of reconnection)
       const { data: conn, error: connErr } = await db
         .from("terra_connections")
         .upsert(
@@ -152,7 +236,6 @@ Deno.serve(async (req) => {
       return json({ success: true, connection: conn });
     }
 
-    // ── List Connections ──────────────────────────────────────────────────
     if (action === "list") {
       if (!person_id) {
         return json({ error: "person_id required" }, 400);
@@ -172,14 +255,12 @@ Deno.serve(async (req) => {
       return json({ connections: connections || [] });
     }
 
-    // ── Disconnect ───────────────────────────────────────────────────────
     if (action === "disconnect") {
       const { connection_id } = body;
       if (!connection_id) {
         return json({ error: "connection_id required" }, 400);
       }
 
-      // Verify ownership
       const { data: conn } = await db
         .from("terra_connections")
         .select("id, terra_user_id")
@@ -191,7 +272,6 @@ Deno.serve(async (req) => {
         return json({ error: "Connection not found" }, 404);
       }
 
-      // Deauth via Terra API
       const terraApiKey = Deno.env.get("TERRA_API_KEY");
       const terraDevId = Deno.env.get("TERRA_DEV_ID");
       if (terraApiKey && terraDevId) {
@@ -206,7 +286,6 @@ Deno.serve(async (req) => {
         }).catch((e) => console.error("Terra deauth error:", e));
       }
 
-      // Update local status
       await db
         .from("terra_connections")
         .update({

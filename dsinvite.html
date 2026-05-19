@@ -156,6 +156,75 @@
   @media (min-width: 700px) { .primary { padding: 28px; font-size: 24px; border-radius: 20px; } }
   @media (min-width: 1024px) { .primary { padding: 32px; font-size: 26px; border-radius: 22px; } }
 
+  /* Wearable picker (renderWearable) */
+  .wearable-search {
+    width: 100%;
+    padding: 16px 18px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--paper);
+    font-family: inherit;
+    font-size: 17px;
+    color: var(--ink);
+    margin-bottom: 16px;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .wearable-search:focus { outline: 2px solid var(--moss); outline-offset: 1px; border-color: var(--moss); }
+  @media (min-width: 700px) { .wearable-search { font-size: 20px; padding: 20px 22px; } }
+
+  .provider-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 24px;
+    max-height: 50vh;
+    overflow-y: auto;
+    padding: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+  @media (min-width: 700px) { .provider-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; max-height: 56vh; } }
+  @media (min-width: 1024px) { .provider-grid { grid-template-columns: repeat(4, 1fr); gap: 16px; } }
+
+  .provider-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 10px;
+    cursor: pointer;
+    text-align: center;
+    font-family: inherit;
+    font-size: 15px;
+    color: var(--ink);
+    font-weight: 500;
+    transition: transform 0.05s, border-color 0.15s, background 0.15s;
+    min-height: 80px;
+  }
+  .provider-tile:hover { border-color: var(--moss); background: var(--moss-soft); }
+  .provider-tile:active { transform: scale(0.97); }
+  .provider-tile.loading { opacity: 0.6; pointer-events: none; }
+  .provider-tile .ico {
+    font-size: 26px;
+    margin-bottom: 6px;
+    line-height: 1;
+  }
+  @media (min-width: 700px) {
+    .provider-tile { font-size: 17px; padding: 22px 12px; min-height: 96px; }
+    .provider-tile .ico { font-size: 32px; margin-bottom: 8px; }
+  }
+
+  .provider-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: var(--muted);
+    padding: 24px;
+    font-size: 15px;
+  }
+
   /* Help row — two links side by side */
   .help-row {
     margin-top: 16px;
@@ -330,6 +399,175 @@
     btn.href = '/connect/loved-one?dsinvite=' + encodeURIComponent(invite.token);
   }
 
+  function renderWearable(invite) {
+    var caregiver = (invite.caregiver_name || 'them');
+    var pinnedProvider = (invite.wearable_provider || '').toLowerCase();
+
+    // If the caregiver pre-picked a provider on the invite, skip the picker
+    // and go straight to that provider.
+    if (pinnedProvider) {
+      document.getElementById('message').innerHTML =
+        "She's helping look after your health \u2014 and she'd love your <strong>"
+        + escape(prettyProvider(pinnedProvider))
+        + "</strong> to be in the same place as everything else.";
+      document.getElementById('next-text-1').innerHTML =
+        "When you tap below, you'll sign in to <strong>" + escape(prettyProvider(pinnedProvider)) + "</strong> the same way you always do.";
+      document.getElementById('next-text-2').innerHTML =
+        escape(prettyProvider(pinnedProvider))
+        + ' will ask if it\'s okay to share with <span class="caregiver-name-inline">'
+        + escape(caregiver) + '</span>. Nothing happens until you say yes.';
+      var pbtn = document.getElementById('primary-btn');
+      pbtn.textContent = 'Connect ' + prettyProvider(pinnedProvider);
+      pbtn.href = '#';
+      pbtn.addEventListener('click', function (e) { e.preventDefault(); openTerraWidget(invite, pinnedProvider, pbtn); });
+      document.querySelectorAll('.caregiver-name-inline').forEach(function (el) { el.textContent = caregiver; });
+      return;
+    }
+
+    // Otherwise: show the full Terra provider picker so the loved one chooses.
+    document.getElementById('message').innerHTML =
+      "She's helping look after your health \u2014 and she'd love whichever app or device you use day-to-day to be in one place.";
+    document.getElementById('next-label').textContent = 'PICK YOUR APP OR DEVICE';
+    document.getElementById('next-text-1').innerHTML =
+      'Tap whichever one you use. We\'ll send you straight to it to sign in \u2014 same way you always do.';
+    document.getElementById('next-text-2').innerHTML =
+      'It will ask if it\'s okay to share with <span class="caregiver-name-inline">'
+      + escape(caregiver) + '</span>. Nothing happens until you say yes.';
+
+    // Replace the next-card body with a search + grid
+    var nextCard = document.getElementById('next-card');
+    var picker = document.createElement('div');
+    picker.style.marginTop = '20px';
+    picker.innerHTML =
+      '<input type="search" class="wearable-search" id="wearable-search" placeholder="Search Fitbit, Garmin, Oura\u2026" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">'
+      + '<div class="provider-grid" id="provider-grid"></div>';
+    nextCard.appendChild(picker);
+
+    // Hide the primary button — picker tiles are the action
+    document.getElementById('primary-btn').style.display = 'none';
+
+    var grid = document.getElementById('provider-grid');
+    var search = document.getElementById('wearable-search');
+    function paint(filterText) {
+      var f = (filterText || '').toLowerCase().trim();
+      grid.innerHTML = '';
+      var matched = TERRA_PROVIDERS.filter(function (p) {
+        if (!f) return true;
+        return p.label.toLowerCase().indexOf(f) !== -1 || p.id.indexOf(f) !== -1;
+      });
+      if (matched.length === 0) {
+        var empty = document.createElement('div');
+        empty.className = 'provider-empty';
+        empty.textContent = "No matches \u2014 try a different name?";
+        grid.appendChild(empty);
+        return;
+      }
+      matched.forEach(function (p) {
+        var tile = document.createElement('button');
+        tile.type = 'button';
+        tile.className = 'provider-tile';
+        tile.setAttribute('data-provider', p.id);
+        tile.innerHTML = '<span class="ico">' + p.ico + '</span><span>' + escape(p.label) + '</span>';
+        tile.addEventListener('click', function () {
+          // Show loading state on this tile and disable the rest
+          var all = grid.querySelectorAll('.provider-tile');
+          all.forEach(function (t) { t.classList.add('loading'); });
+          tile.classList.remove('loading');
+          tile.querySelector('span:last-child').textContent = 'Opening\u2026';
+          openTerraWidget(invite, p.id, tile);
+        });
+        grid.appendChild(tile);
+      });
+    }
+    paint('');
+    search.addEventListener('input', function () { paint(search.value); });
+
+    document.querySelectorAll('.caregiver-name-inline').forEach(function (el) { el.textContent = caregiver; });
+  }
+
+  // Terra provider catalog (display labels + lightweight icons).
+  // Source: tryterra.co/data — keep ids lowercase to match Terra's resource enum.
+  var TERRA_PROVIDERS = [
+    { id: 'fitbit',          label: 'Fitbit',          ico: '\u231A' },
+    { id: 'garmin',          label: 'Garmin',          ico: '\u231A' },
+    { id: 'oura',            label: 'Oura',            ico: '\u26AB' },
+    { id: 'whoop',           label: 'Whoop',           ico: '\u231A' },
+    { id: 'withings',        label: 'Withings',        ico: '\u2696' },
+    { id: 'polar',           label: 'Polar',           ico: '\u231A' },
+    { id: 'google',          label: 'Google Fit',      ico: '\uD83D\uDC63' },
+    { id: 'samsung',         label: 'Samsung Health',  ico: '\uD83D\uDCF1' },
+    { id: 'peloton',         label: 'Peloton',         ico: '\uD83D\uDEB4' },
+    { id: 'suunto',          label: 'Suunto',          ico: '\u231A' },
+    { id: 'wahoo',           label: 'Wahoo',           ico: '\uD83D\uDEB4' },
+    { id: 'eight',           label: 'Eight Sleep',     ico: '\uD83D\uDECF' },
+    { id: 'ifit',            label: 'iFit',            ico: '\uD83C\uDFC3' },
+    { id: 'freestylelibre',  label: 'FreeStyle Libre', ico: '\uD83E\uDE78' },
+    { id: 'dexcom',          label: 'Dexcom',          ico: '\uD83E\uDE78' },
+    { id: 'omron',           label: 'Omron',           ico: '\uD83E\uDE7A' },
+    { id: 'technogym',       label: 'Technogym',       ico: '\uD83C\uDFCB' },
+    { id: 'biostrap',        label: 'Biostrap',        ico: '\u231A' },
+    { id: 'concept2',        label: 'Concept2',        ico: '\uD83D\uDEA3' },
+    { id: 'cosinuss',        label: 'cosinuss\u00B0',  ico: '\uD83C\uDFA7' },
+    { id: 'cronometer',      label: 'Cronometer',      ico: '\uD83C\uDF4E' },
+    { id: 'eatthismuch',     label: 'Eat This Much',   ico: '\uD83C\uDF7D' },
+    { id: 'fatsecret',       label: 'FatSecret',       ico: '\uD83C\uDF74' },
+    { id: 'finalsurge',      label: 'Final Surge',     ico: '\uD83C\uDFC3' },
+    { id: 'freeletics',      label: 'Freeletics',      ico: '\uD83C\uDFCB' },
+    { id: 'huawei',          label: 'Huawei Health',   ico: '\uD83D\uDCF1' },
+    { id: 'kalibra',         label: 'Kalibra',         ico: '\uD83E\uDDEC' },
+    { id: 'livongo',         label: 'Livongo',         ico: '\uD83E\uDE78' },
+    { id: 'macrosfirst',     label: 'Macros First',    ico: '\uD83C\uDF7D' },
+    { id: 'myfitnesspal',    label: 'MyFitnessPal',    ico: '\uD83C\uDF4E' },
+    { id: 'nutracheck',      label: 'Nutracheck',      ico: '\uD83C\uDF4E' },
+    { id: 'realage',         label: 'RealAge',         ico: '\uD83E\uDDD3' },
+    { id: 'renpho',          label: 'Renpho',          ico: '\u2696' },
+    { id: 'rookmotion',      label: 'Rook Motion',     ico: '\uD83C\uDFC3' },
+    { id: 'strava',          label: 'Strava',          ico: '\uD83C\uDFC3' },
+    { id: 'tempo',           label: 'Tempo',           ico: '\uD83C\uDFCB' },
+    { id: 'trainerroad',     label: 'TrainerRoad',     ico: '\uD83D\uDEB4' },
+    { id: 'trainingpeaks',   label: 'TrainingPeaks',   ico: '\uD83C\uDFC3' },
+    { id: 'underarmour',     label: 'Under Armour',    ico: '\uD83D\uDC5F' },
+    { id: 'virginpulse',     label: 'Virgin Pulse',    ico: '\uD83D\uDC9C' },
+    { id: 'xert',            label: 'Xert',            ico: '\uD83D\uDEB4' },
+    { id: 'zwift',           label: 'Zwift',           ico: '\uD83D\uDEB4' }
+  ];
+
+  function prettyProvider(id) {
+    var found = TERRA_PROVIDERS.find(function (p) { return p.id === id; });
+    if (found) return found.label;
+    if (!id) return 'your wearable';
+    return id.charAt(0).toUpperCase() + id.slice(1);
+  }
+
+  function openTerraWidget(invite, providerId, tile) {
+    fetch(SUPABASE_URL + '/functions/v1/terra-auth', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ action: 'generate_from_invite', invite_token: invite.token, provider: providerId })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (d && d.widget_url) {
+        window.location.href = d.widget_url;
+      } else {
+        if (tile) {
+          tile.classList.remove('loading');
+          var lbl = tile.querySelector('span:last-child');
+          if (lbl) lbl.textContent = 'Try again';
+        }
+        // Also un-disable other tiles
+        var grid = document.getElementById('provider-grid');
+        if (grid) grid.querySelectorAll('.provider-tile').forEach(function (t) { t.classList.remove('loading'); });
+      }
+    }).catch(function () {
+      if (tile) tile.classList.remove('loading');
+      var grid = document.getElementById('provider-grid');
+      if (grid) grid.querySelectorAll('.provider-tile').forEach(function (t) { t.classList.remove('loading'); });
+    });
+  }
+
   function renderEHR(invite) {
     // Hospital display name — strip " chart" suffix for the "hospital will ask" sentence
     // so we don't say "Duke chart will ask you". Keep the friendlier "Duke chart" form for the
@@ -428,6 +666,7 @@
     renderHeader(invite);
     if (invite.data_source === 'apple_health') renderAppleHealth(invite);
     else if (invite.data_source === 'ehr') renderEHR(invite);
+    else if (invite.data_source === 'wearable') renderWearable(invite);
     else renderExpired(); // unknown bucket → treat as expired
   }
 
@@ -435,6 +674,8 @@
   var DEMO_FIXTURES = {
     apple: { token:'demo', data_source:'apple_health', caregiver_name:'Betsy', loved_one_name:'Cheryl', caregiver_phone:'+18285551234' },
     ehr:   { token:'demo', data_source:'ehr', caregiver_name:'Betsy', loved_one_name:'Cheryl', hospital_name:'Duke chart', caregiver_phone:'+18285551234' },
+    wearable_open:   { token:'demo', data_source:'wearable', caregiver_name:'Betsy', loved_one_name:'Cheryl', caregiver_phone:'+18285551234' },
+    wearable_pinned: { token:'demo', data_source:'wearable', wearable_provider:'fitbit', caregiver_name:'Betsy', loved_one_name:'Cheryl', caregiver_phone:'+18285551234' },
     expired:  { error:'expired' },
     consumed: { token:'demo', data_source:'apple_health', caregiver_name:'Betsy', consumed_at:'2026-05-18T10:00:00Z' }
   };
