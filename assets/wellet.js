@@ -7708,17 +7708,16 @@ function renderMedInteractionsTile(med) { return _medTileShell('med-inter',    '
 function renderMedFullLabelTile(med)    { return _medTileShell('med-label',    'Full leaflet \u00B7 public sources',                                'Looking up the full label\u2026'); }
 
 // ── Single loader fans out one edge-fn call across all six tiles ──
+// 2026-05-19: fixed v1→v2 supabase-js auth bug. Previously called
+// `db.auth.session()` (v1 sync API) which returns undefined on v2 → empty
+// Authorization header → browser blocked the POST after CORS preflight.
+// Edge function logs showed only OPTIONS 204, never the POST. Now uses
+// `db.auth.getSession()` (v2 async API) like the rest of the codebase.
 function _loadMedicationDetailTiles(med) {
   if (!med || !med.name) return;
 
   var supabaseUrl = (typeof db !== 'undefined' && db.supabaseUrl) || 'https://nrpdhxygzyfmyljzfexv.supabase.co';
   var fnUrl = supabaseUrl.replace(/\/$/, '') + '/functions/v1/fetch-medication-detail';
-
-  var authToken = '';
-  try {
-    var session = db && db.auth && db.auth.session && db.auth.session();
-    authToken = (session && session.access_token) || '';
-  } catch(e) {}
 
   // RxNorm code may already be attached if Epic resolved it on its side.
   var rxcui = '';
@@ -7727,25 +7726,46 @@ function _loadMedicationDetailTiles(med) {
     if (typeof med.code === 'string') rxcui = med.code;
   }
 
-  fetch(fnUrl, {
-    method: 'POST',
-    headers: {
+  function _fireMedDetailFetch(authToken) {
+    var headers = {
       'Content-Type': 'application/json',
-      'Authorization': authToken ? 'Bearer ' + authToken : '',
       'apikey': (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : ''
-    },
-    body: JSON.stringify({
-      name: med.name || '',
-      rxcui: rxcui || '',
-      person_id: (typeof currentPersonId !== 'undefined') ? currentPersonId : ''
+    };
+    // Use the user's session token if we have it; otherwise fall back to
+    // the anon key (the edge function accepts either for public NIH data).
+    headers['Authorization'] = 'Bearer ' + (authToken || ((typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : ''));
+
+    fetch(fnUrl, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({
+        name: med.name || '',
+        rxcui: rxcui || '',
+        person_id: (typeof currentPersonId !== 'undefined') ? currentPersonId : ''
+      })
     })
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(data) { _renderMedTilesFromPayload(data || {}); })
-  .catch(function(err) {
-    console.warn('[med detail] fetch failed:', err);
-    _renderMedTilesFromPayload({});
-  });
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function(data) { _renderMedTilesFromPayload(data || {}); })
+    .catch(function(err) {
+      console.warn('[med detail] fetch failed:', err);
+      _renderMedTilesFromPayload({});
+    });
+  }
+
+  try {
+    db.auth.getSession().then(function(sessionRes) {
+      var session = sessionRes && sessionRes.data && sessionRes.data.session;
+      var token = (session && session.access_token) || '';
+      _fireMedDetailFetch(token);
+    }).catch(function() {
+      _fireMedDetailFetch('');
+    });
+  } catch(e) {
+    _fireMedDetailFetch('');
+  }
 }
 
 function _renderMedTilesFromPayload(data) {
