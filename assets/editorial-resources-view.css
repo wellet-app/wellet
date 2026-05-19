@@ -6,7 +6,8 @@
    row dividers, and hairline-underlined verb actions.
    ============================================================ */
 
-#view-resources[data-editorial="resources"] {
+/* Scoped to .active so this view doesn't bleed through other views. */
+#view-resources[data-editorial="resources"].active {
   display: block;
 }
 
