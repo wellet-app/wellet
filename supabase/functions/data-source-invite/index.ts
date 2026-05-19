@@ -199,7 +199,7 @@ async function notifyCaregiverOfConsume(supabase: any, opts: { caregiverUserId: 
   let sourceLabel: string
   if (opts.dataSource === 'apple_health') sourceLabel = 'Apple Health'
   else if (opts.dataSource === 'wearable') sourceLabel = opts.wearableProvider ? (opts.wearableProvider.charAt(0).toUpperCase() + opts.wearableProvider.slice(1).toLowerCase()) : 'a wearable'
-  else sourceLabel = opts.hospitalName || 'her hospital chart'
+  else sourceLabel = opts.hospitalName || 'their hospital chart'
 
   const title = `${lovedName} just connected ${sourceLabel}`
   const body = `Wellet now notices ${lovedName}'s ${sourceLabel} updates. Open the app to see the first records flow in.`

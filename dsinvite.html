@@ -269,7 +269,7 @@
     <div class="greeting" id="greeting">A note from <span class="name" id="caregiver-name">Betsy</span></div>
 
     <div class="message" id="message">
-      She's helping look after your health — and she'd love your phone to share what it already knows.
+      They're helping look after your health — and they'd love your phone to share what it already knows.
     </div>
 
     <div class="next" id="next-card">
@@ -407,7 +407,7 @@
     // and go straight to that provider.
     if (pinnedProvider) {
       document.getElementById('message').innerHTML =
-        "She's helping look after your health \u2014 and she'd love your <strong>"
+        escape(caregiver) + " is helping look after your health \u2014 and they'd love your <strong>"
         + escape(prettyProvider(pinnedProvider))
         + "</strong> to be in the same place as everything else.";
       document.getElementById('next-text-1').innerHTML =
@@ -426,7 +426,7 @@
 
     // Otherwise: show the full Terra provider picker so the loved one chooses.
     document.getElementById('message').innerHTML =
-      "She's helping look after your health \u2014 and she'd love whichever app or device you use day-to-day to be in one place.";
+      escape(caregiver) + " is helping look after your health \u2014 and they'd love whichever app or device you use day-to-day to be in one place.";
     document.getElementById('next-label').textContent = 'PICK YOUR APP OR DEVICE';
     document.getElementById('next-text-1').innerHTML =
       'Tap whichever one you use. We\'ll send you straight to it to sign in \u2014 same way you always do.';
@@ -576,7 +576,7 @@
     var hospitalShort = hospitalLabel.replace(/\s+chart$/i, '').replace(/\s+MyChart$/i, '');
 
     document.getElementById('message').innerHTML =
-      "She's helping look after your health — and she'd love your <strong>"
+      escape(invite.caregiver_name || 'They') + " is helping look after your health \u2014 and they'd love your <strong>"
       + escape(hospitalLabel)
       + "</strong> to be in the same place as everything else.";
 

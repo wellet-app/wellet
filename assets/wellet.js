@@ -442,7 +442,7 @@ function openSendConnectLinkModal(opts) {
     explainer = 'You\u2019ll get a notification the moment ' + escHtml(firstName) + ' signs in to ' + escHtml(sourceLabel) + ' and shares with you. Nothing happens on their side until they say yes.';
   } else if (dataSource === 'wearable') {
     sourceLabel = 'their wearable';
-    explainer = 'We\u2019ll text ' + escHtml(firstName) + ' a link. They\u2019ll pick their tracker \u2014 Fitbit, Garmin, Oura, Whoop, or Withings \u2014 and tap once to share. You\u2019ll see the first records as soon as they connect.';
+    explainer = 'We\u2019ll text ' + escHtml(firstName) + ' a link. They\u2019ll pick a device \u2014 Fitbit, Garmin, Oura, Whoop, or Withings \u2014 and tap once to share. You\u2019ll see the first records as soon as they connect.';
   } else {
     sourceLabel = 'Apple Health';
     explainer = 'We\u2019ll text ' + escHtml(firstName) + ' a link. They\u2019ll tap once to share Apple Health from their iPhone. You\u2019ll get a notification when it\u2019s done.';
