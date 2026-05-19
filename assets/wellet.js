@@ -2564,7 +2564,25 @@ async function switchToRealPerson(personId, el) {
     var activeView = document.querySelector('.app-view.active');
     var viewId = activeView ? activeView.id : '';
     if (viewId === 'view-signals'   && typeof renderSignalsView   === 'function') { renderSignalsView(); }
-    if (viewId === 'view-records'   && typeof renderRecordsView   === 'function') { renderRecordsView(); }
+    if (viewId === 'view-records') {
+      // If the caregiver was drilled into a Records subview (Conditions /
+      // Medications / Allergies / Visits / Labs / Documents list, OR a
+      // single-item detail like one condition + its tiles) when they
+      // switched person, renderRecordsView() alone would only repaint the
+      // tile grid — the inner subview kept rendering the previous person's
+      // content. Drop the user back to the list for the same section under
+      // the NEW person so they get a coherent view (Betsy's Conditions →
+      // Mom's Conditions, not Betsy's data under a Mom pill).
+      // _recordsDetailSection format: 'conditions' | 'conditions:<refId>'
+      var detailSection = (typeof _recordsDetailSection === 'string') ? _recordsDetailSection : null;
+      var listSection = detailSection ? detailSection.split(':')[0] : null;
+      var validSections = { medications:1, conditions:1, allergies:1, visits:1, labs:1, documents:1 };
+      if (listSection && validSections[listSection] && typeof openRecordsDetail === 'function') {
+        openRecordsDetail(listSection);
+      } else if (typeof renderRecordsView === 'function') {
+        renderRecordsView();
+      }
+    }
     if (viewId === 'view-resources' && typeof renderResourcesView === 'function') { renderResourcesView(); }
     if (viewId === 'view-people'    && typeof renderPeopleView    === 'function') { renderPeopleView(); }
     if (viewId === 'view-ask'       && typeof renderAskView       === 'function') { renderAskView(); }
