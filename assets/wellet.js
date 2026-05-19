@@ -5167,7 +5167,11 @@ function _rdMedsContent(activeMeds, ehrMeds, ehrData, ehrProvider) {
     if (!ehrData) html += buildEhrPrompt();
   } else {
     activeMeds.forEach(function(med) {
-      html += '<div class="record-row" onclick="openEditMed(\''+med.id+'\')">'
+      // Manual meds now also route through openMedicationDetail — which renders
+      // the same 6-tile detail view used for EHR meds and surfaces an explicit
+      // "Edit medication" button. Previously this row jumped straight into the
+      // edit modal with no intermediate screen.
+      html += '<div class="record-row" style="cursor:pointer;" onclick="openMedicationDetail(\''+med.id+'\')">'
         + '<div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">'+escHtml(med.name)+(med.dose?' '+escHtml(med.dose):'')+'</div>'
         + '<div class="record-meta">'+(med.frequency?escHtml(med.frequency):'')+(med.prescriber?' \u00B7 '+escHtml(med.prescriber):'')+'</div></div>'
@@ -6105,7 +6109,12 @@ function openRecordsDetail(section) {
   var ehrVisitsRecent = allEhrVisits.filter(function(v){ var t=v.start_date?new Date(v.start_date).getTime():0; return t>=twoYearsAgoMs; });
   var ehrVisitsOlder  = allEhrVisits.filter(function(v){ var t=v.start_date?new Date(v.start_date).getTime():0; return t>0&&t<twoYearsAgoMs; });
   var ehrProvider = ehrData ? ehrData.provider || 'EHR' : '';
-  var activeMeds  = liveMeds.filter(function(m){ return m.active; });
+  // EHR-synced meds get persisted into the `medications` table by ehr-persist
+  // with source='ehr'. We render them in the ehrMeds branch (which routes
+  // tap → openMedicationDetail with NIH info tiles). Filtering them out of
+  // activeMeds prevents a double-render that previously routed taps to the
+  // edit modal instead of the detail view.
+  var activeMeds  = liveMeds.filter(function(m){ return m.active && m.source !== 'ehr'; });
   var labEvents   = liveEvents.filter(function(e){ return e.event_type==='lab_result'; });
   var apptEvents  = liveEvents.filter(function(e){ return e.event_type==='appointment'; });
 
@@ -7592,6 +7601,29 @@ function openMedicationDetail(refId) {
   var view = document.getElementById('view-records');
   if (!view) return;
   var med = _findEhrItemById('medication', refId);
+  var isManual = false;
+  // Fallback for manual meds (rows from the local `medications` table that
+  // weren't synced from an EHR). Without this branch, tapping a manual med
+  // hit the legacy edit modal directly — we now route every med tap through
+  // this detail view, and surface Edit / Delete affordances inside it.
+  if (!med && Array.isArray(liveMeds)) {
+    for (var li = 0; li < liveMeds.length; li++) {
+      if (liveMeds[li] && liveMeds[li].id === refId) {
+        var m = liveMeds[li];
+        med = {
+          id: m.id,
+          name: m.name || 'Medication',
+          dosage: m.dose || '',
+          frequency: m.frequency || '',
+          status: m.active ? 'active' : 'inactive',
+          date_asserted: m.start_date || m.created_at || '',
+          prescriber: m.prescriber || ''
+        };
+        isManual = true;
+        break;
+      }
+    }
+  }
   if (!med) {
     if (typeof openRecordsDetail === 'function') openRecordsDetail('medications');
     return;
@@ -7627,6 +7659,14 @@ function openMedicationDetail(refId) {
     +   _detailRow('Prescribed', prescribedLabel)
     +   _detailRow('Prescriber', prescriberLabel)
     + '</div>'
+    // Manual meds: surface Edit + Delete as visible buttons (Betsy's UX
+    // ask — reviewers were being dropped straight into the edit modal
+    // with no intermediate detail screen).
+    + (isManual
+      ? '<div style="display:flex;gap:10px;margin-top:14px;">'
+        + '<button onclick="openEditMed(\'' + (med.id||'').replace(/\'/g, "\\'") + '\')" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;background:#fff;border:1.5px solid var(--moss);border-radius:10px;color:var(--moss);font-family:\'DM Sans\',sans-serif;font-size:var(--type-meta);font-weight:500;cursor:pointer;"><i data-lucide="pencil" style="width:15px;height:15px;"></i> Edit medication</button>'
+        + '</div>'
+      : '')
     + renderMedPillTile(med)
     + renderMedAboutTile(med)
     + renderMedUseTile(med)
@@ -8144,7 +8184,10 @@ function renderRecordsView() {
   var ehrProcedures = ehrData ? ehrData.procedures   || [] : [];
   var ehrReports    = ehrData ? (ehrData.diagnostic_reports || []) : [];
   var ehrProvider   = ehrData ? ehrData.provider || 'EHR' : '';
-  var activeMeds    = liveMeds.filter(function(m){ return m.active; });
+  // Filter ehr-sourced meds out of activeMeds — see _rdMedsContent for the
+  // full rationale. Otherwise the Medications tile count double-counts every
+  // EHR med (once in liveMeds with source='ehr', once in ehrMeds).
+  var activeMeds    = liveMeds.filter(function(m){ return m.active && m.source !== 'ehr'; });
   var labEvents     = liveEvents.filter(function(e){ return e.event_type==='lab_result'; });
   var noteEvents    = liveEvents.filter(function(e){ return e.event_type==='note'; });
   var apptEvents    = liveEvents.filter(function(e){ return e.event_type==='appointment'; });
