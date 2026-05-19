@@ -978,29 +978,29 @@
             </div>
           </div>
           <div id="dad-meds-list">
-            <div class="record-row" onclick="openMedDetail('lisinopril')" style="cursor:pointer;">
+            <div class="record-row" onclick="openMedicationDetail('demo-med-lisinopril')" style="cursor:pointer;">
               <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
               <div style="flex:1;"><div class="record-label">Lisinopril 20mg</div><div class="record-meta">Once daily · Hypertension</div></div>
               <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
             </div>
-            <div class="record-row" onclick="openMedDetail('hctz')" style="cursor:pointer;">
+            <div class="record-row" onclick="openMedicationDetail('demo-med-hctz')" style="cursor:pointer;">
               <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
               <div style="flex:1;"><div class="record-label">Hydrochlorothiazide 25mg</div><div class="record-meta">Once daily · Hypertension</div></div>
               <span class="record-badge amber">Changed Feb 18</span>
               <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
             </div>
-            <div class="record-row" onclick="openMedDetail('gleevec')" style="cursor:pointer;">
+            <div class="record-row" onclick="openMedicationDetail('demo-med-gleevec')" style="cursor:pointer;">
               <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
               <div style="flex:1;"><div class="record-label">Gleevec (Imatinib) 400mg</div><div class="record-meta">Once daily · CML</div></div>
               <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
             </div>
-            <div class="record-row" onclick="openMedDetail('levodopa')" style="cursor:pointer;">
+            <div class="record-row" onclick="openMedicationDetail('demo-med-levodopa')" style="cursor:pointer;">
               <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
               <div style="flex:1;"><div class="record-label">Levodopa/Carbidopa 25-100mg <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div><div class="record-meta">3x daily · Parkinson's</div></div>
               <span class="ehr-provider-badge">From Duke Health</span>
               <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
             </div>
-            <div class="record-row" onclick="openMedDetail('lisinopril-ehr')" style="cursor:pointer;">
+            <div class="record-row" onclick="openMedicationDetail('demo-med-lisinopril-2')" style="cursor:pointer;">
               <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
               <div style="flex:1;"><div class="record-label">Lisinopril 20mg <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div><div class="record-meta">Once daily · Hypertension</div></div>
               <span class="ehr-provider-badge">From Duke Health</span>
@@ -1029,15 +1029,17 @@
             <div style="flex:1;"><div class="record-label">Glaucoma</div><div class="record-meta">Stable · Dr. Patel</div></div>
             <span class="record-badge moss">Stable</span>
           </div>
-          <div class="record-row">
+          <div class="record-row" onclick="openConditionDetail('demo-cond-parkinsons')" style="cursor:pointer;">
             <div class="record-icon moss"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>
             <div style="flex:1;"><div class="record-label">Parkinson's disease <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div><div class="record-meta">Since Jun 2023</div></div>
             <span class="record-badge amber">Active</span>
+            <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
           </div>
-          <div class="record-row">
+          <div class="record-row" onclick="openConditionDetail('demo-cond-htn')" style="cursor:pointer;">
             <div class="record-icon moss"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>
             <div style="flex:1;"><div class="record-label">Essential hypertension <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div><div class="record-meta">Since Mar 2020</div></div>
             <span class="record-badge amber">Active</span>
+            <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
           </div>
         </div>
 
