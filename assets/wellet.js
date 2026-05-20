@@ -21950,7 +21950,7 @@ async function obHandleVaCcda(file, inputEl) {
   } catch (e) {
     console.error('merge failed', e);
     await supabase.from('ehr_source_events').update({ parse_status: 'failed', parse_error: String(e).slice(0,500) }).eq('id', sourceEvent.id);
-    obAddBubble('wellet', 'I got partway through reading it and hit a snag. Your file is saved \u2014 try uploading again or email me at betsy.eble@gmail.com.');
+    obAddBubble('wellet', 'I got partway through reading it and hit a snag. Your file is saved \u2014 try uploading again or email us at hello@getwellet.com.');
     if (inputEl) inputEl.value = '';
     return;
   }
