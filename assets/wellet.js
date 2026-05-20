@@ -14249,7 +14249,18 @@ var ACTIVATED_FHIR_URLS = [
   'https://ws-interconnect-fhir.partners.org/Interconnect-FHIR-MU-PRD/api/FHIR/R4/', // Mass General Brigham
   // Mayo Clinic: not in Epic's R4 bundle as of 2026-04-27. Captured via form.
   'https://unified-api.ucsf.edu/clinical/apex/api/FHIR/R4/',                         // UCSF Health
-  'https://fhir.kp.org/service/ptnt_care/EpicEdiFhirRoutingSvc/v2014/esb-envlbl/212/api/FHIR/R4/' // Kaiser Permanente - Southern California
+  'https://fhir.kp.org/service/ptnt_care/EpicEdiFhirRoutingSvc/v2014/esb-envlbl/212/api/FHIR/R4/', // Kaiser Permanente - Southern California
+  // NY metro Tier 1 (added 2026-05-20 in response to tester signal — Kelly Washburn).
+  // All 6 endpoints verified via .well-known/smart-configuration: 200 OK, S256 PKCE,
+  // Confidential client supported. wellet_confidential (fhir_base_pattern '%') handles
+  // OAuth for all of them. No appointment scope — visits/meds/labs/conditions/allergies
+  // /care-team/immunizations/observations/diagnostic-reports only.
+  'https://epicproxy-pub.et1089.epichosted.com/FHIRProxy/api/FHIR/R4/',              // NewYork-Presbyterian + Weill Cornell Medicine (shared endpoint)
+  'https://epicfhir.nyumc.org/FHIRPRD/api/FHIR/R4/',                                 // NYU Langone Health
+  'https://epicsoapproxyprd.mountsinai.org/FHIR-PRD/api/FHIR/R4/',                   // Mount Sinai (NYC) — also covers Health Center / Hudson Yards / Concierge Care
+  'https://soapepic.montefiore.org/FhirProxyPrd/api/FHIR/R4/',                       // Montefiore Health System
+  'https://epicproxy.et1353.epichosted.com/APIPROXYPRD/api/FHIR/R4/',                // Memorial Sloan Kettering Cancer Center
+  'https://epicproxy.et0927.epichosted.com/FHIRProxy/api/FHIR/R4/'                   // Hospital for Special Surgery
 ];
 
 function _normFhirUrl(u) {
@@ -14276,8 +14287,8 @@ function isActivatedHospital(fhirBaseUrl) {
 function loadEpicEndpoints(cb) {
   // Bump v whenever the loader logic, ACTIVATED_FHIR_URLS, or the cache
   // shape changes so existing users with stale data refresh.
-  var CACHE_KEY = 'wellet_epic_endpoints_v5';
-  var CACHE_TS_KEY = 'wellet_epic_endpoints_v5_ts';
+  var CACHE_KEY = 'wellet_epic_endpoints_v6';
+  var CACHE_TS_KEY = 'wellet_epic_endpoints_v6_ts';
   var CACHE_TTL = 24 * 60 * 60 * 1000;
 
   // Also wipe legacy cache keys on first run so users on v2/v3/v4 don't keep
@@ -14289,6 +14300,8 @@ function loadEpicEndpoints(cb) {
     localStorage.removeItem('wellet_epic_endpoints_v3_ts');
     localStorage.removeItem('wellet_epic_endpoints_v4');
     localStorage.removeItem('wellet_epic_endpoints_v4_ts');
+    localStorage.removeItem('wellet_epic_endpoints_v5');
+    localStorage.removeItem('wellet_epic_endpoints_v5_ts');
   } catch(e) {}
 
   // Check in-memory cache first — but only if it's non-empty. An empty array

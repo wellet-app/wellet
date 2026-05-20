@@ -1,9 +1,19 @@
-// ask-wellet v24 — omniscient + watch-proposal mode
+// ask-wellet v25 — omniscient + watch-proposal + multi-turn + classification
 //
 // Two request paths:
-//   1. Default ("answer" mode): same v23 behavior — pulls all known data
-//      sources, builds a sectioned context, and asks Perplexity Sonar for a
-//      caregiver-facing answer. Returns { answer, model, live_ehr }.
+//   1. Default ("answer" mode): pulls all known data sources, builds a
+//      sectioned context, and asks Perplexity Sonar for a caregiver-facing
+//      answer.
+//
+//      Voice v1 BDB additions (May 20, 2026):
+//        - Accepts optional body.history: [{role, content}, ...] for
+//          multi-turn conversations.
+//        - Returns body.classification: 'lookup' | 'observation' | 'prep' | 'other'
+//          so the UI knows whether to surface the soft save chip.
+//        - Backward compatible: missing history = single-turn, missing
+//          classification (e.g. for very old clients) still works.
+//
+//      Returns { answer, model, live_ehr, classification }.
 //
 //   2. Watch mode (body.mode === 'watch'): the caregiver is trying to set up
 //      a Care Signals notification ("notify me when..."). We translate their
@@ -425,6 +435,69 @@ function validateWatchProposal(parsed: any): WatchProposal | WatchRejected | nul
   };
 }
 
+// ----------------------------------------------------------------------
+// VOICE v1: CLASSIFICATION
+//
+// Decide whether this exchange is worth offering to save to the loved one's
+// timeline. Cheap rule-based classifier (no second model call). Keyword sets
+// are tuned for caregiver-voice patterns.
+//
+// - 'observation' = the caregiver noticed something about the loved one.
+//                   These produce the soft save chip under the AI bubble.
+//                   Examples: "Mom seemed confused tonight",
+//                             "Dad refused his evening meds",
+//                             "She was short of breath walking to the car".
+//
+// - 'prep'        = the caregiver is preparing for a future visit/event.
+//                   These also produce the soft save chip.
+//                   Examples: "What should I ask the cardiologist on Friday?",
+//                             "Help me prep for Mom's appointment Tuesday".
+//
+// - 'lookup'      = factual question against existing data, no new info.
+//                   No save chip.
+//                   Examples: "What's Mom's current blood pressure med?",
+//                             "When was her last A1c?".
+//
+// - 'other'       = greeting, smalltalk, unclear intent. No save chip.
+//
+// Heuristic order:
+//   1. Strong observation cues in USER text → 'observation'
+//   2. Strong prep cues in USER text → 'prep'
+//   3. Pure lookup cues → 'lookup'
+//   4. Default → 'other'
+// ----------------------------------------------------------------------
+
+function classifyExchange(userText: string, assistantText: string): 'lookup' | 'observation' | 'prep' | 'other' {
+  const u = (userText || '').toLowerCase();
+  const a = (assistantText || '').toLowerCase();
+
+  if (!u.trim()) return 'other';
+
+  // 1. OBSERVATION cues: the caregiver is reporting something they saw.
+  // First-person verbs of perception + a referent to the loved one.
+  const observationVerbs = /\b(noticed|noticing|saw|seemed|seems|felt|feels|complained|complaining|refused|refusing|forgot|forgetting|told me|said|fell|tripped|wandered|confused|disoriented|short of breath|out of breath|winded|dizzy|nauseous|dehydrated|swollen|swelling|tired|exhausted|sleeping|napping|sleepy|drowsy|agitated|anxious|withdrawn|crying|sad|down|low|happy|better|worse|brighter|sharper|slower|weaker|stronger|coughing|coughed|wheezing|sweating|shaking|trembling|fainted|passed out|skipped|missed|didn't take|wouldn't take|didn't eat|wouldn't eat|barely ate|wouldn't drink|didn't sleep|couldn't sleep)\b/;
+  const referentToLovedOne = /\b(mom|mama|mother|dad|papa|father|grandma|grandpa|she|he|her|him|his|hers|aunt|uncle)\b/;
+  if (observationVerbs.test(u) && referentToLovedOne.test(u)) return 'observation';
+  // Also: "I noticed X" without an explicit pronoun — still an observation.
+  if (/^(i|we)\s+(just\s+)?(noticed|saw|heard|felt|think|thought|realized|remembered)/.test(u.trim())) return 'observation';
+  // Direct observation reports without "I noticed" prefix:
+  if (/^(mom|dad|grandma|grandpa|she|he|her|him)\s+(was|is|seemed|seems|looked|looks|felt|feels|got|gets|did|didn't|won't|wouldn't|couldn't)/.test(u.trim())) return 'observation';
+
+  // 2. PREP cues: future-tense planning for a visit/event.
+  const prepCues = /\b(prep|prepare|preparing|getting ready|before (her|his|the|mom's|dad's) (appointment|visit|appt)|what (should|do) i (ask|bring|tell|say)|questions? (to|for) (ask|the|her|his)|on (monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|next week)|appointment (is|on|tomorrow|next)|visit (is|on|tomorrow|next)|going to (the|her|his) (doctor|cardiologist|neurologist|specialist|appointment)|seeing (the|her|his) (doctor|cardiologist|neurologist|specialist))\b/;
+  if (prepCues.test(u)) return 'prep';
+
+  // 3. LOOKUP cues: clear data retrieval intent.
+  const lookupCues = /^(what(?:'s| is)|when (was|did|is)|where (is|was)|who (is|are|prescribed)|how (much|many|often|long)|show me|tell me|list|find|did (she|he|mom|dad)|has (she|he|mom|dad)|is (she|he|mom|dad) (currently|still|on))/;
+  if (lookupCues.test(u.trim())) return 'lookup';
+
+  // 4. Fallback.
+  // If the user message is very short and the AI gave a long factual answer,
+  // treat it as lookup. Otherwise other.
+  if (u.trim().length < 60 && a.length > 200) return 'lookup';
+  return 'other';
+}
+
 async function handleWatchMode(opts: {
   text: string;
   context_hint: any;
@@ -578,7 +651,16 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log('ask-wellet v24 answer-mode request', { person_id, jwt_sub: jwtSub });
+    console.log('ask-wellet v25 answer-mode request', { person_id, jwt_sub: jwtSub });
+
+    // Voice v1: prior turns of this conversation (optional).
+    // Shape: [{role: 'user'|'assistant', content: string}, ...]
+    // We cap at the last 10 turns to control token usage.
+    const rawHistory = Array.isArray(body?.history) ? body.history : [];
+    const history = rawHistory
+      .filter((m: any) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+      .slice(-10)
+      .map((m: any) => ({ role: m.role, content: String(m.content).slice(0, 4000) }));
 
     async function safeQuery(builderFn: (c: any) => any) {
       const { data, error } = await builderFn(supabase);
@@ -901,6 +983,13 @@ ${context}`;
       : question;
 
     const apiKey = await getPerplexityApiKey();
+
+    // Voice v1: build messages with optional multi-turn history sandwiched
+    // between the (system + grounded context) and the new user question.
+    const messages: any[] = [{ role: 'system', content: systemPrompt }];
+    for (const m of history) messages.push(m);
+    messages.push({ role: 'user', content: userContent });
+
     const pplxResponse = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
       headers: {
@@ -909,10 +998,7 @@ ${context}`;
       },
       body: JSON.stringify({
         model: 'sonar',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userContent }
-        ],
+        messages,
         max_tokens: 1000,
         temperature: 0.3,
       }),
@@ -930,8 +1016,13 @@ ${context}`;
     const result = await pplxResponse.json();
     const answer = result.choices?.[0]?.message?.content || 'I could not generate an answer. Please try again.';
 
+    // Voice v1: classify this exchange so the UI can decide whether to show
+    // the soft save-to-timeline chip. Fast and best-effort: if the classifier
+    // fails or the rules don't fire, default to 'lookup'.
+    const classification = classifyExchange(question, answer);
+
     return new Response(
-      JSON.stringify({ answer, model: result.model, live_ehr: !!liveEhr }),
+      JSON.stringify({ answer, model: result.model, live_ehr: !!liveEhr, classification }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
