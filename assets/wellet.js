@@ -2246,75 +2246,58 @@ async function loadPersonData(personId) {
   // are reset to [] on failure so stale data from the previous person
   // doesn't leak through.
 
-  // Load events
-  try {
-    const { data: events } = await _scopeToActiveConns(
-      db.from('health_events')
-        .select('*')
-        .eq('person_id', personId)
-    ).order('event_date', { ascending: false });
-    liveEvents = events || [];
-  } catch (_e) { console.warn('[loadPersonData] events failed:', _e); liveEvents = []; }
+  // 2026-05-19 (initApp 8s watchdog fix): all 7 person tables now load in
+  // parallel via Promise.all. Previously these were sequential awaits and
+  // compounded network latency pushed past the 8000ms initApp watchdog on
+  // accounts with 800+ events / 400+ labs (root-cause of the "falling back
+  // to auth screen" boot loop). Each query keeps its own try/catch so a
+  // single failure still resets its global to [] without aborting the rest.
+  // Hard caps (LIMIT) added on the four high-volume tables so a future
+  // account with 5k+ events never re-trips the same watchdog. The Records,
+  // Timeline, and CareSignals views already paginate or aggregate on top of
+  // these globals; trimming the initial load to the most recent N rows is
+  // safe for first paint and a background top-up can replace it later.
+  var pEvents = _scopeToActiveConns(
+    db.from('health_events').select('*').eq('person_id', personId)
+  ).order('event_date', { ascending: false }).limit(1000)
+    .then(function(r) { liveEvents = (r && r.data) || []; })
+    .catch(function(_e) { console.warn('[loadPersonData] events failed:', _e); liveEvents = []; });
 
-  // Load meds
-  try {
-    const { data: meds } = await _scopeToActiveConns(
-      db.from('medications')
-        .select('*')
-        .eq('person_id', personId)
-    ).order('created_at', { ascending: true });
-    liveMeds = meds || [];
-  } catch (_e) { console.warn('[loadPersonData] meds failed:', _e); liveMeds = []; }
+  var pMeds = _scopeToActiveConns(
+    db.from('medications').select('*').eq('person_id', personId)
+  ).order('created_at', { ascending: true }).limit(500)
+    .then(function(r) { liveMeds = (r && r.data) || []; })
+    .catch(function(_e) { console.warn('[loadPersonData] meds failed:', _e); liveMeds = []; });
 
-  // Load documents (app-owned, no connection_id filter)
-  try {
-    const { data: docs } = await db
-      .from('documents')
-      .select('*')
-      .eq('person_id', personId)
-      .order('uploaded_at', { ascending: false });
-    liveDocs = docs || [];
-  } catch (_e) { console.warn('[loadPersonData] docs failed:', _e); liveDocs = []; }
+  var pDocs = db.from('documents').select('*').eq('person_id', personId)
+    .order('uploaded_at', { ascending: false }).limit(500)
+    .then(function(r) { liveDocs = (r && r.data) || []; })
+    .catch(function(_e) { console.warn('[loadPersonData] docs failed:', _e); liveDocs = []; });
 
-  // Load lab results
-  try {
-    const { data: labs } = await _scopeToActiveConns(
-      db.from('lab_results')
-        .select('*')
-        .eq('person_id', personId)
-    ).order('effective_date', { ascending: false });
-    liveLabs = labs || [];
-  } catch (_e) { console.warn('[loadPersonData] labs failed:', _e); liveLabs = []; }
+  var pLabs = _scopeToActiveConns(
+    db.from('lab_results').select('*').eq('person_id', personId)
+  ).order('effective_date', { ascending: false }).limit(1000)
+    .then(function(r) { liveLabs = (r && r.data) || []; })
+    .catch(function(_e) { console.warn('[loadPersonData] labs failed:', _e); liveLabs = []; });
 
-  // Load vitals
-  try {
-    const { data: vitals } = await _scopeToActiveConns(
-      db.from('vitals')
-        .select('*')
-        .eq('person_id', personId)
-    ).order('effective_date', { ascending: false });
-    liveVitals = vitals || [];
-  } catch (_e) { console.warn('[loadPersonData] vitals failed:', _e); liveVitals = []; }
+  var pVitals = _scopeToActiveConns(
+    db.from('vitals').select('*').eq('person_id', personId)
+  ).order('effective_date', { ascending: false }).limit(500)
+    .then(function(r) { liveVitals = (r && r.data) || []; })
+    .catch(function(_e) { console.warn('[loadPersonData] vitals failed:', _e); liveVitals = []; });
 
-  // Load allergies
-  try {
-    const { data: allergies } = await _scopeToActiveConns(
-      db.from('allergies')
-        .select('*')
-        .eq('person_id', personId)
-    ).order('created_at', { ascending: false });
-    liveAllergies = allergies || [];
-  } catch (_e) { console.warn('[loadPersonData] allergies failed:', _e); liveAllergies = []; }
+  var pAllergies = _scopeToActiveConns(
+    db.from('allergies').select('*').eq('person_id', personId)
+  ).order('created_at', { ascending: false }).limit(200)
+    .then(function(r) { liveAllergies = (r && r.data) || []; })
+    .catch(function(_e) { console.warn('[loadPersonData] allergies failed:', _e); liveAllergies = []; });
 
-  // Load care circle members
-  try {
-    const { data: circle } = await db
-      .from('care_circle_members')
-      .select('*')
-      .eq('person_id', personId)
-      .order('created_at', { ascending: true });
-    liveCareCircle = circle || [];
-  } catch (_e) { console.warn('[loadPersonData] care circle failed:', _e); liveCareCircle = []; }
+  var pCircle = db.from('care_circle_members').select('*').eq('person_id', personId)
+    .order('created_at', { ascending: true }).limit(200)
+    .then(function(r) { liveCareCircle = (r && r.data) || []; })
+    .catch(function(_e) { console.warn('[loadPersonData] care circle failed:', _e); liveCareCircle = []; });
+
+  await Promise.all([pEvents, pMeds, pDocs, pLabs, pVitals, pAllergies, pCircle]);
 
   // Load cached EHR data and auto-refresh if stale
   loadEhrCache(personId);
