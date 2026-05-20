@@ -1497,6 +1497,11 @@
   .ehr-demo-tooltip:hover::before { content:''; position:absolute; bottom:calc(100% + 2px); left:50%; transform:translateX(-50%); border:4px solid transparent; border-top-color:var(--text-primary); z-index:10; }
 
   /* ── HOSPITAL PICKER ── */
+  .hospital-picker-banner { margin:0 20px 12px; padding:12px 14px; background:var(--mint, #f1f5ef); border:1px solid var(--moss, #6b7d5a); border-radius:10px; }
+  .hospital-picker-banner-title { font-size:var(--type-meta); font-weight:600; color:var(--text-primary); line-height:1.4; margin-bottom:4px; }
+  .hospital-picker-banner-body { font-size:var(--type-meta); color:var(--text-primary); line-height:1.5; }
+  .hospital-picker-banner-body a { color:var(--moss); font-weight:500; text-decoration:underline; cursor:pointer; }
+  .hospital-picker-banner-body a:hover { text-decoration:none; }
   .hospital-picker-search { width:100%; padding:12px 14px 12px 40px; border:1.5px solid var(--border-medium); border-radius:12px; font-size:var(--type-body); font-family:'DM Sans',sans-serif; background:var(--warm-white); color:var(--text-primary); outline:none; transition:border-color 0.15s; box-sizing:border-box; }
   .hospital-picker-search:focus { border-color:var(--moss); }
   .hospital-picker-search-wrap { position:relative; padding:0 20px 12px; }
