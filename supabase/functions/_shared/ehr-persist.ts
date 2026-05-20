@@ -91,14 +91,11 @@ function buildMedicationRows(personId: string, connectionId: string | null, mapp
       const name = String(m?.name || '').trim();
       if (!name) return null;
       const code = String(m?.code || '');
+      const dateKey = toDateKey(m?.date_asserted);
       // MedicationRequest.status values we consider "active": active, on-hold, draft.
       // completed / stopped / cancelled / entered-in-error are NOT active.
       const status = String(m?.status || '').toLowerCase();
       const active = status === 'active' || status === 'on-hold' || status === 'draft' || status === '';
-      // Fingerprint: identity is name + code only. Previously included a
-      // dateKey derived from date_asserted, which changes per refill and
-      // caused the same drug to accumulate one row per fill in the meds
-      // table. Refills should upsert onto the same logical med.
       return {
         person_id: personId,
         connection_id: connectionId,
@@ -111,7 +108,7 @@ function buildMedicationRows(personId: string, connectionId: string | null, mapp
         source: SOURCE_LABEL,
         ehr_system: EHR_SYSTEM,
         encounter_fhir_id: (m?.encounter_ref as string) || null,
-        source_fingerprint: fp(EHR_SYSTEM, 'MedicationRequest', name.toLowerCase(), code),
+        source_fingerprint: fp(EHR_SYSTEM, 'MedicationRequest', name.toLowerCase(), code, dateKey),
       };
     })
     .filter((r) => r !== null) as Record<string, unknown>[];

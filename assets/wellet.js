@@ -5160,67 +5160,8 @@ window.renderLabsChart = function(testName) {
 
 // ── Detail-section content builders ──────────────────────────────────────────
 
-// Strip the operational FHIR boilerplate that Epic packs into dosageInstruction.text
-// ("Starting ...", "Until ...", "Electronic", "Historical Med", "Do Not Send to Pharmacy",
-// "Unsure of dosage"). Family members don't need the e-prescribing audit trail — they
-// need the human dose. Keep this conservative: only strip well-known trailing clauses,
-// never the actual instruction body.
-function _cleanFhirDoseText(s) {
-  if (!s || typeof s !== 'string') return s || '';
-  var out = s;
-  // Strip trailing comma-separated boilerplate clauses, repeatedly.
-  var junkPatterns = [
-    /,\s*Starting\s+[A-Za-z]{3}\s+\d{1,2}\/\d{1,2}\/\d{2,4}/i,
-    /,\s*Until\s+[A-Za-z]{3}\s+\d{1,2}\/\d{1,2}\/\d{2,4}/i,
-    /,\s*Do Not Send to Pharmacy/i,
-    /,\s*Historical Med/i,
-    /,\s*Unsure of dosage/i,
-    /,\s*Electronic\b/i,
-    /,\s*Printed\b/i,
-    /,\s*Telephone\b/i,
-    /,\s*Verbal\b/i,
-    /,\s*Reported\b/i,
-  ];
-  var changed = true;
-  var guard = 0;
-  while (changed && guard++ < 10) {
-    changed = false;
-    for (var i = 0; i < junkPatterns.length; i++) {
-      var next = out.replace(junkPatterns[i], '');
-      if (next !== out) { out = next; changed = true; }
-    }
-  }
-  return out.replace(/\s*,\s*$/, '').replace(/\s+/g, ' ').trim();
-}
-
-// Dedupe meds by normalized name + cleaned dose. Epic returns duplicate
-// MedicationRequest rows (one per refill/renewal/historical entry) and the
-// ehr-persist upsert key currently includes a date component, so the
-// medications table accumulates a row per refill. Render-time dedupe gives
-// the family one row per drug while the DB cleanup ships separately.
-function _dedupeMedsForDisplay(rows, getName, getDose) {
-  if (!Array.isArray(rows)) return [];
-  var seen = Object.create(null);
-  var out = [];
-  for (var i = 0; i < rows.length; i++) {
-    var r = rows[i];
-    var n = (getName(r) || '').toLowerCase().replace(/\s+/g, ' ').trim();
-    var d = _cleanFhirDoseText(getDose(r) || '').toLowerCase().replace(/\s+/g, ' ').trim();
-    var key = n + '|' + d;
-    if (!key || key === '|') continue;
-    if (seen[key]) continue;
-    seen[key] = true;
-    out.push(r);
-  }
-  return out;
-}
-
 function _rdMedsContent(activeMeds, ehrMeds, ehrData, ehrProvider) {
   var html = '';
-  // Dedupe before render so the family sees one row per drug even if Epic
-  // gave us duplicate MedicationRequest entries.
-  activeMeds = _dedupeMedsForDisplay(activeMeds, function(m){return m.name;}, function(m){return m.dose;});
-  ehrMeds    = _dedupeMedsForDisplay(ehrMeds,    function(m){return m.name;}, function(m){return m.dosage||m.frequency;});
   if (activeMeds.length === 0 && ehrMeds.length === 0) {
     html += '<div style="text-align:center;padding:24px 16px;color:var(--text-secondary);font-size:var(--type-meta);font-style:italic;">No medications added yet.</div>';
     if (!ehrData) html += buildEhrPrompt();
@@ -5230,12 +5171,11 @@ function _rdMedsContent(activeMeds, ehrMeds, ehrData, ehrProvider) {
       // the same 6-tile detail view used for EHR meds and surfaces an explicit
       // "Edit medication" button. Previously this row jumped straight into the
       // edit modal with no intermediate screen.
-      var cleanDose = _cleanFhirDoseText(med.dose || '');
       html += '<div class="record-row" style="cursor:pointer;" onclick="openMedicationDetail(\''+med.id+'\')">'
         + '<div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>'
-        + '<div style="flex:1;min-width:0;"><div class="record-label">'+escHtml(med.name)+'</div>'
-        + '<div class="record-meta">'+(cleanDose?escHtml(cleanDose):'')+(med.frequency?(cleanDose?' \u00B7 ':'')+escHtml(med.frequency):'')+(med.prescriber?' \u00B7 '+escHtml(med.prescriber):'')+'</div></div>'
-        + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);flex-shrink:0;margin-left:6px;"></i>'
+        + '<div style="flex:1;"><div class="record-label">'+escHtml(med.name)+(med.dose?' '+escHtml(med.dose):'')+'</div>'
+        + '<div class="record-meta">'+(med.frequency?escHtml(med.frequency):'')+(med.prescriber?' \u00B7 '+escHtml(med.prescriber):'')+'</div></div>'
+        + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>'
         + '</div>';
     });
     ehrMeds.forEach(function(med, idx) {
@@ -5249,11 +5189,10 @@ function _rdMedsContent(activeMeds, ehrMeds, ehrData, ehrProvider) {
       var onclickAttr = refId
         ? 'onclick="openMedicationDetail(\''+refId.replace(/'/g, "\\'")+'\')"'
         : 'onclick="openRecordsDetail(\'medications\')"';
-      var cleanDosage = _cleanFhirDoseText(med.dosage || med.frequency || '');
       html += '<div class="record-row" style="cursor:pointer;" '+onclickAttr+'>'
         + '<div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;min-width:0;"><div class="record-label">'+escHtml(med.name)+' '+ehrBadgeHtml()+'</div>'
-        + '<div class="record-meta">'+escHtml(cleanDosage)+'</div></div>'
+        + '<div class="record-meta">'+escHtml(med.dosage||med.frequency||'')+'</div></div>'
         + rowProviderBadge(med, ehrProvider, ehrData)
         + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);flex-shrink:0;margin-left:6px;"></i>'
         + '</div>';
@@ -7695,10 +7634,7 @@ function openMedicationDetail(refId) {
           date_asserted: m.start_date || m.created_at || '',
           prescriber: m.prescriber || ''
         };
-        // Only mark as manual if the row didn't come from an EHR sync —
-        // editing EHR-sourced meds is pointless because they get overwritten
-        // on the next refresh.
-        isManual = (m.source !== 'ehr');
+        isManual = true;
         break;
       }
     }
@@ -7708,8 +7644,8 @@ function openMedicationDetail(refId) {
     return;
   }
 
-  var doseLabel  = _cleanFhirDoseText(med.dosage || '');
-  var freqLabel  = _cleanFhirDoseText(med.frequency || '');
+  var doseLabel  = med.dosage || '';
+  var freqLabel  = med.frequency || '';
   var statusLabel = med.status || '';
   if (statusLabel) statusLabel = statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1).toLowerCase();
   var prescribedLabel = med.date_asserted ? formatEventDate(med.date_asserted) : '';
