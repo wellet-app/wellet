@@ -6196,18 +6196,20 @@ function openRecordsDetail(section) {
 // retain the breadcrumb of where they came from.
 
 // Build a stable synthetic refId for an EHR row when the FHIR resource id
-// is missing. Keyed on type + name + code + a date field; falls back to
-// type + index so we never return empty. Same input → same output across
-// renders, which is what _findEhrItemById needs to round-trip.
-function _ehrSynthRefId(prefix, row, idx) {
-  if (!row) return prefix + ':idx:' + (idx == null ? '0' : idx);
+// is missing. Keyed on type + name + code + a date field. Index is NOT
+// included — conditions are rendered in 3 separate groups (active/preventive/
+// historical) with per-group indexes, while lookup iterates the flat array
+// with a flat index, so an index suffix would never round-trip cleanly.
+// Same-name/same-code/same-date rows collapse to the same key (acceptable:
+// they'd open the same detail screen anyway, and the render path already
+// dedups by name).
+function _ehrSynthRefId(prefix, row, _idx) {
+  if (!row) return prefix + ':unnamed';
   var name = (row.name || '').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '').slice(0, 40);
   var code = (row.code || '').toString().slice(0, 24);
   var date = (row.date_asserted || row.onset_date || row.recorded_date || row.effective_date || '').toString().slice(0, 10);
   var key = [prefix, name || 'unnamed', code, date].filter(Boolean).join(':');
-  // Guarantee uniqueness across same-name same-date rows by appending idx if
-  // we'd otherwise collide — cheap: include idx for synth ids.
-  return key + ':i' + (idx == null ? 0 : idx);
+  return key;
 }
 
 // Look up an encounter / lab / condition by id from the current EHR cache,
