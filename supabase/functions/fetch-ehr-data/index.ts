@@ -500,6 +500,10 @@ function mapConditions(resources: unknown[]) {
     const coding = (r.code as Record<string, unknown>)?.coding as Record<string, unknown>[] || [];
     const firstCoding = coding[0] || {};
     return {
+      // FHIR resource id — used by the app's openConditionDetail() to look
+      // the row up. Without this the row click silently re-renders the
+      // conditions list (see 2026-05-19 click-no-op investigation).
+      id: (r.id as string) || '',
       type: 'condition',
       source: 'ehr',
       name: ((r.code as Record<string, unknown>)?.text as string) || (firstCoding.display as string) || 'Unknown condition',
@@ -534,6 +538,11 @@ function mapMedications(resources: unknown[]) {
     const prescriberName = (requester.display as string) || '';
 
     return {
+      // FHIR resource id — needed by openMedicationDetail() to look the row
+      // up. Without this the row click silently re-renders the medications
+      // list (see 2026-05-19 click-no-op investigation). Dedup below keeps
+      // the most-recent entry's id alongside the name.
+      id: (r.id as string) || '',
       type: 'medication',
       source: 'ehr',
       name: medName,
@@ -577,6 +586,8 @@ function mapAllergies(resources: unknown[]) {
       : [];
 
     return {
+      // FHIR resource id — mirrors mapMedications/mapConditions fix.
+      id: (r.id as string) || '',
       type: 'allergy',
       source: 'ehr',
       name: ((r.code as Record<string, unknown>)?.text as string) || (firstCoding.display as string) || 'Unknown allergen',
