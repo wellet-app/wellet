@@ -7810,11 +7810,16 @@ function _renderMedTilesFromPayload(data) {
     var p = data && data.pill;
     if (p && (p.shape || p.color || p.imprint || p.text || p.size_mm)) {
       var bits = [];
-      if (p.color)   bits.push('<div class="editorial-meta-row"><span style="color:var(--text-secondary);">Color</span><span style="color:var(--text-primary);font-weight:500;text-transform:capitalize;">' + escHtml(p.color) + '</span></div>');
-      if (p.shape)   bits.push('<div class="editorial-meta-row"><span style="color:var(--text-secondary);">Shape</span><span style="color:var(--text-primary);font-weight:500;text-transform:capitalize;">' + escHtml(p.shape) + '</span></div>');
-      if (p.imprint) bits.push('<div class="editorial-meta-row"><span style="color:var(--text-secondary);">Imprint</span><span style="color:var(--text-primary);font-weight:500;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">' + escHtml(p.imprint) + '</span></div>');
-      if (p.size_mm) bits.push('<div class="editorial-meta-row"><span style="color:var(--text-secondary);">Size</span><span style="color:var(--text-primary);font-weight:500;">' + escHtml(p.size_mm) + '</span></div>');
-      if (p.ndc)     bits.push('<div class="editorial-meta-row"><span style="color:var(--text-secondary);">NDC</span><span style="color:var(--text-muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">' + escHtml(p.ndc) + '</span></div>');
+      // 2026-05-19: .editorial-meta-row was referenced but never defined in CSS,
+      // so the two spans collapsed to inline text ("Colorwhite", "Shapecapsule").
+      // Inline the flex layout so label and value sit on opposite ends with a
+      // dotted leader-of-air between them.
+      var rowStyle = 'display:flex;justify-content:space-between;align-items:baseline;gap:16px;font-size:var(--type-meta);padding:6px 0;border-bottom:1px solid var(--border, rgba(0,0,0,0.06));';
+      if (p.color)   bits.push('<div class="editorial-meta-row" style="'+rowStyle+'"><span style="color:var(--text-secondary);">Color</span><span style="color:var(--text-primary);font-weight:500;text-transform:capitalize;">' + escHtml(p.color) + '</span></div>');
+      if (p.shape)   bits.push('<div class="editorial-meta-row" style="'+rowStyle+'"><span style="color:var(--text-secondary);">Shape</span><span style="color:var(--text-primary);font-weight:500;text-transform:capitalize;">' + escHtml(p.shape) + '</span></div>');
+      if (p.imprint) bits.push('<div class="editorial-meta-row" style="'+rowStyle+'"><span style="color:var(--text-secondary);">Imprint</span><span style="color:var(--text-primary);font-weight:500;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">' + escHtml(p.imprint) + '</span></div>');
+      if (p.size_mm) bits.push('<div class="editorial-meta-row" style="'+rowStyle+'"><span style="color:var(--text-secondary);">Size</span><span style="color:var(--text-primary);font-weight:500;">' + escHtml(p.size_mm) + '</span></div>');
+      if (p.ndc)     bits.push('<div class="editorial-meta-row" style="'+rowStyle+'border-bottom:0;"><span style="color:var(--text-secondary);">NDC</span><span style="color:var(--text-muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">' + escHtml(p.ndc) + '</span></div>');
       var pillHtml = '<div style="display:grid;gap:8px;padding:6px 0 4px;">' + bits.join('') + '</div>';
       if (p.text) pillHtml += '<div style="margin-top:10px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.5;white-space:pre-wrap;">' + escHtml(p.text.slice(0, 400)) + (p.text.length > 400 ? '\u2026' : '') + '</div>';
       pillHtml += '<div class="editorial-tile-attribution" style="margin-top:12px;font-size:var(--type-micro);color:var(--text-muted);">Pill description from openFDA. RxImage retired May 2026.</div>';
