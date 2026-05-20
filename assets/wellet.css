@@ -1718,6 +1718,8 @@
   .sources-collapsed .sources-collapsed-name { font-weight:500; color:var(--text-primary); }
   .sources-collapsed .sources-collapsed-meta { color:var(--text-muted); }
   .sources-collapsed .sources-collapsed-expand { margin-left:auto; color:var(--text-muted); }
+  .sources-reassure { margin:8px 16px 0; padding:12px 14px; background:var(--mint); color:var(--moss-dark); border-radius:10px; font-family:'DM Sans',sans-serif; font-size:var(--type-meta); line-height:1.5; display:flex; gap:10px; align-items:flex-start; }
+  .sources-reassure i { flex-shrink:0; margin-top:2px; color:var(--moss-dark); }
 
   /* ── END-OF-CARE JOURNEY ───────────────────────────────────── */
   .eoc-overlay { display:none; position:fixed; inset:0; background:rgba(44,42,38,0.5); z-index:150; align-items:flex-end; justify-content:center; }

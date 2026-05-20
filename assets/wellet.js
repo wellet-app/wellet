@@ -8779,10 +8779,14 @@ function _sourceStatusLine(row, nowMs) {
   var createdMs = row.created_at ? new Date(row.created_at).getTime() : 0;
   var ageHours = createdMs ? (nowMs - createdMs) / 3600000 : 0;
   if (ageHours >= 24) {
-    return 'This connection didn\u2019t finish \u00B7 try again, or contact us if it keeps failing';
+    // The user did their part more than a day ago. The work is on us now.
+    // No "contact us" tax — our hospital_connect_request alert already fired
+    // to Betsy and the every-2h tester-signal cron is on it.
+    return 'This one\u2019s taking longer than usual \u2014 we\u2019re looking into it on our end. No action needed from you.';
   }
   // Under 24h — the Kelly case: Epic hasn't propagated the activation yet.
-  return 'Waiting for ' + hospital + ' to approve Wellet \u00B7 usually a few hours, sometimes overnight';
+  // Put the work on us, not on her. She already did her part.
+  return hospital + ' is getting set up on our end \u00B7 we\u2019ll let you know the moment your records start flowing in';
 }
 
 function _sourceStatusTone(row, nowMs) {
@@ -8927,6 +8931,15 @@ function _paintSourcesCard(personId, rows) {
   html += '<button type="button" class="sources-card-add" onclick="startEhrConnect()">';
   html += '<i data-lucide="plus" style="width:14px;height:14px;"></i> Add hospital</button>';
   html += '</div>';
+
+  // All-pending reassurance: when no live connections yet but pending exists,
+  // remind the user this is normal and we're handling it.
+  if (connected.length === 0 && (pending.length + reconnect.length) > 0) {
+    html += '<div class="sources-reassure">';
+    html += '<i data-lucide="leaf" style="width:16px;height:16px;"></i>';
+    html += '<div>Your records will start showing here once the first hospital comes through. Most users see their first records within a day.</div>';
+    html += '</div>';
+  }
 
   if (reconnect.length > 0) {
     html += '<div class="sources-group">';
