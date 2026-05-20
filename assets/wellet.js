@@ -6104,6 +6104,12 @@ function openRecordsDetail(section) {
   // activeMeds prevents a double-render that previously routed taps to the
   // edit modal instead of the detail view.
   var activeMeds  = liveMeds.filter(function(m){ return m.active && m.source !== 'ehr'; });
+  // DB-backed fallback when the v2 cache is empty/stale (e.g. a superseded
+  // connection shadows the active one). liveMeds is already connection-
+  // filtered by loadPersonData, so DB is the safe source of truth.
+  if (ehrMeds.length === 0) {
+    ehrMeds = _ehrMedsFromLiveMeds(liveMeds);
+  }
   var labEvents   = liveEvents.filter(function(e){ return e.event_type==='lab_result'; });
   var apptEvents  = liveEvents.filter(function(e){ return e.event_type==='appointment'; });
 
@@ -8296,6 +8302,15 @@ function renderRecordsView() {
       });
     ehrVisitsRecent = allEhrVisits.filter(function(v){ var t=v.start_date?new Date(v.start_date).getTime():0; return t>=twoYearsAgoMs; });
     ehrVisitsOlder  = allEhrVisits.filter(function(v){ var t=v.start_date?new Date(v.start_date).getTime():0; return t>0&&t<twoYearsAgoMs; });
+  }
+
+  // DB-backed fallback for EHR Medications when the v2 cache is empty or
+  // stale. Loved ones with 2 hospitals can have a superseded connection in
+  // their v2 entry whose `medications: []` shadows the active one. liveMeds
+  // is already filtered by loadPersonData to active connection_ids so it's
+  // safe to fall through. DB is source of truth.
+  if (ehrMeds.length === 0) {
+    ehrMeds = _ehrMedsFromLiveMeds(liveMeds);
   }
 
   // ── computed counts for tile summaries ───────────────────────────────────
@@ -14143,6 +14158,34 @@ function isEhrCacheStale(personId) {
   if (!cached || !cached.synced_at) return true;
   var age = Date.now() - new Date(cached.synced_at).getTime();
   return age > 15 * 60 * 1000;
+}
+
+// Adapt a row from public.medications (DB shape) into the shape the EHR
+// medications render path expects (ehrData.medications[]). DB is the source
+// of truth — the v2 localStorage cache is only an instant-paint optimization.
+// When the v2 cache is stale, empty, or scoped to a superseded connection,
+// liveMeds (already filtered to active connections by loadPersonData) becomes
+// the fallback so Records can never show "0" when DB has rows.
+function _ehrMedsFromLiveMeds(meds) {
+  if (!Array.isArray(meds)) return [];
+  return meds
+    .filter(function(m){ return m && m.source === 'ehr' && m.active !== false; })
+    .map(function(m) {
+      return {
+        id: m.id || '',
+        name: m.name || '',
+        // ehr cache rows use `dosage`; live rows use `dose`. Render path reads either.
+        dosage: m.dose || '',
+        dose: m.dose || '',
+        frequency: m.frequency || '',
+        prescriber: m.prescriber || '',
+        start_date: m.start_date || '',
+        end_date: m.end_date || '',
+        status: m.active === false ? 'stopped' : 'active',
+        source: 'ehr',
+        _connection_id: m.connection_id || null,
+      };
+    });
 }
 
 // Legacy v1 reader — same body as before, kept so the flag can dispatch.
