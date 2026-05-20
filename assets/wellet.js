@@ -6246,12 +6246,22 @@ function _findEhrItemById(kind, refId) {
     for (var n = 0; n < conds2.length; n++) {
       if (conds2[n].id === refId || conds2[n]._refId === refId) return conds2[n];
     }
+    // Fallback: regenerate synth refId on the fly. Handles the case where the
+    // EHR cache was replaced between render and click (e.g. background
+    // fetchEhrData fired after the list rendered) so the freshly-loaded rows
+    // never got _refId stamped at render time.
+    for (var n2 = 0; n2 < conds2.length; n2++) {
+      if (_ehrSynthRefId('cond', conds2[n2], n2) === refId) return conds2[n2];
+    }
     return null;
   }
   if (kind === 'medication') {
     var meds = ehrData.medications || [];
     for (var p = 0; p < meds.length; p++) {
       if (meds[p].id === refId || meds[p]._refId === refId) return meds[p];
+    }
+    for (var p2 = 0; p2 < meds.length; p2++) {
+      if (_ehrSynthRefId('med', meds[p2], p2) === refId) return meds[p2];
     }
     return null;
   }
