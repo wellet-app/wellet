@@ -84,6 +84,11 @@ var summaryCache = {};    // { personId: summaryText } to avoid re-fetching
 var _cardToRemove = null;
 var _cardToRemoveId = null; // Supabase id if real person
 var _currentAskPerson = 'dad';
+// Voice v1: conversation state for Ask Wellet
+var _askConversationId = null;     // current ask_conversations.id (lazy-created on first AI response)
+var _askHistory = [];              // [{role:'user'|'assistant', content:string}], capped at 20 entries in memory
+var _askSavePromptShown = false;   // dedupe — only show end-of-conversation save modal once
+var _askLastClassification = null; // 'lookup'|'observation'|'prep'|'other'
 var _editingContactId = null; // care_circle_members id being edited
 var _editingEventId = null;   // health_events id being edited
 var _editingMedId = null;     // medications id being edited
@@ -4418,6 +4423,7 @@ function renderTimeline() {
             + '</div>'
             + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
             + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
+            + (ev.event_type === 'ask_wellet_conversation' && ev.transcript_url ? '<div class="tl-card-body" style="margin-top:4px;"><a href="' + escHtml(ev.transcript_url) + '" target="_blank" rel="noopener" style="color:var(--moss-deep,var(--moss));font-size:13px;font-weight:500;text-decoration:none;">View transcript →</a></div>' : '')
             + '<div class="tl-card-date">' + dateStr
             + ' \u00B7 <span style="color:' + pillColor + ';' + pillStyle + '">' + escHtml(pillLabel) + '</span>'
             + '</div>'
@@ -11203,7 +11209,8 @@ function getEventTypeInfo(type) {
     share:       { dot:'note', border:'moss-border', icon:'send', color:'var(--moss)', label:'Share' },
     care_signal: { dot:'alert', border:'moss-border', icon:'activity', color:'var(--moss)', label:'Wellet noticed' },
     med_log:     { dot:'med',  border:'amber-border', icon:'pill', color:'var(--amber)', label:'Meds logged' },
-    check_in:    { dot:'note', border:'', icon:'heart-pulse', color:'var(--text-muted)', label:'Check-in' }
+    check_in:    { dot:'note', border:'', icon:'heart-pulse', color:'var(--text-muted)', label:'Check-in' },
+    ask_wellet_conversation: { dot:'note', border:'moss-border', icon:'message-circle', color:'var(--moss)', label:'Conversation with Wellet' }
   };
   return map[type] || map['note'];
 }
@@ -17117,6 +17124,7 @@ function selectAskRealPerson(el, personId) {
 
 function selectAskPerson(el, person) {
   // Demo mode only
+  try { _resetAskConversation(); } catch(_e){}
   _currentAskPerson = person;
   document.querySelectorAll('.ask-person-pill').forEach(function(p){ p.classList.remove('active'); });
   el.classList.add('active');
@@ -17389,7 +17397,9 @@ function sendAskMessage() {
           bodyObj = {
             question: text,
             person_id: currentPersonId,
-            context: pendingCtx
+            context: pendingCtx,
+            history: (_askHistory || []).slice(0, -1).slice(-10),  // exclude the question we just added; cap 10
+            conversation_id: _askConversationId  // null on first turn, populated on subsequent
           };
         }
         return await withTimeout(fetch(
@@ -17459,6 +17469,15 @@ function sendAskMessage() {
             handleWatchModeResponse(data);
           } else {
             addWelletMessage(renderMarkdownSafe(data.answer || data.response || 'I couldn\u2019t find an answer to that.'));
+            // Voice v1: capture classification and conversation_id
+            _askLastClassification = data.classification || null;
+            if (data.conversation_id && !_askConversationId) _askConversationId = data.conversation_id;
+            // Persist this turn (user + assistant) into ask_messages via Supabase JS client
+            try { _persistAskTurn(text, data.answer || '', data.classification || 'other', data.model || null, !!data.live_ehr); } catch(_e){}
+            // Soft save chip for observation/prep
+            if (data.classification === 'observation' || data.classification === 'prep') {
+              _renderSaveChip(data.classification);
+            }
           }
         } else if (res.status === 401) {
           console.error('ask-wellet 401 after double refresh; prompting re-auth');
@@ -17554,6 +17573,8 @@ function addUserMessage(text) {
   // expands back to flex:1 and the conversation can scroll.
   area.classList.remove('is-empty-state');
   area.scrollTop = area.scrollHeight;
+  // Voice v1: capture into history
+  try { _askHistory.push({ role: 'user', content: String(text || '') }); if (_askHistory.length > 20) _askHistory = _askHistory.slice(-20); } catch(_e){}
 }
 
 function addWelletMessage(html) {
@@ -17564,7 +17585,144 @@ function addWelletMessage(html) {
   area.appendChild(g);
   area.classList.remove('is-empty-state');
   area.scrollTop = area.scrollHeight;
+  // Voice v1: optional TTS playback. Defaults OFF; enable via window._welletTTS = true.
+  try {
+    if (window._welletTTS && 'speechSynthesis' in window) {
+      var tmp = document.createElement('div'); tmp.innerHTML = html;
+      var plain = (tmp.textContent || tmp.innerText || '').trim();
+      if (plain && plain.length < 1200) {
+        var u = new SpeechSynthesisUtterance(plain);
+        u.rate = 1.0; u.pitch = 1.0;
+        // Prefer Samantha (iOS) or Google US English
+        try {
+          var voices = window.speechSynthesis.getVoices() || [];
+          var pref = voices.find(function(v){ return /samantha/i.test(v.name); })
+                  || voices.find(function(v){ return /google.*us english/i.test(v.name); })
+                  || voices.find(function(v){ return v.lang === 'en-US'; });
+          if (pref) u.voice = pref;
+        } catch(_e){}
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(u);
+      }
+    }
+  } catch(_e){}
   initIcons();
+  // Voice v1: capture plain text into history (strip HTML).
+  try {
+    var tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    var plain = (tmp.textContent || tmp.innerText || '').trim();
+    if (plain) {
+      _askHistory.push({ role: 'assistant', content: plain });
+      if (_askHistory.length > 20) _askHistory = _askHistory.slice(-20);
+    }
+  } catch(_e){}
+}
+
+// Voice v1: persist a turn into ask_messages. Lazy-creates the
+// ask_conversations row on first call. Best-effort — failures are logged
+// but don't break the chat flow.
+async function _persistAskTurn(userText, assistantText, classification, model, liveEhr) {
+  if (!currentPersonId || isDemoMode) return;
+  try {
+    // Lazy-create conversation row
+    if (!_askConversationId) {
+      var u = (db.auth.getUser ? (await db.auth.getUser()).data.user : null);
+      var ins = await db.from('ask_conversations').insert({
+        person_id: currentPersonId,
+        user_id: u && u.id,
+        modality: 'text',
+        save_state: 'pending'
+      }).select('id').single();
+      if (ins && ins.data && ins.data.id) _askConversationId = ins.data.id;
+    }
+    if (!_askConversationId) return;
+    // Insert both rows
+    await db.from('ask_messages').insert([
+      { conversation_id: _askConversationId, role: 'user', content: String(userText || ''), modality: 'text' },
+      { conversation_id: _askConversationId, role: 'assistant', content: String(assistantText || ''), modality: 'text', classification: classification || null, model: model || null, live_ehr_used: !!liveEhr }
+    ]);
+    // Bump counters on conversation
+    var counterCol = ({ observation: 'observations_count', prep: 'prep_count', lookup: 'lookup_count', other: 'other_count' })[classification] || 'other_count';
+    await db.rpc('increment_ask_conversation_counter', { conv_id: _askConversationId, col: counterCol }).catch(function(){ /* if rpc doesn't exist, skip */ });
+  } catch(e) {
+    console.warn('[ask-wellet] persistAskTurn failed:', e && e.message);
+  }
+}
+
+// Voice v1: render a soft "Save to timeline" chip under the latest Wellet bubble.
+function _renderSaveChip(classification) {
+  try {
+    var area = document.getElementById('chat-area');
+    if (!area) return;
+    var groups = area.querySelectorAll('.chat-group.from-wellet');
+    var last = groups[groups.length - 1];
+    if (!last) return;
+    // Don't double-render
+    if (last.querySelector('.ask-save-chip')) return;
+    var label = classification === 'prep' ? 'Save these questions to the timeline' : 'Save this to the timeline';
+    var chip = document.createElement('div');
+    chip.className = 'ask-save-chip';
+    chip.style.cssText = 'margin-top:6px;padding:6px 12px;border-radius:14px;background:rgba(167,201,160,0.14);color:var(--moss-deep,var(--moss));font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(167,201,160,0.35);';
+    chip.innerHTML = '<i data-lucide="bookmark" style="width:13px;height:13px;"></i>' + escHtml(label);
+    chip.addEventListener('click', function(e){ e.stopPropagation(); _openSaveToTimeline(); });
+    last.appendChild(chip);
+    if (typeof initIcons === 'function') initIcons();
+  } catch(_e){}
+}
+
+// Voice v1: open end-of-conversation save flow. Calls ask-wellet-save edge fn.
+async function _openSaveToTimeline() {
+  if (!_askConversationId || !currentPersonId) {
+    alert('Nothing to save yet — try asking a question first.');
+    return;
+  }
+  // Build default title from the last user turn
+  var defaultTitle = '';
+  try {
+    for (var i = _askHistory.length - 1; i >= 0; i--) {
+      if (_askHistory[i].role === 'user') {
+        defaultTitle = String(_askHistory[i].content).slice(0, 80);
+        break;
+      }
+    }
+  } catch(_e){}
+  var title = prompt('Give this conversation a short title for your timeline:', defaultTitle);
+  if (title === null) return;  // cancelled
+  title = (title || defaultTitle || 'Conversation with Wellet').trim().slice(0, 200);
+  try {
+    var ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU';
+    var s = await db.auth.getSession();
+    var tok = s && s.data && s.data.session && s.data.session.access_token;
+    if (!tok) { alert('Your session expired. Please sign back in.'); return; }
+    var res = await fetch('https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/ask-wellet-save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok, 'apikey': ANON_KEY },
+      body: JSON.stringify({ conversation_id: _askConversationId, title: title })
+    });
+    if (res.ok) {
+      addWelletMessage('Saved to ' + escHtml((currentPeople.find(function(p){return p.id===currentPersonId;}) || {}).name || 'their') + ' timeline.');
+      // Refresh timeline if visible
+      try { if (typeof renderTimeline === 'function') renderTimeline(); } catch(_e){}
+    } else {
+      var t = ''; try { t = await res.text(); } catch(_e){}
+      console.error('ask-wellet-save failed:', res.status, t);
+      addWelletMessage('I couldn\u2019t save that just now. Please try again in a moment.');
+    }
+  } catch(e) {
+    console.error('save failed:', e);
+    addWelletMessage('I couldn\u2019t save that just now. Please try again in a moment.');
+  }
+}
+
+// Voice v1: reset conversation state. Call this when the user switches loved
+// ones, when they explicitly tap "End conversation", or when they leave the
+// Ask Wellet tab.
+function _resetAskConversation() {
+  _askConversationId = null;
+  _askHistory = [];
+  _askSavePromptShown = false;
+  _askLastClassification = null;
 }
 
 function showTyping() {
