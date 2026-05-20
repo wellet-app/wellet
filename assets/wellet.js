@@ -5168,10 +5168,15 @@ function _rdMedsContent(activeMeds, ehrMeds, ehrData, ehrProvider) {
       // inline expand/collapse so the family never saw the rich detail their
       // patient portal already shows. EHR med rows must carry a stable id so
       // openMedicationDetail() can look the row up via _findEhrItemById.
-      var refId = med.id || med._refId || '';
-      var onclickAttr = refId
-        ? 'onclick="openMedicationDetail(\''+refId.replace(/'/g, "\\'")+'\')"'
-        : 'onclick="openRecordsDetail(\'medications\')"';
+      // 2026-05-19: fetch-ehr-data's mapMedications/mapConditions/mapAllergies
+      // were dropping the FHIR resource id, so med.id was empty and every row
+      // silently fell back to openRecordsDetail('medications') — looked like
+      // "nothing happens." Defensive synth ensures we always have a stable
+      // refId until the edge function redeploy lands. _findEhrItemById was
+      // taught to look up by _refId too.
+      var refId = med.id || med._refId || _ehrSynthRefId('med', med, idx);
+      if (!med._refId) { try { med._refId = refId; } catch(_e) {} }
+      var onclickAttr = 'onclick="openMedicationDetail(\''+refId.replace(/'/g, "\\'")+'\')"';
       html += '<div class="record-row" style="cursor:pointer;" '+onclickAttr+'>'
         + '<div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;min-width:0;"><div class="record-label">'+escHtml(med.name)+' '+ehrBadgeHtml()+'</div>'
@@ -5235,13 +5240,14 @@ function _rdConditionsContent(ehrConditions, ehrData, ehrProvider) {
     // never reached openConditionDetail() and none of the tiles ever rendered.
     // The .condition-card class is kept so attachAskLongPressAll() still binds
     // long-press → Ask Wellet with kind='condition' (see L5050).
-    var refId = c.id || '';
+    // 2026-05-19: same id-missing bug as meds — synthesize a stable refId so
+    // the row click always opens the detail screen. See _rdMedsContent comment.
+    var refId = c.id || c._refId || _ehrSynthRefId('cond', c, idx);
+    if (!c._refId) { try { c._refId = refId; } catch(_e) {} }
     var badge = c.status==='active'
       ? '<span class="record-badge amber">Active</span>'
       : '<span class="record-badge moss">'+escHtml(c.status||'Recorded')+'</span>';
-    var onclickAttr = refId
-      ? 'onclick="openConditionDetail(\''+refId.replace(/'/g, "\\'")+'\')"'
-      : 'onclick="openRecordsDetail(\'conditions\')"';
+    var onclickAttr = 'onclick="openConditionDetail(\''+refId.replace(/'/g, "\\'")+'\')"';
     return '<div class="record-row condition-card" style="cursor:pointer;" '+onclickAttr+'>'
       + '<div class="record-icon moss"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>'
       + '<div style="flex:1;"><div class="record-label">'+escHtml(c.name)+'</div>'
@@ -6189,6 +6195,21 @@ function openRecordsDetail(section) {
 // does. Back goes to the section list (openRecordsDetail(section)) so users
 // retain the breadcrumb of where they came from.
 
+// Build a stable synthetic refId for an EHR row when the FHIR resource id
+// is missing. Keyed on type + name + code + a date field; falls back to
+// type + index so we never return empty. Same input → same output across
+// renders, which is what _findEhrItemById needs to round-trip.
+function _ehrSynthRefId(prefix, row, idx) {
+  if (!row) return prefix + ':idx:' + (idx == null ? '0' : idx);
+  var name = (row.name || '').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '').slice(0, 40);
+  var code = (row.code || '').toString().slice(0, 24);
+  var date = (row.date_asserted || row.onset_date || row.recorded_date || row.effective_date || '').toString().slice(0, 10);
+  var key = [prefix, name || 'unnamed', code, date].filter(Boolean).join(':');
+  // Guarantee uniqueness across same-name same-date rows by appending idx if
+  // we'd otherwise collide — cheap: include idx for synth ids.
+  return key + ':i' + (idx == null ? 0 : idx);
+}
+
 // Look up an encounter / lab / condition by id from the current EHR cache,
 // with a fallback to liveEvents (DB-backed) when the cache hasn't loaded yet.
 function _findEhrItemById(kind, refId) {
@@ -6197,12 +6218,12 @@ function _findEhrItemById(kind, refId) {
   if (kind === 'encounter') {
     var visits = ehrData.visits || ehrData.encounters || [];
     for (var i = 0; i < visits.length; i++) {
-      if (visits[i].id === refId) return visits[i];
+      if (visits[i].id === refId || visits[i]._refId === refId) return visits[i];
     }
     // Conditions sometimes carry encounter-shaped rows (Epic Outpatient).
     var conds = ehrData.conditions || [];
     for (var j = 0; j < conds.length; j++) {
-      if (conds[j].id === refId && (conds[j].location || conds[j].reason)) {
+      if ((conds[j].id === refId || conds[j]._refId === refId) && (conds[j].location || conds[j].reason)) {
         return { id: conds[j].id, name: conds[j].name, start_date: conds[j].onset_date || conds[j].recorded_date,
                  location: conds[j].location || '', reason: conds[j].reason || '', providers: [], documents: [] };
       }
@@ -6212,25 +6233,25 @@ function _findEhrItemById(kind, refId) {
   if (kind === 'lab') {
     var obs = ehrData.observations || [];
     for (var k = 0; k < obs.length; k++) {
-      if (obs[k].id === refId) return Object.assign({ _isReport: false }, obs[k]);
+      if (obs[k].id === refId || obs[k]._refId === refId) return Object.assign({ _isReport: false }, obs[k]);
     }
     var reports = ehrData.diagnostic_reports || [];
     for (var m = 0; m < reports.length; m++) {
-      if (reports[m].id === refId) return Object.assign({ _isReport: true }, reports[m]);
+      if (reports[m].id === refId || reports[m]._refId === refId) return Object.assign({ _isReport: true }, reports[m]);
     }
     return null;
   }
   if (kind === 'condition') {
     var conds2 = ehrData.conditions || [];
     for (var n = 0; n < conds2.length; n++) {
-      if (conds2[n].id === refId) return conds2[n];
+      if (conds2[n].id === refId || conds2[n]._refId === refId) return conds2[n];
     }
     return null;
   }
   if (kind === 'medication') {
     var meds = ehrData.medications || [];
     for (var p = 0; p < meds.length; p++) {
-      if (meds[p].id === refId) return meds[p];
+      if (meds[p].id === refId || meds[p]._refId === refId) return meds[p];
     }
     return null;
   }
@@ -6491,6 +6512,11 @@ function openConditionDetail(refId) {
   if (!view) return;
   var cond = _findEhrItemById('condition', refId);
   if (!cond) {
+    // Loud diagnostic: silent fallback here used to look like "click does
+    // nothing" because we'd re-render the same conditions list. Keep the
+    // fallback (consistent UX) but emit a warn so the next time it happens
+    // we know exactly which refId failed to round-trip through the cache.
+    try { console.warn('[records] openConditionDetail: no match for refId', refId, '— falling back to list'); } catch(_e) {}
     if (typeof openRecordsDetail === 'function') openRecordsDetail('conditions');
     return;
   }
@@ -7623,6 +7649,7 @@ function openMedicationDetail(refId) {
     }
   }
   if (!med) {
+    try { console.warn('[records] openMedicationDetail: no match for refId', refId, '— falling back to list'); } catch(_e) {}
     if (typeof openRecordsDetail === 'function') openRecordsDetail('medications');
     return;
   }
