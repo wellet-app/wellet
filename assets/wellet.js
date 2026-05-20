@@ -8688,48 +8688,11 @@ function renderRecordsView() {
   initIcons();
   applyRecordsCollapse();
 
-  // Render EHR connection status inline (mirrors Terra inline pattern).
-  // Also hides the contradictory "Connect health records" prompt below
-  // the tile grid when a connection is confirmed (cache OR DB).
+  // Render the Sources card (multi-connection view). v1 ships as a Records-tab
+  // section above the chart sections — see /home/user/workspace/wellet_connections_screen_spec.md.
+  // Replaces the previous single-line "Connected: <provider>" inline status.
   if (!isDemoMode && currentPersonId) {
-    var ehrStatusEl = document.getElementById('records-ehr-status');
-    if (ehrStatusEl) {
-      var renderEhrStatusRow = function(providerLabel, lastSyncIso) {
-        var lastSync = lastSyncIso ? formatTimeAgo(lastSyncIso) : '';
-        var rh = '<div class="terra-inline-list">';
-        rh += '<div class="terra-inline-item">';
-        rh += '<span class="terra-status-dot terra-status-dot--active"></span>';
-        rh += 'Connected: ' + escHtml(providerLabel);
-        if (lastSync) rh += ' \u00B7 last synced ' + escHtml(lastSync);
-        rh += ' <button class="terra-inline-disconnect" style="text-decoration:none;border:1px solid var(--border);border-radius:6px;padding:2px 8px;" onclick="syncNowFromRecords()">Sync now</button>';
-        rh += '</div>';
-        rh += '</div>';
-        ehrStatusEl.innerHTML = rh;
-        // Remove the contradictory "Connect health records" prompt — we're connected.
-        var promptEl = document.getElementById('ehr-section-prompt');
-        if (promptEl && promptEl.parentNode) promptEl.parentNode.removeChild(promptEl);
-      };
-
-      var ehrForStatus = getEhrData(currentPersonId);
-      if (ehrForStatus && ehrForStatus.provider) {
-        renderEhrStatusRow(ehrForStatus.provider, ehrForStatus.synced_at);
-      } else {
-        // No local cache — check DB for an orphan connection so we don't
-        // leave the UI silent when records actually are connected.
-        try {
-          db.from('ehr_connections')
-            .select('provider, last_synced_at, hospital_name, status')
-            .eq('person_id', currentPersonId)
-            .eq('status', 'connected')
-            .maybeSingle()
-            .then(function(res){
-              if (!res || !res.data) return;
-              var d = res.data;
-              renderEhrStatusRow(d.hospital_name || d.provider || 'EHR', d.last_synced_at);
-            }).catch(function(){});
-        } catch(e) {}
-      }
-    }
+    try { renderSourcesCard(currentPersonId); } catch(e) { console.warn('[Sources] render failed:', e); }
   }
 
   // Load Terra connections asynchronously for inline display
@@ -8762,6 +8725,300 @@ async function switchRecordsToRealPerson(personId, el) {
   el.classList.add('active');
   await loadPersonData(personId);
   renderRecordsView();
+}
+
+// ── SOURCES CARD ────────────────────────────────────────────────────────────
+// v1: Multi-connection view in the Records tab. Spec:
+// /home/user/workspace/wellet_connections_screen_spec.md
+//
+// Show/hide rule:
+//   0 connections (after superseded filter) → hide entire card
+//   1 connection → collapsed single-line summary, tap to expand
+//   2+ connections → fully expanded card with grouped rows
+//
+// Groups (in order):
+//   Connected → status='connected' AND needs_reconnect != true
+//   Pending   → status='pending'
+//   Needs reconnect → needs_reconnect=true (regardless of status)
+//
+// Rows older than 24h with no connected_at land in Pending with a softer
+// "didn't finish" copy; rows under 24h read as "waiting for hospital approval"
+// (covers Kelly's Epic-propagation case).
+
+var _sourcesCardExpanded = {}; // personId → boolean (forced-expand override for 1-conn case)
+
+function _sourceTimeAgo(iso) {
+  if (!iso) return '';
+  try {
+    if (typeof formatTimeAgo === 'function') return formatTimeAgo(iso);
+  } catch(e) {}
+  return '';
+}
+
+// Pick a Lucide icon for the connection state. Always 'hospital' for v1
+// (we don't have per-system logos in the picker yet).
+function _sourceIcon(state) {
+  if (state === 'needs_reconnect') return 'unplug';
+  if (state === 'pending') return 'clock';
+  return 'hospital';
+}
+
+// Plain-English status line per row. Never expose OAuth or HTTP codes.
+function _sourceStatusLine(row, nowMs) {
+  var hospital = escHtml(row.hospital_name || row.provider || 'this hospital');
+  if (row.needs_reconnect) {
+    return 'Your access expired \u00B7 sign in again to keep syncing';
+  }
+  if (row.status === 'connected') {
+    var ago = _sourceTimeAgo(row.last_synced_at);
+    if (ago) return 'Synced ' + escHtml(ago);
+    if (row.connected_at) return 'Connected ' + escHtml(_sourceTimeAgo(row.connected_at) || '');
+    return 'Connected';
+  }
+  // pending
+  var createdMs = row.created_at ? new Date(row.created_at).getTime() : 0;
+  var ageHours = createdMs ? (nowMs - createdMs) / 3600000 : 0;
+  if (ageHours >= 24) {
+    return 'This connection didn\u2019t finish \u00B7 try again, or contact us if it keeps failing';
+  }
+  // Under 24h — the Kelly case: Epic hasn't propagated the activation yet.
+  return 'Waiting for ' + hospital + ' to approve Wellet \u00B7 usually a few hours, sometimes overnight';
+}
+
+function _sourceStatusTone(row, nowMs) {
+  if (row.needs_reconnect) return 'red';
+  if (row.status === 'pending') {
+    var createdMs = row.created_at ? new Date(row.created_at).getTime() : 0;
+    var ageHours = createdMs ? (nowMs - createdMs) / 3600000 : 0;
+    return ageHours >= 24 ? 'red' : 'amber';
+  }
+  return ''; // connected = default (no extra color)
+}
+
+function _sourcePrimaryAction(row) {
+  if (row.needs_reconnect) {
+    return { label: 'Sign in again', cls: 'sources-action-primary amber',
+             handler: 'retrySourceConnection' };
+  }
+  if (row.status === 'pending') {
+    return { label: 'Try again', cls: 'sources-action-primary amber',
+             handler: 'retrySourceConnection' };
+  }
+  return { label: 'Refresh now', cls: 'sources-action-primary',
+           handler: 'refreshSourceConnection' };
+}
+
+function _renderSourceRow(row, nowMs) {
+  var hospital = escHtml(row.hospital_name || row.provider || 'Hospital');
+  var tone = _sourceStatusTone(row, nowMs);
+  var iconName = _sourceIcon(row.needs_reconnect ? 'needs_reconnect' : row.status);
+  var iconCls = tone === 'red' ? 'red' : (tone === 'amber' ? 'amber' : '');
+  var primary = _sourcePrimaryAction(row);
+  // Args: fhirBaseUrl + hospital_name. Escape single quotes for inline onclick.
+  var fbu = (row.fhir_base_url || '').replace(/'/g, "\\'");
+  var hn  = (row.hospital_name || row.provider || '').replace(/'/g, "\\'");
+  var cid = (row.id || '').replace(/'/g, "\\'");
+
+  var html = '<div class="sources-row" data-conn-id="' + escHtml(row.id || '') + '">';
+  html += '<div class="sources-row-icon ' + iconCls + '"><i data-lucide="' + iconName + '" style="width:16px;height:16px;"></i></div>';
+  html += '<div class="sources-row-body">';
+  html += '<div class="sources-row-title">' + hospital + '</div>';
+  html += '<div class="sources-row-status ' + tone + '">' + _sourceStatusLine(row, nowMs) + '</div>';
+  html += '<div class="sources-row-actions">';
+  html += '<button type="button" class="' + primary.cls + '" onclick="' + primary.handler + "('" + cid + "','" + fbu + "','" + hn + "')\">" + escHtml(primary.label) + '</button>';
+  html += '<button type="button" class="sources-action-secondary" onclick="disconnectSourceConnection(\'' + cid + "','" + hn + "')\" aria-label=\"Remove this connection\">Remove</button>";
+  html += '</div></div></div>';
+  return html;
+}
+
+function renderSourcesCard(personId) {
+  if (!personId) return;
+  var container = document.getElementById('records-ehr-status');
+  if (!container) return;
+
+  // Loading skeleton so the section isn't flashy-empty during the fetch.
+  container.innerHTML = '<div class="sources-card" aria-busy="true">'
+    + '<div class="sources-card-header"><div class="sources-card-title">Sources</div></div>'
+    + '<div class="sources-group"><div class="sources-row"><div class="sources-row-icon"></div>'
+    + '<div class="sources-row-body"><div class="sources-row-title" style="opacity:0.4;">Reading your connections\u2026</div></div></div></div>'
+    + '</div>';
+  initIcons();
+
+  db.from('ehr_connections')
+    .select('id, hospital_name, provider, status, needs_reconnect, connected_at, last_synced_at, created_at, fhir_base_url, patient_id, client_id_used')
+    .eq('person_id', personId)
+    .order('connected_at', { ascending: false, nullsFirst: false })
+    .then(function(res) {
+      var rows = (res && res.data) ? res.data : [];
+      // Hide rows in dead-end states.
+      rows = rows.filter(function(r){ return r.status !== 'superseded' && r.status !== 'disconnected'; });
+      _paintSourcesCard(personId, rows);
+    })
+    .catch(function(err) {
+      console.warn('[Sources] fetch failed:', err);
+      // On failure, fall back to nothing rather than a confusing partial card.
+      container.innerHTML = '';
+      // Remove the contradictory "Connect health records" prompt only if we know we have data;
+      // here we silently bail so the existing prompt remains visible.
+    });
+}
+
+function _paintSourcesCard(personId, rows) {
+  var container = document.getElementById('records-ehr-status');
+  if (!container) return;
+  var nowMs = Date.now();
+
+  if (!rows || rows.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  // Bucket: needs_reconnect wins over status.
+  var connected = [];
+  var pending   = [];
+  var reconnect = [];
+  rows.forEach(function(r) {
+    if (r.needs_reconnect) { reconnect.push(r); return; }
+    if (r.status === 'connected') { connected.push(r); return; }
+    if (r.status === 'pending')   { pending.push(r);   return; }
+  });
+
+  // If there's at least one connected row, remove the contradictory
+  // "Connect health records" prompt below the tile grid.
+  if (connected.length > 0) {
+    var promptEl = document.getElementById('ehr-section-prompt');
+    if (promptEl && promptEl.parentNode) promptEl.parentNode.removeChild(promptEl);
+  }
+
+  var totalRows = rows.length;
+  var forceExpand = _sourcesCardExpanded[personId] === true;
+
+  // Collapsed single-row summary (1 connection, expanded=false).
+  if (totalRows === 1 && !forceExpand) {
+    var row = rows[0];
+    var dotClass = row.status === 'connected' && !row.needs_reconnect
+      ? 'terra-status-dot terra-status-dot--active'
+      : 'terra-status-dot terra-status-dot--inactive';
+    var meta = '';
+    if (row.status === 'connected' && !row.needs_reconnect) {
+      var ago = _sourceTimeAgo(row.last_synced_at);
+      meta = ago ? 'synced ' + escHtml(ago) : 'connected';
+    } else if (row.needs_reconnect) {
+      meta = 'needs reconnect';
+    } else {
+      meta = 'pending';
+    }
+    var hospital = escHtml(row.hospital_name || row.provider || 'Hospital');
+    container.innerHTML = '<div class="sources-card">'
+      + '<div class="sources-collapsed" onclick="toggleSourcesCard(\'' + personId + '\')" role="button" tabindex="0">'
+      + '<span class="' + dotClass + '"></span>'
+      + '<span class="sources-collapsed-name">' + hospital + '</span>'
+      + '<span class="sources-collapsed-meta">\u00B7 ' + meta + '</span>'
+      + '<i data-lucide="chevron-down" class="sources-collapsed-expand" style="width:16px;height:16px;"></i>'
+      + '</div></div>';
+    initIcons();
+    return;
+  }
+
+  // Expanded card.
+  var html = '<div class="sources-card">';
+  html += '<div class="sources-card-header">';
+  html += '<div class="sources-card-title">Sources</div>';
+  html += '<button type="button" class="sources-card-add" onclick="startEhrConnect()">';
+  html += '<i data-lucide="plus" style="width:14px;height:14px;"></i> Add hospital</button>';
+  html += '</div>';
+
+  if (reconnect.length > 0) {
+    html += '<div class="sources-group">';
+    html += '<div class="sources-group-label">Needs reconnect</div>';
+    reconnect.forEach(function(r){ html += _renderSourceRow(r, nowMs); });
+    html += '</div>';
+  }
+  if (pending.length > 0) {
+    html += '<div class="sources-group">';
+    html += '<div class="sources-group-label">Pending</div>';
+    pending.forEach(function(r){ html += _renderSourceRow(r, nowMs); });
+    html += '</div>';
+  }
+  if (connected.length > 0) {
+    html += '<div class="sources-group">';
+    html += '<div class="sources-group-label">Connected</div>';
+    connected.forEach(function(r){ html += _renderSourceRow(r, nowMs); });
+    html += '</div>';
+  }
+  html += '</div>';
+  container.innerHTML = html;
+  initIcons();
+}
+
+function toggleSourcesCard(personId) {
+  _sourcesCardExpanded[personId] = !_sourcesCardExpanded[personId];
+  renderSourcesCard(personId);
+}
+
+// Action: refresh a single connected source.
+// v1 simply triggers the existing person-wide fetchEhrData; per-connection
+// background-sync is a v2 follow-up.
+function refreshSourceConnection(connectionId, fhirBaseUrl, hospitalName) {
+  if (isDemoMode) { showToast('Demo mode \u2014 refresh not available'); return; }
+  if (!currentPersonId) { showToast('No loved one selected'); return; }
+  try { showToast('Reading your chart\u2026 usually under a minute'); } catch(e) {}
+  try { fetchEhrData(currentPersonId); } catch(e) {
+    console.warn('[Sources] refresh failed:', e);
+    showToast('Sync didn\u2019t finish \u2014 try again');
+  }
+}
+
+// Action: retry / sign-in-again for a pending or needs_reconnect row.
+function retrySourceConnection(connectionId, fhirBaseUrl, hospitalName) {
+  if (isDemoMode) { showToast('Demo mode \u2014 not available'); return; }
+  if (!currentPersonId) { showToast('No loved one selected'); return; }
+  if (!fhirBaseUrl || !hospitalName) {
+    // Fallback: open the picker so the user can re-find the hospital.
+    try { startEhrConnect(); } catch(e) {}
+    return;
+  }
+  try {
+    beginEhrOAuth(fhirBaseUrl, hospitalName, false);
+  } catch(e) {
+    console.warn('[Sources] retry failed:', e);
+    showToast('Couldn\u2019t reopen \u2014 try again from the hospital picker');
+  }
+}
+
+// Action: remove a single connection row.
+// v1 routes through the existing person-wide disconnect (epic-auth, action='disconnect').
+// Spec note: per-row disconnect is a v2 follow-up; for now the button copy is
+// honest about scope when the user has multiple connections.
+function disconnectSourceConnection(connectionId, hospitalName) {
+  if (isDemoMode) { showToast('Demo mode \u2014 not available'); return; }
+  if (!currentPersonId) { showToast('No loved one selected'); return; }
+  // For a pending row, we can safely delete the stub locally.
+  // For a connected row, we go through the full disconnect flow.
+  db.from('ehr_connections')
+    .select('status, needs_reconnect')
+    .eq('id', connectionId)
+    .maybeSingle()
+    .then(function(res) {
+      var row = res && res.data;
+      if (!row) { showToast('Couldn\u2019t find this connection'); return; }
+      if (row.status === 'pending' && !row.needs_reconnect) {
+        if (!confirm('Remove this pending connection? You can try again any time.')) return;
+        return db.from('ehr_connections').delete().eq('id', connectionId).then(function() {
+          showToast('Pending connection removed');
+          renderSourcesCard(currentPersonId);
+        });
+      }
+      // Connected or needs_reconnect: defer to the existing person-wide disconnect.
+      try { disconnectEhr(); } catch(e) {
+        console.warn('[Sources] disconnect failed:', e);
+        showToast('Disconnect failed \u2014 try from Settings');
+      }
+    })
+    .catch(function(err){
+      console.warn('[Sources] disconnect lookup failed:', err);
+      try { disconnectEhr(); } catch(e) {}
+    });
 }
 
 // ── COLLAPSIBLE RECORDS SECTIONS ─────────────────────────────────────────────
