@@ -625,7 +625,12 @@
   border: 1px solid var(--border, rgba(20,33,28,0.10));
   border-radius: 12px;
   overflow: hidden;
-  padding: 0;
+  /* 2026-05-19: was padding:0 which let MedlinePlus body text sit flush
+     against the rounded corners (wrapping cut off the last character on the
+     right edge — e.g. "It works" lost its trailing space). Inner padding
+     applies uniformly to the Pill, About, How-to-use, Side effects,
+     Interactions, and Trials tiles since they all share this class. */
+  padding: 16px 18px;
 }
 
 .editorial-trials-count {
