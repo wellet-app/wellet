@@ -11999,12 +11999,24 @@ async function reconcileMedication(personId, newMed, dedupResult) {
 // ── EHR INTEGRATION (Epic SMART on FHIR) ────────────────────────────────────
 var ehrCache = {}; // { personId: { data: {...}, synced_at: '...' } }
 var _ehrConnecting = false;
+var _ehrConnectingTimeoutId = null;
 var _ehrPendingPersonId = null;
+
+// 2026-05-21: clear the _ehrConnecting lock + its watchdog. Used by every
+// success/error path in beginEhrOAuth, the bfcache restore handler, and the
+// 90s watchdog itself. Centralized so we never leave the lock stuck again.
+function _clearEhrConnectingLock() {
+  _ehrConnecting = false;
+  if (_ehrConnectingTimeoutId) {
+    clearTimeout(_ehrConnectingTimeoutId);
+    _ehrConnectingTimeoutId = null;
+  }
+}
 
 // Reset EHR connecting state on back-button/page restore (bfcache)
 window.addEventListener('pageshow', function(e) {
   if (e.persisted || performance.getEntriesByType('navigation')[0]?.type === 'back_forward') {
-    _ehrConnecting = false;
+    _clearEhrConnectingLock();
     _ehrPendingPersonId = null;
     // Close hospital picker if it was open
     var picker = document.getElementById('hospital-picker-overlay');
@@ -14920,6 +14932,19 @@ function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox) {
   _ehrConnecting = true;
   _ehrPendingPersonId = personId;
 
+  // 2026-05-21: watchdog. If we never redirect to Epic and never hit a
+  // success/error branch within 90s (e.g. the user closed the OAuth tab
+  // mid-flight and came back without a back-navigation event), auto-clear
+  // the lock so the next hospital pick isn't silently swallowed.
+  if (_ehrConnectingTimeoutId) clearTimeout(_ehrConnectingTimeoutId);
+  _ehrConnectingTimeoutId = setTimeout(function() {
+    if (_ehrConnecting) {
+      console.warn('[ehr] connecting lock watchdog fired \u2014 clearing stuck lock');
+      _clearEhrConnectingLock();
+      try { showToast('Connection attempt timed out \u2014 try again'); } catch(e) {}
+    }
+  }, 90000);
+
   try { localStorage.setItem('wellet_ehr_pending_person', personId); } catch(e) {}
 
   var label = isSandbox ? 'Epic Sandbox' : (hospitalName || 'your hospital');
@@ -14936,7 +14961,7 @@ function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox) {
   }).then(function(session) {
     if (!session) {
       showToast('Session expired. Please sign in again.');
-      _ehrConnecting = false;
+      _clearEhrConnectingLock();
       return;
     }
     var payload = { action: 'start', person_id: personId };
@@ -14962,7 +14987,7 @@ function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox) {
     try { console.log('[ehr] epic-auth response status', res.status); } catch(e) {}
     return res.json();
   }).then(function(data) {
-    _ehrConnecting = false;
+    _clearEhrConnectingLock();
     if (!data) return;
     try { console.log('[ehr] epic-auth body', data); } catch(e) {}
     if (data.error) {
@@ -15017,7 +15042,7 @@ function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox) {
       }
     }
   }).catch(function(err) {
-    _ehrConnecting = false;
+    _clearEhrConnectingLock();
     console.error('EHR connect error:', err);
     showToast('Failed to start EHR connection');
   });
