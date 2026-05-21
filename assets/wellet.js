@@ -15469,19 +15469,101 @@ function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox) {
       try {
         var authUrl = new URL(data.authorize_url);
         if (authUrl.protocol === 'https:') {
-          window.location.href = data.authorize_url;
+          // 2026-05-21: the 2nd-hospital-bounce-back bug. On the 2nd attempt
+          // (after backing out of the 1st hospital's MyChart) Safari was
+          // sitting on a history entry pushed by openSheetAccessible. Setting
+          // window.location.href in that state silently failed for some users
+          // — the page stayed put, the toast faded, and the user landed back
+          // on the 3-button Connect screen with no OAuth. Belt-and-suspenders
+          // fix:
+          //   1. Collapse the sheet history entry first so we redirect from
+          //      the underlying tab state, not from a stacked sheet state.
+          //   2. Use location.assign() (the canonical "navigate" API).
+          //   3. Schedule a verification check 600ms later — if we're still
+          //      on the same page, retry the navigation as window.location
+          //      .replace(). If THAT also fails, show a tappable fallback so
+          //      the user can manually trigger the redirect.
+          try {
+            if (history.state && history.state.type === 'sheet' && history.state.id === 'hospital-picker-overlay') {
+              history.replaceState({ type: 'tab', view: _currentNavView || 'connect' }, '');
+            }
+          } catch(_e) {}
+          var targetUrl = data.authorize_url;
+          try { console.log('[ehr] navigating to authorize_url', targetUrl); } catch(_e) {}
+          try { window.location.assign(targetUrl); } catch(_e) {
+            try { window.location.href = targetUrl; } catch(__e) {}
+          }
+          // Verification + retry — if the page didn't navigate within 600ms,
+          // the assign call was silently dropped (history conflict, bfcache,
+          // pending unload race). Try replace() which is more aggressive,
+          // then fall back to a tappable toast.
+          setTimeout(function() {
+            try {
+              if (document.visibilityState === 'visible' && location.host !== authUrl.host) {
+                console.warn('[ehr] redirect did not fire — retrying with location.replace()');
+                try { window.location.replace(targetUrl); } catch(_e) {
+                  try { window.location.href = targetUrl; } catch(__e) {}
+                }
+                setTimeout(function() {
+                  if (document.visibilityState === 'visible' && location.host !== authUrl.host) {
+                    console.error('[ehr] redirect still failed — surfacing tappable fallback');
+                    try { _showEhrContinueFallback(targetUrl, hospitalName); } catch(_e) {
+                      try { window.open(targetUrl, '_self'); } catch(__e) {}
+                    }
+                  }
+                }, 600);
+              }
+            } catch(_e) {}
+          }, 600);
         } else {
           showToast('Invalid authorize URL');
         }
       } catch(e) {
         showToast('Invalid authorize URL');
       }
+    } else {
+      // 2026-05-21: 200 OK but no authorize_url AND no error. Should be
+      // unreachable, but never leave the user staring at a faded toast.
+      try { console.warn('[ehr] epic-auth returned 200 with no authorize_url and no error', data); } catch(_e) {}
+      showToast('Could not start the connection — try again');
     }
   }).catch(function(err) {
     _clearEhrConnectingLock();
     console.error('EHR connect error:', err);
     showToast('Failed to start EHR connection');
   });
+}
+
+// 2026-05-21: tappable fallback overlay shown when the automatic redirect to
+// the hospital's authorize_url silently fails (e.g. iOS Safari history-stack
+// race after a back-out from a prior MyChart attempt). Tapping "Continue"
+// performs a user-gesture navigation which always succeeds.
+function _showEhrContinueFallback(targetUrl, hospitalName) {
+  // Avoid stacking multiple overlays if the user retries.
+  var existing = document.getElementById('ehr-continue-fallback');
+  if (existing) existing.remove();
+  var overlay = document.createElement('div');
+  overlay.id = 'ehr-continue-fallback';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(44,42,38,0.55);z-index:400;display:flex;align-items:center;justify-content:center;padding:24px;';
+  var card = document.createElement('div');
+  card.style.cssText = 'background:white;border-radius:20px;padding:24px;max-width:340px;width:100%;text-align:center;font-family:DM Sans,sans-serif;';
+  var label = hospitalName ? ('your ' + hospitalName + ' sign-in') : 'your hospital sign-in';
+  card.innerHTML = '<div style="font-family:var(--serif);font-size:var(--type-h2);margin-bottom:8px;">One more tap</div>'
+    + '<div style="font-size:var(--type-body);color:var(--text-secondary);line-height:1.5;margin-bottom:18px;">Safari needs a tap to continue to ' + escHtml(label) + '.</div>';
+  var btn = document.createElement('button');
+  btn.textContent = 'Continue';
+  btn.style.cssText = 'background:var(--moss);color:white;border:none;border-radius:12px;padding:12px 28px;font-size:var(--type-body);font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;width:100%;';
+  btn.onclick = function() {
+    overlay.remove();
+    try { window.location.assign(targetUrl); } catch(_e) {
+      try { window.open(targetUrl, '_self'); } catch(__e) {
+        try { window.location.href = targetUrl; } catch(___e) {}
+      }
+    }
+  };
+  card.appendChild(btn);
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
 }
 
 // Handle the Epic OAuth callback (called on page load if code is present)
