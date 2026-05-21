@@ -1939,6 +1939,23 @@ function refreshConnectScreenStatus() {
   _markConnectCard('connect-card-apple', appleConnected);
   _markConnectCard('connect-card-terra', terraConnected);
 
+  // 2026-05-21: when a card is connected, populate a sublabel listing
+  // *which* sources are connected so users with multiple hospitals or
+  // wearables can tell them apart. Kelly's feedback — "Connected" on its
+  // own gave her no way to see which of 7 NY hospitals she'd reached.
+  if (ehrConnected) {
+    _hydrateEhrCardSources(currentPersonId);
+  } else {
+    _setConnectCardSources('connect-card-ehr', null);
+  }
+  if (terraConnected) {
+    _hydrateTerraCardSources(currentPersonId);
+  } else {
+    _setConnectCardSources('connect-card-terra', null);
+  }
+  // Apple Health is a single source by definition — no sublabel.
+  _setConnectCardSources('connect-card-apple', null);
+
   // Update the bottom CTA: "Skip for now \u2014 you can connect anything from Settings"
   // if nothing connected, "Done" once at least one source is in place.
   var skipBtn = document.querySelector('#connect-data-screen .connect-skip-btn');
@@ -1966,6 +1983,129 @@ function _markConnectCard(cardId, isConnected) {
   } else {
     card.classList.remove('is-connected');
   }
+}
+
+// 2026-05-21: write (or clear) a sublabel inside .connect-card-body listing
+// the connected source names. Accepts an array of short strings or null.
+//   _setConnectCardSources('connect-card-ehr', ['Montefiore Medical Center', 'NYU Langone'])
+//   _setConnectCardSources('connect-card-ehr', null) // clears
+// Compact rendering rule: 1 \u2192 just the name; 2 \u2192 "A \u00b7 B";
+// 3+ \u2192 "A + N more".
+function _setConnectCardSources(cardId, sources) {
+  var card = document.getElementById(cardId);
+  if (!card) return;
+  var body = card.querySelector('.connect-card-body');
+  if (!body) return;
+  var prior = body.querySelector('.connect-card-sources');
+  if (prior) prior.remove();
+  if (!sources || !sources.length) return;
+  var line;
+  if (sources.length === 1) {
+    line = sources[0];
+  } else if (sources.length === 2) {
+    line = sources[0] + ' \u00b7 ' + sources[1];
+  } else {
+    line = sources[0] + ' + ' + (sources.length - 1) + ' more';
+  }
+  var el = document.createElement('span');
+  el.className = 'connect-card-sources';
+  el.textContent = line;
+  // Place under the existing sub line, before any install hint.
+  var hint = body.querySelector('.connect-card-hint');
+  if (hint) body.insertBefore(el, hint);
+  else body.appendChild(el);
+}
+
+// Query connected EHR hospitals for this person and hydrate the EHR card
+// sublabel. Read-only on ehr_connections, scoped to status='connected'.
+// Defensive: any error \u2192 clear the sublabel; never break the card.
+function _hydrateEhrCardSources(personId) {
+  if (!personId || typeof db === 'undefined') return;
+  try {
+    db.from('ehr_connections')
+      .select('hospital_name, connected_at')
+      .eq('person_id', personId)
+      .eq('status', 'connected')
+      .order('connected_at', { ascending: false })
+      .then(function(res){
+        var rows = (res && res.data) || [];
+        var names = rows
+          .map(function(r){ return (r && r.hospital_name) ? String(r.hospital_name).trim() : ''; })
+          .filter(function(n){ return !!n; });
+        // Dedup while preserving order (handles edge cases where the same
+        // hospital was connected twice on the same person row).
+        var seen = {};
+        names = names.filter(function(n){
+          var k = n.toLowerCase();
+          if (seen[k]) return false;
+          seen[k] = true;
+          return true;
+        });
+        _setConnectCardSources('connect-card-ehr', names.length ? names : null);
+      })
+      .catch(function(_e){
+        _setConnectCardSources('connect-card-ehr', null);
+      });
+  } catch(_e) {
+    _setConnectCardSources('connect-card-ehr', null);
+  }
+}
+
+// Read the in-memory _terraConnections cache and hydrate the wearables card
+// sublabel with provider display names. Mirrors the truthiness rules used
+// for terraConnected in refreshConnectScreenStatus.
+function _hydrateTerraCardSources(personId) {
+  if (!personId) return;
+  try {
+    if (typeof _terraConnections === 'undefined' || !_terraConnections || !_terraConnections.length) {
+      _setConnectCardSources('connect-card-terra', null);
+      return;
+    }
+    var providers = _terraConnections
+      .filter(function(c){
+        if (!c) return false;
+        if (c.person_id !== personId) return false;
+        if (c.status === 'disconnected') return false;
+        var p = String(c.provider || '').toUpperCase();
+        if (p === 'APPLE') return false; // never count Apple Health here
+        var tuid = c.terra_user_id;
+        if (!tuid || tuid === 'None' || tuid === 'null') return false;
+        return true;
+      })
+      .map(function(c){ return _prettyTerraProvider(c.provider); });
+    // Dedup, preserve order.
+    var seen = {};
+    providers = providers.filter(function(p){
+      var k = p.toLowerCase();
+      if (seen[k]) return false;
+      seen[k] = true;
+      return true;
+    });
+    _setConnectCardSources('connect-card-terra', providers.length ? providers : null);
+  } catch(_e) {
+    _setConnectCardSources('connect-card-terra', null);
+  }
+}
+
+// Display names for Terra provider codes. Falls back to title-casing the raw
+// code so a brand-new provider we haven't mapped still renders gracefully.
+function _prettyTerraProvider(code) {
+  var c = String(code || '').toUpperCase();
+  var map = {
+    'OURA': 'Oura',
+    'FITBIT': 'Fitbit',
+    'GARMIN': 'Garmin',
+    'WHOOP': 'WHOOP',
+    'WITHINGS': 'Withings',
+    'GOOGLE': 'Google Fit',
+    'POLAR': 'Polar',
+    'SUUNTO': 'Suunto',
+    'PELOTON': 'Peloton',
+    'STRAVA': 'Strava'
+  };
+  if (map[c]) return map[c];
+  if (!c) return 'Connected device';
+  return c.charAt(0) + c.slice(1).toLowerCase();
 }
 
 function showConnectScreen() {

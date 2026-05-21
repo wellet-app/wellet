@@ -2657,6 +2657,26 @@
     height: 16px;
   }
 
+  /* 2026-05-21: "which sources are connected" sublabel under connect-card.
+     Shows the actual hospital name(s) for EHR, the actual provider name(s)
+     for wearables. Single line, ellipsizes if too long, never wraps. */
+  .connect-card-sources {
+    display: block;
+    margin-top: 6px;
+    color: #4A7A66;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12.5px;
+    font-weight: 500;
+    line-height: 1.3;
+    letter-spacing: 0.005em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .connect-card.is-connected .connect-card-sources {
+    color: #2A3A33;
+  }
+
   /* Primary skip-btn variant: shows up as "Done" once at least one connection succeeded */
   .connect-skip-btn--primary {
     background: #2A3A33;
