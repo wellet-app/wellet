@@ -14794,11 +14794,141 @@ function loadEpicEndpoints(cb) {
     });
 }
 
+// 2026-05-21: Hospital pre-check helpers — calls ehr-vendor-check edge fn when
+// the user types a query that doesn't match any Epic endpoint in our bundle, and
+// renders a 4-bucket result card inline. Identified-via-Perplexity attribution
+// surfaces only when the source is Sonar.
+var _vendorCheckCache = {};      // key=normalized query -> {result, ts}
+var _vendorCheckInflight = {};   // key=normalized query -> Promise
+var _vendorCheckDebounce = null;
+
+function _normVendorQuery(q) {
+  return String(q || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function precheckHospitalVendor(query, city, state, fhirBaseUrl) {
+  var key = _normVendorQuery(query) + '|' + _normVendorQuery(city || '') + '|' + _normVendorQuery(state || '') + '|' + _normVendorQuery(fhirBaseUrl || '');
+  if (_vendorCheckCache[key] && (Date.now() - _vendorCheckCache[key].ts) < 5 * 60 * 1000) {
+    return Promise.resolve(_vendorCheckCache[key].result);
+  }
+  if (_vendorCheckInflight[key]) return _vendorCheckInflight[key];
+
+  var p = db.auth.getSession().then(function(s) {
+    var headers = {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY
+    };
+    var session = s && s.data && s.data.session;
+    if (session && session.access_token) {
+      headers['Authorization'] = 'Bearer ' + session.access_token;
+    }
+    return fetch(SUPABASE_URL + '/functions/v1/ehr-vendor-check', {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({
+        hospital_name: query || null,
+        city: city || null,
+        state: state || null,
+        fhir_base_url: fhirBaseUrl || null
+      })
+    });
+  }).then(function(res) {
+    if (!res.ok) throw new Error('vendor-check http ' + res.status);
+    return res.json();
+  }).then(function(result) {
+    _vendorCheckCache[key] = { result: result, ts: Date.now() };
+    delete _vendorCheckInflight[key];
+    return result;
+  }).catch(function(err) {
+    console.warn('[ehr-vendor-check] failed', err);
+    delete _vendorCheckInflight[key];
+    return null;
+  });
+  _vendorCheckInflight[key] = p;
+  return p;
+}
+
+// Render a 4-bucket result card. Returns HTML string.
+function _vendorCheckCardHtml(result, query) {
+  if (!result || !result.vendor_guess) return '';
+  var v = result.vendor_guess;
+  var conf = result.vendor_confidence || 'low';
+  var src = result.vendor_source || '';
+  var viaPplx = !!result.via_perplexity;
+  var matched = result.matched_hospital || query || 'this hospital';
+
+  var title = '';
+  var body = '';
+  var ctaHtml = '';
+  var tone = 'info'; // info | good | warn | block
+
+  if (v === 'epic_activated') {
+    tone = 'good';
+    title = 'Good news — ' + escHtml(matched) + ' is wired up.';
+    body = 'Pick it from the list above to connect now.';
+  } else if (v === 'epic_not_activated') {
+    tone = 'warn';
+    title = escHtml(matched) + ' is on Epic, but not activated yet.';
+    body = 'We\u2019ll need to turn it on for your hospital. Send us a request and we\u2019ll prioritize it.';
+    ctaHtml = '<button type="button" class="vendor-check-cta" onclick="openConnectRequestModal({hospital_name:' + JSON.stringify(matched) + ',issue_type:\'unsupported_version\',source:\'precheck_picker\',vendor_guess:\'epic_not_activated\',vendor_confidence:' + JSON.stringify(conf) + ',vendor_source:' + JSON.stringify(src) + ',vendor_lookup_payload:' + JSON.stringify(JSON.stringify(result)) + '})">Request access</button>';
+  } else if (v === 'kaiser_blocked' || v === 'va_blocked') {
+    tone = 'block';
+    title = escHtml(matched) + ' doesn\u2019t share records this way yet.';
+    body = (v === 'kaiser_blocked'
+      ? 'Kaiser Permanente keeps records inside their own portal and hasn\u2019t opened FHIR access to outside apps. You can still upload PDFs from kp.org for now.'
+      : 'VA records aren\u2019t available through this connection yet. You can still upload VA Blue Button PDFs.');
+  } else if (v === 'cerner' || v === 'meditech' || v === 'athena' || v === 'nextgen' || v === 'allscripts' || v === 'eclinicalworks') {
+    tone = 'warn';
+    var vendorLabel = ({cerner:'Oracle Cerner', meditech:'Meditech', athena:'athenahealth', nextgen:'NextGen', allscripts:'Veradigm/Allscripts', eclinicalworks:'eClinicalWorks'})[v] || v;
+    title = escHtml(matched) + ' uses ' + vendorLabel + ', not Epic.';
+    body = 'We\u2019re adding non-Epic vendors next. Send us a request and we\u2019ll let you know as soon as it\u2019s ready.';
+    ctaHtml = '<button type="button" class="vendor-check-cta" onclick="openConnectRequestModal({hospital_name:' + JSON.stringify(matched) + ',issue_type:\'unsupported_version\',source:\'precheck_picker\',vendor_guess:' + JSON.stringify(v) + ',vendor_confidence:' + JSON.stringify(conf) + ',vendor_source:' + JSON.stringify(src) + ',vendor_lookup_payload:' + JSON.stringify(JSON.stringify(result)) + '})">Tell us your hospital</button>';
+  } else if (v === 'other' || v === 'unknown') {
+    tone = 'info';
+    title = 'We couldn\u2019t place ' + escHtml(matched) + ' yet.';
+    body = 'Send us a few details and we\u2019ll find the right path for you.';
+    ctaHtml = '<button type="button" class="vendor-check-cta" onclick="openConnectRequestModal({hospital_name:' + JSON.stringify(query || matched) + ',issue_type:\'not_found\',source:\'precheck_picker\',vendor_guess:' + JSON.stringify(v) + ',vendor_confidence:' + JSON.stringify(conf) + ',vendor_source:' + JSON.stringify(src) + ',vendor_lookup_payload:' + JSON.stringify(JSON.stringify(result)) + '})">Tell us your hospital</button>';
+  } else {
+    return '';
+  }
+
+  var attribution = (src === 'sonar' || viaPplx)
+    ? '<div class="vendor-check-attribution"><em>Identified via Perplexity</em></div>'
+    : '';
+
+  return '<div class="vendor-check-card vendor-check-card--' + tone + '">'
+    + '<div class="vendor-check-title">' + title + '</div>'
+    + '<div class="vendor-check-body">' + body + '</div>'
+    + (ctaHtml ? '<div class="vendor-check-actions">' + ctaHtml + '</div>' : '')
+    + attribution
+    + '</div>';
+}
+
 function renderHospitalList(filtered) {
   var list = document.getElementById('hospital-picker-list');
   if (!list) return;
   if (!filtered || filtered.length === 0) {
-    list.innerHTML = '<li class="hospital-picker-empty">No hospitals found. Try a different search term.</li>';
+    var inputEl = document.getElementById('hospital-picker-input');
+    var query = inputEl ? inputEl.value.trim() : '';
+    var baseEmpty = '<li class="hospital-picker-empty">No hospitals found. Try a different search term.</li>';
+    // If query too short, just show the empty message.
+    if (!query || query.length < 3) {
+      list.innerHTML = baseEmpty;
+      return;
+    }
+    // Render placeholder while we check.
+    list.innerHTML = baseEmpty
+      + '<li class="vendor-check-slot"><div class="vendor-check-card vendor-check-card--loading"><div class="vendor-check-body">Checking what kind of system ' + escHtml(query) + ' uses\u2026</div></div></li>';
+    precheckHospitalVendor(query).then(function(result) {
+      // Make sure the query is still current
+      var cur = document.getElementById('hospital-picker-input');
+      var stillSame = cur && cur.value.trim() === query;
+      if (!stillSame) return;
+      var slot = list.querySelector('.vendor-check-slot');
+      if (!slot) return;
+      var cardHtml = _vendorCheckCardHtml(result, query);
+      slot.innerHTML = cardHtml || '';
+    });
     return;
   }
   var shown = filtered.slice(0, 50);
@@ -14882,6 +15012,8 @@ function _hospitalPickerInputHandler() {
     var input = document.getElementById('hospital-picker-input');
     var query = input ? input.value.trim() : '';
     var filtered = filterHospitals(query);
+    // Bumped to 600ms only when the filter is empty (i.e. pre-check will fire);
+    // otherwise keep the snappy 200ms feel from filterHospitals.
     renderHospitalList(filtered);
   }, 200);
 }
@@ -14913,6 +15045,14 @@ function openConnectRequestModal(opts) {
   if (stateEl) stateEl.value = opts.state || '';
   if (issueEl) issueEl.value = opts.issue_type || 'not_found';
   if (notesEl) notesEl.value = opts.notes || '';
+
+  // 2026-05-21: if caller pre-filled vendor info (e.g. from picker pre-check), show it.
+  // Also wire blur-pre-check on the hospital field.
+  _crPrefillVendor(opts);
+  if (hospitalEl) {
+    hospitalEl.removeEventListener('blur', _crHospitalBlurHandler);
+    hospitalEl.addEventListener('blur', _crHospitalBlurHandler);
+  }
   if (emailEl) {
     var defaultEmail = '';
     try { if (currentUser && currentUser.email) defaultEmail = currentUser.email; } catch(e) {}
@@ -14948,6 +15088,62 @@ function closeConnectRequestModal() {
   var overlay = document.getElementById('cr-overlay');
   if (overlay) overlay.classList.remove('show');
   _crContext = {};
+  var slot = document.getElementById('cr-vendor-check-slot');
+  if (slot) slot.innerHTML = '';
+}
+
+// 2026-05-21: Pre-fill vendor banner inside the connect-request modal when the
+// picker pre-check already produced a result, or when the user pastes a hospital
+// name into the form and blurs the field.
+function _crPrefillVendor(opts) {
+  var slot = document.getElementById('cr-vendor-check-slot');
+  if (!slot) return;
+  if (opts && opts.vendor_guess) {
+    var synthetic = {
+      vendor_guess: opts.vendor_guess,
+      vendor_confidence: opts.vendor_confidence,
+      vendor_source: opts.vendor_source,
+      matched_hospital: opts.hospital_name,
+      via_perplexity: !!(opts.vendor_lookup_payload && (function() {
+        try { var p = (typeof opts.vendor_lookup_payload === 'string') ? JSON.parse(opts.vendor_lookup_payload) : opts.vendor_lookup_payload; return p && p.via_perplexity; } catch(e) { return false; }
+      })())
+    };
+    slot.innerHTML = _vendorCheckCardHtml(synthetic, opts.hospital_name || '');
+  } else {
+    slot.innerHTML = '';
+  }
+}
+
+var _crHospitalBlurDebounce = null;
+function _crHospitalBlurHandler() {
+  var hospitalEl = document.getElementById('cr-hospital');
+  var cityEl = document.getElementById('cr-city');
+  var stateEl = document.getElementById('cr-state');
+  var slot = document.getElementById('cr-vendor-check-slot');
+  if (!hospitalEl || !slot) return;
+  var query = hospitalEl.value.trim();
+  if (query.length < 3) { slot.innerHTML = ''; return; }
+  // If picker already pre-filled and the hospital name hasn't changed, keep it.
+  if (_crContext && _crContext.vendor_guess && _crContext.hospital_name === query) return;
+  slot.innerHTML = '<div class="vendor-check-card vendor-check-card--loading"><div class="vendor-check-body">Checking what kind of system this hospital uses\u2026</div></div>';
+  clearTimeout(_crHospitalBlurDebounce);
+  _crHospitalBlurDebounce = setTimeout(function() {
+    var city = cityEl ? cityEl.value.trim() : '';
+    var state = stateEl ? stateEl.value.trim() : '';
+    precheckHospitalVendor(query, city, state).then(function(result) {
+      var cur = document.getElementById('cr-hospital');
+      if (!cur || cur.value.trim() !== query) return;
+      // Store vendor result in _crContext so submit picks it up.
+      if (result) {
+        _crContext.vendor_guess = result.vendor_guess || null;
+        _crContext.vendor_confidence = result.vendor_confidence || null;
+        _crContext.vendor_source = result.vendor_source || null;
+        _crContext.vendor_blocked = (result.vendor_blocked === true) ? true : null;
+        _crContext.vendor_lookup_payload = result;
+      }
+      slot.innerHTML = result ? _vendorCheckCardHtml(result, query) : '';
+    });
+  }, 300);
 }
 
 function submitConnectRequest() {
@@ -14996,7 +15192,13 @@ function submitConnectRequest() {
     error_code: _crContext.error_code || null,
     error_message: _crContext.error_message || null,
     person_id: _crContext.person_id || (typeof currentPersonId !== 'undefined' ? currentPersonId : null),
-    source: _crContext.source || null
+    source: _crContext.source || null,
+    // 2026-05-21: surface the pre-check result so triage can prioritize.
+    vendor_guess: _crContext.vendor_guess || null,
+    vendor_confidence: _crContext.vendor_confidence || null,
+    vendor_source: _crContext.vendor_source || null,
+    vendor_blocked: _crContext.vendor_blocked || null,
+    vendor_lookup_payload: _crContext.vendor_lookup_payload || null
   };
 
   if (btn) {
