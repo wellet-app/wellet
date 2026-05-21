@@ -14974,22 +14974,61 @@ function renderHospitalList(filtered) {
   for (var i = 0; i < shown.length; i++) {
     var h = shown[i];
     var loc = [h.city, h.state].filter(Boolean).join(', ');
-    html += '<li class="hospital-picker-item" onclick="selectHospital(' + i + ')">'
+    // 2026-05-21: stash the hospital's identity directly on the <li> via data-*
+    // attrs instead of a numeric index into list._filtered. The old idx scheme
+    // was vulnerable to a race where a second renderHospitalList() (from a
+    // debounced input event, a delayed loadEpicEndpoints callback, or the
+    // vendor-check-slot async path) could mutate _filtered between the
+    // onclick's render time and the tap dispatch, surfacing the WRONG hospital
+    // (e.g. tapping Cleveland Clinic and triggering Kaiser Permanente). With
+    // data attrs the tap resolves against the element that was actually
+    // tapped, immune to any subsequent list mutation.
+    html += '<li class="hospital-picker-item"'
+      + ' data-fhir-base-url="' + escHtml(h.fhirBaseUrl) + '"'
+      + ' data-hospital-name="' + escHtml(h.name) + '"'
+      + ' onclick="selectHospitalFromEl(this)">'
       + '<div class="hospital-picker-name">' + escHtml(h.name) + '</div>'
       + (loc ? '<div class="hospital-picker-loc">' + escHtml(loc) + '</div>' : '')
       + '</li>';
   }
   list.innerHTML = html;
-  // Store filtered list for selection
+  // Kept for backwards compatibility with any in-flight onclick handlers from
+  // a previous render. New taps go through selectHospitalFromEl(this).
   list._filtered = shown;
 }
 
+// Resolve the tapped hospital from the <li> that was actually clicked, not
+// from an index into a shared mutable array. This is the picker's primary
+// selection path as of 2026-05-21.
+function selectHospitalFromEl(el) {
+  if (!el) return;
+  var fhirBaseUrl = el.getAttribute('data-fhir-base-url') || '';
+  var name = el.getAttribute('data-hospital-name') || '';
+  if (!fhirBaseUrl || !name) return;
+  closeSheet('hospital-picker-overlay');
+  if (_obFromEhr && !currentPersonId) {
+    _obEhrPending = { fhirBaseUrl: fhirBaseUrl, name: name };
+    try { localStorage.setItem('wellet_ob_ehr_hospital', JSON.stringify(_obEhrPending)); } catch(e) {}
+    obShowNameScreen(null);
+    return;
+  }
+  beginEhrOAuth(fhirBaseUrl, name, false);
+}
+
+// Legacy entry point. Older renders (or anything cached) may still call this
+// by numeric index; route through the new resolver when possible, otherwise
+// fall back to the original idx-into-_filtered path.
 function selectHospital(idx) {
   var list = document.getElementById('hospital-picker-list');
-  if (!list || !list._filtered || !list._filtered[idx]) return;
+  if (!list) return;
+  var items = list.querySelectorAll('.hospital-picker-item');
+  if (items && items[idx] && items[idx].getAttribute('data-fhir-base-url')) {
+    selectHospitalFromEl(items[idx]);
+    return;
+  }
+  if (!list._filtered || !list._filtered[idx]) return;
   var h = list._filtered[idx];
   closeSheet('hospital-picker-overlay');
-  // If during onboarding (no person yet), store hospital choice and go to name screen
   if (_obFromEhr && !currentPersonId) {
     _obEhrPending = { fhirBaseUrl: h.fhirBaseUrl, name: h.name };
     try { localStorage.setItem('wellet_ob_ehr_hospital', JSON.stringify(_obEhrPending)); } catch(e) {}
