@@ -56,28 +56,26 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { aiChat } from "../_shared/azureOpenAI.ts";
+
+// 2026-05-21: ask-wellet now routes through the central AI vendor adapter
+// (../_shared/azureOpenAI.ts) instead of calling Perplexity directly. This
+// closes a real posture gap: the main "answer" path ships the loved one's
+// full clinical record into the prompt, which is PHI and must run on a
+// BAA-covered vendor (Azure OpenAI). The watch-mode path stays on Sonar by
+// setting phi:false — it only sees the loved one's first name, a UI chip,
+// and the caregiver's own free-text request. The adapter's phi guardrail
+// will throw if Sonar is ever attempted with phi:true.
+//
+// Vendor selection is governed by WELLET_AI_VENDOR (default "azure").
+// The legacy getPerplexityApiKey() helper has been removed — all auth lives
+// in the adapter now.
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
-
-let _cachedApiKey: string | null = null;
-
-async function getPerplexityApiKey(): Promise<string> {
-  const envKey = Deno.env.get('PERPLEXITY_API_KEY');
-  if (envKey) return envKey;
-  if (_cachedApiKey) return _cachedApiKey;
-  const adminClient = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  );
-  const { data, error } = await adminClient.rpc('get_vault_secret', { secret_name: 'PERPLEXITY_API_KEY' });
-  if (error || !data) throw new Error('Could not retrieve API key: ' + (error?.message || 'not found'));
-  _cachedApiKey = data as string;
-  return _cachedApiKey!;
-}
 
 function formatContextChip(ctx: any): string {
   if (!ctx) return '';
@@ -520,27 +518,26 @@ async function handleWatchMode(opts: {
   userParts.push(`Caregiver request: ${text}`);
   const userContent = userParts.join('\n');
 
-  const apiKey = await getPerplexityApiKey();
-  const pplxResponse = await fetch('https://api.perplexity.ai/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: 'sonar',
+  // Watch-mode routes through the shared AI adapter. We mark phi:false because
+  // we only send the loved one's first name + a UI chip + the caregiver's
+  // own request text — no clinical record. The adapter still honors
+  // WELLET_AI_VENDOR for non-PHI calls; default is Azure with gpt-4o-mini.
+  let content = '';
+  try {
+    const ai = await aiChat({
+      phi: false,
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: WATCH_SYSTEM_PROMPT },
         { role: 'user', content: userContent },
       ],
       max_tokens: 400,
       temperature: 0.1,
-    }),
-  });
-
-  if (!pplxResponse.ok) {
-    const errText = await pplxResponse.text();
-    console.error('Perplexity watch-mode error:', pplxResponse.status, errText);
+      response_format: { type: 'json_object' },
+    });
+    content = ai.content || '';
+  } catch (err) {
+    console.error('ask-wellet watch-mode aiChat error:', err);
     const fallback: WatchRejected = {
       kind: 'watch_rejected',
       reason: "Wellet couldn't set that up just now. Try again, or pick from the suggestions.",
@@ -551,8 +548,6 @@ async function handleWatchMode(opts: {
     );
   }
 
-  const result = await pplxResponse.json();
-  const content = result.choices?.[0]?.message?.content || '';
   const parsed = safeParseJson(content);
   const validated = validateWatchProposal(parsed);
 
@@ -982,39 +977,35 @@ ${context}`;
       ? `The caregiver is asking about this specific item: ${chip}.\n\nQuestion: ${question}`
       : question;
 
-    const apiKey = await getPerplexityApiKey();
-
     // Voice v1: build messages with optional multi-turn history sandwiched
     // between the (system + grounded context) and the new user question.
     const messages: any[] = [{ role: 'system', content: systemPrompt }];
     for (const m of history) messages.push(m);
     messages.push({ role: 'user', content: userContent });
 
-    const pplxResponse = await fetch('https://api.perplexity.ai/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'sonar',
+    // PHI path. The grounded systemPrompt above contains the loved one's full
+    // clinical record. We mark phi:true so the adapter's assertVendorAllowedForPhi
+    // guardrail refuses to route this to Sonar or any non-BAA vendor — Azure
+    // OpenAI (BAA-covered) is the only allowed destination today.
+    let answer = 'I could not generate an answer. Please try again.';
+    let modelUsed: string | undefined = undefined;
+    try {
+      const ai = await aiChat({
+        phi: true,
+        model: 'gpt-4o',
         messages,
         max_tokens: 1000,
         temperature: 0.3,
-      }),
-    });
-
-    if (!pplxResponse.ok) {
-      const errText = await pplxResponse.text();
-      console.error('Perplexity API error:', pplxResponse.status, errText);
+      });
+      answer = ai.content || answer;
+      modelUsed = ai.model;
+    } catch (err) {
+      console.error('ask-wellet PHI aiChat error:', err);
       return new Response(
-        JSON.stringify({ error: 'AI service error', status: pplxResponse.status }),
+        JSON.stringify({ error: 'AI service error', details: String(err) }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    const result = await pplxResponse.json();
-    const answer = result.choices?.[0]?.message?.content || 'I could not generate an answer. Please try again.';
 
     // Voice v1: classify this exchange so the UI can decide whether to show
     // the soft save-to-timeline chip. Fast and best-effort: if the classifier
@@ -1022,7 +1013,7 @@ ${context}`;
     const classification = classifyExchange(question, answer);
 
     return new Response(
-      JSON.stringify({ answer, model: result.model, live_ehr: !!liveEhr, classification }),
+      JSON.stringify({ answer, model: modelUsed, live_ehr: !!liveEhr, classification }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
