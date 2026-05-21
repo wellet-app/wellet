@@ -2116,6 +2116,10 @@ function showConnectScreen() {
     showAuthenticatedApp();
     return;
   }
+  // 2026-05-21: any time the user lands on the Connect surface, treat prior
+  // in-flight attempts as abandoned. Releases stuck lock + marks stale
+  // pending rows abandoned. Deterministic, no watchdog wait.
+  try { _resetEhrConnectingStateForFreshAttempt(); } catch(e) {}
   _setConnectScreenActive();
   // Tag the body so masthead/nav stay hidden under the overlay.
   document.body.classList.add('connect-data-open');
@@ -12144,12 +12148,46 @@ var _ehrPendingPersonId = null;
 
 // 2026-05-21: clear the _ehrConnecting lock + its watchdog. Used by every
 // success/error path in beginEhrOAuth, the bfcache restore handler, and the
-// 90s watchdog itself. Centralized so we never leave the lock stuck again.
+// watchdog itself. Centralized so we never leave the lock stuck again.
 function _clearEhrConnectingLock() {
   _ehrConnecting = false;
   if (_ehrConnectingTimeoutId) {
     clearTimeout(_ehrConnectingTimeoutId);
     _ehrConnectingTimeoutId = null;
+  }
+}
+
+// 2026-05-21: when the user re-enters the Connect Health Records surface,
+// treat any prior in-flight attempt as abandoned. The 90s watchdog is a
+// last-resort safety net; this function is the deterministic reset that
+// fires the instant the user comes back to the connect surface.
+//
+// Two things happen:
+//   1. Release the in-memory _ehrConnecting lock + clear its watchdog.
+//   2. Best-effort: mark any 'pending' ehr_connections rows for the current
+//      person as 'abandoned' in Postgres so they stop polluting status UI
+//      and operational queries. Fire-and-forget — never blocks the UI.
+function _resetEhrConnectingStateForFreshAttempt() {
+  _clearEhrConnectingLock();
+  _ehrPendingPersonId = null;
+  try { localStorage.removeItem('wellet_ehr_pending_person'); } catch(e) {}
+
+  // Mark stale 'pending' rows abandoned for the current person. Best-effort.
+  try {
+    if (!db || !currentPersonId) return;
+    db.from('ehr_connections')
+      .update({ status: 'abandoned' })
+      .eq('person_id', currentPersonId)
+      .eq('status', 'pending')
+      .then(function(res) {
+        if (res && res.error) {
+          console.warn('[ehr] could not mark pending rows abandoned:', res.error);
+        }
+      }, function(err) {
+        console.warn('[ehr] abandoned-update threw:', err);
+      });
+  } catch(e) {
+    console.warn('[ehr] _resetEhrConnectingStateForFreshAttempt threw:', e);
   }
 }
 
@@ -14986,6 +15024,13 @@ function startEhrConnect() {
     showToast('Please select a person first');
     return;
   }
+
+  // 2026-05-21: user tapped Connect Health Records — reset any prior
+  // in-flight attempt before opening the picker. Two effects:
+  //   - in-memory _ehrConnecting lock released so the next pick isn't dropped
+  //   - any 'pending' ehr_connections row for this person flipped to
+  //     'abandoned' so UI/ops queries don't see ghost connections.
+  try { _resetEhrConnectingStateForFreshAttempt(); } catch(e) {}
 
   openSheetAccessible('hospital-picker-overlay');
   initIcons();
