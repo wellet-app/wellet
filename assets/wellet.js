@@ -104,8 +104,18 @@ var STRIPE_PRICES = {
   plus_monthly: 'price_1TNJEkQk7RCcdO4CnH8kmhqX',
   plus_annual: 'price_1TNJEkQk7RCcdO4CO7oK9fje',
   pro_monthly: 'price_1TNJEkQk7RCcdO4CUxM7DeVN',
-  pro_annual: 'price_1TNJElQk7RCcdO4Ca4Qsbg6U'
+  pro_annual: 'price_1TNJElQk7RCcdO4Ca4Qsbg6U',
+  // Wellet for You — \$9.99/yr SKU, prod_UXXhO3rRybQvo6. Live in Stripe.
+  // /me users go straight to Stripe Checkout with a 30-day trial — card
+  // collected up front, no charge until day 31. See ME_TRIAL_DAYS below.
+  me_annual: 'price_1TYScAQlezMOp0Pd6L1n7Wxd'
 };
+
+// /me users get 30 days free, then \$9.99/yr auto-charges on day 31. The trial
+// is set via subscription_data.trial_period_days on the Checkout Session — see
+// supabase/functions/create-checkout-session (v16+). Card is collected on day 0
+// (payment_method_collection=always) so renewal can auto-charge without re-prompt.
+var ME_TRIAL_DAYS = 30;
 
 var PLAN_FEATURES = {
   free: ['timeline', 'basic_meds', 'upload_5', 'care_circle_2', 'one_person'],
@@ -830,11 +840,12 @@ function showMeBetaPanel(feature) {
 }
 
 function showUpgradePrompt(feature) {
-  // /me users are on a different (forthcoming) SKU — Wellet for You at $9.99/yr,
-  // free during beta. Show a beta panel instead of routing them to the Plus/Pro
-  // Stripe links (which would charge them 10x for the wrong product).
+  // /me users are on a different SKU — Wellet for You at $9.99/yr (price
+  // price_1TYScAQlezMOp0Pd6L1n7Wxd, live in Stripe). They get a 30-day trial,
+  // then auto-charge. Skip the Plus/Pro modal and route straight to Checkout.
+  // startCheckout handles the auth check; no need to gate here.
   if (isSelfMode && isSelfMode()) {
-    showMeBetaPanel(feature);
+    startCheckout(STRIPE_PRICES.me_annual, { trial_period_days: ME_TRIAL_DAYS });
     return;
   }
   var plan = requiredPlan(feature);
@@ -938,12 +949,24 @@ function startUpgradeCheckout() {
   if (priceId) startCheckout(priceId);
 }
 
-async function startCheckout(priceId) {
+async function startCheckout(priceId, opts) {
+  // opts: { trial_period_days?: number, promo_code?: string }
+  // trial_period_days is opt-in per call — only /me sends 30. Plus/Pro callers
+  // pass no opts and continue to charge immediately. Edge fn clamps to 1..730
+  // and ignores anything else.
+  opts = opts || {};
   try {
     var sessionResult = await db.auth.getSession();
     var session = sessionResult.data.session;
     if (!session) { showToast('Please sign in first'); return; }
     showToast('Opening checkout…');
+    var payload = {
+      price_id: priceId,
+      success_url: window.location.origin + window.location.pathname + '?billing=success',
+      cancel_url: window.location.href
+    };
+    if (opts.trial_period_days) payload.trial_period_days = opts.trial_period_days;
+    if (opts.promo_code) payload.promo_code = opts.promo_code;
     var res = await fetch(SUPABASE_URL + '/functions/v1/create-checkout-session', {
       method: 'POST',
       headers: {
@@ -951,11 +974,7 @@ async function startCheckout(priceId) {
         'Authorization': 'Bearer ' + session.access_token,
         'apikey': SUPABASE_ANON_KEY
       },
-      body: JSON.stringify({
-        price_id: priceId,
-        success_url: window.location.origin + window.location.pathname + '?billing=success',
-        cancel_url: window.location.href
-      })
+      body: JSON.stringify(payload)
     });
     if (res.ok) {
       var data = await res.json();
