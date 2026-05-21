@@ -15298,6 +15298,16 @@ function submitConnectRequest() {
 
 // Begin the actual OAuth redirect for a selected hospital (or sandbox)
 function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox) {
+  // 2026-05-21: if the picker is visible the user is clearly initiating a
+  // new attempt — any prior _ehrConnecting=true is stale (e.g. previous
+  // attempt where they hit back from MyChart without completing OAuth).
+  // Reset before the guard so the tap isn't silently dropped.
+  var pickerEl = document.getElementById('hospital-picker-overlay');
+  var pickerOpen = !!(pickerEl && pickerEl.classList.contains('open'));
+  if (pickerOpen && _ehrConnecting) {
+    console.warn('[ehr] picker open with stale _ehrConnecting=true \u2014 resetting');
+    try { _resetEhrConnectingStateForFreshAttempt(); } catch(e) {}
+  }
   if (_ehrConnecting) return;
   var personId = currentPersonId;
   if (!personId && _obFromEhr) {
