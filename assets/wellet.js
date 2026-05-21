@@ -809,7 +809,34 @@ function requiredPlan(feature) {
 var _upgradeFeature = null;
 var _upgradeBilling = 'annual'; // 'monthly' | 'annual'
 
+// /me users in beta. Shown instead of the Plus/Pro upgrade modal so we never
+// charge a self-user $99 or $299 by mistake. Lightweight toast — keeps things
+// out of the Stripe checkout flow until the $9.99/yr SKU exists.
+function showMeBetaPanel(feature) {
+  var featureLabels = {
+    ai_summaries: 'AI summaries',
+    patterns: 'pattern detection',
+    ask_wellet: 'Ask Wellet',
+    visit_prep: 'visit prep',
+    ehr_integration: 'EHR integration',
+    caresignals: 'CareSignals',
+    data_export: 'data export',
+    multi_person: 'adding more people',
+    push_notif: 'push notifications',
+    emergency_pdf: 'emergency summary PDF'
+  };
+  var label = featureLabels[feature] || feature || 'this feature';
+  showToast('Wellet for You is in beta \u2014 ' + label + ' is included free while we test. Billing turns on later at $9.99/year.');
+}
+
 function showUpgradePrompt(feature) {
+  // /me users are on a different (forthcoming) SKU — Wellet for You at $9.99/yr,
+  // free during beta. Show a beta panel instead of routing them to the Plus/Pro
+  // Stripe links (which would charge them 10x for the wrong product).
+  if (isSelfMode && isSelfMode()) {
+    showMeBetaPanel(feature);
+    return;
+  }
   var plan = requiredPlan(feature);
   var planName = plan === 'pro' ? 'Pro' : 'Plus';
   var featureNames = {
@@ -1298,6 +1325,37 @@ function _translateAuthError(err) {
   return err.message ? ('Couldn\u2019t sign you in: ' + err.message) : 'Couldn\u2019t sign you in \u2014 please try again.';
 }
 
+// Build the attribution payload we attach to signInWithOtp.options.data.
+// Lands on auth.users.user_metadata so the rest of the app (and analytics) can
+// see where a signup came from — specifically used by the /me bypass below.
+function _buildSignupAttribution() {
+  var params = {};
+  try {
+    var search = new URLSearchParams(window.location.search || '');
+    search.forEach(function(v, k) { params[k] = v; });
+  } catch (e) {}
+  var landing = '/';
+  try { landing = window.location.pathname || '/'; } catch (e) {}
+  // signup_location: explicit ?signup_location=... wins, then landing-path heuristic.
+  var sig = params.signup_location || '';
+  if (!sig) {
+    if (landing === '/me' || landing === '/me/' || landing.indexOf('/me') === 0) sig = 'me_landing';
+    else if (landing === '/' || landing === '/index.html') sig = 'caregiver_landing';
+    else sig = 'unknown';
+  }
+  return {
+    signup_location: sig,
+    landing_page: landing,
+    entry_path: landing + (window.location.search || ''),
+    referrer: (document.referrer || '').slice(0, 500),
+    utm_source: params.utm_source || null,
+    utm_medium: params.utm_medium || null,
+    utm_campaign: params.utm_campaign || null,
+    utm_content: params.utm_content || null,
+    utm_term: params.utm_term || null
+  };
+}
+
 async function sendMagicLink() {
   var email = document.getElementById('auth-email').value.trim();
   if (!email) { showToast('Please enter your email'); return; }
@@ -1318,9 +1376,13 @@ async function sendMagicLink() {
   if (sentEmail) sentEmail.textContent = email;
   // Remember the email for the OTP verify step and the expired-session banner.
   try { localStorage.setItem('wellet_last_signin_email', email); } catch (e) {}
+  // Attribution: capture URL params + landing page so signups know where they came from.
+  // Persisted to auth.users.user_metadata via options.data — used by /me bypass and analytics.
+  var _attribution = _buildSignupAttribution();
+  try { localStorage.setItem('wellet_signup_attribution', JSON.stringify(_attribution)); } catch (e) {}
   var { error } = await db.auth.signInWithOtp({
     email: email,
-    options: { emailRedirectTo: 'https://mywellet.com', shouldCreateUser: true }
+    options: { emailRedirectTo: 'https://mywellet.com', shouldCreateUser: true, data: _attribution }
   });
   if (error) {
     showToast(_translateAuthError(error));
@@ -1399,9 +1461,13 @@ async function resendAuthCode() {
   }
   var resend = document.getElementById('auth-resend-btn');
   if (resend) { resend.disabled = true; resend.textContent = 'Sending…'; }
+  // Reuse attribution from the original send so resends don't blow it away.
+  var _attribution = {};
+  try { _attribution = JSON.parse(localStorage.getItem('wellet_signup_attribution') || '{}'); } catch (e) {}
+  if (!_attribution || !_attribution.signup_location) { _attribution = _buildSignupAttribution(); }
   var { error } = await db.auth.signInWithOtp({
     email: email,
-    options: { emailRedirectTo: 'https://mywellet.com', shouldCreateUser: true }
+    options: { emailRedirectTo: 'https://mywellet.com', shouldCreateUser: true, data: _attribution }
   });
   if (error) {
     showToast(_translateAuthError(error));
@@ -1607,6 +1673,19 @@ async function loadUserData() {
     appMode = profileMode;
 
     if (appMode === null) {
+      // First run. Before showing the mode question, check whether this user
+      // came from /me (or has signup_location starting with 'me_'). If so they
+      // already told us, so call chooseModeMe() directly. Otherwise show the
+      // mode question and let the user pick.
+      var _meta = (currentUser && currentUser.user_metadata) || {};
+      var _sig = _meta.signup_location || '';
+      var _landing = _meta.landing_page || '';
+      var _isMeSignup = (typeof _sig === 'string' && _sig.indexOf('me_') === 0) ||
+                        _landing === '/me' || _landing === '/me/';
+      if (_isMeSignup) {
+        try { await chooseModeMe(); } catch (e) { console.warn('me-bypass chooseModeMe failed:', e); showModeQuestion(); }
+        return;
+      }
       // First run — show mode question and stop here. The mode handlers
       // (chooseModeMe / chooseModeCaregiver) are responsible for continuing
       // the boot path once the user picks.
