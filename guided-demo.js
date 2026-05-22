@@ -140,7 +140,7 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
     // 10c — Resources (clinical trials, condition research, support groups)
     {
       audio: '10c-resources.mp3',
-      caption: 'And Resources \u2014 clinical trials, condition research, support groups, and treatment options, all surfaced for your loved one\u2019s specific chart.',
+      caption: 'Resources \u2014 clinical trials, condition research, support groups, and treatment options, all surfaced for your loved one\u2019s specific chart.',
       duration: 10000,
       action: function() {
         gdClearHighlight();
