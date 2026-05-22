@@ -115,7 +115,22 @@
         p: 'The chart, the conversation, the gut feeling, the share, the watch, the question \u2014 everything that happens around your loved one\'s health, in one place. Wellet is the only record that holds all of it.'
       }
     ];
-    var pick = heroes[Math.floor(Math.random() * heroes.length)];
+    // If the visitor came from /me (self-use landing), force a self-framed hero
+    // instead of the random caregiver-framed copy. Matches signup_location=me_hero
+    // or landing_page=/me from the getwellet.com redirect.
+    var pick;
+    try {
+      var _sp = new URLSearchParams(window.location.search || '');
+      var _sloc = (_sp.get('signup_location') || '').toLowerCase();
+      var _lpage = (_sp.get('landing_page') || '').toLowerCase();
+      if (_sloc.indexOf('me_') === 0 || _lpage === '/me' || _lpage === '/me/') {
+        pick = {
+          h: 'Your health records are scattered across six portals. <em>One quiet place.</em>',
+          p: 'Wellet pulls your own records, labs, visits, and wearable data into one place and watches for the changes that matter \u2014 so you don\'t have to keep it all in your head.'
+        };
+      }
+    } catch (e) { /* fall through to random */ }
+    if (!pick) pick = heroes[Math.floor(Math.random() * heroes.length)];
     document.getElementById('hero-headline').innerHTML = pick.h;
     document.getElementById('hero-subtitle').textContent = pick.p;
   })();
@@ -135,6 +150,7 @@
           Send 6-digit code <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>
         </button>
         <div style="font-size:var(--type-meta);color:var(--text-secondary);text-align:center;margin-top:10px;line-height:1.45;">No password needed. Your data stays private.</div>
+        <div style="font-size:var(--type-meta);color:var(--text-secondary);text-align:center;margin-top:8px;line-height:1.5;padding:10px 12px;background:var(--bg-soft,#F5F2EC);border-radius:8px;">Don&rsquo;t have your hospital login handy? Apple Health, photos of records, and PDF uploads all work too &mdash; you can set those up after signup.</div>
       </div>
       <div style="display:flex;align-items:center;gap:12px;margin-top:20px;">
         <hr style="flex:1;border:none;border-top:1px solid var(--border);">
