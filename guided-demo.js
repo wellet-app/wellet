@@ -137,7 +137,18 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
         sendAskMessage();
       }
     },
-    // 10 — ER summary one-tap demo
+    // 10c — Resources (clinical trials, condition research, support groups)
+    {
+      audio: '10c-resources.mp3',
+      caption: 'And Resources \u2014 clinical trials, condition research, support groups, and treatment options, all surfaced for your loved one\u2019s specific chart.',
+      duration: 10000,
+      action: function() {
+        gdClearHighlight();
+        try { switchNavTo('resources'); } catch (e) {}
+        gdScrollTo('#view-resources', 100);
+      }
+    },
+    // 10b — ER summary one-tap demo (final functional step before closing)
     {
       audio: '10b-emergency.mp3',
       caption: 'And if you ever need it \u2014 one tap gets you the ER summary. Everything a doctor needs to treat the person you care for, in seconds.',
@@ -148,19 +159,6 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
         setTimeout(function() {
           closeSheet('emergency-overlay');
         }, 8000);
-      }
-    },
-    // 10c — Resources (the "/me" hub for clinical trials, conditions research, support)
-    {
-      // Optional audio — narration will play only if 10c-resources.mp3 is recorded.
-      // If missing, the step still runs on the duration fallback below.
-      audio: '10c-resources.mp3',
-      caption: 'And Resources \u2014 clinical trials, condition research, support groups, and treatment options, all surfaced for your loved one\u2019s specific chart.',
-      duration: 7500,
-      action: function() {
-        gdClearHighlight();
-        try { switchNavTo('resources'); } catch (e) {}
-        gdScrollTo('#view-resources', 100);
       }
     },
     // 11 — Closing with end card
