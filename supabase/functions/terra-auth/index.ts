@@ -262,14 +262,32 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Upsert against the partial unique index on (user_id, person_id, provider)
-      // WHERE status='active'. With the new index in place, a retry updates the
-      // existing active row instead of creating a duplicate. Disconnected rows
-      // are preserved as audit history (the partial index doesn't cover them).
-      const { data: conn, error: connErr } = await db
-        .from("terra_connections")
-        .upsert(
-          {
+      // Explicit update-or-insert. We can't use PostgREST's onConflict here
+      // because the active-row uniqueness is enforced by a *partial* unique
+      // index (WHERE status='active'). Partial indexes can't back ON CONFLICT
+      // via PostgREST — it surfaces as a 500. So we branch on `existing`
+      // (looked up above) and either UPDATE in place or INSERT a fresh row.
+      let conn;
+      let connErr;
+      if (existing && existing.id) {
+        const upd = await db
+          .from("terra_connections")
+          .update({
+            terra_user_id: terra_user_id,
+            provider: normalizedProvider,
+            status: "active",
+            connected_at: new Date().toISOString(),
+            disconnected_at: null,
+          })
+          .eq("id", existing.id)
+          .select()
+          .single();
+        conn = upd.data;
+        connErr = upd.error;
+      } else {
+        const ins = await db
+          .from("terra_connections")
+          .insert({
             user_id: user.id,
             person_id: person_id,
             terra_user_id: terra_user_id,
@@ -277,11 +295,12 @@ Deno.serve(async (req) => {
             status: "active",
             connected_at: new Date().toISOString(),
             disconnected_at: null,
-          },
-          { onConflict: "user_id,person_id,provider" },
-        )
-        .select()
-        .single();
+          })
+          .select()
+          .single();
+        conn = ins.data;
+        connErr = ins.error;
+      }
 
       if (connErr) {
         console.error("Terra store connection error:", connErr.message);
