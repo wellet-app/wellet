@@ -42,15 +42,20 @@ const VA_PROD_AUTHORIZE = 'https://api.va.gov/oauth2/authorization';
 const VA_PROD_TOKEN = 'https://api.va.gov/oauth2/token';
 
 // SMART v2 scopes. VA Lighthouse's scopes_supported (sandbox, verified
-// 2026-05-23) does NOT include MedicationDispense or CareTeam - requesting
-// them causes the authorize step to reject with "invalid_scope". List only
-// what VA actually advertises.
+// 2026-05-23) does NOT include MedicationDispense, CareTeam, MedicationStatement,
+// launch/patient, openid, or fhirUser - requesting any of them causes the
+// authorize step to reject with "invalid_scope". The full advertised allow-list
+// (per https://sandbox-api.va.gov/services/fhir/v0/r4/.well-known/smart-configuration)
+// is offline_access + patient/{resource}.read for the 19 FHIR R4 resources VA
+// exposes. We request only the clinical resources Wellet actually persists.
+// Appointment.read added 2026-05-23 - VA does support it and fetch-ehr-data
+// already maps Appointment to the Before-visit card.
 const SMART_SCOPES = [
   'patient/Patient.read',
   'patient/AllergyIntolerance.read',
+  'patient/Appointment.read',
   'patient/Condition.read',
   'patient/MedicationRequest.read',
-  'patient/MedicationStatement.read',
   'patient/Observation.read',
   'patient/Immunization.read',
   'patient/DiagnosticReport.read',
@@ -59,9 +64,6 @@ const SMART_SCOPES = [
   'patient/DocumentReference.read',
   'patient/Practitioner.read',
   'patient/PractitionerRole.read',
-  'launch/patient',
-  'openid',
-  'fhirUser',
   'offline_access',
 ].join(' ');
 
