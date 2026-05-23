@@ -52,6 +52,16 @@ const EPIC_PROD_KID = 'wellet-prod-2026-04';
 const EPIC_NONPROD_KID = 'wellet-nonprod-2026-04';
 const EPIC_SANDBOX_FHIR_BASE = 'https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4';
 
+// VA Lighthouse: public client + PKCE only, no client_assertion. Sandbox
+// client id is hard-coded; production is read from env so we can flip without
+// a code redeploy once production-access is approved. See va-auth/index.ts.
+const VA_SANDBOX_CLIENT_ID = '0oa1ao6rezk9V5D9u2p8';
+const VA_SANDBOX_FHIR_BASE = 'https://sandbox-api.va.gov/services/fhir/v0/r4';
+function vaClientIdFor(connFhirBaseUrl: string): string {
+  if (connFhirBaseUrl === VA_SANDBOX_FHIR_BASE) return VA_SANDBOX_CLIENT_ID;
+  return Deno.env.get('VA_PROD_CLIENT_ID') ?? '';
+}
+
 function base64UrlEncode(buffer: Uint8Array): string {
   let binary = '';
   for (const byte of buffer) binary += String.fromCharCode(byte);
@@ -1176,9 +1186,23 @@ async function refreshAccessTokenIfNeeded(
   // don't quietly fail and force users into a reconnect loop.
   const isLegacyPublic = conn.client_id_used === EPIC_LEGACY_PUBLIC_CLIENT_ID;
   const isSandbox = conn.fhir_base_url === EPIC_SANDBOX_FHIR_BASE;
+  const isVa = (conn.provider as string | undefined) === 'va';
 
   let body: URLSearchParams;
-  if (isLegacyPublic) {
+  if (isVa) {
+    // VA Lighthouse is a public client - refresh body is just client_id +
+    // refresh_token. No client_assertion, no client_secret.
+    const vaClientId = (conn.client_id_used as string | undefined) || vaClientIdFor(conn.fhir_base_url as string);
+    if (!vaClientId) {
+      console.error('[fetch-ehr-data] VA refresh missing client_id', { conn_id: conn.id, fhir_base_url: conn.fhir_base_url });
+      return { ok: false, detail: 'va_client_id_missing' };
+    }
+    body = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: decRefresh as string,
+      client_id: vaClientId,
+    });
+  } else if (isLegacyPublic) {
     body = new URLSearchParams({
       grant_type: 'refresh_token',
       refresh_token: decRefresh as string,

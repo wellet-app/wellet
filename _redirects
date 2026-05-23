@@ -1,6 +1,8 @@
 # SPA routing — serve index.html for all paths that don't match a file
 # Required for Epic SMART on FHIR OAuth callback at /epic-callback
 /epic-callback    /index.html    200
+# VA Lighthouse SMART on FHIR OAuth callback - same SPA pattern as Epic
+/va-callback      /index.html    200
 /share.html       /share.html    200
 /privacy          /privacy.html      200
 /terms            /terms.html        200
