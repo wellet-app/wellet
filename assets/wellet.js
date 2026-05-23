@@ -1465,9 +1465,13 @@ async function verifyAuthCode() {
     if (input) { input.value = ''; input.focus(); }
     return;
   }
-  // Success — Supabase has set the session. Reload so the app picks it up cleanly.
+  // Success — Supabase has set the session. Hard-reload so the app picks it up cleanly.
+  // window.location.href = 'https://mywellet.com' was a soft-nav on Chrome iOS that
+  // skipped re-running initApp(), stranding the user on the login screen even though
+  // the session was written to localStorage. window.location.reload() forces a fresh
+  // document load that re-runs Supabase's session bootstrap.
   if (btn) btn.textContent = 'Signed in';
-  setTimeout(function(){ window.location.href = 'https://mywellet.com'; }, 200);
+  setTimeout(function(){ window.location.reload(); }, 200);
 }
 
 async function resendAuthCode() {
