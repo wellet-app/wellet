@@ -1984,17 +1984,24 @@ function refreshConnectScreenStatus() {
   // Apple Health does NOT go through Terra — exclude provider 'APPLE' here so
   // a stale APPLE row in terra_connections can never falsely mark the card
   // as connected.
+  // Split Terra connections into Google vs non-Google so the two cards
+  // (Google Health, Other wearables) light up independently. A user with
+  // only a Google connection should NOT see "Other wearables" marked
+  // connected, and vice versa.
+  var googleConnected = false;
   var terraConnected = false;
   try {
     if (typeof _terraConnections !== 'undefined' && _terraConnections && _terraConnections.length) {
-      terraConnected = _terraConnections.some(function(c){
-        if (!c) return false;
-        if (c.person_id !== currentPersonId) return false;
-        if (c.status === 'disconnected') return false;
-        if (String(c.provider || '').toUpperCase() === 'APPLE') return false;
+      _terraConnections.forEach(function(c){
+        if (!c) return;
+        if (c.person_id !== currentPersonId) return;
+        if (c.status === 'disconnected') return;
+        var prov = String(c.provider || '').toUpperCase();
+        if (prov === 'APPLE') return;
         var tuid = c.terra_user_id;
-        if (!tuid || tuid === 'None' || tuid === 'null') return false;
-        return true;
+        if (!tuid || tuid === 'None' || tuid === 'null') return;
+        if (prov === 'GOOGLE') googleConnected = true;
+        else terraConnected = true;
       });
     }
   } catch(_e) {}
@@ -2035,6 +2042,7 @@ function refreshConnectScreenStatus() {
 
   _markConnectCard('connect-card-ehr', ehrConnected);
   _markConnectCard('connect-card-apple', appleConnected);
+  _markConnectCard('connect-card-google', googleConnected);
   _markConnectCard('connect-card-terra', terraConnected);
 
   // 2026-05-21: when a card is connected, populate a sublabel listing
@@ -2051,14 +2059,15 @@ function refreshConnectScreenStatus() {
   } else {
     _setConnectCardSources('connect-card-terra', null);
   }
-  // Apple Health is a single source by definition — no sublabel.
+  // Apple Health and Google Health are single sources by definition — no sublabel.
   _setConnectCardSources('connect-card-apple', null);
+  _setConnectCardSources('connect-card-google', null);
 
   // Update the bottom CTA: "Skip for now \u2014 you can connect anything from Settings"
   // if nothing connected, "Done" once at least one source is in place.
   var skipBtn = document.querySelector('#connect-data-screen .connect-skip-btn');
   if (skipBtn) {
-    var anyConnected = ehrConnected || terraConnected || appleConnected;
+    var anyConnected = ehrConnected || terraConnected || googleConnected || appleConnected;
     skipBtn.textContent = anyConnected ? 'Done' : 'Skip for now \u2014 you can connect anything from Settings';
     skipBtn.classList.toggle('connect-skip-btn--primary', anyConnected);
   }
@@ -2282,6 +2291,16 @@ function connectFromMeOnboarding(source) {
     // Apple Health: deep-link bounces to native app. Connect screen flag
     // is already set; if/when the user returns to web, we'll re-show.
     connectAppleHealth();
+    return;
+  }
+  if (source === 'google') {
+    // Google Health = Terra widget pre-locked to provider=GOOGLE so the user
+    // skips the full provider picker and lands straight on Google's OAuth.
+    var screenG = document.getElementById('connect-data-screen');
+    if (screenG) screenG.style.display = 'none';
+    document.body.classList.remove('connect-data-open');
+    showAuthenticatedApp();
+    setTimeout(function() { try { openTerraConnect('GOOGLE'); } catch(e) { console.error(e); } }, 60);
     return;
   }
   if (source === 'terra') {
@@ -28429,7 +28448,7 @@ window.addEventListener('storage', function(event) {
   } catch(e) {}
 });
 
-async function openTerraConnect() {
+async function openTerraConnect(provider) {
   if (!currentPersonId) { showToast('Select a person first', 'error'); return; }
 
   try {
@@ -28442,6 +28461,8 @@ async function openTerraConnect() {
     _terraHandledKey = null;
 
     showToast('Starting wearable connection\u2026');
+    var generateBody = { action: 'generate', person_id: currentPersonId };
+    if (provider) generateBody.provider = String(provider).toUpperCase();
     var res = await fetch(SUPABASE_URL + '/functions/v1/terra-auth', {
       method: 'POST',
       headers: {
@@ -28449,7 +28470,7 @@ async function openTerraConnect() {
         'Authorization': 'Bearer ' + token,
         'apikey': SUPABASE_ANON_KEY
       },
-      body: JSON.stringify({ action: 'generate', person_id: currentPersonId })
+      body: JSON.stringify(generateBody)
     });
 
     if (!res.ok) {

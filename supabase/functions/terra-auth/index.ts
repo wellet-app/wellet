@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
       return json({ error: "Unauthorized" }, 401);
     }
 
-    const { person_id } = body;
+    const { person_id, provider: requestedProvider } = body;
 
     if (action === "generate") {
       if (!person_id) {
@@ -168,6 +168,18 @@ Deno.serve(async (req) => {
         return json({ error: "Terra API not configured" }, 500);
       }
 
+      const terraPayload: Record<string, unknown> = {
+        reference_id: user.id + ":" + person_id,
+        auth_success_redirect_url: "https://mywellet.com/?terra_auth=success",
+        auth_failure_redirect_url: "https://mywellet.com/?terra_auth=failure",
+        language: "en",
+      };
+      if (requestedProvider) {
+        // Terra wants a comma-separated STRING, not an array.
+        // (Passing an array makes Terra's API return 500 instead of using it.)
+        terraPayload.providers = String(requestedProvider).toUpperCase();
+      }
+
       const terraRes = await fetch("https://api.tryterra.co/v2/auth/generateWidgetSession", {
         method: "POST",
         headers: {
@@ -175,12 +187,7 @@ Deno.serve(async (req) => {
           "x-api-key": terraApiKey,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          reference_id: user.id + ":" + person_id,
-          auth_success_redirect_url: "https://mywellet.com/?terra_auth=success",
-          auth_failure_redirect_url: "https://mywellet.com/?terra_auth=failure",
-          language: "en",
-        }),
+        body: JSON.stringify(terraPayload),
       });
 
       if (!terraRes.ok) {
