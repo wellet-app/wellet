@@ -315,9 +315,14 @@ Deno.serve(async (req) => {
         return json({ error: "person_id required" }, 400);
       }
 
+      // NOTE: terra_user_id and person_id are required by the client-side
+      // refreshConnectScreenStatus check (assets/wellet.js ~line 2005-2010):
+      // a row without a terra_user_id, or where person_id !== currentPersonId,
+      // is treated as unconnected. Omitting these silently kept the Google
+      // Health / Other wearables cards grey even with an active DB row.
       const { data: connections, error: listErr } = await db
         .from("terra_connections")
-        .select("id, provider, status, last_data_at, connected_at")
+        .select("id, person_id, provider, status, terra_user_id, last_data_at, connected_at")
         .eq("user_id", user.id)
         .eq("person_id", person_id)
         .order("connected_at", { ascending: false });
