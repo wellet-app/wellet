@@ -27,7 +27,13 @@ import { logSignupError } from '../_shared/log-signup-error.ts';
 // once the prod secrets are in place.
 const VA_SANDBOX_CLIENT_ID = '0oa1ao6rezk9V5D9u2p8';
 
-const VA_REDIRECT_URI = Deno.env.get('VA_REDIRECT_URI') ?? 'https://mywellet.com/va-callback';
+// 2026-05-23: VA Lighthouse registered our sandbox app with redirect URI
+// https://mywellet.com/oauth/callback (see the welcome email from VA API
+// Platform team). Must match exactly or we get invalid_request from the
+// authorize endpoint. /oauth/callback is the canonical OAuth callback path
+// for any future provider we add - VA-specific routing happens client-side
+// based on the state token, not the URL path.
+const VA_REDIRECT_URI = Deno.env.get('VA_REDIRECT_URI') ?? 'https://mywellet.com/oauth/callback';
 
 // Sandbox endpoints (verified via .well-known/smart-configuration).
 const VA_SANDBOX_FHIR_BASE = 'https://sandbox-api.va.gov/services/fhir/v0/r4';

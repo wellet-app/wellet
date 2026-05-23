@@ -1,7 +1,11 @@
 # SPA routing — serve index.html for all paths that don't match a file
 # Required for Epic SMART on FHIR OAuth callback at /epic-callback
 /epic-callback    /index.html    200
-# VA Lighthouse SMART on FHIR OAuth callback - same SPA pattern as Epic
+# VA Lighthouse SMART on FHIR OAuth callback. VA registered our app with
+# /oauth/callback as the redirect URI (canonical OAuth callback path) -
+# wellet.js dispatches based on the state token, not the path. /va-callback
+# kept as an alias for back-compat with anything still pointing at it.
+/oauth/callback   /index.html    200
 /va-callback      /index.html    200
 /share.html       /share.html    200
 /privacy          /privacy.html      200

@@ -17291,9 +17291,13 @@ function handleVaCallback() {
   setTimeout(function() { clearInterval(checkAuth); }, 15000);
 }
 
-// Check for VA callback on page load (path === '/va-callback').
+// Check for VA callback on page load. VA Lighthouse registered our app with
+// /oauth/callback as the redirect URI; /va-callback is kept as an alias for
+// back-compat. The state token round-trips through the va-auth edge function
+// so we don't need provider-specific paths once we add more OAuth sources.
 function checkVaCallbackOnLoad() {
-  if (window.location.pathname === '/va-callback') {
+  var p = window.location.pathname;
+  if (p === '/oauth/callback' || p === '/va-callback') {
     handleVaCallback();
   }
 }
