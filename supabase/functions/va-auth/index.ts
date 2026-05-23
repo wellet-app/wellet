@@ -147,6 +147,57 @@ async function computeCodeChallenge(codeVerifier: string): Promise<string> {
   return base64UrlEncode(new Uint8Array(digest));
 }
 
+// Discover the patient FHIR id for a newly issued VA access token.
+//
+// VA Lighthouse advertises context-standalone-patient in its SMART config but
+// does NOT include a `patient` claim in the token response without the
+// launch/patient scope - and launch/patient is not in VA's scopes_supported
+// allow-list, so we cannot request it. Without patient_id, every downstream
+// FHIR search drops the `patient=` parameter and VA returns 0 entries.
+//
+// Fix: call GET {fhir_base}/Patient once with the new access token. With a
+// standalone-patient SMART token, VA returns a bundle containing exactly the
+// authenticated veteran's Patient resource. Pick entry[0].resource.id.
+async function discoverVaPatientId(
+  fhirBase: string,
+  accessToken: string,
+): Promise<{ patientId: string | null; diag: string }> {
+  try {
+    const url = fhirBase.replace(/\/$/, '') + '/Patient';
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: 'Bearer ' + accessToken,
+        Accept: 'application/fhir+json',
+      },
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      console.error('[va-auth] Patient discovery failed', {
+        status: res.status,
+        body: body.slice(0, 300),
+      });
+      return { patientId: null, diag: 'patient_search_status_' + res.status };
+    }
+    const bundle = await res.json().catch(() => null);
+    const entries = (bundle && Array.isArray(bundle.entry)) ? bundle.entry : [];
+    if (entries.length === 0) {
+      console.warn('[va-auth] Patient bundle empty', { total: bundle?.total });
+      return { patientId: null, diag: 'patient_bundle_empty' };
+    }
+    const first = entries[0]?.resource;
+    const id = first && typeof first.id === 'string' ? first.id : null;
+    if (!id) {
+      console.warn('[va-auth] Patient entry missing id', { resourceType: first?.resourceType });
+      return { patientId: null, diag: 'patient_entry_no_id' };
+    }
+    return { patientId: id, diag: 'ok' };
+  } catch (e) {
+    console.error('[va-auth] Patient discovery threw', { err: (e as Error).message });
+    return { patientId: null, diag: 'patient_search_threw' };
+  }
+}
+
 // Resolve (client_id, fhirBase, authorizeUrl, tokenUrl) for the current
 // environment. Production secrets aren't issued yet - sandbox is the only
 // live path until Lighthouse production-access approval lands.
@@ -452,12 +503,30 @@ Deno.serve(async (req) => {
         console.error('[va-auth] supersede prior connected row threw', { err: (e as Error).message });
       }
 
+      // VA does not return a `patient` claim in the token response without
+      // launch/patient scope (and launch/patient is not in VA's supported
+      // scope list). Fall back to a GET /Patient probe with the new access
+      // token - the standalone-patient SMART context guarantees this bundle
+      // contains only the authenticated veteran's Patient resource.
+      let resolvedPatientId: string | null = (typeof tokenData.patient === 'string' && tokenData.patient) ? tokenData.patient : null;
+      let patientDiscoveryDiag = 'token_claim_present';
+      if (!resolvedPatientId) {
+        const probe = await discoverVaPatientId(conn.fhir_base_url as string, tokenData.access_token);
+        resolvedPatientId = probe.patientId;
+        patientDiscoveryDiag = probe.diag;
+      }
+      console.log('[va-auth] patient_id resolution', {
+        from_token_claim: !!tokenData.patient,
+        resolved_patient_id: resolvedPatientId,
+        diag: patientDiscoveryDiag,
+      });
+
       const { error: updateError } = await admin.from('ehr_connections')
         .update({
           access_token: encAccessToken,
           refresh_token: encRefreshToken,
           token_expires_at: expiresAt,
-          patient_id: tokenData.patient || null,
+          patient_id: resolvedPatientId,
           connected_provider: hospitalLabel,
           connected_at: new Date().toISOString(),
           client_id_used: connEp.clientId,
