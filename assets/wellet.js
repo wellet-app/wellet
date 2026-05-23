@@ -736,6 +736,10 @@ async function initApp() {
           // null and this no-ops — it gets re-invoked from chooseModeMe()
           // after the self-person row is created.
           try { maybeRunDsAutoconnect(); } catch (e) { console.warn('[dsinvite] autoconnect failed:', e); }
+          // Replay any Terra store deferred during a cold-boot redirect
+          // (Safari hits this when handleTerraCallback fired before the
+          // Supabase session hydrated). Best-effort — never blocks.
+          try { _replayPendingTerraStore(); } catch (e) { console.warn('[Terra] replay invoke failed:', e); }
         }
       } else if (event === 'SIGNED_OUT') {
         currentUser = null;
@@ -28678,12 +28682,44 @@ function handleTerraCallback() {
   }
 }
 
+// Backstop key: if a Terra callback lands during a cold Safari boot, the
+// Supabase session may not be hydrated yet and the store call would silently
+// no-op. We stash the pending store here and replay it from onAuthStateChange
+// once INITIAL_SESSION fires.
+var _TERRA_PENDING_STORE_KEY = 'wellet_terra_pending_store';
+
 async function storeTerraConnection(personId, terraUserId, provider) {
-  var session = (await db.auth.getSession()).data.session;
-  if (!session) return;
+  // Wait for the Supabase session to hydrate from localStorage. On a Safari
+  // cold boot from a Terra redirect (mywellet.com/?terra_auth=success&…), the
+  // session isn't ready when handleTerraCallback fires synchronously during
+  // initApp. Without this loop, we'd silently drop the store and the
+  // connection card would stay grey forever (no DB row, no edge call).
+  var session = null;
+  for (var attempt = 0; attempt < 15; attempt++) {
+    try {
+      var res = await db.auth.getSession();
+      session = res && res.data ? res.data.session : null;
+    } catch (_e) { session = null; }
+    if (session) break;
+    await new Promise(function(r){ setTimeout(r, 200); });
+  }
+
+  if (!session) {
+    // Stash so the next SIGNED_IN/INITIAL_SESSION event can replay it.
+    try {
+      localStorage.setItem(_TERRA_PENDING_STORE_KEY, JSON.stringify({
+        person_id: personId,
+        terra_user_id: terraUserId,
+        provider: provider,
+        ts: Date.now()
+      }));
+      console.warn('[Terra] store deferred — session not ready, stashed for replay');
+    } catch (_e) {}
+    return;
+  }
 
   try {
-    await fetch(SUPABASE_URL + '/functions/v1/terra-auth', {
+    var storeRes = await fetch(SUPABASE_URL + '/functions/v1/terra-auth', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -28697,8 +28733,41 @@ async function storeTerraConnection(personId, terraUserId, provider) {
         provider: provider
       })
     });
+    if (storeRes && storeRes.ok) {
+      try { localStorage.removeItem(_TERRA_PENDING_STORE_KEY); } catch (_e) {}
+    } else {
+      console.warn('[Terra] store returned non-OK:', storeRes && storeRes.status);
+    }
   } catch (e) {
     console.error('Store Terra connection error:', e);
+  }
+}
+
+// Replay any pending Terra store left over from a cold-boot redirect where
+// the Supabase session wasn't yet hydrated. Called from onAuthStateChange.
+async function _replayPendingTerraStore() {
+  var raw = null;
+  try { raw = localStorage.getItem(_TERRA_PENDING_STORE_KEY); } catch (_e) { return; }
+  if (!raw) return;
+  var pending;
+  try { pending = JSON.parse(raw); } catch (_e) { try { localStorage.removeItem(_TERRA_PENDING_STORE_KEY); } catch(_){} return; }
+  if (!pending || !pending.person_id || !pending.terra_user_id) {
+    try { localStorage.removeItem(_TERRA_PENDING_STORE_KEY); } catch(_e) {}
+    return;
+  }
+  console.log('[Terra] replaying pending store:', pending);
+  try {
+    // Run through the success handler so the cache refresh + UI relight runs too.
+    _terraHandledKey = null;
+    _onTerraAuthSuccessInParent({
+      type: 'terra_auth_success',
+      person_id: pending.person_id,
+      terra_user_id: pending.terra_user_id,
+      provider: pending.provider || 'unknown',
+      ts: Date.now()
+    });
+  } catch (e) {
+    console.warn('[Terra] replay failed:', e);
   }
 }
 
