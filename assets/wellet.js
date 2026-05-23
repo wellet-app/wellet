@@ -2882,7 +2882,12 @@ function renderSummarySourceStrip(sources, checkInCount) {
   }
   if (chips.length === 0) return '';
   return '<div class="update-summary-sources-wrap">'
-    + '<div class="update-summary-sources-label">Summary Built From</div>'
+    + '<div class="update-summary-sources-header">'
+    +   '<div class="update-summary-sources-label">Summary Built From</div>'
+    +   '<button type="button" class="update-summary-sources-add" onclick="showConnectScreen()" aria-label="Add a connection">'
+    +     '<i data-lucide="plus"></i><span>connections</span>'
+    +   '</button>'
+    + '</div>'
     + '<div class="update-summary-sources">' + chips.join('<span class="update-summary-source-sep">·</span>') + '</div>'
     + '</div>';
 }
