@@ -95,42 +95,45 @@
     margin-bottom: 12px;
   }
 
-  /* Confirmation card after “Send magic link” — inverted (dark moss) so the
-     state change actually lands. Lighter copy + white icon chip. */
+  /* Confirmation card after “Send magic link”. Lightened from the original
+     dark moss (#2A3A33) to a soft moss tint so the typed-in 6-digit code
+     (which renders in dark ink) is readable on the same card. */
   .auth-sent-card {
-    background: #2A3A33;
+    background: #E8EDEA;
     border-radius: 18px;
     padding: 32px 22px 24px;
     margin: 8px 0 4px;
-    color: #F2F0EA;
-    box-shadow: 0 6px 22px rgba(20, 25, 23, 0.18);
+    color: var(--text-primary);
+    box-shadow: 0 6px 22px rgba(20, 25, 23, 0.08);
   }
   .auth-sent-card .auth-sent-icon {
-    background: rgba(255, 255, 255, 0.10);
-    color: #F2F0EA;
+    background: rgba(96, 143, 124, 0.14);
+    color: var(--moss-deep);
   }
   .auth-sent-card .auth-sent-title {
-    color: #FFFFFF;
+    color: var(--text-primary);
   }
   .auth-sent-card .auth-sent-body {
-    color: rgba(242, 240, 234, 0.86);
+    color: var(--text-primary);
+    opacity: 0.86;
   }
   .auth-sent-card .auth-sent-body strong {
-    color: #FFFFFF;
+    color: var(--text-primary);
     font-weight: 600;
+    opacity: 1;
   }
   .auth-sent-aside {
     display: block;
     margin-top: 6px;
     font-size: var(--type-meta);
-    color: rgba(242, 240, 234, 0.72);
+    color: var(--text-secondary);
     line-height: 1.5;
   }
-  /* Demo button needs to stay legible on the dark card */
+  /* Demo button on the lightened card */
   .auth-demo-link--on-card {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.28);
-    color: #FFFFFF;
+    background: rgba(96, 143, 124, 0.10);
+    border-color: rgba(96, 143, 124, 0.35);
+    color: var(--moss-deep);
   }
   .auth-demo-link--on-card:hover {
     background: rgba(255, 255, 255, 0.14);
