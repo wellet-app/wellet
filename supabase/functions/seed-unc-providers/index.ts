@@ -122,6 +122,7 @@ type YextResponse = {
 type SeedBody = {
   max_pages?: number;
   page_size?: number;
+  start_offset?: number;
   dry_run?: boolean;
 };
 
@@ -274,6 +275,7 @@ serve(async (req) => {
 
   const pageSize = Math.min(Math.max(body.page_size ?? DEFAULT_PAGE_SIZE, 1), 50);
   const maxPages = Math.min(Math.max(body.max_pages ?? DEFAULT_MAX_PAGES, 1), 500);
+  const startOffset = Math.max(body.start_offset ?? 0, 0);
   const dryRun = body.dry_run === true;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -294,7 +296,7 @@ serve(async (req) => {
   let resultsCount: number | undefined;
 
   for (let i = 0; i < maxPages; i++) {
-    const offset = i * pageSize;
+    const offset = startOffset + i * pageSize;
     const url = buildPageUrl(offset, pageSize);
 
     let resp: Response;
