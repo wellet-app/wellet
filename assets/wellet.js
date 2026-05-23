@@ -2296,6 +2296,11 @@ function connectFromMeOnboarding(source) {
   if (source === 'google') {
     // Google Health = Terra widget pre-locked to provider=GOOGLE so the user
     // skips the full provider picker and lands straight on Google's OAuth.
+    // Mark that the user launched this from the Connect screen so the Terra
+    // callback restores them to Connections (not Home/Summary). Without this
+    // flag, openTerraConnect's mobile branch stashes _currentNavView, which
+    // showAuthenticatedApp() just reset to the default tab.
+    try { sessionStorage.setItem('wellet_terra_return_to_connect', '1'); } catch(_e) {}
     var screenG = document.getElementById('connect-data-screen');
     if (screenG) screenG.style.display = 'none';
     document.body.classList.remove('connect-data-open');
@@ -2304,6 +2309,7 @@ function connectFromMeOnboarding(source) {
     return;
   }
   if (source === 'terra') {
+    try { sessionStorage.setItem('wellet_terra_return_to_connect', '1'); } catch(_e) {}
     var screen2 = document.getElementById('connect-data-screen');
     if (screen2) screen2.style.display = 'none';
     document.body.classList.remove('connect-data-open');
@@ -28391,14 +28397,35 @@ function _onTerraAuthSuccessInParent(payload) {
     invalidateSignalsCache(payload.person_id);
     showToast('Wearable connected successfully', 'success');
     if (typeof renderSignalsView === 'function') { try { renderSignalsView(); } catch(e){} }
-    // Higher priority: if onboarding connect screen is active, return user to it with \u2713
-    if (typeof _isConnectScreenActive === 'function' && _isConnectScreenActive()) {
-      try { showConnectScreen(); } catch(e) { console.warn('[Terra] showConnectScreen failed:', e); }
-      return;
-    }
-    if (obChat && obChat.phase === 'connect') {
-      obOnDeviceConnected(payload.provider || 'your device');
-    }
+    // Refresh the in-memory Terra connections cache so refreshConnectScreenStatus
+    // sees the new row and lights up the Google Health / Other wearables card.
+    // Without this, _terraConnections is whatever it was at page load (often
+    // empty after a mobile top-level redirect) and the card stays grey even
+    // though the row is in Postgres. Mirrors the EHR + Apple flows which both
+    // refresh their source-of-truth before re-rendering Connections.
+    var reload = (typeof loadTerraConnections === 'function')
+      ? loadTerraConnections(payload.person_id).then(function(conns) {
+          try { _terraConnections = conns || []; } catch(_e) {}
+        }).catch(function(_e){})
+      : Promise.resolve();
+    Promise.resolve(reload).then(function() {
+      // Re-open the Connect screen if either (a) it's still active, or
+      // (b) the user launched the flow from a Connect card on mobile and
+      // we stashed the return-to-connect flag in sessionStorage. Higher
+      // priority: if onboarding connect screen is active, return user to
+      // it with \u2713.
+      var returnToConnect = false;
+      try { returnToConnect = sessionStorage.getItem('wellet_terra_return_to_connect') === '1'; } catch(_e) {}
+      var connectActive = (typeof _isConnectScreenActive === 'function' && _isConnectScreenActive());
+      if (connectActive || returnToConnect) {
+        try { sessionStorage.removeItem('wellet_terra_return_to_connect'); } catch(_e) {}
+        try { showConnectScreen(); } catch(e) { console.warn('[Terra] showConnectScreen failed:', e); }
+        return;
+      }
+      if (obChat && obChat.phase === 'connect') {
+        obOnDeviceConnected(payload.provider || 'your device');
+      }
+    });
   });
 }
 
@@ -28620,9 +28647,29 @@ function handleTerraCallback() {
     _onTerraAuthFailureInParent();
   }
 
-  // Mobile came back via top-level redirect \u2014 send the user back to the
-  // CareSignals view they were on when they started the connect flow.
-  if (pending && pending.view) {
+  // Mobile came back via top-level redirect. Two cases:
+  //   1. User launched from the Connect screen (Google Health / Other
+  //      wearables card) \u2014 honor that flag and re-open Connections so
+  //      they see the freshly-lit card. Without this, _currentNavView was
+  //      reset to the default tab (Home/Summary) by showAuthenticatedApp()
+  //      before the redirect, so pending.view would route to Summary.
+  //   2. User launched from elsewhere (e.g. CareSignals "+ Connect a
+  //      wearable") \u2014 restore that view as before.
+  var fromConnect = false;
+  try {
+    fromConnect = sessionStorage.getItem('wellet_terra_return_to_connect') === '1';
+    // Don't remove the flag here \u2014 _onTerraAuthSuccessInParent reads it
+    // too, after the async storeTerraConnection + loadTerraConnections
+    // round-trip, and clears it itself.
+  } catch(_e) {}
+  if (fromConnect) {
+    try { showAuthenticatedApp(); } catch(_e) {}
+    // showConnectScreen() is also called from _onTerraAuthSuccessInParent
+    // (success path) once the connections cache reloads. Calling it here
+    // too means the overlay opens immediately on return; the later call
+    // just re-renders with the now-Connected card.
+    try { if (typeof showConnectScreen === 'function') showConnectScreen(); } catch(_e) {}
+  } else if (pending && pending.view) {
     try { switchNavTo(pending.view); } catch(e) { console.warn('[Terra] restore view failed:', e); }
   }
 }

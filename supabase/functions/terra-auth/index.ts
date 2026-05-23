@@ -220,6 +220,52 @@ Deno.serve(async (req) => {
         return json({ error: "Person not found" }, 404);
       }
 
+      const normalizedProvider = provider || "unknown";
+
+      // Look up any existing ACTIVE connection for this (user, person, provider).
+      // Terra mints a fresh terra_user_id for every widget session, so a user
+      // who taps "Connect Google Health" twice would otherwise create two
+      // active rows (the old code's onConflict='terra_user_id' never matched
+      // because the keys differed). We detect the existing row up-front so we
+      // can (a) deauthenticate the stale terra_user_id with Terra to free up
+      // the slot, and (b) reuse the row so downstream FKs (e.g.
+      // wearable_observations.terra_connection_id) stay stable.
+      const { data: existing } = await db
+        .from("terra_connections")
+        .select("id, terra_user_id")
+        .eq("user_id", user.id)
+        .eq("person_id", person_id)
+        .eq("provider", normalizedProvider)
+        .eq("status", "active")
+        .maybeSingle();
+
+      // If we're replacing a different terra_user_id, deauth the old one with
+      // Terra so we don't keep paying for a zombie connection that will never
+      // be used again. Best-effort — don't block the store on network failure.
+      if (existing && existing.terra_user_id && existing.terra_user_id !== terra_user_id) {
+        const terraApiKey = Deno.env.get("TERRA_API_KEY");
+        const terraDevId = Deno.env.get("TERRA_DEV_ID");
+        if (terraApiKey && terraDevId) {
+          try {
+            await fetch("https://api.tryterra.co/v2/auth/deauthenticateUser", {
+              method: "DELETE",
+              headers: {
+                "dev-id": terraDevId,
+                "x-api-key": terraApiKey,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ user_id: existing.terra_user_id }),
+            });
+          } catch (e) {
+            console.error("Terra deauth (replace) error:", e);
+          }
+        }
+      }
+
+      // Upsert against the partial unique index on (user_id, person_id, provider)
+      // WHERE status='active'. With the new index in place, a retry updates the
+      // existing active row instead of creating a duplicate. Disconnected rows
+      // are preserved as audit history (the partial index doesn't cover them).
       const { data: conn, error: connErr } = await db
         .from("terra_connections")
         .upsert(
@@ -227,12 +273,12 @@ Deno.serve(async (req) => {
             user_id: user.id,
             person_id: person_id,
             terra_user_id: terra_user_id,
-            provider: provider || "unknown",
+            provider: normalizedProvider,
             status: "active",
             connected_at: new Date().toISOString(),
             disconnected_at: null,
           },
-          { onConflict: "terra_user_id" },
+          { onConflict: "user_id,person_id,provider" },
         )
         .select()
         .single();
