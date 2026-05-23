@@ -1982,6 +1982,33 @@ function refreshConnectScreenStatus() {
   var screen = document.getElementById('connect-data-screen');
   if (!screen || screen.style.display === 'none') return;
 
+  // Kick off an async refresh of the Terra connections cache from Postgres
+  // every time we render. `_terraConnections` is otherwise only ever set by
+  // the post-Terra-auth success handler (line ~28416), which means after a
+  // page refresh — or any cold load with an already-connected wearable —
+  // the cache is `undefined` and the Google Health / Other wearables card
+  // stays grey even though terra_connections has an active row. We dedupe
+  // in-flight calls with _terraRefreshInFlight so concurrent renders don't
+  // stack network calls.
+  try {
+    if (typeof currentPersonId !== 'undefined' && currentPersonId &&
+        typeof loadTerraConnections === 'function' &&
+        !window._terraRefreshInFlight) {
+      window._terraRefreshInFlight = true;
+      loadTerraConnections(currentPersonId).then(function(conns) {
+        var before = (typeof _terraConnections !== 'undefined' && _terraConnections) ? _terraConnections.length : -1;
+        try { _terraConnections = conns || []; } catch(_e) {}
+        // Only re-mark if the cache actually changed (or wasn't initialized
+        // before) — avoids a redundant DOM thrash on every open.
+        if (before !== _terraConnections.length) {
+          try { refreshConnectScreenStatus(); } catch(_e) {}
+        }
+      }).catch(function(_e){}).finally(function(){
+        window._terraRefreshInFlight = false;
+      });
+    }
+  } catch(_e) {}
+
   // EHR — any active connection on currentPersonId counts.
   var ehrConnected = !!(typeof getEhrData === 'function' && currentPersonId && getEhrData(currentPersonId));
   // Terra — a row in terra_connections (loaded into _terraConnections cache).
