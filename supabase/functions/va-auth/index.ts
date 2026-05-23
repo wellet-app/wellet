@@ -147,21 +147,73 @@ async function computeCodeChallenge(codeVerifier: string): Promise<string> {
   return base64UrlEncode(new Uint8Array(digest));
 }
 
+// Decode a JWT payload without signature verification (we already trust the
+// token because we just received it over TLS from VA's token endpoint).
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    let s = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    return JSON.parse(atob(s));
+  } catch (_) {
+    return null;
+  }
+}
+
+// Sandbox-only fallback: VA's ID.me test users map to known test patient ids.
+// Documented at https://department-of-veterans-affairs.github.io/veteran-facing-services-tools/patient-generator/.
+// The bypass-auth path silent-grants a token without showing the Lighthouse
+// patient picker, so we cannot rely on a launch/patient claim in sandbox.
+// VA test patient ids are publicly known and contain only synthetic data.
+const VA_SANDBOX_USER_TO_PATIENT: Record<string, string> = {
+  // ID.me sandbox user 101 (va.api.user+101-2024@gmail.com) - WelletEble label
+  '00u2p9far4ihDAEX82p7': '32000225',
+};
+
 // Discover the patient FHIR id for a newly issued VA access token.
 //
 // VA Lighthouse advertises context-standalone-patient in its SMART config but
 // does NOT include a `patient` claim in the token response without the
 // launch/patient scope - and launch/patient is not in VA's scopes_supported
-// allow-list, so we cannot request it. Without patient_id, every downstream
-// FHIR search drops the `patient=` parameter and VA returns 0 entries.
+// allow-list, so we cannot request it.
 //
-// Fix: call GET {fhir_base}/Patient once with the new access token. With a
-// standalone-patient SMART token, VA returns a bundle containing exactly the
-// authenticated veteran's Patient resource. Pick entry[0].resource.id.
+// Resolution order:
+//   1. JWT payload `patient` / `fhirUser` claim (future-proof for prod
+//      once VA enables launch/patient)
+//   2. tokenData.patient field (handled at call site)
+//   3. GET /Patient probe (works ONLY if VA bound a patient to the token -
+//      sandbox bypass path does NOT bind one, but real ID-proofed prod
+//      users will)
+//   4. Sandbox-only fallback: known uid -> patient_id mapping table
 async function discoverVaPatientId(
   fhirBase: string,
   accessToken: string,
+  isSandbox: boolean,
 ): Promise<{ patientId: string | null; diag: string }> {
+  // 1. Try JWT payload first.
+  const claims = decodeJwtPayload(accessToken);
+  if (claims) {
+    const patientClaim = (typeof claims.patient === 'string' && claims.patient) ? claims.patient as string : null;
+    if (patientClaim) {
+      console.log('[va-auth] patient resolved from jwt patient claim', { patientId: patientClaim });
+      return { patientId: patientClaim, diag: 'jwt_patient_claim' };
+    }
+    const fhirUser = typeof claims.fhirUser === 'string' ? claims.fhirUser as string : null;
+    if (fhirUser) {
+      // fhirUser is a relative or absolute URL like "Patient/12345"
+      const m = fhirUser.match(/Patient\/([^\/?#]+)/);
+      if (m) {
+        console.log('[va-auth] patient resolved from jwt fhirUser claim', { fhirUser, patientId: m[1] });
+        return { patientId: m[1], diag: 'jwt_fhir_user_claim' };
+      }
+    }
+  }
+
+  // 2. Try /Patient probe. In prod with a properly bound token this returns
+  // a bundle with the veteran's Patient resource. In sandbox bypass mode it
+  // returns 400 because no patient is bound.
+  let probeDiag = 'patient_search_skipped';
   try {
     const url = fhirBase.replace(/\/$/, '') + '/Patient';
     const res = await fetch(url, {
@@ -171,31 +223,38 @@ async function discoverVaPatientId(
         Accept: 'application/fhir+json',
       },
     });
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      console.error('[va-auth] Patient discovery failed', {
-        status: res.status,
-        body: body.slice(0, 300),
-      });
-      return { patientId: null, diag: 'patient_search_status_' + res.status };
+    if (res.ok) {
+      const bundle = await res.json().catch(() => null);
+      const entries = (bundle && Array.isArray(bundle.entry)) ? bundle.entry : [];
+      const first = entries[0]?.resource;
+      const id = first && typeof first.id === 'string' ? first.id : null;
+      if (id) {
+        return { patientId: id, diag: 'patient_search_bundle' };
+      }
+      probeDiag = 'patient_bundle_empty';
+    } else {
+      probeDiag = 'patient_search_status_' + res.status;
     }
-    const bundle = await res.json().catch(() => null);
-    const entries = (bundle && Array.isArray(bundle.entry)) ? bundle.entry : [];
-    if (entries.length === 0) {
-      console.warn('[va-auth] Patient bundle empty', { total: bundle?.total });
-      return { patientId: null, diag: 'patient_bundle_empty' };
-    }
-    const first = entries[0]?.resource;
-    const id = first && typeof first.id === 'string' ? first.id : null;
-    if (!id) {
-      console.warn('[va-auth] Patient entry missing id', { resourceType: first?.resourceType });
-      return { patientId: null, diag: 'patient_entry_no_id' };
-    }
-    return { patientId: id, diag: 'ok' };
   } catch (e) {
+    probeDiag = 'patient_search_threw';
     console.error('[va-auth] Patient discovery threw', { err: (e as Error).message });
-    return { patientId: null, diag: 'patient_search_threw' };
   }
+
+  // 3. Sandbox fallback - map ID.me test user uid to the documented test patient.
+  if (isSandbox && claims) {
+    const uid = typeof claims.uid === 'string' ? claims.uid as string : '';
+    if (uid && VA_SANDBOX_USER_TO_PATIENT[uid]) {
+      const sandboxPatient = VA_SANDBOX_USER_TO_PATIENT[uid];
+      console.log('[va-auth] patient resolved from sandbox uid mapping', {
+        uid,
+        patientId: sandboxPatient,
+      });
+      return { patientId: sandboxPatient, diag: 'sandbox_uid_mapping' };
+    }
+  }
+
+  console.warn('[va-auth] patient_id could not be resolved', { probeDiag, isSandbox });
+  return { patientId: null, diag: probeDiag };
 }
 
 // Resolve (client_id, fhirBase, authorizeUrl, tokenUrl) for the current
@@ -511,7 +570,8 @@ Deno.serve(async (req) => {
       let resolvedPatientId: string | null = (typeof tokenData.patient === 'string' && tokenData.patient) ? tokenData.patient : null;
       let patientDiscoveryDiag = 'token_claim_present';
       if (!resolvedPatientId) {
-        const probe = await discoverVaPatientId(conn.fhir_base_url as string, tokenData.access_token);
+        const probeIsSandbox = conn.fhir_base_url === VA_SANDBOX_FHIR_BASE;
+        const probe = await discoverVaPatientId(conn.fhir_base_url as string, tokenData.access_token, probeIsSandbox);
         resolvedPatientId = probe.patientId;
         patientDiscoveryDiag = probe.diag;
       }
