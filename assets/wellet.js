@@ -758,6 +758,8 @@ async function initApp() {
   });
   // Check for EHR OAuth callback code in URL
   checkEhrCallbackOnLoad();
+  // Check for VA Lighthouse OAuth callback (/va-callback)
+  try { checkVaCallbackOnLoad(); } catch(e) { console.warn('[va] callback check failed:', e); }
   // Handle Wellet Connect (Apple Health bridge) callback
   handleConnectCallback();
   // Handle Terra wearable auth redirect
@@ -2282,7 +2284,29 @@ function showConnectScreen() {
   refreshConnectScreenStatus();
   // Show the Wellet Connect install hint under the Apple Health card on iPhone.
   try { maybeShowAppleInstallHint(); } catch(e) {}
+  // VA Lighthouse card is gated behind ?va=1 (or a sticky localStorage flag
+  // once the gate has been opened in this browser). Keeps the BDB demo card
+  // hidden from regular users while still letting reviewers find it via URL.
+  try { maybeShowVaCard(); } catch(e) {}
   if (window.lucide) try { lucide.createIcons(); } catch(e) {}
+}
+
+// Reveal the VA card only if the user landed with ?va=1 in the URL or has
+// previously opened the gate in this browser (localStorage flag). Idempotent.
+function maybeShowVaCard() {
+  var card = document.getElementById('connect-card-va');
+  if (!card) return;
+  var gateOpen = false;
+  try {
+    var qp = new URLSearchParams(window.location.search);
+    if (qp.get('va') === '1') {
+      gateOpen = true;
+      try { localStorage.setItem('wellet_va_gate', '1'); } catch(_e) {}
+    } else if (localStorage.getItem('wellet_va_gate') === '1') {
+      gateOpen = true;
+    }
+  } catch(e) {}
+  card.style.display = gateOpen ? '' : 'none';
 }
 
 function hideConnectScreen() {
@@ -2350,6 +2374,17 @@ function connectFromMeOnboarding(source) {
     document.body.classList.remove('connect-data-open');
     showAuthenticatedApp();
     setTimeout(function() { try { openTerraConnect(); } catch(e) { console.error(e); } }, 60);
+    return;
+  }
+  if (source === 'va') {
+    // VA Lighthouse OAuth bounces to id.va.gov, then back to /va-callback.
+    // Same shape as the EHR path: hide the connect screen but keep the
+    // active flag set so the callback restores the user to Connections.
+    var screenV = document.getElementById('connect-data-screen');
+    if (screenV) screenV.style.display = 'none';
+    document.body.classList.remove('connect-data-open');
+    showAuthenticatedApp();
+    setTimeout(function() { try { beginVaOAuth(true); } catch(e) { console.error(e); } }, 60);
     return;
   }
 }
@@ -17118,6 +17153,188 @@ function checkEhrCallbackOnLoad() {
   if (window.location.pathname === '/epic-callback' || params.get('code')) {
     handleEhrCallback();
   }
+}
+
+// ── VA LIGHTHOUSE OAUTH ─────────────────────────────────────────────────────
+// VA Lighthouse uses SMART on FHIR with R4 patient/* scopes (verified against
+// https://sandbox-api.va.gov/services/fhir/v0/r4/.well-known/smart-configuration).
+// The flow mirrors beginEhrOAuth/handleEhrCallback but POSTs to the va-auth
+// edge function and round-trips through /va-callback. Gated in the UI behind
+// ?va=1 - see maybeShowVaCard().
+
+function beginVaOAuth(isSandbox) {
+  var personId = currentPersonId;
+  if (!personId) {
+    showToast('Please select a person first');
+    return;
+  }
+  try { localStorage.setItem('wellet_va_pending_person', personId); } catch(e) {}
+  showToast('Connecting to VA' + (isSandbox ? ' (Sandbox)' : '') + '\u2026');
+
+  db.auth.refreshSession().then(function(refreshRes) {
+    var session = refreshRes && refreshRes.data && refreshRes.data.session;
+    if (!session) {
+      return db.auth.getSession().then(function(s) { return s.data.session; });
+    }
+    return session;
+  }).then(function(session) {
+    if (!session) {
+      showToast('Session expired. Please sign in again.');
+      return;
+    }
+    var payload = { action: 'start', person_id: personId, sandbox: !!isSandbox };
+    return fetch(SUPABASE_URL + '/functions/v1/va-auth', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + session.access_token,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify(payload)
+    });
+  }).then(function(res) {
+    if (!res) return;
+    try { console.log('[va] va-auth start status', res.status); } catch(e) {}
+    return res.json();
+  }).then(function(data) {
+    if (!data) return;
+    try { console.log('[va] va-auth start body', data); } catch(e) {}
+    if (data.error) {
+      var msg = 'VA: ' + (data.message || data.error);
+      showToast(msg);
+      return;
+    }
+    if (data.authorize_url) {
+      try {
+        var u = new URL(data.authorize_url);
+        if (u.protocol === 'https:') {
+          try { window.location.assign(data.authorize_url); } catch(_e) {
+            try { window.location.href = data.authorize_url; } catch(__e) {}
+          }
+          return;
+        }
+      } catch(e) {}
+      showToast('VA: invalid authorize URL');
+    } else {
+      showToast('VA: could not start the connection. Try again.');
+    }
+  }).catch(function(err) {
+    console.error('[va] start error:', err);
+    showToast('Failed to start VA connection');
+  });
+}
+
+// Exchange the VA authorization code (called on /va-callback page load).
+function handleVaCallback() {
+  var params = new URLSearchParams(window.location.search);
+  var code = params.get('code');
+  if (!code) { console.log('[va] callback: no code param'); return; }
+  if (!/^[a-zA-Z0-9\-_.+=\/]{1,2048}$/.test(code)) { console.warn('[va] code failed validation'); return; }
+  var state = params.get('state') || '';
+
+  var personId;
+  try { personId = localStorage.getItem('wellet_va_pending_person'); } catch(e) {}
+  if (!personId) { console.warn('[va] callback: no pending person_id'); return; }
+
+  // Clean URL back to root so a refresh doesn't replay the code.
+  try { window.history.replaceState({}, '', window.location.origin + '/'); } catch(e) {}
+
+  var checkAuth = setInterval(function() {
+    if (!currentUser) return;
+    clearInterval(checkAuth);
+
+    showToast('Completing VA connection\u2026');
+    db.auth.getSession().then(function(sessionRes) {
+      var session = sessionRes && sessionRes.data && sessionRes.data.session;
+      if (!session) return;
+      return fetch(SUPABASE_URL + '/functions/v1/va-auth', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + session.access_token,
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({ action: 'callback', code: code, state: state, person_id: personId })
+      });
+    }).then(function(res) {
+      if (!res) return;
+      return res.json();
+    }).then(function(data) {
+      if (!data) return;
+      try { console.log('[va] callback body', data); } catch(e) {}
+      if (data.error) {
+        showToast('VA connection failed: ' + (data.message || data.error));
+        try { localStorage.removeItem('wellet_va_pending_person'); } catch(e) {}
+        return;
+      }
+      try { localStorage.removeItem('wellet_va_pending_person'); } catch(e) {}
+      setCurrentPersonId(personId);
+      if (typeof loadPersonData === 'function') {
+        try { loadPersonData(personId); } catch(e) {}
+      }
+      // VA records flow through the same fetch-ehr-data edge function (the VA
+      // branch added in commit 5b30ff5), so the existing path lights up.
+      if (typeof _isConnectScreenActive === 'function' && _isConnectScreenActive()) {
+        showToast('VA records connected!');
+        try { fetchEhrData(personId, true); } catch(_e) {}
+        try { showConnectScreen(); } catch(_e) {}
+        return;
+      }
+      showToast('VA records connected! Fetching data\u2026');
+      try { switchNavTo('records'); } catch(e) {}
+      try { fetchEhrData(personId, true); } catch(e) {}
+    }).catch(function(err) {
+      console.error('[va] callback error:', err);
+      showToast('VA connection failed');
+    });
+  }, 500);
+  setTimeout(function() { clearInterval(checkAuth); }, 15000);
+}
+
+// Check for VA callback on page load (path === '/va-callback').
+function checkVaCallbackOnLoad() {
+  if (window.location.pathname === '/va-callback') {
+    handleVaCallback();
+  }
+}
+
+// Disconnect a VA connection for the current person.
+function disconnectVa() {
+  if (isDemoMode) { showToast('Demo mode. Disconnect not available.'); return; }
+  var personId = currentPersonId;
+  if (!personId) { showToast('No person selected'); return; }
+  if (!confirm('Disconnect VA records? Cached data on this device will be removed.')) return;
+
+  showToast('Disconnecting VA\u2026');
+  try { clearEhrCache(personId); } catch(e) {}
+
+  db.auth.getSession().then(function(sessionRes) {
+    var session = sessionRes && sessionRes.data && sessionRes.data.session;
+    if (!session) { showToast('Not signed in'); return; }
+    return fetch(SUPABASE_URL + '/functions/v1/va-auth', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + session.access_token,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ action: 'disconnect', person_id: personId })
+    });
+  }).then(function(resp) {
+    try { console.log('[va] disconnect status', resp && resp.status); } catch(e) {}
+    showToast('VA records disconnected');
+    try { liveMeds = liveMeds.filter(function(m) { return m.source !== 'ehr'; }); } catch(e) {}
+    try { liveAllergies = liveAllergies.filter(function(a) { return a.source !== 'ehr'; }); } catch(e) {}
+    try { liveLabs = liveLabs.filter(function(l) { return l.source !== 'ehr'; }); } catch(e) {}
+    try { renderRecordsView(); } catch(e) {}
+    try { renderTimeline(); } catch(e) {}
+    try { updateSettingsEhr(); } catch(e) {}
+    try { updateProfileEhr(personId); } catch(e) {}
+    try { initIcons(); } catch(e) {}
+  }).catch(function(err) {
+    console.error('[va] disconnect error:', err);
+    showToast('VA disconnect failed');
+  });
 }
 
 // Handle the /connect-callback universal-link return from the Wellet Connect
