@@ -2011,8 +2011,34 @@ function refreshConnectScreenStatus() {
     }
   } catch(_e) {}
 
-  // EHR — any active connection on currentPersonId counts.
-  var ehrConnected = !!(typeof getEhrData === 'function' && currentPersonId && getEhrData(currentPersonId));
+  // EHR cards split by provider:
+  //   connect-card-ehr is the generic "Your health records" card (Epic, Cerner,
+  //     etc.) — light it up when at least one non-VA connection is connected.
+  //   connect-card-va is the gated VA Lighthouse card — light it up when at
+  //     least one va-provider connection is connected.
+  // Both reads use the merged v2 cache _connections list so the card status
+  // reflects exactly what fetch-ehr-data returned on the last sync.
+  var ehrConnected = false;
+  var vaConnected = false;
+  try {
+    if (typeof getEhrData === 'function' && currentPersonId) {
+      var _ehrData = getEhrData(currentPersonId);
+      var _conns = (_ehrData && Array.isArray(_ehrData._connections)) ? _ehrData._connections : [];
+      if (_conns.length === 0 && _ehrData) {
+        // Pre-phase-2 cache shape: no per-connection list, but the cache
+        // exists \u2014 treat as a single non-VA EHR connection.
+        ehrConnected = true;
+      } else {
+        _conns.forEach(function(c) {
+          if (!c) return;
+          if (c.status && c.status === 'disconnected') return;
+          var prov = String(c.provider || '').toLowerCase();
+          if (prov === 'va') vaConnected = true;
+          else ehrConnected = true;
+        });
+      }
+    }
+  } catch(_e) {}
   // Terra — a row in terra_connections (loaded into _terraConnections cache).
   // Only count rows that represent a real, working Terra connection:
   //   - a non-empty terra_user_id (and not the string 'None' or 'null' from
@@ -2078,6 +2104,7 @@ function refreshConnectScreenStatus() {
   } catch(_e) {}
 
   _markConnectCard('connect-card-ehr', ehrConnected);
+  _markConnectCard('connect-card-va', vaConnected);
   _markConnectCard('connect-card-apple', appleConnected);
   _markConnectCard('connect-card-google', googleConnected);
   _markConnectCard('connect-card-terra', terraConnected);
@@ -2099,6 +2126,8 @@ function refreshConnectScreenStatus() {
   // Apple Health and Google Health are single sources by definition — no sublabel.
   _setConnectCardSources('connect-card-apple', null);
   _setConnectCardSources('connect-card-google', null);
+  // VA Lighthouse: single source (sandbox or prod), surface a clean sublabel.
+  _setConnectCardSources('connect-card-va', vaConnected ? ['VA Lighthouse Sandbox'] : null);
 
   // Update the bottom CTA: "Skip for now \u2014 you can connect anything from Settings"
   // if nothing connected, "Done" once at least one source is in place.
