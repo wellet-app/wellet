@@ -2939,7 +2939,7 @@ function renderSummarySourceStrip(sources, checkInCount) {
     chips.push('<span class="update-summary-source-chip"><i data-lucide="hospital"></i>' + escHtml(ehrLabel) + '</span>');
   }
   if (sources.wearable) {
-    var wLabel = sources.wearable_provider ? capitalize(String(sources.wearable_provider).replace(/_/g,' ')) : 'Apple Health';
+    var wLabel = sources.wearable_provider ? formatWearableProvider(sources.wearable_provider) : 'Apple Health';
     chips.push('<span class="update-summary-source-chip"><i data-lucide="activity"></i>' + escHtml(wLabel) + '</span>');
   }
   if (sources.labs) {
@@ -2967,6 +2967,32 @@ function renderSummarySourceStrip(sources, checkInCount) {
 function capitalize(s) {
   if (!s) return '';
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+// Friendly product name for Terra/wearable provider codes. Terra stores
+// provider as ALL-CAPS (GOOGLE, FITBIT, OURA, GARMIN, APPLE), but those
+// don't read like product names on the Summary card. Map known codes to
+// their consumer-facing labels; fall back to a proper Title Case for
+// anything unknown so we never render shouty UPPERCASE in body chips.
+function formatWearableProvider(code) {
+  if (!code) return '';
+  var key = String(code).trim().toUpperCase();
+  var map = {
+    'GOOGLE': 'Google Fit',
+    'FITBIT': 'Fitbit',
+    'OURA': 'Oura',
+    'GARMIN': 'Garmin',
+    'APPLE': 'Apple Health',
+    'WHOOP': 'Whoop',
+    'WITHINGS': 'Withings',
+    'POLAR': 'Polar',
+    'PELOTON': 'Peloton',
+    'STRAVA': 'Strava',
+    'SAMSUNG': 'Samsung Health'
+  };
+  if (map[key]) return map[key];
+  // Unknown provider: 'EIGHT_SLEEP' -> 'Eight Sleep'
+  return key.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, function(c){ return c.toUpperCase(); });
 }
 
 function formatTimeAgo(iso) {
@@ -3142,13 +3168,16 @@ function formatWelletSummary(txt) {
   if (!txt) return '';
   // Accept either a plain string OR the new {text,...} object for back-compat.
   if (typeof txt === 'object' && txt !== null) txt = txt.text || '';
-  var raw = String(txt).trim();
+  // Voice scrub: drop em/en dashes before parsing so they can't survive into
+  // the rendered card. The summary model still sprinkles them despite the
+  // prompt's forbidden list. Replace spaced \u2014 or \u2013 with ', '.
+  var raw = String(txt).trim().replace(/\s*[\u2014\u2013]\s*/g, ', ');
   // Normalize headings (case-insensitive, tolerate variations)
   var snapMatch = raw.match(/^[\s\S]*?snapshot\s*:?/i);
   var newsIdx = raw.search(/what['\u2019]?s\s+new[^:]*:/i);
   var snapIdx = raw.search(/snapshot\s*:/i);
   if (snapIdx === -1 && newsIdx === -1) {
-    // No known headings — render as one block, preserving paragraph breaks
+    // No known headings, render as one block, preserving paragraph breaks
     return '<div class="update-summary-section-body">' + escHtml(raw).replace(/\n\n+/g, '</p><p style="margin:6px 0 0;">').replace(/\n/g, '<br>') + '</div>';
   }
   var snapshotBody = '';
@@ -3164,7 +3193,13 @@ function formatWelletSummary(txt) {
   }
   function formatBody(s) {
     if (!s) return '';
-    return escHtml(s).replace(/\n\n+/g, '<br><br>').replace(/\n/g, '<br>');
+    // Voice: no em dashes. The summary model still slips them in despite
+    // the prompt's forbidden-words list, so post-process before render:
+    // ' \u2014 ' (spaced em dash) becomes ', ', and a bare \u2014 between
+    // words becomes ', '. \u2013 (en dash) gets the same treatment.
+    var clean = String(s)
+      .replace(/\s*[\u2014\u2013]\s*/g, ', ');
+    return escHtml(clean).replace(/\n\n+/g, '<br><br>').replace(/\n/g, '<br>');
   }
   var html = '';
   if (snapshotBody) {

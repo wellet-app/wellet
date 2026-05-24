@@ -1419,8 +1419,7 @@
   .update-summary-section { margin-bottom: 12px; }
   .update-summary-section:last-child { margin-bottom: 0; }
   .update-summary-subhead { font-size: var(--type-micro); letter-spacing: 0.12em; text-transform: uppercase; color: var(--moss-dark); font-weight: 600; margin-bottom: 6px; opacity: 0.9; }
-  .update-summary-section-body { font-size: var(--type-body); line-height: 1.6; color: var(--text-primary); }
-  .update-summary-section.snapshot .update-summary-section-body { font-family: var(--serif); font-size: var(--type-body); line-height: 1.5; letter-spacing: -0.005em; }
+  .update-summary-section-body { font-family: var(--serif); font-size: var(--type-body); line-height: 1.5; letter-spacing: -0.005em; color: var(--text-primary); }
   .update-summary-section.snapshot .update-summary-section-body .verdict { font-weight: 500; }
   .update-summary-byline { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(75, 99, 65, 0.12); font-size: 10.5px; color: var(--moss-dark); opacity: 0.75; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; letter-spacing: 0.01em; }
   .update-summary-byline i { width: 10px; height: 10px; }
