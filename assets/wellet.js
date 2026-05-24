@@ -6030,11 +6030,27 @@ function openEhrDocument(encId, docId) {
   entry.docs[docId] = { state: 'loading' };
   var renderDocError = function(reason) {
     entry.docs[docId] = { state: 'error', error: reason || 'unknown' };
-    // window.close() on a script-opened tab is unreliable across browsers \u2014
-    // Safari and Chrome both routinely refuse, leaving the user staring at a
-    // blank "Opening document\u2026" placeholder forever. Rewrite the placeholder
-    // tab with a friendly message instead so the failure is visible to the
-    // caregiver rather than silent.
+    // Map raw reason strings to caregiver-friendly explanations. We surface a
+    // little more detail now that the edge function returns specific errors
+    // (origin mismatch, token expired, 404 from Epic, timeout) so the user
+    // and we can tell apart the failure modes.
+    var rawReason = String(reason || 'unknown');
+    var explanation;
+    if (/timed out/i.test(rawReason)) {
+      explanation = 'The hospital didn\u2019t respond in time. Try again in a moment.';
+    } else if (/token expired|reconnect/i.test(rawReason)) {
+      explanation = 'Your hospital session expired. Open the Records tab and reconnect.';
+    } else if (/origin/i.test(rawReason)) {
+      explanation = 'The document link points to a different hospital than the one we have connected. Please reconnect this hospital.';
+    } else if (/no ehr connection/i.test(rawReason)) {
+      explanation = 'We couldn\u2019t find an active hospital connection for this person.';
+    } else if (/404|not found|empty/i.test(rawReason)) {
+      explanation = 'The hospital isn\u2019t sharing this document through their API right now.';
+    } else if (/doc_not_found/i.test(rawReason)) {
+      explanation = 'This visit doesn\u2019t have that document attached.';
+    } else {
+      explanation = 'The hospital may not be sharing it through their API at the moment.';
+    }
     if (popupWin) {
       try {
         popupWin.document.open();
@@ -6046,7 +6062,7 @@ function openEhrDocument(encId, docId) {
           + '</style></head><body>'
           + '<h1>Wellet</h1>'
           + '<p>This document isn\u2019t available right now.</p>'
-          + '<p style="color:#888;font-size:13px;">The hospital may not be sharing it through their API at the moment. You can close this tab and try the other document on this visit.</p>'
+          + '<p style="color:#888;font-size:13px;">' + explanation.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</p>'
           + '<a href="#" onclick="window.close();return false;">Close window</a>'
           + '</body></html>');
         popupWin.document.close();
@@ -6072,7 +6088,7 @@ function openEhrDocument(encId, docId) {
           var msg = document.createElement('span');
           msg.className = 'ehr-doc-error-msg';
           msg.style.cssText = 'display:block;margin-top:6px;font-size:var(--type-micro);color:var(--text-muted);font-style:italic;font-weight:400;';
-          msg.textContent = 'Couldn\u2019t open this document. The hospital may not be sharing it through their API right now.';
+          msg.textContent = 'Couldn\u2019t open this document. ' + explanation;
           a.parentNode.appendChild(msg);
         }
       }
@@ -6092,10 +6108,20 @@ function openEhrDocument(encId, docId) {
   }
   if (!targetDoc) { renderDocError('doc_not_found'); return; }
 
+  // Hard timeout so 'Opening document…' can't hang forever. 25s is enough
+  // for a typical Epic Binary fetch (most return in < 3s) but short enough
+  // that the caregiver isn't left staring at a spinner.
+  var docTimeoutMs = 25000;
+  var docTimedOut = false;
+  var docAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  var docTimer = setTimeout(function() {
+    docTimedOut = true;
+    if (docAbort) { try { docAbort.abort(); } catch (_eAbort) {} }
+  }, docTimeoutMs);
   db.auth.getSession().then(function(sessionRes) {
     var session = sessionRes.data.session;
     if (!session) throw new Error('no session');
-    return fetch(SUPABASE_URL + '/functions/v1/fetch-ehr-document', {
+    var fetchOpts = {
       method: 'POST',
       headers: {
         'Authorization': 'Bearer ' + session.access_token,
@@ -6107,9 +6133,20 @@ function openEhrDocument(encId, docId) {
         document_id: targetDoc.id,
         document_url: targetDoc.url || '',
       }),
-    });
+    };
+    if (docAbort) fetchOpts.signal = docAbort.signal;
+    return fetch(SUPABASE_URL + '/functions/v1/fetch-ehr-document', fetchOpts);
   }).then(function(res) {
-    if (!res || !res.ok) throw new Error('document fetch failed');
+    clearTimeout(docTimer);
+    if (!res) throw new Error('document fetch failed');
+    if (!res.ok) {
+      // Surface the real status so we don't say 'document fetch failed' on a
+      // 400 origin mismatch or 401 token expiry.
+      return res.json().catch(function() { return {}; }).then(function(j) {
+        var msg = (j && j.error) ? String(j.error) : ('HTTP ' + res.status);
+        throw new Error(msg);
+      });
+    }
     return res.json();
   }).then(function(data) {
     if (!data || !data.data_base64) throw new Error(data && data.error ? data.error : 'empty document');
@@ -6130,7 +6167,12 @@ function openEhrDocument(encId, docId) {
       window.open(url, '_blank', 'noopener');
     }
   }).catch(function(e) {
-    renderDocError((e && e.message) || 'unknown');
+    clearTimeout(docTimer);
+    var reason;
+    if (docTimedOut) reason = 'timed out';
+    else if (e && e.name === 'AbortError') reason = 'timed out';
+    else reason = (e && e.message) || 'unknown';
+    renderDocError(reason);
   });
 }
 
@@ -6210,10 +6252,14 @@ function _rdVisitsContent(apptEvents, ehrVisitsRecent, ehrVisitsOlder, ehrData, 
 
     var docLinks = '';
     function docLinkHtml(label, doc, iconName) {
-      return '<a onclick="event.stopPropagation();openEhrDocument(\''+encId+'\',\''+escHtml(doc.id)+'\')" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--moss);cursor:pointer;text-decoration:none;font-weight:600;font-size:var(--type-body);line-height:1.2;flex:1;min-width:0;">'
-        + '<i data-lucide="'+iconName+'" style="width:18px;height:18px;flex-shrink:0;"></i>'
-        + '<span style="flex:1;min-width:0;line-height:1.2;">' + escHtml(label) + '</span>'
-        + '<i data-lucide="external-link" style="width:14px;height:14px;flex-shrink:0;opacity:0.6;"></i></a>';
+      // 12px font + tight 1.25 line-height + word-wrap so two-word labels like
+      // 'After Visit Summary' fit on iPhone width (390px) without colliding with
+      // the external-link icon. The icon stays on its own line via flex column.
+      return '<a onclick="event.stopPropagation();openEhrDocument(\''+encId+'\',\''+escHtml(doc.id)+'\')" '
+        + 'style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--moss);cursor:pointer;text-decoration:none;font-weight:600;font-size:13px;line-height:1.25;flex:1;min-width:0;min-height:44px;">'
+        + '<i data-lucide="'+iconName+'" style="width:16px;height:16px;flex-shrink:0;"></i>'
+        + '<span style="flex:1;min-width:0;line-height:1.25;word-break:keep-all;hyphens:none;">' + escHtml(label) + '</span>'
+        + '<i data-lucide="external-link" style="width:12px;height:12px;flex-shrink:0;opacity:0.55;"></i></a>';
     }
     if (encId && (avsDoc || providerDoc)) {
       docLinks += '<div style="display:flex;gap:8px;margin:14px 0 4px;flex-wrap:wrap;">';
