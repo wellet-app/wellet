@@ -15480,6 +15480,14 @@ function selectHospitalFromEl(el) {
   var fhirBaseUrl = el.getAttribute('data-fhir-base-url') || '';
   var name = el.getAttribute('data-hospital-name') || '';
   if (!fhirBaseUrl || !name) return;
+  // 2026-05-24: explicit user intent to start a new OAuth. If a prior attempt
+  // left _ehrConnecting=true (back from MyChart without callback, OAuth tab
+  // closed, app backgrounded, etc.), clear it BEFORE we close the picker.
+  // The old reset in beginEhrOAuth only triggered when picker was still open,
+  // but we close it first — so the lock would silently swallow the tap.
+  if (_ehrConnecting) {
+    try { _resetEhrConnectingStateForFreshAttempt(); } catch(e) { _ehrConnecting = false; }
+  }
   closeSheet('hospital-picker-overlay');
   if (_obFromEhr && !currentPersonId) {
     _obEhrPending = { fhirBaseUrl: fhirBaseUrl, name: name };
@@ -15503,6 +15511,10 @@ function selectHospital(idx) {
   }
   if (!list._filtered || !list._filtered[idx]) return;
   var h = list._filtered[idx];
+  // 2026-05-24: same lock reset as selectHospitalFromEl (legacy idx path)
+  if (_ehrConnecting) {
+    try { _resetEhrConnectingStateForFreshAttempt(); } catch(e) { _ehrConnecting = false; }
+  }
   closeSheet('hospital-picker-overlay');
   if (_obFromEhr && !currentPersonId) {
     _obEhrPending = { fhirBaseUrl: h.fhirBaseUrl, name: h.name };
@@ -16401,19 +16413,31 @@ function refreshEhrData() {
 }
 
 // Disconnect EHR
+// 2026-05-24: hardened. Native confirm() can silently no-op on iOS Chrome and
+// other WebViews (returns undefined / dialog suppressed). We now (a) treat any
+// truthy-or-undefined return as "proceed" — the destructive action lives behind
+// an UNDO-via-reconnect anyway, (b) only show success on HTTP 2xx, and (c)
+// surface the actual HTTP status to the toast on failure so we stop showing
+// "Disconnected" when nothing was deleted server-side.
 function disconnectEhr() {
   console.log('[EHR] disconnectEhr called, isDemoMode:', isDemoMode, 'currentPersonId:', currentPersonId);
   if (isDemoMode) { showToast('Demo mode — disconnect not available'); return; }
   var personId = currentPersonId;
   if (!personId) { showToast('No person selected'); return; }
-  if (!confirm('Disconnect health records? Cached data on this device will be removed.')) return;
+
+  // confirm() can silently return undefined on iOS Chrome / in-app browsers.
+  // We require an explicit "false" (user clicked Cancel) to bail.
+  var confirmed;
+  try { confirmed = confirm('Disconnect health records? Cached data on this device will be removed.'); }
+  catch(e) { confirmed = true; }
+  if (confirmed === false) return;
 
   showToast('Disconnecting...');
   clearEhrCache(personId);
 
   db.auth.getSession().then(function(sessionRes) {
     var session = sessionRes.data.session;
-    if (!session) { showToast('Not signed in'); return; }
+    if (!session) { showToast('Not signed in'); return null; }
     return fetch(SUPABASE_URL + '/functions/v1/epic-auth', {
       method: 'POST',
       headers: {
@@ -16424,7 +16448,12 @@ function disconnectEhr() {
       body: JSON.stringify({ action: 'disconnect', person_id: personId })
     });
   }).then(function(resp) {
-    console.log('[EHR] disconnect response:', resp && resp.status);
+    if (!resp) return; // no session path
+    console.log('[EHR] disconnect response:', resp.status);
+    if (!resp.ok) {
+      showToast('Disconnect failed (' + resp.status + ') — still connected');
+      return;
+    }
     showToast('Health records disconnected');
     // Clear any remaining in-memory data
     liveMeds = liveMeds.filter(function(m) { return m.source !== 'ehr'; });
@@ -16437,7 +16466,7 @@ function disconnectEhr() {
     initIcons();
   }).catch(function(err) {
     console.error('EHR disconnect error:', err);
-    showToast('Disconnect failed — check console');
+    showToast('Disconnect failed — ' + (err && err.message ? err.message : 'network error'));
   });
 }
 
