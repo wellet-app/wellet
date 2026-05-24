@@ -4364,6 +4364,52 @@ function renderTimeline() {
   try {
     var watchById = Object.create(null);
     (extra.careSignalWatches || []).forEach(function(w) { if (w && w.id) watchById[w.id] = w; });
+    // Voice helper for CareSignals body copy. The edge function historically
+    // wrote "in their chart" — caregiver phrasing that reads wrong on a
+    // self-mode timeline and a little impersonal even in caregiver mode.
+    // Rewrite to "in your chart" / "in {Mom}'s chart" using the person
+    // we're rendering for. Also strip the trailing "Open Wellet to see it."
+    // which is notification-template wallpaper — the user is *already* in
+    // Wellet looking at the card.
+    function _csRewriteBody(s) {
+      if (!s) return s;
+      var personName = null;
+      try {
+        var pers = (currentPeople || []).find(function(p){ return p && p.id === currentPersonId; });
+        if (pers && !pers.is_self) personName = pers.name || null;
+      } catch(_e) {}
+      var possessive = personName ? (personName + '\u2019s') : 'your';
+      return String(s)
+        .replace(/\btheir chart\b/gi, possessive + ' chart')
+        .replace(/\bin their\b/gi, 'in ' + possessive)
+        .replace(/\s*Open Wellet to see it\.?\s*$/i, '')
+        .trim();
+    }
+    // Headline builder. The watch.description field is the *config string*
+    // the user picked when setting the watch up (e.g. "Notify me when new
+    // records arrive at your hospital") — fine for the Settings list, but
+    // it reads like an instruction when it's used as a Timeline headline.
+    // Build a tight "Wellet noticed" headline from watch_type + trigger
+    // shape instead, and keep the original description as a fallback.
+    function _csHeadline(watchType, tv, fallback) {
+      try {
+        switch (watchType) {
+          case 'new_record_arrived': {
+            var kind = tv && tv.kind ? String(tv.kind) : 'record';
+            if (kind === 'record') return 'New record on file';
+            return 'New ' + kind + ' on file';
+          }
+          case 'wearable_silence': return 'Wearable went quiet';
+          case 'resting_hr_elevated': return 'Resting heart rate ran high';
+          case 'resting_hr_above_baseline': return 'Resting heart rate above baseline';
+          case 'low_step_streak': return 'Steps stayed low for a stretch';
+          case 'short_sleep_streak': return 'Sleep ran short for a stretch';
+          case 'medication_refill_gap': return 'Possible refill gap';
+          case 'pcp_visit_gap': return 'Primary care visit overdue';
+        }
+      } catch(_e) {}
+      return fallback || 'Something worth a look';
+    }
     (extra.careSignalFires || []).forEach(function(f) {
       if (!f || !f.fired_at) return;
       var w = watchById[f.watch_id];
@@ -4378,7 +4424,7 @@ function renderTimeline() {
         if (tv && typeof tv === 'object') {
           // Body: summary (factualBody persisted by the evaluator) is best;
           // fall back to a primitive value when present.
-          if (tv.summary) body = String(tv.summary);
+          if (tv.summary) body = _csRewriteBody(String(tv.summary));
           else if (tv.value !== undefined) body = 'Reading: ' + tv.value;
           // Measurement chip \u2014 short, glanceable, e.g. "92 bpm", "3,400 steps",
           // "4 days silent", "new lab". Keep this tiny.
@@ -4397,9 +4443,12 @@ function renderTimeline() {
           }
         }
       } catch(_e) {}
+      // Build a clean headline from watch_type + trigger shape, falling back
+      // to the watch's description if the type isn't one we know about.
+      var headline = _csHeadline(w && w.watch_type, f.trigger_value, desc);
       careSignalTimelineItems.push({
         event_type: 'care_signal',
-        title: 'Wellet noticed: ' + desc,
+        title: 'Wellet noticed: ' + headline,
         event_date: f.fired_at,
         notes: body,
         source: 'care_signal',
