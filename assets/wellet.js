@@ -6030,7 +6030,28 @@ function openEhrDocument(encId, docId) {
   entry.docs[docId] = { state: 'loading' };
   var renderDocError = function(reason) {
     entry.docs[docId] = { state: 'error', error: reason || 'unknown' };
-    if (popupWin) { try { popupWin.close(); } catch (_e) {} }
+    // window.close() on a script-opened tab is unreliable across browsers \u2014
+    // Safari and Chrome both routinely refuse, leaving the user staring at a
+    // blank "Opening document\u2026" placeholder forever. Rewrite the placeholder
+    // tab with a friendly message instead so the failure is visible to the
+    // caregiver rather than silent.
+    if (popupWin) {
+      try {
+        popupWin.document.open();
+        popupWin.document.write('<html><head><title>Document unavailable</title>'
+          + '<style>body{margin:0;padding:48px 24px;font:15px/1.6 -apple-system,system-ui,sans-serif;color:#4a4a4a;background:#F7F5F0;text-align:center;}'
+          + 'h1{font-family:Georgia,serif;font-size:22px;color:#608F7C;margin:0 0 12px;}'
+          + 'p{max-width:380px;margin:8px auto;}'
+          + 'a{display:inline-block;margin-top:24px;color:#608F7C;text-decoration:none;font-weight:600;}'
+          + '</style></head><body>'
+          + '<h1>Wellet</h1>'
+          + '<p>This document isn\u2019t available right now.</p>'
+          + '<p style="color:#888;font-size:13px;">The hospital may not be sharing it through their API at the moment. You can close this tab and try the other document on this visit.</p>'
+          + '<a href="#" onclick="window.close();return false;">Close window</a>'
+          + '</body></html>');
+        popupWin.document.close();
+      } catch (_eErr) { /* cross-origin or other write issue \u2014 user will see the original "Opening document\u2026" placeholder, which is still better than a hard crash */ }
+    }
     // Inline error replaces the doc link inside the visit detail. Quieter
     // than a blocking alert() and lets the caregiver still see the rest
     // of the visit context. We match by walking every doc link and checking
