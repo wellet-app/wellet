@@ -49,6 +49,15 @@ const SMART_SCOPES = [
   'patient/Appointment.read',
   'patient/CareTeam.read',
   'patient/DocumentReference.read',
+  // Binary.read is what actually unblocks AVS / Provider Summary fetches. The
+  // DocumentReference itself is just metadata + an attachment URL pointing at
+  // /Binary/{id}; fetching that URL needs a token with patient/Binary.read in
+  // its scope set. Without it Epic returns 401 even though everything else
+  // (encounters, meds, labs, document metadata) works fine. This is why the
+  // "After Visit Summary" buttons never opened — the app was correctly built
+  // around DocumentReference, but the token couldn't read the actual Binary
+  // body Epic linked us to.
+  'patient/Binary.read',
   'patient/Practitioner.read',
   'patient/PractitionerRole.read',
   'launch/patient',
