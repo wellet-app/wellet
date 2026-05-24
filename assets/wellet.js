@@ -4868,7 +4868,6 @@ function renderTimeline() {
         var chip = ev._caresignal_chip || '';
         html += '<div class="tl-item">'
           + '<div class="tl-card tl-card-caresignal" data-ask-lp="' + askKeyTl + '"' + clickAttr + '>'
-          + '<div class="tl-cs-accent" aria-hidden="true"></div>'
           + '<div class="tl-card-type-row tl-cs-eyebrow">'
           +   '<i data-lucide="sparkles" style="width:13px;height:13px;color:var(--moss-deep,var(--moss));"></i>'
           +   '<span class="tl-card-type tl-cs-label">Wellet noticed</span>'

@@ -877,31 +877,14 @@
      Stands out from EHR + manual cards. Mint-tinted background, accent rail
      in moss-deep, sparkles eyebrow, optional measurement chip. */
   .tl-card.tl-card-caresignal {
-    position: relative;
     background: linear-gradient(180deg, #F2F6EE 0%, #E8F0E0 100%);
     border: 1px solid rgba(75, 99, 65, 0.22);
-    border-left: 0;            /* replaced by .tl-cs-accent for a thicker rail */
-    padding-left: 22px;        /* leave room for the 4px rail + clearance */
     box-shadow: 0 1px 0 rgba(75, 99, 65, 0.04), 0 0 0 1px rgba(75, 99, 65, 0.02) inset;
-    overflow: hidden;          /* clip the rail to the card's rounded corners */
   }
   .tl-card.tl-card-caresignal[onclick]:hover {
     background: linear-gradient(180deg, #EDF3E8 0%, #E1EBD8 100%);
     border-color: rgba(75, 99, 65, 0.32);
   }
-  .tl-card.tl-card-caresignal .tl-cs-accent {
-    position: absolute;
-    left: 0; top: 0; bottom: 0;
-    width: 4px;
-    background: linear-gradient(180deg, var(--moss-deep, #2F4525) 0%, var(--moss, #4B6341) 100%);
-    pointer-events: none;
-  }
-  /* Belt-and-suspenders: make sure card text never sits under the rail even
-     if a parent rule resets padding. */
-  .tl-card.tl-card-caresignal > .tl-cs-eyebrow,
-  .tl-card.tl-card-caresignal > .tl-cs-title,
-  .tl-card.tl-card-caresignal > .tl-cs-body,
-  .tl-card.tl-card-caresignal > .tl-cs-meta { position: relative; z-index: 1; }
   .tl-card .tl-cs-eyebrow { gap: 7px; margin-bottom: 5px; }
   .tl-card .tl-cs-label {
     color: var(--moss-deep, var(--moss));
