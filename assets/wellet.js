@@ -30895,16 +30895,13 @@ function _advanceOnboard() {
 }
 
 function maybeShowOnboardTooltips() {
-  try {
-    if (localStorage.getItem('wellet_onboarded') === 'true') return;
-  } catch(e) { return; }
-  if (isDemoMode) return;
-  if (document.getElementById('auth-screen') && document.getElementById('auth-screen').style.display !== 'none') return;
-  _onboardStep = 0;
-  setTimeout(function() {
-    _showOnboardTooltip(0);
-    document.addEventListener('click', _advanceOnboard);
-  }, 1200);
+  // 2026-05-23: first-run tour tooltips retired. The Summary > Ask >
+  // CareSignals tooltip chain felt like noise on top of an already-busy
+  // first-load. Mark the user as onboarded so the flag is consistent
+  // everywhere and never paint a tooltip. Helper fns above are kept in
+  // case we want a re-skinned tour later.
+  try { localStorage.setItem('wellet_onboarded', 'true'); } catch(e) {}
+  return;
 }
 
 // ── BROWSER BACK BUTTON SUPPORT (pushState / popstate) ────────────────────────
