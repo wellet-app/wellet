@@ -17,7 +17,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders } from '../_shared/cors.ts';
-import { persistEhrData } from '../_shared/ehr-persist.ts';
+import { persistEhrData, deriveEhrSystem } from '../_shared/ehr-persist.ts';
 
 function getAdminClient() {
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
@@ -1632,6 +1632,10 @@ async function fetchAndPersistOneConnection(
     // Step 4: Persist into canonical Wellet tables. Pass conn.id as the 4th
     // arg so every row is source-tagged with this connection — lets the
     // per-hospital pill UI and per-connection reconnect banners find their data.
+    // Derive ehr_system from the connection's fhir_base_url so VA records get
+    // tagged 'va', Epic records 'epic', etc., instead of every row being
+    // mislabeled 'epic'. See deriveEhrSystem() in _shared/ehr-persist.ts.
+    const ehrSystemTag = deriveEhrSystem(conn.fhir_base_url as string | null);
     const persist = await persistEhrData(admin, personId, {
       medications: medicationsMapped,
       allergies: allergiesMapped,
@@ -1640,7 +1644,7 @@ async function fetchAndPersistOneConnection(
       immunizations: immunizationsMapped,
       diagnostic_reports: diagnosticReportsMapped,
       observations: observationsMapped,
-    }, conn.id);
+    }, conn.id, ehrSystemTag);
 
     if (persist.errors.length > 0) {
       console.error('[fetch-ehr-data] persistence errors', {
