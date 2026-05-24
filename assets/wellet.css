@@ -3187,7 +3187,7 @@ input.story-input[type="date"]::-webkit-calendar-picker-indicator {
   max-width: 540px;
   background: linear-gradient(180deg, #FCFAF5 0%, #FFFFFF 30%);
 }
-.manual-visit-step { padding-top: 4px; }
+.manual-visit-step { padding: 4px 20px 0; }
 
 /* Step 1: picklist */
 .manual-visit-group-label {
