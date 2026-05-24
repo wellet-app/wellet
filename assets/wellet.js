@@ -19573,13 +19573,14 @@ function openManualVisit(opts) {
   // Show step 1, hide step 2.
   document.getElementById('manual-visit-step1').style.display = '';
   document.getElementById('manual-visit-step2').style.display = 'none';
-  // Personalize subtitle with first name.
+  // Personalize subtitle with first name — "your" in self-mode, "Mom\u2019s" otherwise.
   var sub = document.getElementById('manual-visit-sub');
   if (sub) {
     var firstName = (typeof getPersonFirstName === 'function') ? getPersonFirstName() : '';
-    sub.textContent = firstName
-      ? "Care that didn\u2019t come through " + firstName + "\u2019s connected EHR \u2014 physical therapy, EMG, a nutritionist, an outside ER trip."
-      : "Care that didn\u2019t come through the connected EHR \u2014 physical therapy, EMG, a nutritionist, an outside ER trip.";
+    var poss = (typeof possSegment === 'function')
+      ? possSegment(isSelfMode() ? '' : firstName, true)
+      : (firstName ? firstName + '\u2019s' : 'the');
+    sub.textContent = "Care that didn\u2019t come through " + poss + " connected EHR \u2014 physical therapy, EMG, a nutritionist, an outside ER trip.";
   }
   openSheetAccessible('manual-visit-overlay');
   initIcons();
