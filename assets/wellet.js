@@ -1536,9 +1536,22 @@ function showAuthFormState() {
 async function checkAlphaAllowlist(_email) { return true; }
 
 async function handleLogout() {
+  // Sign out is best-effort: even if Supabase's network call fails (expired
+  // session, offline, AuthSessionMissingError) we still want the local state
+  // wipe + redirect to run. Previously a thrown signOut() left the user
+  // stranded on the app shell with Settings half-closed.
+  //
+  // scope: 'local' tells supabase-js to only revoke the session in this
+  // browser (no /auth/v1/logout network round-trip). The auth-state listener
+  // still fires SIGNED_OUT synchronously so the rest of the app reacts the
+  // same way it would with a global sign-out.
   clearPhiFromStorage();
   try { localStorage.removeItem('wellet_last_person_id'); } catch(e) {}
-  await db.auth.signOut();
+  try {
+    await db.auth.signOut({ scope: 'local' });
+  } catch (e) {
+    console.warn('signOut threw, continuing with local wipe:', e);
+  }
   isDemoMode = false;
   currentUser = null;
   currentPeople = [];
@@ -1552,6 +1565,9 @@ async function handleLogout() {
   if (_audioPlayer) { _audioPlayer.pause(); _audioPlayer = null; }
   ehrCache = {};
   _emergencyBriefCache = {};
+  // Belt-and-suspenders: nuke the sb-wellet-auth storage key directly in case
+  // signOut() swallowed silently (some browsers in private mode).
+  try { localStorage.removeItem('sb-wellet-auth'); } catch(e) {}
   closeSettings();
   showAuthScreen();
   showToast('Signed out');
