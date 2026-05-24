@@ -4437,7 +4437,27 @@ function renderTimeline() {
           } else if (tv.age_days !== undefined) {
             measurementChip = (tv.provider ? (tv.provider + ' \u00b7 ') : '') + Math.floor(tv.age_days) + 'd silent';
           } else if (tv.kind) {
-            measurementChip = 'New ' + String(tv.kind).replace(/_/g, ' ');
+            // Prefer a specific name when the evaluator persisted one;
+            // otherwise fall back to looking up by record_id in whatever
+            // collection the kind maps to. Last resort: generic 'New {kind}'.
+            var label = tv.record_label || '';
+            if (!label && tv.record_id) {
+              try {
+                var coll = null;
+                if (/lab/i.test(tv.kind) && Array.isArray(liveLabs)) coll = liveLabs;
+                else if (/medication/i.test(tv.kind) && typeof liveMeds !== 'undefined' && Array.isArray(liveMeds)) coll = liveMeds;
+                else if (typeof liveEvents !== 'undefined' && Array.isArray(liveEvents)) coll = liveEvents;
+                if (coll) {
+                  for (var li = 0; li < coll.length; li++) {
+                    if (coll[li] && coll[li].id === tv.record_id) {
+                      label = coll[li].test_name || coll[li].name || coll[li].title || '';
+                      break;
+                    }
+                  }
+                }
+              } catch(_e2) {}
+            }
+            measurementChip = label || ('New ' + String(tv.kind).replace(/_/g, ' '));
           } else if (tv.months_threshold !== undefined) {
             measurementChip = tv.months_threshold + 'mo overdue';
           }
@@ -4767,7 +4787,48 @@ function renderTimeline() {
       } else if (!isEhr) {
         clickAttr = ' onclick="openEditEvent(\'' + (ev.id || '') + '\')"';
       } else {
-        var section = ev._section || (ev.event_type === 'lab_result' ? 'labs' : (ev.event_type === 'appointment' ? 'visits' : 'conditions'));
+        // Map event_type → best Records tab. Prior fallback dumped everything
+        // not-lab/not-visit into 'conditions', which was wrong for immunizations,
+        // allergies, vitals, meds, etc.
+        var section = ev._section;
+        if (!section) {
+          switch (ev.event_type) {
+            case 'lab_result':
+            case 'observation':
+            case 'diagnostic_report':
+              section = 'labs'; break;
+            case 'appointment':
+            case 'visit':
+            case 'encounter':
+            case 'procedure':
+              section = 'visits'; break;
+            case 'medication':
+            case 'med':
+              section = 'meds'; break;
+            case 'allergy':
+            case 'allergies':
+              section = 'allergies'; break;
+            case 'immunization':
+            case 'immunizations':
+            case 'vaccine':
+              section = 'immunizations'; break;
+            case 'vital':
+            case 'vitals':
+              section = 'vitals'; break;
+            case 'care_team':
+            case 'practitioner':
+              section = 'care_team'; break;
+            case 'document':
+              section = 'documents'; break;
+            case 'condition':
+            case 'diagnosis':
+              section = 'conditions'; break;
+            default:
+              // Unknown EHR type — don't fake a destination, just drop the user
+              // on the Records hub.
+              section = 'records';
+          }
+        }
         clickAttr = ' onclick="openTimelineItem(\'' + section + '\',\'' + refIdSafe + '\')" style="cursor:pointer;"';
       }
       // Register share context for this timeline item
