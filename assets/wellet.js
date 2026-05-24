@@ -16034,6 +16034,15 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
       return;
     }
     saveEhrCache(personId, data);
+    // Fresh EHR data invalidates today's daily summary. Otherwise the
+    // "Summary built from" strip stays stuck on whatever sources were live
+    // when the snapshot was first generated (e.g. wearable-only) and never
+    // picks up a newly-connected hospital like VA Lighthouse. Drop both the
+    // in-memory and persisted entry so the next renderUpdateMe regenerates.
+    try {
+      if (typeof summaryCache !== 'undefined' && summaryCache) { delete summaryCache[personId]; }
+      if (typeof _clearTodaysSummaryStorage === 'function') { _clearTodaysSummaryStorage(personId); }
+    } catch (_e) { /* best-effort */ }
     // Phase 2 dual-write: when the response carries connections[] (v55+),
     // also persist the per-connection v2 shape. v1 stays the source of truth
     // until Phase 2 is on; v2 is read-only until then.
