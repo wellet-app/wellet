@@ -2550,35 +2550,46 @@ function maybeShowAppleInstallHint() {
 async function loadPersonData(personId) {
   setCurrentPersonId(personId);
 
-  // Load active connection ids for this person FIRST. Any EHR-derived row
-  // (health_events, medications, allergies, lab_results, vitals) is filtered
-  // to either NULL connection_id (manually entered, no sync provenance) or
-  // a connection_id that's currently 'connected'. This prevents data from
-  // disconnected / superseded / pending duplicate rows from leaking into the
-  // UI — e.g. an old Duke connection that was replaced by a new Confidential
-  // client should not contribute timeline events anymore.
+  // Load ALL EHR connection ids for this person (any status). Any EHR-derived
+  // row (health_events, medications, allergies, lab_results, vitals) is
+  // filtered to either NULL connection_id (manually entered, no sync
+  // provenance) or a connection_id belonging to this person. We intentionally
+  // include disconnected connections so a loved one's historical chart from
+  // a hospital they later disconnected from still appears in the timeline,
+  // labeled with the correct hospital name. De-duplication across
+  // superseded duplicate connections is handled by the source_fingerprint
+  // unique constraint at the DB layer, so widening the scope to disconnected
+  // connections does NOT bring back ghost rows.
   // Documents and care_circle_members are app-owned (no connection_id) and
   // skip this filter.
-  let activeConnectionIds = [];
+  let allConnectionIds = [];
+  let _connHospitalById = Object.create(null);
   try {
-    const { data: activeConns } = await db
+    const { data: allConns } = await db
       .from('ehr_connections')
-      .select('id')
-      .eq('person_id', personId)
-      .eq('status', 'connected');
-    activeConnectionIds = (activeConns || []).map(function(c) { return c.id; });
+      .select('id, hospital_name, status')
+      .eq('person_id', personId);
+    allConnectionIds = (allConns || []).map(function(c) { return c.id; });
+    (allConns || []).forEach(function(c) {
+      if (c && c.id) _connHospitalById[c.id] = c.hospital_name || '';
+    });
   } catch (connErr) {
-    console.warn('[loadPersonData] active connection lookup failed:', connErr);
-    activeConnectionIds = [];
+    console.warn('[loadPersonData] connection lookup failed:', connErr);
+    allConnectionIds = [];
+    _connHospitalById = Object.create(null);
   }
+  // Stash the connection -> hospital_name map globally so pill rendering
+  // and other downstream UI can resolve per-row provenance without an
+  // extra DB hit. Refreshed on every loadPersonData() call.
+  try { window._connHospitalById = _connHospitalById; } catch(_e) {}
   // Build a Postgrest .or() expression that means
   //   connection_id IS NULL OR connection_id IN (id1, id2, ...)
-  // If there are no active connections we still keep manual rows.
+  // If there are no connections at all we still keep manual rows.
   function _scopeToActiveConns(query) {
-    if (activeConnectionIds.length === 0) {
+    if (allConnectionIds.length === 0) {
       return query.is('connection_id', null);
     }
-    var inList = activeConnectionIds.join(',');
+    var inList = allConnectionIds.join(',');
     return query.or('connection_id.is.null,connection_id.in.(' + inList + ')');
   }
 
@@ -4706,7 +4717,21 @@ function renderTimeline() {
       var pillStyle = '';
       switch (ev.source) {
         case 'ehr':
-          pillLabel = 'From ' + (ev._ehrProvider || 'EHR');
+          // Per-row provenance: prefer the hospital tied to THIS event's
+          // connection_id, then the row's stamped _hospital_name (from
+          // getMergedEhr's v2 cache), then the merged-string fallback,
+          // then a generic 'your records' for true orphans (connection_id
+          // is NULL and no provider info attached). This is what stops
+          // Duke visits showing up labeled with the only active hospital's
+          // name when the user is connected to a single other EHR.
+          var _connMap = (typeof window !== 'undefined' && window._connHospitalById) ? window._connHospitalById : null;
+          var _connHosp = (ev && ev.connection_id && _connMap) ? _connMap[ev.connection_id] : '';
+          var _pillName = _connHosp || ev._hospital_name || ev._ehrProvider || '';
+          if (!_pillName && !ev.connection_id) {
+            pillLabel = 'From your records';
+          } else {
+            pillLabel = 'From ' + (_pillName || 'EHR');
+          }
           pillColor = 'var(--moss)'; pillStyle = 'font-weight:500;'; break;
         case 'voice':
           pillLabel = 'Voice note'; pillStyle = 'font-style:italic;'; break;
@@ -16391,9 +16416,19 @@ function ehrProviderBadgeHtml(provider) {
 // single-connection people (Mom today) so behavior is unchanged.
 function rowProviderBadge(row, fallbackProvider, ehrData) {
   try {
-    var multi = ehrData && ehrData._connections && ehrData._connections.length >= 2;
-    if (multi && row && row._hospital_name) {
-      return ehrProviderBadgeHtml(row._hospital_name);
+    // Per-row attribution first. Three signals, in order of trust:
+    //   1. row._hospital_name stamped by getMergedEhr() from the v2 cache
+    //   2. row.connection_id -> hospital_name via window._connHospitalById
+    //      (covers DB-direct rows like health_events that bypass the v2 cache,
+    //       including rows from a disconnected historical connection)
+    //   3. fallbackProvider (the merged-string global) only when we truly
+    //      have nothing else.
+    var connMap = (typeof window !== 'undefined' && window._connHospitalById) ? window._connHospitalById : null;
+    var connHosp = (row && row.connection_id && connMap) ? connMap[row.connection_id] : '';
+    var perRow = (row && row._hospital_name) || connHosp || '';
+    if (perRow) return ehrProviderBadgeHtml(perRow);
+    if (row && !row.connection_id && !row._hospital_name) {
+      return ehrProviderBadgeHtml('your records');
     }
   } catch(e) {}
   return ehrProviderBadgeHtml(fallbackProvider);
