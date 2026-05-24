@@ -30,6 +30,32 @@ async function getAuthenticatedUser(req: Request) {
   return user;
 }
 
+// Compare two URLs by registered domain (eTLD+1) rather than strict origin.
+// Epic/Duke return DocumentReference attachment URLs on alternate subdomains
+// (e.g. apporchard.epic.com, fhir.epic.com, mychart.duke.edu) that don't
+// literally match the FHIR base origin but still belong to the same hospital.
+// Strict origin compare was rejecting legit AVS/Provider-Summary URLs with 400.
+// Same-registered-domain is the right guardrail: it still prevents this fn from
+// being used as an open proxy to arbitrary hosts.
+function sameRegisteredDomain(urlA: string, urlB: string): boolean {
+  try {
+    const a = new URL(urlA).hostname.toLowerCase();
+    const b = new URL(urlB).hostname.toLowerCase();
+    if (a === b) return true;
+    const partsA = a.split('.');
+    const partsB = b.split('.');
+    // Compare the last two labels (e.g. duke.edu, epic.com, va.gov).
+    // This is a deliberate simplification — Wellet only ever hits EHR vendors
+    // on standard .com/.edu/.gov/.org TLDs, not multi-part suffixes like .co.uk.
+    if (partsA.length < 2 || partsB.length < 2) return false;
+    const regA = partsA.slice(-2).join('.');
+    const regB = partsB.slice(-2).join('.');
+    return regA === regB;
+  } catch {
+    return false;
+  }
+}
+
 // Encode ArrayBuffer → base64 in chunks (avoids call-stack overflow on big files)
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -99,11 +125,9 @@ Deno.serve(async (req) => {
     let conn: Record<string, unknown> | null = null;
     if (document_url) {
       try {
-        const docOrigin = new URL(document_url).origin;
         const originMatch = candidates.find((c) => {
           if (!c.fhir_base_url) return false;
-          try { return new URL(c.fhir_base_url as string).origin === docOrigin; }
-          catch { return false; }
+          return sameRegisteredDomain(c.fhir_base_url as string, document_url);
         });
         if (originMatch) conn = originMatch;
       } catch { /* fall through */ }
@@ -142,12 +166,16 @@ Deno.serve(async (req) => {
     if (document_url) {
       try {
         const u = new URL(document_url);
-        const base = new URL(fhirBaseUrl);
-        // Require same origin as the configured FHIR base URL — prevents this
-        // function from being used as an open proxy.
-        if (u.origin !== base.origin) {
-          console.error('Origin mismatch', { doc_origin: u.origin, base_origin: base.origin });
-          return jsonResponse({ error: 'Document URL origin does not match connected EHR' }, 400);
+        // Allow any host under the SAME registered domain as the connected FHIR
+        // base (e.g. duke.edu, epic.com). Strict origin match was rejecting
+        // legitimate Epic attachment URLs that come back on a sibling subdomain.
+        if (!sameRegisteredDomain(document_url, fhirBaseUrl)) {
+          console.error('Registered-domain mismatch', { doc_host: u.hostname, base_host: new URL(fhirBaseUrl).hostname });
+          return jsonResponse({
+            error: 'Document URL host does not match connected EHR',
+            doc_host: u.hostname,
+            base_host: new URL(fhirBaseUrl).hostname,
+          }, 400);
         }
         targetUrl = u.toString();
       } catch (e) {
@@ -178,10 +206,13 @@ Deno.serve(async (req) => {
       }
       try {
         const u = new URL(attUrl);
-        const base = new URL(fhirBaseUrl);
-        if (u.origin !== base.origin) {
-          console.error('DR attachment origin mismatch', { att_origin: u.origin, base_origin: base.origin });
-          return jsonResponse({ error: 'Attachment origin does not match connected EHR' }, 400);
+        if (!sameRegisteredDomain(attUrl, fhirBaseUrl)) {
+          console.error('DR attachment registered-domain mismatch', { att_host: u.hostname, base_host: new URL(fhirBaseUrl).hostname });
+          return jsonResponse({
+            error: 'Attachment host does not match connected EHR',
+            att_host: u.hostname,
+            base_host: new URL(fhirBaseUrl).hostname,
+          }, 400);
         }
         targetUrl = u.toString();
       } catch {

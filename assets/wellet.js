@@ -6028,6 +6028,34 @@ function openEhrDocument(encId, docId) {
   }
 
   entry.docs[docId] = { state: 'loading' };
+  // Look up which hospital this visit belongs to so we can point the caregiver
+  // at the right patient portal (Duke MyChart vs VA MyHealtheVet, etc.) when
+  // the API-side fetch fails. AVS and Provider Summary are commonly absent or
+  // intentionally gated on the Epic side \u2014 the portal is the reliable
+  // fallback while we keep working on the API path.
+  var _hospFallback = (function(){
+    try {
+      var ehrDataLookup = getEhrData(currentPersonId);
+      var visitsLookup = (ehrDataLookup && ehrDataLookup.visits) ? ehrDataLookup.visits : [];
+      var matchVisit = null;
+      for (var vi = 0; vi < visitsLookup.length && !matchVisit; vi++) {
+        if (visitsLookup[vi].id === encId) matchVisit = visitsLookup[vi];
+      }
+      var connMap = (typeof window !== 'undefined' && window._connHospitalById) ? window._connHospitalById : null;
+      var hospName = '';
+      if (matchVisit && matchVisit.connection_id && connMap) hospName = connMap[matchVisit.connection_id] || '';
+      if (!hospName && matchVisit) hospName = matchVisit._hospital_name || matchVisit.hospital_name || '';
+      var lower = String(hospName || '').toLowerCase();
+      if (lower.indexOf('duke') !== -1) return { name: 'Duke MyChart', url: 'https://www.dukemychart.org' };
+      if (lower.indexOf('va ') !== -1 || lower.indexOf('veteran') !== -1 || lower === 'va') return { name: 'VA MyHealtheVet', url: 'https://www.myhealth.va.gov' };
+      if (lower.indexOf('unc') !== -1) return { name: 'UNC My UNC Chart', url: 'https://myuncchart.org' };
+      if (lower.indexOf('wakemed') !== -1) return { name: 'WakeMed MyChart', url: 'https://mychart.wakemed.org' };
+      // Generic Epic fallback \u2014 hospital_name unknown or unmapped
+      if (hospName) return { name: hospName + ' patient portal', url: '' };
+    } catch (_eHosp) {}
+    return { name: '', url: '' };
+  })();
+
   var renderDocError = function(reason) {
     entry.docs[docId] = { state: 'error', error: reason || 'unknown' };
     // Map raw reason strings to caregiver-friendly explanations. We surface a
@@ -6040,7 +6068,7 @@ function openEhrDocument(encId, docId) {
       explanation = 'The hospital didn\u2019t respond in time. Try again in a moment.';
     } else if (/token expired|reconnect/i.test(rawReason)) {
       explanation = 'Your hospital session expired. Open the Records tab and reconnect.';
-    } else if (/origin/i.test(rawReason)) {
+    } else if (/origin|host does not match/i.test(rawReason)) {
       explanation = 'The document link points to a different hospital than the one we have connected. Please reconnect this hospital.';
     } else if (/no ehr connection/i.test(rawReason)) {
       explanation = 'We couldn\u2019t find an active hospital connection for this person.';
@@ -6051,19 +6079,31 @@ function openEhrDocument(encId, docId) {
     } else {
       explanation = 'The hospital may not be sharing it through their API at the moment.';
     }
+    // Append the portal fallback for any non-trivial failure (skip doc_not_found).
+    var portalSuffix = '';
+    if (_hospFallback && _hospFallback.url && !/doc_not_found/i.test(rawReason)) {
+      portalSuffix = ' You can also find this document by logging into ' + _hospFallback.name + '.';
+    } else if (_hospFallback && _hospFallback.name && !_hospFallback.url && !/doc_not_found/i.test(rawReason)) {
+      portalSuffix = ' You can also find this document by logging into your ' + _hospFallback.name + '.';
+    }
     if (popupWin) {
       try {
         popupWin.document.open();
+        var portalLink = '';
+        if (_hospFallback && _hospFallback.url) {
+          portalLink = '<a href="' + _hospFallback.url + '" target="_blank" rel="noopener" style="display:inline-block;margin-top:18px;padding:12px 20px;background:#608F7C;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">Open ' + _hospFallback.name + '</a>';
+        }
         popupWin.document.write('<html><head><title>Document unavailable</title>'
           + '<style>body{margin:0;padding:48px 24px;font:15px/1.6 -apple-system,system-ui,sans-serif;color:#4a4a4a;background:#F7F5F0;text-align:center;}'
           + 'h1{font-family:Georgia,serif;font-size:22px;color:#608F7C;margin:0 0 12px;}'
           + 'p{max-width:380px;margin:8px auto;}'
-          + 'a{display:inline-block;margin-top:24px;color:#608F7C;text-decoration:none;font-weight:600;}'
+          + 'a.close{display:inline-block;margin-top:24px;color:#608F7C;text-decoration:none;font-weight:600;}'
           + '</style></head><body>'
           + '<h1>Wellet</h1>'
           + '<p>This document isn\u2019t available right now.</p>'
-          + '<p style="color:#888;font-size:13px;">' + explanation.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</p>'
-          + '<a href="#" onclick="window.close();return false;">Close window</a>'
+          + '<p style="color:#888;font-size:13px;">' + explanation.replace(/&/g,'&amp;').replace(/</g,'&lt;') + portalSuffix.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</p>'
+          + portalLink
+          + '<br><a class="close" href="#" onclick="window.close();return false;">Close window</a>'
           + '</body></html>');
         popupWin.document.close();
       } catch (_eErr) { /* cross-origin or other write issue \u2014 user will see the original "Opening document\u2026" placeholder, which is still better than a hard crash */ }
@@ -6088,7 +6128,7 @@ function openEhrDocument(encId, docId) {
           var msg = document.createElement('span');
           msg.className = 'ehr-doc-error-msg';
           msg.style.cssText = 'display:block;margin-top:6px;font-size:var(--type-micro);color:var(--text-muted);font-style:italic;font-weight:400;';
-          msg.textContent = 'Couldn\u2019t open this document. ' + explanation;
+          msg.textContent = 'Couldn\u2019t open this document. ' + explanation + portalSuffix;
           a.parentNode.appendChild(msg);
         }
       }
