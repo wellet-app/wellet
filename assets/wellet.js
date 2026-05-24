@@ -18613,9 +18613,47 @@ function renderAskView() {
 }
 
 function selectAskRealPerson(el, personId) {
-  currentPersonId = personId;
+  // No-op if the user tapped the already-active pill.
+  if (!personId || personId === currentPersonId) {
+    if (el) {
+      document.querySelectorAll('#view-ask .ask-person-pill').forEach(function(p){ p.classList.remove('active'); });
+      el.classList.add('active');
+    }
+    return;
+  }
+  // Wipe the conversation so the previous loved one's question + answer
+  // don't sit above the new loved one's intro bubble (and so we don't
+  // forward the wrong history to ask-wellet on the next question).
+  try { _resetAskConversation(); } catch(_e) {}
+  try {
+    var chatArea = document.getElementById('chat-area');
+    if (chatArea) {
+      // Keep only the very first .chat-group (the intro bubble). renderAskView
+      // will rewrite its text to the new loved one's name.
+      var firstGroup = chatArea.querySelector('.chat-group');
+      chatArea.innerHTML = '';
+      if (firstGroup) chatArea.appendChild(firstGroup);
+      chatArea.scrollTop = 0;
+    }
+  } catch(_eClear) {}
+  // Optimistic pill update so the tap feels instant even before loadPersonData
+  // (called by switchToRealPerson) finishes. renderAskView rebuilds them at the
+  // end of the switch so the authoritative active state comes from there.
   document.querySelectorAll('#view-ask .ask-person-pill').forEach(function(p){ p.classList.remove('active'); });
-  el.classList.add('active');
+  if (el) el.classList.add('active');
+  // Delegate to the canonical switcher. It sets currentPersonId synchronously,
+  // applies the person bg, reloads ehrData / summaryCache for the new loved
+  // one, and re-runs renderAskView at the end which updates the intro bubble,
+  // placeholder, and suggestion chips coherently. Without this, the bar
+  // appeared to switch but the intro + chips kept saying the previous loved
+  // one's name and the next /ask-wellet request could race with a stale
+  // currentPersonId mutation order.
+  if (typeof switchToRealPerson === 'function') {
+    try { switchToRealPerson(personId, el); return; } catch(_eSwitch) {}
+  }
+  // Fallback path (switchToRealPerson missing for some reason) — keep the
+  // old minimal behavior so the bar at least functions.
+  currentPersonId = personId;
   var person = currentPeople.find(function(p){ return p.id === personId; });
   var firstName = person ? person.name.split(' ')[0] : 'them';
   var inputEl = document.getElementById('ask-input');
@@ -18625,7 +18663,12 @@ function selectAskRealPerson(el, personId) {
     chips.innerHTML = buildAskChips(personId, firstName);
     chips.style.display = 'flex';
   }
-  addWelletMessage('Switched to ' + escHtml(firstName) + '. Ask me anything about their health records.');
+  try {
+    var introBubble = document.getElementById('ask-intro-bubble');
+    if (introBubble) {
+      introBubble.textContent = 'Ask me anything about ' + firstName + '\u2019s health. I\u2019ll answer from what\u2019s in ' + firstName + '\u2019s records.';
+    }
+  } catch(_eIntro) {}
 }
 
 function selectAskPerson(el, person) {
@@ -28748,20 +28791,27 @@ renderAskView = function() {
   if (inputEl) inputEl.placeholder = 'Ask about ' + escHtml(possSegment(firstName, true)) + ' health\u2026';
 
   if (chatArea) {
-    var firstBubble = chatArea.querySelector('.chat-group.from-wellet .chat-bubble.wellet');
-    if (firstBubble && firstBubble.textContent.indexOf('Ask me anything about') !== -1) {
-      firstBubble.textContent = 'Ask me anything about ' + firstName + '\u2019s health. I\u2019ll answer from what\u2019s in ' + firstName + '\u2019s records.';
+    // Prefer the stable id from index.html so the intro bubble updates even
+    // when the chat-area has prior conversation above it (e.g. before we
+    // wipe it on a person switch).
+    var introBubble = document.getElementById('ask-intro-bubble');
+    if (!introBubble) introBubble = chatArea.querySelector('.chat-group.from-wellet .chat-bubble.wellet');
+    if (introBubble) {
+      introBubble.textContent = 'Ask me anything about ' + firstName + '\u2019s health. I\u2019ll answer from what\u2019s in ' + firstName + '\u2019s records.';
     }
   }
 
   if (chips) {
     try {
       if (typeof buildAskChips === 'function') {
-        var smartChips = buildAskChips(firstName, currentPersonId);
-        if (smartChips && smartChips.length) {
-          chips.innerHTML = smartChips.map(function(c) {
-            return '<button class="chip" onclick="askQuestion(this.textContent)">' + escHtml(c) + '</button>';
-          }).join('');
+        // buildAskChips(personId, firstName) — returns a string of <button>
+        // markup, not an array. Earlier code had the args swapped AND treated
+        // the return as an array, which silently fell through to the static
+        // fallback below (and on a Mom→Betsy switch left the chips stuck on
+        // the previous loved one's name).
+        var smartChipsHtml = buildAskChips(currentPersonId, firstName);
+        if (smartChipsHtml && typeof smartChipsHtml === 'string' && smartChipsHtml.length) {
+          chips.innerHTML = smartChipsHtml;
           chips.style.display = 'flex';
           return;
         }
