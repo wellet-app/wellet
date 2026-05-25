@@ -19582,8 +19582,16 @@ async function createShareLink(action) {
 
   try {
     var payload = gatherSharePayload();
-    var session = await db.auth.getSession();
-    var token = session.data.session ? session.data.session.access_token : '';
+    // 5s timeout on getSession() — supabase-js v2 can hang on iOS Safari
+    // when a silent token refresh stalls. Without this, the spinner sits forever.
+    var session = await Promise.race([
+      db.auth.getSession(),
+      new Promise(function(_, reject) {
+        setTimeout(function() { reject(new Error('Session timeout')); }, 5000);
+      })
+    ]);
+    var token = session.data && session.data.session ? session.data.session.access_token : '';
+    if (!token) throw new Error('No active session');
 
     var resp = await fetch(SUPABASE_URL + '/functions/v1/create-share', {
       method: 'POST',
@@ -19639,19 +19647,27 @@ async function createShareLink(action) {
       var fbToken = generateShareToken();
       var expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-      var { data, error } = await db.from('shares').insert({
-        token: fbToken,
-        user_id: currentUser.id,
-        person_id: fallbackPayload.person_id,
-        person_name: fallbackPayload.person_name,
-        summary_text: fallbackPayload.summary_text,
-        recent_events: fallbackPayload.recent_events,
-        medications: fallbackPayload.medications,
-        appointments: fallbackPayload.appointments,
-        include_notes: fallbackPayload.include_notes,
-        include_meds: fallbackPayload.include_meds,
-        expires_at: expiresAt
-      }).select().single();
+      // 8s timeout on fallback insert — same supabase-js client, same hang risk
+      var insertRes = await Promise.race([
+        db.from('shares').insert({
+          token: fbToken,
+          user_id: currentUser.id,
+          person_id: fallbackPayload.person_id,
+          person_name: fallbackPayload.person_name,
+          summary_text: fallbackPayload.summary_text,
+          recent_events: fallbackPayload.recent_events,
+          medications: fallbackPayload.medications,
+          appointments: fallbackPayload.appointments,
+          include_notes: fallbackPayload.include_notes,
+          include_meds: fallbackPayload.include_meds,
+          expires_at: expiresAt
+        }).select().single(),
+        new Promise(function(_, reject) {
+          setTimeout(function() { reject(new Error('Insert timeout')); }, 8000);
+        })
+      ]);
+      var data = insertRes && insertRes.data;
+      var error = insertRes && insertRes.error;
 
       if (error) throw error;
 
@@ -29156,9 +29172,34 @@ async function openTerraConnect(provider) {
   if (!currentPersonId) { showToast('Select a person first', 'error'); return; }
 
   try {
-    var sessionRes = await db.auth.getSession();
-    var session = sessionRes.data.session;
-    if (!session) { showToast('Please sign in first', 'error'); return; }
+    // 5s timeout on getSession() — on iOS Safari / installed PWA the
+    // Supabase v2 SDK occasionally hangs forever on getSession(), which
+    // would leave the user tapping Connect with no visible response.
+    // (Same hang we fixed in createShareLink for Kelly's bug.)
+    var sessionTimeout = new Promise(function(_, reject) {
+      setTimeout(function() { reject(new Error('getSession timeout')); }, 5000);
+    });
+    var session;
+    try {
+      var sessionRes = await Promise.race([db.auth.getSession(), sessionTimeout]);
+      session = sessionRes && sessionRes.data && sessionRes.data.session;
+    } catch (sessErr) {
+      console.warn('[Terra] getSession timed out, falling back to localStorage:', sessErr);
+      // Fallback: read the access token directly from localStorage where
+      // supabase-js persists it. Works as long as the user actually has a
+      // session — we just can't wait for the SDK to confirm it.
+      try {
+        var keys = Object.keys(localStorage).filter(function(k) { return k.indexOf('sb-') === 0 && k.indexOf('-auth-token') > 0; });
+        for (var i = 0; i < keys.length; i++) {
+          var raw = localStorage.getItem(keys[i]);
+          if (!raw) continue;
+          var parsed = JSON.parse(raw);
+          if (parsed && parsed.access_token) { session = parsed; break; }
+          if (parsed && parsed.currentSession && parsed.currentSession.access_token) { session = parsed.currentSession; break; }
+        }
+      } catch (lsErr) { console.warn('[Terra] localStorage session read failed:', lsErr); }
+    }
+    if (!session || !session.access_token) { showToast('Please sign in first', 'error'); return; }
     var token = session.access_token;
 
     // Reset the dedupe key so a new connect attempt can be captured
