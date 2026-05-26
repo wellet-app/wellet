@@ -16230,8 +16230,148 @@ function submitConnectRequest() {
   });
 }
 
+// ============================================================================
+// PRE-LAUNCH EXPECTATION MODAL — Pattern 1 of the connections overcommunication
+// plan. One reusable modal that runs BEFORE Epic/VA/Terra OAuth redirects, so
+// the user knows: (1) what's about to happen, (2) what Wellet never sees,
+// (3) where they end up, (4) what to do if it fails. Shows every time unless
+// the user ticks "Don't show this for <provider> again" — persisted per-
+// provider in localStorage under wellet_preflight_suppressed_<provider>.
+//
+// CRITICAL: the original OAuth work must fire from the Continue button's
+// click handler, NOT from a setTimeout or .then() inside the modal flow.
+// Mobile Safari treats anything outside a direct user-gesture stack as
+// untrusted and silently blocks window.open / window.location.assign in some
+// edge cases. The Continue button itself IS a user gesture — we hand the
+// callback to the modal and call it synchronously from the click handler.
+// ============================================================================
+function _preflightSuppressedFor(provider) {
+  try {
+    return localStorage.getItem('wellet_preflight_suppressed_' + provider) === '1';
+  } catch (_e) { return false; }
+}
+function _setPreflightSuppressed(provider, suppressed) {
+  try {
+    if (suppressed) localStorage.setItem('wellet_preflight_suppressed_' + provider, '1');
+    else localStorage.removeItem('wellet_preflight_suppressed_' + provider);
+  } catch (_e) {}
+}
+// opts: { provider, title, bullets[], primaryLabel, dismissLabel }
+// onContinue: called from the Continue button's click handler (preserves user gesture)
+function showConnectPreflightModal(opts, onContinue) {
+  opts = opts || {};
+  var provider = opts.provider || 'connect';
+  var title = opts.title || 'Before you continue';
+  var bullets = Array.isArray(opts.bullets) ? opts.bullets : [];
+  var primaryLabel = opts.primaryLabel || 'Continue';
+  var dismissLabel = opts.dismissLabel || ('Don\u2019t show this for ' + provider + ' again');
+  // Remove any prior preflight overlay so re-taps don\u2019t stack.
+  var prior = document.getElementById('connect-preflight-overlay');
+  if (prior) prior.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'connect-preflight-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(44,42,38,0.55);z-index:400;display:flex;align-items:center;justify-content:center;padding:24px;font-family:DM Sans,sans-serif;';
+
+  var card = document.createElement('div');
+  card.style.cssText = 'background:white;border-radius:20px;padding:24px 22px 20px;max-width:380px;width:100%;box-shadow:0 12px 40px rgba(44,42,38,0.18);';
+
+  var titleEl = document.createElement('div');
+  titleEl.style.cssText = 'font-family:var(--serif,Source Serif Pro,Georgia,serif);font-size:var(--type-h2,22px);line-height:1.25;margin-bottom:14px;color:var(--text-primary,#2c2a26);';
+  titleEl.textContent = title;
+  card.appendChild(titleEl);
+
+  var ul = document.createElement('ul');
+  ul.style.cssText = 'list-style:none;margin:0 0 18px;padding:0;';
+  bullets.forEach(function(b) {
+    var li = document.createElement('li');
+    li.style.cssText = 'position:relative;padding-left:20px;margin-bottom:10px;font-size:var(--type-body,15px);line-height:1.5;color:var(--text-primary,#2c2a26);';
+    var dot = document.createElement('span');
+    dot.style.cssText = 'position:absolute;left:0;top:9px;width:6px;height:6px;border-radius:50%;background:var(--moss,#5f7a5e);';
+    li.appendChild(dot);
+    var txt = document.createElement('span');
+    txt.textContent = b;
+    li.appendChild(txt);
+    ul.appendChild(li);
+  });
+  card.appendChild(ul);
+
+  // Dismiss checkbox row
+  var dismissRow = document.createElement('label');
+  dismissRow.style.cssText = 'display:flex;align-items:flex-start;gap:8px;margin-bottom:16px;font-size:13px;color:var(--text-secondary,#6b665e);cursor:pointer;line-height:1.4;';
+  var cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.id = 'connect-preflight-dismiss';
+  cb.style.cssText = 'margin-top:2px;flex:0 0 auto;';
+  dismissRow.appendChild(cb);
+  var cbLabel = document.createElement('span');
+  cbLabel.textContent = dismissLabel;
+  dismissRow.appendChild(cbLabel);
+  card.appendChild(dismissRow);
+
+  // Buttons
+  var btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:10px;';
+
+  var cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.style.cssText = 'flex:1;background:transparent;color:var(--text-secondary,#6b665e);border:1px solid var(--border,#e4e0d8);border-radius:12px;padding:12px;font-size:var(--type-body,15px);font-family:DM Sans,sans-serif;cursor:pointer;';
+  cancelBtn.onclick = function() { overlay.remove(); };
+
+  var continueBtn = document.createElement('button');
+  continueBtn.type = 'button';
+  continueBtn.textContent = primaryLabel;
+  continueBtn.style.cssText = 'flex:1.6;background:var(--moss,#5f7a5e);color:white;border:none;border-radius:12px;padding:12px;font-size:var(--type-body,15px);font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;';
+  continueBtn.onclick = function() {
+    try {
+      if (cb.checked) _setPreflightSuppressed(provider, true);
+    } catch (_e) {}
+    overlay.remove();
+    // CRITICAL: call onContinue synchronously inside this click handler so
+    // the downstream window.open / window.location.assign inherits the
+    // user-gesture activation. Do NOT setTimeout or Promise.then this.
+    try { if (typeof onContinue === 'function') onContinue(); }
+    catch (e) { console.error('[preflight] onContinue threw:', e); }
+  };
+
+  btnRow.appendChild(cancelBtn);
+  btnRow.appendChild(continueBtn);
+  card.appendChild(btnRow);
+
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+  // Focus the primary CTA for keyboard users.
+  try { continueBtn.focus(); } catch (_e) {}
+}
+
 // Begin the actual OAuth redirect for a selected hospital (or sandbox)
-function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox) {
+function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox, _skipPreflight) {
+  // Pattern 1 — pre-launch expectation modal. Shows the user what's about to
+  // happen and what Wellet never sees, BEFORE we redirect to MyChart. Skipped
+  // if the user previously checked “Don\u2019t show this for Epic again,” or if
+  // we're already past the modal (recursive call from Continue button).
+  if (!_skipPreflight && !_preflightSuppressedFor('epic')) {
+    var label = isSandbox ? 'the Epic Sandbox' : (hospitalName || 'your hospital');
+    var partnerLabel = isSandbox ? 'the Epic Sandbox login' : ((hospitalName || 'your hospital') + ' MyChart');
+    showConnectPreflightModal({
+      provider: 'epic',
+      title: 'Before you sign in to ' + partnerLabel,
+      bullets: [
+        'You\u2019ll sign in with the MyChart username and password on the next screen.',
+        'Wellet never sees that password \u2014 ' + (isSandbox ? 'Epic' : (hospitalName || 'your hospital')) + ' sends us a secure access token instead.',
+        'You\u2019ll come back here in about 30 seconds, and we\u2019ll start pulling visits, meds, and labs.',
+        'If a sign-in page doesn\u2019t open in a moment, check your popup blocker.'
+      ],
+      primaryLabel: 'Continue to ' + (isSandbox ? 'Epic Sandbox' : (hospitalName || 'sign in')),
+      dismissLabel: 'Don\u2019t show this for Epic again'
+    }, function() {
+      // Re-enter, skipping the preflight check this time.
+      beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox, true);
+    });
+    return;
+  }
+
   // 2026-05-21: if the picker is visible the user is clearly initiating a
   // new attempt — any prior _ehrConnecting=true is stale (e.g. previous
   // attempt where they hit back from MyChart without completing OAuth).
@@ -17899,10 +18039,31 @@ function checkEhrCallbackOnLoad() {
 // edge function and round-trips through /va-callback. Gated in the UI behind
 // ?va=1 - see maybeShowVaCard().
 
-function beginVaOAuth(isSandbox) {
+function beginVaOAuth(isSandbox, _skipPreflight) {
   var personId = currentPersonId;
   if (!personId) {
     showToast('Please select a person first');
+    return;
+  }
+  // Pattern 1 — pre-launch expectation modal for VA. Critical here because
+  // unlike Epic, VA records take 2–3 minutes for the first pull (VA Lighthouse
+  // backfill latency), and the user signs in with their LOVED ONE's VA.gov
+  // credentials — a detail many testers miss without the heads-up.
+  if (!_skipPreflight && !_preflightSuppressedFor('va')) {
+    showConnectPreflightModal({
+      provider: 'va',
+      title: 'Before you sign in to VA.gov',
+      bullets: [
+        'You\u2019ll sign in with your loved one\u2019s VA.gov username and password on the next screen.',
+        'Wellet never sees that password \u2014 VA.gov sends us a secure access token instead.',
+        'VA records usually take 2\u20133 minutes for the first pull \u2014 that\u2019s normal.',
+        'If a sign-in page doesn\u2019t open in a moment, check your popup blocker.'
+      ],
+      primaryLabel: 'Continue to VA.gov',
+      dismissLabel: 'Don\u2019t show this for VA again'
+    }, function() {
+      beginVaOAuth(isSandbox, true);
+    });
     return;
   }
   try { localStorage.setItem('wellet_va_pending_person', personId); } catch(e) {}
@@ -29548,8 +29709,57 @@ window.addEventListener('storage', function(event) {
   } catch(e) {}
 });
 
-async function openTerraConnect(provider) {
+async function openTerraConnect(provider, _skipPreflight) {
   if (!currentPersonId) { showToast('Select a person first', 'error'); return; }
+
+  // Pattern 1 — pre-launch expectation modal for wearables. Suppression is
+  // keyed by canonical provider code (e.g. 'OURA', 'GARMIN') so the user can
+  // dismiss it per-device. If no provider is selected yet (Terra widget will
+  // pick), key under 'terra' as a generic fallback.
+  if (!_skipPreflight) {
+    var prov = (provider ? String(provider) : 'terra').toLowerCase();
+    if (!_preflightSuppressedFor(prov)) {
+      var friendly = (typeof _terraProviderFriendly === 'function') ? _terraProviderFriendly(provider) : (provider || 'your wearable');
+      var partnerLine;
+      var primary;
+      if (provider) {
+        partnerLine = 'You\u2019ll sign in to your ' + friendly + ' account on the next screen \u2014 through Terra, our wearable partner.';
+        primary = 'Continue to ' + friendly;
+      } else {
+        partnerLine = 'You\u2019ll pick your wearable on the next screen and sign in through Terra, our wearable partner.';
+        primary = 'Continue';
+      }
+      // Provider-aware backfill window line. Mirrors _wearableExpectedWindowMinutes /
+      // _wearableConnectedMessage so users hear a consistent expectation before AND
+      // after they connect.
+      var p = (provider || '').toString().toUpperCase();
+      var windowLine;
+      if (p === 'GOOGLE' || p === 'SAMSUNG') {
+        windowLine = 'Sleep and activity data usually arrives within a few minutes after you finish signing in.';
+      } else if (p === 'GARMIN' || p === 'WITHINGS' || p === 'PELOTON' || p === 'SUUNTO') {
+        windowLine = 'Sleep and activity data usually arrives within 15 minutes after you finish signing in.';
+      } else if (p === 'OURA' || p === 'FITBIT' || p === 'POLAR' || p === 'WHOOP') {
+        windowLine = 'Sleep and activity data usually arrives within an hour after you finish signing in.';
+      } else {
+        windowLine = 'Sleep and activity data usually arrives within an hour after you finish signing in \u2014 some devices are quicker.';
+      }
+      showConnectPreflightModal({
+        provider: prov,
+        title: 'Before you connect ' + friendly,
+        bullets: [
+          partnerLine,
+          'Wellet never sees your ' + friendly + ' password.',
+          windowLine,
+          'If a sign-in page doesn\u2019t open in a moment, check your popup blocker.'
+        ],
+        primaryLabel: primary,
+        dismissLabel: 'Don\u2019t show this for ' + friendly + ' again'
+      }, function() {
+        openTerraConnect(provider, true);
+      });
+      return;
+    }
+  }
 
   try {
     // 5s timeout on getSession() — on iOS Safari / installed PWA the
