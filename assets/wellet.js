@@ -1491,6 +1491,9 @@ async function verifyAuthCode() {
           'send_to': 'AW-985109408/vEERCMbi2bMcEKCn3tUD'
         });
       }
+      if (isNewSignup && typeof fbq === 'function') {
+        fbq('track', 'CompleteRegistration', { content_name: 'mywellet_signup', value: 0, currency: 'USD' });
+      }
     }
   } catch (e) { /* never block sign-in on attribution */ }
   setTimeout(function(){ window.location.reload(); }, 200);

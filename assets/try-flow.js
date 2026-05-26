@@ -387,6 +387,13 @@ async function tryVerifyOtp() {
     // Success — session is set. Store try session data for claim.
     tryLogEvent('otp_verified');
 
+    // Meta Pixel: fire CompleteRegistration on successful try-flow signup
+    try {
+      if (typeof fbq === 'function') {
+        fbq('track', 'CompleteRegistration', { content_name: 'try_flow_signup', value: 0, currency: 'USD' });
+      }
+    } catch (_e) {}
+
     // Save extraction data to localStorage so the app can claim it after reload
     try {
       localStorage.setItem('wellet_try_extraction', JSON.stringify({
