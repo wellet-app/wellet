@@ -2136,8 +2136,14 @@ function refreshConnectScreenStatus() {
   }
   if (terraConnected) {
     _hydrateTerraCardSources(currentPersonId);
+    // Piece 4c: gentle 'still syncing' sub-line for wearables whose first
+    // Terra backfill hasn't landed yet. Stays calm even past the expected
+    // window. Auto-clears once data arrives. Spec:
+    // /home/user/workspace/wellet_wearable_caresignals_spec.md (Piece 4c).
+    try { _hydrateTerraCardSyncStatus(currentPersonId); } catch(_e) {}
   } else {
     _setConnectCardSources('connect-card-terra', null);
+    try { _setConnectCardSyncStatus('connect-card-terra', null); } catch(_e) {}
   }
   // Apple Health and Google Health are single sources by definition — no sublabel.
   _setConnectCardSources('connect-card-apple', null);
@@ -2274,6 +2280,149 @@ function _hydrateTerraCardSources(personId) {
   } catch(_e) {
     _setConnectCardSources('connect-card-terra', null);
   }
+}
+
+// Piece 4c: provider-aware sync-status sub-line on the wearable Connect card.
+// Renders only while a wearable is connected but has no data yet (or just
+// landed less than a few seconds ago, in which case we suppress to avoid
+// flashing the message). Terra's per-provider backfill window:
+//   GOOGLE/SAMSUNG  ~5 min  (phone push)
+//   GARMIN/WITHINGS/PELOTON/SUUNTO  ~15 min
+//   OURA/FITBIT/POLAR/WHOOP  ~60 min  (rate-limited APIs, historical pull)
+function _wearableExpectedWindowMinutes(provider) {
+  var p = String(provider || '').toUpperCase();
+  if (p === 'GOOGLE' || p === 'SAMSUNG') return 5;
+  if (p === 'GARMIN' || p === 'WITHINGS' || p === 'PELOTON' || p === 'SUUNTO') return 15;
+  if (p === 'OURA' || p === 'FITBIT' || p === 'POLAR' || p === 'WHOOP') return 60;
+  return 60;
+}
+function _wearableWindowCopy(mins) {
+  if (mins <= 5) return 'a few minutes';
+  if (mins <= 15) return '15 minutes';
+  if (mins <= 60) return 'an hour';
+  return mins + ' minutes';
+}
+function _setConnectCardSyncStatus(cardId, msg) {
+  var card = document.getElementById(cardId);
+  if (!card) return;
+  var body = card.querySelector('.connect-card-body');
+  if (!body) return;
+  var prior = body.querySelector('.connect-card-sync-status');
+  if (prior) prior.remove();
+  if (!msg) return;
+  var el = document.createElement('span');
+  el.className = 'connect-card-sync-status';
+  // Same gray + small-type treatment as connect-card-sources, but with a
+  // subtle leading dot icon to read as a status line rather than metadata.
+  el.style.cssText = 'display:block;margin-top:4px;font-size:12px;color:var(--text-secondary, #6b6b6b);font-family:DM Sans,sans-serif;';
+  el.textContent = msg;
+  var hint = body.querySelector('.connect-card-hint');
+  if (hint) body.insertBefore(el, hint);
+  else body.appendChild(el);
+}
+// Cheap data-presence check, cached for 60s per (person_id, provider). Counts
+// any health_events row for ehr_system='terra_<PROVIDER>' created after the
+// connection started. We only need to know zero vs non-zero.
+var _wearableDataPresenceCache = {};
+function _wearableHasDataSince(personId, provider, sinceISO) {
+  var key = personId + ':' + provider;
+  var now = Date.now();
+  var cached = _wearableDataPresenceCache[key];
+  if (cached && (now - cached.ts) < 60000) return Promise.resolve(cached.hasData);
+  if (typeof db === 'undefined') return Promise.resolve(true); // fail-open: never show false-alarm sub-line
+  var ehrSystem = 'terra_' + String(provider || '').toUpperCase();
+  return db.from('health_events')
+    .select('id', { count: 'exact', head: true })
+    .eq('person_id', personId)
+    .eq('ehr_system', ehrSystem)
+    .gte('created_at', sinceISO)
+    .limit(1)
+    .then(function(res){
+      var n = (res && typeof res.count === 'number') ? res.count : 0;
+      var hasData = n > 0;
+      _wearableDataPresenceCache[key] = { ts: now, hasData: hasData };
+      return hasData;
+    })
+    .catch(function(){ return true; }); // fail-open
+}
+function _hydrateTerraCardSyncStatus(personId) {
+  if (!personId) return;
+  if (typeof _terraConnections === 'undefined' || !_terraConnections || !_terraConnections.length) {
+    _setConnectCardSyncStatus('connect-card-terra', null);
+    return;
+  }
+  // Find the most-recently-connected active wearable for this person that's
+  // not Apple. If there are several, the newest one is the one most likely
+  // still in its backfill window, so we let it own the sub-line.
+  var candidates = _terraConnections.filter(function(c){
+    if (!c || c.person_id !== personId) return false;
+    if (c.status === 'disconnected') return false;
+    var p = String(c.provider || '').toUpperCase();
+    if (p === 'APPLE') return false;
+    if (!c.terra_user_id || c.terra_user_id === 'None' || c.terra_user_id === 'null') return false;
+    return true;
+  }).sort(function(a, b){
+    var ta = new Date(a.connected_at || 0).getTime();
+    var tb = new Date(b.connected_at || 0).getTime();
+    return tb - ta;
+  });
+  if (!candidates.length) { _setConnectCardSyncStatus('connect-card-terra', null); return; }
+  var conn = candidates[0];
+  var connectedAt = conn.connected_at;
+  if (!connectedAt) { _setConnectCardSyncStatus('connect-card-terra', null); return; }
+  var provider = String(conn.provider || '').toUpperCase();
+  var friendly = (typeof _terraProviderFriendly === 'function')
+    ? _terraProviderFriendly(provider)
+    : (_prettyTerraProvider(provider) || 'your wearable');
+  var minsSince = (Date.now() - new Date(connectedAt).getTime()) / 60000;
+  // Suppress for the first 20 seconds after connect — the just-shipped 6s
+  // toast is still on screen and we don't want to double up. After 20s,
+  // the toast is gone and the sub-line can stand on its own.
+  if (minsSince < 0.33) { _setConnectCardSyncStatus('connect-card-terra', null); return; }
+  _wearableHasDataSince(personId, provider, connectedAt).then(function(hasData){
+    if (hasData) {
+      // Data arrived — the existing _hydrateTerraCardSources sub-label
+      // already lists the connected device, no extra sync-status needed.
+      _setConnectCardSyncStatus('connect-card-terra', null);
+      return;
+    }
+    var expected = _wearableExpectedWindowMinutes(provider);
+    var msg;
+    if (minsSince < expected) {
+      msg = 'Waiting on first sync from ' + friendly + '. Usually arrives within ' + _wearableWindowCopy(expected) + '.';
+    } else if (minsSince < expected * 2) {
+      msg = 'Still syncing from ' + friendly + '. Sometimes the first pull takes longer than usual \u2014 hang tight.';
+    } else {
+      // Past 2x expected — gentle troubleshoot hint. Capitalize friendly
+      // app-name in 'the Oura app' (lowercase 'ring'/'watch' suffix doesn't
+      // fit there). Re-derive from provider for the action hint.
+      var appLabel = _wearableProviderAppLabel(provider);
+      msg = 'No data yet from ' + friendly + '. Try opening the ' + appLabel + ' once and pulling to refresh, then reopen Wellet.';
+    }
+    _setConnectCardSyncStatus('connect-card-terra', msg);
+  }).catch(function(){
+    _setConnectCardSyncStatus('connect-card-terra', null);
+  });
+}
+// Friendly app name for the recovery hint ("try opening the Oura app").
+// Different from _terraProviderFriendly because that returns 'Oura ring' /
+// 'Garmin watch' which reads wrong in 'open the Oura ring once.'
+function _wearableProviderAppLabel(provider) {
+  var p = String(provider || '').toUpperCase();
+  var map = {
+    'OURA': 'Oura app',
+    'FITBIT': 'Fitbit app',
+    'GARMIN': 'Garmin Connect app',
+    'WHOOP': 'WHOOP app',
+    'WITHINGS': 'Withings app',
+    'POLAR': 'Polar Flow app',
+    'SUUNTO': 'Suunto app',
+    'GOOGLE': 'Google Health Connect',
+    'SAMSUNG': 'Samsung Health app',
+    'PELOTON': 'Peloton app',
+    'STRAVA': 'Strava app'
+  };
+  return map[p] || 'wearable app';
 }
 
 // Display names for Terra provider codes. Falls back to title-casing the raw
