@@ -3742,6 +3742,33 @@ function writeWearablePending(personId, provider, terraUserId) {
     }));
   } catch (e) {}
 }
+// Provider-aware backfill-window message shown right after the Terra widget
+// completes. Terra's backfill latency varies a lot by provider:
+//   - Oura/Fitbit/Polar: rate-limited APIs, can take 30–90 min for first data
+//   - Garmin/Withings: usually within 15 min
+//   - Google Health Connect / Samsung: near-real-time push from phone
+//   - Whoop: usually within an hour
+// This sets the right expectation so testers don't think it's broken while
+// Terra is backfilling. Piece 3 banner fires automatically once data arrives.
+function _wearableConnectedMessage(provider) {
+  var p = String(provider || '').toUpperCase();
+  // Fast: phone-resident push (under a few minutes)
+  if (p === 'GOOGLE' || p === 'SAMSUNG') {
+    return 'Connected. Your data should arrive in a few minutes — we’ll let you know when it’s here.';
+  }
+  // Medium: usually under 15 min
+  if (p === 'GARMIN' || p === 'WITHINGS' || p === 'PELOTON' || p === 'SUUNTO') {
+    var friendlyFast = _terraProviderFriendly(provider) || 'Wearable';
+    return friendlyFast.charAt(0).toUpperCase() + friendlyFast.slice(1) + ' connected. Your data usually arrives within 15 minutes — we’ll let you know when it’s here.';
+  }
+  // Slow: rate-limited APIs, can take an hour
+  if (p === 'OURA' || p === 'FITBIT' || p === 'POLAR' || p === 'WHOOP') {
+    var friendlySlow = _terraProviderFriendly(provider) || 'Wearable';
+    return friendlySlow.charAt(0).toUpperCase() + friendlySlow.slice(1) + ' connected. Sleep and activity data usually arrives within an hour — we’ll let you know when it’s here.';
+  }
+  // Unknown provider: safe medium message
+  return 'Wearable connected. Your data usually arrives within the hour — we’ll let you know when it’s here.';
+}
 // Friendly provider names. Falls back to "wearable" for unknown providers so
 // the copy never reads as "Wellet noticed your UNKNOWN just synced."
 function _terraProviderFriendly(provider) {
@@ -29284,7 +29311,14 @@ function _onTerraAuthSuccessInParent(payload) {
   try { writeWearablePending(payload.person_id, payload.provider, payload.terra_user_id); } catch (e) {}
   storeTerraConnection(payload.person_id, payload.terra_user_id, payload.provider).then(function() {
     invalidateSignalsCache(payload.person_id);
-    showToast('Wearable connected successfully', 'success');
+    // Provider-aware expectation-setting toast. Different wearables have very
+    // different backfill windows via Terra (Oura/Fitbit are rate-limited and
+    // can take ~an hour; Garmin/Withings under 15min; Google/Samsung near-real-
+    // time). The generic 2s 'connected successfully' toast left testers like
+    // Emma staring at an empty Records page wondering if it had broken — so we
+    // set the right expectation up front. Piece 3 banner handles the 'data
+    // arrived' follow-up automatically.
+    showToast(_wearableConnectedMessage(payload.provider), { duration: 6000 });
     if (typeof renderSignalsView === 'function') { try { renderSignalsView(); } catch(e){} }
     // Refresh the in-memory Terra connections cache so refreshConnectScreenStatus
     // sees the new row and lights up the Google Health / Other wearables card.
