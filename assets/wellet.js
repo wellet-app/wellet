@@ -3518,6 +3518,7 @@ function renderUpdateMe() {
       + rightNowLineHtml
       + summarySection
       + chartNoticedEarlyHtml
+      + '<div id="home-wearable-import"></div>'
       + addMoreInside
       + '</div>'
       + addMoreOutside
@@ -3540,6 +3541,7 @@ function renderUpdateMe() {
       + summarySection
       + alertBannerHtml
       + chartNoticedHtml
+      + '<div id="home-wearable-import"></div>'
       + '</div>'
       + upcomingHtml
       + visitPrepCardHtml
@@ -3554,6 +3556,9 @@ function renderUpdateMe() {
   if (!isDemoMode && typeof renderSharedWithMeInbox === 'function') {
     try { renderSharedWithMeInbox('shared-inbox'); } catch(e) { console.warn('[shared-inbox] render failed', e); }
   }
+  // Fill the wearable-import banner placeholder asynchronously (no-op if no
+  // pending key or webhook hasn't fired yet — next render will retry).
+  try { mountWearableImportBanner(currentPersonId, 'home-wearable-import'); } catch (e) {}
 }
 
 // ── CHART NOTICED BANNERS ────────────────────────────────────────────────
@@ -3695,6 +3700,161 @@ function buildChartNoticedBanner(personName, personId) {
       + '<div class="alert-body">' + c.body + '</div>'
       + '</div></div>';
   }).join('');
+}
+
+// ── WEARABLE IMPORT NOTICED BANNER ───────────────────────────────────────
+// Post-Terra-connect summary card. Mirrors buildChartNoticedBanner voice.
+// Spec: /home/user/workspace/wellet_wearable_caresignals_spec.md (Piece 3).
+//
+// Why this exists: when a user finishes connecting a wearable, all they used
+// to see was a transient toast. They had no proof their sleep/activity data
+// actually arrived. This card answers "did my data come through?" the same
+// way the EHR chart-noticed banner does for medications/labs.
+//
+// Flow:
+//   1. _onTerraAuthSuccessInParent writes a pending key to localStorage with
+//      { provider, terra_user_id, connected_at }.
+//   2. On every Home or Records render, this builder checks the key.
+//   3. It queries Supabase for counts of rows that landed AFTER connected_at.
+//   4. If counts > 0, render the card and clear the key.
+//   5. If counts are still 0, keep the key around and try again next render.
+//   6. Auto-expire the key after 7 days regardless.
+//
+// Voice rules: "Wellet noticed your {device} just synced." Never "track/monitor."
+function _wearablePendingKey(personId) {
+  return 'wellet_wearable_pending_summary_' + (personId || 'self');
+}
+function _readWearablePending(personId) {
+  try {
+    var raw = localStorage.getItem(_wearablePendingKey(personId));
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+function _clearWearablePending(personId) {
+  try { localStorage.removeItem(_wearablePendingKey(personId)); } catch (e) {}
+}
+function writeWearablePending(personId, provider, terraUserId) {
+  try {
+    localStorage.setItem(_wearablePendingKey(personId), JSON.stringify({
+      provider: provider || 'unknown',
+      terra_user_id: terraUserId || null,
+      connected_at: new Date().toISOString()
+    }));
+  } catch (e) {}
+}
+// Friendly provider names. Falls back to "wearable" for unknown providers so
+// the copy never reads as "Wellet noticed your UNKNOWN just synced."
+function _terraProviderFriendly(provider) {
+  if (!provider) return 'wearable';
+  var p = String(provider).toUpperCase();
+  var map = {
+    'OURA': 'Oura ring',
+    'GARMIN': 'Garmin watch',
+    'WHOOP': 'Whoop band',
+    'FITBIT': 'Fitbit',
+    'WITHINGS': 'Withings scale',
+    'POLAR': 'Polar watch',
+    'PELOTON': 'Peloton bike',
+    'GOOGLE': 'Google Health data',
+    'GOOGLEFIT': 'Google Fit data',
+    'STRAVA': 'Strava activity',
+    'SUUNTO': 'Suunto watch',
+    'COROS': 'Coros watch',
+    'WAHOO': 'Wahoo device',
+    'EIGHT': 'Eight Sleep'
+  };
+  return map[p] || 'wearable';
+}
+// Count rows landed since connected_at, scoped to a single provider's
+// ehr_system so a re-connect of a different watch doesn't recount the
+// previous one's history.
+async function getWearableImportCounts(personId, provider, connectedAt) {
+  var ehrSystem = 'terra_' + String(provider || 'unknown').toUpperCase();
+  var out = { sleepNights: 0, activityDays: 0, workouts: 0, vitals: 0 };
+  try {
+    var sleepQ = db.from('health_events').select('id', { count: 'exact', head: true })
+      .eq('person_id', personId).eq('event_type', 'sleep').eq('source', 'terra')
+      .eq('ehr_system', ehrSystem).ilike('title', 'Sleep (%').gte('created_at', connectedAt);
+    var activityQ = db.from('health_events').select('id', { count: 'exact', head: true })
+      .eq('person_id', personId).eq('event_type', 'activity').eq('source', 'terra')
+      .eq('ehr_system', ehrSystem).gte('created_at', connectedAt);
+    var workoutsQ = db.from('health_events').select('id', { count: 'exact', head: true })
+      .eq('person_id', personId).eq('event_type', 'workout').eq('source', 'terra')
+      .eq('ehr_system', ehrSystem).gte('created_at', connectedAt);
+    var vitalsQ = db.from('vitals').select('id', { count: 'exact', head: true })
+      .eq('person_id', personId).eq('source', 'terra').gte('created_at', connectedAt);
+    var results = await Promise.all([sleepQ, activityQ, workoutsQ, vitalsQ]);
+    out.sleepNights  = results[0] && results[0].count || 0;
+    out.activityDays = results[1] && results[1].count || 0;
+    out.workouts     = results[2] && results[2].count || 0;
+    out.vitals       = results[3] && results[3].count || 0;
+  } catch (e) {
+    console.warn('[WearableImport] count query failed:', e);
+  }
+  return out;
+}
+// Async builder — returns HTML string or ''. Callers should await it.
+async function buildWearableImportNoticedBanner(personId) {
+  if (isDemoMode) return '';
+  var pending = _readWearablePending(personId);
+  if (!pending || !pending.connected_at) return '';
+
+  // 7-day expiry — if Terra never delivered, give up quietly.
+  var ageMs = Date.now() - new Date(pending.connected_at).getTime();
+  if (isNaN(ageMs) || ageMs > 7 * 86400000) {
+    _clearWearablePending(personId);
+    return '';
+  }
+
+  var counts = await getWearableImportCounts(personId, pending.provider, pending.connected_at);
+  var total = counts.sleepNights + counts.activityDays + counts.workouts + counts.vitals;
+  if (total === 0) return ''; // Webhook hasn't fired yet — keep the key, retry next render.
+
+  var providerFriendly = _terraProviderFriendly(pending.provider);
+  var bits = [];
+  if (counts.sleepNights > 0)  bits.push(counts.sleepNights  + ' night' + (counts.sleepNights  === 1 ? '' : 's') + ' of sleep');
+  if (counts.activityDays > 0) bits.push(counts.activityDays + ' day'   + (counts.activityDays === 1 ? '' : 's') + ' of activity');
+  if (counts.workouts > 0)     bits.push(counts.workouts     + ' workout' + (counts.workouts === 1 ? '' : 's'));
+  if (counts.vitals > 0 && bits.length < 3) bits.push(counts.vitals + ' vitals readings');
+
+  var locations = [];
+  if (counts.sleepNights > 0)  locations.push('Sleep');
+  if (counts.activityDays > 0) locations.push('Activity');
+  if (counts.workouts > 0)     locations.push('Workouts');
+  if (counts.vitals > 0)       locations.push('Vitals');
+  var locationStr = locations.length === 1
+    ? locations[0]
+    : locations.slice(0, -1).join(', ') + ' and ' + locations[locations.length - 1];
+
+  var body = bits.join(', ') + ' came through. Find this anytime on the Records page under ' + locationStr + '.';
+  var title = 'Wellet noticed your ' + providerFriendly + ' just synced';
+
+  // Card actually rendered with real counts — safe to clear the pending key.
+  _clearWearablePending(personId);
+
+  return '<div class="alert-banner">'
+    + '<div class="alert-icon"><i data-lucide="sparkles" style="width:16px;height:16px;"></i></div>'
+    + '<div>'
+    + '<div class="alert-title">' + escHtml(title) + '</div>'
+    + '<div class="alert-body">' + escHtml(body) + '</div>'
+    + '</div></div>';
+}
+// Mount helper — call after innerHTML is written. Looks up #<targetId>,
+// fills it with the banner HTML if any, re-runs initIcons() to render the
+// lucide sparkle icon. Safe to call from any render path. No-op if target
+// element isn't in the DOM.
+async function mountWearableImportBanner(personId, targetId) {
+  if (!personId || !targetId) return;
+  try {
+    var html = await buildWearableImportNoticedBanner(personId);
+    if (!html) return;
+    var el = document.getElementById(targetId);
+    if (!el) return;
+    el.innerHTML = html;
+    try { initIcons(); } catch (e) {}
+  } catch (e) {
+    console.warn('[WearableImport] mount failed:', e);
+  }
 }
 
 // ── RIGHT NOW LINE (C7) ──────────────────────────────────────────────────
@@ -9039,6 +9199,12 @@ function renderRecordsView() {
   html += '</div>';
   if (ehrData) html += buildEhrStatusBar(ehrData);
 
+  // Wearable-import "Wellet noticed your <device> just synced" banner.
+  // Filled async after view.innerHTML by mountWearableImportBanner().
+  if (!isDemoMode && currentPersonId) {
+    html += '<div id="records-wearable-import"></div>';
+  }
+
   html += '<div class="records-section">';
 
   // ── 6-tile grid ───────────────────────────────────────────────────────────
@@ -9346,6 +9512,32 @@ function renderRecordsView() {
   view.innerHTML = html;
   initIcons();
   applyRecordsCollapse();
+
+  // Fill the wearable-import banner if there's a pending Terra connection summary.
+  try { mountWearableImportBanner(currentPersonId, 'records-wearable-import'); } catch (e) {}
+
+  // First-look educational toast on Records when wearable data has landed.
+  // One-time per personId, skipped in demo. Lives here so it only fires when
+  // the user actually opens the page that the post-import banner points at.
+  if (!isDemoMode && currentPersonId) {
+    (async function() {
+      try {
+        var introKey = 'wellet_wearable_records_intro_shown_' + currentPersonId;
+        if (localStorage.getItem(introKey) === '1') return;
+        var probe = await db.from('health_events')
+          .select('id', { count: 'exact', head: true })
+          .eq('person_id', currentPersonId)
+          .eq('source', 'terra')
+          .limit(1);
+        if (probe && probe.count && probe.count > 0) {
+          showToast('Sleep, activity, and workouts from your wearables live here too. We file them with the rest of the chart.', 'info');
+          try { localStorage.setItem(introKey, '1'); } catch (e) {}
+        }
+      } catch (e) {
+        console.warn('[WearableImport] intro toast probe failed:', e);
+      }
+    })();
+  }
 
   // Render the Sources card (multi-connection view). v1 ships as a Records-tab
   // section above the chart sections — see /home/user/workspace/wellet_connections_screen_spec.md.
@@ -29085,6 +29277,11 @@ function _onTerraAuthSuccessInParent(payload) {
   if (_terraHandledKey === dedupeKey) return;
   _terraHandledKey = dedupeKey;
   console.log('[Terra] auth success in parent:', payload);
+  // Drop a pending-summary breadcrumb so Home + Records can show the
+  // "Wellet noticed your <device> just synced" banner once Terra's webhook
+  // finishes backfilling sleep/activity/workout data. Spec:
+  // /home/user/workspace/wellet_wearable_caresignals_spec.md (Piece 3).
+  try { writeWearablePending(payload.person_id, payload.provider, payload.terra_user_id); } catch (e) {}
   storeTerraConnection(payload.person_id, payload.terra_user_id, payload.provider).then(function() {
     invalidateSignalsCache(payload.person_id);
     showToast('Wearable connected successfully', 'success');
