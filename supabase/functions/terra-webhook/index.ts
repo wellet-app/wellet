@@ -555,11 +555,54 @@ Deno.serve(async (req) => {
 
   if (payloadType === "deauth" || payloadType === "auth_revoked") {
     const terraUserId = (payload.user as Record<string, string>)?.user_id;
+    const provider = (payload.user as Record<string, string>)?.provider || "unknown";
     if (terraUserId) {
+      // Look up the connection BEFORE we mark it disconnected so the ops_events
+      // row has the person_id + user_id needed for fan-out.
+      const { data: deauthConn } = await db
+        .from("terra_connections")
+        .select("id, person_id, user_id, provider")
+        .eq("terra_user_id", terraUserId)
+        .eq("status", "active")
+        .single();
+
       await db
         .from("terra_connections")
         .update({ status: "disconnected", disconnected_at: new Date().toISOString() })
         .eq("terra_user_id", terraUserId);
+
+      // Pattern 4 — proactive notification for silent failures. A wearable
+      // deauth event means the user (or the provider) revoked Terra's access
+      // and we will stop receiving data. Throttled to one wearable_deauth
+      // event per connection per 24h.
+      if (deauthConn) {
+        try {
+          const { data: prior } = await db.from("wellet_ops_events")
+            .select("id")
+            .eq("event_type", "wearable_deauth")
+            .eq("source", "terra-webhook")
+            .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+            .filter("payload->>connection_id", "eq", deauthConn.id)
+            .limit(1);
+          if (!prior || prior.length === 0) {
+            await db.from("wellet_ops_events").insert({
+              event_type: "wearable_deauth",
+              severity: "high",
+              summary: "Wearable disconnected (" + (deauthConn.provider || provider) + ") \u2014 reconnect needed.",
+              source: "terra-webhook",
+              payload: {
+                vendor: "terra",
+                reason: payloadType,
+                provider: deauthConn.provider || provider,
+                connection_id: deauthConn.id,
+                person_id: deauthConn.person_id,
+                user_id: deauthConn.user_id,
+                terra_user_id: terraUserId,
+              },
+            });
+          }
+        } catch (_) { /* best-effort logging */ }
+      }
     }
     return new Response(JSON.stringify({ success: true }), { status: 200 });
   }

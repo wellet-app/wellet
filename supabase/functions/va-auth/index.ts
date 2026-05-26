@@ -715,6 +715,36 @@ Deno.serve(async (req) => {
           });
         } catch (_) { /* best-effort logging */ }
 
+        // Pattern 4 — proactive notification for silent failures. Throttled
+        // to one ehr_silent_failure event per connection per 24h. The ehr-
+        // silent-failure notifier cron picks this up and notifies the user.
+        try {
+          const { data: prior } = await admin.from('wellet_ops_events')
+            .select('id')
+            .eq('event_type', 'ehr_silent_failure')
+            .eq('source', 'va-auth')
+            .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+            .filter('payload->>connection_id', 'eq', conn.id)
+            .limit(1);
+          if (!prior || prior.length === 0) {
+            await admin.from('wellet_ops_events').insert({
+              event_type: 'ehr_silent_failure',
+              severity: 'high',
+              summary: 'VA connection refresh failed \u2014 reconnect needed.',
+              source: 'va-auth',
+              payload: {
+                vendor: 'va',
+                reason: 'refresh_failed',
+                va_status: tokenRes.status,
+                connection_id: conn.id,
+                person_id,
+                user_id: user.id,
+                fhir_base_url: conn.fhir_base_url || null,
+              },
+            });
+          }
+        } catch (_) { /* best-effort logging */ }
+
         return jsonResponse({
           error: 'refresh_failed',
           va_status: tokenRes.status,
