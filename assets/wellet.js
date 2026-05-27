@@ -2986,10 +2986,10 @@ async function loadTimelineExtraSources(personId) {
   // system. Both render on the timeline but with different eyebrows.
   try {
     var rCS2 = await db.from('care_signals')
-      .select('id, signal_type, pattern_key, severity, status, noticed_at, window_start, window_end, occurrence_number, headline, body, evidence_jsonb')
+      .select('id, signal_type, pattern_key, severity, status, noticed_at, noticed_event_at, window_start, window_end, occurrence_number, headline, body, evidence_jsonb')
       .eq('person_id', personId)
       .neq('status', 'dismissed')
-      .order('noticed_at', { ascending: false })
+      .order('noticed_event_at', { ascending: false, nullsFirst: false })
       .limit(100);
     bucket.careSignalRows = (rCS2 && rCS2.data) || [];
   } catch (_e) {}
@@ -4896,14 +4896,21 @@ function renderTimeline() {
       }
     }
     (extra.careSignalRows || []).forEach(function(cs) {
-      if (!cs || !cs.noticed_at) return;
+      if (!cs) return;
+      // Timeline placement uses noticed_event_at (when the pattern actually
+      // occurred in the historical record) so tiles land where the human would
+      // expect — visit date for RHR drift, med start date for activity drops,
+      // latest lab date for lab signals, etc. Falls back to noticed_at only
+      // for rows that pre-date the backfill.
+      var anchorDate = cs.noticed_event_at || cs.noticed_at;
+      if (!anchorDate) return;
       var ev = cs.evidence_jsonb || {};
       var sources = Array.isArray(ev.sources_combined) ? ev.sources_combined : [];
       var sourceChips = sources.map(_csv2FormatSourceChip).filter(Boolean);
       careSignalV2TimelineItems.push({
         event_type: 'care_signal',
         title: _csv2RewriteText(cs.headline || 'Wellet noticed a pattern'),
-        event_date: cs.noticed_at,
+        event_date: anchorDate,
         notes: _csv2RewriteText(cs.body || ''),
         source: 'care_signal',
         _section: 'caresignals',
@@ -4913,7 +4920,9 @@ function renderTimeline() {
         _caresignal_v2_severity: String(cs.severity || 'notice'),
         _caresignal_v2_signal_type: String(cs.signal_type || ''),
         _caresignal_v2_sources: sourceChips,
-        _caresignal_v2_occurrence: cs.occurrence_number || 1
+        _caresignal_v2_occurrence: cs.occurrence_number || 1,
+        // Keep noticed_at available for the "Wellet noticed this on..." subline
+        _caresignal_v2_noticed_at: cs.noticed_at
       });
     });
   } catch (eCS2) { try { console.warn('[timeline] CareSignals v2 merge skipped:', eCS2); } catch (er) {} }
