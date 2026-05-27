@@ -2911,6 +2911,7 @@ async function loadTimelineExtraSources(personId) {
     shareEvents: [],
     careSignalWatches: [],
     careSignalFires: [],
+    careSignalRows: [],
     medicationLogs: [],
     checkIns: []
   };
@@ -2976,6 +2977,21 @@ async function loadTimelineExtraSources(personId) {
         .limit(200);
       bucket.careSignalFires = (r6 && r6.data) || [];
     }
+  } catch (_e) {}
+  // CareSignals v2 / Path B — the new public.care_signals table written by
+  // the compute-care-signals edge function. These are AI-surfaced patterns
+  // (lab recovery, RHR drift, sleep fragmentation, post-med activity drops)
+  // built by fusing wearable + EHR data. Distinct from the legacy
+  // care_signal_watch_fires table above, which is the user-configured watch
+  // system. Both render on the timeline but with different eyebrows.
+  try {
+    var rCS2 = await db.from('care_signals')
+      .select('id, signal_type, pattern_key, severity, status, noticed_at, window_start, window_end, occurrence_number, headline, body, evidence_jsonb')
+      .eq('person_id', personId)
+      .neq('status', 'dismissed')
+      .order('noticed_at', { ascending: false })
+      .limit(100);
+    bucket.careSignalRows = (rCS2 && rCS2.data) || [];
   } catch (_e) {}
   // Medication logs (last 200, collapse-by-day handled in renderTimeline).
   try {
@@ -4606,7 +4622,8 @@ function renderTimeline() {
   // the rest of the page. See wellet_living_timeline_spec.md.
   var extra = (window._tlExtraSources && window._tlExtraSources[currentPersonId]) || {
     careCircleMembers: [], careCircleShares: [], shares: [], shareEvents: [],
-    careSignalWatches: [], careSignalFires: [], medicationLogs: [], checkIns: []
+    careSignalWatches: [], careSignalFires: [], careSignalRows: [],
+    medicationLogs: [], checkIns: []
   };
 
   // 1) Documents (non-voice). Uploaded labs, discharge summaries, etc. Voice
@@ -4836,6 +4853,71 @@ function renderTimeline() {
     });
   } catch (eCS) { try { console.warn('[timeline] CareSignals merge skipped:', eCS); } catch (er) {} }
 
+  // 4b) CareSignals v2 / Path B — AI-surfaced patterns from public.care_signals.
+  //     Distinct from (4): these were not user-configured. Wellet noticed them
+  //     by fusing wearable + EHR data. Each row becomes one timeline tile with
+  //     a ◇ "Noticed" eyebrow, headline + body, sources_combined chips, and
+  //     (when occurrence_number > 1) a recurrence line. Tap routes to the
+  //     CareSignals view via the shared 'care_signal' source.
+  var careSignalV2TimelineItems = [];
+  try {
+    // Friendly name lookup for the body — rewrite generic "Mom's" if we are
+    // rendering for someone else, or strip if rendering for self.
+    var _csv2PersonName = null;
+    var _csv2IsSelf = false;
+    try {
+      var _csv2Pers = (currentPeople || []).find(function(p){ return p && p.id === currentPersonId; });
+      if (_csv2Pers) {
+        _csv2IsSelf = !!_csv2Pers.is_self;
+        _csv2PersonName = _csv2IsSelf ? null : (_csv2Pers.name || null);
+      }
+    } catch(_e) {}
+    function _csv2RewriteText(s) {
+      if (!s) return s;
+      var out = String(s);
+      // Stored copy uses "Mom" by convention. If the loved one has a different
+      // name, swap it in. If self-mode, swap "Mom’s" → "your" / "Mom" → "you".
+      if (_csv2IsSelf) {
+        out = out.replace(/Mom’s/g, 'your').replace(/Mom's/g, 'your').replace(/\bMom\b/g, 'you');
+      } else if (_csv2PersonName && _csv2PersonName !== 'Mom') {
+        out = out.replace(/Mom’s/g, _csv2PersonName + '’s').replace(/Mom's/g, _csv2PersonName + '’s').replace(/\bMom\b/g, _csv2PersonName);
+      }
+      return out;
+    }
+    function _csv2FormatSourceChip(src) {
+      switch (String(src || '').toLowerCase()) {
+        case 'wearable_observations': return 'Apple Health';
+        case 'medications': return 'Medications';
+        case 'lab_results': return 'Labs';
+        case 'health_events': return 'Visits';
+        case 'observations': return 'Vitals';
+        case 'conditions': return 'Conditions';
+        default: return String(src || '').replace(/_/g, ' ');
+      }
+    }
+    (extra.careSignalRows || []).forEach(function(cs) {
+      if (!cs || !cs.noticed_at) return;
+      var ev = cs.evidence_jsonb || {};
+      var sources = Array.isArray(ev.sources_combined) ? ev.sources_combined : [];
+      var sourceChips = sources.map(_csv2FormatSourceChip).filter(Boolean);
+      careSignalV2TimelineItems.push({
+        event_type: 'care_signal',
+        title: _csv2RewriteText(cs.headline || 'Wellet noticed a pattern'),
+        event_date: cs.noticed_at,
+        notes: _csv2RewriteText(cs.body || ''),
+        source: 'care_signal',
+        _section: 'caresignals',
+        _refId: cs.id,
+        // Path B render hints — distinguish from legacy fires.
+        _caresignal_v2: true,
+        _caresignal_v2_severity: String(cs.severity || 'notice'),
+        _caresignal_v2_signal_type: String(cs.signal_type || ''),
+        _caresignal_v2_sources: sourceChips,
+        _caresignal_v2_occurrence: cs.occurrence_number || 1
+      });
+    });
+  } catch (eCS2) { try { console.warn('[timeline] CareSignals v2 merge skipped:', eCS2); } catch (er) {} }
+
   // 5) Medication logs — collapse to one card per day when 3+ doses on the
   //    same day. Otherwise one card per log. "Logged by you" voice.
   var medicationLogTimelineItems = [];
@@ -4916,6 +4998,7 @@ function renderTimeline() {
     .concat(careCircleTimelineItems)
     .concat(shareTimelineItems)
     .concat(careSignalTimelineItems)
+    .concat(careSignalV2TimelineItems)
     .concat(medicationLogTimelineItems)
     .concat(checkInTimelineItems);
 
@@ -5277,7 +5360,30 @@ function renderTimeline() {
       }
       // CareSignals fires get a distinct, standout card: amber-mint accent rail,
       // sparkles icon, bigger eyebrow, optional measurement chip.
-      if (ev.source === 'care_signal') {
+      if (ev.source === 'care_signal' && ev._caresignal_v2) {
+        // Path B v1 \u2014 AI-surfaced pattern from public.care_signals. Distinct
+        // eyebrow (\u25c7 Noticed), severity-tinted, source chips, occurrence note.
+        var csv2Title = String(ev.title || '').replace(/^Wellet noticed:\s*/i, '');
+        var csv2Sev = String(ev._caresignal_v2_severity || 'notice');
+        var csv2SevColor = csv2Sev === 'attention' ? '#b8860b' : 'var(--moss-deep,var(--moss))';
+        var csv2Sources = Array.isArray(ev._caresignal_v2_sources) ? ev._caresignal_v2_sources : [];
+        var csv2Occ = ev._caresignal_v2_occurrence || 1;
+        var csv2SourceChipsHtml = csv2Sources.map(function(s){
+          return '<span class="tl-cs-chip">' + escHtml(s) + '</span>';
+        }).join('');
+        var csv2OccHtml = csv2Occ > 1 ? (' \u00B7 <span style="color:' + csv2SevColor + ';font-weight:500;">Pattern seen ' + csv2Occ + ' times</span>') : '';
+        html += '<div class="tl-item">'
+          + '<div class="tl-card tl-card-caresignal tl-card-caresignal-v2 tl-cs-' + escHtml(csv2Sev) + '" data-ask-lp="' + askKeyTl + '"' + clickAttr + '>'
+          + '<div class="tl-card-type-row tl-cs-eyebrow">'
+          +   '<span style="color:' + csv2SevColor + ';font-size:14px;line-height:1;font-weight:600;">\u25c7</span>'
+          +   '<span class="tl-card-type tl-cs-label" style="color:' + csv2SevColor + ';">Noticed</span>'
+          +   csv2SourceChipsHtml
+          + '</div>'
+          + '<div class="tl-card-title tl-cs-title">' + escHtml(csv2Title) + '</div>'
+          + (ev.notes ? '<div class="tl-card-body tl-cs-body">' + escHtml(ev.notes) + '</div>' : '')
+          + '<div class="tl-card-date tl-cs-meta">' + dateStr + csv2OccHtml + '</div>'
+          + '</div></div>';
+      } else if (ev.source === 'care_signal') {
         // Trim the redundant "Wellet noticed: " prefix on the title \u2014 the eyebrow
         // already says it.
         var csTitle = String(ev.title || '').replace(/^Wellet noticed:\s*/i, '');

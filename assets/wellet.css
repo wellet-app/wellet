@@ -915,6 +915,34 @@
   }
   .tl-card .tl-cs-body { color: var(--ink-7, var(--text-secondary)); }
   .tl-card .tl-cs-meta { color: var(--ink-5, var(--text-muted)); }
+
+  /* Path B v1 — AI-surfaced CareSignals tiles. Same mint card as the legacy
+     fires by default; "attention" severity gets an amber tint so med/activity
+     drops and pre-visit RHR drift read as a softer alert. Source chips flow
+     left-to-right (margin-left:auto removed for v2) since rows can carry 2+. */
+  .tl-card.tl-card-caresignal.tl-card-caresignal-v2 .tl-cs-chip {
+    margin-left: 0;
+  }
+  .tl-card.tl-card-caresignal.tl-card-caresignal-v2 .tl-cs-eyebrow {
+    flex-wrap: wrap;
+    gap: 6px;
+    row-gap: 4px;
+  }
+  .tl-card.tl-card-caresignal-v2.tl-cs-attention {
+    background: linear-gradient(180deg, #FBF5E6 0%, #F4EBD2 100%);
+    border: 1px solid rgba(184, 134, 11, 0.28);
+    box-shadow: 0 1px 0 rgba(184, 134, 11, 0.05), 0 0 0 1px rgba(184, 134, 11, 0.03) inset;
+  }
+  .tl-card.tl-card-caresignal-v2.tl-cs-attention[onclick]:hover {
+    background: linear-gradient(180deg, #F8F0DC 0%, #EFE3C2 100%);
+    border-color: rgba(184, 134, 11, 0.40);
+  }
+  .tl-card.tl-card-caresignal-v2.tl-cs-attention .tl-cs-chip {
+    background: rgba(184, 134, 11, 0.12);
+    color: #8a6508;
+    border-color: rgba(184, 134, 11, 0.28);
+  }
+
   .tl-card-type-row { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
   .tl-card-type { font-size: var(--type-micro); letter-spacing: 0.08em; text-transform: uppercase; font-weight: 500; }
   .tl-card-type.appt { color: var(--moss); }
