@@ -16305,6 +16305,64 @@ function closeConnectRequestModal() {
   if (slot) slot.innerHTML = '';
 }
 
+// 2026-05-27: Henry Ford recovery screen.
+// Patient completed Epic OAuth (the hospital may have even texted them to
+// confirm), but Wellet’s client_id isn’t on the hospital’s production allow-list,
+// so the token exchange returned invalid_client / unauthorized_client. The
+// backend already filed a hospital_connect_requests row (→ auto-Linear ticket
+// via the every-2h cron), so this screen just acknowledges + offers a useful
+// next step. No form to refill, no retry CTA (retrying without hospital action
+// is genuinely pointless).
+function openAlmostThereModal(opts) {
+  opts = opts || {};
+  var hospital = opts.hospital_name || 'this hospital';
+  var filed = opts.request_filed === true;
+
+  // Build a one-shot overlay so we don’t need new markup in index.html.
+  // Reuses .cr-overlay styling for consistency.
+  var existing = document.getElementById('almost-there-overlay');
+  if (existing) { try { existing.remove(); } catch(e) {} }
+
+  var overlay = document.createElement('div');
+  overlay.id = 'almost-there-overlay';
+  overlay.className = 'cr-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-labelledby', 'at-title');
+
+  var safeHospital = String(hospital).replace(/[<>&"']/g, function(c) {
+    return ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'})[c];
+  });
+
+  var filedLine = filed
+    ? '<p class="at-filed"><span class="at-check">\u2713</span> We\u2019ve added you to the queue for ' + safeHospital + '. You\u2019ll get an email the moment Wellet is ready there.</p>'
+    : '<p class="at-filed">We\u2019ll let you know the moment Wellet is ready at ' + safeHospital + '.</p>';
+
+  overlay.innerHTML = '' +
+    '<div class="cr-sheet at-sheet">' +
+      '<div class="cr-handle"></div>' +
+      '<div class="cr-title" id="at-title">Almost there.</div>' +
+      '<p class="at-lede">You got the green light from ' + safeHospital + '. The last piece they still need to flip is on their developer side \u2014 it\u2019s not something you or Wellet can do right now.</p>' +
+      filedLine +
+      '<div class="cr-actions at-actions">' +
+        '<button type="button" class="cr-btn secondary" onclick="closeAlmostThereModal()">Not now</button>' +
+        '<button type="button" class="cr-btn primary" onclick="closeAlmostThereModal(); if (typeof showConnectScreen===\'function\') { try { showConnectScreen(); } catch(e) {} }">Connect a different hospital</button>' +
+      '</div>' +
+    '</div>';
+
+  document.body.appendChild(overlay);
+  // Trigger transition
+  requestAnimationFrame(function() { overlay.classList.add('show'); });
+}
+
+function closeAlmostThereModal() {
+  var overlay = document.getElementById('almost-there-overlay');
+  if (overlay) {
+    overlay.classList.remove('show');
+    setTimeout(function() { try { overlay.remove(); } catch(e) {} }, 300);
+  }
+}
+
 // 2026-05-21: Pre-fill vendor banner inside the connect-request modal when the
 // picker pre-check already produced a result, or when the user pastes a hospital
 // name into the form and blurs the field.
@@ -16882,10 +16940,34 @@ function handleEhrCallback() {
     }).then(function(data) {
       if (!data) return;
       if (data.error) {
+        try { localStorage.removeItem('wellet_ehr_pending_person'); } catch(e) {}
+
+        // 2026-05-27: Henry Ford pattern. Patient completed Epic OAuth at the
+        // hospital end (sometimes even gets a hospital text), but the token
+        // exchange came back with invalid_client / unauthorized_client because
+        // the hospital hasn’t approved Wellet’s confidential client on their
+        // production allow-list. Backend already filed a hospital_connect_requests
+        // row, so we just show a clean "almost there" screen with no form to refill.
+        if (data.error === 'hospital_not_approved') {
+          var hospitalLabelHna = data.hospital_name || 'this hospital';
+          openAlmostThereModal({
+            hospital_name: hospitalLabelHna,
+            request_filed: data.request_filed === true,
+            person_id: personId
+          });
+          return;
+        }
+
+        // Patient hit Cancel/Deny inside Epic. Not a bug — gentler copy, no row.
+        if (data.error === 'patient_declined') {
+          var hospitalLabelPd = data.hospital_name || 'this hospital';
+          showToast('No problem \u2014 you can connect a different hospital, or come back to ' + hospitalLabelPd + ' anytime.');
+          return;
+        }
+
         // Surface server error messages (e.g., unsupported_fhir_version, server_misconfigured)
         var msg = data.message || data.error || 'Unknown error';
         showToast('EHR connection failed: ' + msg);
-        try { localStorage.removeItem('wellet_ehr_pending_person'); } catch(e) {}
         // Offer the "Let us know" path
         var cbIssue = (data.error === 'unsupported_fhir_version') ? 'unsupported_version' : 'oauth_error';
         var cbHospital = data.hospital_name || '';

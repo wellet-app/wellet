@@ -1587,6 +1587,13 @@
   .cr-success-title { font-family: var(--serif); font-size:var(--type-h2); color:var(--text-primary); margin-bottom:6px; }
   .cr-success-body { font-size:var(--type-meta); color:var(--text-secondary); line-height:1.5; }
 
+  /* 2026-05-27: Henry Ford "Almost there" recovery modal. */
+  .at-sheet { max-width:480px; }
+  .at-lede { font-size:var(--type-body); color:var(--text-primary); line-height:1.55; margin:8px 0 14px; }
+  .at-filed { background:var(--mint); color:var(--moss-dark); font-size:var(--type-meta); line-height:1.5; padding:12px 14px; border-radius:12px; margin:0 0 16px; display:flex; gap:8px; align-items:flex-start; }
+  .at-check { display:inline-flex; width:18px; height:18px; border-radius:50%; background:var(--moss); color:white; align-items:center; justify-content:center; font-size:11px; line-height:1; font-weight:700; flex-shrink:0; margin-top:1px; }
+  .at-actions { margin-top:8px; }
+
   /* ── CARESIGNALS ──────────────────────────────────────────────────────────── */
   .signals-view { padding:20px 16px 100px 16px; }
   .signals-section { margin-bottom:28px; }
