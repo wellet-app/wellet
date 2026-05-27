@@ -32090,34 +32090,94 @@ function _ptrFinish(success) {
 }
 
 // ── OFFLINE BANNER + GRACEFUL DEGRADATION ───────────────────────────────
-var _wasOffline = !navigator.onLine;
+// navigator.onLine lies in real-world conditions: Chrome can stay stuck on
+// `false` after a VPN flip, captive portal, or DNS hiccup, and Safari can get
+// stuck after a Wi-Fi → cellular handoff or an OAuth redirect chain. We never
+// trust it on its own — every time it says "offline" we actively probe a real
+// endpoint and only show the banner if the probe also fails.
+var _wasOffline = false;
+var _probeInFlight = false;
+var _probeIntervalId = null;
 
-function updateOfflineBanner() {
+function _showOfflineBanner() {
   var banner = document.getElementById('offline-banner');
   if (!banner) return;
-  if (!navigator.onLine) {
-    banner.classList.add('visible');
-    _wasOffline = true;
-    initIcons();
-  } else {
-    banner.classList.remove('visible');
-    if (_wasOffline) {
-      _wasOffline = false;
-      // Show "back online" confirmation
-      var toast = document.createElement('div');
-      toast.className = 'back-online-toast';
-      toast.innerHTML = '<i data-lucide="wifi" style="width:14px;height:14px;"></i> Back online';
-      document.body.appendChild(toast);
-      initIcons();
-      setTimeout(function() { toast.remove(); }, 2800);
-    }
+  banner.classList.add('visible');
+  _wasOffline = true;
+  try { initIcons(); } catch (_) {}
+  // Start a self-healing poll while the banner is up so we recover even if
+  // the browser never fires its own 'online' event.
+  if (!_probeIntervalId) {
+    _probeIntervalId = setInterval(function() { probeConnectivity(); }, 15000);
   }
+}
+
+function _hideOfflineBanner() {
+  var banner = document.getElementById('offline-banner');
+  if (!banner) return;
+  banner.classList.remove('visible');
+  if (_probeIntervalId) {
+    clearInterval(_probeIntervalId);
+    _probeIntervalId = null;
+  }
+  if (_wasOffline) {
+    _wasOffline = false;
+    // Show "back online" confirmation
+    var toast = document.createElement('div');
+    toast.className = 'back-online-toast';
+    toast.innerHTML = '<i data-lucide="wifi" style="width:14px;height:14px;"></i> Back online';
+    document.body.appendChild(toast);
+    try { initIcons(); } catch (_) {}
+    setTimeout(function() { try { toast.remove(); } catch (_) {} }, 2800);
+  }
+}
+
+// Active probe: hit a known small same-origin asset. If ANY response comes back
+// (even a 304 or 404), we have network. Only network/DNS failures throw.
+function probeConnectivity() {
+  if (_probeInFlight) return;
+  _probeInFlight = true;
+  var url = '/favicon.ico?probe=' + Date.now();
+  // 4s ceiling so a hung probe never wedges us in "offline" forever.
+  var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  var timer = ctrl ? setTimeout(function() { try { ctrl.abort(); } catch (_) {} }, 4000) : null;
+  fetch(url, { method: 'HEAD', cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
+    .then(function() {
+      _hideOfflineBanner();
+    })
+    .catch(function() {
+      // Only show the banner if BOTH navigator.onLine claims offline AND the
+      // probe failed — otherwise it's a single-endpoint hiccup, not real offline.
+      if (!navigator.onLine) _showOfflineBanner();
+    })
+    .finally(function() {
+      if (timer) clearTimeout(timer);
+      _probeInFlight = false;
+    });
+}
+
+function updateOfflineBanner() {
+  // Browser says we're offline → verify with a real probe before showing UI.
+  if (!navigator.onLine) {
+    probeConnectivity();
+    return;
+  }
+  // Browser says we're online → hide immediately, no probe needed.
+  _hideOfflineBanner();
 }
 
 window.addEventListener('online', updateOfflineBanner);
 window.addEventListener('offline', updateOfflineBanner);
-// Check on load
-if (!navigator.onLine) updateOfflineBanner();
+// Any time the user comes back to the tab, re-verify. This is what rescues
+// users whose browser got stuck on navigator.onLine=false.
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible') probeConnectivity();
+});
+window.addEventListener('focus', function() { probeConnectivity(); });
+// Check on load — but via the real probe, not the lying flag.
+if (!navigator.onLine) {
+  probeConnectivity();
+}
 
 // ── SKELETON LOADING STATES ──────────────────────────────────────────────
 function showSkeletons() {
