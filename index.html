@@ -161,6 +161,90 @@
   })();
   </script>
   <div class="auth-body">
+    <!-- ============================================================
+         IAB (Facebook / Instagram in-app browser) banner
+         Added 2026-05-27 — Meta funnel fix.
+         Detects Facebook + Instagram embedded browsers and warns the
+         user before they start the 6-digit code flow. The FB/IG IAB
+         drops the session when the user switches to Mail to grab the
+         code, so OTP entry fails silently. We surface a one-tap
+         "Copy link" plus a clear instruction for the ••• > Open in
+         Safari / Chrome path.
+         ============================================================ -->
+    <div id="iab-warning" style="display:none;margin:0 0 16px;padding:14px 16px;border:1px solid #C07028;background:#FFF6EC;border-radius:12px;line-height:1.5;" role="alert">
+      <div style="display:flex;gap:10px;align-items:flex-start;">
+        <i data-lucide="alert-triangle" style="width:18px;height:18px;color:#C07028;flex:0 0 auto;margin-top:2px;"></i>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;color:#7A4116;margin-bottom:4px;">Open Wellet in your real browser first</div>
+          <p style="margin:0 0 10px;font-size:14px;color:#4a3320;">
+            You arrived here from <span id="iab-app-name">an app</span>. Signing in needs a 6-digit code from your email, and in-app browsers usually lose the code when you switch to Mail.
+          </p>
+          <p style="margin:0 0 12px;font-size:14px;color:#4a3320;">
+            Tap the <strong>•••</strong> menu (top right) and choose <strong>Open in Safari</strong> or <strong>Open in Chrome</strong>. Or copy the link below and paste it into your browser.
+          </p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" id="iab-copy-link" onclick="iabCopyLink()" style="flex:1;min-width:140px;padding:10px 14px;background:#608F7C;color:#fff;border:none;border-radius:8px;font:inherit;font-weight:600;cursor:pointer;">Copy link</button>
+            <button type="button" onclick="iabDismiss()" style="padding:10px 14px;background:transparent;color:#7A4116;border:1px solid #C07028;border-radius:8px;font:inherit;cursor:pointer;">Continue anyway</button>
+          </div>
+          <div id="iab-copy-confirm" style="display:none;margin-top:8px;font-size:13px;color:#608F7C;font-weight:500;">Link copied. Paste it into Safari or Chrome.</div>
+        </div>
+      </div>
+    </div>
+    <script>
+      // Detect Facebook / Instagram / TikTok / LinkedIn / Twitter in-app browsers.
+      // Reference: https://developers.facebook.com/docs/sharing/webmasters/web-share/#in-app-browser
+      (function detectIAB(){
+        try {
+          var ua = navigator.userAgent || '';
+          var iab = null;
+          if (/FBAN|FBAV|FB_IAB|FBIOS/i.test(ua)) iab = 'Facebook';
+          else if (/Instagram/i.test(ua)) iab = 'Instagram';
+          else if (/TikTok|musical_ly|Bytedance/i.test(ua)) iab = 'TikTok';
+          else if (/LinkedInApp/i.test(ua)) iab = 'LinkedIn';
+          else if (/Twitter/i.test(ua)) iab = 'X';
+          // Also catch generic webview hints when arriving from paid social.
+          else if (/; wv\)/i.test(ua) && /utm_source=(facebook|fb|instagram|ig|meta)/i.test(window.location.search || '')) iab = 'Facebook';
+          if (!iab) return;
+          // Honor user dismissal within the same session.
+          if (sessionStorage.getItem('wellet_iab_dismissed') === '1') return;
+          var nameEl = document.getElementById('iab-app-name');
+          if (nameEl) nameEl.textContent = 'the ' + iab + ' app';
+          var box = document.getElementById('iab-warning');
+          if (box) box.style.display = 'block';
+          // Best-effort analytics — non-blocking.
+          try {
+            if (window.fbq) window.fbq('trackCustom', 'IABDetected', { app: iab });
+            if (window.gtag) window.gtag('event', 'iab_detected', { app: iab });
+          } catch (e) {}
+        } catch (e) {}
+      })();
+      function iabCopyLink(){
+        try {
+          var url = window.location.href;
+          var done = function(){
+            var c = document.getElementById('iab-copy-confirm');
+            if (c) c.style.display = 'block';
+            var btn = document.getElementById('iab-copy-link');
+            if (btn) btn.textContent = 'Copied';
+          };
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(done).catch(function(){
+              // Fallback: prompt with the URL so the user can long-press to copy.
+              window.prompt('Copy this link and paste it into Safari or Chrome:', url);
+              done();
+            });
+          } else {
+            window.prompt('Copy this link and paste it into Safari or Chrome:', url);
+            done();
+          }
+        } catch (e) {}
+      }
+      function iabDismiss(){
+        try { sessionStorage.setItem('wellet_iab_dismissed', '1'); } catch (e) {}
+        var box = document.getElementById('iab-warning');
+        if (box) box.style.display = 'none';
+      }
+    </script>
     <div id="auth-form-state">
       <div id="auth-signin-reveal" class="auth-cta-card">
         <div class="auth-cta-eyebrow">Get started</div>
