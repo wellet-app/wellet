@@ -15622,7 +15622,24 @@ var ACTIVATED_FHIR_URLS = [
   'https://epicsoapproxyprd.mountsinai.org/FHIR-PRD/api/FHIR/R4/',                   // Mount Sinai (NYC) — also covers Health Center / Hudson Yards / Concierge Care
   'https://soapepic.montefiore.org/FhirProxyPrd/api/FHIR/R4/',                       // Montefiore Health System
   'https://epicproxy.et1353.epichosted.com/APIPROXYPRD/api/FHIR/R4/',                // Memorial Sloan Kettering Cancer Center
-  'https://epicproxy.et0927.epichosted.com/FHIRProxy/api/FHIR/R4/'                   // Hospital for Special Surgery
+  'https://epicproxy.et0927.epichosted.com/FHIRProxy/api/FHIR/R4/',                  // Hospital for Special Surgery
+  // Michigan / Great Lakes (added 2026-05-27 — activated 2 days prior; was
+  // missing from this allow-list, which is why it didn't appear in the picker).
+  // Verified .well-known/smart-configuration: 200 OK, S256 PKCE, private_key_jwt,
+  // client-confidential-asymmetric, refresh_token grant. wellet_confidential
+  // (fhir_base_pattern '%') handles OAuth.
+  'https://fhir.hfhs.org/FHIRProxy/api/FHIR/R4/',                                    // Henry Ford Health System
+  // Atlanta metro (added 2026-05-27 — activated on open.epic.com but missing
+  // from this allow-list, same root cause as Henry Ford). All 5 verified via
+  // .well-known/smart-configuration: 200 OK, S256 PKCE, private_key_jwt,
+  // client-confidential-asymmetric, refresh_token grant. Northside Hospital
+  // is NOT in Epic's R4 bundle (likely Cerner) — captured via the
+  // "Add my health system" form for the Cerner Wave 1 rollout.
+  'https://epicrp-prd.eushc.org/OAUTH2-PRD/api/FHIR/R4/',                            // Emory Healthcare
+  'https://webproxy.piedmont.org/ARR-FHIR/api/FHIR/R4/',                             // Piedmont Healthcare
+  'https://epicsoap.wellstar.org/fhirproxy/api/FHIR/R4/',                            // Wellstar Health System
+  'https://wpprod.choa.org/FHIR_PRD/api/FHIR/R4/',                                   // Children's Healthcare of Atlanta (CHOA)
+  'https://surescripts.gmh.edu/OAuth2PRD/api/FHIR/R4/'                               // Grady Health System
 ];
 
 function _normFhirUrl(u) {
