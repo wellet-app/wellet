@@ -1187,9 +1187,20 @@ async function refreshAccessTokenIfNeeded(
   const isLegacyPublic = conn.client_id_used === EPIC_LEGACY_PUBLIC_CLIENT_ID;
   const isSandbox = conn.fhir_base_url === EPIC_SANDBOX_FHIR_BASE;
   const isVa = (conn.provider as string | undefined) === 'va';
+  // Cerner Wave 1: Cerner is a public client — refresh uses only client_id,
+  // no client_secret and no client_assertion (same pattern as VA).
+  const isCerner = (conn.provider as string | undefined) === 'cerner';
 
   let body: URLSearchParams;
-  if (isVa) {
+  if (isCerner) {
+    // Cerner public app — refresh body: client_id + refresh_token only.
+    const cernerClientId = (conn.client_id_used as string | undefined) || '3b98223e-17ec-4a8f-ac77-f4fdbb242371';
+    body = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: decRefresh as string,
+      client_id: cernerClientId,
+    });
+  } else if (isVa) {
     // VA Lighthouse is a public client - refresh body is just client_id +
     // refresh_token. No client_assertion, no client_secret.
     const vaClientId = (conn.client_id_used as string | undefined) || vaClientIdFor(conn.fhir_base_url as string);
@@ -1402,11 +1413,24 @@ async function fetchAndPersistOneConnection(
 
     // Step 2: Fetch all FHIR resources in parallel, threading local tele buckets.
     //
-    // Future appointments — Epic supports date=ge{YYYY-MM-DD}. We use yesterday as
-    // the floor (timezone-safe slack) so today's not-yet-started visits still come
-    // through. If the connection doesn't have the patient/Appointment.read scope
-    // granted yet (legacy connections), this returns 403 inside fetchFhirResource
-    // and we swallow it as an empty array via the .catch fallback.
+    // Vendor branch: Cerner FHIR R4 (Wave 1)
+    //   - Fetches: Patient, Condition, MedicationRequest, AllergyIntolerance,
+    //     Observation, DocumentReference, Encounter, Immunization.
+    //   - DocumentReference is exposed at Patient tier on Cerner (unlike Epic
+    //     which gates it behind a separate Binary.read scope).
+    //   - Skips Epic-only resources: Appointment, CareTeam, DiagnosticReport,
+    //     Practitioner, PractitionerRole.
+    //   - Encounter.period.start can be null on in-progress encounters —
+    //     all period reads are guarded with null checks in mapEncounters().
+    //   - Cerner escapes ampersands as \u0026 in link.url pagination fields.
+    //     fetchFhirResource() unescapes these before following next-page links.
+    //
+    // Epic / VA branch: unchanged from pre-Wave-1 logic.
+    const connProviderTag = (conn.provider as string | undefined) ?? '';
+    const isCernerConn = connProviderTag === 'cerner';
+
+    // Future appointments — Epic only. We use yesterday as the floor so today's
+    // not-yet-started visits still come through.
     const apptFloor = (() => {
       try {
         const d = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -1419,43 +1443,90 @@ async function fetchAndPersistOneConnection(
     const apptDateParam = apptFloor ? `date=ge${apptFloor}` : '';
     const apptQuery = [patientParam, apptDateParam].filter(Boolean).join('&');
 
-    const [
-      patientResource,
-      conditions,
-      medications,
-      allergies,
-      labObservations,
-      vitalObservations,
-      immunizations,
-      diagnosticReports,
-      encountersRaw,
-      appointmentsRaw,
-      careTeamsRaw,
-      documentReferencesRaw,
-    ] = await Promise.all([
-      // Patient identity — proves which chart we are actually pulling
-      patientId ? fetchFhirById(fhirBaseUrl, `Patient/${patientId}`, accessToken, localPractTele) : Promise.resolve(null),
-      fetchFhirResource(fhirBaseUrl, 'Condition', accessToken, patientParam, localFhirTele),
-      // status=active is an Epic-supported filter — fixes the "78 amlodipine rows" bug
-      fetchFhirResource(fhirBaseUrl, 'MedicationRequest', accessToken, patientParam ? `${patientParam}&status=active` : 'status=active', localFhirTele),
-      fetchFhirResource(fhirBaseUrl, 'AllergyIntolerance', accessToken, patientParam, localFhirTele),
-      fetchFhirResource(fhirBaseUrl, 'Observation', accessToken, patientParam ? `${patientParam}&category=laboratory` : 'category=laboratory', localFhirTele),
-      fetchFhirResource(fhirBaseUrl, 'Observation', accessToken, patientParam ? `${patientParam}&category=vital-signs` : 'category=vital-signs', localFhirTele),
-      fetchFhirResource(fhirBaseUrl, 'Immunization', accessToken, patientParam, localFhirTele),
-      fetchFhirResource(fhirBaseUrl, 'DiagnosticReport', accessToken, patientParam, localFhirTele),
-      // All encounters — UI filters to last 2 years with a "show older" toggle
-      fetchFhirResource(fhirBaseUrl, 'Encounter', accessToken, patientParam, localFhirTele),
-      // Future Appointments — powers the Before-visit card. Tolerant of missing
-      // scope on legacy connections; will be empty until user re-consents Duke.
-      fetchFhirResource(fhirBaseUrl, 'Appointment', accessToken, apptQuery, localFhirTele).catch((e: unknown) => {
-        console.warn('[fetch-ehr-data] Appointment fetch failed (likely scope not granted yet)', String(e));
-        return [] as unknown[];
-      }),
-      // Active care teams
-      fetchFhirResource(fhirBaseUrl, 'CareTeam', accessToken, patientParam ? `${patientParam}&status=active` : 'status=active', localFhirTele),
-      // Clinical notes / AVS / provider summaries (metadata only — content fetched on tap)
-      fetchFhirResource(fhirBaseUrl, 'DocumentReference', accessToken, patientParam, localFhirTele),
-    ]);
+    let patientResource: Record<string, unknown> | null;
+    let conditions: unknown[];
+    let medications: unknown[];
+    let allergies: unknown[];
+    let labObservations: unknown[];
+    let vitalObservations: unknown[];
+    let immunizations: unknown[];
+    let diagnosticReports: unknown[];
+    let encountersRaw: unknown[];
+    let appointmentsRaw: unknown[];
+    let careTeamsRaw: unknown[];
+    let documentReferencesRaw: unknown[];
+
+    if (isCernerConn) {
+      // Cerner Wave 1 resource fetch — additive branch, Epic logic untouched below.
+      console.log('[fetch-ehr-data] using Cerner fetch path', { conn_id: conn.id });
+      [
+        patientResource,
+        conditions,
+        medications,
+        allergies,
+        labObservations,
+        vitalObservations,
+        immunizations,
+        documentReferencesRaw,
+        encountersRaw,
+      ] = await Promise.all([
+        patientId ? fetchFhirById(fhirBaseUrl, `Patient/${patientId}`, accessToken, localPractTele) : Promise.resolve(null),
+        fetchFhirResource(fhirBaseUrl, 'Condition', accessToken, patientParam, localFhirTele),
+        fetchFhirResource(fhirBaseUrl, 'MedicationRequest', accessToken, patientParam, localFhirTele),
+        fetchFhirResource(fhirBaseUrl, 'AllergyIntolerance', accessToken, patientParam, localFhirTele),
+        fetchFhirResource(fhirBaseUrl, 'Observation', accessToken, patientParam ? `${patientParam}&category=laboratory` : 'category=laboratory', localFhirTele),
+        fetchFhirResource(fhirBaseUrl, 'Observation', accessToken, patientParam ? `${patientParam}&category=vital-signs` : 'category=vital-signs', localFhirTele),
+        fetchFhirResource(fhirBaseUrl, 'Immunization', accessToken, patientParam, localFhirTele),
+        // DocumentReference: Cerner exposes at Patient tier (no Binary.read gate)
+        fetchFhirResource(fhirBaseUrl, 'DocumentReference', accessToken, patientParam, localFhirTele),
+        // Encounter: period.start may be null on in-progress encounters — guarded in mapEncounters()
+        fetchFhirResource(fhirBaseUrl, 'Encounter', accessToken, patientParam, localFhirTele),
+      ]);
+      // Cerner does not expose Appointment, CareTeam, or DiagnosticReport
+      // at Patient-tier scope in Wave 1 — return empty arrays.
+      diagnosticReports = [];
+      appointmentsRaw = [];
+      careTeamsRaw = [];
+    } else {
+      // Epic / VA branch — unchanged from pre-Wave-1 logic.
+      [
+        patientResource,
+        conditions,
+        medications,
+        allergies,
+        labObservations,
+        vitalObservations,
+        immunizations,
+        diagnosticReports,
+        encountersRaw,
+        appointmentsRaw,
+        careTeamsRaw,
+        documentReferencesRaw,
+      ] = await Promise.all([
+        // Patient identity — proves which chart we are actually pulling
+        patientId ? fetchFhirById(fhirBaseUrl, `Patient/${patientId}`, accessToken, localPractTele) : Promise.resolve(null),
+        fetchFhirResource(fhirBaseUrl, 'Condition', accessToken, patientParam, localFhirTele),
+        // status=active is an Epic-supported filter — fixes the "78 amlodipine rows" bug
+        fetchFhirResource(fhirBaseUrl, 'MedicationRequest', accessToken, patientParam ? `${patientParam}&status=active` : 'status=active', localFhirTele),
+        fetchFhirResource(fhirBaseUrl, 'AllergyIntolerance', accessToken, patientParam, localFhirTele),
+        fetchFhirResource(fhirBaseUrl, 'Observation', accessToken, patientParam ? `${patientParam}&category=laboratory` : 'category=laboratory', localFhirTele),
+        fetchFhirResource(fhirBaseUrl, 'Observation', accessToken, patientParam ? `${patientParam}&category=vital-signs` : 'category=vital-signs', localFhirTele),
+        fetchFhirResource(fhirBaseUrl, 'Immunization', accessToken, patientParam, localFhirTele),
+        fetchFhirResource(fhirBaseUrl, 'DiagnosticReport', accessToken, patientParam, localFhirTele),
+        // All encounters — UI filters to last 2 years with a "show older" toggle
+        fetchFhirResource(fhirBaseUrl, 'Encounter', accessToken, patientParam, localFhirTele),
+        // Future Appointments — powers the Before-visit card. Tolerant of missing
+        // scope on legacy connections; will be empty until user re-consents Duke.
+        fetchFhirResource(fhirBaseUrl, 'Appointment', accessToken, apptQuery, localFhirTele).catch((e: unknown) => {
+          console.warn('[fetch-ehr-data] Appointment fetch failed (likely scope not granted yet)', String(e));
+          return [] as unknown[];
+        }),
+        // Active care teams
+        fetchFhirResource(fhirBaseUrl, 'CareTeam', accessToken, patientParam ? `${patientParam}&status=active` : 'status=active', localFhirTele),
+        // Clinical notes / AVS / provider summaries (metadata only — content fetched on tap)
+        fetchFhirResource(fhirBaseUrl, 'DocumentReference', accessToken, patientParam, localFhirTele),
+      ]);
+    }
 
     const patient = patientResource ? mapPatient(patientResource) : { id: patientId || '', name: '', birth_date: '', gender: '' };
 
