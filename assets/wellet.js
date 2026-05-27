@@ -3695,12 +3695,14 @@ function renderUpdateMe() {
         ) : '');
   } else if (liveEvents.length === 0 && (hasCompletedDocs || ehrConnected || hasWearable)) {
     // Has document data, EHR, or wearable but no promoted events yet: real summary FIRST, then onboarding CTAs below
+    var careSignalsHeroEarlyHtml = buildCareSignalsHeroStrip(name, currentPersonId);
     var chartNoticedEarlyHtml = buildChartNoticedBanner(name, currentPersonId);
     pane.innerHTML = sharedInboxContainer
       + beforeVisitHtml
       + '<div class="update-me-section">'
       + rightNowLineHtml
       + summarySection
+      + careSignalsHeroEarlyHtml
       + chartNoticedEarlyHtml
       + '<div id="home-wearable-import"></div>'
       + addMoreInside
@@ -3716,6 +3718,7 @@ function renderUpdateMe() {
         ) : '');
   } else {
     // Populated state: Wellet Summary does the editorial work; no big-numbers card.
+    var careSignalsHeroHtml = buildCareSignalsHeroStrip(name, currentPersonId);
     var alertBannerHtml = buildPatternAlertBanner(name);
     var chartNoticedHtml = buildChartNoticedBanner(name, currentPersonId);
     pane.innerHTML = sharedInboxContainer
@@ -3723,6 +3726,7 @@ function renderUpdateMe() {
       + '<div class="update-me-section">'
       + rightNowLineHtml
       + summarySection
+      + careSignalsHeroHtml
       + alertBannerHtml
       + chartNoticedHtml
       + '<div id="home-wearable-import"></div>'
@@ -3775,6 +3779,85 @@ function _chartRowKey(row) {
   var d = row.onset_date || row.date_asserted || row.recorded_date || row.effective_date || '';
   return row.name + '\u00B7' + d;
 }
+// ── CARESIGNALS HERO STRIP (BDB · before-you-call) ──────────────────────
+// A single quiet summary strip that sits above the timeline, telling the
+// caregiver how many patterns Wellet has surfaced and pointing them at the
+// CareSignals view for the full list. Mirrors the voice of
+// buildChartNoticedBanner; reads from window._tlExtraSources[personId].
+// Voice rules: "noticed" (never "track/monitor"), "loved one" (never "parent"),
+// CareSignals is one word.
+function buildCareSignalsHeroStrip(personName, personId) {
+  if (isDemoMode) return ''; // Demo carries its own static surface.
+  if (!personId) return '';
+  try {
+    var bucket = (window._tlExtraSources && window._tlExtraSources[personId]) || null;
+    if (!bucket) return '';
+    var rows = (bucket.careSignalRows || []).filter(function(cs){
+      return cs && (cs.headline || cs.body) && (cs.noticed_event_at || cs.noticed_at);
+    });
+    if (rows.length === 0) return '';
+
+    var name = escHtml(personName || 'your loved one');
+    var n = rows.length;
+
+    // Latest signal by anchor date — used as the inline preview line so the
+    // strip carries real content, not just a count.
+    rows.sort(function(a, b){
+      var ad = new Date(a.noticed_event_at || a.noticed_at).getTime() || 0;
+      var bd = new Date(b.noticed_event_at || b.noticed_at).getTime() || 0;
+      return bd - ad;
+    });
+    var latest = rows[0];
+    var latestHeadline = '';
+    try { latestHeadline = _csv2RewriteText(latest.headline || ''); } catch (_e) { latestHeadline = String(latest.headline || ''); }
+    if (latestHeadline.length > 110) latestHeadline = latestHeadline.slice(0, 107) + '\u2026';
+
+    // Format the anchor date as a short "on May 18" suffix so the preview
+    // line makes the time-anchoring obvious at a glance.
+    var anchor = new Date(latest.noticed_event_at || latest.noticed_at);
+    var anchorLabel = '';
+    if (!isNaN(anchor)) {
+      try {
+        anchorLabel = anchor.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      } catch (_e2) { anchorLabel = ''; }
+    }
+
+    var noun = (n === 1) ? '1 pattern' : (n + ' patterns');
+    var titleText = 'Wellet noticed ' + noun + ' across ' + name + '\u2019s records.';
+    var subText = 'Tap any to see when it happened.';
+
+    var previewLine = '';
+    if (latestHeadline) {
+      previewLine =
+          '<div class="cs-hero-strip-preview">'
+        +   '<span class="cs-hero-strip-dot" aria-hidden="true"></span>'
+        +   '<span class="cs-hero-strip-preview-text">'
+        +     escHtml(latestHeadline)
+        +     (anchorLabel ? ' <span class="cs-hero-strip-when">\u00B7 ' + escHtml(anchorLabel) + '</span>' : '')
+        +   '</span>'
+        + '</div>';
+    }
+
+    return ''
+      + '<div class="cs-hero-strip" role="button" tabindex="0" '
+      +   'onclick="try{switchNavTo(\'signals\');}catch(_e){}" '
+      +   'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();try{switchNavTo(\'signals\');}catch(_e){}}" '
+      +   'aria-label="' + titleText + ' ' + subText + '">'
+      +   '<div class="cs-hero-strip-row">'
+      +     '<div class="cs-hero-strip-eyebrow">What Wellet noticed</div>'
+      +     '<div class="cs-hero-strip-count" aria-hidden="true">' + n + '</div>'
+      +   '</div>'
+      +   '<div class="cs-hero-strip-title">' + escHtml(titleText) + '</div>'
+      +   '<div class="cs-hero-strip-sub">' + escHtml(subText) + '</div>'
+      +   previewLine
+      +   '<div class="cs-hero-strip-cta">Open CareSignals \u2192</div>'
+      + '</div>';
+  } catch (e) {
+    try { console.warn('[home] buildCareSignalsHeroStrip skipped:', e); } catch (_er) {}
+    return '';
+  }
+}
+
 function buildChartNoticedBanner(personName, personId) {
   if (isDemoMode) return ''; // Demo has its own static banner; don't double up.
   var ehr = null;

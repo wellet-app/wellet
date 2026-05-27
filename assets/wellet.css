@@ -3415,3 +3415,93 @@ input.story-input[type="date"]::-webkit-calendar-picker-indicator {
   text-transform: uppercase;
   font-weight: 600;
 }
+
+  /* ── CareSignals hero strip ──────────────────────────────────────────
+     Quiet summary card that sits above the timeline in /me's Home pane.
+     Tells the caregiver how many patterns Wellet has noticed across the
+     loved one's records, with the most recent preview line and a tap
+     target into the CareSignals view. Voice rules: "noticed" only. */
+  .cs-hero-strip {
+    margin: 12px 20px 0;
+    background: linear-gradient(180deg, #1f3a2e 0%, #14302b 100%);
+    color: #f5f7f3;
+    border-radius: 14px;
+    padding: 14px 16px 12px;
+    cursor: pointer;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.04), 0 12px 24px -18px rgba(20,50,38,0.45);
+    border: 1px solid rgba(255,255,255,0.05);
+    transition: transform 120ms ease, box-shadow 120ms ease;
+  }
+  .cs-hero-strip:hover,
+  .cs-hero-strip:focus {
+    outline: none;
+    transform: translateY(-1px);
+    box-shadow: 0 1px 0 rgba(0,0,0,0.06), 0 16px 32px -18px rgba(20,50,38,0.55);
+  }
+  .cs-hero-strip-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+  }
+  .cs-hero-strip-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(245,247,243,0.62);
+  }
+  .cs-hero-strip-count {
+    font-family: var(--font-display, 'Fraunces', serif);
+    font-size: 22px;
+    font-weight: 500;
+    color: #f5f7f3;
+    line-height: 1;
+  }
+  .cs-hero-strip-title {
+    font-family: var(--font-display, 'Fraunces', serif);
+    font-size: 16px;
+    line-height: 1.35;
+    color: #f5f7f3;
+    margin-bottom: 2px;
+  }
+  .cs-hero-strip-sub {
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: rgba(245,247,243,0.72);
+    margin-bottom: 10px;
+  }
+  .cs-hero-strip-preview {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 10px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 10px;
+    margin-bottom: 10px;
+  }
+  .cs-hero-strip-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #9fd5b8;
+    margin-top: 6px;
+    flex-shrink: 0;
+  }
+  .cs-hero-strip-preview-text {
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: rgba(245,247,243,0.92);
+  }
+  .cs-hero-strip-when {
+    color: rgba(245,247,243,0.6);
+    white-space: nowrap;
+  }
+  .cs-hero-strip-cta {
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    color: #9fd5b8;
+    font-weight: 500;
+    text-align: right;
+  }
