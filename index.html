@@ -251,6 +251,38 @@
         <div class="auth-input-wrap">
           <label class="auth-input-label" for="auth-email">Email address</label>
           <input type="email" id="auth-email" class="auth-input" placeholder="you@email.com" autocomplete="email" oninput="clearEmailSuggestion()">
+          <script>
+            // ============================================================
+            // EMAIL PRE-FILL FROM /m HANDOFF (Meta funnel fix, 2026-05-28)
+            // The getwellet.com/m landing page captures email and redirects
+            // to mywellet.com/?email=<addr>&signup_location=m_landing&...
+            // Without this block the email field arrives EMPTY and 100% of
+            // /m traffic drops here. Single biggest conversion fix on the
+            // Meta funnel — 308 LPVs / 0 signups on 2026-05-28 traced here.
+            // ============================================================
+            (function prefillEmailFromHandoff(){
+              try {
+                var sp = new URLSearchParams(window.location.search || '');
+                var handoffEmail = (sp.get('email') || '').trim();
+                if (!handoffEmail) return;
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(handoffEmail)) return;
+                var input = document.getElementById('auth-email');
+                if (!input) return;
+                input.value = handoffEmail.toLowerCase();
+                // Surface a one-line confirmation so the user understands
+                // why their email is already filled in.
+                var note = document.createElement('div');
+                note.style.cssText = 'margin-top:8px;font-size:13px;line-height:1.4;color:var(--text-secondary);';
+                note.textContent = 'We carried your email over from the previous page.';
+                input.parentNode.insertBefore(note, input.nextSibling);
+                // Fire Meta + Google pixels so attribution stitches across
+                // the /m → mywellet hop. Lead already fired on /m; here we
+                // record InitiateCheckout-equivalent for the OTP step.
+                try { if (typeof fbq === 'function') fbq('track', 'InitiateCheckout', { content_name: 'wellet_auth_email_prefilled' }); } catch (e) {}
+                try { if (typeof gtag === 'function') gtag('event', 'begin_checkout', { method: 'email_prefilled' }); } catch (e) {}
+              } catch (e) { /* fail open — user can still type their email */ }
+            })();
+          </script>
           <div id="auth-email-suggestion" style="display:none;margin-top:8px;font-size:13px;line-height:1.4;color:var(--text-secondary);">
             Did you mean <button type="button" id="auth-email-suggestion-btn" onclick="acceptEmailSuggestion()" style="background:none;border:none;padding:0;color:#608F7C;font:inherit;text-decoration:underline;cursor:pointer;"></button>?
           </div>
