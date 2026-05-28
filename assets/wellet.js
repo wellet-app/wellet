@@ -2133,6 +2133,13 @@ function refreshConnectScreenStatus() {
             else    localStorage.removeItem('wellet_apple_health_last_sync_at_' + currentPersonId);
           } catch(_e) {}
           _markConnectCard('connect-card-apple', !!ts);
+          // BDB onboarding animation: finalize Apple Health progress strip
+          // when Postgres confirms a fresh sync timestamp landed.
+          try {
+            if (ts && typeof finalizeConnectProgress === 'function') {
+              finalizeConnectProgress('apple');
+            }
+          } catch(_e) {}
         })
         .catch(function(_e){});
     }
@@ -2537,12 +2544,453 @@ function skipConnectScreen() {
   showAuthenticatedApp();
 }
 
+// ─── BDB live demo: onboarding connect-progress animation ─────────
+// Two surfaces are coordinated from this module:
+//   1) An INLINE progress strip rendered into each connect card while
+//      that source is mid-connect (OAuth bounce) or mid-first-sync.
+//      Stage labels are plain-language, with a slow-path hint after 20s.
+//   2) A FULL-SCREEN stage overlay (#connect-stage-overlay) shown only the
+//      first time the user connects ANY source in this session. The
+//      overlay dissolves into the existing openFirstSyncWelcome() popup
+//      once data lands.
+// Architecture: real events with a minimum-time floor per stage. We listen
+// to the SAME signals the connect-screen status logic already uses
+// (ehr_connections cache / apple_health_last_sync_at / terra_connections)
+// plus the post-callback toast events, so we never invent an event source.
+// Voice rules apply: "loved one" / "family member", "notices" / "watches
+// for", CareSignals one word, no emojis / italics / exclamation points in
+// any user-facing string.
+
+// sessionStorage key that toggles once the first cinematic stage has
+// fired this browser session — subsequent connects use only the inline
+// strip so the user isn't blocked by a hero overlay every time.
+var _CONNECT_STAGE_SEEN_KEY = 'wellet_connect_stage_seen_v1';
+
+// Minimum time each progress stage holds before advancing, even if the
+// real underlying event has already fired. Keeps the motion legible.
+var _CONNECT_STAGE_MIN_MS = 1000;
+// Slow-path hint shows after this many ms of no terminal event.
+var _CONNECT_SLOW_PATH_MS = 20000;
+// Absolute safety timeout — if nothing has resolved by then, treat as
+// complete so the UI never sits forever. The real fetch may still be
+// in-flight; the existing welcome overlay / toast will land when it does.
+var _CONNECT_HARD_TIMEOUT_MS = 90000;
+
+// Per-source state, keyed by source ('ehr' | 'apple' | 'google' | 'terra' | 'va').
+var _connectProgressState = {};
+
+// Plain-language stage scripts. Per design decision, EHR uses plain
+// language (signing in / reading chart / noticing what matters / almost
+// ready). Wearables and Apple Health each get a 3-stage scrip that
+// matches their actual flow.
+function _connectProgressStages(source, ctx) {
+  ctx = ctx || {};
+  var hospital = ctx.hospital || 'your hospital';
+  var firstName = ctx.firstName || 'your loved one';
+  if (source === 'ehr' || source === 'va') {
+    var hostLabel = (source === 'va') ? 'VA.gov' : hospital;
+    return [
+      { key: 'auth',    label: 'Signing in at ' + hostLabel,         icon: 'log-in' },
+      { key: 'reading', label: 'Reading ' + firstName + '\u2019s chart', icon: 'file-search' },
+      { key: 'noticing',label: 'Noticing what matters',               icon: 'sparkles' },
+      { key: 'ready',   label: 'Almost ready',                        icon: 'check' }
+    ];
+  }
+  if (source === 'apple') {
+    return [
+      { key: 'auth',    label: 'Asking Apple Health for permission', icon: 'shield' },
+      { key: 'reading', label: 'Reading the last 30 days',           icon: 'heart-pulse' },
+      { key: 'ready',   label: 'Almost ready',                       icon: 'check' }
+    ];
+  }
+  // google / terra / other wearables
+  var device = ctx.device || 'your wearable';
+  return [
+    { key: 'auth',    label: 'Signing in with ' + device,             icon: 'log-in' },
+    { key: 'reading', label: 'Reading recent signals from ' + device, icon: 'watch' },
+    { key: 'ready',   label: 'Almost ready',                          icon: 'check' }
+  ];
+}
+
+// Resolve a friendly hospital name for the EHR card from whatever's
+// cached. Falls back to the generic copy so the line still reads.
+function _connectProgressHospitalLabel(personId) {
+  try {
+    if (typeof getEhrData === 'function' && personId) {
+      var d = getEhrData(personId);
+      if (d && d.hospital_name) return d.hospital_name;
+      if (d && d.provider && typeof d.provider === 'string') return d.provider;
+      if (d && Array.isArray(d._connections) && d._connections.length) {
+        var c = d._connections.find(function(x){ return x && x.hospital_name; });
+        if (c) return c.hospital_name;
+      }
+    }
+  } catch(_e) {}
+  return 'your hospital';
+}
+
+function _connectProgressFirstName(personId) {
+  try {
+    if (typeof currentPeople !== 'undefined' && currentPeople && personId) {
+      var p = currentPeople.find(function(x){ return x.id === personId; });
+      if (p && p.name) return (p.name.split(' ')[0] || p.name);
+    }
+  } catch(_e) {}
+  return 'them';
+}
+
+// Ensure the inline progress strip exists inside the given card. Idempotent.
+function _ensureInlineProgressDom(cardId) {
+  var card = document.getElementById(cardId);
+  if (!card) return null;
+  var existing = card.querySelector('.connect-card-progress');
+  if (existing) return existing;
+  var body = card.querySelector('.connect-card-body');
+  if (!body) return null;
+  var wrap = document.createElement('span');
+  wrap.className = 'connect-card-progress';
+  wrap.innerHTML =
+      '<div class="connect-card-progress__stage">'
+    +   '<span class="connect-card-progress__dot"></span>'
+    +   '<span class="connect-card-progress__label">Getting ready\u2026</span>'
+    +   '<span class="connect-card-progress__count"></span>'
+    + '</div>'
+    + '<div class="connect-card-progress__bar" style="--p:0"></div>'
+    + '<div class="connect-card-progress__hint"></div>';
+  body.appendChild(wrap);
+  return wrap;
+}
+
+function _cardIdForSource(source) {
+  if (source === 'ehr')    return 'connect-card-ehr';
+  if (source === 'apple')  return 'connect-card-apple';
+  if (source === 'google') return 'connect-card-google';
+  if (source === 'terra')  return 'connect-card-terra';
+  if (source === 'va')     return 'connect-card-va';
+  return null;
+}
+
+function _updateInlineProgress(source, stageIdx, stages, slowMode) {
+  var cardId = _cardIdForSource(source);
+  var card = cardId ? document.getElementById(cardId) : null;
+  if (!card) return;
+  card.classList.add('is-progressing');
+  if (slowMode) card.classList.add('is-slow'); else card.classList.remove('is-slow');
+  var strip = _ensureInlineProgressDom(cardId);
+  if (!strip) return;
+  var stage = stages[Math.min(stageIdx, stages.length - 1)];
+  var labelEl = strip.querySelector('.connect-card-progress__label');
+  var barEl   = strip.querySelector('.connect-card-progress__bar');
+  var hintEl  = strip.querySelector('.connect-card-progress__hint');
+  if (labelEl && stage && labelEl.textContent !== stage.label) {
+    labelEl.classList.remove('is-changing');
+    // Force reflow so the animation re-fires on every swap.
+    void labelEl.offsetWidth;
+    labelEl.textContent = stage.label;
+    labelEl.classList.add('is-changing');
+  }
+  var pct = (stages.length > 1) ? (stageIdx / (stages.length - 1)) : 0;
+  if (barEl) barEl.style.setProperty('--p', String(Math.max(0, Math.min(1, pct))));
+  if (hintEl) {
+    if (slowMode) {
+      var hostLabel = (source === 'va') ? 'VA.gov' :
+        (source === 'ehr') ? _connectProgressHospitalLabel((_connectProgressState[source] && _connectProgressState[source].personId) || (typeof currentPersonId !== 'undefined' ? currentPersonId : null)) : null;
+      if (source === 'ehr' || source === 'va') {
+        hintEl.textContent = hostLabel + ' is taking a moment to send the chart over \u2014 this happens sometimes, hang tight.';
+      } else if (source === 'apple') {
+        hintEl.textContent = 'Apple Health is taking a moment to hand the data over \u2014 hang tight.';
+      } else {
+        hintEl.textContent = 'Still reading from your wearable \u2014 the first sync sometimes takes a few minutes.';
+      }
+    } else {
+      hintEl.textContent = '';
+    }
+  }
+}
+
+function _clearInlineProgress(source) {
+  var cardId = _cardIdForSource(source);
+  var card = cardId ? document.getElementById(cardId) : null;
+  if (!card) return;
+  card.classList.remove('is-progressing');
+  card.classList.remove('is-slow');
+  // Leave the strip DOM in place; CSS hides it when the class is gone.
+  // Reset bar so a subsequent attempt starts at zero.
+  var bar = card.querySelector('.connect-card-progress__bar');
+  if (bar) bar.style.setProperty('--p', '0');
+  var lbl = card.querySelector('.connect-card-progress__label');
+  if (lbl) lbl.classList.remove('is-changing');
+}
+
+// Full-screen cinematic stage: built lazily, mounted to <body>. Returns
+// the wrapper element so the caller can attach its own teardown.
+function _ensureStageOverlay() {
+  var existing = document.getElementById('connect-stage-overlay');
+  if (existing) return existing;
+  var el = document.createElement('div');
+  el.id = 'connect-stage-overlay';
+  el.innerHTML =
+      '<div class="connect-stage__inner">'
+    +   '<div class="connect-stage__eyebrow">Connecting</div>'
+    +   '<h2 class="connect-stage__headline"></h2>'
+    +   '<div class="connect-stage__rings">'
+    +     '<div class="connect-stage__ring"></div>'
+    +     '<div class="connect-stage__ring"></div>'
+    +     '<div class="connect-stage__ring"></div>'
+    +     '<div class="connect-stage__heart"><i data-lucide="heart-pulse"></i></div>'
+    +   '</div>'
+    +   '<div class="connect-stage__stages"></div>'
+    +   '<div class="connect-stage__hint"></div>'
+    + '</div>';
+  document.body.appendChild(el);
+  return el;
+}
+
+function _showStageOverlay(source, stages, ctx) {
+  var el = _ensureStageOverlay();
+  var headline = el.querySelector('.connect-stage__headline');
+  var rows = el.querySelector('.connect-stage__stages');
+  if (headline) {
+    if (source === 'ehr' || source === 'va') {
+      headline.innerHTML = 'Bringing in <em>' + escHtml(ctx.firstName || 'their') + '\u2019s chart</em>.';
+    } else if (source === 'apple') {
+      headline.innerHTML = 'Reading <em>Apple Health</em>.';
+    } else {
+      headline.innerHTML = 'Reading <em>' + escHtml(ctx.device || 'your wearable') + '</em>.';
+    }
+  }
+  if (rows) {
+    rows.innerHTML = stages.map(function(s, i){
+      return '<div class="connect-stage__row" data-stage="' + escHtml(s.key) + '">'
+        +   '<span class="connect-stage__icon"><i data-lucide="' + escHtml(s.icon || 'circle') + '"></i></span>'
+        +   '<span>' + escHtml(s.label) + '</span>'
+        + '</div>';
+    }).join('');
+  }
+  el.classList.remove('is-closing');
+  el.classList.add('is-open');
+  try { if (window.lucide) lucide.createIcons(); } catch(_e) {}
+}
+
+function _updateStageOverlay(stageIdx, stages, slowMode, ctx) {
+  var el = document.getElementById('connect-stage-overlay');
+  if (!el || !el.classList.contains('is-open')) return;
+  var rows = el.querySelectorAll('.connect-stage__row');
+  rows.forEach(function(row, i){
+    row.classList.remove('is-active', 'is-done');
+    if (i < stageIdx) row.classList.add('is-done');
+    else if (i === stageIdx) row.classList.add('is-active');
+  });
+  var hint = el.querySelector('.connect-stage__hint');
+  if (hint) {
+    if (slowMode) {
+      var hostLabel = (ctx && ctx.hospital) ? ctx.hospital : 'your hospital';
+      hint.textContent = hostLabel + ' is taking a moment to send the chart over \u2014 this happens sometimes, hang tight.';
+      hint.classList.add('is-visible');
+    } else {
+      hint.textContent = '';
+      hint.classList.remove('is-visible');
+    }
+  }
+}
+
+function _hideStageOverlay() {
+  var el = document.getElementById('connect-stage-overlay');
+  if (!el) return;
+  el.classList.add('is-closing');
+  setTimeout(function(){
+    el.classList.remove('is-open');
+    el.classList.remove('is-closing');
+  }, 380);
+}
+
+// Has the cinematic stage already been used in this session?
+function _connectStageAlreadyShown() {
+  try { return sessionStorage.getItem(_CONNECT_STAGE_SEEN_KEY) === '1'; } catch(_e) { return false; }
+}
+function _markConnectStageShown() {
+  try { sessionStorage.setItem(_CONNECT_STAGE_SEEN_KEY, '1'); } catch(_e) {}
+}
+
+// Public: kick off the progress UI for a given source. Called from
+// connectFromMeOnboarding() BEFORE the OAuth bounce, and again from each
+// callback handler when control returns to the web app. Idempotent — if
+// already running, just re-anchors the state.
+function beginConnectProgress(source, opts) {
+  opts = opts || {};
+  if (!source) return;
+  var personId = opts.personId || (typeof currentPersonId !== 'undefined' ? currentPersonId : null);
+  var ctx = {
+    firstName: _connectProgressFirstName(personId),
+    hospital:  _connectProgressHospitalLabel(personId),
+    device:    opts.device || ''
+  };
+  var stages = _connectProgressStages(source, ctx);
+  var startedAt = Date.now();
+
+  // Persist a marker so a full page navigation (OAuth round-trip) can
+  // re-attach the inline strip when we come back.
+  try {
+    var marker = { source: source, startedAt: startedAt, personId: personId };
+    sessionStorage.setItem('wellet_connect_progress_' + source, JSON.stringify(marker));
+  } catch(_e) {}
+
+  // Cancel any prior tick / timeout for this source.
+  var prior = _connectProgressState[source];
+  if (prior && prior.tickId) { try { clearInterval(prior.tickId); } catch(_e){} }
+  if (prior && prior.slowId) { try { clearTimeout(prior.slowId); } catch(_e){} }
+  if (prior && prior.hardId) { try { clearTimeout(prior.hardId); } catch(_e){} }
+
+  // Decide whether to mount the full-screen stage. Per design: first
+  // connect of the session AND we are currently on the connect-data
+  // screen (or just left it for OAuth).
+  var useStage = !_connectStageAlreadyShown();
+  if (useStage) {
+    _showStageOverlay(source, stages, ctx);
+    _markConnectStageShown();
+  }
+
+  // Always show the inline strip too — it's the persistent surface and
+  // covers later sources in the same session.
+  _updateInlineProgress(source, 0, stages, false);
+  if (useStage) _updateStageOverlay(0, stages, false, ctx);
+
+  var state = {
+    source: source,
+    personId: personId,
+    stages: stages,
+    ctx: ctx,
+    stageIdx: 0,
+    minStageUntil: startedAt + _CONNECT_STAGE_MIN_MS,
+    terminalRequested: false,
+    slowMode: false,
+    useStage: useStage,
+    startedAt: startedAt
+  };
+  _connectProgressState[source] = state;
+
+  // Slow-path: after 20s of no terminal event, flip the slow-mode hint.
+  state.slowId = setTimeout(function(){
+    var s = _connectProgressState[source];
+    if (!s || s.terminalRequested) return;
+    s.slowMode = true;
+    _updateInlineProgress(source, s.stageIdx, s.stages, true);
+    if (s.useStage) _updateStageOverlay(s.stageIdx, s.stages, true, s.ctx);
+  }, _CONNECT_SLOW_PATH_MS);
+
+  // Hard timeout — if nothing resolves, finalize so the user isn't stuck.
+  state.hardId = setTimeout(function(){
+    var s = _connectProgressState[source];
+    if (!s || s.terminalRequested) return;
+    finalizeConnectProgress(source, { fromTimeout: true });
+  }, _CONNECT_HARD_TIMEOUT_MS);
+
+  // Stage ticker. Advances on the floor schedule. The terminal stage is
+  // reserved for finalizeConnectProgress().
+  state.tickId = setInterval(function(){
+    var s = _connectProgressState[source];
+    if (!s) return;
+    if (s.terminalRequested) return;
+    var now = Date.now();
+    if (now < s.minStageUntil) return;
+    // Hold on the penultimate stage until finalize is called — we never
+    // jump to "Almost ready" on our own.
+    var maxIdx = Math.max(0, s.stages.length - 2);
+    if (s.stageIdx < maxIdx) {
+      s.stageIdx += 1;
+      s.minStageUntil = now + _CONNECT_STAGE_MIN_MS;
+      _updateInlineProgress(source, s.stageIdx, s.stages, s.slowMode);
+      if (s.useStage) _updateStageOverlay(s.stageIdx, s.stages, s.slowMode, s.ctx);
+    }
+  }, 250);
+}
+
+// Public: a terminal event arrived (e.g. fetchEhrData resolved, or the
+// Terra widget said "connected", or Apple Health last-sync-at landed).
+// We advance to the final stage, respect any remaining min-time floor,
+// then tear down. The caller (e.g. the fetch-ehr-data .then) typically
+// also fires openFirstSyncWelcome() — that overlay lands gracefully on
+// top because we close ours first.
+function finalizeConnectProgress(source, opts) {
+  opts = opts || {};
+  var s = _connectProgressState[source];
+  if (!s || s.terminalRequested) return;
+  s.terminalRequested = true;
+  if (s.slowId) { try { clearTimeout(s.slowId); } catch(_e){} }
+  if (s.hardId) { try { clearTimeout(s.hardId); } catch(_e){} }
+  // Compute remaining floor delay so the stages don't strobe to done.
+  var remaining = Math.max(0, s.minStageUntil - Date.now());
+  // Also ensure the user sees the final stage for at least 600ms so it
+  // doesn't feel like a flicker.
+  setTimeout(function(){
+    s.stageIdx = s.stages.length - 1;
+    _updateInlineProgress(source, s.stageIdx, s.stages, false);
+    if (s.useStage) _updateStageOverlay(s.stageIdx, s.stages, false, s.ctx);
+    setTimeout(function(){
+      if (s.tickId) { try { clearInterval(s.tickId); } catch(_e){} }
+      _clearInlineProgress(source);
+      if (s.useStage) _hideStageOverlay();
+      try { sessionStorage.removeItem('wellet_connect_progress_' + source); } catch(_e) {}
+      delete _connectProgressState[source];
+    }, 700);
+  }, remaining);
+}
+
+// On page load (or any time the connect screen re-opens), check whether
+// we left a progress marker behind (because we bounced through OAuth) and
+// re-attach the inline strip if so. The terminal callback in the EHR
+// handler will fire finalizeConnectProgress when data lands.
+function _resumeConnectProgressFromMarker() {
+  ['ehr','apple','google','terra','va'].forEach(function(source){
+    var raw;
+    try { raw = sessionStorage.getItem('wellet_connect_progress_' + source); } catch(_e) { raw = null; }
+    if (!raw) return;
+    var marker;
+    try { marker = JSON.parse(raw); } catch(_e) { return; }
+    if (!marker || !marker.startedAt) return;
+    // If it's been more than 5 minutes, treat as stale and drop.
+    if (Date.now() - marker.startedAt > 5 * 60 * 1000) {
+      try { sessionStorage.removeItem('wellet_connect_progress_' + source); } catch(_e) {}
+      return;
+    }
+    if (_connectProgressState[source]) return;
+    // Resume — but skip the cinematic stage on resume; it already fired
+    // (or doesn't make sense to show after the user came back from OAuth).
+    _markConnectStageShown();
+    beginConnectProgress(source, { personId: marker.personId });
+  });
+}
+
+// Called from the existing refreshConnectScreenStatus() so each time we
+// re-render the cards, we also re-attach any in-flight progress strip.
+// Wired below via a small monkey-patch (see end of this block).
+(function(){
+  if (typeof window === 'undefined') return;
+  // Defer to next tick so refreshConnectScreenStatus is defined.
+  setTimeout(function(){
+    if (typeof refreshConnectScreenStatus === 'function' && !refreshConnectScreenStatus.__progressWrapped) {
+      var orig = refreshConnectScreenStatus;
+      refreshConnectScreenStatus = function(){
+        var r = orig.apply(this, arguments);
+        try { _resumeConnectProgressFromMarker(); } catch(_e) {}
+        return r;
+      };
+      refreshConnectScreenStatus.__progressWrapped = true;
+      try { window.refreshConnectScreenStatus = refreshConnectScreenStatus; } catch(_e) {}
+    }
+  }, 0);
+})();
+
 // Card click handler. Routes by source. The connect screen flag stays set
 // so when each connect flow returns (EHR OAuth round-trip, Terra widget
 // callback, Apple Health bridge), the callback handlers route the user
 // BACK to the connect screen with the completed card marked done. They can
 // then continue with the next source or tap "Open my Wellet" to leave.
 function connectFromMeOnboarding(source) {
+  // Kick off the progress UI immediately so the user sees motion before
+  // the OAuth round-trip begins. finalizeConnectProgress() is called
+  // from the callback handlers once data lands.
+  try { beginConnectProgress(source); } catch(_e) {}
   if (source === 'ehr') {
     // EHR OAuth needs the masthead/picker DOM in place. Tear down the
     // connect screen visually but KEEP the localStorage flag set — the
@@ -2986,7 +3434,7 @@ async function loadTimelineExtraSources(personId) {
   // system. Both render on the timeline but with different eyebrows.
   try {
     var rCS2 = await db.from('care_signals')
-      .select('id, signal_type, pattern_key, severity, status, noticed_at, noticed_event_at, window_start, window_end, occurrence_number, headline, body, evidence_jsonb')
+      .select('id, signal_type, pattern_key, severity, status, noticed_at, noticed_event_at, window_start, window_end, occurrence_number, headline, body, evidence_jsonb, display_evidence_rows, display_metric_tiles, display_eyebrow, display_stamp_at')
       .eq('person_id', personId)
       .neq('status', 'dismissed')
       .order('noticed_event_at', { ascending: false, nullsFirst: false })
@@ -14832,6 +15280,108 @@ async function openAddWatchModal() {
   });
 }
 
+// ── Rich CareSignal cards (v2 — public.care_signals) ─────────────────────
+// Renders one ATTENTION/NOTICE card per row. Each card carries an eyebrow
+// (severity-toned), a timestamp, a serif headline, a quiet body, three
+// evidence rows (icon + head + sub), three metric tiles, and two CTAs.
+// Data shape:
+//   row.display_evidence_rows = [{icon, head, sub}, …]   (icon: stethoscope|pill|watch|heart-pulse|flask|calendar)
+//   row.display_metric_tiles  = [{eyebrow, value, sub, value_kind:'number'|'text'}, …]
+function _csIconSvg(name) {
+  var paths = {
+    'stethoscope': '<path d="M11 2v3a3 3 0 0 0 3 3v0"/><path d="M5 2v3a3 3 0 0 0 3 3v0"/><path d="M8 8v4a4 4 0 0 0 8 0V8"/><path d="M16 12v2a4 4 0 0 1-8 0"/><circle cx="18" cy="18" r="2.5"/>',
+    'pill': '<path d="M10.5 20.5L20.5 10.5a4.95 4.95 0 1 0-7-7L3.5 13.5a4.95 4.95 0 1 0 7 7Z"/><path d="M8.5 8.5l7 7"/>',
+    'watch': '<rect x="7" y="7" width="10" height="10" rx="2"/><path d="M9 7V4h6v3"/><path d="M9 17v3h6v-3"/>',
+    'heart-pulse': '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/><path d="M3.5 13h4l1.5-3 3 6 1.5-3h4"/>',
+    'flask': '<path d="M10 2v6L4 18a3 3 0 0 0 2.6 4.5h10.8A3 3 0 0 0 20 18L14 8V2"/><path d="M8.5 2h7"/><path d="M7 14h10"/>',
+    'calendar': '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>'
+  };
+  var inner = paths[name] || paths['heart-pulse'];
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + inner + '</svg>';
+}
+function _csFormatStamp(iso) {
+  if (!iso) return '';
+  try {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var hrs = d.getHours();
+    var mins = d.getMinutes();
+    var ampm = hrs >= 12 ? 'PM' : 'AM';
+    hrs = hrs % 12; if (hrs === 0) hrs = 12;
+    var mm = mins < 10 ? '0' + mins : '' + mins;
+    return months[d.getMonth()] + ' ' + d.getDate() + ' \u00b7 ' + hrs + ':' + mm + ' ' + ampm;
+  } catch (_e) { return ''; }
+}
+function _buildEvidenceRowHtml(row) {
+  if (!row) return '';
+  var icon = row.icon || 'heart-pulse';
+  var head = row.head || '';
+  var sub = row.sub || '';
+  var html = '<div class="cs-evidence__row">';
+  html += '<span class="cs-evidence__icon" aria-hidden="true">' + _csIconSvg(icon) + '</span>';
+  html += '<div class="cs-evidence__text">';
+  html += '<p class="cs-evidence__head">' + escHtml(head) + '</p>';
+  if (sub) html += '<p class="cs-evidence__sub">' + escHtml(sub) + '</p>';
+  html += '</div></div>';
+  return html;
+}
+function _buildMetricTileHtml(tile) {
+  if (!tile) return '';
+  var valueClass = 'cs-tile__value';
+  if (tile.value_kind === 'text') valueClass += ' cs-tile__value--text';
+  var html = '<div class="cs-tile">';
+  if (tile.eyebrow) html += '<div class="cs-tile__eyebrow">' + escHtml(tile.eyebrow) + '</div>';
+  html += '<div class="' + valueClass + '">' + escHtml(tile.value || '') + '</div>';
+  if (tile.sub) html += '<div class="cs-tile__sub">' + escHtml(tile.sub) + '</div>';
+  html += '</div>';
+  return html;
+}
+function _buildCareSignalCardHtml(signal, sigFirstName, primaryCtaLabel, secondaryCtaLabel) {
+  if (!signal) return '';
+  var sev = (signal.severity || 'notice').toLowerCase();
+  var eyebrowLabel = signal.display_eyebrow || (sev === 'attention' ? 'ATTENTION' : (sev === 'urgent' ? 'URGENT' : 'NOTICE'));
+  var eyebrowClass = 'cs-attention__eyebrow';
+  if (sev !== 'attention' && sev !== 'urgent') eyebrowClass += ' cs-attention__eyebrow--notice';
+  var stampSrc = signal.display_stamp_at || signal.noticed_event_at || signal.noticed_at || signal.created_at;
+  var stamp = _csFormatStamp(stampSrc);
+  var rows = Array.isArray(signal.display_evidence_rows) ? signal.display_evidence_rows : [];
+  var tiles = Array.isArray(signal.display_metric_tiles) ? signal.display_metric_tiles.slice(0, 3) : [];
+
+  var html = '<article class="cs-attention" data-care-signal-id="' + escHtml(signal.id || '') + '" aria-label="CareSignal">';
+  html += '<div class="cs-attention__top">';
+  html += '<span class="' + eyebrowClass + '">' + escHtml(eyebrowLabel) + '</span>';
+  if (stamp) html += '<span class="cs-attention__stamp">' + escHtml(stamp) + '</span>';
+  html += '</div>';
+  if (signal.headline) html += '<h2 class="cs-attention__title">' + escHtml(signal.headline) + '</h2>';
+  if (signal.body) html += '<p class="cs-attention__body">' + escHtml(signal.body) + '</p>';
+  if (rows.length || tiles.length) html += '<hr class="cs-attention__rule">';
+  if (rows.length) {
+    html += '<div class="cs-evidence">';
+    for (var i = 0; i < rows.length; i++) html += _buildEvidenceRowHtml(rows[i]);
+    html += '</div>';
+  }
+  if (tiles.length) {
+    html += '<div class="cs-tiles">';
+    for (var j = 0; j < tiles.length; j++) html += _buildMetricTileHtml(tiles[j]);
+    // Pad missing tiles so the grid stays balanced
+    for (var k = tiles.length; k < 3; k++) html += '<div class="cs-tile" aria-hidden="true"></div>';
+    html += '</div>';
+  }
+  var primary = primaryCtaLabel || 'Save to Before you call';
+  var secondary = secondaryCtaLabel || ('Share with ' + sigFirstName);
+  html += '<button type="button" class="cs-cta-primary" onclick="_onCareSignalPrimary(\'' + escHtml(signal.id || '') + '\')">' + escHtml(primary) + '</button>';
+  html += '<button type="button" class="cs-cta-secondary" onclick="_onCareSignalSecondary(\'' + escHtml(signal.id || '') + '\')">' + escHtml(secondary) + '</button>';
+  html += '</article>';
+  return html;
+}
+function _onCareSignalPrimary(signalId) {
+  try { if (typeof showToast === 'function') showToast('Saved to Before you call.'); } catch(_e) {}
+}
+function _onCareSignalSecondary(signalId) {
+  try { if (typeof showToast === 'function') showToast('Share sheet coming next.'); } catch(_e) {}
+}
+
 // ── CareSignals v2: 5-section editorial shell ─────────────────────────────
 // Sections (top to bottom):
 //   1) Right Now      — synthesized line from recent check-ins / wearable data
@@ -14854,6 +15404,7 @@ async function _paintSignals(el, sigFirstName, activeConns, terraData) {
   var checkIns = [];
   var rhythmAH = null; // { heartRate, restingHr, steps, hrv, lastSyncAt }
   var ehrTrends = null; // { bp, weight, labs, meds }
+  var careSignalsV2 = []; // public.care_signals rows (AI-surfaced patterns)
   if (personId && db) {
     try {
       var loads = await Promise.all([
@@ -14874,12 +15425,22 @@ async function _paintSignals(el, sigFirstName, activeConns, terraData) {
         _loadAppleHealthRhythm(personId)
           .catch(function(e){ console.error('[Signals] AH rhythm load error', e); return null; }),
         _loadEhrTrends(personId)
-          .catch(function(e){ console.error('[Signals] EHR trends load error', e); return null; })
+          .catch(function(e){ console.error('[Signals] EHR trends load error', e); return null; }),
+        db.from('care_signals')
+          .select('id, signal_type, pattern_key, severity, status, noticed_at, noticed_event_at, window_start, window_end, occurrence_number, headline, body, evidence_jsonb, display_evidence_rows, display_metric_tiles, display_eyebrow, display_stamp_at')
+          .eq('person_id', personId)
+          .eq('status', 'active')
+          .order('noticed_event_at', { ascending: false, nullsFirst: false })
+          .order('noticed_at', { ascending: false })
+          .limit(20)
+          .then(function(r){ return (r && r.data) || []; })
+          .catch(function(e){ console.error('[Signals] care_signals v2 load error', e); return []; })
       ]);
-      watches   = loads[0] || [];
-      checkIns  = loads[1] || [];
-      rhythmAH  = loads[2] || null;
-      ehrTrends = loads[3] || null;
+      watches       = loads[0] || [];
+      checkIns      = loads[1] || [];
+      rhythmAH      = loads[2] || null;
+      ehrTrends     = loads[3] || null;
+      careSignalsV2 = loads[4] || [];
     } catch (e) {
       console.error('[Signals] parallel loads failed', e);
     }
@@ -14915,12 +15476,25 @@ async function _paintSignals(el, sigFirstName, activeConns, terraData) {
   ch += '</header>';
 
   // ── 1. Right Now ───────────────────────────────────────────────────────
-  var rightNowLine = _buildRightNowLine(sigFirstName, checkIns, activeConns, terraData, rhythmAH);
-  if (rightNowLine) {
+  // Rich CareSignal cards stacked. Falls back to legacy one-line summary if v2 empty.
+  if (careSignalsV2 && careSignalsV2.length) {
     ch += '<section class="cs-section cs-section--rightnow">';
+    ch += '<div class="cs-section-head">';
     ch += '<div class="cs-section-eyebrow">Right now</div>';
-    ch += '<p class="cs-rightnow-line">' + rightNowLine + '</p>';
+    ch += '<button type="button" class="cs-all-chip" onclick="navigateTo(\'timeline\')">All signals</button>';
+    ch += '</div>';
+    for (var csi = 0; csi < careSignalsV2.length; csi++) {
+      ch += _buildCareSignalCardHtml(careSignalsV2[csi], sigFirstName);
+    }
     ch += '</section>';
+  } else {
+    var rightNowLine = _buildRightNowLine(sigFirstName, checkIns, activeConns, terraData, rhythmAH);
+    if (rightNowLine) {
+      ch += '<section class="cs-section cs-section--rightnow">';
+      ch += '<div class="cs-section-eyebrow">Right now</div>';
+      ch += '<p class="cs-rightnow-line">' + rightNowLine + '</p>';
+      ch += '</section>';
+    }
   }
 
   // ── 2. What to notice ─────────────────────────────────────────────────
@@ -17259,6 +17833,14 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
     console.error('EHR fetch error:', err);
     try { showToast("Couldn\u2019t reach health records \u2014 try again"); } catch(e){}
     try { restoreRecordsEhrStatus(); } catch(e){}
+    // BDB onboarding animation: clear strip + cinematic stage on EHR/VA
+    // fetch failure so the user isn't left staring at a spinner.
+    try {
+      if (typeof finalizeConnectProgress === 'function') {
+        finalizeConnectProgress('ehr');
+        finalizeConnectProgress('va');
+      }
+    } catch(_e) {}
   });
 }
 
@@ -22907,6 +23489,16 @@ function _firstSyncCounts(data) {
 // Otherwise (legacy chat-onboarding path), shows a single CTA into Records.
 function openFirstSyncWelcome(personId, data) {
   if (!personId || !data) { switchNavTo('records'); return; }
+  // BDB onboarding animation: a terminal data event has landed. Close any
+  // in-flight connect-progress UI (inline strip + cinematic stage) so this
+  // success overlay can land cleanly on top. Safe no-op if nothing was
+  // showing.
+  try {
+    if (typeof finalizeConnectProgress === 'function') {
+      finalizeConnectProgress('ehr');
+      finalizeConnectProgress('va');
+    }
+  } catch(_e) {}
 
   // Resolve a friendly first name without depending on currentPeople loading order.
   var person = (typeof currentPeople !== 'undefined' && currentPeople)
@@ -29969,6 +30561,18 @@ function _onTerraAuthSuccessInParent(payload) {
       if (connectActive || returnToConnect) {
         try { sessionStorage.removeItem('wellet_terra_return_to_connect'); } catch(_e) {}
         try { showConnectScreen(); } catch(e) { console.warn('[Terra] showConnectScreen failed:', e); }
+        // BDB onboarding animation: a Terra terminal event just landed.
+        // Close both the google and terra inline strips (the user could
+        // have launched from either card) and the cinematic stage if it's
+        // still up. Wearable data itself can still be trickling in over
+        // the next few minutes \u2014 the per-card sync-status sublabel
+        // (handled by _hydrateTerraCardSyncStatus) covers that quieter.
+        try {
+          if (typeof finalizeConnectProgress === 'function') {
+            finalizeConnectProgress('google');
+            finalizeConnectProgress('terra');
+          }
+        } catch(_e) {}
         return;
       }
       if (obChat && obChat.phase === 'connect') {
@@ -29980,6 +30584,15 @@ function _onTerraAuthSuccessInParent(payload) {
 
 function _onTerraAuthFailureInParent() {
   showToast('Wearable connection was cancelled', 'error');
+  // BDB onboarding animation: clear the inline strip + cinematic stage
+  // when the user cancels or the Terra popup errors. Otherwise the strip
+  // would sit there spinning forever.
+  try {
+    if (typeof finalizeConnectProgress === 'function') {
+      finalizeConnectProgress('google');
+      finalizeConnectProgress('terra');
+    }
+  } catch(_e) {}
   if (obChat && obChat.phase === 'connect') {
     obTypeThen('No worries \u2014 we can try again later, or you can connect a different way.', obShowConnectChips, 700);
   }

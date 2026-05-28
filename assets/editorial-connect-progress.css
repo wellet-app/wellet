@@ -1,0 +1,307 @@
+/* ─────────────────────────────────────────────────────────────────
+   editorial-connect-progress.css
+   Live progress UI for the Step-5a "Connect your data" screen.
+
+   Two surfaces:
+     1) .connect-card-progress  — inline strip beneath the card body,
+        shown while a source is mid-connect or mid-sync.
+     2) #connect-stage-overlay   — full-screen cinematic stage shown
+        the FIRST time a source connects this session, then dissolves
+        into the "We pulled in their chart" welcome overlay.
+
+   Voice rules carry through: "loved one"/"family member", "notices"/
+   "watches for". CareSignals is one word. No emojis. No italics. No
+   exclamation points anywhere in copy that ships from JS.
+   ───────────────────────────────────────────────────────────────── */
+
+/* ── Inline progress strip on a connect card ─────────────────────── */
+.connect-card-progress {
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: rgba(124, 140, 113, 0.06);
+  border-radius: 10px;
+  border: 1px solid rgba(124, 140, 113, 0.18);
+  animation: welletConnectProgressIn 0.35s ease;
+}
+.connect-card.is-progressing .connect-card-progress { display: flex; }
+/* While progressing, the chevron and the static .connect-card-sub feel
+   redundant. Tone them down but don't remove them — the user might
+   abort and we need the card to read cleanly again. */
+.connect-card.is-progressing .connect-card-chevron { opacity: 0.35; }
+
+/* The "now-stage" line: animated label + count. */
+.connect-card-progress__stage {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text-primary, #2a2f2c);
+  min-height: 20px;
+}
+.connect-card-progress__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--moss, #608F7C);
+  flex-shrink: 0;
+  animation: welletConnectPulse 1.4s ease-in-out infinite;
+}
+.connect-card-progress__label {
+  flex: 1;
+  min-width: 0;
+}
+.connect-card-progress__count {
+  font-variant-numeric: tabular-nums;
+  color: var(--moss, #608F7C);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* The thin progress bar. Driven by JS setting --p (0..1). */
+.connect-card-progress__bar {
+  position: relative;
+  height: 3px;
+  background: rgba(124, 140, 113, 0.18);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.connect-card-progress__bar::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--p, 0) * 100%);
+  background: linear-gradient(
+    90deg,
+    var(--moss, #608F7C) 0%,
+    var(--mint, #b5cdb7) 100%
+  );
+  border-radius: 99px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Honest-progress slow-path line ("Duke is taking a moment..."). */
+.connect-card-progress__hint {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary, #5e6963);
+  display: none;
+}
+.connect-card.is-slow .connect-card-progress__hint { display: block; }
+
+/* When the stage advances, the label cross-fades. */
+.connect-card-progress__label.is-changing {
+  animation: welletConnectLabelSwap 0.45s ease;
+}
+
+/* ── Full-screen cinematic stage (first connect of the session) ──── */
+#connect-stage-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10001; /* above the connect-data-screen */
+  background:
+    radial-gradient(
+      ellipse 80% 60% at 50% 30%,
+      rgba(181, 205, 183, 0.22) 0%,
+      transparent 70%
+    ),
+    #FAF7F2;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  animation: welletConnectStageFadeIn 0.45s ease;
+}
+#connect-stage-overlay.is-open { display: flex; }
+#connect-stage-overlay.is-closing { animation: welletConnectStageFadeOut 0.35s ease forwards; }
+
+.connect-stage__inner {
+  width: 100%;
+  max-width: 440px;
+  text-align: center;
+}
+
+.connect-stage__eyebrow {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-secondary, #5e6963);
+  margin-bottom: 12px;
+}
+
+.connect-stage__headline {
+  font-family: Fraunces, Georgia, serif;
+  font-size: 28px;
+  line-height: 1.18;
+  color: var(--text-primary, #2a2f2c);
+  margin: 0 0 28px 0;
+  font-weight: 400;
+}
+.connect-stage__headline em {
+  font-style: normal;
+  color: var(--moss, #608F7C);
+}
+
+.connect-stage__rings {
+  position: relative;
+  width: 168px;
+  height: 168px;
+  margin: 0 auto 32px;
+}
+.connect-stage__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(124, 140, 113, 0.22);
+  animation: welletConnectRingExpand 2.6s ease-out infinite;
+}
+.connect-stage__ring:nth-child(2) { animation-delay: 0.85s; }
+.connect-stage__ring:nth-child(3) { animation-delay: 1.7s; }
+.connect-stage__heart {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--moss, #608F7C);
+}
+.connect-stage__heart i,
+.connect-stage__heart svg {
+  width: 48px;
+  height: 48px;
+  stroke-width: 1.5;
+  animation: welletConnectHeartBeat 1.5s ease-in-out infinite;
+}
+
+.connect-stage__stages {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+  margin: 0 auto 24px;
+  max-width: 340px;
+}
+.connect-stage__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--text-secondary, #5e6963);
+  opacity: 0.5;
+  transition: opacity 0.35s ease, color 0.35s ease;
+}
+.connect-stage__row.is-active {
+  opacity: 1;
+  color: var(--text-primary, #2a2f2c);
+}
+.connect-stage__row.is-done {
+  opacity: 0.9;
+  color: var(--text-primary, #2a2f2c);
+}
+.connect-stage__row .connect-stage__icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(124, 140, 113, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--moss, #608F7C);
+  transition: background 0.35s ease;
+}
+.connect-stage__row.is-active .connect-stage__icon {
+  background: rgba(124, 140, 113, 0.22);
+}
+.connect-stage__row.is-done .connect-stage__icon {
+  background: var(--moss, #608F7C);
+  color: white;
+}
+.connect-stage__row .connect-stage__icon i,
+.connect-stage__row .connect-stage__icon svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.2;
+}
+.connect-stage__row.is-active .connect-stage__icon i,
+.connect-stage__row.is-active .connect-stage__icon svg {
+  animation: welletConnectIconSpin 1.2s linear infinite;
+}
+
+.connect-stage__hint {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary, #5e6963);
+  margin-top: 8px;
+  min-height: 18px;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.connect-stage__hint.is-visible { opacity: 1; }
+
+/* ── Keyframes ──────────────────────────────────────────────────── */
+@keyframes welletConnectProgressIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes welletConnectPulse {
+  0%, 100% { transform: scale(1);   opacity: 1;   }
+  50%      { transform: scale(1.5); opacity: 0.4; }
+}
+@keyframes welletConnectLabelSwap {
+  0%   { opacity: 0; transform: translateY(4px); }
+  100% { opacity: 1; transform: translateY(0);   }
+}
+@keyframes welletConnectStageFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes welletConnectStageFadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@keyframes welletConnectRingExpand {
+  0%   { transform: scale(0.3); opacity: 0.65; }
+  100% { transform: scale(1.0); opacity: 0;    }
+}
+@keyframes welletConnectHeartBeat {
+  0%, 100% { transform: scale(1);    }
+  35%      { transform: scale(1.08); }
+  70%      { transform: scale(0.98); }
+}
+@keyframes welletConnectIconSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* Tablet + iPad: the inline strip stays the same size, but the
+   stage overlay scales its heart and headline a touch. */
+@media (min-width: 768px) {
+  .connect-stage__headline { font-size: 32px; }
+  .connect-stage__rings { width: 192px; height: 192px; }
+  .connect-stage__heart i,
+  .connect-stage__heart svg { width: 56px; height: 56px; }
+}
+
+/* Reduced-motion respect: keep the bar and label changes, kill the
+   pulsing dot, spinning icon, and ring expansion. */
+@media (prefers-reduced-motion: reduce) {
+  .connect-card-progress__dot,
+  .connect-stage__ring,
+  .connect-stage__heart i,
+  .connect-stage__heart svg,
+  .connect-stage__row.is-active .connect-stage__icon i,
+  .connect-stage__row.is-active .connect-stage__icon svg {
+    animation: none;
+  }
+  .connect-card-progress__bar::after { transition: width 0.2s linear; }
+}
