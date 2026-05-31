@@ -761,3 +761,199 @@
   #view-signals .cs-tile__value { font-size: 32px !important; }
   #view-signals .cs-attention { padding: 26px 26px 22px !important; }
 }
+
+/* ── CareSignal dismissal chrome (2026-05-31) ─────────────────────────────
+   Kebab menu, X corner, "I handled this" / "Not worth noticing" actions,
+   Recently noticed collapsible section with dimmed cards + Restore.        */
+
+#view-signals .cs-attention__top-right {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  position: relative !important;
+}
+
+/* Kebab button */
+#view-signals .cs-attention__kebab {
+  appearance: none !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 6px !important;
+  margin: -6px -8px -6px 0 !important;
+  cursor: pointer !important;
+  color: var(--ink-5, #6E6962) !important;
+  border-radius: 8px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+  transition: background-color 120ms ease, color 120ms ease !important;
+}
+#view-signals .cs-attention__kebab:hover {
+  background: var(--ink-1, #F2EFE9) !important;
+  color: var(--ink-9, #1F1B16) !important;
+}
+#view-signals .cs-attention__kebab svg {
+  width: 16px !important;
+  height: 16px !important;
+  display: block !important;
+}
+
+/* Kebab dropdown menu */
+#view-signals .cs-kebab-menu {
+  position: absolute !important;
+  top: 100% !important;
+  right: 0 !important;
+  margin-top: 6px !important;
+  min-width: 220px !important;
+  background: #FFFFFF !important;
+  border: 1px solid var(--ink-2, #C9C2B5) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 24px rgba(31, 27, 22, 0.12) !important;
+  padding: 6px !important;
+  z-index: 30 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+}
+#view-signals .cs-kebab-menu[hidden] { display: none !important; }
+#view-signals .cs-kebab-menu button {
+  appearance: none !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 10px 12px !important;
+  text-align: left !important;
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: var(--type-body) !important;
+  font-weight: 400 !important;
+  color: var(--ink-9, #1F1B16) !important;
+  cursor: pointer !important;
+  border-radius: 8px !important;
+  white-space: nowrap !important;
+}
+#view-signals .cs-kebab-menu button:hover {
+  background: var(--ink-1, #F2EFE9) !important;
+}
+
+/* Actions row wrapping the two CTAs (replaces stacked single buttons) */
+#view-signals .cs-attention__actions {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  margin-top: 14px !important;
+}
+@media (min-width: 480px) {
+  #view-signals .cs-attention__actions {
+    flex-direction: row !important;
+  }
+  #view-signals .cs-attention__actions .cs-cta-primary,
+  #view-signals .cs-attention__actions .cs-cta-secondary {
+    flex: 1 1 0 !important;
+  }
+}
+
+/* Status badge on handled / dismissed cards */
+#view-signals .cs-attention__statusbadge {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 3px 9px !important;
+  border-radius: 999px !important;
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.02em !important;
+  text-transform: none !important;
+  color: var(--ink-7, #443F38) !important;
+  background: var(--ink-1, #F2EFE9) !important;
+  border: 1px solid var(--ink-2, #C9C2B5) !important;
+  white-space: nowrap !important;
+}
+#view-signals .cs-attention__statusbadge--acted_on {
+  color: #2F5A3F !important;
+  background: #E8F0EA !important;
+  border-color: #C8DDD0 !important;
+}
+#view-signals .cs-attention__statusbadge--dismissed {
+  color: var(--ink-6, #57534C) !important;
+  background: var(--ink-1, #F2EFE9) !important;
+  border-color: var(--ink-2, #C9C2B5) !important;
+}
+
+/* Restore button on dimmed handled cards */
+#view-signals .cs-attention__restore {
+  appearance: none !important;
+  background: transparent !important;
+  border: 1px solid var(--ink-2, #C9C2B5) !important;
+  border-radius: 999px !important;
+  padding: 4px 12px !important;
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: var(--ink-7, #443F38) !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+}
+#view-signals .cs-attention__restore:hover {
+  background: var(--ink-1, #F2EFE9) !important;
+}
+
+/* Dimmed handled card variant — lives in Recently noticed list */
+#view-signals .cs-attention--handled {
+  opacity: 0.72 !important;
+  background: var(--paper-1, #FAF8F3) !important;
+  box-shadow: none !important;
+}
+#view-signals .cs-attention--handled .cs-attention__title {
+  color: var(--ink-7, #443F38) !important;
+}
+#view-signals .cs-attention--handled .cs-attention__body {
+  color: var(--ink-5, #6E6962) !important;
+}
+
+/* Recently noticed collapsible section */
+#view-signals .cs-section--recently {
+  margin-top: 8px !important;
+}
+#view-signals .cs-recently {
+  background: transparent !important;
+  border-top: 1px solid var(--ink-2, #C9C2B5) !important;
+  padding-top: 16px !important;
+}
+#view-signals .cs-recently__summary {
+  list-style: none !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 4px 0 !important;
+  user-select: none !important;
+}
+#view-signals .cs-recently__summary::-webkit-details-marker { display: none !important; }
+#view-signals .cs-recently__summary::marker { content: '' !important; }
+#view-signals .cs-recently__count {
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: var(--ink-5, #6E6962) !important;
+  background: var(--ink-1, #F2EFE9) !important;
+  padding: 1px 8px !important;
+  border-radius: 999px !important;
+  min-width: 22px !important;
+  text-align: center !important;
+}
+#view-signals .cs-recently__chev {
+  margin-left: auto !important;
+  font-size: 14px !important;
+  color: var(--ink-5, #6E6962) !important;
+  transition: transform 160ms ease !important;
+  display: inline-block !important;
+}
+#view-signals .cs-recently[open] .cs-recently__chev {
+  transform: rotate(180deg) !important;
+}
+#view-signals .cs-recently__list {
+  margin-top: 14px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+}

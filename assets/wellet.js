@@ -15340,6 +15340,8 @@ function _buildMetricTileHtml(tile) {
 function _buildCareSignalCardHtml(signal, sigFirstName, primaryCtaLabel, secondaryCtaLabel) {
   if (!signal) return '';
   var sev = (signal.severity || 'notice').toLowerCase();
+  var status = (signal.status || 'active').toLowerCase();
+  var isHandled = (status === 'acted_on' || status === 'dismissed' || status === 'resolved');
   var eyebrowLabel = signal.display_eyebrow || (sev === 'attention' ? 'ATTENTION' : (sev === 'urgent' ? 'URGENT' : 'NOTICE'));
   var eyebrowClass = 'cs-attention__eyebrow';
   if (sev !== 'attention' && sev !== 'urgent') eyebrowClass += ' cs-attention__eyebrow--notice';
@@ -15347,11 +15349,30 @@ function _buildCareSignalCardHtml(signal, sigFirstName, primaryCtaLabel, seconda
   var stamp = _csFormatStamp(stampSrc);
   var rows = Array.isArray(signal.display_evidence_rows) ? signal.display_evidence_rows : [];
   var tiles = Array.isArray(signal.display_metric_tiles) ? signal.display_metric_tiles.slice(0, 3) : [];
+  var sid = escHtml(signal.id || '');
 
-  var html = '<article class="cs-attention" data-care-signal-id="' + escHtml(signal.id || '') + '" aria-label="CareSignal">';
+  var articleCls = 'cs-attention' + (isHandled ? ' cs-attention--handled' : '');
+  var html = '<article class="' + articleCls + '" data-care-signal-id="' + sid + '" data-status="' + escHtml(status) + '" aria-label="CareSignal">';
   html += '<div class="cs-attention__top">';
   html += '<span class="' + eyebrowClass + '">' + escHtml(eyebrowLabel) + '</span>';
+  html += '<div class="cs-attention__top-right">';
   if (stamp) html += '<span class="cs-attention__stamp">' + escHtml(stamp) + '</span>';
+  if (isHandled) {
+    var badge = status === 'acted_on' ? 'Handled' : (status === 'dismissed' ? 'Dismissed' : 'Resolved');
+    html += '<span class="cs-attention__statusbadge cs-attention__statusbadge--' + escHtml(status) + '">' + escHtml(badge) + '</span>';
+  }
+  if (!isHandled) {
+    html += '<button type="button" class="cs-attention__kebab" aria-label="More actions" onclick="_onCareSignalKebab(event, \'' + sid + '\')">';
+    html += '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="3.5" r="1.3" fill="currentColor"/><circle cx="8" cy="8" r="1.3" fill="currentColor"/><circle cx="8" cy="12.5" r="1.3" fill="currentColor"/></svg>';
+    html += '</button>';
+    html += '<div class="cs-kebab-menu" role="menu" hidden>';
+    html += '<button type="button" role="menuitem" onclick="_onCareSignalSavePrecall(\'' + sid + '\')">Save to Before you call</button>';
+    html += '<button type="button" role="menuitem" onclick="_onCareSignalShare(\'' + sid + '\', \'' + escHtml(sigFirstName || '') + '\')">Share with ' + escHtml(sigFirstName || 'family') + '</button>';
+    html += '</div>';
+  } else {
+    html += '<button type="button" class="cs-attention__restore" onclick="_onCareSignalRestore(\'' + sid + '\')" aria-label="Restore">Restore</button>';
+  }
+  html += '</div>';
   html += '</div>';
   if (signal.headline) html += '<h2 class="cs-attention__title">' + escHtml(signal.headline) + '</h2>';
   if (signal.body) html += '<p class="cs-attention__body">' + escHtml(signal.body) + '</p>';
@@ -15368,19 +15389,93 @@ function _buildCareSignalCardHtml(signal, sigFirstName, primaryCtaLabel, seconda
     for (var k = tiles.length; k < 3; k++) html += '<div class="cs-tile" aria-hidden="true"></div>';
     html += '</div>';
   }
-  var primary = primaryCtaLabel || 'Save to Before you call';
-  var secondary = secondaryCtaLabel || ('Share with ' + sigFirstName);
-  html += '<button type="button" class="cs-cta-primary" onclick="_onCareSignalPrimary(\'' + escHtml(signal.id || '') + '\')">' + escHtml(primary) + '</button>';
-  html += '<button type="button" class="cs-cta-secondary" onclick="_onCareSignalSecondary(\'' + escHtml(signal.id || '') + '\')">' + escHtml(secondary) + '</button>';
+  if (!isHandled) {
+    html += '<div class="cs-attention__actions">';
+    html += '<button type="button" class="cs-cta-primary" onclick="_onCareSignalHandled(\'' + sid + '\')">I handled this</button>';
+    html += '<button type="button" class="cs-cta-secondary" onclick="_onCareSignalDismiss(\'' + sid + '\')">Not worth noticing</button>';
+    html += '</div>';
+  }
   html += '</article>';
   return html;
 }
-function _onCareSignalPrimary(signalId) {
-  try { if (typeof showToast === 'function') showToast('Saved to Before you call.'); } catch(_e) {}
+
+// ── CareSignal action handlers ───────────────────────────────────────────
+// Hits POST /functions/v1/care-signal-action with the current user JWT.
+// Idempotent server-side; refreshes the Signals view on success.
+async function _csCallAction(signalId, action, opts) {
+  opts = opts || {};
+  if (!signalId || !action) return { ok: false, error: 'missing signal_id or action' };
+  try {
+    var sess = (await db.auth.getSession()).data.session;
+    if (!sess || !sess.access_token) return { ok: false, error: 'not signed in' };
+    var body = { signal_id: signalId, action: action };
+    if (opts.note) body.note = String(opts.note).slice(0, 500);
+    var res = await fetch(SUPABASE_URL + '/functions/v1/care-signal-action', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + sess.access_token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify(body)
+    });
+    var data = null;
+    try { data = await res.json(); } catch(_e) {}
+    if (!res.ok) return { ok: false, error: (data && data.error) || ('HTTP ' + res.status) };
+    return { ok: true, status: data && data.status, status_changed_at: data && data.status_changed_at };
+  } catch (e) {
+    console.error('[CareSignal] action error', action, e);
+    return { ok: false, error: e && e.message || String(e) };
+  }
 }
-function _onCareSignalSecondary(signalId) {
-  try { if (typeof showToast === 'function') showToast('Share sheet coming next.'); } catch(_e) {}
+async function _onCareSignalHandled(signalId) {
+  var r = await _csCallAction(signalId, 'acted_on');
+  try { if (typeof showToast === 'function') showToast(r.ok ? 'Marked as handled.' : 'Could not save — try again.'); } catch(_e){}
+  if (r.ok && typeof renderSignalsView === 'function') { try { renderSignalsView(); } catch(_e){} }
 }
+async function _onCareSignalDismiss(signalId) {
+  var r = await _csCallAction(signalId, 'dismissed');
+  try { if (typeof showToast === 'function') showToast(r.ok ? 'Dismissed.' : 'Could not dismiss — try again.'); } catch(_e){}
+  if (r.ok && typeof renderSignalsView === 'function') { try { renderSignalsView(); } catch(_e){} }
+}
+async function _onCareSignalRestore(signalId) {
+  var r = await _csCallAction(signalId, 'restore');
+  try { if (typeof showToast === 'function') showToast(r.ok ? 'Restored.' : 'Could not restore — try again.'); } catch(_e){}
+  if (r.ok && typeof renderSignalsView === 'function') { try { renderSignalsView(); } catch(_e){} }
+}
+function _onCareSignalKebab(ev, signalId) {
+  try { ev.stopPropagation(); } catch(_e){}
+  var card = document.querySelector('.cs-attention[data-care-signal-id="' + signalId + '"]');
+  if (!card) return;
+  var menu = card.querySelector('.cs-kebab-menu');
+  if (!menu) return;
+  // Close other open menus first
+  document.querySelectorAll('.cs-kebab-menu:not([hidden])').forEach(function(m){ if (m !== menu) m.hidden = true; });
+  menu.hidden = !menu.hidden;
+  if (!menu.hidden) {
+    var closeFn = function(e) {
+      if (!menu.contains(e.target) && !e.target.closest('.cs-attention__kebab')) {
+        menu.hidden = true;
+        document.removeEventListener('click', closeFn, true);
+      }
+    };
+    setTimeout(function(){ document.addEventListener('click', closeFn, true); }, 0);
+  }
+}
+function _onCareSignalSavePrecall(signalId) {
+  // Close menu and show toast — wire up Before-you-call save in next pass.
+  var card = document.querySelector('.cs-attention[data-care-signal-id="' + signalId + '"]');
+  if (card) { var m = card.querySelector('.cs-kebab-menu'); if (m) m.hidden = true; }
+  try { if (typeof showToast === 'function') showToast('Saved to Before you call.'); } catch(_e){}
+}
+function _onCareSignalShare(signalId, firstName) {
+  var card = document.querySelector('.cs-attention[data-care-signal-id="' + signalId + '"]');
+  if (card) { var m = card.querySelector('.cs-kebab-menu'); if (m) m.hidden = true; }
+  try { if (typeof showToast === 'function') showToast('Share sheet coming next.'); } catch(_e){}
+}
+// Legacy entry points (kept for any external callers)
+function _onCareSignalPrimary(signalId) { return _onCareSignalHandled(signalId); }
+function _onCareSignalSecondary(signalId) { return _onCareSignalDismiss(signalId); }
 
 // ── CareSignals v2: 5-section editorial shell ─────────────────────────────
 // Sections (top to bottom):
@@ -15427,12 +15522,12 @@ async function _paintSignals(el, sigFirstName, activeConns, terraData) {
         _loadEhrTrends(personId)
           .catch(function(e){ console.error('[Signals] EHR trends load error', e); return null; }),
         db.from('care_signals')
-          .select('id, signal_type, pattern_key, severity, status, noticed_at, noticed_event_at, window_start, window_end, occurrence_number, headline, body, evidence_jsonb, display_evidence_rows, display_metric_tiles, display_eyebrow, display_stamp_at')
+          .select('id, signal_type, pattern_key, severity, status, status_changed_at, acted_on_at, noticed_at, noticed_event_at, window_start, window_end, occurrence_number, headline, body, evidence_jsonb, display_evidence_rows, display_metric_tiles, display_eyebrow, display_stamp_at')
           .eq('person_id', personId)
-          .eq('status', 'active')
+          .in('status', ['active', 'acted_on', 'dismissed'])
           .order('noticed_event_at', { ascending: false, nullsFirst: false })
           .order('noticed_at', { ascending: false })
-          .limit(20)
+          .limit(40)
           .then(function(r){ return (r && r.data) || []; })
           .catch(function(e){ console.error('[Signals] care_signals v2 load error', e); return []; })
       ]);
@@ -15477,17 +15572,35 @@ async function _paintSignals(el, sigFirstName, activeConns, terraData) {
 
   // ── 1. Right Now ───────────────────────────────────────────────────────
   // Rich CareSignal cards stacked. Falls back to legacy one-line summary if v2 empty.
+  // Split into active (top) and recently noticed (handled/dismissed, collapsible below).
+  var _csActive = [];
+  var _csRecent = [];
   if (careSignalsV2 && careSignalsV2.length) {
+    for (var _csIdx = 0; _csIdx < careSignalsV2.length; _csIdx++) {
+      var _cs = careSignalsV2[_csIdx];
+      var _csStat = (_cs && _cs.status) ? String(_cs.status).toLowerCase() : 'active';
+      if (_csStat === 'acted_on' || _csStat === 'dismissed' || _csStat === 'resolved') _csRecent.push(_cs);
+      else _csActive.push(_cs);
+    }
+    // Cap recently noticed to last 10 by status_changed_at desc
+    _csRecent.sort(function(a, b){
+      var ta = a && (a.status_changed_at || a.acted_on_at || a.noticed_event_at || a.noticed_at) || '';
+      var tb = b && (b.status_changed_at || b.acted_on_at || b.noticed_event_at || b.noticed_at) || '';
+      return tb.localeCompare(ta);
+    });
+    if (_csRecent.length > 10) _csRecent = _csRecent.slice(0, 10);
+  }
+  if (_csActive.length) {
     ch += '<section class="cs-section cs-section--rightnow">';
     ch += '<div class="cs-section-head">';
     ch += '<div class="cs-section-eyebrow">Right now</div>';
     ch += '<button type="button" class="cs-all-chip" onclick="navigateTo(\'timeline\')">All signals</button>';
     ch += '</div>';
-    for (var csi = 0; csi < careSignalsV2.length; csi++) {
-      ch += _buildCareSignalCardHtml(careSignalsV2[csi], sigFirstName);
+    for (var csi = 0; csi < _csActive.length; csi++) {
+      ch += _buildCareSignalCardHtml(_csActive[csi], sigFirstName);
     }
     ch += '</section>';
-  } else {
+  } else if (!_csRecent.length) {
     var rightNowLine = _buildRightNowLine(sigFirstName, checkIns, activeConns, terraData, rhythmAH);
     if (rightNowLine) {
       ch += '<section class="cs-section cs-section--rightnow">';
@@ -15495,6 +15608,23 @@ async function _paintSignals(el, sigFirstName, activeConns, terraData) {
       ch += '<p class="cs-rightnow-line">' + rightNowLine + '</p>';
       ch += '</section>';
     }
+  }
+  // Recently noticed (handled / dismissed) — collapsible, dimmed cards with Restore
+  if (_csRecent.length) {
+    ch += '<section class="cs-section cs-section--recently">';
+    ch += '<details class="cs-recently">';
+    ch += '<summary class="cs-recently__summary">';
+    ch += '<span class="cs-section-eyebrow">Recently noticed</span>';
+    ch += '<span class="cs-recently__count">' + _csRecent.length + '</span>';
+    ch += '<span class="cs-recently__chev" aria-hidden="true">' + '\u25BE' + '</span>';
+    ch += '</summary>';
+    ch += '<div class="cs-recently__list">';
+    for (var cri = 0; cri < _csRecent.length; cri++) {
+      ch += _buildCareSignalCardHtml(_csRecent[cri], sigFirstName);
+    }
+    ch += '</div>';
+    ch += '</details>';
+    ch += '</section>';
   }
 
   // ── 2. What to notice ─────────────────────────────────────────────────
