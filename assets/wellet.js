@@ -22296,6 +22296,191 @@ function conditionToSlugs(condStr) {
   return Object.keys(slugs);
 }
 
+// ── CAREGIVER PAY PROGRAMS ─────────────────────────────────────────────────
+// Surfaces 1-4 federal/state programs that may pay the family caregiver, the
+// loved one's clinic, or both, based on diagnosis and insurance signals in
+// the chart. Informational only — Wellet does not pay caregivers and does not
+// guarantee program approval. We surface eligibility; the family applies.
+//
+// Feature flag: localStorage.getItem('wellet_caregiver_pay_cards') — defaults
+// to '1' (on). Set to '0' to hide instantly if compliance feedback comes in.
+var CAREGIVER_PAY_PREF_KEY = 'wellet_caregiver_pay_cards';
+function isCaregiverPayEnabled() {
+  try {
+    var v = localStorage.getItem(CAREGIVER_PAY_PREF_KEY);
+    return v === null || v === '1';
+  } catch (e) { return true; }
+}
+
+// Four programs. Order is the default sort priority when no diagnosis signal
+// boosts a specific card. Matching boosts move the most-relevant card to top.
+var CAREGIVER_PAY_PROGRAMS = [
+  {
+    id: 'medicare_cts',
+    eyebrow: 'Medicare \u00b7 any care plan',
+    title: 'Ask your loved one\u2019s clinic to bill caregiver training',
+    body: 'Medicare pays physicians and therapists to train family caregivers \u2014 codes 96202, 97550, and G0541. There is no diagnosis restriction. Most clinics do not bill it because no one asks.',
+    primaryCtaLabel: 'Open the CMS FAQ',
+    primaryCtaUrl: 'https://www.cms.gov/files/document/health-related-social-needs-faq.pdf',
+    secondaryCtaLabel: 'How Wellet helps',
+    secondaryCtaUrl: 'https://getwellet.com/use-cases.html#medicare-cts',
+    dollarBadge: 'Per session',
+    defaultPriority: 1
+  },
+  {
+    id: 'va_pcafc',
+    eyebrow: 'VA \u00b7 service-connected veterans',
+    title: 'VA may pay you up to $2,500/month tax-free to care for your veteran',
+    body: 'The VA Program of Comprehensive Assistance for Family Caregivers pays primary family caregivers directly. Your veteran needs a serious service-connected condition and a documented care need. Wellet helps you gather the records the application requires.',
+    primaryCtaLabel: 'Check PCAFC eligibility',
+    primaryCtaUrl: 'https://www.caregiver.va.gov/support/PCAFC-Stipend.asp',
+    secondaryCtaLabel: 'How Wellet helps',
+    secondaryCtaUrl: 'https://getwellet.com/use-cases.html#va-pcafc',
+    dollarBadge: 'Up to $2,500/mo',
+    defaultPriority: 2
+  },
+  {
+    id: 'medicaid_sfc',
+    eyebrow: 'Medicaid \u00b7 state-by-state',
+    title: 'Your state\u2019s Medicaid may pay you up to $1,100/month',
+    body: 'Structured Family Caregiving pays a family member who lives with and provides daily care for a Medicaid-eligible loved one with a nursing-home-level care need. North Carolina partners with Careforth. Other states use different agencies.',
+    primaryCtaLabel: 'See if your loved one qualifies (NC)',
+    primaryCtaUrl: 'https://join.careforth.com/nc/',
+    secondaryCtaLabel: 'Find your state\u2019s program',
+    secondaryCtaUrl: 'https://www.medicaidplanningassistance.org/structured-family-caregiving/',
+    dollarBadge: 'Up to $1,100/mo (NC)',
+    defaultPriority: 3
+  },
+  {
+    id: 'cms_guide',
+    eyebrow: 'Medicare \u00b7 dementia',
+    title: 'GUIDE may add up to $2,500/year in respite if your loved one has dementia',
+    body: 'The CMS GUIDE Model pays participating clinics to deliver dementia care management and pays for up to $2,500/year of respite services so you can rest. Around 400 organizations participate nationwide.',
+    primaryCtaLabel: 'Find a GUIDE participant',
+    primaryCtaUrl: 'https://www.cms.gov/priorities/innovation/innovation-models/guide',
+    secondaryCtaLabel: 'How Wellet helps',
+    secondaryCtaUrl: 'https://getwellet.com/use-cases.html#cms-guide',
+    dollarBadge: 'Up to $2,500/yr',
+    defaultPriority: 4
+  }
+];
+
+// Returns the ordered list of programs to show for this person plus a
+// per-program "why" line when we can show one. v1 uses chart-condition
+// signals only; v2 will add insurance + ADL signals from CareSignals.
+function getCaregiverPayMatches(person) {
+  if (!isCaregiverPayEnabled()) return [];
+  if (!person) {
+    return CAREGIVER_PAY_PROGRAMS.map(function(p){ return { program: p, why: null, score: p.defaultPriority }; });
+  }
+
+  var conditionsRaw = (person.conditions || '').toLowerCase();
+  var slugs = conditionToSlugs(person.conditions || '');
+  var slugSet = {};
+  slugs.forEach(function(s) { slugSet[s] = true; });
+
+  // Detect VA chart connection. Wellet tags VA Lighthouse connections under
+  // a few possible flags; check the most reliable signals first.
+  var hasVaConnection = false;
+  try {
+    var conns = (person.ehr_connections || person.connections || []);
+    if (Array.isArray(conns)) {
+      hasVaConnection = conns.some(function(c){
+        var v = (c && (c.vendor || c.system || c.provider) || '').toLowerCase();
+        var name = (c && c.hospital_name || '').toLowerCase();
+        return v.indexOf('va') === 0 || v.indexOf('lighthouse') >= 0 || name.indexOf('va.gov') >= 0 || name.indexOf('veterans') >= 0;
+      });
+    }
+    if (!hasVaConnection && person.is_veteran === true) hasVaConnection = true;
+  } catch (e) { /* defensive */ }
+
+  return CAREGIVER_PAY_PROGRAMS.map(function(p) {
+    var score = p.defaultPriority * 10; // lower is higher
+    var why = null;
+
+    if (p.id === 'cms_guide' && slugSet.dementia) {
+      score = 1;
+      why = 'Surfaced first because your loved one\u2019s chart lists dementia.';
+    } else if (p.id === 'cms_guide' && slugSet.alzheimers) {
+      score = 1;
+      why = 'Surfaced first because your loved one\u2019s chart lists Alzheimer\u2019s.';
+    } else if (p.id === 'va_pcafc' && hasVaConnection) {
+      score = 2;
+      why = 'Surfaced first because a VA chart is connected.';
+    } else if (p.id === 'medicare_cts') {
+      // CTS applies to any care plan. Keep it near the top — it\u2019s the
+      // most universally accessible signal.
+      score = Math.min(score, 5);
+    }
+
+    return { program: p, why: why, score: score };
+  }).sort(function(a, b) { return a.score - b.score; });
+}
+
+// Logs a card view / cta tap to Supabase if a user is signed in. Best-effort.
+function _logCaregiverPayEvent(eventType, cardId, ctaLabel) {
+  try {
+    if (!currentUser || !db || isDemoMode) return;
+    db.from('resource_card_events').insert({
+      user_id: currentUser.id,
+      care_recipient_id: currentPersonId || null,
+      card_id: cardId,
+      event_type: eventType,
+      cta: ctaLabel || null
+    }).then(function(){ /* best-effort */ }, function(){ /* swallow */ });
+  } catch (e) { /* swallow */ }
+}
+// Expose for inline onclick handlers in the card markup.
+try { window.logCaregiverPayCta = function(cardId, ctaLabel) { _logCaregiverPayEvent('cta_tap', cardId, ctaLabel); }; } catch(e) {}
+
+function renderCaregiverPaySection(person) {
+  if (!isCaregiverPayEnabled()) return '';
+  var matches = getCaregiverPayMatches(person);
+  if (!matches.length) return '';
+
+  var personName = (person && person.name) ? person.name.split(' ')[0] : 'your loved one';
+  var html = '<div class="resources-section caregiver-pay-section">';
+  html += '<div class="resources-section-title">Caregiver pay programs</div>';
+  html += '<p class="caregiver-pay-eyebrow" style="margin:4px 0 18px;color:var(--text-muted);font-size:var(--type-meta);line-height:1.45;">'
+       +  'Programs that may pay you, your family, or '
+       +  escHtml(personName) + '\u2019s clinic \u2014 based on her diagnosis and coverage.'
+       +  '</p>';
+
+  for (var i = 0; i < matches.length; i++) {
+    var m = matches[i];
+    var p = m.program;
+    var cardId = escHtml(p.id);
+    html += '<div class="resource-card caregiver-pay-card" data-card-id="' + cardId + '" style="border-left:3px solid #b8956b;">';
+    html += '<div class="resource-card-header">';
+    html += '<div class="resource-card-name" style="line-height:1.3;">' + escHtml(p.title) + '</div>';
+    html += '<span class="resource-tag" style="background:#faf3e8;color:#8a6a3f;border:1px solid #e8d5b0;flex-shrink:0;">' + escHtml(p.dollarBadge) + '</span>';
+    html += '</div>';
+    html += '<div class="caregiver-pay-eyebrow-row" style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#b8956b;font-weight:600;margin:6px 0 8px;">' + escHtml(p.eyebrow) + '</div>';
+    if (m.why) {
+      html += '<p class="resources-why" style="margin:0 0 10px;font-style:normal;color:var(--text-muted);font-size:var(--type-meta);">' + escHtml(m.why) + '</p>';
+    }
+    html += '<div class="resource-card-desc">' + escHtml(p.body) + '</div>';
+    html += '<div class="resource-card-actions">';
+    html += '<a class="resource-btn resource-btn-visit" href="' + escHtml(p.primaryCtaUrl) + '" target="_blank" rel="noopener noreferrer" '
+         +  'onclick="try{logCaregiverPayCta(\'' + cardId + '\',\'primary\')}catch(e){}">'
+         +  '<i data-lucide="external-link" style="width:14px;height:14px;"></i> ' + escHtml(p.primaryCtaLabel)
+         +  '</a>';
+    if (p.secondaryCtaUrl) {
+      html += '<a class="resource-btn" href="' + escHtml(p.secondaryCtaUrl) + '" target="_blank" rel="noopener noreferrer" '
+           +  'style="background:transparent;color:var(--text-muted);" '
+           +  'onclick="try{logCaregiverPayCta(\'' + cardId + '\',\'secondary\')}catch(e){}">'
+           +  escHtml(p.secondaryCtaLabel) + ' \u2192</a>';
+    }
+    html += '</div></div>';
+  }
+
+  html += '<p class="caregiver-pay-disclaimer" style="margin:18px 0 4px;color:var(--text-muted);font-size:11px;line-height:1.5;">'
+       +  'Wellet does not pay caregivers and does not guarantee program approval. Eligibility and payment amounts are set by each program. We surface programs that may match your loved one\u2019s diagnosis, coverage, and care needs \u2014 you apply directly to the program.'
+       +  '</p>';
+  html += '</div>';
+  return html;
+}
+
 async function loadResources() {
   if (_resourcesLoaded && _resourcesCache.length > 0) return;
   var { data, error } = await db.from('caregiver_resources').select('*').eq('vetted', true).order('name');
@@ -22447,6 +22632,9 @@ async function renderResourcesView() {
   // Legacy title/sub kept in markup for back-compat; CSS hides them.
   html += '<div class="resources-view-title">Resources</div>';
   html += '<div class="resources-view-sub">Vetted organizations that support caregivers like you. Bookmark any to save for later.</div>';
+
+  // Caregiver-pay programs section (top of Resources).
+  html += renderCaregiverPaySection(person);
 
   // Saved section
   if (saved.length > 0) {
