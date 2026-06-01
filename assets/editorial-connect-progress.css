@@ -249,6 +249,32 @@
 }
 .connect-stage__hint.is-visible { opacity: 1; }
 
+/* Cancel button — always visible during the cinematic stage so users
+   are never stranded. Quiet text-button style; matches editorial voice. */
+.connect-stage__cancel {
+  display: inline-block;
+  margin-top: 28px;
+  padding: 8px 18px;
+  background: transparent;
+  border: 1px solid rgba(94, 105, 99, 0.4);
+  border-radius: 999px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  line-height: 1.2;
+  color: var(--text-secondary, #5e6963);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+.connect-stage__cancel:hover,
+.connect-stage__cancel:focus-visible {
+  background: rgba(94, 105, 99, 0.08);
+  border-color: rgba(94, 105, 99, 0.6);
+  color: var(--text-primary, #1f2a26);
+  outline: none;
+}
+.connect-stage__cancel:active { transform: translateY(1px); }
+
 /* ── Keyframes ──────────────────────────────────────────────────── */
 @keyframes welletConnectProgressIn {
   from { opacity: 0; transform: translateY(-4px); }

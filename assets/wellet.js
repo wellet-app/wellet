@@ -2616,7 +2616,9 @@ var _CONNECT_SLOW_PATH_MS = 20000;
 // Absolute safety timeout — if nothing has resolved by then, treat as
 // complete so the UI never sits forever. The real fetch may still be
 // in-flight; the existing welcome overlay / toast will land when it does.
-var _CONNECT_HARD_TIMEOUT_MS = 90000;
+// Reduced from 90s to 30s on 2026-06-01 — FTU testing showed the cinematic
+// overlay was stranding users for too long on first-tap onboarding.
+var _CONNECT_HARD_TIMEOUT_MS = 30000;
 
 // Per-source state, keyed by source ('ehr' | 'apple' | 'google' | 'terra' | 'va').
 var _connectProgressState = {};
@@ -2783,9 +2785,41 @@ function _ensureStageOverlay() {
     +   '</div>'
     +   '<div class="connect-stage__stages"></div>'
     +   '<div class="connect-stage__hint"></div>'
+    +   '<button type="button" class="connect-stage__cancel" id="connect-stage-cancel" aria-label="Cancel connecting">Cancel</button>'
     + '</div>';
   document.body.appendChild(el);
+  // Wire the Cancel button. It tears down all sources' progress state and
+  // closes the overlay so the user is never stranded.
+  try {
+    var cancelBtn = el.querySelector('#connect-stage-cancel');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', function(){
+        try { _cancelAllConnectProgress(); } catch(_e) {}
+        _hideStageOverlay();
+      });
+    }
+  } catch(_e) {}
   return el;
+}
+
+// Cancel all in-flight connect progress state. Clears intervals/timeouts,
+// clears the inline strip, and drops the marker so the next attempt starts
+// clean. Does NOT roll back any underlying OAuth — the network call may
+// still resolve in the background; we just stop showing the UI.
+function _cancelAllConnectProgress() {
+  var sources = Object.keys(_connectProgressState || {});
+  for (var i = 0; i < sources.length; i++) {
+    var source = sources[i];
+    var s = _connectProgressState[source];
+    if (!s) continue;
+    s.terminalRequested = true;
+    if (s.tickId) { try { clearInterval(s.tickId); } catch(_e){} }
+    if (s.slowId) { try { clearTimeout(s.slowId); } catch(_e){} }
+    if (s.hardId) { try { clearTimeout(s.hardId); } catch(_e){} }
+    _clearInlineProgress(source);
+    try { sessionStorage.removeItem('wellet_connect_progress_' + source); } catch(_e) {}
+    delete _connectProgressState[source];
+  }
 }
 
 function _showStageOverlay(source, stages, ctx) {
