@@ -1496,7 +1496,49 @@ async function verifyAuthCode() {
       }
     }
   } catch (e) { /* never block sign-in on attribution */ }
-  setTimeout(function(){ window.location.reload(); }, 200);
+
+  // Wait for the Supabase session to actually be written to localStorage before
+  // reloading. On slow iOS Safari networks, supabase-js writes the session
+  // asynchronously AFTER verifyOtp() resolves \u2014 the previous fixed 200ms
+  // timeout raced this write and the reloaded page found no session, dumping
+  // the user back to the OTP entry screen even though server-side verify
+  // succeeded (Supabase auth log shows status:200, login_method:otp, but the
+  // browser had no token to rehydrate). We now poll localStorage for up to 5s
+  // and only reload once the storage key is populated. If 5s passes without
+  // the key landing (extremely degraded network), we still reload as a last
+  // resort \u2014 the auth-state listener may have stashed it in memory and
+  // the next session check will pick it up.
+  var _sessionWaitStart = Date.now();
+  function _waitForSessionThenReload() {
+    var stored = false;
+    try {
+      var v = localStorage.getItem('sb-wellet-auth');
+      if (v && v.length > 20) stored = true;
+    } catch(e) {}
+    if (stored) {
+      // Hard-reload so the rest of the app picks up the session cleanly.
+      window.location.reload();
+      return;
+    }
+    if (Date.now() - _sessionWaitStart > 5000) {
+      // Belt-and-suspenders: write the session ourselves from the verifyOtp
+      // response so the reload has SOMETHING to find. Supabase JS uses the
+      // shape { currentSession, expiresAt } for its storage value.
+      try {
+        if (data && data.session) {
+          var payload = {
+            currentSession: data.session,
+            expiresAt: data.session.expires_at
+          };
+          localStorage.setItem('sb-wellet-auth', JSON.stringify(payload));
+        }
+      } catch(e) {}
+      window.location.reload();
+      return;
+    }
+    setTimeout(_waitForSessionThenReload, 100);
+  }
+  _waitForSessionThenReload();
 }
 
 async function resendAuthCode() {
@@ -19285,11 +19327,86 @@ function disconnectVa() {
 // (a wearable_observations row or people.apple_health_last_sync_at stamp).
 // Until then we show a softer "finishing up" toast and let
 // refreshConnectScreenStatus do the actual card update on its next read.
+// Detect whether this browser tab has a usable Supabase session in localStorage.
+// We check the raw storage key (not db.auth.getSession()) because the new Safari
+// tab opened by Wellet Connect's universal-link return may have a partitioned
+// storage view where Supabase's in-memory client hasn't rehydrated yet. If the
+// raw token is present, the auth listener will catch up shortly; if it is
+// absent, we know the new tab is isolated from the original tab's session and
+// we render a soft landing instead of dumping the user at the auth gate.
+function _hasStoredSupabaseSession() {
+  try {
+    var keys = ['sb-wellet-auth', 'sb-nrpdhxygzyfmyljzfexv-auth-token'];
+    for (var i = 0; i < keys.length; i++) {
+      var raw = localStorage.getItem(keys[i]);
+      if (raw && raw.length > 20) return true;
+    }
+    // Walk all localStorage keys for any sb-*-auth-token pattern (defensive
+    // against future Supabase storage-key changes).
+    for (var j = 0; j < localStorage.length; j++) {
+      var k = localStorage.key(j);
+      if (k && /^sb-.*-auth-token$/.test(k)) {
+        var v = localStorage.getItem(k);
+        if (v && v.length > 20) return true;
+      }
+    }
+  } catch(e) {}
+  return false;
+}
+
+// Render a soft landing for the no-session case (Safari opened the universal
+// link in a brand-new tab that doesn't share storage with the original Wellet
+// tab). We tell the user the connection succeeded and point them back to their
+// existing tab \u2014 no harsh auth screen, no "sign in again" confusion.
+function _renderConnectCallbackSoftLanding(mode, status) {
+  try {
+    var label = 'Apple Health';
+    if (mode === 'ehr') label = 'Health records';
+    else if (mode === 'terra') label = 'Your wearable';
+    var headline = status === 'ok'
+      ? label + ' is connected.'
+      : label + ' didn\u2019t finish connecting.';
+    var body = status === 'ok'
+      ? 'You can close this tab and switch back to your Wellet tab to see it. If you don\u2019t have one open, tap below.'
+      : 'Switch back to your Wellet tab and try again. If that doesn\u2019t work, tap below to start fresh.';
+    var ctaLabel = 'Open Wellet';
+    var html = ''
+      + '<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;background:#f7f5ee;color:#2c3a30;font-family:\'DM Sans\',system-ui,-apple-system,sans-serif;font-weight:300;line-height:1.5;">'
+      + '<div style="max-width:380px;">'
+      + '<div style="width:64px;height:64px;border-radius:50%;background:#e9efe6;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;">'
+      + '<span style="font-family:\'Fraunces\',Georgia,serif;font-size:32px;color:#608F7C;">' + (status === 'ok' ? '\u2713' : '!') + '</span>'
+      + '</div>'
+      + '<h1 style="font-family:\'Fraunces\',Georgia,serif;font-weight:300;font-size:28px;line-height:1.2;color:#4a7361;margin:0 0 12px;letter-spacing:-0.01em;">' + headline + '</h1>'
+      + '<p style="font-size:15px;color:#6b7a6f;margin:0 0 28px;">' + body + '</p>'
+      + '<a href="/" style="display:inline-block;padding:14px 28px;background:#608F7C;color:#f7f5ee;text-decoration:none;border-radius:999px;font-weight:400;font-size:16px;-webkit-tap-highlight-color:transparent;">' + ctaLabel + '</a>'
+      + '<p style="margin-top:32px;font-size:13px;color:#6b7a6f;">Already signed in on another tab? Just close this one.</p>'
+      + '</div>'
+      + '</div>';
+    document.body.innerHTML = html;
+    document.title = 'Wellet \u2014 ' + (status === 'ok' ? 'Connected' : 'Try again');
+  } catch(e) {
+    // If anything goes wrong building the landing, fall back to a redirect home.
+    try { window.location.replace('/'); } catch(_e) {}
+  }
+}
+
 function handleConnectCallback() {
   if (window.location.pathname !== '/connect-callback') return;
   var params = new URLSearchParams(window.location.search);
   var status = params.get('status');
   var mode = (params.get('mode') || 'apple').toLowerCase();
+
+  // No-session branch: the universal-link return from Wellet Connect opened a
+  // brand-new Safari tab that doesn't share the original tab's Supabase
+  // session (iOS storage partitioning, SFSafariViewController isolation, etc).
+  // Render a soft landing so the tester knows their connection succeeded and
+  // can swipe back to their existing Wellet tab \u2014 instead of staring at
+  // the auth screen wondering what broke.
+  if (!_hasStoredSupabaseSession()) {
+    _renderConnectCallbackSoftLanding(mode, status);
+    return;
+  }
+
   try {
     if (status === 'ok') {
       if (mode === 'ehr') {
@@ -22587,7 +22704,7 @@ function renderCaregiverPaySection(person) {
     html += '<div class="resource-card caregiver-pay-card" data-card-id="' + cardId + '" style="border-left:3px solid #b8956b;">';
     html += '<div class="resource-card-header">';
     html += '<div class="resource-card-name" style="line-height:1.3;">' + escHtml(p.title) + '</div>';
-    html += '<span class="resource-tag" style="background:#faf3e8;color:#8a6a3f;border:1px solid #e8d5b0;flex-shrink:0;">' + escHtml(p.dollarBadge) + '</span>';
+    html += '<span class="resource-tag" style="background:#faf3e8;color:#8a6a3f;border:1px solid #e8d5b0;">' + escHtml(p.dollarBadge) + '</span>';
     html += '</div>';
     html += '<div class="caregiver-pay-eyebrow-row" style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#b8956b;font-weight:600;margin:6px 0 8px;">' + escHtml(p.eyebrow) + '</div>';
     if (m.why) {

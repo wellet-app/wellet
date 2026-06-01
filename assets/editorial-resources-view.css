@@ -104,6 +104,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
+  flex-wrap: wrap;
   margin-bottom: 4px;
 }
 #view-resources[data-editorial="resources"] .resource-card-name {

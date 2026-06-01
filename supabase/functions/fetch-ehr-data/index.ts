@@ -2022,6 +2022,11 @@ Deno.serve(async (req) => {
       }, 401);
     }
 
+    // Note: CareSignals refresh after a successful sync is handled by the
+    // trg_compute_care_signals AFTER INSERT trigger on ehr_sync_log, which
+    // fires compute-care-signals via pg_net.http_post. See migration
+    // compute_care_signals_trigger_on_sync_log (2026-06-01).
+
     return jsonResponse(responseData);
 
   } catch (err) {
