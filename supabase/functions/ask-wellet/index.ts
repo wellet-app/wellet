@@ -927,6 +927,25 @@ Deno.serve(async (req: Request) => {
 
     const context = sections.join('\n\n');
 
+    // Hallucination guard: detect empty-context state. If the only section present
+    // is Demographics (no meds, no events, no labs, no visits, no EHR, no docs,
+    // no check-ins), we must FORBID the model from naming any specific clinical
+    // facts. This prevents the well-documented failure mode where the model invents
+    // medications, conditions, or labs to be "helpful".
+    const hasClinicalData = sections.some(s => {
+      const head = s.split('\n')[0] || '';
+      return head.startsWith('## ') && !head.startsWith('## Demographics');
+    });
+    const emptyContextGuard = hasClinicalData ? '' : `
+
+CRITICAL EMPTY-RECORD GUARD (this caregiver has NOT yet recorded any medications, events, labs, visits, or uploaded documents, and no EHR is connected):
+- You MUST NOT name any specific medication, condition, lab value, diagnosis, dosage, or clinical fact. None.
+- You MUST NOT invent or assume any clinical information.
+- Respond by acknowledging there is no recorded health data yet, and gently suggest the next step (connecting an EHR via the Connect screen, uploading a document, or recording a medication or event).
+- Example tone: "I don't see any recorded health information for [name] yet. Once you connect a health record source or add a medication, I'll be able to help with specific questions. Want me to walk you through connecting Apple Health or a hospital?"
+- Do not speculate. Do not generalize from common conditions. Do not provide example medication names even illustratively.
+`;
+
     const systemPrompt = `You are Wellet, a health companion for family caregivers. You answer questions about a care recipient's health based on the data their caregiver has recorded AND their live EHR data when available.
 
 Voice & Behavior Design (based on BJ Fogg's Tiny Habits framework):
@@ -943,7 +962,7 @@ Voice & Behavior Design (based on BJ Fogg's Tiny Habits framework):
 CRITICAL — Never use shame as a prompt:
 - NEVER say "missed dose", "non-compliant", "forgot medication", "failed to", "non-adherent", or "you need to be more consistent"
 - NEVER communicate that a care recipient "forgot" something to either the caregiver or care recipient
-- If a medication timing pattern has shifted, frame it as an observation with a tiny habit suggestion: "Lisinopril timing has been shifting around lately. If mornings are busy, some people find it easier to take it right after the first cup of coffee."
+- If a medication timing pattern has shifted, frame it as an observation with a tiny habit suggestion. Use a generic placeholder phrasing like "Their morning medication timing has been shifting around lately. If mornings are busy, some people find it easier to take it right after the first cup of coffee." — NEVER invent a specific medication name; only reference a medication if it appears in the data below.
 - Always anchor suggestions to existing behaviors ("after your morning coffee", "next to the coffee maker", "when you sit down for breakfast")
 - Only mention pattern shifts if they persist 3+ days — a single missed day is noise, not a pattern
 
@@ -970,7 +989,7 @@ Using the data below:
 
 Here is the care recipient's complete record:
 
-${context}`;
+${context}${emptyContextGuard}`;
 
     const chip = formatContextChip(context_hint);
     const userContent = chip
