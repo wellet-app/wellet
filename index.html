@@ -1515,6 +1515,13 @@
             </div>
             <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
           </div>
+          <div class="settings-row" style="cursor:pointer;" onclick="openDeleteAccountSheet()">
+            <div class="settings-row-left">
+              <div class="settings-row-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="trash-2" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label" style="color:var(--red);">Delete my account</div><div class="settings-row-meta">Permanently remove everything. This cannot be undone.</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+          </div>
         </div>
         <!-- Care Circle -->
         <div class="settings-section" style="margin-top:12px;">
@@ -1613,12 +1620,12 @@
             <div class="settings-row-left">
               <div class="settings-row-icon"><i data-lucide="info" style="width:15px;height:15px;"></i></div>
               <!-- TODO: replace hardcoded version with build-time constant -->
-              <div><div class="settings-row-label">About Wellet</div><div class="settings-row-meta" style="font-family:var(--serif),serif;font-style:italic;">A record that belongs to your family, not the hospital. &middot; v0.1.0-soft-launch</div></div>
+              <div><div class="settings-row-label">About Wellet</div><div class="settings-row-meta" id="sv-about-meta" style="font-family:var(--serif),serif;font-style:italic;">A record that belongs to your family, not the hospital.<span id="sv-version-string" style="display:none;"> &middot; v0.1.0-soft-launch</span></div></div>
             </div>
           </div>
         </div>
-        <!-- Developer preview (Phase 2 multi-hospital). Safe no-op when off. -->
-        <div class="settings-section" style="margin-top:12px;">
+        <!-- Developer preview (Phase 2 multi-hospital). Safe no-op when off. Hidden for non-admin users. -->
+        <div class="settings-section" id="sv-developer-preview-section" style="margin-top:12px;display:none;">
           <div class="settings-section-label">Developer preview</div>
           <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
             <div class="settings-row-left" style="flex:1;min-width:0;">

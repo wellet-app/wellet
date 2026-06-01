@@ -1508,31 +1508,63 @@ async function verifyAuthCode() {
   // the key landing (extremely degraded network), we still reload as a last
   // resort \u2014 the auth-state listener may have stashed it in memory and
   // the next session check will pick it up.
-  var _sessionWaitStart = Date.now();
-  function _waitForSessionThenReload() {
-    var stored = false;
+  // 2026-06-01: iOS Safari session-shape hardening. Some iOS Safari versions
+  // hand back a session object from verifyOtp() but never persist it (slow
+  // localStorage on a degraded link, or supabase-js stashed it in memory only).
+  // We now (1) try to actively setSession() so supabase-js owns the write,
+  // (2) poll BOTH the modern sb-wellet-auth key AND the legacy supabase.auth.token
+  // shape, (3) validate the session has both access_token and a future expires_at
+  // before treating it as good, and (4) fall back to writing both storage shapes
+  // ourselves if 5s passes with nothing in localStorage.
+  var _sessionData = data && data.session;
+  if (_sessionData && _sessionData.access_token && _sessionData.refresh_token) {
+    // Fire and forget — if this succeeds supabase-js writes the session for us
+    // in the exact shape its own bootstrap expects.
     try {
-      var v = localStorage.getItem('sb-wellet-auth');
-      if (v && v.length > 20) stored = true;
-    } catch(e) {}
-    if (stored) {
-      // Hard-reload so the rest of the app picks up the session cleanly.
+      db.auth.setSession({
+        access_token: _sessionData.access_token,
+        refresh_token: _sessionData.refresh_token
+      });
+    } catch(_e) {}
+  }
+  var _sessionWaitStart = Date.now();
+  function _hasValidStoredSession() {
+    try {
+      var keys = ['sb-wellet-auth', 'supabase.auth.token'];
+      for (var i = 0; i < keys.length; i++) {
+        var v = localStorage.getItem(keys[i]);
+        if (!v || v.length < 20) continue;
+        try {
+          var parsed = JSON.parse(v);
+          var sess = parsed && (parsed.currentSession || parsed.session || parsed);
+          if (sess && sess.access_token) return true;
+        } catch(_e) {
+          // If it's not JSON-parseable but >20 chars assume it's an opaque token
+          // — still safer to reload and let supabase-js try to hydrate.
+          return true;
+        }
+      }
+    } catch(_e) {}
+    return false;
+  }
+  function _waitForSessionThenReload() {
+    if (_hasValidStoredSession()) {
       window.location.reload();
       return;
     }
     if (Date.now() - _sessionWaitStart > 5000) {
       // Belt-and-suspenders: write the session ourselves from the verifyOtp
-      // response so the reload has SOMETHING to find. Supabase JS uses the
-      // shape { currentSession, expiresAt } for its storage value.
+      // response in BOTH the modern and legacy shapes so the reload has
+      // SOMETHING to find regardless of which supabase-js client picks it up.
       try {
-        if (data && data.session) {
+        if (_sessionData && _sessionData.access_token) {
           var payload = {
-            currentSession: data.session,
-            expiresAt: data.session.expires_at
+            currentSession: _sessionData,
+            expiresAt: _sessionData.expires_at
           };
           localStorage.setItem('sb-wellet-auth', JSON.stringify(payload));
         }
-      } catch(e) {}
+      } catch(_e) {}
       window.location.reload();
       return;
     }
@@ -6127,7 +6159,7 @@ function renderPeopleView() {
       + '<div class="person-card-top">'
       + '<div class="person-card-avatar moss">' + escHtml(initials) + '</div>'
       + '<div><div class="person-card-name">' + escHtml(p.name) + '</div>'
-      + '<div class="person-card-rel">' + escHtml(p.relationship || '') + '</div></div>'
+      + '<div class="person-card-rel">' + escHtml(_relationshipLabel(p.relationship)) + '</div></div>'
       + '<div class="person-card-status stable"><i data-lucide="check-circle" style="width:13px;height:13px;"></i> Active</div>'
       + '<button class="remove-btn" onclick="confirmRemovePerson(\'' + p.id + '\',\'' + p.name.replace(/'/g,"\\\'") + '\')" title="Remove person">'
       + '<i data-lucide="x" style="width:16px;height:16px;"></i></button>'
@@ -13143,7 +13175,7 @@ function obResumeChat() {
       document.getElementById('ob-input').focus();
     }, 600);
   } else if (obChat.phase === 'person_name') {
-    obTypeThen('And what should I call the person you\u2019re caring for?', function(){
+    obTypeThen('And what should I call your loved one?', function(){
       document.getElementById('ob-input').disabled = false;
       document.getElementById('ob-send-btn').disabled = false;
       document.getElementById('ob-input').placeholder = 'Their name\u2026';
@@ -16645,11 +16677,43 @@ function isActivatedHospital(fhirBaseUrl) {
 // Empty arrays are NEVER cached or served from cache — a zero-length result
 // is always treated as a miss so a transient init-time race can't poison the
 // session for 24 hours.
+// Normalize hospital names from Epic's Open registry. Epic publishes some
+// names with a double-possessive typo ("Childrens's Healthcare of Atlanta"
+// and a handful of others). Fix these at render time so we don't ship
+// grammatically-broken UI without redeploying the edge function.
+function _normalizeHospitalName(name) {
+  if (!name) return '';
+  // Catch "Childrens's" and similar double-possessives across the dataset.
+  // Replace double 's's at end of Childrens/Childrens-like words with a single
+  // possessive: "Childrens's" -> "Children's". Also handle "Childrens " (no
+  // apostrophe at all) when followed by Healthcare/Hospital/Medical/etc.
+  var out = String(name);
+  out = out.replace(/\bChildrens'?s\b/g, "Children's");
+  out = out.replace(/\bChildrens(?=\s+(Healthcare|Hospital|Medical|Health|Specialty|Specialists|Mercy|National|Hospitals|of))/gi, "Children's");
+  return out;
+}
+
+// Voice rules: never render the raw DB relationship value ("parent", "child",
+// "partner", "self", "other") to the user. Map to caregiver-voice labels.
+// 2026-06-01: caught on FTU — People list was showing "parent" verbatim.
+function _relationshipLabel(rel) {
+  if (!rel) return '';
+  var r = String(rel).toLowerCase().trim();
+  if (r === 'parent' || r === 'aging_parent') return 'Loved one';
+  if (r === 'partner' || r === 'spouse') return 'Partner';
+  if (r === 'child') return 'Child';
+  if (r === 'self') return 'Myself';
+  if (r === 'other') return 'Family member';
+  // Anything unknown — surface as "Family member" rather than the raw token,
+  // never expose "parent"/"track"/etc.
+  return 'Family member';
+}
+
 function loadEpicEndpoints(cb) {
   // Bump v whenever the loader logic, ACTIVATED_FHIR_URLS, or the cache
   // shape changes so existing users with stale data refresh.
-  var CACHE_KEY = 'wellet_epic_endpoints_v6';
-  var CACHE_TS_KEY = 'wellet_epic_endpoints_v6_ts';
+  var CACHE_KEY = 'wellet_epic_endpoints_v7';
+  var CACHE_TS_KEY = 'wellet_epic_endpoints_v7_ts';
   var CACHE_TTL = 24 * 60 * 60 * 1000;
 
   // Also wipe legacy cache keys on first run so users on v2/v3/v4 don't keep
@@ -16663,6 +16727,8 @@ function loadEpicEndpoints(cb) {
     localStorage.removeItem('wellet_epic_endpoints_v4_ts');
     localStorage.removeItem('wellet_epic_endpoints_v5');
     localStorage.removeItem('wellet_epic_endpoints_v5_ts');
+    localStorage.removeItem('wellet_epic_endpoints_v6');
+    localStorage.removeItem('wellet_epic_endpoints_v6_ts');
   } catch(e) {}
 
   // Check in-memory cache first — but only if it's non-empty. An empty array
@@ -16702,7 +16768,7 @@ function loadEpicEndpoints(cb) {
     .then(function(data) {
       var endpoints = (data.Entries || data).map(function(e) {
         return {
-          name: e.OrganizationName || e.Name || '',
+          name: _normalizeHospitalName(e.OrganizationName || e.Name || ''),
           fhirBaseUrl: e.FHIRPatientFacingURI || e.BaseURL || e.FHIRBaseUrl || '',
           city: e.City || '',
           state: e.State || ''
@@ -24192,6 +24258,27 @@ function _headerMenuOutsideClick(e) {
   }
 }
 
+// 2026-06-01: Gate developer-only UI (multi-hospital preview toggle, version
+// strings) so non-admin users don't see internal tooling. Admin is currently
+// just the founder's email; if we add a team this lifts to a roles table.
+function _isWelletAdmin() {
+  try {
+    if (!currentUser) return false;
+    var email = (currentUser.email || '').toLowerCase().trim();
+    if (!email) return false;
+    var admins = ['betsy.eble@gmail.com'];
+    return admins.indexOf(email) !== -1;
+  } catch(_e) { return false; }
+}
+
+function _applySettingsAdminGate() {
+  var isAdmin = _isWelletAdmin();
+  var devSection = document.getElementById('sv-developer-preview-section');
+  if (devSection) devSection.style.display = isAdmin ? '' : 'none';
+  var versionEl = document.getElementById('sv-version-string');
+  if (versionEl) versionEl.style.display = isAdmin ? '' : 'none';
+}
+
 function openSettings() {
   // P4: Navigate to full-page settings view.
   // Defensive try-catch around each update so a single failure can't
@@ -24200,6 +24287,7 @@ function openSettings() {
   try { updateSettingsEhr(); } catch(_e) {}
   if (!isDemoMode) { try { renderCareCircle(); } catch(_e) {} }
   try { renderSettingsPlanCard(); } catch(_e) {}
+  try { _applySettingsAdminGate(); } catch(_e) {}
   try { updatePhase2ToggleUI(); } catch(_e) {}
   try { updateTrialsToggleUI(); } catch(_e) {}
   try { updateFdaToggleUI(); } catch(_e) {}
@@ -26252,7 +26340,7 @@ async function obSend() {
       obChat.phase = 'person_name';
       obSaveChatState();
       setTimeout(function(){
-        obTypeThen('Nice to meet you, ' + escHtml(val) + '. And what should I call the person you\u2019re caring for?', function(){
+        obTypeThen('Nice to meet you, ' + escHtml(val) + '. And what should I call your loved one?', function(){
           document.getElementById('ob-input').disabled = false;
           document.getElementById('ob-send-btn').disabled = false;
           document.getElementById('ob-input').placeholder = 'Their name\u2026';
@@ -30867,7 +30955,7 @@ renderPeopleView = function() {
       + '<div class="person-card-top">'
       + '<div class="person-card-avatar moss">' + escHtml(initials) + '</div>'
       + '<div><div class="person-card-name">' + escHtml(p.name) + '</div>'
-      + '<div class="person-card-rel">' + escHtml(p.relationship || '') + '</div></div>'
+      + '<div class="person-card-rel">' + escHtml(_relationshipLabel(p.relationship)) + '</div></div>'
       + '<div class="person-card-status ' + statusClass + '">' + statusLabel + '</div>'
       + '<button class="remove-btn" onclick="confirmRemovePerson(\'' + p.id + '\',\'' + p.name.replace(/'/g,"\\\\'") + '\')" title="Remove person">'
       + '<i data-lucide="x" style="width:16px;height:16px;"></i></button>'
