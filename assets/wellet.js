@@ -3285,7 +3285,11 @@ async function loadPersonData(personId) {
 
   var pDocs = db.from('documents').select('*').eq('person_id', personId)
     .order('uploaded_at', { ascending: false }).limit(500)
-    .then(function(r) { liveDocs = (r && r.data) || []; })
+    .then(function(r) {
+      // Hide Vault docs from the main records list — they live in Settings · Vault.
+      var all = (r && r.data) || [];
+      liveDocs = all.filter(function(d){ return !(d && typeof d.document_type === 'string' && d.document_type.indexOf('vault_') === 0); });
+    })
     .catch(function(_e) { console.warn('[loadPersonData] docs failed:', _e); liveDocs = []; });
 
   var pLabs = _scopeToActiveConns(
@@ -34113,5 +34117,248 @@ async function _uploadWishRecording() {
     _wa.init();
     return result;
   };
+})();
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VAULT v0.5 — Critical documents in Settings.
+// Reuses public.documents with document_type='vault_<slot>'. No new tables.
+// Pattern: clicking a vault row sets _uploadDocType then opens the existing
+// upload flow. parse-document edge function early-returns on vault_* types.
+// ─────────────────────────────────────────────────────────────────────────────
+(function(){
+  var VAULT_CATEGORIES = [
+    { key: 'vault_advance_directive',   label: 'Advance directive',  meta: 'Living will or advance care plan',  icon: 'scroll-text',  group: 'legal',     multi: false },
+    { key: 'vault_healthcare_proxy',    label: 'Healthcare proxy',   meta: 'Medical power of attorney',         icon: 'user-check',   group: 'legal',     multi: false },
+    { key: 'vault_molst_polst',         label: 'MOLST / POLST',      meta: 'Medical orders for life-sustaining treatment', icon: 'clipboard-signature', group: 'legal', multi: false },
+    { key: 'vault_dnr_dni',             label: 'DNR / DNI',          meta: 'Do not resuscitate / intubate',     icon: 'shield-alert', group: 'legal',     multi: false },
+    { key: 'vault_organ_donor',         label: 'Organ donor card',   meta: 'Donor registration card',           icon: 'heart',        group: 'legal',     multi: false },
+    { key: 'vault_insurance_primary',   label: 'Primary insurance',  meta: 'Front and back of the card',        icon: 'credit-card',  group: 'identity',  multi: false },
+    { key: 'vault_insurance_secondary', label: 'Secondary insurance', meta: 'Medicare, Medicaid, or supplement', icon: 'credit-card', group: 'identity', multi: false },
+    { key: 'vault_photo_id',            label: 'Photo ID',           meta: 'Driver\u2019s license or passport',    icon: 'id-card',     group: 'identity',  multi: false },
+    { key: 'vault_other_legal',         label: 'Other legal',        meta: 'Will, trust, POA \u2014 anything else',     icon: 'file-text',   group: 'legal',     multi: true },
+    { key: 'vault_other_medical',       label: 'Other medical',      meta: 'Allergy card, implant card, surgical history', icon: 'file-text', group: 'medical', multi: true }
+  ];
+
+  var GROUP_LABELS = {
+    legal: 'Legal & end-of-life',
+    identity: 'Insurance & ID',
+    medical: 'Other medical'
+  };
+  var GROUP_ORDER = ['legal', 'identity', 'medical'];
+
+  var _vaultActiveSlot = null;   // category key currently being uploaded to
+  var _vaultDocs = [];            // cached docs for the active person
+
+  // Expose for HTML onclick + debugging
+  window.VAULT_CATEGORIES = VAULT_CATEGORIES;
+
+  window.openVaultSheet = async function openVaultSheet() {
+    var ov = document.getElementById('vault-overlay');
+    if (!ov) return;
+    ov.classList.add('show');
+    try { history.pushState({ type: 'sheet', id: 'vault-overlay' }, ''); } catch(_e) {}
+    try { await loadVaultDocs(); } catch(e) { console.error('[vault] load failed', e); }
+    renderVaultList();
+    try { initIcons(); } catch(_e) {}
+  };
+
+  async function loadVaultDocs() {
+    _vaultDocs = [];
+    if (typeof isDemoMode !== 'undefined' && isDemoMode) {
+      return; // demo: empty vault, all slots show "Add"
+    }
+    if (typeof currentPersonId === 'undefined' || !currentPersonId) return;
+    if (typeof db === 'undefined' || !db) return;
+    var res = await db.from('documents')
+      .select('id, file_name, storage_path, document_type, uploaded_at')
+      .eq('person_id', currentPersonId)
+      .like('document_type', 'vault_%')
+      .order('uploaded_at', { ascending: false });
+    if (res && res.data) _vaultDocs = res.data;
+  }
+
+  function docsForSlot(key) {
+    return _vaultDocs.filter(function(d){ return d.document_type === key; });
+  }
+
+  function renderVaultList() {
+    var list = document.getElementById('vault-list');
+    if (!list) return;
+    var html = '';
+    GROUP_ORDER.forEach(function(group){
+      var cats = VAULT_CATEGORIES.filter(function(c){ return c.group === group; });
+      if (!cats.length) return;
+      html += '<div style="margin-top:14px;margin-bottom:6px;font-size:var(--type-micro);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;font-weight:600;">'
+        + escHtml(GROUP_LABELS[group]) + '</div>';
+      cats.forEach(function(cat){
+        var docs = docsForSlot(cat.key);
+        var hasAny = docs.length > 0;
+        html += renderVaultRow(cat, docs, hasAny);
+      });
+    });
+    // Phase-3 teaser row, not actionable yet
+    html += '<div style="margin-top:18px;padding:12px 14px;background:var(--mint);border-radius:10px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.5;">'
+      + '<div style="font-weight:600;color:var(--moss);margin-bottom:4px;">Coming next</div>'
+      + 'Share a code at the bedside, print an ER packet, and remind your Care Circle to review yearly.'
+      + '</div>';
+    list.innerHTML = html;
+  }
+
+  function renderVaultRow(cat, docs, hasAny) {
+    var iconHtml = '<div class="settings-row-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="' + cat.icon + '" style="width:15px;height:15px;"></i></div>';
+    var label = escHtml(cat.label);
+    var meta = hasAny ? (docs.length + ' on file') : escHtml(cat.meta);
+    var rightHtml;
+    if (cat.multi) {
+      rightHtml = '<div style="display:flex;align-items:center;gap:6px;color:var(--moss);font-size:var(--type-meta);font-weight:600;">Add<i data-lucide="plus" style="width:14px;height:14px;"></i></div>';
+    } else if (hasAny) {
+      rightHtml = '<div style="display:flex;align-items:center;gap:4px;color:var(--moss);font-size:var(--type-meta);font-weight:600;">View<i data-lucide="chevron-right" style="width:14px;height:14px;"></i></div>';
+    } else {
+      rightHtml = '<div style="display:flex;align-items:center;gap:6px;color:var(--moss);font-size:var(--type-meta);font-weight:600;">Add<i data-lucide="plus" style="width:14px;height:14px;"></i></div>';
+    }
+    var primaryAction = (hasAny && !cat.multi)
+      ? "vaultViewDoc('" + escAttr(docs[0].id) + "')"
+      : "vaultStartUpload('" + escAttr(cat.key) + "')";
+    var row = '<div class="settings-row" style="cursor:pointer;" onclick="' + primaryAction + '">'
+      + '<div class="settings-row-left">'
+      + iconHtml
+      + '<div><div class="settings-row-label">' + label + '</div>'
+      + '<div class="settings-row-meta">' + meta + '</div></div>'
+      + '</div>'
+      + rightHtml
+      + '</div>';
+    // If multi or has multiple docs, list each doc as a sub-row
+    if (hasAny) {
+      docs.forEach(function(d){
+        var name = escHtml(d.file_name || 'Document');
+        var when = '';
+        try {
+          if (d.uploaded_at) when = new Date(d.uploaded_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+        } catch(_e){}
+        row += '<div class="settings-row" style="cursor:pointer;padding-left:54px;background:#FAFAF7;" onclick="vaultViewDoc(\u0027' + escAttr(d.id) + '\u0027)">'
+          + '<div class="settings-row-left" style="gap:8px;">'
+          + '<div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);"><i data-lucide="file-text" style="width:14px;height:14px;"></i></div>'
+          + '<div><div class="settings-row-label" style="font-size:var(--type-meta);">' + name + '</div>'
+          + '<div class="settings-row-meta" style="font-size:var(--type-micro);">' + when + '</div></div>'
+          + '</div>'
+          + '<div style="display:flex;align-items:center;gap:8px;">'
+          + '<button onclick="event.stopPropagation();vaultDeleteDoc(\u0027' + escAttr(d.id) + '\u0027);" style="background:none;border:0;color:var(--text-muted);padding:6px;cursor:pointer;"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button>'
+          + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>'
+          + '</div>'
+          + '</div>';
+      });
+    }
+    return row;
+  }
+
+  function escAttr(s) {
+    return String(s == null ? '' : s).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  }
+  // Reuse global escHtml if present, else define a local fallback
+  if (typeof escHtml !== 'function') {
+    window.escHtml = function(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+        return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
+      });
+    };
+  }
+
+  // Click handler — starts a vault upload for the given slot. Reuses the
+  // existing handleFileSelected / confirmUpload pipeline by pre-setting
+  // _uploadDocType and triggering the hidden file picker.
+  window.vaultStartUpload = function(slotKey) {
+    var cat = VAULT_CATEGORIES.find(function(c){ return c.key === slotKey; });
+    if (!cat) return;
+    if (typeof isDemoMode !== 'undefined' && isDemoMode) {
+      if (typeof showToast === 'function') showToast('Vault is available after you sign in');
+      return;
+    }
+    // Single-slot upload with no warning yet — we trust the file picker
+    // dialog as the confirmation step. Replace-with-warning will move to v1.
+    _vaultActiveSlot = slotKey;
+    if (typeof _uploadDocType !== 'undefined') _uploadDocType = slotKey;
+    try { window._uploadDocType = slotKey; } catch(_e){}
+    var input = document.getElementById('upload-file-input');
+    if (input) {
+      try { input.value = ''; } catch(_e){}
+      input.click();
+    }
+  };
+
+  window.vaultViewDoc = async function(docId) {
+    if (!docId) return;
+    if (typeof db === 'undefined' || !db) return;
+    var doc = _vaultDocs.find(function(d){ return d.id === docId; });
+    if (!doc) {
+      var res = await db.from('documents').select('*').eq('id', docId).single();
+      if (res && res.data) doc = res.data;
+    }
+    if (!doc) return;
+    try {
+      var signed = await db.storage.from('documents').createSignedUrl(doc.storage_path, 3600);
+      if (signed && signed.data && signed.data.signedUrl) {
+        window.open(signed.data.signedUrl, '_blank');
+      } else if (typeof showToast === 'function') {
+        showToast('Could not open document');
+      }
+    } catch(e) {
+      console.error('[vault] view failed', e);
+      if (typeof showToast === 'function') showToast('Could not open document');
+    }
+  };
+
+  window.vaultDeleteDoc = async function(docId) {
+    if (!docId) return;
+    if (!confirm('Remove this document from your vault? The file will be deleted.')) return;
+    if (typeof db === 'undefined' || !db) return;
+    var doc = _vaultDocs.find(function(d){ return d.id === docId; });
+    try {
+      if (doc && doc.storage_path) {
+        try { await db.storage.from('documents').remove([doc.storage_path]); } catch(_e){}
+      }
+      await db.from('documents').delete().eq('id', docId);
+      if (typeof showToast === 'function') showToast('Removed from vault');
+      await loadVaultDocs();
+      renderVaultList();
+      try { initIcons(); } catch(_e){}
+    } catch(e) {
+      console.error('[vault] delete failed', e);
+      if (typeof showToast === 'function') showToast('Could not delete');
+    }
+  };
+
+  // After a vault upload completes, refresh the list. Hook into confirmUpload
+  // by wrapping it.
+  if (typeof confirmUpload === 'function') {
+    var _origConfirmUpload = confirmUpload;
+    window.confirmUpload = async function() {
+      var wasVault = _uploadDocType && /^vault_/.test(_uploadDocType);
+      var result = await _origConfirmUpload.apply(this, arguments);
+      if (wasVault) {
+        _vaultActiveSlot = null;
+        try {
+          await loadVaultDocs();
+          renderVaultList();
+          try { initIcons(); } catch(_e){}
+        } catch(_e){}
+      }
+      return result;
+    };
+  }
+
+  // If the file picker is cancelled, _uploadDocType lingers. Clear it on
+  // handleFileSelected start when we're in a vault flow but no file was picked.
+  // Easier: also clear when closeUpload is called.
+  if (typeof closeUpload === 'function') {
+    var _origCloseUpload = closeUpload;
+    window.closeUpload = function() {
+      if (_vaultActiveSlot && _uploadDocType && /^vault_/.test(_uploadDocType)) {
+        _uploadDocType = null;
+        _vaultActiveSlot = null;
+      }
+      return _origCloseUpload.apply(this, arguments);
+    };
+  }
 })();
 
