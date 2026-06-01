@@ -1522,6 +1522,17 @@
             <i data-lucide="user-plus" style="width:15px;height:15px;"></i> Invite family member
           </button>
         </div>
+        <!-- Vault: critical documents -->
+        <div class="settings-section" id="sv-vault-section" style="margin-top:12px;">
+          <div class="settings-section-label">Vault</div>
+          <div class="settings-row" id="sv-vault-row" style="cursor:pointer;" onclick="openVaultSheet()">
+            <div class="settings-row-left">
+              <div class="settings-row-icon" style="background:#FFF6E2;color:#6B4F12;"><i data-lucide="shield-check" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Critical documents</div><div class="settings-row-meta" id="sv-vault-meta">Advance directive, healthcare proxy, insurance, ID</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+          </div>
+        </div>
         <!-- Connected Sources (per-person header updated by JS) -->
         <div class="settings-section" style="margin-top:12px;">
           <div class="settings-section-label" id="sv-connected-sources-label">Connected Sources</div>
@@ -1911,6 +1922,21 @@
     <div class="qa-sheet-title">What I&rsquo;m watching</div>
     <div class="qa-sheet-sub">Wellet will quietly notice these and email you. Stop or pause anytime.</div>
     <div id="watches-list" style="padding:0 20px 24px;overflow-y:auto;max-height:60vh;">
+      <div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:var(--type-meta);">Loading&hellip;</div>
+    </div>
+  </div>
+</div>
+
+<!-- VAULT SHEET -->
+<div class="qa-overlay" id="vault-overlay" data-editorial="sheet" onclick="if(event.target===this)closeSheet('vault-overlay')">
+  <div class="qa-sheet" style="max-height:88vh;">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" aria-label="Close" onclick="closeSheet('vault-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title">Vault</div>
+    <div class="qa-sheet-sub">Critical documents you may need on a moment&rsquo;s notice. Stored encrypted, visible only to you and your Care Circle.</div>
+    <div id="vault-list" style="padding:8px 20px 24px;overflow-y:auto;max-height:70vh;">
       <div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:var(--type-meta);">Loading&hellip;</div>
     </div>
   </div>
@@ -3521,7 +3547,7 @@
 
 </div><!-- end page-wrap -->
 <script src="/assets/wellet-manual-visit-types.js?v=20260514-1900"></script>
-<script src="/assets/wellet.js?v=20260531-dismiss"></script>
+<script src="/assets/wellet.js?v=20260601-vault"></script>
 <script src="/guided-demo.js"></script>
 <script src="/assets/try-flow.js"></script>
 <!-- CARE CIRCLE SHARE SHEET -->
