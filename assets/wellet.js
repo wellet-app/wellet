@@ -34158,8 +34158,12 @@ async function _uploadWishRecording() {
     if (!ov) return;
     ov.classList.add('show');
     try { history.pushState({ type: 'sheet', id: 'vault-overlay' }, ''); } catch(_e) {}
+    // Always render first so the Loading… placeholder is replaced even if the
+    // documents fetch hangs or throws. Re-render after fetch completes.
+    try { renderVaultList(); } catch(_e) { console.error('[vault] initial render failed', _e); }
+    try { initIcons(); } catch(_e) {}
     try { await loadVaultDocs(); } catch(e) { console.error('[vault] load failed', e); }
-    renderVaultList();
+    try { renderVaultList(); } catch(_e) { console.error('[vault] render failed', _e); }
     try { initIcons(); } catch(_e) {}
   };
 
@@ -34170,12 +34174,22 @@ async function _uploadWishRecording() {
     }
     if (typeof currentPersonId === 'undefined' || !currentPersonId) return;
     if (typeof db === 'undefined' || !db) return;
-    var res = await db.from('documents')
+    // Race the supabase query against a 6s timeout so a hung network call
+    // can’t leave the sheet stuck on Loading… (the open handler already
+    // rendered the empty list, so timing out here just means no docs yet).
+    var queryPromise = db.from('documents')
       .select('id, file_name, storage_path, document_type, uploaded_at')
       .eq('person_id', currentPersonId)
       .like('document_type', 'vault_%')
       .order('uploaded_at', { ascending: false });
+    var timeoutPromise = new Promise(function(resolve){
+      setTimeout(function(){ resolve({ data: null, error: { message: 'timeout' } }); }, 6000);
+    });
+    var res;
+    try { res = await Promise.race([queryPromise, timeoutPromise]); }
+    catch (e) { console.warn('[vault] documents query threw', e); res = null; }
     if (res && res.data) _vaultDocs = res.data;
+    else if (res && res.error) console.warn('[vault] documents query error', res.error);
   }
 
   function docsForSlot(key) {
