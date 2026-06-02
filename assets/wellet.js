@@ -1570,7 +1570,344 @@ async function verifyAuthCode() {
     }
     setTimeout(_waitForSessionThenReload, 100);
   }
+  // Face ID / passkey: offer setup once on capable devices for first-time users.
+  // Non-blocking; never throws, never delays sign-in if WebAuthn is unavailable.
+  try { await _wpMaybeOfferSetup(_sessionData); } catch(_e) { /* ignore */ }
   _waitForSessionThenReload();
+}
+
+// =============================================================
+// Face ID / WebAuthn passkey helpers (mywellet.com web only —
+// iOS Wellet Connect bridge is NOT touched).
+// =============================================================
+// Wire-up:
+//   - Called from verifyAuthCode() after successful OTP to offer setup
+//   - Called from showAuthFormState() to maybe-show the "Use Face ID" button
+//   - Called from Settings "Sign-in" section for list/add/remove
+//
+// All copy honors voice rules: no emojis, no exclamation points, no italics,
+// no "parent", no "track".
+
+async function _wpIsPlatformAuthAvailable() {
+  if (!window.PublicKeyCredential) return false;
+  try {
+    return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+  } catch (_e) {
+    return false;
+  }
+}
+
+function _wpB64uToBuf(s) {
+  s = String(s || '').replace(/-/g,'+').replace(/_/g,'/');
+  while (s.length % 4) s += '=';
+  var bin = atob(s);
+  var out = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out.buffer;
+}
+
+function _wpBufToB64u(buf) {
+  var bytes = new Uint8Array(buf);
+  var s = '';
+  for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+
+function _wpDeviceLabel() {
+  var ua = navigator.userAgent || '';
+  if (/iPhone/.test(ua)) return 'iPhone';
+  if (/iPad/.test(ua))   return 'iPad';
+  if (/Macintosh/.test(ua)) return 'Mac';
+  if (/Android/.test(ua)) return 'Android';
+  return 'Browser';
+}
+
+// Call verify-passkey edge function. Pass session for authenticated actions.
+async function _wpCall(action, body, session) {
+  body = body || {};
+  body.action = action;
+  var headers = { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY };
+  if (session && session.access_token) {
+    headers['Authorization'] = 'Bearer ' + session.access_token;
+  } else {
+    headers['Authorization'] = 'Bearer ' + SUPABASE_ANON_KEY;
+  }
+  var res = await fetch(SUPABASE_URL + '/functions/v1/verify-passkey', {
+    method: 'POST',
+    headers: headers,
+    body: JSON.stringify(body)
+  });
+  var json = await res.json().catch(function(){ return {}; });
+  if (!res.ok) {
+    var err = new Error(json.error || ('HTTP ' + res.status));
+    err.status = res.status;
+    throw err;
+  }
+  return json;
+}
+
+// Offer setup after first successful OTP. Silent no-op if device can't.
+async function _wpMaybeOfferSetup(session) {
+  if (!session || !session.access_token) return;
+  try {
+    if (localStorage.getItem('wellet_passkey_offered') === '1') return;
+  } catch (_e) {}
+  var available = await _wpIsPlatformAuthAvailable();
+  if (!available) return;
+  // Don't re-offer if user already has a passkey on this account
+  try {
+    var existing = await _wpCall('list', {}, session);
+    if (existing && existing.passkeys && existing.passkeys.length > 0) {
+      try { localStorage.setItem('wellet_passkey_offered', '1'); } catch(_){}
+      return;
+    }
+  } catch (_e) { /* if list fails, still offer — worst case is dupe attempt blocked server-side */ }
+  await _wpShowSetupModal(session);
+}
+
+function _wpShowSetupModal(session) {
+  return new Promise(function(resolve) {
+    var overlay = document.createElement('div');
+    overlay.id = 'wp-setup-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(20,28,32,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    var device = _wpDeviceLabel();
+    var label = (device === 'iPhone' || device === 'iPad') ? 'Face ID' : (device === 'Mac' ? 'Touch ID' : 'biometrics');
+    overlay.innerHTML =
+      '<div role="dialog" aria-modal="true" style="background:var(--bg,#FBF8F2);max-width:380px;width:100%;border-radius:18px;padding:24px;font-family:var(--font-body,system-ui);box-shadow:0 20px 60px rgba(0,0,0,0.25);">' +
+      '  <div style="font-family:var(--font-display,Georgia,serif);font-size:22px;line-height:1.25;color:var(--text-primary,#1B2A2F);margin-bottom:10px;">Skip the code next time?</div>' +
+      '  <div style="font-size:15px;line-height:1.5;color:var(--text-secondary,#56666B);margin-bottom:18px;">Use ' + label + ' to sign in instantly. Your face stays on your device — Wellet only stores a public key.</div>' +
+      '  <button id="wp-setup-yes" class="btn-primary" style="width:100%;background:var(--text-primary,#1B2A2F);color:#fff;border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:500;cursor:pointer;margin-bottom:8px;">Set up ' + label + '</button>' +
+      '  <button id="wp-setup-no" style="width:100%;background:transparent;color:var(--text-secondary,#56666B);border:none;padding:11px;font-size:14px;cursor:pointer;">Not now</button>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    function cleanup() {
+      try { overlay.remove(); } catch(_e) {}
+      resolve();
+    }
+
+    document.getElementById('wp-setup-yes').onclick = async function() {
+      var btn = document.getElementById('wp-setup-yes');
+      btn.disabled = true; btn.textContent = 'Setting up\u2026';
+      try {
+        await _wpRegister(session);
+        if (typeof showToast === 'function') showToast(label + ' set up');
+      } catch (e) {
+        // NotAllowedError = user cancelled the OS prompt — stay silent.
+        if (!e || e.name !== 'NotAllowedError') {
+          console.warn('passkey register failed:', e);
+          if (typeof showToast === 'function') showToast('Could not set up ' + label + ' — you can try again from Settings');
+        }
+      }
+      try { localStorage.setItem('wellet_passkey_offered', '1'); } catch(_){}
+      cleanup();
+    };
+    document.getElementById('wp-setup-no').onclick = function() {
+      try { localStorage.setItem('wellet_passkey_offered', '1'); } catch(_){}
+      cleanup();
+    };
+  });
+}
+
+async function _wpRegister(session) {
+  // 1) Ask server for a challenge
+  var ch = await _wpCall('register-challenge', {}, session);
+  // 2) Build the WebAuthn options
+  var publicKey = {
+    challenge: _wpB64uToBuf(ch.challenge),
+    rp: ch.rp || { id: 'mywellet.com', name: 'Wellet' },
+    user: {
+      id: _wpB64uToBuf(ch.user_handle),
+      name: ch.user.name,
+      displayName: ch.user.displayName
+    },
+    pubKeyCredParams: ch.pubKeyCredParams || [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
+    authenticatorSelection: {
+      authenticatorAttachment: 'platform',
+      userVerification: 'required',
+      residentKey: 'preferred'
+    },
+    timeout: ch.timeout || 60000,
+    attestation: 'none'
+  };
+  // 3) OS prompts Face ID
+  var cred = await navigator.credentials.create({ publicKey: publicKey });
+  if (!cred) throw new Error('No credential returned');
+  // 4) Send attestation back for verification
+  var resp = await _wpCall('register-verify', {
+    attestation: {
+      id: cred.id,
+      rawId: _wpBufToB64u(cred.rawId),
+      type: cred.type,
+      response: {
+        clientDataJSON: _wpBufToB64u(cred.response.clientDataJSON),
+        attestationObject: _wpBufToB64u(cred.response.attestationObject),
+        transports: (cred.response.getTransports && cred.response.getTransports()) || []
+      }
+    },
+    device_label: _wpDeviceLabel()
+  }, session);
+  if (!resp || !resp.success) throw new Error((resp && resp.error) || 'verify failed');
+  return resp.passkey_id;
+}
+
+// Sign-in via passkey from the auth-form-state screen.
+async function signInWithPasskey() {
+  var btn = document.getElementById('auth-passkey-btn');
+  if (btn) { btn.disabled = true; btn.dataset.label = btn.textContent; btn.textContent = 'Signing in\u2026'; }
+  try {
+    var ch = await _wpCall('auth-challenge', {}, null);
+    var publicKey = {
+      challenge: _wpB64uToBuf(ch.challenge),
+      rpId: ch.rpId || 'mywellet.com',
+      userVerification: 'required',
+      timeout: ch.timeout || 60000
+      // No allowCredentials → discoverable credentials, user-picker UI
+    };
+    var assertion = await navigator.credentials.get({ publicKey: publicKey });
+    if (!assertion) throw new Error('No assertion');
+    var resp = await _wpCall('auth-verify', {
+      assertion: {
+        id: assertion.id,
+        rawId: _wpBufToB64u(assertion.rawId),
+        type: assertion.type,
+        response: {
+          clientDataJSON: _wpBufToB64u(assertion.response.clientDataJSON),
+          authenticatorData: _wpBufToB64u(assertion.response.authenticatorData),
+          signature: _wpBufToB64u(assertion.response.signature),
+          userHandle: assertion.response.userHandle ? _wpBufToB64u(assertion.response.userHandle) : null
+        }
+      }
+    }, null);
+    if (!resp || !resp.access_token) throw new Error((resp && resp.error) || 'auth failed');
+    // Hand the session to supabase-js so it writes to sb-wellet-auth in the
+    // exact shape the bootstrap expects, then reload.
+    await db.auth.setSession({
+      access_token: resp.access_token,
+      refresh_token: resp.refresh_token
+    });
+    window.location.reload();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = btn.dataset.label || 'Use Face ID'; }
+    if (!e || e.name !== 'NotAllowedError') {
+      console.warn('signInWithPasskey failed:', e);
+      if (typeof showToast === 'function') showToast('Face ID sign-in failed — use the email code instead');
+    }
+  }
+}
+
+// Show/hide the "Use Face ID" button on the auth-form-state screen based
+// on whether this device has a platform authenticator at all. We do NOT
+// gate on "user has a passkey" because passkeys may sync in via iCloud
+// Keychain from another device — let the user try.
+async function _wpMaybeShowSignInButton() {
+  var btn = document.getElementById('auth-passkey-btn');
+  if (!btn) return;
+  var available = await _wpIsPlatformAuthAvailable();
+  btn.style.display = available ? '' : 'none';
+}
+
+// =============================================================
+// Settings → Sign-in section
+// =============================================================
+// Called from renderSettings() to populate the Face ID section.
+async function renderPasskeysSection() {
+  var section = document.getElementById('sv-signin-section');
+  var list = document.getElementById('sv-passkeys-list');
+  var addRow = document.getElementById('sv-add-passkey-row');
+  var addLabel = document.getElementById('sv-add-passkey-label');
+  if (!section || !list) return;
+  // Only show this section to signed-in real users (not demo).
+  if (!currentUser || isDemoMode) { section.style.display = 'none'; return; }
+
+  var available = await _wpIsPlatformAuthAvailable();
+  // Even if THIS device can't biometrics, the user may have passkeys from
+  // another device worth managing — still show the section, but disable
+  // the "add" row.
+  section.style.display = '';
+
+  var sessionRes = await db.auth.getSession().catch(function(){ return { data: { session: null } }; });
+  var session = sessionRes && sessionRes.data && sessionRes.data.session;
+  if (!session) { section.style.display = 'none'; return; }
+
+  // Customize the "add" row label based on device capability.
+  var device = _wpDeviceLabel();
+  var label = (device === 'iPhone' || device === 'iPad') ? 'Face ID' : (device === 'Mac' ? 'Touch ID' : 'biometrics');
+  if (addLabel) addLabel.textContent = 'Set up ' + label + ' on this device';
+  if (addRow) addRow.style.opacity = available ? '1' : '0.5';
+  if (addRow) addRow.style.pointerEvents = available ? '' : 'none';
+
+  try {
+    var res = await _wpCall('list', {}, session);
+    var passkeys = (res && res.passkeys) || [];
+    if (passkeys.length === 0) {
+      list.innerHTML = '<div class="settings-row" style="opacity:0.7;"><div class="settings-row-left"><div class="settings-row-icon" style="background:var(--bg-soft,#F5F2EC);color:var(--text-secondary);"><i data-lucide="scan-face" style="width:15px;height:15px;"></i></div><div><div class="settings-row-label">No devices yet</div><div class="settings-row-meta">Add a device below to skip the email code next time</div></div></div></div>';
+    } else {
+      list.innerHTML = passkeys.map(function(p){
+        var name = p.device_label || 'Device';
+        var lastUsed = p.last_used_at ? ('Last used ' + _wpFormatRelativeTime(p.last_used_at)) : ('Added ' + _wpFormatRelativeTime(p.created_at));
+        return '<div class="settings-row">' +
+          '<div class="settings-row-left">' +
+          '  <div class="settings-row-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="scan-face" style="width:15px;height:15px;"></i></div>' +
+          '  <div><div class="settings-row-label">' + escHtml(name) + '</div><div class="settings-row-meta">' + escHtml(lastUsed) + '</div></div>' +
+          '</div>' +
+          '<button class="auth-link-btn" style="background:none;border:none;color:var(--red);font:inherit;cursor:pointer;padding:6px 10px;font-size:13px;" onclick="removePasskey(\u0027' + escHtml(p.id) + '\u0027)">Remove</button>' +
+          '</div>';
+      }).join('');
+    }
+    if (typeof initIcons === 'function') initIcons();
+  } catch (e) {
+    console.warn('renderPasskeysSection failed:', e);
+    list.innerHTML = '';
+  }
+}
+
+function _wpFormatRelativeTime(iso) {
+  try {
+    var t = new Date(iso).getTime();
+    var diff = Date.now() - t;
+    var min = Math.floor(diff / 60000);
+    if (min < 1) return 'just now';
+    if (min < 60) return min + 'm ago';
+    var h = Math.floor(min / 60);
+    if (h < 24) return h + 'h ago';
+    var d = Math.floor(h / 24);
+    if (d < 30) return d + 'd ago';
+    return new Date(iso).toLocaleDateString();
+  } catch (_e) { return ''; }
+}
+
+async function addPasskeyFromSettings() {
+  var sessionRes = await db.auth.getSession().catch(function(){ return { data: { session: null } }; });
+  var session = sessionRes && sessionRes.data && sessionRes.data.session;
+  if (!session) { if (typeof showToast === 'function') showToast('Please sign in again'); return; }
+  var device = _wpDeviceLabel();
+  var label = (device === 'iPhone' || device === 'iPad') ? 'Face ID' : (device === 'Mac' ? 'Touch ID' : 'biometrics');
+  try {
+    await _wpRegister(session);
+    if (typeof showToast === 'function') showToast(label + ' set up');
+    renderPasskeysSection();
+  } catch (e) {
+    if (!e || e.name !== 'NotAllowedError') {
+      console.warn('addPasskeyFromSettings failed:', e);
+      if (typeof showToast === 'function') showToast('Could not set up ' + label);
+    }
+  }
+}
+
+async function removePasskey(passkeyId) {
+  if (!passkeyId) return;
+  var sessionRes = await db.auth.getSession().catch(function(){ return { data: { session: null } }; });
+  var session = sessionRes && sessionRes.data && sessionRes.data.session;
+  if (!session) return;
+  try {
+    await _wpCall('remove', { passkey_id: passkeyId }, session);
+    if (typeof showToast === 'function') showToast('Removed');
+    renderPasskeysSection();
+  } catch (e) {
+    console.warn('removePasskey failed:', e);
+    if (typeof showToast === 'function') showToast('Could not remove');
+  }
 }
 
 async function resendAuthCode() {
@@ -1620,6 +1957,8 @@ function showAuthFormState() {
   var toggle = document.getElementById('auth-signin-toggle');
   if (reveal) reveal.style.display = 'none';
   if (toggle) toggle.style.display = '';
+  // Face ID button: only show if the device has a platform authenticator.
+  try { _wpMaybeShowSignInButton(); } catch(_e) {}
   initIcons();
 }
 
@@ -13070,6 +13409,8 @@ function showAuthScreen() {
   // Reset auth sub-states to default (show form, hide sent)
   document.getElementById('auth-form-state').style.display = 'block';
   document.getElementById('auth-sent-state').style.display = 'none';
+  // Re-check Face ID availability for the sign-in button.
+  try { _wpMaybeShowSignInButton(); } catch(_e) {}
   // Hide bug report button when logged out
   var bugBtn = document.getElementById('bug-report-btn');
   if (bugBtn) bugBtn.style.display = 'none';
@@ -24463,6 +24804,7 @@ function openSettings() {
   try { updateSettingsEhr(); } catch(_e) {}
   if (!isDemoMode) { try { renderCareCircle(); } catch(_e) {} }
   try { renderSettingsPlanCard(); } catch(_e) {}
+  try { renderPasskeysSection(); } catch(_e) {}
   try { _applySettingsAdminGate(); } catch(_e) {}
   try { updatePhase2ToggleUI(); } catch(_e) {}
   try { updateTrialsToggleUI(); } catch(_e) {}
