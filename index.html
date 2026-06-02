@@ -478,7 +478,7 @@
       <span class="connect-card-body">
         <span class="connect-card-title">Apple Health</span>
         <span class="connect-card-sub" id="connect-card-apple-sub">Steps, sleep, heart rate, and anything else on your iPhone. Imports the last 30 days first, then keeps up automatically.</span>
-        <span class="connect-card-hint" id="connect-card-apple-install-hint" style="display:none" onclick="event.stopPropagation();installWelletConnectFromCard();">Don't have it yet? Install Wellet Connect →</span>
+        <span class="connect-card-hint" id="connect-card-apple-install-hint" style="display:none">Best on iPhone — we’ll walk you through this after signup.</span>
       </span>
       <span class="connect-card-chevron"><i data-lucide="chevron-right"></i></span>
     </button>
@@ -497,6 +497,16 @@
       <span class="connect-card-body">
         <span class="connect-card-title">Other wearables</span>
         <span class="connect-card-sub">Garmin, Oura, Whoop, Withings, and more. Sign in once and Wellet keeps reading from them.</span>
+      </span>
+      <span class="connect-card-chevron"><i data-lucide="chevron-right"></i></span>
+    </button>
+
+    <!-- 2026-06-01 (D3): Upload card so reviewers without an activated hospital still have a path forward. -->
+    <button type="button" class="connect-card" id="connect-card-upload" onclick="_goUploadFromVendorCard()">
+      <span class="connect-card-icon"><i data-lucide="upload"></i></span>
+      <span class="connect-card-body">
+        <span class="connect-card-title">Upload a record</span>
+        <span class="connect-card-sub">Have a PDF or photo of a visit summary, lab result, or after-visit summary? Drop it in and Wellet will read it for you.</span>
       </span>
       <span class="connect-card-chevron"><i data-lucide="chevron-right"></i></span>
     </button>

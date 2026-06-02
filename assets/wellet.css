@@ -199,7 +199,8 @@
   /* Hide on the dedicated auth screen (it has its own button) and once the
      authenticated app is mounted. */
   body.is-authenticated .global-start-over,
-  body.is-auth-screen .global-start-over {
+  body.is-auth-screen .global-start-over,
+  body.is-landing .global-start-over {
     display: none !important;
   }
   .auth-privacy-detail { max-height: 0; overflow: hidden; transition: max-height 0.35s ease, opacity 0.35s ease; opacity: 0; }

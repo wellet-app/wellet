@@ -434,7 +434,7 @@ function openSendConnectLinkModal(opts) {
   if (!person) { showToast('Loved one not found'); return; }
   if (person.is_self) { showToast('That\u2019s your own row \u2014 use Connect instead'); return; }
 
-  var firstName = (person.name || 'them').split(' ')[0];
+  var firstName = (person.name || 'your loved one').split(' ')[0] || 'your loved one';
   var phone = (person.phone || '').trim();
   var hospitalName = opts.hospitalName || '';
 
@@ -544,7 +544,7 @@ async function renderDsInvitePending(personId) {
     if (!pending || pending.length === 0) { host.innerHTML = ''; clearDsInvitePoll(personId); return; }
 
     var person = (currentPeople || []).find(function (p) { return p && p.id === personId; });
-    var firstName = (person && person.name || 'them').split(' ')[0];
+    var firstName = (person && person.name || 'your loved one').split(' ')[0] || 'your loved one';
 
     var html = '';
     pending.forEach(function (inv) {
@@ -2712,7 +2712,10 @@ function _connectProgressFirstName(personId) {
       if (p && p.name) return (p.name.split(' ')[0] || p.name);
     }
   } catch(_e) {}
-  return 'them';
+  // 2026-06-01 (D1): never return 'them' or 'their' — the possessive reads
+  // as broken English ("them’s chart"). Fall back to the canonical voice
+  // phrase so the headline composes to "your loved one’s chart".
+  return 'your loved one';
 }
 
 // Ensure the inline progress strip exists inside the given card. Idempotent.
@@ -2822,13 +2825,28 @@ function _ensureStageOverlay() {
   document.body.appendChild(el);
   // Wire the Cancel button. It tears down all sources' progress state and
   // closes the overlay so the user is never stranded.
+  // 2026-06-01 (D8): also release the in-memory _ehrConnecting lock and
+  // clear its watchdog so the user can immediately pick a different
+  // hospital after cancelling. Without this, the picker stays locked.
   try {
     var cancelBtn = el.querySelector('#connect-stage-cancel');
     if (cancelBtn) {
       cancelBtn.addEventListener('click', function(){
         try { _cancelAllConnectProgress(); } catch(_e) {}
+        try {
+          if (typeof _resetEhrConnectingStateForFreshAttempt === 'function') {
+            _resetEhrConnectingStateForFreshAttempt();
+          } else {
+            _ehrConnecting = false;
+            if (_ehrConnectingTimeoutId) { clearTimeout(_ehrConnectingTimeoutId); _ehrConnectingTimeoutId = null; }
+          }
+        } catch(_e) {}
         _hideStageOverlay();
       });
+      // Belt-and-suspenders: make sure pointer events are never disabled.
+      cancelBtn.style.pointerEvents = 'auto';
+      cancelBtn.style.zIndex = '2';
+      cancelBtn.style.position = 'relative';
     }
   } catch(_e) {}
   return el;
@@ -2860,7 +2878,8 @@ function _showStageOverlay(source, stages, ctx) {
   var rows = el.querySelector('.connect-stage__stages');
   if (headline) {
     if (source === 'ehr' || source === 'va') {
-      headline.innerHTML = 'Bringing in <em>' + escHtml(ctx.firstName || 'their') + '\u2019s chart</em>.';
+      var _fn = (ctx && ctx.firstName) ? ctx.firstName : 'your loved one';
+      headline.innerHTML = 'Bringing in <em>' + escHtml(_fn) + '\u2019s chart</em>.';
     } else if (source === 'apple') {
       headline.innerHTML = 'Reading <em>Apple Health</em>.';
     } else {
@@ -2892,7 +2911,9 @@ function _updateStageOverlay(stageIdx, stages, slowMode, ctx) {
   var hint = el.querySelector('.connect-stage__hint');
   if (hint) {
     if (slowMode) {
-      var hostLabel = (ctx && ctx.hospital) ? ctx.hospital : 'your hospital';
+      // 2026-06-01 (D9): capitalize the fallback so the sentence reads
+      // "Your hospital is taking a moment..." at the start.
+      var hostLabel = (ctx && ctx.hospital) ? ctx.hospital : 'Your hospital';
       hint.textContent = hostLabel + ' is taking a moment to send the chart over \u2014 this happens sometimes, hang tight.';
       hint.classList.add('is-visible');
     } else {
@@ -2905,6 +2926,12 @@ function _updateStageOverlay(stageIdx, stages, slowMode, ctx) {
 function _hideStageOverlay() {
   var el = document.getElementById('connect-stage-overlay');
   if (!el) return;
+  // 2026-06-01 (D8): always release the connecting lock on hide so the
+  // picker isn't stuck after a slow Cancel or a stuck OAuth flow.
+  try {
+    _ehrConnecting = false;
+    if (_ehrConnectingTimeoutId) { clearTimeout(_ehrConnectingTimeoutId); _ehrConnectingTimeoutId = null; }
+  } catch(_e) {}
   el.classList.add('is-closing');
   setTimeout(function(){
     el.classList.remove('is-open');
@@ -13013,6 +13040,7 @@ function showAuthScreen() {
   // is showing (auth screen has its own dedicated Start over button).
   try {
     document.body.classList.remove('is-authenticated');
+    document.body.classList.remove('is-landing');
     document.body.classList.add('is-auth-screen');
   } catch(_e) {}
   // Reset auth sub-states to default (show form, hide sent)
@@ -13102,6 +13130,10 @@ function showLanding() {
   document.getElementById('landing').style.display = 'flex';
   document.getElementById('app').style.display = 'none';
   document.getElementById('onboarding').style.display = 'none';
+  // 2026-06-01 (D11): mark body as on-landing so the global "Start over"
+  // rescue pill is suppressed for cold reviewers — they haven't done
+  // anything to undo yet, and the lone pill reads as a confused affordance.
+  try { document.body.classList.add('is-landing'); } catch(_e) {}
   // Hide bug report button on landing (logged out)
   var bugBtn = document.getElementById('bug-report-btn');
   if (bugBtn) bugBtn.style.display = 'none';
@@ -13115,6 +13147,8 @@ function showOnboarding() {
   document.getElementById('loading-screen').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('landing').style.display = 'none';
+  // 2026-06-01 (D11): leaving landing — restore Start over availability.
+  try { document.body.classList.remove('is-landing'); } catch(_e) {}
   document.getElementById('app').style.display = 'none';
   document.getElementById('onboarding').style.display = 'flex';
   document.getElementById('ob-chat-screen').style.display = 'flex';
@@ -14929,7 +14963,12 @@ function _renderWatchesSectionHtml(watches, name) {
   var out = '<div class="cs-watches-list">';
   for (var i = 0; i < sorted.length; i++) {
     var w = sorted[i];
-    var friendly = _watchTypeFriendly(w.watch_type, w.parameters);
+    // 2026-06-01 (D2): prefer the human-written description when present
+    // (demo seeds and admin-authored watches carry it). Falls back to the
+    // friendly label derived from watch_type so legacy rows still render.
+    var friendly = (w.description && String(w.description).trim())
+      ? String(w.description).trim()
+      : _watchTypeFriendly(w.watch_type, w.parameters);
     var paused = (w.active === false);
     var statusChip = paused
       ? '<span class="watch-row-status watch-row-status-paused">Paused</span>'
@@ -16875,13 +16914,17 @@ function _vendorCheckCardHtml(result, query) {
     tone = 'warn';
     title = escHtml(matched) + ' is on Epic, but not activated yet.';
     body = 'We\u2019ll need to turn it on for your hospital. Send us a request and we\u2019ll prioritize it.';
-    ctaHtml = '<button type="button" class="vendor-check-cta" onclick="openConnectRequestModal({hospital_name:' + JSON.stringify(matched) + ',issue_type:\'unsupported_version\',source:\'precheck_picker\',vendor_guess:\'epic_not_activated\',vendor_confidence:' + JSON.stringify(conf) + ',vendor_source:' + JSON.stringify(src) + ',vendor_lookup_payload:' + JSON.stringify(JSON.stringify(result)) + '})">Request access</button>';
+    ctaHtml = '<button type="button" class="vendor-check-cta" onclick="openConnectRequestModal({hospital_name:' + JSON.stringify(matched) + ',issue_type:\'unsupported_version\',source:\'precheck_picker\',vendor_guess:\'epic_not_activated\',vendor_confidence:' + JSON.stringify(conf) + ',vendor_source:' + JSON.stringify(src) + ',vendor_lookup_payload:' + JSON.stringify(JSON.stringify(result)) + '})">Request access</button>'
+      + ' <button type="button" class="vendor-check-cta vendor-check-cta--ghost" onclick="_goUploadFromVendorCard()">Upload a record instead</button>';
   } else if (v === 'kaiser_blocked' || v === 'va_blocked') {
     tone = 'block';
     title = escHtml(matched) + ' doesn\u2019t share records this way yet.';
     body = (v === 'kaiser_blocked'
       ? 'Kaiser Permanente keeps records inside their own portal and hasn\u2019t opened FHIR access to outside apps. You can still upload PDFs from kp.org for now.'
       : 'VA records aren\u2019t available through this connection yet. You can still upload VA Blue Button PDFs.');
+    // 2026-06-01 (D7): give blocked vendors an explicit upload CTA instead
+    // of leaving the reviewer at a dead end.
+    ctaHtml = '<button type="button" class="vendor-check-cta" onclick="_goUploadFromVendorCard()">Upload a record instead</button>';
   } else if (v === 'cerner' || v === 'meditech' || v === 'athena' || v === 'nextgen' || v === 'allscripts' || v === 'eclinicalworks') {
     tone = 'warn';
     var vendorLabel = ({cerner:'Oracle Cerner', meditech:'Meditech', athena:'athenahealth', nextgen:'NextGen', allscripts:'Veradigm/Allscripts', eclinicalworks:'eClinicalWorks'})[v] || v;
@@ -16901,12 +16944,34 @@ function _vendorCheckCardHtml(result, query) {
     ? '<div class="vendor-check-attribution"><em>Identified via Perplexity</em></div>'
     : '';
 
+  // 2026-06-01 (D6): prefer the backend-authored note when present. The
+  // ehr-vendor-check edge function returns hospital-specific copy that is
+  // more accurate than our generic fallback strings.
+  var displayBody = (result && typeof result.note === 'string' && result.note.trim())
+    ? escHtml(result.note.trim())
+    : body;
+
   return '<div class="vendor-check-card vendor-check-card--' + tone + '">'
     + '<div class="vendor-check-title">' + title + '</div>'
-    + '<div class="vendor-check-body">' + body + '</div>'
+    + '<div class="vendor-check-body">' + displayBody + '</div>'
     + (ctaHtml ? '<div class="vendor-check-actions">' + ctaHtml + '</div>' : '')
     + attribution
     + '</div>';
+}
+
+// 2026-06-01 (D3/D7): shared helper to route from a vendor-check card (or
+// the Connect screen's "Upload a record" card) into the upload flow. Tries
+// multiple entry points so it works both on the marketing landing and
+// inside the signed-in app.
+function _goUploadFromVendorCard() {
+  try {
+    if (typeof openUploadModal === 'function') { openUploadModal(); return; }
+    if (typeof openDocumentUpload === 'function') { openDocumentUpload(); return; }
+    if (typeof showUploadSheet === 'function') { showUploadSheet(); return; }
+    if (typeof showView === 'function') { showView('records'); return; }
+    if (typeof renderRecordsView === 'function') { renderRecordsView(); return; }
+    if (window && window.location) { window.location.href = '/me#records'; }
+  } catch (e) { console.warn('[upload-cta] failed', e); }
 }
 
 function renderHospitalList(filtered) {
@@ -18736,7 +18801,10 @@ function _collectAllergyNames(ehrData) {
 
 function buildBeforeYouCallBanner(personName, ehrData) {
   if (!ehrData) return '';
-  var firstName = personName || 'them';
+  // 2026-06-01 (D1): fallback is 'Your loved one' (capitalized) so the
+  // composed sentence "Your loved one is on warfarin (blood thinner)."
+  // reads cleanly when no name is resolved.
+  var firstName = personName || 'Your loved one';
   var lines = [];
 
   var allergies = _collectAllergyNames(ehrData);
@@ -19890,7 +19958,7 @@ function _shortenClinicalName(name) {
 // If there's no chart data yet, falls back to a generic four. Voice rules:
 // "notices/watches for", never "tracks/monitors".
 function buildAskChips(personId, firstName) {
-  var name = escHtml(firstName || 'them');
+  var name = escHtml(firstName || 'your loved one');
   var ehr = null;
   try { ehr = getEhrData(personId); } catch (e) { ehr = null; }
 
@@ -19936,7 +20004,7 @@ function buildAskChips(personId, firstName) {
 
 // ── CARE SIGNALS v1: watch-mode suggestion chips ─────────────────────────────
 function buildWatchSuggestionChips(firstName) {
-  var name = escHtml(firstName || 'them');
+  var name = escHtml(firstName || 'your loved one');
   var ctx = window._pendingAskContext || {};
   var metric = ctx.metric || '';
   var chips = [];
@@ -20116,8 +20184,32 @@ function _watchTypeFriendly(watch_type, params) {
     case 'new_record_arrived':
       var kinds = (p.kinds && p.kinds.length) ? p.kinds.join(', ') : 'new records';
       return 'New ' + kinds + ' arrive';
+    // 2026-06-01 (D2): humanize signal keys that previously leaked as raw
+    // identifiers (e.g. "medication_missed") into the CareSignals card.
+    case 'medication_missed':
+      return 'Watching for missed medications';
+    case 'blood_pressure_high':
+    case 'bp_high':
+      return 'Watching for high blood pressure readings';
+    case 'blood_pressure_low':
+    case 'bp_low':
+      return 'Watching for low blood pressure readings';
+    case 'weight_change':
+      return 'Watching for sudden weight changes';
+    case 'glucose_high':
+      return 'Watching for high glucose readings';
+    case 'lab_out_of_range':
+      return 'Watching for labs that fall out of range';
+    case 'visit_no_show':
+      return 'Watching for missed appointments';
     default:
-      return watch_type;
+      // Last-resort: turn snake_case into Title Case ("medication_missed"
+      // → "Medication missed") so we never show a raw machine key.
+      if (typeof watch_type === 'string' && watch_type.length) {
+        var spaced = watch_type.replace(/_/g, ' ').toLowerCase();
+        return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+      }
+      return 'A signal worth following';
   }
 }
 
@@ -20392,7 +20484,40 @@ function adjustWatchProposal(key) {
 
 function renderAskView() {
   // Render ask view for authenticated mode with real people
-  if (isDemoMode) return;
+  if (isDemoMode) {
+    // 2026-06-01 (D5): seed starter chips on the demo Ask view so the
+    // "SOME PLACES TO START" section is never empty for reviewers landing
+    // cold on mywellet.com. Uses the current demo persona's first name when
+    // available so the chips read naturally.
+    try {
+      var demoChips = document.getElementById('suggestion-chips');
+      if (demoChips && !demoChips.innerHTML.trim()) {
+        var demoName = 'Dad';
+        try {
+          var activeTab = document.querySelector('.demo-tab.active');
+          if (activeTab && /vet|mom/i.test(activeTab.id || '')) demoName = 'Mom';
+        } catch (_e) {}
+        var demoStarters = (demoName === 'Mom')
+          ? [
+              'Is ' + demoName + ' stable?',
+              'When is ' + demoName + '’s next appointment?',
+              'What changed this month?',
+              'What meds is ' + demoName + ' taking?'
+            ]
+          : [
+              'How is ' + demoName + ' doing this week?',
+              'When is ' + demoName + '’s next appointment?',
+              'What changed this month?',
+              'What meds is ' + demoName + ' taking?'
+            ];
+        demoChips.innerHTML = demoStarters.map(function(q) {
+          return '<button class="chip" onclick="askQuestion(this.textContent)">' + q + '</button>';
+        }).join('');
+        demoChips.style.display = 'flex';
+      }
+    } catch (_eDemoChips) { /* never let chip seeding crash the demo view */ }
+    return;
+  }
   var personBar = document.querySelector('#view-ask .ask-person-bar');
   if (!personBar) return;
 
@@ -20631,7 +20756,7 @@ function stopVoiceInput() {
   var input = document.getElementById('ask-input');
   if (input && !input.value.trim()) {
     var firstName = isDemoMode ? (_currentAskPerson === 'mom' ? 'Mom' : 'Dad') :
-      (currentPeople.length ? currentPeople.find(function(p){return p.id===currentPersonId;})?.name.split(' ')[0] || 'them' : 'them');
+      (currentPeople.length ? currentPeople.find(function(p){return p.id===currentPersonId;})?.name.split(' ')[0] || 'your loved one' : 'your loved one');
     input.placeholder = 'Ask about ' + firstName + '\u2019s health\u2026';
   }
 }
@@ -23802,7 +23927,7 @@ function buildInviteRightNow(personName, personId) {
 function buildInviteCopy(args) {
   var memberName = args.memberName || 'there';
   var personName = args.personName || 'my loved one';
-  var firstName = (personName || '').split(' ')[0] || 'them';
+  var firstName = (personName || '').split(' ')[0] || 'your loved one';
   var role = (args.role || 'secondary').toLowerCase();
   if (role !== 'primary' && role !== 'emergency') role = 'secondary';
   var inviteLink = args.inviteLink || '';
@@ -23948,7 +24073,7 @@ function openInviteChannelChooser(inviteArgs, member, data) {
   sheet.className = 'sheet';
   sheet.style.cssText = 'background:white;border-radius:20px 20px 0 0;width:100%;max-width:520px;padding:24px 20px 32px;box-shadow:0 -8px 24px rgba(0,0,0,0.15);';
 
-  var firstName = (inviteArgs.personName || '').split(' ')[0] || 'them';
+  var firstName = (inviteArgs.personName || '').split(' ')[0] || 'your loved one';
   sheet.innerHTML =
     '<div style="font-family:var(--serif);font-size:var(--type-h2);margin-bottom:6px;color:var(--text-primary);">Send invite to ' + escHtml(inviteArgs.memberName) + '</div>'
     + '<div style="font-size:var(--type-meta);color:var(--text-secondary);margin-bottom:20px;line-height:1.5;">A personalized invite to join ' + escHtml(firstName) + "'s care circle. Pick how you'd like to send it." + '</div>'
@@ -24043,7 +24168,7 @@ function openFirstSyncWelcome(personId, data) {
   var person = (typeof currentPeople !== 'undefined' && currentPeople)
     ? currentPeople.find(function(p){ return p.id === personId; }) : null;
   var fullName = (person && person.name) || (data.patient && data.patient.name) || 'your loved one';
-  var firstName = (fullName || '').split(' ')[0] || 'them';
+  var firstName = (fullName || '').split(' ')[0] || 'your loved one';
 
   var counts = _firstSyncCounts(data);
   var rightNow = buildInviteRightNow(fullName, personId);
@@ -25110,7 +25235,10 @@ function switchNavTo(view, skipPush) {
   if (view === 'resources') { renderResourcesView(); }
   if (view === 'records') { try { renderRecordsView(); } catch(_e) {} }
   if (view === 'people' && !isDemoMode) { renderPeopleView(); }
-  if (view === 'ask' && !isDemoMode) { renderAskView(); }
+  // 2026-06-01 (D5): call renderAskView in demo mode too so the demo branch
+  // inside it (starter chip seeding) runs and the "Some places to start"
+  // section is never empty for reviewers.
+  if (view === 'ask') { try { renderAskView(); } catch(_e) {} }
   if (view === 'settings') {
     updateSettingsViewAccount();
     if (!isDemoMode) { try { renderCareCircle(); } catch(e){} }
