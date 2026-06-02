@@ -30939,7 +30939,13 @@ renderPersonSwitcher = function() {
 // an empty-state when the active person has no records.
 var _origRenderAskView = renderAskView;
 renderAskView = function() {
-  if (isDemoMode) return;
+  // 2026-06-01 (D5): in demo mode, delegate to the original which seeds the
+  // "Some places to start" chips so the section is never empty for cold
+  // reviewers. Without this, the override short-circuited the demo branch.
+  if (isDemoMode) {
+    try { _origRenderAskView(); } catch(_e) {}
+    return;
+  }
   var personBar = document.querySelector('#view-ask .ask-person-bar');
 
   // No people at all → fall back to original which renders a "Connect a chart" CTA.
