@@ -16960,17 +16960,32 @@ function _vendorCheckCardHtml(result, query) {
 }
 
 // 2026-06-01 (D3/D7): shared helper to route from a vendor-check card (or
-// the Connect screen's "Upload a record" card) into the upload flow. Tries
-// multiple entry points so it works both on the marketing landing and
-// inside the signed-in app.
+// the Connect screen's "Upload a record" card) into the real upload flow.
+// Prefers openUploadById/openUpload (the canonical sheet); falls through to
+// records view if no person context is available.
 function _goUploadFromVendorCard() {
   try {
-    if (typeof openUploadModal === 'function') { openUploadModal(); return; }
-    if (typeof openDocumentUpload === 'function') { openDocumentUpload(); return; }
-    if (typeof showUploadSheet === 'function') { showUploadSheet(); return; }
-    if (typeof showView === 'function') { showView('records'); return; }
-    if (typeof renderRecordsView === 'function') { renderRecordsView(); return; }
-    if (window && window.location) { window.location.href = '/me#records'; }
+    // Best path: open the real upload sheet for the active person.
+    if (typeof openUploadById === 'function' && typeof currentPersonId !== 'undefined' && currentPersonId) {
+      openUploadById(currentPersonId);
+      return;
+    }
+    if (typeof openUpload === 'function') {
+      var person = null;
+      try {
+        if (typeof currentPeople !== 'undefined' && Array.isArray(currentPeople) && currentPersonId) {
+          person = currentPeople.find(function(p){ return p && p.id === currentPersonId; });
+        }
+      } catch (_eP) {}
+      openUpload(person && person.name ? person.name : 'your loved one');
+      return;
+    }
+    // Fallbacks for pre-app contexts: route to records and show a toast.
+    if (typeof showView === 'function') { showView('records'); }
+    else if (typeof renderRecordsView === 'function') { renderRecordsView(); }
+    if (typeof showToast === 'function') {
+      showToast('Pick a person, then tap Upload to add a record.');
+    }
   } catch (e) { console.warn('[upload-cta] failed', e); }
 }
 
