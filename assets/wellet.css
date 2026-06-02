@@ -1076,6 +1076,13 @@
 
   /* bottom nav */
   .bottom-nav { position: fixed; bottom: 0; width: 100%; max-width: 768px; background: white; border-top: 1px solid var(--border); display: flex; padding: 10px 0 20px; z-index: 20; left: 50%; transform: translateX(-50%); }
+  /* D14: when the welcome overlay is up (z-index 100), the bottom nav was
+     getting buried and absorbing taps. Raise nav above the overlay only while
+     it's shown so the user can still tap Records/CareSignals/Ask. switchNavTo
+     auto-dismisses the overlay on first tap so this only matters for the very
+     first interaction. Scoped via :has() so other modals (z-index >100) still
+     get correct stacking. */
+  body:has(#welcome-overlay.show) .bottom-nav { z-index: 110; }
   .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; font-size: var(--type-micro); color: var(--text-muted); padding: 8px 0; min-height: 44px; background: none; border: none; font-family: 'DM Sans', sans-serif; transition: color 0.15s; }
   .nav-item.active { color: var(--moss); }
   .nav-icon { display: flex; align-items: center; }
