@@ -15141,9 +15141,12 @@ function _buildRhythmHtml(terraData, rhythmAH, checkIns) {
 // Care Circle check-in feed (last 5). Empty state encourages the first one.
 function _renderCircleSectionHtml(checkIns, name) {
   if (!checkIns || checkIns.length === 0) {
+    // D13: in me-mode the circle is the user's own — first-person phrasing
+    // avoids leaking the email prefix into the empty state.
+    var _circleOwner = isSelfMode() ? 'your' : (escHtml(name) + '\u2019s');
     return ''
       + '<div class="cs-circle-empty">'
-      +   'No check-ins from ' + escHtml(name) + '\u2019s circle yet. When family or friends log how they\u2019re feeling, it shows up here.'
+      +   'No check-ins from ' + _circleOwner + ' circle yet. When family or friends log how they\u2019re feeling, it shows up here.'
       + '</div>';
   }
   var out = '<div class="cs-circle-list">';
