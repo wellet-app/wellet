@@ -3482,6 +3482,29 @@ function _resumeConnectProgressFromMarker() {
 // BACK to the connect screen with the completed card marked done. They can
 // then continue with the next source or tap "Open my Wellet" to leave.
 function connectFromMeOnboarding(source) {
+  // Judge-path Fix #4 (June 2 2026): in demo mode, NEVER fire beginConnectProgress.
+  // The old behaviour started a fake "Bringing in your loved one's chart" overlay
+  // before any demo check — Android Chrome auditors and judges saw what looked
+  // like a real hospital authentication, which is misleading.
+  // For EHR we route directly to the hospital picker (which already shows the
+  // demo disclosure modal on selection). For wearable sources we show a single
+  // toast explaining what the real connect would do.
+  if (isDemoMode) {
+    if (source === 'ehr') {
+      var screenD = document.getElementById('connect-data-screen');
+      if (screenD) screenD.style.display = 'none';
+      document.body.classList.remove('connect-data-open');
+      showAuthenticatedApp();
+      setTimeout(function() { try { startEhrConnect(); } catch(e) { console.error(e); } }, 60);
+      return;
+    }
+    if (source === 'apple')   { try { showToast('In the real app, this connects to Apple Health on your iPhone.'); } catch(_e) {} return; }
+    if (source === 'google')  { try { showToast('In the real app, this connects Google Health / Fitbit. Sign in to try it.'); } catch(_e) {} return; }
+    if (source === 'terra')   { try { showToast('In the real app, this connects Garmin, Oura, Whoop and other wearables.'); } catch(_e) {} return; }
+    if (source === 'va')      { try { showToast('In the real app, this signs you in at id.va.gov to bring in VA records.'); } catch(_e) {} return; }
+    return;
+  }
+
   // Kick off the progress UI immediately so the user sees motion before
   // the OAuth round-trip begins. finalizeConnectProgress() is called
   // from the callback handlers once data lands.
