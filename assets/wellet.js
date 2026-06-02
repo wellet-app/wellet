@@ -1892,6 +1892,27 @@ function hideModeQuestion() {
   if (screen) screen.style.display = 'none';
 }
 
+// D12: Derive a presentable first name for the self-person without leaking
+// the raw email-prefix (e.g. "reviewer-test-1780369765987") into UI strings.
+// Order: explicit full_name metadata → email prefix only if it looks like a
+// real name (2-20 letters, no digits/punct) → safe fallback "Me".
+function _deriveSelfFirstName(user) {
+  try {
+    var meta = user && user.user_metadata ? user.user_metadata : {};
+    var full = (meta.full_name || meta.name || '').trim();
+    if (full) {
+      var first = full.split(/\s+/)[0];
+      if (first) return first.charAt(0).toUpperCase() + first.slice(1);
+    }
+    var email = (user && user.email) || '';
+    var prefix = email.split('@')[0] || '';
+    if (/^[a-zA-Z]{2,20}$/.test(prefix)) {
+      return prefix.charAt(0).toUpperCase() + prefix.slice(1);
+    }
+  } catch (e) {}
+  return 'Me';
+}
+
 // User picked "Me". Persist mode, create the self-person row, then continue
 // the boot path. Step 5a (the Connect-your-data 3-card screen) isn't built
 // yet — until it lands, fall through to showAuthenticatedApp() so the user
@@ -1918,10 +1939,12 @@ async function chooseModeMe() {
 
     // Create the self-person row. The migration's partial unique index
     // (people_one_self_per_user) prevents accidental duplicates.
-    var firstName =
-      (currentUser.user_metadata && currentUser.user_metadata.full_name && currentUser.user_metadata.full_name.split(' ')[0])
-      || (currentUser.email && currentUser.email.split('@')[0])
-      || 'Me';
+    //
+    // D12: Only use the email prefix if it looks like a human first name (no
+    // digits, no extra dots, reasonable length). Otherwise fall back to 'Me'
+    // so reviewer emails like 'reviewer-test-1780369765987@example.com' don't
+    // surface as 'REVIEWER-TEST-1780369765987’S CONNECTED SOURCES' everywhere.
+    var firstName = _deriveSelfFirstName(currentUser);
     var { data: selfPerson, error: insertErr } = await db.from('people').insert({
       user_id: currentUser.id,
       name: firstName,
@@ -1992,10 +2015,8 @@ async function chooseModeBoth() {
     // Auto-create the self-person row — same shape as chooseModeMe, but we
     // do NOT route to Step 5a yet. Caregiver onboarding chat needs to run
     // first so the user can name + describe their loved one.
-    var firstName =
-      (currentUser.user_metadata && currentUser.user_metadata.full_name && currentUser.user_metadata.full_name.split(' ')[0])
-      || (currentUser.email && currentUser.email.split('@')[0])
-      || 'Me';
+    // D12: see _deriveSelfFirstName — same rationale as chooseModeMe.
+    var firstName = _deriveSelfFirstName(currentUser);
     var { data: selfPerson, error: insertErr } = await db.from('people').insert({
       user_id: currentUser.id,
       name: firstName,
@@ -12457,7 +12478,9 @@ function openHealthImportPicker() {
 function openAddEvent(personId) {
   var pid = personId || currentPersonId;
   var person = currentPeople.find(function(p){ return p.id === pid; });
-  document.getElementById('add-event-person-label').textContent = 'Adding to ' + (person ? person.name + '\'s' : 'your') + ' timeline';
+  // D13: in me-mode the row IS the user, so use "your timeline" instead of
+  // showing the email-prefix-derived person name.
+  document.getElementById('add-event-person-label').textContent = 'Adding to ' + ((person && !isSelfMode()) ? person.name + '\'s' : 'your') + ' timeline';
   // Set today's date as default
   var today = new Date().toISOString().split('T')[0];
   document.getElementById('event-date-input').value = today;
@@ -12572,7 +12595,8 @@ function openMedDetail(medKey) {
 // ── ADD MEDICATION ────────────────────────────────────────────────────────────
 function openAddMed() {
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
-  document.getElementById('add-med-person-label').textContent = 'Adding to ' + (person ? person.name + '\'s' : 'your') + ' records';
+  // D13: same as add-event-person-label — hide person-name in me-mode.
+  document.getElementById('add-med-person-label').textContent = 'Adding to ' + ((person && !isSelfMode()) ? person.name + '\'s' : 'your') + ' records';
   document.getElementById('med-name-input').value = '';
   document.getElementById('med-dose-input').value = '';
   document.getElementById('med-freq-input').value = '';
@@ -14947,11 +14971,14 @@ function _buildRightNowLine(name, checkIns, conns, terraData, rhythmAH) {
 // it. Empty state nudges toward the "Tell Wellet" CTA in the section head.
 function _renderWatchesSectionHtml(watches, name) {
   if (!watches || watches.length === 0) {
+    // D13: in me-mode the watched subject is the user themselves, so the example
+    // should read "if you take" instead of leaking the email-derived first name.
+    var _exSubject = isSelfMode() ? 'you take' : (escHtml(name) + ' takes');
     return ''
       + '<div class="cs-watches-empty">'
       +   'Nothing to notice yet. Tap '
       +   '<em>Tell Wellet what to notice</em> '
-      +   'to add the first one \u2014 like \u201cnotice if ' + escHtml(name) + ' takes fewer than 1,000 steps for three days.\u201d'
+      +   'to add the first one \u2014 like \u201cnotice if ' + _exSubject + ' fewer than 1,000 steps for three days.\u201d'
       + '</div>';
   }
   // Sort: active first, then by created_at desc (already)
@@ -15712,7 +15739,9 @@ async function _paintSignals(el, sigFirstName, activeConns, terraData) {
   }
   if (lastSyncStr) eyebrowBits.push('Synced ' + lastSyncStr);
   var eyebrow = eyebrowBits.length ? eyebrowBits.join(' \u00b7 ') : 'CareSignals';
-  var lede = 'What Wellet is noticing for ' + escHtml(sigFirstName) + ' \u2014 quiet patterns and check-ins from the people closest to them.';
+  var lede = isSelfMode()
+    ? 'What Wellet is noticing for you \u2014 quiet patterns and check-ins from the people closest to you.'
+    : 'What Wellet is noticing for ' + escHtml(sigFirstName) + ' \u2014 quiet patterns and check-ins from the people closest to them.';
 
   var ch = '<div class="signals-view">';
   ch += '<header class="view-header">';
@@ -18322,7 +18351,11 @@ function _updateSvConnectedSourcesHeader() {
   var label = document.getElementById('sv-connected-sources-label');
   if (!label) return;
   var name = getPersonFirstName();
-  if (name && name !== 'Patient') {
+  // D13: in me-mode the section is the user's own sources — say "YOUR CONNECTED
+  // SOURCES" instead of upper-casing the email prefix.
+  if (isSelfMode()) {
+    label.textContent = 'YOUR CONNECTED SOURCES';
+  } else if (name && name !== 'Patient') {
     label.textContent = name.toUpperCase() + '\u2019S CONNECTED SOURCES';
   } else {
     label.textContent = 'Connected Sources';
@@ -25226,6 +25259,17 @@ function switchTab(el, id) {
 }
 
 function switchNavTo(view, skipPush) {
+  // D14: the Welcome overlay (qa-overlay) sits above the bottom nav and was
+  // absorbing taps — the active tab pill flipped but the view didn\u2019t switch
+  // because the overlay swallowed the event. Any nav tap now dismisses the
+  // overlay first so the nav action proceeds normally on the next tap and,
+  // because the overlay is gone, this tap as well.
+  try {
+    var _welcomeEl = document.getElementById('welcome-overlay');
+    if (_welcomeEl && _welcomeEl.classList.contains('show')) {
+      closeSheet('welcome-overlay');
+    }
+  } catch (_e) {}
   document.querySelectorAll('.app-view').forEach(function(v){ v.classList.remove('active'); });
   var viewEl = document.getElementById('view-' + view);
   if (!viewEl) { console.warn('switchNavTo: no view for', view); return; }
@@ -31002,25 +31046,44 @@ renderAskView = function() {
 
   if (!hasRecords) {
     // Empty state — person has no records yet.
+    // D13: in me-mode the user IS the person, so swap "your loved one's"
+    // language for first-person copy and drop the "switch to a different
+    // family member" hint (there's no switcher in me-mode).
+    var _selfMode = isSelfMode();
     if (chatArea) {
+      var _intro, _btnLabel, _switchLine;
+      if (_selfMode) {
+        _intro = 'Wellet answers from your records. Upload one to <em style="color:#B8731C;font-style:italic;">unlock</em> Ask Wellet.';
+        _btnLabel = 'Add your records';
+        _switchLine = '';
+      } else {
+        _intro = 'Wellet answers from what\u2019s in your loved one\u2019s records. Add records for ' + escHtml(firstName)
+          + ' to <em style="color:#B8731C;font-style:italic;">unlock</em> Ask Wellet for them.';
+        _btnLabel = 'Add records for ' + escHtml(firstName);
+        _switchLine = '<div style="margin-top:16px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.5;">'
+          + 'Or <em style="color:#B8731C;font-style:italic;">switch</em> to a different family member at the top of the screen.'
+          + '</div>';
+      }
       chatArea.innerHTML = '<div style="text-align:center;padding:40px 24px 20px;">'
         + '<div style="font-size:var(--type-body);color:#2C2A26;line-height:1.6;max-width:320px;margin:0 auto;">'
-        + 'Wellet answers from what\u2019s in your loved one\u2019s records. Add records for ' + escHtml(firstName)
-        + ' to <em style="color:#B8731C;font-style:italic;">unlock</em> Ask Wellet for them.'
+        + _intro
         + '</div>'
         + '<button onclick="showConnectScreen()" style="margin-top:20px;padding:12px 24px;background:var(--moss);color:#fff;border:none;border-radius:999px;font-size:var(--type-body);font-weight:600;font-family:inherit;cursor:pointer;">'
-        + 'Add records for ' + escHtml(firstName) + '</button>'
-        + '<div style="margin-top:16px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.5;">'
-        + 'Or <em style="color:#B8731C;font-style:italic;">switch</em> to a different family member at the top of the screen.'
-        + '</div></div>';
+        + _btnLabel + '</button>'
+        + _switchLine
+        + '</div>';
     }
     if (chips) { chips.innerHTML = ''; chips.style.display = 'none'; }
-    if (inputEl) inputEl.placeholder = 'Add records to ask questions\u2026';
+    if (inputEl) inputEl.placeholder = _selfMode ? 'Upload a record to ask questions\u2026' : 'Add records to ask questions\u2026';
     return;
   }
 
   // Normal state — person has records, render the full Ask interface.
-  if (inputEl) inputEl.placeholder = 'Ask about ' + escHtml(possSegment(firstName, true)) + ' health\u2026';
+  // D13: in me-mode "Ask about your health" reads cleanly; caregiver mode keeps
+  // the possSegment-derived loved-one phrasing.
+  if (inputEl) inputEl.placeholder = isSelfMode()
+    ? 'Ask about your health\u2026'
+    : 'Ask about ' + escHtml(possSegment(firstName, true)) + ' health\u2026';
 
   if (chatArea) {
     // Prefer the stable id from index.html so the intro bubble updates even
@@ -31029,7 +31092,11 @@ renderAskView = function() {
     var introBubble = document.getElementById('ask-intro-bubble');
     if (!introBubble) introBubble = chatArea.querySelector('.chat-group.from-wellet .chat-bubble.wellet');
     if (introBubble) {
-      introBubble.textContent = 'Ask me anything about ' + firstName + '\u2019s health. I\u2019ll answer from what\u2019s in ' + firstName + '\u2019s records.';
+      // D13: first-person intro in me-mode — avoids "Ask me anything about
+      // reviewer-test-xxx\u2019s health\u2026" leaking the email prefix.
+      introBubble.textContent = isSelfMode()
+        ? 'Ask me anything about your health. I\u2019ll answer from what\u2019s in your records.'
+        : 'Ask me anything about ' + firstName + '\u2019s health. I\u2019ll answer from what\u2019s in ' + firstName + '\u2019s records.';
     }
   }
 
