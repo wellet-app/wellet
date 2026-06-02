@@ -61,12 +61,12 @@
   font-family: var(--sans);
   font-size: var(--type-micro);
   font-weight: 500;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.04em;
   color: var(--moss-deep);
   border: 1px solid var(--moss-deep);
   border-radius: 4px;
   padding: 5px 10px;
-  text-transform: uppercase;
+  text-transform: none;
   background: transparent;
 }
 

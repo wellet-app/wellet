@@ -48,7 +48,7 @@
   #auth-screen { display: none; flex-direction: column; min-height: 100vh; background: var(--cream); }
   .auth-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 28px 0; }
   .auth-header-wordmark { width: 100px; display: block; }
-  .auth-early-badge { font-size: var(--type-micro); font-weight: 500; letter-spacing: 0.08em; color: var(--moss-text); border: 1.5px solid var(--moss); border-radius: 6px; padding: 5px 12px; text-transform: uppercase; }
+  .auth-early-badge { font-size: var(--type-micro); font-weight: 500; letter-spacing: 0.04em; color: var(--moss-text); border: 1.5px solid var(--moss); border-radius: 6px; padding: 5px 12px; text-transform: none; }
 
   .auth-headline { padding: 12px 28px 0; }
   .auth-headline h1 { font-family: var(--serif); font-size: var(--type-display); line-height: 1.15; font-weight: 400; color: #2C2A26; margin: 0; }
