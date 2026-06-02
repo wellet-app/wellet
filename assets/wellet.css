@@ -861,7 +861,7 @@
   .tl-dot.note { border-color: var(--text-muted); }
   .tl-dot.alert { border-color: var(--red); background: var(--red); }
   .tl-connector { width: 1px; flex: 1; min-height: 24px; background: var(--border); margin-top: 4px; }
-  .tl-card { flex: 1; background: white; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; transition: background 0.15s ease-out, border-color 0.15s ease-out; }
+  .tl-card { flex: 1; background: white; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; transition: background 0.15s ease-out, border-color 0.15s ease-out; }
   .tl-card[onclick]:hover { background: #FAFAF7; border-color: #C9C6BE; }
   /* Flash highlight on a Records row when jumped to from Timeline */
   @keyframes tlTargetFlash {
@@ -869,10 +869,46 @@
     100% { background: transparent; box-shadow: 0 0 0 0 rgba(75, 99, 65, 0); }
   }
   .tl-target-flash { animation: tlTargetFlash 2s ease-out; border-radius: 8px; }
-  .tl-card.amber-border { border-left: 3px solid var(--amber); }
-  .tl-card.blue-border { border-left: 3px solid var(--blue); }
-  .tl-card.moss-border { border-left: 3px solid var(--moss); }
-  .tl-card.red-border { border-left: 3px solid var(--red); }
+  /* Left-border accent variants kept as no-op for backwards compat — the new
+     design uses a colored icon tile on the left instead. */
+  .tl-card.amber-border,
+  .tl-card.blue-border,
+  .tl-card.moss-border,
+  .tl-card.red-border { border-left: 1px solid var(--border); }
+
+  /* ─── Icon-tile card layout ───────────────────────────────────────────────
+     Matches the BDB video timeline: 40×40 rounded square color tile on the
+     left, content column on the right, timestamp right-aligned in the eyebrow
+     row. Used by the standard event card render (appointments, refills,
+     labs, documents, notes, encounters). CareSignals cards keep their own
+     mint-tinted gradient treatment and don't use this layout. */
+  .tl-card.tl-card-with-icon { display: flex; gap: 12px; align-items: flex-start; }
+  .tl-icon-tile {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    background: #EEEBE2;
+    color: var(--text-muted);
+  }
+  .tl-icon-tile i, .tl-icon-tile svg { width: 20px; height: 20px; stroke-width: 1.75; }
+  .tl-icon-tile-appt { background: #DCE8DA; color: #4F7A68; }
+  .tl-icon-tile-med { background: #F5DAB9; color: #8A5A2B; }
+  .tl-icon-tile-lab { background: #E0DCEC; color: #6A5FA0; }
+  .tl-icon-tile-alert { background: #F0D7D7; color: #A05A6A; }
+  .tl-icon-tile-note { background: #EEEBE2; color: #7A7367; }
+  .tl-card-content { flex: 1; min-width: 0; }
+  .tl-card-content .tl-card-type-row { justify-content: flex-start; }
+  .tl-card-content .tl-card-time {
+    margin-left: auto;
+    font-size: var(--type-micro);
+    color: var(--text-muted);
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    text-transform: none;
+    flex-shrink: 0;
+    padding-left: 8px;
+  }
 
   /* ─── CareSignals card on the timeline ──────────────────────────────────
      Stands out from EHR + manual cards. Mint-tinted background, accent rail

@@ -4459,12 +4459,16 @@ function renderUpdateMe() {
       // Rail and dot are drawn via CSS ::before on .timeline-section and
       // .tl-item — no per-item line-col / connector divs.
       timelineHTML += '<div class="tl-item">'
-        + '<div class="tl-card ' + typeInfo.border + '">'
-        + '<div class="tl-card-type-row"><i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + typeInfo.color + ';"></i>'
-        + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span></div>'
+        + '<div class="tl-card tl-card-with-icon ' + typeInfo.border + '">'
+        + '<div class="tl-icon-tile tl-icon-tile-' + typeInfo.dot + '"><i data-lucide="' + typeInfo.icon + '"></i></div>'
+        + '<div class="tl-card-content">'
+        + '<div class="tl-card-type-row">'
+        + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span>'
+        + '<span class="tl-card-time">' + escHtml(dateStr) + '</span>'
+        + '</div>'
         + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
         + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
-        + '<div class="tl-card-date">' + dateStr + '</div>'
+        + '</div>'
         + '</div></div>';
     });
   }
@@ -6479,28 +6483,31 @@ function renderTimeline() {
         }
         if (encInfo) {
           html += '<div class="tl-item">'
-            + '<div class="tl-card tl-card-encounter tl-enc-' + escHtml(encInfo.color_token) + '" data-ask-lp="' + askKeyTl + '"' + clickAttr + '>'
+            + '<div class="tl-card tl-card-with-icon tl-card-encounter tl-enc-' + escHtml(encInfo.color_token) + '" data-ask-lp="' + askKeyTl + '"' + clickAttr + '>'
+            + '<div class="tl-icon-tile tl-icon-tile-' + typeInfo.dot + '" style="background:' + encInfo.hex + '1F;color:' + encInfo.hex + ';"><i data-lucide="' + typeInfo.icon + '"></i></div>'
+            + '<div class="tl-card-content">'
             + '<div class="tl-card-type-row">'
-            +   '<i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + encInfo.hex + ';"></i>'
             +   '<span class="tl-card-type tl-enc-label" style="color:' + encInfo.hex + ';">' + escHtml(encInfo.label) + '</span>'
+            +   '<span class="tl-card-time">' + escHtml(dateStr) + '</span>'
             + '</div>'
             + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
             + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
-            + '<div class="tl-card-date">' + dateStr
-            + ' \u00B7 <span style="color:' + pillColor + ';' + pillStyle + '">' + escHtml(pillLabel) + '</span>'
+            + '<div class="tl-card-date"><span style="color:' + pillColor + ';' + pillStyle + '">' + escHtml(pillLabel) + '</span></div>'
             + '</div>'
             + '</div></div>';
         } else {
           html += '<div class="tl-item">'
-            + '<div class="tl-card ' + typeInfo.border + '" data-ask-lp="' + askKeyTl + '"' + clickAttr + '>'
-            + '<div class="tl-card-type-row"><i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + typeInfo.color + ';"></i>'
+            + '<div class="tl-card tl-card-with-icon ' + typeInfo.border + '" data-ask-lp="' + askKeyTl + '"' + clickAttr + '>'
+            + '<div class="tl-icon-tile tl-icon-tile-' + typeInfo.dot + '"><i data-lucide="' + typeInfo.icon + '"></i></div>'
+            + '<div class="tl-card-content">'
+            + '<div class="tl-card-type-row">'
             + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span>'
+            + '<span class="tl-card-time">' + escHtml(dateStr) + '</span>'
             + '</div>'
             + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
             + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
             + (ev.event_type === 'ask_wellet_conversation' && ev.transcript_url ? '<div class="tl-card-body" style="margin-top:4px;"><a href="' + escHtml(ev.transcript_url) + '" target="_blank" rel="noopener" style="color:var(--moss-deep,var(--moss));font-size:13px;font-weight:500;text-decoration:none;">View transcript →</a></div>' : '')
-            + '<div class="tl-card-date">' + dateStr
-            + ' \u00B7 <span style="color:' + pillColor + ';' + pillStyle + '">' + escHtml(pillLabel) + '</span>'
+            + '<div class="tl-card-date"><span style="color:' + pillColor + ';' + pillStyle + '">' + escHtml(pillLabel) + '</span></div>'
             + '</div>'
             + '</div></div>';
         }
