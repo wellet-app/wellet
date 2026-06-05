@@ -14521,13 +14521,8 @@ var DEMO_TIMELINE_EXTRAS = {
     { id:'dml-3', medication_id:'dem-lev', taken_at:_demoDaysAgo(2, 20, 0), status:'taken' },
     { id:'dml-4', medication_id:'dem-lis', taken_at:_demoDaysAgo(2, 8, 5),  status:'taken' }
   ],
-  // Daily check-ins — one recent entry
-  checkIns: [
-    { id:'dci-1', mood:'tired', pain_level:2, sleep_quality:'fair',
-      energy_level:'low', appetite:'normal',
-      notes:'A little wobbly this morning, better by afternoon.',
-      checked_in_at:_demoDaysAgo(1, 9, 0) }
-  ]
+  // Daily check-ins — removed from demo to reduce noise on the timeline
+  checkIns: []
 };
 
 // Demo documents — one voice note (becomes "Voice note") and two uploaded
@@ -25809,6 +25804,7 @@ function switchTab(el, id) {
   el.classList.add('active');
   el.setAttribute('aria-selected', 'true');
   document.getElementById('tab-'+id).classList.add('active');
+  window.scrollTo({ top: 0 });
 }
 
 function switchNavTo(view, skipPush) {
@@ -25827,6 +25823,7 @@ function switchNavTo(view, skipPush) {
   var viewEl = document.getElementById('view-' + view);
   if (!viewEl) { console.warn('switchNavTo: no view for', view); return; }
   viewEl.classList.add('active');
+  window.scrollTo({ top: 0 });
   document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
   // Find the nav button whose data-nav-key matches this view and activate it.
   // Resilient to nav-layout changes (4-button / 6-button / menu re-org).

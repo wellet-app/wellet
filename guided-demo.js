@@ -11,6 +11,7 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
     audio: null,
     timer: null,
     typeInterval: null,
+    captionInterval: null,
     started: false
   };
 
@@ -108,10 +109,10 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
         if (chips) chips.style.display = 'flex';
       }
     },
-    // 8 — Type question
+    // 9 — Type question (caption blank — let the typing effect carry the moment)
     {
       audio: '09-ask-question.mp3',
-      caption: '"Is Dad\'s blood pressure getting better since the medication change?"',
+      caption: '',
       duration: 6500,
       action: function() {
         var chips = document.getElementById('suggestion-chips');
@@ -158,7 +159,7 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
         openEmergencySummary();
         setTimeout(function() {
           closeSheet('emergency-overlay');
-        }, 8000);
+        }, 8600);  // audio is 8385ms — keep overlay visible through narration
       }
     },
     // 11 — Closing with end card
@@ -175,17 +176,23 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
 
   // ── DEMO RESPONSE INJECTION (5A) ───────────────────────────────────────────────────────────────────────
   function gdInjectDemoResponse(text) {
-    // Simulate typing delay then call addWelletMessage
+    // Show typing dots immediately so it feels like Wellet is "thinking"
+    var typingId = (typeof showTyping === 'function') ? showTyping() : null;
+    // Reveal the response at ~3.5s — realistic thinking delay
     setTimeout(function() {
-      if (typeof removeTyping === 'function') {
-        // Try to remove any active typing indicator
-        var typingEls = document.querySelectorAll('.typing-indicator');
-        typingEls.forEach(function(el) { el.remove(); });
+      if (typingId && typeof removeTyping === 'function') {
+        removeTyping(typingId);
       }
+      // Belt-and-suspenders: remove any leftover typing indicators
+      var dots = document.querySelectorAll('.typing-dot');
+      dots.forEach(function(el) {
+        var bubble = el.closest('.chat-group');
+        if (bubble) bubble.remove();
+      });
       if (typeof addWelletMessage === 'function') {
         addWelletMessage(text);
       }
-    }, 1200);
+    }, 3500);
   }
 
   // Patch sendAskMessage to inject canned response in guided demo
@@ -283,6 +290,7 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
     if (_gd.timer) { clearTimeout(_gd.timer); _gd.timer = null; }
     if (_gd.audio) { _gd.audio.pause(); _gd.audio.currentTime = 0; _gd.audio = null; }
     gdClearTypeInterval();
+    gdClearCaptionInterval();
 
     var step = guidedSteps[idx];
     var capEl = document.getElementById('guided-caption');
@@ -305,12 +313,14 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
     // Run action
     if (step.action) step.action();
 
-    // Caption
+    // Caption — word-by-word typewriter reveal
     if (capEl) {
       if (step.caption) {
-        capEl.textContent = step.caption;
+        capEl.textContent = '';
         capEl.style.opacity = '1';
+        gdTypeCaption(capEl, step.caption, step.duration);
       } else {
+        gdClearCaptionInterval();
         capEl.style.opacity = '0';
       }
     }
@@ -425,6 +435,32 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
     if (_gd.typeInterval) { clearInterval(_gd.typeInterval); _gd.typeInterval = null; }
   }
 
+  function gdClearCaptionInterval() {
+    if (_gd.captionInterval) { clearInterval(_gd.captionInterval); _gd.captionInterval = null; }
+  }
+
+  // Reveal caption word-by-word, finishing at ~75% of audio duration.
+  // Falls back to full-text if duration is unknown or caption is very short.
+  function gdTypeCaption(capEl, text, audioDurationMs) {
+    gdClearCaptionInterval();
+    var words = text.split(/\s+/);
+    if (words.length <= 2 || !audioDurationMs) {
+      capEl.textContent = text;
+      return;
+    }
+    var targetMs = audioDurationMs * 0.75;
+    var wordDelay = Math.max(80, Math.min(350, targetMs / words.length));
+    var shown = 0;
+    capEl.textContent = '';
+    _gd.captionInterval = setInterval(function() {
+      shown++;
+      capEl.textContent = words.slice(0, shown).join(' ');
+      if (shown >= words.length) {
+        gdClearCaptionInterval();
+      }
+    }, wordDelay);
+  }
+
   // ── END CARD ──
   function gdShowEndCard() {
     var ec = document.getElementById('guided-endcard');
@@ -461,6 +497,7 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
       if (_gd.timer) { clearTimeout(_gd.timer); _gd.timer = null; }
       if (_gd.audio) _gd.audio.pause();
       gdClearTypeInterval();
+      gdClearCaptionInterval();
     } else {
       if (btn) btn.textContent = '⏸ Pause';
       // Resume: replay current step's audio-advance logic
@@ -477,6 +514,7 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
     if (_gd.timer) { clearTimeout(_gd.timer); _gd.timer = null; }
     if (_gd.audio) { _gd.audio.pause(); _gd.audio = null; }
     gdClearTypeInterval();
+    gdClearCaptionInterval();
     gdClearHighlight();
 
     var cap = document.getElementById('guided-caption');
