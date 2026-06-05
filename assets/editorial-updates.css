@@ -372,8 +372,10 @@
 #view-home[data-editorial="updates"] .tl-dot.alert{ background: var(--signal-warm); }
 #view-home[data-editorial="updates"] .tl-dot.note { background: var(--signal-stale); }
 
-/* The card body becomes a flat editorial entry */
-#view-home[data-editorial="updates"] .tl-card {
+/* The card body becomes a flat editorial entry — EXCEPT cards that opt into
+   the new icon-tile layout. Those re-introduce the white card framing to
+   match the BDB promo video timeline (40×40 colored tile + white card). */
+#view-home[data-editorial="updates"] .tl-card:not(.tl-card-with-icon) {
   background: transparent;
   border: 0;
   border-radius: 0;
@@ -381,12 +383,65 @@
   padding: 0;
   margin: 0;
 }
-/* Strip every colored-border variant */
-#view-home[data-editorial="updates"] .tl-card.moss-border,
-#view-home[data-editorial="updates"] .tl-card.amber-border,
-#view-home[data-editorial="updates"] .tl-card.blue-border,
-#view-home[data-editorial="updates"] .tl-card.red-border {
+/* Strip every colored-border variant on non-icon-tile cards */
+#view-home[data-editorial="updates"] .tl-card.moss-border:not(.tl-card-with-icon),
+#view-home[data-editorial="updates"] .tl-card.amber-border:not(.tl-card-with-icon),
+#view-home[data-editorial="updates"] .tl-card.blue-border:not(.tl-card-with-icon),
+#view-home[data-editorial="updates"] .tl-card.red-border:not(.tl-card-with-icon) {
   border: 0;
+}
+
+/* ─── Icon-tile cards in editorial mode ──────────────────────────────────────
+   These cards (.tl-card-with-icon) re-establish a white card surface even
+   when the editorial flag is on, so the timeline reads as discrete cards
+   like the BDB promo video. Colored left-border accents stay suppressed —
+   the 40×40 colored icon tile carries the category color instead. */
+#view-home[data-editorial="updates"] .tl-card.tl-card-with-icon {
+  background: white;
+  border: 1px solid var(--border, rgba(79, 77, 92, 0.12));
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(28, 36, 32, 0.04);
+  padding: 14px 16px;
+  margin: 0;
+}
+#view-home[data-editorial="updates"] .tl-card.tl-card-with-icon.moss-border,
+#view-home[data-editorial="updates"] .tl-card.tl-card-with-icon.amber-border,
+#view-home[data-editorial="updates"] .tl-card.tl-card-with-icon.blue-border,
+#view-home[data-editorial="updates"] .tl-card.tl-card-with-icon.red-border {
+  border-left: 1px solid var(--border, rgba(79, 77, 92, 0.12));
+}
+#view-home[data-editorial="updates"] .tl-card.tl-card-with-icon .tl-card-type-row svg,
+#view-home[data-editorial="updates"] .tl-card.tl-card-with-icon .tl-card-type-row [data-lucide] {
+  /* Inside icon-tile cards the eyebrow row no longer carries a leading icon,
+     so leave any other inline icons (e.g. ehr-badge hospital) at their own
+     declared size and color. */
+  color: inherit !important;
+  width: auto;
+  height: auto;
+}
+#view-home[data-editorial="updates"] .tl-card.tl-card-with-icon .ehr-badge svg,
+#view-home[data-editorial="updates"] .tl-card.tl-card-with-icon .ehr-badge [data-lucide] {
+  width: 10px;
+  height: 10px;
+  color: var(--ink-5);
+}
+#view-home[data-editorial="updates"] .tl-card.tl-card-with-icon .tl-icon-tile svg,
+#view-home[data-editorial="updates"] .tl-card.tl-card-with-icon .tl-icon-tile [data-lucide] {
+  /* Keep the 20px icon inside the colored tile — do not let the editorial
+     11px rule shrink it. */
+  width: 20px !important;
+  height: 20px !important;
+  color: inherit !important;
+}
+#view-home[data-editorial="updates"] .tl-card.tl-card-with-icon .tl-card-time {
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: var(--type-micro);
+  color: var(--ink-4);
+  letter-spacing: 0.04em;
+  text-transform: none;
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
 }
 
 /* The small type-row above the headline — eyebrow */

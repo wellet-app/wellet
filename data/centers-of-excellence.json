@@ -1,0 +1,1283 @@
+{
+  "version": "2026-05-17",
+  "_sources": {
+    "C": "NCI-Designated Cancer Centers — cancer.gov/research/nci-role/cancer-centers/find",
+    "C92": "NCI-Designated Cancer Centers with Hematology/Leukemia Programs — cancer.gov",
+    "E10": "NIH/NIDDK Diabetes Research Centers — diabetescenters.org (NIDDK P30 grants)",
+    "E11": "NIH/NIDDK Diabetes Research Centers — diabetescenters.org (NIDDK P30 grants)",
+    "I": "AHA/ACC Top Cardiology Centers; AHA Certified Hypertension Centers — heart.org; Newsweek/U.S. News & World Report 2025 cardiac rankings",
+    "G30": "NIA-funded Alzheimer's Disease Research Centers (ADRCs) — alzheimers.gov/taking-action/national-research-centers",
+    "G31": "NIA-funded Alzheimer's Disease Research Centers (ADRCs) — same as G30",
+    "J44": "COPD Foundation COPD360Net Accredited Centers; American Lung Association ACRC Network; U.S. News & World Report Pulmonology rankings 2025",
+    "J45": "American Lung Association Airways Clinical Research Centers (ACRC) — lung.org; top pulmonology/asthma centers",
+    "M": "U.S. News & World Report Rheumatology Best Hospitals 2025; major ACR-affiliated academic medical centers",
+    "K7": "AASLD-affiliated liver disease centers; HRSA-designated liver transplant centers of excellence; UCSF HRSA Center of Excellence designation — ucsfhealth.org",
+    "N18": "NIH/NIDDK George M. O'Brien Kidney National Resource Centers — niddk.nih.gov/research-funding/research-programs/kidney-disease-centers"
+  },
+  "centers_by_icd10_prefix": {
+    "C": [
+      {
+        "name": "The University of Texas MD Anderson Cancer Center",
+        "designation": "NCI-Designated Comprehensive Cancer Center",
+        "city": "Houston",
+        "state": "TX",
+        "lat": 29.7075,
+        "lng": -95.3982,
+        "url": "https://www.mdanderson.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Memorial Sloan Kettering Cancer Center",
+        "designation": "NCI-Designated Comprehensive Cancer Center",
+        "city": "New York",
+        "state": "NY",
+        "lat": 40.7641,
+        "lng": -73.9568,
+        "url": "https://www.mskcc.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Dana-Farber/Harvard Cancer Center",
+        "designation": "NCI-Designated Comprehensive Cancer Center",
+        "city": "Boston",
+        "state": "MA",
+        "lat": 42.3372,
+        "lng": -71.1069,
+        "url": "https://www.dana-farber.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Duke Cancer Institute",
+        "designation": "NCI-Designated Comprehensive Cancer Center",
+        "city": "Durham",
+        "state": "NC",
+        "lat": 35.9994,
+        "lng": -78.9382,
+        "url": "https://www.dukecancerinstitute.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "UNC Lineberger Comprehensive Cancer Center",
+        "designation": "NCI-Designated Comprehensive Cancer Center",
+        "city": "Chapel Hill",
+        "state": "NC",
+        "lat": 35.9101,
+        "lng": -79.0489,
+        "url": "https://unclineberger.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "City of Hope Comprehensive Cancer Center",
+        "designation": "NCI-Designated Comprehensive Cancer Center",
+        "city": "Duarte",
+        "state": "CA",
+        "lat": 34.1391,
+        "lng": -117.9601,
+        "url": "https://www.cityofhope.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Fred Hutchinson Cancer Center",
+        "designation": "NCI-Designated Comprehensive Cancer Center",
+        "city": "Seattle",
+        "state": "WA",
+        "lat": 47.6254,
+        "lng": -122.3302,
+        "url": "https://www.fredhutch.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Mayo Clinic Cancer Center",
+        "designation": "NCI-Designated Comprehensive Cancer Center",
+        "city": "Rochester",
+        "state": "MN",
+        "lat": 44.0224,
+        "lng": -92.4657,
+        "url": "https://www.mayoclinic.org/departments-centers/mayo-clinic-cancer-center/home/orc-20386740",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Moffitt Cancer Center",
+        "designation": "NCI-Designated Comprehensive Cancer Center",
+        "city": "Tampa",
+        "state": "FL",
+        "lat": 28.0629,
+        "lng": -82.4148,
+        "url": "https://www.moffitt.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Roswell Park Comprehensive Cancer Center",
+        "designation": "NCI-Designated Comprehensive Cancer Center",
+        "city": "Buffalo",
+        "state": "NY",
+        "lat": 42.9017,
+        "lng": -78.8699,
+        "url": "https://www.roswellpark.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Abramson Cancer Center",
+        "designation": "NCI-Designated Comprehensive Cancer Center",
+        "city": "Philadelphia",
+        "state": "PA",
+        "lat": 39.9488,
+        "lng": -75.1944,
+        "url": "https://www.pennmedicine.org/cancer",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "UCSF Helen Diller Family Comprehensive Cancer Center",
+        "designation": "NCI-Designated Comprehensive Cancer Center",
+        "city": "San Francisco",
+        "state": "CA",
+        "lat": 37.7631,
+        "lng": -122.4586,
+        "url": "https://cancer.ucsf.edu/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Sidney Kimmel Comprehensive Cancer Center at Johns Hopkins",
+        "designation": "NCI-Designated Comprehensive Cancer Center",
+        "city": "Baltimore",
+        "state": "MD",
+        "lat": 39.2960,
+        "lng": -76.5918,
+        "url": "https://www.hopkinsmedicine.org/kimmel_cancer_center",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Vanderbilt-Ingram Cancer Center",
+        "designation": "NCI-Designated Comprehensive Cancer Center",
+        "city": "Nashville",
+        "state": "TN",
+        "lat": 36.1449,
+        "lng": -86.8027,
+        "url": "https://www.vicc.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Jonsson Comprehensive Cancer Center at UCLA",
+        "designation": "NCI-Designated Comprehensive Cancer Center",
+        "city": "Los Angeles",
+        "state": "CA",
+        "lat": 34.0667,
+        "lng": -118.4454,
+        "url": "https://www.cancer.ucla.edu/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Stanford Cancer Institute",
+        "designation": "NCI-Designated Comprehensive Cancer Center",
+        "city": "Stanford",
+        "state": "CA",
+        "lat": 37.4323,
+        "lng": -122.1753,
+        "url": "https://cancer.stanford.edu/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Huntsman Cancer Institute",
+        "designation": "NCI-Designated Comprehensive Cancer Center",
+        "city": "Salt Lake City",
+        "state": "UT",
+        "lat": 40.7670,
+        "lng": -111.8403,
+        "url": "https://healthcare.utah.edu/huntsmancancerinstitute/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Wake Forest Baptist Comprehensive Cancer Center",
+        "designation": "NCI-Designated Comprehensive Cancer Center",
+        "city": "Winston-Salem",
+        "state": "NC",
+        "lat": 36.0997,
+        "lng": -80.2444,
+        "url": "https://www.wakehealth.edu/Comprehensive-Cancer-Center",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "O'Neal Comprehensive Cancer Center at UAB",
+        "designation": "NCI-Designated Comprehensive Cancer Center",
+        "city": "Birmingham",
+        "state": "AL",
+        "lat": 33.5044,
+        "lng": -86.8020,
+        "url": "https://www.uab.edu/onealcancercenter/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "The Ohio State University Comprehensive Cancer Center",
+        "designation": "NCI-Designated Comprehensive Cancer Center",
+        "city": "Columbus",
+        "state": "OH",
+        "lat": 39.9988,
+        "lng": -83.0176,
+        "url": "https://cancer.osu.edu/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "C92": [
+      {
+        "name": "The University of Texas MD Anderson Cancer Center",
+        "designation": "NCI-Designated Comprehensive Cancer Center — Leukemia Program",
+        "city": "Houston",
+        "state": "TX",
+        "lat": 29.7075,
+        "lng": -95.3982,
+        "url": "https://www.mdanderson.org/cancer-types/leukemia.html",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Memorial Sloan Kettering Cancer Center",
+        "designation": "NCI-Designated Comprehensive Cancer Center — Hematologic Malignancies Program",
+        "city": "New York",
+        "state": "NY",
+        "lat": 40.7641,
+        "lng": -73.9568,
+        "url": "https://www.mskcc.org/cancer-care/types/leukemia",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Dana-Farber Cancer Institute",
+        "designation": "NCI-Designated Comprehensive Cancer Center — Adult Leukemia Program",
+        "city": "Boston",
+        "state": "MA",
+        "lat": 42.3372,
+        "lng": -71.1069,
+        "url": "https://www.dana-farber.org/leukemia-program/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Fred Hutchinson Cancer Center",
+        "designation": "NCI-Designated Comprehensive Cancer Center — Hematologic Malignancies & Bone Marrow Transplant",
+        "city": "Seattle",
+        "state": "WA",
+        "lat": 47.6254,
+        "lng": -122.3302,
+        "url": "https://www.fredhutch.org/en/patient-care/clinical-programs/blood-marrow-transplant.html",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "City of Hope Comprehensive Cancer Center",
+        "designation": "NCI-Designated Comprehensive Cancer Center — Hematology & Stem Cell Transplant",
+        "city": "Duarte",
+        "state": "CA",
+        "lat": 34.1391,
+        "lng": -117.9601,
+        "url": "https://www.cityofhope.org/medical-group/leukemia",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Duke Cancer Institute",
+        "designation": "NCI-Designated Comprehensive Cancer Center — Hematologic Malignancies Program",
+        "city": "Durham",
+        "state": "NC",
+        "lat": 35.9994,
+        "lng": -78.9382,
+        "url": "https://www.dukecancerinstitute.org/research/programs/hematologic-malignancies-and-cellular-therapy",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "UNC Lineberger Comprehensive Cancer Center",
+        "designation": "NCI-Designated Comprehensive Cancer Center — Hematologic Malignancies Program",
+        "city": "Chapel Hill",
+        "state": "NC",
+        "lat": 35.9101,
+        "lng": -79.0489,
+        "url": "https://unclineberger.org/patient-care/hematological-malignancies/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Mayo Clinic Cancer Center — Hematology",
+        "designation": "NCI-Designated Comprehensive Cancer Center — Hematology Division",
+        "city": "Rochester",
+        "state": "MN",
+        "lat": 44.0224,
+        "lng": -92.4657,
+        "url": "https://www.mayoclinic.org/departments-centers/hematology/overview/ovc-20203430",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Sidney Kimmel Comprehensive Cancer Center at Johns Hopkins",
+        "designation": "NCI-Designated Comprehensive Cancer Center — Leukemia Program",
+        "city": "Baltimore",
+        "state": "MD",
+        "lat": 39.2960,
+        "lng": -76.5918,
+        "url": "https://www.hopkinsmedicine.org/kimmel_cancer_center/cancers_we_treat/leukemia/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Abramson Cancer Center at Penn Medicine",
+        "designation": "NCI-Designated Comprehensive Cancer Center — Leukemia and Hematologic Malignancy Program",
+        "city": "Philadelphia",
+        "state": "PA",
+        "lat": 39.9488,
+        "lng": -75.1944,
+        "url": "https://www.pennmedicine.org/cancer/types-of-cancer/leukemia-lymphoma-and-myeloma",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "E10": [
+      {
+        "name": "Joslin Diabetes Center",
+        "designation": "NIH/NIDDK-Funded Diabetes Research Center",
+        "city": "Boston",
+        "state": "MA",
+        "lat": 42.3356,
+        "lng": -71.1064,
+        "url": "https://www.joslin.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Stanford Diabetes Research Center",
+        "designation": "NIH/NIDDK-Funded Diabetes Research Center",
+        "city": "Stanford",
+        "state": "CA",
+        "lat": 37.4323,
+        "lng": -122.1753,
+        "url": "https://diabetescenter.stanford.edu/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Vanderbilt Diabetes Research and Training Center",
+        "designation": "NIH/NIDDK-Funded Diabetes Research and Training Center",
+        "city": "Nashville",
+        "state": "TN",
+        "lat": 36.1449,
+        "lng": -86.8027,
+        "url": "https://www.vumc.org/diabetes/welcome",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Michigan Diabetes Research Center",
+        "designation": "NIH/NIDDK-Funded Diabetes Research Center",
+        "city": "Ann Arbor",
+        "state": "MI",
+        "lat": 42.2832,
+        "lng": -83.7286,
+        "url": "https://mdrc.med.umich.edu/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Boston Area Diabetes Endocrinology Research Center",
+        "designation": "NIH/NIDDK-Funded Diabetes Research Center (Massachusetts General Hospital)",
+        "city": "Boston",
+        "state": "MA",
+        "lat": 42.3626,
+        "lng": -71.0690,
+        "url": "https://www.massgeneral.org/diabetes-center",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "University of Washington Diabetes Research Center",
+        "designation": "NIH/NIDDK-Funded Diabetes Research Center",
+        "city": "Seattle",
+        "state": "WA",
+        "lat": 47.6503,
+        "lng": -122.3103,
+        "url": "https://depts.washington.edu/diabetes/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Penn Diabetes Research Center",
+        "designation": "NIH/NIDDK-Funded Diabetes Research Center",
+        "city": "Philadelphia",
+        "state": "PA",
+        "lat": 39.9488,
+        "lng": -75.1944,
+        "url": "https://www.med.upenn.edu/diabetes/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Yale Diabetes Research Center",
+        "designation": "NIH/NIDDK-Funded Diabetes Research Center",
+        "city": "New Haven",
+        "state": "CT",
+        "lat": 41.3022,
+        "lng": -72.9360,
+        "url": "https://medicine.yale.edu/endocrinology/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "E11": [
+      {
+        "name": "Joslin Diabetes Center",
+        "designation": "NIH/NIDDK-Funded Diabetes Research Center",
+        "city": "Boston",
+        "state": "MA",
+        "lat": 42.3356,
+        "lng": -71.1064,
+        "url": "https://www.joslin.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Vanderbilt Diabetes Research and Training Center",
+        "designation": "NIH/NIDDK-Funded Diabetes Research and Training Center",
+        "city": "Nashville",
+        "state": "TN",
+        "lat": 36.1449,
+        "lng": -86.8027,
+        "url": "https://www.vumc.org/diabetes/welcome",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "University of Chicago Diabetes Research and Training Center",
+        "designation": "NIH/NIDDK-Funded Diabetes Research and Training Center",
+        "city": "Chicago",
+        "state": "IL",
+        "lat": 41.7888,
+        "lng": -87.6042,
+        "url": "https://drtc.uchicago.edu/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Stanford Diabetes Research Center",
+        "designation": "NIH/NIDDK-Funded Diabetes Research Center",
+        "city": "Stanford",
+        "state": "CA",
+        "lat": 37.4323,
+        "lng": -122.1753,
+        "url": "https://diabetescenter.stanford.edu/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Washington University Diabetes Research Center",
+        "designation": "NIH/NIDDK-Funded Diabetes Research Center",
+        "city": "Saint Louis",
+        "state": "MO",
+        "lat": 38.6361,
+        "lng": -90.2609,
+        "url": "https://medicine.wustl.edu/news/diabetes-research-center/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Michigan Diabetes Research Center",
+        "designation": "NIH/NIDDK-Funded Diabetes Research Center",
+        "city": "Ann Arbor",
+        "state": "MI",
+        "lat": 42.2832,
+        "lng": -83.7286,
+        "url": "https://mdrc.med.umich.edu/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "UAB Diabetes Research Center",
+        "designation": "NIH/NIDDK-Funded Diabetes Research Center",
+        "city": "Birmingham",
+        "state": "AL",
+        "lat": 33.5044,
+        "lng": -86.8020,
+        "url": "https://www.uab.edu/medicine/diabetesresearchcenter/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Einstein-Mount Sinai Diabetes Research Center",
+        "designation": "NIH/NIDDK-Funded Diabetes Research Center",
+        "city": "Bronx",
+        "state": "NY",
+        "lat": 40.8448,
+        "lng": -73.8440,
+        "url": "https://einsteinmed.edu/centers/diabetes-research/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Indiana University Center for Diabetes and Metabolic Diseases",
+        "designation": "NIH/NIDDK-Funded Diabetes Research Center",
+        "city": "Indianapolis",
+        "state": "IN",
+        "lat": 39.7756,
+        "lng": -86.1753,
+        "url": "https://medicine.iu.edu/diabetes",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "I": [
+      {
+        "name": "Cleveland Clinic Sydell and Arnold Miller Family Heart, Vascular & Thoracic Institute",
+        "designation": "U.S. News & World Report #1 Ranked Heart Hospital; AHA Get With The Guidelines Gold Plus",
+        "city": "Cleveland",
+        "state": "OH",
+        "lat": 41.5033,
+        "lng": -81.6209,
+        "url": "https://my.clevelandclinic.org/departments/heart",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Mayo Clinic — Cardiovascular Medicine",
+        "designation": "U.S. News & World Report Top 5 Heart Hospital; AHA Comprehensive Cardiac Center Certified",
+        "city": "Rochester",
+        "state": "MN",
+        "lat": 44.0224,
+        "lng": -92.4657,
+        "url": "https://www.mayoclinic.org/departments-centers/cardiovascular/overview/ovc-20203461",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "NYU Langone Heart",
+        "designation": "U.S. News & World Report #1 Ranked Cardiology Hospital 2025-26",
+        "city": "New York",
+        "state": "NY",
+        "lat": 40.7423,
+        "lng": -73.9740,
+        "url": "https://nyulangone.org/locations/heart",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Brigham and Women's Hospital Heart & Vascular Center",
+        "designation": "AHA Comprehensive Cardiac Center Certified; U.S. News & World Report Top 15 Heart Hospital",
+        "city": "Boston",
+        "state": "MA",
+        "lat": 42.3361,
+        "lng": -71.1075,
+        "url": "https://www.brighamandwomens.org/heart-and-vascular-center",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Smidt Heart Institute at Cedars-Sinai",
+        "designation": "U.S. News & World Report Top 10 Heart Hospital; AHA Mission: Lifeline Gold Plus",
+        "city": "Los Angeles",
+        "state": "CA",
+        "lat": 34.0756,
+        "lng": -118.3797,
+        "url": "https://www.cedars-sinai.org/programs/heart.html",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Duke University Hospital — Heart Center",
+        "designation": "U.S. News & World Report Top 30 Heart Hospital; AHA Mission: Lifeline Gold Plus",
+        "city": "Durham",
+        "state": "NC",
+        "lat": 35.9994,
+        "lng": -78.9382,
+        "url": "https://www.dukehealth.org/treatments/cardiovascular-care",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Massachusetts General Hospital Corrigan Minehan Heart Center",
+        "designation": "U.S. News & World Report Top 10 Heart Hospital; AHA Comprehensive Cardiac Center Certified",
+        "city": "Boston",
+        "state": "MA",
+        "lat": 42.3626,
+        "lng": -71.0690,
+        "url": "https://www.massgeneral.org/heart-center",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "UCSF Health Cardiovascular Care and Research",
+        "designation": "U.S. News & World Report Top 25 Heart Hospital; AHA Get With The Guidelines Gold Plus",
+        "city": "San Francisco",
+        "state": "CA",
+        "lat": 37.7631,
+        "lng": -122.4586,
+        "url": "https://www.ucsfhealth.org/clinics/heart-and-vascular",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Houston Methodist DeBakey Heart & Vascular Center",
+        "designation": "U.S. News & World Report Top 20 Heart Hospital; AHA Mission: Lifeline Gold Plus",
+        "city": "Houston",
+        "state": "TX",
+        "lat": 29.7103,
+        "lng": -95.4009,
+        "url": "https://www.houstonmethodist.org/heart/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Northwestern Memorial Hospital Bluhm Cardiovascular Institute",
+        "designation": "U.S. News & World Report Top 10 Heart Hospital; AHA Comprehensive Cardiac Center Certified",
+        "city": "Chicago",
+        "state": "IL",
+        "lat": 41.8954,
+        "lng": -87.6200,
+        "url": "https://www.nm.org/conditions-and-care-areas/heart-and-vascular/bluhm-cardiovascular-institute",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "UNC Medical Center — Heart and Vascular Center",
+        "designation": "AHA Get With The Guidelines Gold Plus; AHA Certified Hypertension Center",
+        "city": "Chapel Hill",
+        "state": "NC",
+        "lat": 35.9101,
+        "lng": -79.0489,
+        "url": "https://www.unchealth.org/heart-vascular-and-chest",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Mayo Clinic Florida — Cardiovascular Medicine",
+        "designation": "AHA Certified Comprehensive Cardiac Center; U.S. News & World Report Top 50 Heart Hospital",
+        "city": "Jacksonville",
+        "state": "FL",
+        "lat": 30.2197,
+        "lng": -81.6565,
+        "url": "https://www.mayoclinic.org/departments-centers/cardiovascular/overview/ovc-20203461",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "G30": [
+      {
+        "name": "Alzheimer's Disease Research Collaborative — Duke/UNC",
+        "designation": "NIA-Funded Alzheimer's Disease Research Center (ADRC)",
+        "city": "Durham",
+        "state": "NC",
+        "lat": 35.9994,
+        "lng": -78.9382,
+        "url": "https://adrc.duke.edu/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Massachusetts Alzheimer's Disease Research Center (Mass General/Brigham & Women's)",
+        "designation": "NIA-Funded Alzheimer's Disease Research Center (ADRC)",
+        "city": "Boston",
+        "state": "MA",
+        "lat": 42.3626,
+        "lng": -71.0690,
+        "url": "https://madrc.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Johns Hopkins Alzheimer's Disease Research Center",
+        "designation": "NIA-Funded Alzheimer's Disease Research Center (ADRC)",
+        "city": "Baltimore",
+        "state": "MD",
+        "lat": 39.2960,
+        "lng": -76.5918,
+        "url": "https://www.hopkinsmedicine.org/psychiatry/research/alzheimers_disease_research_center.html",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Knight Alzheimer's Disease Research Center — Washington University",
+        "designation": "NIA-Funded Alzheimer's Disease Research Center (ADRC)",
+        "city": "Saint Louis",
+        "state": "MO",
+        "lat": 38.6361,
+        "lng": -90.2609,
+        "url": "https://knightadrc.wustl.edu/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Goizueta Alzheimer's Disease Center — Emory University",
+        "designation": "NIA-Funded Alzheimer's Disease Research Center (ADRC)",
+        "city": "Atlanta",
+        "state": "GA",
+        "lat": 33.7985,
+        "lng": -84.3255,
+        "url": "https://alzheimer.emory.edu/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Mesulam Center for Cognitive Neurology and Alzheimer's Disease — Northwestern",
+        "designation": "NIA-Funded Alzheimer's Disease Research Center (ADRC)",
+        "city": "Chicago",
+        "state": "IL",
+        "lat": 41.8954,
+        "lng": -87.6200,
+        "url": "https://www.brain.northwestern.edu/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Rush Alzheimer's Disease Center",
+        "designation": "NIA-Funded Alzheimer's Disease Research Center (ADRC)",
+        "city": "Chicago",
+        "state": "IL",
+        "lat": 41.8761,
+        "lng": -87.6694,
+        "url": "https://www.rush.edu/services/alzheimers-disease-center",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Vanderbilt Alzheimer's Disease Research Center",
+        "designation": "NIA-Funded Alzheimer's Disease Research Center (ADRC)",
+        "city": "Nashville",
+        "state": "TN",
+        "lat": 36.1449,
+        "lng": -86.8027,
+        "url": "https://www.vumc.org/alzheimers-center",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Sticht Center for Healthy Aging and Alzheimer's Prevention — Wake Forest",
+        "designation": "NIA-Funded Alzheimer's Disease Research Center (ADRC)",
+        "city": "Winston-Salem",
+        "state": "NC",
+        "lat": 36.0997,
+        "lng": -80.2444,
+        "url": "https://www.wakehealth.edu/Sticht-Center-for-Healthy-Aging",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Layton Aging and Alzheimer's Disease Center — Oregon Health & Science University",
+        "designation": "NIA-Funded Alzheimer's Disease Research Center (ADRC)",
+        "city": "Portland",
+        "state": "OR",
+        "lat": 45.4977,
+        "lng": -122.6851,
+        "url": "https://www.ohsu.edu/alzheimers-disease-center",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Shiley-Marcos Alzheimer's Disease Research Center — UC San Diego",
+        "designation": "NIA-Funded Alzheimer's Disease Research Center (ADRC)",
+        "city": "La Jolla",
+        "state": "CA",
+        "lat": 32.8801,
+        "lng": -117.2340,
+        "url": "https://adrc.ucsd.edu/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "UCSF Alzheimer's Disease Research Center",
+        "designation": "NIA-Funded Alzheimer's Disease Research Center (ADRC)",
+        "city": "San Francisco",
+        "state": "CA",
+        "lat": 37.7631,
+        "lng": -122.4586,
+        "url": "https://memory.ucsf.edu/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "University of Pennsylvania Alzheimer's Disease Research Center",
+        "designation": "NIA-Funded Alzheimer's Disease Research Center (ADRC)",
+        "city": "Philadelphia",
+        "state": "PA",
+        "lat": 39.9488,
+        "lng": -75.1944,
+        "url": "https://www.pennadrc.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Cleveland Alzheimer's Disease Research Center — Case Western/Cleveland Clinic",
+        "designation": "NIA-Funded Alzheimer's Disease Research Center (ADRC)",
+        "city": "Cleveland",
+        "state": "OH",
+        "lat": 41.5033,
+        "lng": -81.6209,
+        "url": "https://case.edu/medicine/alzheimer/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Alzheimer's Disease Research Center at Mayo Clinic",
+        "designation": "NIA-Funded Alzheimer's Disease Research Center (ADRC)",
+        "city": "Rochester",
+        "state": "MN",
+        "lat": 44.0224,
+        "lng": -92.4657,
+        "url": "https://www.mayoclinic.org/research/alzheimers-disease-research-center/overview/orc-20390991",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "G31": [
+      {
+        "name": "Alzheimer's Disease Research Collaborative — Duke/UNC",
+        "designation": "NIA-Funded Alzheimer's Disease Research Center (ADRC)",
+        "city": "Durham",
+        "state": "NC",
+        "lat": 35.9994,
+        "lng": -78.9382,
+        "url": "https://adrc.duke.edu/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Massachusetts Alzheimer's Disease Research Center",
+        "designation": "NIA-Funded Alzheimer's Disease Research Center (ADRC)",
+        "city": "Boston",
+        "state": "MA",
+        "lat": 42.3626,
+        "lng": -71.0690,
+        "url": "https://madrc.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "UCSF Alzheimer's Disease Research Center",
+        "designation": "NIA-Funded Alzheimer's Disease Research Center (ADRC)",
+        "city": "San Francisco",
+        "state": "CA",
+        "lat": 37.7631,
+        "lng": -122.4586,
+        "url": "https://memory.ucsf.edu/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Rush Alzheimer's Disease Center",
+        "designation": "NIA-Funded Alzheimer's Disease Research Center (ADRC)",
+        "city": "Chicago",
+        "state": "IL",
+        "lat": 41.8761,
+        "lng": -87.6694,
+        "url": "https://www.rush.edu/services/alzheimers-disease-center",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Knight Alzheimer's Disease Research Center — Washington University",
+        "designation": "NIA-Funded Alzheimer's Disease Research Center (ADRC)",
+        "city": "Saint Louis",
+        "state": "MO",
+        "lat": 38.6361,
+        "lng": -90.2609,
+        "url": "https://knightadrc.wustl.edu/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Alzheimer's Disease Research Center at Mayo Clinic",
+        "designation": "NIA-Funded Alzheimer's Disease Research Center (ADRC)",
+        "city": "Rochester",
+        "state": "MN",
+        "lat": 44.0224,
+        "lng": -92.4657,
+        "url": "https://www.mayoclinic.org/research/alzheimers-disease-research-center/overview/orc-20390991",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "J44": [
+      {
+        "name": "National Jewish Health",
+        "designation": "U.S. News & World Report #1 or #2 Pulmonology for 26 consecutive years; COPD360Net Accredited Center",
+        "city": "Denver",
+        "state": "CO",
+        "lat": 39.7346,
+        "lng": -104.9455,
+        "url": "https://www.nationaljewish.org/conditions/chronic-obstructive-pulmonary-disease",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Mayo Clinic — Pulmonary and Critical Care Medicine",
+        "designation": "COPD360Net Accredited Center; U.S. News & World Report Top Pulmonology Hospital",
+        "city": "Rochester",
+        "state": "MN",
+        "lat": 44.0224,
+        "lng": -92.4657,
+        "url": "https://www.mayoclinic.org/departments-centers/pulmonary-medicine/overview/orc-20393148",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Cleveland Clinic Respiratory Institute",
+        "designation": "U.S. News & World Report Top Pulmonology Hospital; COPD360Net Accredited Center",
+        "city": "Cleveland",
+        "state": "OH",
+        "lat": 41.5033,
+        "lng": -81.6209,
+        "url": "https://my.clevelandclinic.org/departments/respiratory",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Johns Hopkins Division of Pulmonary and Critical Care Medicine",
+        "designation": "U.S. News & World Report Top Pulmonology Hospital; NIH-funded COPD Research Center",
+        "city": "Baltimore",
+        "state": "MD",
+        "lat": 39.2960,
+        "lng": -76.5918,
+        "url": "https://www.hopkinsmedicine.org/pulmonary",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "UCSF Division of Pulmonary, Critical Care, Allergy & Sleep Medicine",
+        "designation": "U.S. News & World Report Top Pulmonology Hospital; COPD360Net Accredited Center",
+        "city": "San Francisco",
+        "state": "CA",
+        "lat": 37.7631,
+        "lng": -122.4586,
+        "url": "https://pulmonary.ucsf.edu/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "University of Alabama at Birmingham — Division of Pulmonary, Allergy and Critical Care Medicine",
+        "designation": "NIH NHLBI-Funded COPD Research Center; COPD360Net Accredited Center",
+        "city": "Birmingham",
+        "state": "AL",
+        "lat": 33.5044,
+        "lng": -86.8020,
+        "url": "https://www.uab.edu/medicine/pulmonary/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "University of Michigan Health Frankel Cardiovascular and Pulmonary Center",
+        "designation": "COPD360Net Accredited Center; NIH NHLBI-Funded COPD Research Center",
+        "city": "Ann Arbor",
+        "state": "MI",
+        "lat": 42.2832,
+        "lng": -83.7286,
+        "url": "https://www.uofmhealth.org/conditions-treatments/pulmonary-lung",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "UNC Division of Pulmonary Diseases and Critical Care Medicine",
+        "designation": "NIH NHLBI-Funded COPD Research Center; COPD360Net Affiliated",
+        "city": "Chapel Hill",
+        "state": "NC",
+        "lat": 35.9101,
+        "lng": -79.0489,
+        "url": "https://www.med.unc.edu/medicine/pulmonary/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "J45": [
+      {
+        "name": "National Jewish Health — Asthma Program",
+        "designation": "U.S. News & World Report #1 or #2 Pulmonology for 26 consecutive years; American Lung Association ACRC Network",
+        "city": "Denver",
+        "state": "CO",
+        "lat": 39.7346,
+        "lng": -104.9455,
+        "url": "https://www.nationaljewish.org/conditions/asthma",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Mayo Clinic — Asthma and Airway Disease",
+        "designation": "American Lung Association ACRC Network; U.S. News & World Report Top Pulmonology Hospital",
+        "city": "Rochester",
+        "state": "MN",
+        "lat": 44.0224,
+        "lng": -92.4657,
+        "url": "https://www.mayoclinic.org/diseases-conditions/asthma/care-at-mayo-clinic/mac-20384503",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Johns Hopkins Asthma and Allergy Center",
+        "designation": "American Lung Association ACRC Network; NIH NHLBI-Funded Asthma Research Center",
+        "city": "Baltimore",
+        "state": "MD",
+        "lat": 39.2960,
+        "lng": -76.5918,
+        "url": "https://www.hopkinsmedicine.org/institute_basic_biomedical_sciences/research_centers/asthma",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Cleveland Clinic — Asthma Center",
+        "designation": "American Lung Association ACRC Network; U.S. News & World Report Top Pulmonology Hospital",
+        "city": "Cleveland",
+        "state": "OH",
+        "lat": 41.5033,
+        "lng": -81.6209,
+        "url": "https://my.clevelandclinic.org/departments/respiratory/specialties/asthma-center",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "University of Wisconsin Asthma, Allergy and Pulmonary Research Center",
+        "designation": "NIH NHLBI-Funded Asthma Research Center; American Lung Association ACRC Network",
+        "city": "Madison",
+        "state": "WI",
+        "lat": 43.0773,
+        "lng": -89.4323,
+        "url": "https://www.medicine.wisc.edu/allergy-pulmonary-critical-care-sleep",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "UCSF Asthma Collaborating Clinics",
+        "designation": "NIH NHLBI-Funded Asthma Research Center",
+        "city": "San Francisco",
+        "state": "CA",
+        "lat": 37.7631,
+        "lng": -122.4586,
+        "url": "https://pulmonary.ucsf.edu/asthma",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "M": [
+      {
+        "name": "Johns Hopkins Arthritis Center",
+        "designation": "U.S. News & World Report #1 Ranked Rheumatology Hospital 2025-26",
+        "city": "Baltimore",
+        "state": "MD",
+        "lat": 39.2960,
+        "lng": -76.5918,
+        "url": "https://www.hopkinsmedicine.org/rheumatology/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Cleveland Clinic Rheumatic and Immunologic Disease",
+        "designation": "U.S. News & World Report Top 5 Rheumatology Hospital",
+        "city": "Cleveland",
+        "state": "OH",
+        "lat": 41.5033,
+        "lng": -81.6209,
+        "url": "https://my.clevelandclinic.org/departments/rheumatology",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Hospital for Special Surgery (HSS) — Division of Rheumatology",
+        "designation": "U.S. News & World Report Top 5 Rheumatology Hospital; largest academic rheumatology practice in US",
+        "city": "New York",
+        "state": "NY",
+        "lat": 40.7641,
+        "lng": -73.9568,
+        "url": "https://www.hss.edu/rheumatology.asp",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Brigham and Women's Hospital Division of Rheumatology",
+        "designation": "U.S. News & World Report Top 5 Rheumatology Hospital; NIH-funded Autoimmune Center",
+        "city": "Boston",
+        "state": "MA",
+        "lat": 42.3361,
+        "lng": -71.1075,
+        "url": "https://www.brighamandwomens.org/rheumatology-immunology-allergy",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Mayo Clinic Division of Rheumatology",
+        "designation": "U.S. News & World Report Top 5 Rheumatology Hospital",
+        "city": "Rochester",
+        "state": "MN",
+        "lat": 44.0224,
+        "lng": -92.4657,
+        "url": "https://www.mayoclinic.org/departments-centers/rheumatology/overview/orc-20393150",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Massachusetts General Hospital Division of Rheumatology, Allergy, and Immunology",
+        "designation": "U.S. News & World Report Top 10 Rheumatology Hospital",
+        "city": "Boston",
+        "state": "MA",
+        "lat": 42.3626,
+        "lng": -71.0690,
+        "url": "https://www.massgeneral.org/rheumatology",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "UCSF Division of Rheumatology",
+        "designation": "U.S. News & World Report Top 10 Rheumatology Hospital",
+        "city": "San Francisco",
+        "state": "CA",
+        "lat": 37.7631,
+        "lng": -122.4586,
+        "url": "https://www.ucsfhealth.org/clinics/rheumatology-clinic",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "UAB Division of Clinical Immunology and Rheumatology",
+        "designation": "U.S. News & World Report Top 10 Rheumatology Hospital; ACR-affiliated training program",
+        "city": "Birmingham",
+        "state": "AL",
+        "lat": 33.5044,
+        "lng": -86.8020,
+        "url": "https://www.uab.edu/medicine/rheumatology/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Duke Division of Rheumatology and Immunology",
+        "designation": "ACR-affiliated training program; major NIH-funded lupus and arthritis research center",
+        "city": "Durham",
+        "state": "NC",
+        "lat": 35.9994,
+        "lng": -78.9382,
+        "url": "https://medicine.duke.edu/divisions/rheumatology-and-immunology",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "NYU Langone Rheumatology",
+        "designation": "U.S. News & World Report Top 10 Rheumatology Hospital",
+        "city": "New York",
+        "state": "NY",
+        "lat": 40.7423,
+        "lng": -73.9740,
+        "url": "https://nyulangone.org/locations/rheumatology",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "K7": [
+      {
+        "name": "Cleveland Clinic William D. Carey Center for Liver Disease",
+        "designation": "AASLD-Affiliated Liver Disease Center; HRSA-Designated Liver Transplant Program",
+        "city": "Cleveland",
+        "state": "OH",
+        "lat": 41.5033,
+        "lng": -81.6209,
+        "url": "https://my.clevelandclinic.org/departments/digestive/liver-disease",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Mayo Clinic Division of Gastroenterology and Hepatology",
+        "designation": "AASLD-Affiliated Liver Disease Center; HRSA-Designated Liver Transplant Program",
+        "city": "Rochester",
+        "state": "MN",
+        "lat": 44.0224,
+        "lng": -92.4657,
+        "url": "https://www.mayoclinic.org/departments-centers/gastroenterology-hepatology/overview/orc-20385028",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Massachusetts General Hospital Liver Center",
+        "designation": "AASLD-Affiliated Liver Disease Center; HRSA-Designated Liver Transplant Program",
+        "city": "Boston",
+        "state": "MA",
+        "lat": 42.3626,
+        "lng": -71.0690,
+        "url": "https://www.massgeneral.org/digestive/treatments-and-services/liver",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "UCSF Liver Disease and Liver Transplant Program",
+        "designation": "HRSA-Designated Center of Excellence for Liver Transplant; AASLD-Affiliated",
+        "city": "San Francisco",
+        "state": "CA",
+        "lat": 37.7631,
+        "lng": -122.4586,
+        "url": "https://www.ucsfhealth.org/care/services/liver-disease",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Cedars-Sinai Comprehensive Transplant Center — Liver Program",
+        "designation": "AASLD-Affiliated Liver Disease Center; HRSA-Designated Liver Transplant Program",
+        "city": "Los Angeles",
+        "state": "CA",
+        "lat": 34.0756,
+        "lng": -118.3797,
+        "url": "https://www.cedars-sinai.org/programs/transplant/liver.html",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Duke Liver Center",
+        "designation": "AASLD-Affiliated Liver Disease Center; HRSA-Designated Liver Transplant Program",
+        "city": "Durham",
+        "state": "NC",
+        "lat": 35.9994,
+        "lng": -78.9382,
+        "url": "https://www.dukehealth.org/treatments/liver-transplant",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Vanderbilt Transplant Center — Liver Program",
+        "designation": "AASLD-Affiliated Liver Disease Center; HRSA-Designated Liver Transplant Program",
+        "city": "Nashville",
+        "state": "TN",
+        "lat": 36.1449,
+        "lng": -86.8027,
+        "url": "https://www.vumc.org/transplant/liver-transplant",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "University of Pittsburgh Medical Center Starzl Transplantation Institute",
+        "designation": "AASLD-Affiliated Liver Disease Center; HRSA-Designated Liver Transplant Program",
+        "city": "Pittsburgh",
+        "state": "PA",
+        "lat": 40.4406,
+        "lng": -79.9959,
+        "url": "https://www.upmc.com/services/transplant/liver",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Johns Hopkins Liver and Pancreas Surgery and Transplant Program",
+        "designation": "AASLD-Affiliated Liver Disease Center; HRSA-Designated Liver Transplant Program",
+        "city": "Baltimore",
+        "state": "MD",
+        "lat": 39.2960,
+        "lng": -76.5918,
+        "url": "https://www.hopkinsmedicine.org/transplant/liver/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "University of Michigan — Division of Gastroenterology and Hepatology",
+        "designation": "AASLD-Affiliated Liver Disease Center; HRSA-Designated Liver Transplant Program",
+        "city": "Ann Arbor",
+        "state": "MI",
+        "lat": 42.2832,
+        "lng": -83.7286,
+        "url": "https://www.uofmhealth.org/conditions-treatments/gastrointestinal-and-liver-diseases/liver-disease",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "N18": [
+      {
+        "name": "UAB National Coordinating Center — George M. O'Brien Kidney National Resource Centers",
+        "designation": "NIH/NIDDK George M. O'Brien Kidney National Resource Center (NRC) — National Coordinating Center",
+        "city": "Birmingham",
+        "state": "AL",
+        "lat": 33.5044,
+        "lng": -86.8020,
+        "url": "https://www.uab.edu/medicine/nephrology/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Pittsburgh Center for Kidney Research",
+        "designation": "NIH/NIDDK George M. O'Brien Kidney National Resource Center (NRC)",
+        "city": "Pittsburgh",
+        "state": "PA",
+        "lat": 40.4406,
+        "lng": -79.9959,
+        "url": "https://www.kidneycenter.pitt.edu/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Johns Hopkins O'Brien Center for Kidney Research",
+        "designation": "NIH/NIDDK George M. O'Brien Kidney National Resource Center (NRC)",
+        "city": "Baltimore",
+        "state": "MD",
+        "lat": 39.2960,
+        "lng": -76.5918,
+        "url": "https://www.hopkinsmedicine.org/nephrology/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "University of Michigan O'Brien Kidney Translational Resource Center (MKTC)",
+        "designation": "NIH/NIDDK George M. O'Brien Kidney National Resource Center (NRC)",
+        "city": "Ann Arbor",
+        "state": "MI",
+        "lat": 42.2832,
+        "lng": -83.7286,
+        "url": "https://www.uofmhealth.org/conditions-treatments/kidney-disease",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Northwestern University O'Brien Kidney National Resource Center",
+        "designation": "NIH/NIDDK George M. O'Brien Kidney National Resource Center (NRC)",
+        "city": "Chicago",
+        "state": "IL",
+        "lat": 41.8954,
+        "lng": -87.6200,
+        "url": "https://www.feinberg.northwestern.edu/sites/nephrology/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Washington University Chronic Kidney Disease National Resource Center",
+        "designation": "NIH/NIDDK George M. O'Brien Kidney National Resource Center (NRC)",
+        "city": "Saint Louis",
+        "state": "MO",
+        "lat": 38.6361,
+        "lng": -90.2609,
+        "url": "https://nephrology.wustl.edu/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Indiana Center for Advanced Renal Microscopy — Indiana University",
+        "designation": "NIH/NIDDK George M. O'Brien Kidney National Resource Center (NRC)",
+        "city": "Indianapolis",
+        "state": "IN",
+        "lat": 39.7756,
+        "lng": -86.1753,
+        "url": "https://medicine.iu.edu/nephrology",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Cleveland Clinic Department of Kidney Medicine",
+        "designation": "AHA Certified Hypertension Center; major CKD and dialysis research program",
+        "city": "Cleveland",
+        "state": "OH",
+        "lat": 41.5033,
+        "lng": -81.6209,
+        "url": "https://my.clevelandclinic.org/departments/kidney",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Mayo Clinic Division of Nephrology and Hypertension",
+        "designation": "U.S. News & World Report Top Nephrology Program; major CKD research center",
+        "city": "Rochester",
+        "state": "MN",
+        "lat": 44.0224,
+        "lng": -92.4657,
+        "url": "https://www.mayoclinic.org/departments-centers/nephrology-hypertension/overview/orc-20392842",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "University of Pennsylvania Renal-Electrolyte and Hypertension Division",
+        "designation": "NIH/NIDDK-funded kidney research; Children's Hospital of Philadelphia Pediatric Center of Excellence in Nephrology",
+        "city": "Philadelphia",
+        "state": "PA",
+        "lat": 39.9488,
+        "lng": -75.1944,
+        "url": "https://www.med.upenn.edu/renal/",
+        "last_reviewed": "2026-05-17"
+      }
+    ]
+  }
+}

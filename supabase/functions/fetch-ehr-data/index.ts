@@ -1,4 +1,4 @@
-// Supabase Edge Function: fetch-ehr-data (v40 — Phase 2 N-connections fan-out: lookup all connected rows for person, fetch+persist each in parallel via Promise.allSettled, source-tag rows with connection_id, return both legacy flat shape (merged) AND new `connections` array.)
+// Supabase Edge Function: fetch-ehr-data (v41 — Observation.component[] parsing: Epic returns BP, BMI panels, and other multi-value vitals as a single Observation with valueQuantity-bearing components. v40 only read top-level valueQuantity, which is why Mom's chart had 200 observations but 0 vitals persisted — every BP reading was dropped. v41 walks component[] when present, projects each component to its own Wellet observation row keyed by its component LOINC, so 8480-6/8462-4 land as systolic/diastolic in vitals. Panel-style observations without a top-level value AND without components fall through to the existing valueString / valueCodeableConcept paths.)
 // Fetches FHIR R4 resources from the connected EHR provider (Epic),
 // maps them to a simplified Wellet-friendly JSON structure,
 // returns the data to the frontend, AND upserts into medications /
@@ -17,7 +17,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders } from '../_shared/cors.ts';
-import { persistEhrData } from '../_shared/ehr-persist.ts';
+import { persistEhrData, deriveEhrSystem } from '../_shared/ehr-persist.ts';
 
 function getAdminClient() {
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
@@ -51,6 +51,16 @@ const EPIC_LEGACY_PUBLIC_CLIENT_ID = 'a00e2e38-f814-4946-9b7c-a92901a8aebc';
 const EPIC_PROD_KID = 'wellet-prod-2026-04';
 const EPIC_NONPROD_KID = 'wellet-nonprod-2026-04';
 const EPIC_SANDBOX_FHIR_BASE = 'https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4';
+
+// VA Lighthouse: public client + PKCE only, no client_assertion. Sandbox
+// client id is hard-coded; production is read from env so we can flip without
+// a code redeploy once production-access is approved. See va-auth/index.ts.
+const VA_SANDBOX_CLIENT_ID = '0oa1ao6rezk9V5D9u2p8';
+const VA_SANDBOX_FHIR_BASE = 'https://sandbox-api.va.gov/services/fhir/v0/r4';
+function vaClientIdFor(connFhirBaseUrl: string): string {
+  if (connFhirBaseUrl === VA_SANDBOX_FHIR_BASE) return VA_SANDBOX_CLIENT_ID;
+  return Deno.env.get('VA_PROD_CLIENT_ID') ?? '';
+}
 
 function base64UrlEncode(buffer: Uint8Array): string {
   let binary = '';
@@ -192,6 +202,7 @@ type ConnectionResult = {
     immunizations: number;
     diagnostic_reports: number;
     visits: number;
+    appointments?: number;
     care_team: number;
   };
   persisted: {
@@ -474,19 +485,44 @@ function extractFromPractitionerRoles(roles: Record<string, unknown>[]) {
 
 // ── FHIR → Wellet Mappers ──
 
+// Pull a FHIR Encounter id off a resource that carries an `encounter` reference.
+// Most resources use `r.encounter.reference` (Observation, MedicationRequest,
+// Condition, DiagnosticReport, Procedure). A few — DocumentReference,
+// ServiceRequest — bury it under `r.context.encounter`. Returns the id (no
+// resource prefix) so it joins cleanly against Encounter.id.
+function encounterIdFromResource(r: Record<string, unknown>): string {
+  const direct = (r.encounter as Record<string, unknown>) || null;
+  let ref = (direct?.reference as string) || '';
+  if (!ref) {
+    const ctx = (r.context as Record<string, unknown>) || {};
+    const encRaw = ctx.encounter;
+    if (Array.isArray(encRaw)) {
+      ref = (((encRaw as Record<string, unknown>[])[0] || {}).reference as string) || '';
+    } else if (encRaw && typeof encRaw === 'object') {
+      ref = ((encRaw as Record<string, unknown>).reference as string) || '';
+    }
+  }
+  return ref.startsWith('Encounter/') ? ref.slice('Encounter/'.length) : '';
+}
+
 function mapConditions(resources: unknown[]) {
   return (resources as Record<string, unknown>[]).map((r) => {
     const coding = (r.code as Record<string, unknown>)?.coding as Record<string, unknown>[] || [];
     const firstCoding = coding[0] || {};
     return {
+      // FHIR resource id — used by the app's openConditionDetail() to look
+      // the row up. Without this the row click silently re-renders the
+      // conditions list (see 2026-05-19 click-no-op investigation).
+      id: (r.id as string) || '',
       type: 'condition',
       source: 'ehr',
-      name: (r.code as Record<string, unknown>)?.text || firstCoding.display || 'Unknown condition',
-      code: firstCoding.code || '',
-      system: firstCoding.system || '',
-      status: (r.clinicalStatus as Record<string, unknown>)?.coding?.[0]?.code || r.clinicalStatus || '',
+      name: ((r.code as Record<string, unknown>)?.text as string) || (firstCoding.display as string) || 'Unknown condition',
+      code: (firstCoding.code as string) || '',
+      system: (firstCoding.system as string) || '',
+      status: (((r.clinicalStatus as Record<string, unknown>)?.coding as Record<string, unknown>[] | undefined)?.[0]?.code as string) || (r.clinicalStatus as string) || '',
       onset_date: r.onsetDateTime || (r.onsetPeriod as Record<string, unknown>)?.start || '',
       recorded_date: r.recordedDate || '',
+      encounter_ref: encounterIdFromResource(r),
     };
   });
 }
@@ -504,7 +540,7 @@ function mapMedications(resources: unknown[]) {
     const timing = (firstDosage.timing as Record<string, unknown>) || {};
     const repeat = (timing.repeat as Record<string, unknown>) || {};
 
-    const medName = medCode.text || (medRef.display as string) || firstCoding.display || 'Unknown medication';
+    const medName = (medCode.text as string) || (medRef.display as string) || (firstCoding.display as string) || 'Unknown medication';
 
     // Prescriber reference (e.g. "Practitioner/abc") — used to build Care team
     const requester = (r.requester as Record<string, unknown>) || {};
@@ -512,6 +548,11 @@ function mapMedications(resources: unknown[]) {
     const prescriberName = (requester.display as string) || '';
 
     return {
+      // FHIR resource id — needed by openMedicationDetail() to look the row
+      // up. Without this the row click silently re-renders the medications
+      // list (see 2026-05-19 click-no-op investigation). Dedup below keeps
+      // the most-recent entry's id alongside the name.
+      id: (r.id as string) || '',
       type: 'medication',
       source: 'ehr',
       name: medName,
@@ -522,6 +563,7 @@ function mapMedications(resources: unknown[]) {
       date_asserted: r.dateAsserted || r.authoredOn || '',
       prescriber_ref: prescriberRef,
       prescriber_name: prescriberName,
+      encounter_ref: encounterIdFromResource(r),
     };
   });
 
@@ -554,51 +596,131 @@ function mapAllergies(resources: unknown[]) {
       : [];
 
     return {
+      // FHIR resource id — mirrors mapMedications/mapConditions fix.
+      id: (r.id as string) || '',
       type: 'allergy',
       source: 'ehr',
-      name: (r.code as Record<string, unknown>)?.text || firstCoding.display || 'Unknown allergen',
-      code: firstCoding.code || '',
-      severity: reactions[0]?.severity || '',
+      name: ((r.code as Record<string, unknown>)?.text as string) || (firstCoding.display as string) || 'Unknown allergen',
+      code: (firstCoding.code as string) || '',
+      severity: (reactions[0]?.severity as string) || '',
       reactions: manifestations,
-      status: (r.clinicalStatus as Record<string, unknown>)?.coding?.[0]?.code || '',
+      status: (((r.clinicalStatus as Record<string, unknown>)?.coding as Record<string, unknown>[] | undefined)?.[0]?.code as string) || '',
       recorded_date: r.recordedDate || r.assertedDate || '',
     };
   });
 }
 
-function mapObservations(resources: unknown[]) {
-  return (resources as Record<string, unknown>[]).map((r) => {
-    const coding = (r.code as Record<string, unknown>)?.coding as Record<string, unknown>[] || [];
-    const firstCoding = coding[0] || {};
-    let value = '';
-    let unit = '';
+// v41: Some FHIR Observations are panel-style — a parent resource with no
+// top-level value, plus a component[] array where each entry carries its own
+// code + valueQuantity. The canonical example is blood pressure (LOINC 85354-9
+// or Epic-specific codes), which always splits into 8480-6 (systolic) and
+// 8462-4 (diastolic) components. Same pattern for BMI panels (height + weight
+// + BMI components) and many cardiology/respiratory panels.
+//
+// flattenObservation projects one FHIR Observation into one or more Wellet
+// observation rows: either the parent (when it has a top-level value) or one
+// row per component. Each row carries its own LOINC code so isVitalObservation
+// in ehr-persist can recognize it without us having to widen the heuristic.
+function flattenObservation(r: Record<string, unknown>): Record<string, unknown>[] {
+  const parentCoding = ((r.code as Record<string, unknown>)?.coding as Record<string, unknown>[]) || [];
+  const parentFirstCoding = parentCoding[0] || {};
+  const parentName = ((r.code as Record<string, unknown>)?.text as string)
+    || (parentFirstCoding.display as string)
+    || 'Lab result';
+  const effectiveDate = (r.effectiveDateTime as string)
+    || ((r.effectivePeriod as Record<string, unknown>)?.start as string)
+    || '';
+  const status = (r.status as string) || '';
+  const category = (((r.category as Record<string, unknown>[]) || [])[0]
+    ?.coding as Record<string, unknown>[] | undefined)?.[0]?.code as string
+    || '';
+  const referenceRange = ((r.referenceRange as Record<string, unknown>[])?.[0]?.text as string) || '';
+  const encounter_ref = encounterIdFromResource(r);
 
-    if (r.valueQuantity) {
-      const vq = r.valueQuantity as Record<string, unknown>;
-      value = String(vq.value || '');
-      unit = (vq.unit as string) || '';
-    } else if (r.valueString) {
-      value = r.valueString as string;
-    } else if (r.valueCodeableConcept) {
-      const vcc = r.valueCodeableConcept as Record<string, unknown>;
-      value = (vcc.text as string) || ((vcc.coding as Record<string, unknown>[]))?.[0]?.display as string || '';
+  // Extract value/unit from a FHIR value[x] off any node (parent or component).
+  function readValue(node: Record<string, unknown>): { value: string; unit: string } {
+    if (node.valueQuantity) {
+      const vq = node.valueQuantity as Record<string, unknown>;
+      return { value: String(vq.value ?? ''), unit: (vq.unit as string) || '' };
     }
+    if (node.valueString) return { value: String(node.valueString), unit: '' };
+    if (node.valueCodeableConcept) {
+      const vcc = node.valueCodeableConcept as Record<string, unknown>;
+      const vccText = (vcc.text as string)
+        || (((vcc.coding as Record<string, unknown>[]) || [])[0]?.display as string)
+        || '';
+      return { value: vccText, unit: '' };
+    }
+    return { value: '', unit: '' };
+  }
 
-    return {
+  const components = (r.component as Record<string, unknown>[]) || [];
+  const parentVal = readValue(r);
+  const hasParentValue = parentVal.value !== '';
+  const hasComponents = components.length > 0;
+
+  // Case 1: parent has a value and no components → one row, as before.
+  if (hasParentValue && !hasComponents) {
+    return [{
       type: 'observation',
       source: 'ehr',
-      name: (r.code as Record<string, unknown>)?.text || firstCoding.display || 'Lab result',
-      code: firstCoding.code || '',
-      value: value,
-      unit: unit,
-      reference_range: (r.referenceRange as Record<string, unknown>[])?.length > 0
-        ? (r.referenceRange as Record<string, unknown>[])[0].text || ''
-        : '',
-      status: r.status || '',
-      effective_date: r.effectiveDateTime || (r.effectivePeriod as Record<string, unknown>)?.start || '',
-      category: ((r.category as Record<string, unknown>[]) || [])[0]?.coding?.[0]?.code || '',
-    };
-  });
+      name: parentName,
+      code: (parentFirstCoding.code as string) || '',
+      value: parentVal.value,
+      unit: parentVal.unit,
+      reference_range: referenceRange,
+      status,
+      effective_date: effectiveDate,
+      category,
+      encounter_ref,
+    }];
+  }
+
+  // Case 2: component-style observation. Emit one row per component that
+  // actually carries a value, keyed by the component's own LOINC code.
+  if (hasComponents) {
+    const rows: Record<string, unknown>[] = [];
+    for (const c of components) {
+      const cCoding = ((c.code as Record<string, unknown>)?.coding as Record<string, unknown>[]) || [];
+      const cFirstCoding = cCoding[0] || {};
+      const cName = ((c.code as Record<string, unknown>)?.text as string)
+        || (cFirstCoding.display as string)
+        || parentName;
+      const cCode = (cFirstCoding.code as string) || '';
+      const cVal = readValue(c);
+      if (!cVal.value) continue; // skip components with no value
+      const cRefRange = ((c.referenceRange as Record<string, unknown>[])?.[0]?.text as string) || referenceRange;
+      rows.push({
+        type: 'observation',
+        source: 'ehr',
+        name: cName,
+        code: cCode,
+        value: cVal.value,
+        unit: cVal.unit,
+        reference_range: cRefRange,
+        status,
+        effective_date: effectiveDate,
+        category,
+        encounter_ref,
+      });
+    }
+    // If components yielded nothing (rare — empty values) AND parent had a
+    // value we already handled it above. If both are empty we drop the row;
+    // a valueless Observation has no signal for the user.
+    return rows;
+  }
+
+  // Case 3: no value, no components. Drop — nothing to persist.
+  return [];
+}
+
+function mapObservations(resources: unknown[]) {
+  const out: Record<string, unknown>[] = [];
+  for (const r of resources as Record<string, unknown>[]) {
+    const rows = flattenObservation(r);
+    for (const row of rows) out.push(row);
+  }
+  return out;
 }
 
 // Map Encounter resources, extracting participant practitioners and sorting most-recent first
@@ -632,15 +754,22 @@ function mapEncounters(resources: unknown[]) {
       || (((firstReason.coding as Record<string, unknown>[]) || [])[0]?.display as string)
       || '';
 
+    // Service provider — a Reference to Organization (e.g. "Duke University Hospital")
+    const svcProvider = (r.serviceProvider as Record<string, unknown>) || {};
+    const serviceProviderName = (svcProvider.display as string) || '';
+
+    const cls = (r.class as Record<string, unknown>) || {};
     return {
       type: 'encounter',
       source: 'ehr',
       id: (r.id as string) || '',
-      name: typeCoding.text || firstCoding.display || (r.class as Record<string, unknown>)?.display || 'Visit',
+      name: typeCoding.text || firstCoding.display || (cls.display as string) || 'Visit',
       status: r.status || '',
       start_date: period.start || '',
       end_date: period.end || '',
-      class: (r.class as Record<string, unknown>)?.code || '',
+      class: (cls.code as string) || '',
+      class_display: (cls.display as string) || '',
+      service_provider: serviceProviderName,
       location: locationDisplay,
       reason: reasonText,
       providers, // [{ ref, name }]
@@ -654,6 +783,96 @@ function mapEncounters(resources: unknown[]) {
     return db - da;
   });
   return visits;
+}
+
+// Map FHIR Appointment resources — these are future/scheduled visits and power
+// the Before-visit card. Epic returns Appointment.start as ISO-8601. We project
+// them onto the same shape as Encounters so the persist layer treats them as
+// visits (event_type='visit') with a future event_date.
+function mapAppointments(resources: unknown[]) {
+  const out = (resources as Record<string, unknown>[]).map((r) => {
+    // serviceType[0].text gives a friendly name like 'Follow-up' or 'Office Visit'
+    const svcType = ((r.serviceType as Record<string, unknown>[]) || [])[0] || {};
+    const svcCoding = ((svcType.coding as Record<string, unknown>[]) || [])[0] || {};
+    const apptType = (r.appointmentType as Record<string, unknown>) || {};
+    const apptCoding = ((apptType.coding as Record<string, unknown>[]) || [])[0] || {};
+
+    // Reason — R4 uses reasonCode (array) or reasonReference
+    const reasonArr = (r.reasonCode as Record<string, unknown>[]) || [];
+    const firstReason = reasonArr[0] || {};
+    const reasonText = (firstReason.text as string)
+      || (((firstReason.coding as Record<string, unknown>[]) || [])[0]?.display as string)
+      || (r.description as string)
+      || '';
+
+    // Participants — mostly the practitioner(s) and the patient. We keep only
+    // Practitioner refs so they roll into the same enrichment pipeline.
+    const participants = (r.participant as Record<string, unknown>[]) || [];
+    const providers = participants.map((p) => {
+      const actor = (p.actor as Record<string, unknown>) || {};
+      return {
+        ref: (actor.reference as string) || '',
+        name: (actor.display as string) || '',
+      };
+    }).filter((p) => p.ref.startsWith('Practitioner/') || p.name);
+
+    // Location — first participant of type Location, if any
+    let locationDisplay = '';
+    for (const p of participants) {
+      const actor = (p.actor as Record<string, unknown>) || {};
+      const ref = (actor.reference as string) || '';
+      if (ref.startsWith('Location/')) {
+        locationDisplay = (actor.display as string) || '';
+        break;
+      }
+    }
+
+    const name = (svcType.text as string)
+      || (svcCoding.display as string)
+      || (apptType.text as string)
+      || (apptCoding.display as string)
+      || (r.description as string)
+      || 'Upcoming visit';
+
+    return {
+      type: 'appointment',
+      source: 'ehr',
+      id: (r.id as string) || '',
+      name,
+      status: (r.status as string) || '',
+      start_date: (r.start as string) || '',
+      end_date: (r.end as string) || '',
+      class: '',
+      class_display: '',
+      service_provider: '',
+      location: locationDisplay,
+      reason: reasonText,
+      providers,
+    };
+  });
+
+  // Drop appointments without a usable start date (Epic occasionally returns
+  // proposed appointments with no time block) and anything already in the
+  // past — the FHIR date filter is a hint, not a guarantee on every server.
+  const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
+  const filtered = out.filter((a) => {
+    if (!a.start_date) return false;
+    const t = new Date(a.start_date).getTime();
+    if (!isFinite(t)) return false;
+    if (t < cutoffMs) return false;
+    // Skip cancelled/no-show; keep booked/pending/arrived/checked-in/proposed.
+    const status = (a.status || '').toLowerCase();
+    if (status === 'cancelled' || status === 'noshow' || status === 'entered-in-error') return false;
+    return true;
+  });
+
+  // Sort soonest first — the Before-visit card wants the next appointment up top.
+  filtered.sort((a, b) => {
+    const da = new Date(a.start_date).getTime();
+    const db = new Date(b.start_date).getTime();
+    return da - db;
+  });
+  return filtered;
 }
 
 // Map DocumentReference resources. Extracts encounter link + LOINC type + attachment URLs
@@ -832,6 +1051,7 @@ function mapDiagnosticReports(resources: unknown[]) {
       performers: performerNames,
       attachments,
       result_count,
+      encounter_ref: encounterIdFromResource(r),
     };
   });
 }
@@ -966,9 +1186,23 @@ async function refreshAccessTokenIfNeeded(
   // don't quietly fail and force users into a reconnect loop.
   const isLegacyPublic = conn.client_id_used === EPIC_LEGACY_PUBLIC_CLIENT_ID;
   const isSandbox = conn.fhir_base_url === EPIC_SANDBOX_FHIR_BASE;
+  const isVa = (conn.provider as string | undefined) === 'va';
 
   let body: URLSearchParams;
-  if (isLegacyPublic) {
+  if (isVa) {
+    // VA Lighthouse is a public client - refresh body is just client_id +
+    // refresh_token. No client_assertion, no client_secret.
+    const vaClientId = (conn.client_id_used as string | undefined) || vaClientIdFor(conn.fhir_base_url as string);
+    if (!vaClientId) {
+      console.error('[fetch-ehr-data] VA refresh missing client_id', { conn_id: conn.id, fhir_base_url: conn.fhir_base_url });
+      return { ok: false, detail: 'va_client_id_missing' };
+    }
+    body = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: decRefresh as string,
+      client_id: vaClientId,
+    });
+  } else if (isLegacyPublic) {
     body = new URLSearchParams({
       grant_type: 'refresh_token',
       refresh_token: decRefresh as string,
@@ -1008,15 +1242,36 @@ async function refreshAccessTokenIfNeeded(
 
   if (!res.ok) {
     const errText = await res.text();
+    const respHeaders: Record<string, string> = {};
+    for (const [k, v] of res.headers.entries()) {
+      if (/^(www-authenticate|x-epic|x-request-id|content-type|date)$/i.test(k)) {
+        respHeaders[k] = v;
+      }
+    }
     console.error('[fetch-ehr-data] Refresh exchange failed', {
       status: res.status,
-      err: errText.slice(0, 300),
+      body: errText.slice(0, 1000),
+      headers: respHeaders,
+      person_id: conn.person_id,
+      conn_id: conn.id,
       tokenUrl: conn.token_url,
       clientId: conn.client_id_used,
+      fhir_base_url: conn.fhir_base_url,
+      is_legacy_public: isLegacyPublic,
+      refresh_token_age_days: conn.created_at ? Math.floor((Date.now() - new Date(conn.created_at).getTime()) / 86400000) : null,
     });
     await admin.from('ehr_connections')
       .update({ needs_reconnect: true })
       .eq('id', conn.id);
+    // Drop a sync_log row so the Duke watcher cron sees refresh failures.
+    try {
+      await admin.from('ehr_sync_log').insert({
+        person_id: conn.person_id,
+        patient_id: conn.patient_id,
+        status: res.status,
+        result_counts: { refresh_error: true, epic_body: errText.slice(0, 500), epic_headers: respHeaders },
+      });
+    } catch (_) { /* best-effort */ }
     return { ok: false, detail: `refresh_rejected_${res.status}` };
   }
 
@@ -1103,7 +1358,7 @@ async function fetchAndPersistOneConnection(
     care_team: [] as unknown[],
   };
   const emptyPersisted = { medications: 0, allergies: 0, health_events: 0, lab_results: 0, vitals: 0, errors: [] as string[] };
-  const emptyCounts = { conditions: 0, medications: 0, allergies: 0, observations: 0, immunizations: 0, diagnostic_reports: 0, visits: 0, care_team: 0 };
+  const emptyCounts = { conditions: 0, medications: 0, allergies: 0, observations: 0, immunizations: 0, diagnostic_reports: 0, visits: 0, appointments: 0, care_team: 0 };
 
   const baseResult = {
     connection_id: conn.id as string,
@@ -1146,6 +1401,24 @@ async function fetchAndPersistOneConnection(
     const patientParam = patientId ? `patient=${patientId}` : '';
 
     // Step 2: Fetch all FHIR resources in parallel, threading local tele buckets.
+    //
+    // Future appointments — Epic supports date=ge{YYYY-MM-DD}. We use yesterday as
+    // the floor (timezone-safe slack) so today's not-yet-started visits still come
+    // through. If the connection doesn't have the patient/Appointment.read scope
+    // granted yet (legacy connections), this returns 403 inside fetchFhirResource
+    // and we swallow it as an empty array via the .catch fallback.
+    const apptFloor = (() => {
+      try {
+        const d = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(d.getUTCDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      } catch { return ''; }
+    })();
+    const apptDateParam = apptFloor ? `date=ge${apptFloor}` : '';
+    const apptQuery = [patientParam, apptDateParam].filter(Boolean).join('&');
+
     const [
       patientResource,
       conditions,
@@ -1156,6 +1429,7 @@ async function fetchAndPersistOneConnection(
       immunizations,
       diagnosticReports,
       encountersRaw,
+      appointmentsRaw,
       careTeamsRaw,
       documentReferencesRaw,
     ] = await Promise.all([
@@ -1171,6 +1445,12 @@ async function fetchAndPersistOneConnection(
       fetchFhirResource(fhirBaseUrl, 'DiagnosticReport', accessToken, patientParam, localFhirTele),
       // All encounters — UI filters to last 2 years with a "show older" toggle
       fetchFhirResource(fhirBaseUrl, 'Encounter', accessToken, patientParam, localFhirTele),
+      // Future Appointments — powers the Before-visit card. Tolerant of missing
+      // scope on legacy connections; will be empty until user re-consents Duke.
+      fetchFhirResource(fhirBaseUrl, 'Appointment', accessToken, apptQuery, localFhirTele).catch((e: unknown) => {
+        console.warn('[fetch-ehr-data] Appointment fetch failed (likely scope not granted yet)', String(e));
+        return [] as unknown[];
+      }),
       // Active care teams
       fetchFhirResource(fhirBaseUrl, 'CareTeam', accessToken, patientParam ? `${patientParam}&status=active` : 'status=active', localFhirTele),
       // Clinical notes / AVS / provider summaries (metadata only — content fetched on tap)
@@ -1183,7 +1463,14 @@ async function fetchAndPersistOneConnection(
     const observations = [...labObservations, ...vitalObservations];
 
     const medicationsMapped = mapMedications(medications);
-    const visitsMapped = mapEncounters(encountersRaw);
+    const encountersMapped = mapEncounters(encountersRaw);
+    const appointmentsMapped = mapAppointments(appointmentsRaw);
+    // Visits we pass downstream = past Encounters + future Appointments. Both
+    // share the same shape (start_date/end_date/name/providers/etc.), so the
+    // existing care-team enrichment, persistence, and UI rendering all just
+    // work. The `type` field ('encounter' vs 'appointment') lets the persist
+    // layer differentiate fingerprints so they never collide.
+    const visitsMapped = [...encountersMapped, ...appointmentsMapped];
 
     // Attach DocumentReference metadata to each visit by encounter id so the
     // expanded visit row can offer AVS / Provider Summary links.
@@ -1333,6 +1620,7 @@ async function fetchAndPersistOneConnection(
       immunizations: immunizationsMapped.length,
       diagnostic_reports: diagnosticReportsMapped.length,
       visits: visitsMapped.length,
+      appointments: appointmentsMapped.length,
       care_team: careTeam.length,
     };
 
@@ -1344,6 +1632,10 @@ async function fetchAndPersistOneConnection(
     // Step 4: Persist into canonical Wellet tables. Pass conn.id as the 4th
     // arg so every row is source-tagged with this connection — lets the
     // per-hospital pill UI and per-connection reconnect banners find their data.
+    // Derive ehr_system from the connection's fhir_base_url so VA records get
+    // tagged 'va', Epic records 'epic', etc., instead of every row being
+    // mislabeled 'epic'. See deriveEhrSystem() in _shared/ehr-persist.ts.
+    const ehrSystemTag = deriveEhrSystem(conn.fhir_base_url as string | null);
     const persist = await persistEhrData(admin, personId, {
       medications: medicationsMapped,
       allergies: allergiesMapped,
@@ -1352,7 +1644,7 @@ async function fetchAndPersistOneConnection(
       immunizations: immunizationsMapped,
       diagnostic_reports: diagnosticReportsMapped,
       observations: observationsMapped,
-    }, conn.id);
+    }, conn.id, ehrSystemTag);
 
     if (persist.errors.length > 0) {
       console.error('[fetch-ehr-data] persistence errors', {
@@ -1541,7 +1833,7 @@ Deno.serve(async (req) => {
         visits: [],
         care_team: [],
         synced_at: new Date().toISOString(),
-        result_counts: { conditions: 0, medications: 0, allergies: 0, observations: 0, immunizations: 0, diagnostic_reports: 0, visits: 0, care_team: 0 },
+        result_counts: { conditions: 0, medications: 0, allergies: 0, observations: 0, immunizations: 0, diagnostic_reports: 0, visits: 0, appointments: 0, care_team: 0 },
         persisted: { medications: 0, allergies: 0, health_events: 0, lab_results: 0, vitals: 0, errors: [] },
         fhir_calls: [],
         practitioner_calls: [],
@@ -1729,6 +2021,11 @@ Deno.serve(async (req) => {
         _phase2: true,
       }, 401);
     }
+
+    // Note: CareSignals refresh after a successful sync is handled by the
+    // trg_compute_care_signals AFTER INSERT trigger on ehr_sync_log, which
+    // fires compute-care-signals via pg_net.http_post. See migration
+    // compute_care_signals_trigger_on_sync_log (2026-06-01).
 
     return jsonResponse(responseData);
 

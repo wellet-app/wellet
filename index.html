@@ -1,6 +1,31 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=AW-985109408"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'AW-985109408');
+  </script>
+  <!-- Meta Pixel Code -->
+  <script>
+  !function(f,b,e,v,n,t,s)
+  {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+  n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+  if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+  n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];
+  s.parentNode.insertBefore(t,s)}(window, document,'script',
+  'https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init', '1491844009404209');
+  fbq('track', 'PageView');
+  </script>
+  <noscript><img height="1" width="1" style="display:none"
+  src="https://www.facebook.com/tr?id=1491844009404209&ev=PageView&noscript=1"
+  /></noscript>
+  <!-- End Meta Pixel Code -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Wellet — A place to remember what matters</title>
@@ -21,22 +46,23 @@
 <script src="/lucide.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<link rel="stylesheet" href="/assets/wellet.css?v=20260507-1200">
+<link rel="stylesheet" href="/assets/wellet.css?v=20260527-1815">
 <link rel="stylesheet" href="/assets/editorial-foundation.css">
 <link rel="stylesheet" href="/assets/editorial-auth.css?v=20260507-1515">
 <link rel="stylesheet" href="/assets/editorial-updates.css">
-<link rel="stylesheet" href="/assets/editorial-records.css?v=20260501-1550">
+<link rel="stylesheet" href="/assets/editorial-records.css?v=20260520-0320">
 <link rel="stylesheet" href="/assets/editorial-ask.css?v=20260501-1635">
 <link rel="stylesheet" href="/assets/editorial-sheets.css">
 <link rel="stylesheet" href="/assets/editorial-er.css">
 <link rel="stylesheet" href="/assets/editorial-people.css">
 <link rel="stylesheet" href="/assets/editorial-people-view.css?v=20260501-1610">
-<link rel="stylesheet" href="/assets/editorial-signals-view.css?v=20260501-1438">
+<link rel="stylesheet" href="/assets/editorial-signals-view.css?v=20260514-1900">
 <link rel="stylesheet" href="/assets/editorial-resources-view.css?v=20260501-1505">
-<link rel="stylesheet" href="/assets/editorial-timeline.css">
-<link rel="stylesheet" href="/assets/editorial-patterns.css">
-<link rel="stylesheet" href="/assets/editorial-caresignals.css">
+<link rel="stylesheet" href="/assets/editorial-timeline.css?v=20260514-1620">
+<link rel="stylesheet" href="/assets/editorial-caresignals.css?v=20260531-dismiss">
 <link rel="stylesheet" href="/assets/editorial-upcoming.css">
+<link rel="stylesheet" href="/assets/editorial-connect-progress.css?v=20260528-1418">
+<link rel="stylesheet" href="/assets/try-flow.css">
 </head>
 <body>
 <div class="page-wrap">
@@ -80,13 +106,22 @@
       <path fill="#608F7C" d="M104.11,168.14c-1.13,1.44-2.57,2.56-4.32,3.37-1.75.8-3.61,1.21-5.58,1.21s-3.92-.49-5.65-1.48c-1.73-.98-3.1-2.32-4.1-4.01-1.01-1.69-1.51-3.55-1.51-5.56s.5-3.87,1.51-5.56c1.01-1.69,2.38-3.03,4.1-4.01,1.73-.98,3.61-1.48,5.65-1.48,1.92,0,3.62.28,5.09.83,1.48.55,2.62,1.31,3.42,2.29.8.97,1.21,2.06,1.21,3.26,0,2.62-1.68,4.46-5.04,5.54-1.49.46-3.06.68-4.72.68-1.08,0-2.24-.11-3.49-.32.02,1.13.35,2.16.99,3.1.64.94,1.46,1.67,2.47,2.21,1.01.54,2.05.81,3.13.81.96,0,1.94-.2,2.93-.61s1.82-.98,2.47-1.73l1.44,1.48ZM92.5,155.59c-.8,1.26-1.34,2.86-1.6,4.81.84.17,1.64.25,2.41.25,1.61,0,2.87-.34,3.78-1.01s1.51-1.5,1.8-2.48c.09-.29.14-.59.14-.9,0-.86-.32-1.56-.95-2.09-.64-.53-1.36-.76-2.18-.68-1.46.14-2.6.85-3.4,2.11Z"/>
       <path fill="#608F7C" d="M139.93,141.71c.46.5.76,1.14.86,1.81.17,1.09-.14,2.07-.91,2.95s-1.69,1.36-2.84,1.51c-.83.11-1.71.14-2.64.09-1.17-.04-2.31,0-3.43.15-1.24.16-2.36.49-3.36,1-1,.5-1.5.85-2.29,1.37-1.25.83-.64.51-2.68,1.64-1.7.75-1.02.47-2.27.96-2.92,1.15-5.84,1.04-6.2,1.21v12.12c0,.86.13,1.51.38,1.93s.58.63.99.63c.26,0,.55-.09.86-.27.31-.18.6-.43.86-.74l1.44,1.48c-.98,1.1-1.96,1.87-2.92,2.3-.96.43-2.08.65-3.35.65-1.58,0-2.89-.4-3.92-1.21-1.03-.8-1.55-1.95-1.55-3.44v-13c-.74-.07-1.58-.24-2.52-.5v-1.8c.53.12.97.18,1.33.18.96,0,1.82-.27,2.59-.81.77-.54,1.42-1.18,1.96-1.91.54-.73,1.15-1.66,1.82-2.79.48-.89.88-1.52,1.19-1.91h.83v6.8c3.33.07,5-.58,7.3-1.62,1.91-1.06,2.49-1.68,3.33-2.56.36-.38.58-.67,1.77-1.97.66-.72,2.14-1.98,2.76-2.44,1.43-1.1,2.12-1.49,3.27-2.09,1.14-.61,2.11-.76,3.26-.88,2.04-.21,3.13.16,4.06,1.16Z"/>
     </svg>
-    <span class="auth-early-badge">EARLY ACCESS</span>
+    <span class="auth-early-badge">Early access</span>
   </div>
 
   <div class="auth-headline">
     <h1 id="hero-headline">The Notes app. The group text. The 11pm pharmacy call.<br><em>You're already a caregiver.</em></h1>
   </div>
   <p class="auth-description" id="hero-subtitle">You've been holding all of it. Wellet reads the records, notices the patterns, and remembers what you can't. So you can stop being the memory.</p>
+  <!-- Skimmer pill: above the email card so visitors who don't want to give an email
+       see the demo path on first glance. Judge-path Fix #1 (June 2 2026). -->
+  <div class="auth-skimmer-row" style="display:flex;justify-content:center;margin:18px 0 22px;">
+    <button type="button" class="auth-skimmer-pill" onclick="enterDemoMode()" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 18px;min-height:44px;border-radius:999px;background:var(--bg-soft,#F5F2EC);border:1px solid var(--border,#E2DCD2);color:var(--text-primary);font-family:var(--font-body,inherit);font-size:14px;cursor:pointer;line-height:1;">
+      <i data-lucide="compass" style="width:14px;height:14px;"></i>
+      Just looking? Explore the demo
+      <i data-lucide="arrow-right" style="width:14px;height:14px;"></i>
+    </button>
+  </div>
   <script>
   (function(){
     var heroes = [
@@ -115,12 +150,111 @@
         p: 'The chart, the conversation, the gut feeling, the share, the watch, the question \u2014 everything that happens around your loved one\'s health, in one place. Wellet is the only record that holds all of it.'
       }
     ];
-    var pick = heroes[Math.floor(Math.random() * heroes.length)];
+    // If the visitor came from /me (self-use landing), force a self-framed hero
+    // instead of the random caregiver-framed copy. Matches signup_location=me_hero
+    // or landing_page=/me from the getwellet.com redirect.
+    var pick;
+    try {
+      var _sp = new URLSearchParams(window.location.search || '');
+      var _sloc = (_sp.get('signup_location') || '').toLowerCase();
+      var _lpage = (_sp.get('landing_page') || '').toLowerCase();
+      if (_sloc.indexOf('me_') === 0 || _lpage === '/me' || _lpage === '/me/') {
+        pick = {
+          h: 'Your health records are scattered across six portals. <em>One quiet place.</em>',
+          p: 'Wellet pulls your own records, labs, visits, and wearable data into one place and watches for the changes that matter \u2014 so you don\'t have to keep it all in your head.'
+        };
+      }
+    } catch (e) { /* fall through to random */ }
+    if (!pick) pick = heroes[Math.floor(Math.random() * heroes.length)];
     document.getElementById('hero-headline').innerHTML = pick.h;
     document.getElementById('hero-subtitle').textContent = pick.p;
   })();
   </script>
   <div class="auth-body">
+    <!-- ============================================================
+         IAB (Facebook / Instagram in-app browser) banner
+         Added 2026-05-27 — Meta funnel fix.
+         Detects Facebook + Instagram embedded browsers and warns the
+         user before they start the 6-digit code flow. The FB/IG IAB
+         drops the session when the user switches to Mail to grab the
+         code, so OTP entry fails silently. We surface a one-tap
+         "Copy link" plus a clear instruction for the ••• > Open in
+         Safari / Chrome path.
+         ============================================================ -->
+    <div id="iab-warning" style="display:none;margin:0 0 16px;padding:14px 16px;border:1px solid #C07028;background:#FFF6EC;border-radius:12px;line-height:1.5;" role="alert">
+      <div style="display:flex;gap:10px;align-items:flex-start;">
+        <i data-lucide="alert-triangle" style="width:18px;height:18px;color:#C07028;flex:0 0 auto;margin-top:2px;"></i>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;color:#7A4116;margin-bottom:4px;">Open Wellet in your real browser first</div>
+          <p style="margin:0 0 10px;font-size:14px;color:#4a3320;">
+            You arrived here from <span id="iab-app-name">an app</span>. Signing in needs a 6-digit code from your email, and in-app browsers usually lose the code when you switch to Mail.
+          </p>
+          <p style="margin:0 0 12px;font-size:14px;color:#4a3320;">
+            Tap the <strong>•••</strong> menu (top right) and choose <strong>Open in Safari</strong> or <strong>Open in Chrome</strong>. Or copy the link below and paste it into your browser.
+          </p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" id="iab-copy-link" onclick="iabCopyLink()" style="flex:1;min-width:140px;padding:10px 14px;background:#608F7C;color:#fff;border:none;border-radius:8px;font:inherit;font-weight:600;cursor:pointer;">Copy link</button>
+            <button type="button" onclick="iabDismiss()" style="padding:10px 14px;background:transparent;color:#7A4116;border:1px solid #C07028;border-radius:8px;font:inherit;cursor:pointer;">Continue anyway</button>
+          </div>
+          <div id="iab-copy-confirm" style="display:none;margin-top:8px;font-size:13px;color:#608F7C;font-weight:500;">Link copied. Paste it into Safari or Chrome.</div>
+        </div>
+      </div>
+    </div>
+    <script>
+      // Detect Facebook / Instagram / TikTok / LinkedIn / Twitter in-app browsers.
+      // Reference: https://developers.facebook.com/docs/sharing/webmasters/web-share/#in-app-browser
+      (function detectIAB(){
+        try {
+          var ua = navigator.userAgent || '';
+          var iab = null;
+          if (/FBAN|FBAV|FB_IAB|FBIOS/i.test(ua)) iab = 'Facebook';
+          else if (/Instagram/i.test(ua)) iab = 'Instagram';
+          else if (/TikTok|musical_ly|Bytedance/i.test(ua)) iab = 'TikTok';
+          else if (/LinkedInApp/i.test(ua)) iab = 'LinkedIn';
+          else if (/Twitter/i.test(ua)) iab = 'X';
+          // Also catch generic webview hints when arriving from paid social.
+          else if (/; wv\)/i.test(ua) && /utm_source=(facebook|fb|instagram|ig|meta)/i.test(window.location.search || '')) iab = 'Facebook';
+          if (!iab) return;
+          // Honor user dismissal within the same session.
+          if (sessionStorage.getItem('wellet_iab_dismissed') === '1') return;
+          var nameEl = document.getElementById('iab-app-name');
+          if (nameEl) nameEl.textContent = 'the ' + iab + ' app';
+          var box = document.getElementById('iab-warning');
+          if (box) box.style.display = 'block';
+          // Best-effort analytics — non-blocking.
+          try {
+            if (window.fbq) window.fbq('trackCustom', 'IABDetected', { app: iab });
+            if (window.gtag) window.gtag('event', 'iab_detected', { app: iab });
+          } catch (e) {}
+        } catch (e) {}
+      })();
+      function iabCopyLink(){
+        try {
+          var url = window.location.href;
+          var done = function(){
+            var c = document.getElementById('iab-copy-confirm');
+            if (c) c.style.display = 'block';
+            var btn = document.getElementById('iab-copy-link');
+            if (btn) btn.textContent = 'Copied';
+          };
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(done).catch(function(){
+              // Fallback: prompt with the URL so the user can long-press to copy.
+              window.prompt('Copy this link and paste it into Safari or Chrome:', url);
+              done();
+            });
+          } else {
+            window.prompt('Copy this link and paste it into Safari or Chrome:', url);
+            done();
+          }
+        } catch (e) {}
+      }
+      function iabDismiss(){
+        try { sessionStorage.setItem('wellet_iab_dismissed', '1'); } catch (e) {}
+        var box = document.getElementById('iab-warning');
+        if (box) box.style.display = 'none';
+      }
+    </script>
     <div id="auth-form-state">
       <div id="auth-signin-reveal" class="auth-cta-card">
         <div class="auth-cta-eyebrow">Get started</div>
@@ -134,7 +268,13 @@
         <button class="btn-primary" onclick="sendMagicLink()" id="auth-send-btn" style="width:100%;background:var(--text-primary);">
           Send 6-digit code <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>
         </button>
-        <div style="font-size:var(--type-meta);color:var(--text-secondary);text-align:center;margin-top:10px;line-height:1.45;">No password needed. Your data stays private.</div>
+        <!-- Face ID / passkey sign-in. Shown only on devices with a platform
+             authenticator (iOS Safari, macOS Safari/Chrome). Hidden by default;
+             _wpMaybeShowSignInButton() reveals it. -->
+        <button type="button" id="auth-passkey-btn" onclick="signInWithPasskey()" style="display:none;width:100%;margin-top:8px;background:transparent;color:var(--text-primary);border:1px solid var(--border,#E2DCD2);border-radius:10px;padding:12px;font-size:15px;font-family:inherit;cursor:pointer;">
+          <i data-lucide="scan-face" style="width:16px;height:16px;vertical-align:-3px;margin-right:6px;"></i>Use Face ID
+        </button>
+        <div style="font-size:var(--type-meta);color:var(--text-secondary);text-align:center;margin-top:8px;line-height:1.5;padding:10px 12px;background:var(--bg-soft,#F5F2EC);border-radius:8px;">Don&rsquo;t have your hospital login handy? Apple Health, photos of records, and PDF uploads all work too &mdash; you can set those up after signup.</div>
       </div>
       <div style="display:flex;align-items:center;gap:12px;margin-top:20px;">
         <hr style="flex:1;border:none;border-top:1px solid var(--border);">
@@ -155,7 +295,7 @@
     <div id="auth-sent-state" class="auth-sent auth-sent-card">
       <div class="auth-sent-icon"><i data-lucide="mail-check" style="width:24px;height:24px;"></i></div>
       <div class="auth-sent-title">Check your email</div>
-      <p class="auth-sent-body">We sent an email to <strong id="auth-sent-email"></strong>.<br><br><strong>First time here?</strong> Click the confirmation link in the email to finish signing up. <strong>Already have an account?</strong> Enter the 6-digit code below.<br><br><span class="auth-sent-aside">Heads up: Wellet is less than a month old. If something breaks once you’re in, tap the menu (<strong>•••</strong>) and choose <strong>Report a bug</strong> — it goes straight to Betsy.</span></p>
+      <p class="auth-sent-body">We sent an email to <strong id="auth-sent-email"></strong>.<br><br>Enter the 6-digit code below, or click the confirmation link in the email.<br><br><span class="auth-sent-aside">Heads up: Wellet is less than a month old. If something breaks once you’re in, tap the menu (<strong>•••</strong>) and choose <strong>Report a bug</strong> — it goes straight to Betsy.</span></p>
       <div class="auth-input-wrap" style="margin-top:16px;">
         <label class="auth-input-label" for="auth-code">6-digit code</label>
         <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" id="auth-code" class="auth-input" placeholder="123456" autocomplete="one-time-code" oninput="handleOtpCodeInput(event)" style="font-size:24px;letter-spacing:8px;text-align:center;font-family:var(--font-mono,monospace);">
@@ -188,6 +328,87 @@
   </div>
 </div><!-- end auth-body -->
 </div><!-- end auth-screen -->
+
+<!-- ========== TRY SCREEN (zero-auth funnel) ========== -->
+<div id="try-screen" style="display:none;">
+  <div class="try-container">
+
+    <!-- Step 1: Drop zone -->
+    <div id="try-step-drop" class="try-step">
+      <div class="try-header">
+        <svg viewBox="0 138 150 42" style="height:28px;width:auto;" xmlns="http://www.w3.org/2000/svg" aria-label="Wellet">
+          <path fill="#608F7C" d="M45.5,142c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83l.25-2.56h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z"/>
+          <path fill="#608F7C" d="M57.31,168.14c-1.13,1.44-2.57,2.56-4.32,3.37-1.75.8-3.61,1.21-5.58,1.21s-3.92-.49-5.65-1.48c-1.73-.98-3.1-2.32-4.1-4.01-1.01-1.69-1.51-3.55-1.51-5.56s.5-3.87,1.51-5.56c1.01-1.69,2.38-3.03,4.1-4.01,1.73-.98,3.61-1.48,5.65-1.48,1.92,0,3.62.28,5.09.83s2.62,1.31,3.42,2.29c.8.97,1.21,2.06,1.21,3.26,0,2.62-1.68,4.46-5.04,5.54-1.49.46-3.06.68-4.72.68-1.08,0-2.24-.11-3.49-.32.02,1.13.35,2.16.99,3.1.64.94,1.46,1.67,2.47,2.21s2.05.81,3.13.81c.96,0,1.94-.2,2.93-.61,1-.41,1.82-.98,2.47-1.73l1.44,1.48ZM45.7,155.59c-.8,1.26-1.34,2.86-1.6,4.81.84.17,1.64.25,2.41.25,1.61,0,2.87-.34,3.78-1.01.91-.67,1.51-1.5,1.8-2.48.1-.29.14-.59.14-.9,0-.86-.32-1.56-.95-2.09-.64-.53-1.36-.76-2.18-.68-1.46.14-2.6.85-3.4,2.11Z"/>
+          <path fill="#608F7C" d="M58.21,170.23c.7-.12,1.26-.52,1.69-1.21.43-.68.65-1.9.65-3.65v-14.26c0-1.18-.13-2.08-.38-2.72s-.5-1.06-.76-1.26-.71-.51-1.39-.92c.65-.84,1.61-1.47,2.9-1.89,1.28-.42,2.59-.63,3.91-.63,1.15,0,2.04.14,2.66.43v21.24c0,1.75.22,2.97.65,3.65.43.68,1,1.09,1.69,1.21l.11,1.62h-11.84l.11-1.62Z"/>
+          <path fill="#608F7C" d="M70.85,170.23c.7-.12,1.26-.52,1.69-1.21.43-.68.65-1.9.65-3.65v-14.26c0-1.18-.13-2.08-.38-2.72s-.5-1.06-.76-1.26-.71-.51-1.39-.92c.65-.84,1.61-1.47,2.9-1.89,1.28-.42,2.59-.63,3.91-.63,1.15,0,2.04.14,2.66.43v21.24c0,1.75.22,2.97.65,3.65.43.68,1,1.09,1.69,1.21l.11,1.62h-11.84l.11-1.62Z"/>
+          <path fill="#608F7C" d="M104.11,168.14c-1.13,1.44-2.57,2.56-4.32,3.37-1.75.8-3.61,1.21-5.58,1.21s-3.92-.49-5.65-1.48c-1.73-.98-3.1-2.32-4.1-4.01-1.01-1.69-1.51-3.55-1.51-5.56s.5-3.87,1.51-5.56c1.01-1.69,2.38-3.03,4.1-4.01,1.73-.98,3.61-1.48,5.65-1.48,1.92,0,3.62.28,5.09.83,1.48.55,2.62,1.31,3.42,2.29.8.97,1.21,2.06,1.21,3.26,0,2.62-1.68,4.46-5.04,5.54-1.49.46-3.06.68-4.72.68-1.08,0-2.24-.11-3.49-.32.02,1.13.35,2.16.99,3.1.64.94,1.46,1.67,2.47,2.21,1.01.54,2.05.81,3.13.81.96,0,1.94-.2,2.93-.61s1.82-.98,2.47-1.73l1.44,1.48ZM92.5,155.59c-.8,1.26-1.34,2.86-1.6,4.81.84.17,1.64.25,2.41.25,1.61,0,2.87-.34,3.78-1.01s1.51-1.5,1.8-2.48c.09-.29.14-.59.14-.9,0-.86-.32-1.56-.95-2.09-.64-.53-1.36-.76-2.18-.68-1.46.14-2.6.85-3.4,2.11Z"/>
+          <path fill="#608F7C" d="M139.93,141.71c.46.5.76,1.14.86,1.81.17,1.09-.14,2.07-.91,2.95s-1.69,1.36-2.84,1.51c-.83.11-1.71.14-2.64.09-1.17-.04-2.31,0-3.43.15-1.24.16-2.36.49-3.36,1-1,.5-1.5.85-2.29,1.37-1.25.83-.64.51-2.68,1.64-1.7.75-1.02.47-2.27.96-2.92,1.15-5.84,1.04-6.2,1.21v12.12c0,.86.13,1.51.38,1.93s.58.63.99.63c.26,0,.55-.09.86-.27.31-.18.6-.43.86-.74l1.44,1.48c-.98,1.1-1.96,1.87-2.92,2.3-.96.43-2.08.65-3.35.65-1.58,0-2.89-.4-3.92-1.21-1.03-.8-1.55-1.95-1.55-3.44v-13c-.74-.07-1.58-.24-2.52-.5v-1.8c.53.12.97.18,1.33.18.96,0,1.82-.27,2.59-.81.77-.54,1.42-1.18,1.96-1.91.54-.73,1.15-1.66,1.82-2.79.48-.89.88-1.52,1.19-1.91h.83v6.8c3.33.07,5-.58,7.3-1.62,1.91-1.06,2.49-1.68,3.33-2.56.36-.38.58-.67,1.77-1.97.66-.72,2.14-1.98,2.76-2.44,1.43-1.1,2.12-1.49,3.27-2.09,1.14-.61,2.11-.76,3.26-.88,2.04-.21,3.13.16,4.06,1.16Z"/>
+        </svg>
+      </div>
+      <div class="try-drop-zone" id="try-drop-zone">
+        <div class="try-drop-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#608F7C" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
+        </div>
+        <h2 class="try-drop-title">Drop any health document</h2>
+        <p class="try-drop-subtitle">Lab result, after-visit summary, MyChart PDF, medication list, even a photo of a prescription. Wellet reads it in 30 seconds.</p>
+        <p class="try-drop-note">No signup required.</p>
+        <label class="try-drop-btn">
+          <input type="file" id="try-file-input" accept=".pdf,.png,.jpg,.jpeg,.heic,.doc,.docx" style="display:none">
+          Choose a file
+        </label>
+      </div>
+      <p class="try-drop-footer">Your document is processed in memory and never stored without your permission.<br><a href="https://getwellet.com/transparency" target="_blank" style="color:#608F7C;">How Wellet handles your data</a></p>
+    </div>
+
+    <!-- Step 2: Extraction in progress / results -->
+    <div id="try-step-results" class="try-step" style="display:none;">
+      <div class="try-header">
+        <svg viewBox="0 138 150 42" style="height:28px;width:auto;" xmlns="http://www.w3.org/2000/svg" aria-label="Wellet">
+          <path fill="#608F7C" d="M45.5,142c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83l.25-2.56h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z"/>
+          <path fill="#608F7C" d="M139.93,141.71c.46.5.76,1.14.86,1.81.17,1.09-.14,2.07-.91,2.95s-1.69,1.36-2.84,1.51c-.83.11-1.71.14-2.64.09-1.17-.04-2.31,0-3.43.15-1.24.16-2.36.49-3.36,1-1,.5-1.5.85-2.29,1.37-1.25.83-.64.51-2.68,1.64-1.7.75-1.02.47-2.27.96-2.92,1.15-5.84,1.04-6.2,1.21v12.12c0,.86.13,1.51.38,1.93s.58.63.99.63c.26,0,.55-.09.86-.27.31-.18.6-.43.86-.74l1.44,1.48c-.98,1.1-1.96,1.87-2.92,2.3-.96.43-2.08.65-3.35.65-1.58,0-2.89-.4-3.92-1.21-1.03-.8-1.55-1.95-1.55-3.44v-13c-.74-.07-1.58-.24-2.52-.5v-1.8c.53.12.97.18,1.33.18.96,0,1.82-.27,2.59-.81.77-.54,1.42-1.18,1.96-1.91.54-.73,1.15-1.66,1.82-2.79.48-.89.88-1.52,1.19-1.91h.83v6.8c3.33.07,5-.58,7.3-1.62,1.91-1.06,2.49-1.68,3.33-2.56.36-.38.58-.67,1.77-1.97.66-.72,2.14-1.98,2.76-2.44,1.43-1.1,2.12-1.49,3.27-2.09,1.14-.61,2.11-.76,3.26-.88,2.04-.21,3.13.16,4.06,1.16Z"/>
+        </svg>
+      </div>
+      <div id="try-extracting" class="try-extracting">
+        <div class="try-spinner"></div>
+        <h3>Wellet is reading this&hellip;</h3>
+        <p id="try-file-name" class="try-file-label"></p>
+      </div>
+      <div id="try-results" class="try-results" style="display:none;">
+        <h3 class="try-results-heading">Here's what Wellet found</h3>
+        <div id="try-results-body" class="try-results-body"></div>
+        <div class="try-results-actions">
+          <button class="try-save-btn" onclick="tryShowEmailGate()">Save this and add more &rarr;</button>
+          <button class="try-another-btn" onclick="tryReset()">Try another document</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Email gate (deferred auth) -->
+    <div id="try-step-email" class="try-step" style="display:none;">
+      <div class="try-header">
+        <svg viewBox="0 138 150 42" style="height:28px;width:auto;" xmlns="http://www.w3.org/2000/svg" aria-label="Wellet">
+          <path fill="#608F7C" d="M45.5,142c.94.94,1.4,2.08,1.4,3.42,0,.89-.19,1.73-.58,2.52-.65-.1-1.33-.14-2.05-.14-3.07,0-5.56.97-7.45,2.9-1.9,1.93-3.36,4.34-4.39,7.22-1.03,2.88-2.17,6.86-3.42,11.95l-.47,1.94-.11-.25v.29h-5.15l-4.43-11.2-4.03,11.2h-5.15l-5.69-14.44c-.67-1.34-1.28-2.24-1.82-2.7-.54-.46-1.27-.73-2.18-.83l.25-2.56h12.56l-.04,2.56c-.53.07-1.01.26-1.44.58-.43.31-.65.76-.65,1.33,0,.17.04.38.11.65l3.71,9.47,3.1-8.5c-.48-.96-.88-1.67-1.21-2.14s-.67-.8-1.04-.99c-.37-.19-.87-.32-1.49-.4v-2.56h12.82v2.56c-.86.02-1.49.13-1.87.32-.38.19-.58.55-.58,1.08,0,.34.07.74.22,1.22l3.06,7.78c1.54-7.46,3.49-13.28,5.85-17.44,2.36-4.16,5.15-6.25,8.37-6.25,1.58,0,2.84.47,3.78,1.4Z"/>
+          <path fill="#608F7C" d="M139.93,141.71c.46.5.76,1.14.86,1.81.17,1.09-.14,2.07-.91,2.95s-1.69,1.36-2.84,1.51c-.83.11-1.71.14-2.64.09-1.17-.04-2.31,0-3.43.15-1.24.16-2.36.49-3.36,1-1,.5-1.5.85-2.29,1.37-1.25.83-.64.51-2.68,1.64-1.7.75-1.02.47-2.27.96-2.92,1.15-5.84,1.04-6.2,1.21v12.12c0,.86.13,1.51.38,1.93s.58.63.99.63c.26,0,.55-.09.86-.27.31-.18.6-.43.86-.74l1.44,1.48c-.98,1.1-1.96,1.87-2.92,2.3-.96.43-2.08.65-3.35.65-1.58,0-2.89-.4-3.92-1.21-1.03-.8-1.55-1.95-1.55-3.44v-13c-.74-.07-1.58-.24-2.52-.5v-1.8c.53.12.97.18,1.33.18.96,0,1.82-.27,2.59-.81.77-.54,1.42-1.18,1.96-1.91.54-.73,1.15-1.66,1.82-2.79.48-.89.88-1.52,1.19-1.91h.83v6.8c3.33.07,5-.58,7.3-1.62,1.91-1.06,2.49-1.68,3.33-2.56.36-.38.58-.67,1.77-1.97.66-.72,2.14-1.98,2.76-2.44,1.43-1.1,2.12-1.49,3.27-2.09,1.14-.61,2.11-.76,3.26-.88,2.04-.21,3.13.16,4.06,1.16Z"/>
+        </svg>
+      </div>
+      <div class="try-email-card">
+        <h3>Want to save this and add more?</h3>
+        <p>Enter your email to create a free account. Your document and everything Wellet found will be waiting for you.</p>
+        <form id="try-email-form" onsubmit="return tryHandleEmail(event)">
+          <input type="email" id="try-email-input" placeholder="you@email.com" required>
+          <button type="submit" class="try-email-btn" id="try-email-btn">Continue &rarr;</button>
+        </form>
+        <div id="try-otp-section" style="display:none;">
+          <p class="try-otp-label">We sent a 6-digit code to <strong id="try-otp-email"></strong>.</p>
+          <input type="text" id="try-otp-input" placeholder="000000" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
+          <button type="button" class="try-email-btn" onclick="tryVerifyOtp()">Verify &rarr;</button>
+        </div>
+        <p class="try-email-note">No password needed. We'll send a code to verify.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
 
 <!-- Global "Start over" rescue pill: visible during onboarding/mode/connect screens.
      Auto-hidden once the authenticated app mounts (body.is-authenticated) or while
@@ -247,13 +468,22 @@
       <path fill="#608F7C" d="M139.93,141.71c.46.5.76,1.14.86,1.81.17,1.09-.14,2.07-.91,2.95s-1.69,1.36-2.84,1.51c-.83.11-1.71.14-2.64.09-1.17-.04-2.31,0-3.43.15-1.24.16-2.36.49-3.36,1-1,.5-1.5.85-2.29,1.37-1.25.83-.64.51-2.68,1.64-1.7.75-1.02.47-2.27.96-2.92,1.15-5.84,1.04-6.2,1.21v12.12c0,.86.13,1.51.38,1.93s.58.63.99.63c.26,0,.55-.09.86-.27.31-.18.6-.43.86-.74l1.44,1.48c-.98,1.1-1.96,1.87-2.92,2.3-.96.43-2.08.65-3.35.65-1.58,0-2.89-.4-3.92-1.21-1.03-.8-1.55-1.95-1.55-3.44v-13c-.74-.07-1.58-.24-2.52-.5v-1.8c.53.12.97.18,1.33.18.96,0,1.82-.27,2.59-.81.77-.54,1.42-1.18,1.96-1.91.54-.73,1.15-1.66,1.82-2.79.48-.89.88-1.52,1.19-1.91h.83v6.8c3.33.07,5-.58,7.3-1.62,1.91-1.06,2.49-1.68,3.33-2.56.36-.38.58-.67,1.77-1.97.66-.72,2.14-1.98,2.76-2.44,1.43-1.1,2.12-1.49,3.27-2.09,1.14-.61,2.11-.76,3.26-.88,2.04-.21,3.13.16,4.06,1.16Z"/>
     </svg>
     <h1 class="connect-data-headline" id="connect-data-headline">Bring in <em>your data</em>.</h1>
-    <p class="connect-data-sub">Pick whatever you actually use. You can add the others later.</p>
+    <p class="connect-data-sub">Connect one thing now to see Wellet light up. The others can come later.</p>
 
     <button type="button" class="connect-card" id="connect-card-ehr" onclick="connectFromMeOnboarding('ehr')">
       <span class="connect-card-icon"><i data-lucide="hospital"></i></span>
       <span class="connect-card-body">
         <span class="connect-card-title">Your health records</span>
-        <span class="connect-card-sub">Visits, labs, conditions, and medications from your hospital or clinic.</span>
+        <span class="connect-card-sub">Visits, labs, conditions, and medications from your hospital. Usually ready in under a minute.</span>
+      </span>
+      <span class="connect-card-chevron"><i data-lucide="chevron-right"></i></span>
+    </button>
+
+    <button type="button" class="connect-card" id="connect-card-va" style="display:none" onclick="connectFromMeOnboarding('va')">
+      <span class="connect-card-icon"><i data-lucide="shield"></i></span>
+      <span class="connect-card-body">
+        <span class="connect-card-title">Department of Veterans Affairs</span>
+        <span class="connect-card-sub" id="connect-card-va-sub">Sandbox preview. Pulls visits, conditions, medications, labs, and appointments from VA Lighthouse for a sample veteran.</span>
       </span>
       <span class="connect-card-chevron"><i data-lucide="chevron-right"></i></span>
     </button>
@@ -262,8 +492,17 @@
       <span class="connect-card-icon"><i data-lucide="heart-pulse"></i></span>
       <span class="connect-card-body">
         <span class="connect-card-title">Apple Health</span>
-        <span class="connect-card-sub" id="connect-card-apple-sub">Steps, sleep, heart rate, and anything else on your iPhone.</span>
-        <span class="connect-card-hint" id="connect-card-apple-install-hint" style="display:none" onclick="event.stopPropagation();installWelletConnectFromCard();">Don't have it yet? Install Wellet Connect →</span>
+        <span class="connect-card-sub" id="connect-card-apple-sub">Steps, sleep, heart rate, and anything else on your iPhone. Imports the last 30 days first, then keeps up automatically.</span>
+        <span class="connect-card-hint" id="connect-card-apple-install-hint" style="display:none">Best on iPhone — we’ll walk you through this after signup.</span>
+      </span>
+      <span class="connect-card-chevron"><i data-lucide="chevron-right"></i></span>
+    </button>
+
+    <button type="button" class="connect-card" id="connect-card-google" onclick="connectFromMeOnboarding('google')">
+      <span class="connect-card-icon"><i data-lucide="activity"></i></span>
+      <span class="connect-card-body">
+        <span class="connect-card-title">Google Health</span>
+        <span class="connect-card-sub" id="connect-card-google-sub">Steps, sleep, heart rate, and anything else on your Android phone or Fitbit. Imports the last 30 days first, then keeps up automatically.</span>
       </span>
       <span class="connect-card-chevron"><i data-lucide="chevron-right"></i></span>
     </button>
@@ -272,13 +511,23 @@
       <span class="connect-card-icon"><i data-lucide="watch"></i></span>
       <span class="connect-card-body">
         <span class="connect-card-title">Other wearables</span>
-        <span class="connect-card-sub">Fitbit, Garmin, Oura, Whoop, Withings, and more.</span>
+        <span class="connect-card-sub">Garmin, Oura, Whoop, Withings, and more. Sign in once and Wellet keeps reading from them.</span>
+      </span>
+      <span class="connect-card-chevron"><i data-lucide="chevron-right"></i></span>
+    </button>
+
+    <!-- 2026-06-01 (D3): Upload card so reviewers without an activated hospital still have a path forward. -->
+    <button type="button" class="connect-card" id="connect-card-upload" onclick="_goUploadFromVendorCard()">
+      <span class="connect-card-icon"><i data-lucide="upload"></i></span>
+      <span class="connect-card-body">
+        <span class="connect-card-title">Upload a record</span>
+        <span class="connect-card-sub">Have a PDF or photo of a visit summary, lab result, or after-visit summary? Drop it in and Wellet will read it for you.</span>
       </span>
       <span class="connect-card-chevron"><i data-lucide="chevron-right"></i></span>
     </button>
 
     <button type="button" class="connect-skip-btn" onclick="skipConnectScreen()">
-      I'll do this later
+      Skip for now — you can connect anything from Settings
     </button>
   </div>
 </div>
@@ -287,7 +536,8 @@
 <div id="wc-install-overlay" class="wc-install-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="wc-install-title">
   <div class="wc-install-sheet">
     <h2 class="wc-install-title" id="wc-install-title">Apple Health needs the Wellet Connect app</h2>
-    <p class="wc-install-body">Wellet Connect is a small iPhone app that asks Apple Health for permission and hands the data back. TestFlight installs it in about 90 seconds. After you install, open it once and your pairing code will already be on your clipboard.</p>
+    <p class="wc-install-body">Wellet Connect is a small iPhone app that asks Apple Health for permission and hands the data back. After you install, open it once and your pairing code will already be on your clipboard.</p>
+    <p class="wc-install-body" style="font-size:13px;color:var(--text-secondary);margin-top:-4px;">Wellet Connect is on TestFlight while Apple reviews it for the App Store &mdash; installs the same way, takes about 90 seconds.</p>
     <a class="wc-install-primary" id="wc-install-primary-btn" href="https://testflight.apple.com/join/fNsm9zyd" target="_blank" rel="noopener" onclick="installWelletConnectFromOverlay(event)">Get Wellet Connect</a>
     <button type="button" class="wc-install-secondary" onclick="hideWelletConnectInstallPrompt()">Skip for now</button>
   </div>
@@ -335,7 +585,7 @@
       <div class="person-row">
         <div class="avatar">JB</div>
         <div>
-          <div class="person-name">John Bell — Dad</div>
+          <div class="person-name">Don Bell — Dad</div>
           <div class="person-meta">3 months of care history</div>
         </div>
         <div class="status-dot" aria-hidden="true"></div><span class="sr-only">Status: Stable</span>
@@ -446,6 +696,10 @@
           <span class="header-menu-icon"><i data-lucide="link" style="width:16px;height:16px;"></i></span>
           <span>Set up connections</span>
         </button>
+        <button class="header-menu-item" onclick="closeHeaderMenu();openVaultSheet()">
+          <span class="header-menu-icon"><i data-lucide="folder-lock" style="width:16px;height:16px;"></i></span>
+          <span>Vault</span>
+        </button>
         <button class="header-menu-item" onclick="closeHeaderMenu();startTour()">
           <span class="header-menu-icon"><i data-lucide="compass" style="width:16px;height:16px;"></i></span>
           <span>Take a tour</span>
@@ -472,7 +726,6 @@
     <div class="tab-bar" id="header-tab-bar" role="tablist" aria-label="Health view">
       <button class="tab active" role="tab" aria-selected="true" aria-controls="tab-update" id="tab-btn-update" onclick="switchTab(this,'update')">Summary</button>
       <button class="tab" role="tab" aria-selected="false" aria-controls="tab-timeline" id="tab-btn-timeline" onclick="switchTab(this,'timeline')">History</button>
-      <button class="tab" role="tab" aria-selected="false" aria-controls="tab-patterns" id="tab-btn-patterns" onclick="switchTab(this,'patterns')">Trends</button>
     </div>
   </div>
 
@@ -513,14 +766,18 @@
         <button class="bvc-cta" onclick="openVisitPrep(true)">
           <i data-lucide="clipboard-list" style="width:16px;height:16px;"></i> Open prep for this visit
         </button>
-        <button class="bvc-secondary" onclick="openWishesList('dad')">Review John’s wishes first</button>
+        <button class="bvc-secondary" onclick="openWishesList('dad')">Review Don’s wishes first</button>
       </div>
       <div class="update-me-section">
-        <div class="update-card">
-          <div class="update-label">What's going on with Dad right now</div>
-          <p class="update-text">Dad is <strong>2 months post-op</strong> from his second peroneal knee release and attending PT twice weekly for leg rehab. His oncology CML test came back <strong>&lt;0.001</strong> — continued improvement. Blood pressure has been <strong>running higher this week</strong> (avg 142/89) since his Hydrochlorothiazide dose adjusted in February, something Dr. Johnson is watching closely.</p>
-          <div class="update-meta">Generated from 47 health events · <a>Ask a follow-up</a></div>
+        <div class="update-summary-card">
+          <div class="update-summary-header">
+            <div class="update-summary-titlerow"><span class="update-summary-label">Wellet summary</span><span class="update-summary-verdict-pill attention"><span class="dot"></span>Needs attention</span></div>
+            <button class="update-summary-refresh" onclick="" title="Refresh summary"><i data-lucide="refresh-cw" style="width:13px;height:13px;"></i></button>
+          </div>
+          <div class="update-summary-text">Dad is <strong>2 months post-op</strong> from his second peroneal knee release and attending PT twice weekly for leg rehab. His oncology CML test came back <strong>&lt;0.001</strong> — continued improvement. Blood pressure has been <strong>running higher this week</strong> (avg 142/89) since his Hydrochlorothiazide dose adjusted in February, something Dr. Johnson is watching closely.</div>
+          <div class="update-summary-byline"><i data-lucide="sparkles"></i><span class="update-summary-byline-main">Wellet · written from 4 sources · 12 min ago</span><span class="update-summary-byline-sep">·</span><span class="update-summary-byline-viewed">Viewed 9:14 AM</span></div>
         </div>
+        <button onclick="openShareFamily()" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px 16px;margin-top:10px;background:white;border:1.5px solid var(--moss);border-radius:10px;color:var(--moss);font-family:'DM Sans',sans-serif;font-size:var(--type-meta);font-weight:500;cursor:pointer;"><i data-lucide="share-2" style="width:15px;height:15px;"></i> Share this update</button>
       </div>
       <div class="upcoming-block">
         <div class="upcoming-section-label">Upcoming for Dad</div>
@@ -564,40 +821,41 @@
           <div class="alert-body">Readings have been consistently higher since February 18. May be related to the Hydrochlorothiazide adjustment. Dr. Johnson is aware.</div>
         </div>
       </div>
-      <div class="quick-actions">
-        <button class="qa-btn" onclick="openEmergencySummary()"><span class="qa-icon"><i data-lucide="file-heart" style="width:18px;height:18px;"></i></span>Emergency summary</button>
-        <button class="qa-btn" onclick="openShareFamily()"><span class="qa-icon"><i data-lucide="share-2" style="width:18px;height:18px;"></i></span>Share with family</button>
-        <button class="qa-btn" onclick="openExportVisit()"><span class="qa-icon"><i data-lucide="file-text" style="width:18px;height:18px;"></i></span>Export for visit</button>
-      </div>
       <div class="timeline-section" style="margin-top:16px;">
         <p class="section-label">Recent activity</p>
         <div id="recent-activity-list">
           <!-- populated by renderRecentActivity() -->
           <div class="tl-item">
             <div class="tl-line-col"><div class="tl-dot appt" aria-hidden="true"></div><div class="tl-connector"></div></div>
-            <div class="tl-card moss-border">
-              <div class="tl-card-type-row"><i data-lucide="calendar-check" style="width:11px;height:11px;color:var(--moss);"></i><span class="tl-card-type appt">Appointment</span></div>
-              <div class="tl-card-title">Annual physical — Dr. Waite</div>
-              <div class="tl-card-body">All chronic conditions reviewed. Stable. Follow-up in 6 months.</div>
-              <div class="tl-card-date">January 12, 2026</div>
+            <div class="tl-card tl-card-with-icon moss-border">
+              <div class="tl-icon-tile tl-icon-tile-appt"><i data-lucide="calendar-check"></i></div>
+              <div class="tl-card-content">
+                <div class="tl-card-type-row"><span class="tl-card-type appt">Appointment</span><span class="tl-card-time">January 12, 2026</span></div>
+                <div class="tl-card-title">Annual physical — Dr. Waite</div>
+                <div class="tl-card-body">All chronic conditions reviewed. Stable. Follow-up in 6 months.</div>
+              </div>
             </div>
           </div>
           <div class="tl-item">
             <div class="tl-line-col"><div class="tl-dot med" aria-hidden="true"></div><div class="tl-connector"></div></div>
-            <div class="tl-card amber-border">
-              <div class="tl-card-type-row"><i data-lucide="pill" style="width:11px;height:11px;color:var(--amber);"></i><span class="tl-card-type med">Medication change</span></div>
-              <div class="tl-card-title">Hydrochlorothiazide adjusted</div>
-              <div class="tl-card-body">Dose increased February 18 for blood pressure management.</div>
-              <div class="tl-card-date">February 18, 2026</div>
+            <div class="tl-card tl-card-with-icon amber-border">
+              <div class="tl-icon-tile tl-icon-tile-med"><i data-lucide="pill"></i></div>
+              <div class="tl-card-content">
+                <div class="tl-card-type-row"><span class="tl-card-type med">Medication change</span><span class="tl-card-time">February 18, 2026</span></div>
+                <div class="tl-card-title">Hydrochlorothiazide adjusted</div>
+                <div class="tl-card-body">Dose increased February 18 for blood pressure management.</div>
+              </div>
             </div>
           </div>
           <div class="tl-item">
             <div class="tl-line-col"><div class="tl-dot alert" aria-hidden="true"></div></div>
-            <div class="tl-card red-border">
-              <div class="tl-card-type-row"><i data-lucide="activity" style="width:11px;height:11px;color:var(--red);"></i><span class="tl-card-type alert">Pattern noticed</span></div>
-              <div class="tl-card-title">BP elevated since dose change</div>
-              <div class="tl-card-body">Readings averaging 142/89 this week, up from 128/82 baseline.</div>
-              <div class="tl-card-date">This week</div>
+            <div class="tl-card tl-card-with-icon red-border">
+              <div class="tl-icon-tile tl-icon-tile-alert"><i data-lucide="activity"></i></div>
+              <div class="tl-card-content">
+                <div class="tl-card-type-row"><span class="tl-card-type alert">Pattern noticed</span><span class="tl-card-time">This week</span></div>
+                <div class="tl-card-title">BP elevated since dose change</div>
+                <div class="tl-card-body">Readings averaging 142/89 this week, up from 128/82 baseline.</div>
+              </div>
             </div>
           </div>
         </div>
@@ -626,14 +884,18 @@
         <button class="bvc-cta" onclick="openVisitPrep(true)">
           <i data-lucide="clipboard-list" style="width:16px;height:16px;"></i> Open prep for this visit
         </button>
-        <button class="bvc-secondary" onclick="openWishesList('mom')">Review Cheryl’s wishes first</button>
+        <button class="bvc-secondary" onclick="openWishesList('mom')">Review Margaret’s wishes first</button>
       </div>
       <div class="update-me-section">
-        <div class="update-card">
-          <div class="update-label">What's going on with Mom right now</div>
-          <p class="update-text">Mom has been managing her <strong>Type 2 diabetes</strong> well — her last A1C was <strong>6.8%</strong>, down from 7.1% in October. She started a <strong>new walking routine</strong> three weeks ago and has been consistent. Her rheumatologist adjusted her <strong>Methotrexate</strong> last month for her RA, and she’s reporting less joint stiffness in the mornings.</p>
-          <div class="update-meta">Generated from 31 health events · <a>Ask a follow-up</a></div>
+        <div class="update-summary-card">
+          <div class="update-summary-header">
+            <div class="update-summary-titlerow"><span class="update-summary-label">Wellet summary</span><span class="update-summary-verdict-pill active"><span class="dot"></span>Active week</span></div>
+            <button class="update-summary-refresh" onclick="" title="Refresh summary"><i data-lucide="refresh-cw" style="width:13px;height:13px;"></i></button>
+          </div>
+          <div class="update-summary-text">Mom has been managing her <strong>Type 2 diabetes</strong> well — her last A1C was <strong>6.8%</strong>, down from 7.1% in October. She started a <strong>new walking routine</strong> three weeks ago and has been consistent. Her rheumatologist adjusted her <strong>Methotrexate</strong> last month for her RA, and she's reporting less joint stiffness in the mornings.</div>
+          <div class="update-summary-byline"><i data-lucide="sparkles"></i><span class="update-summary-byline-main">Wellet · written from 2 sources · 5 min ago</span><span class="update-summary-byline-sep">·</span><span class="update-summary-byline-viewed">Viewed 10:22 AM</span></div>
         </div>
+        <button onclick="openShareFamily()" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px 16px;margin-top:10px;background:white;border:1.5px solid var(--moss);border-radius:10px;color:var(--moss);font-family:'DM Sans',sans-serif;font-size:var(--type-meta);font-weight:500;cursor:pointer;"><i data-lucide="share-2" style="width:15px;height:15px;"></i> Share this update</button>
       </div>
       <div class="upcoming-block">
         <div class="upcoming-section-label">Upcoming for Mom</div>
@@ -670,39 +932,40 @@
         </div>
         <button class="visit-prep-btn" onclick="openVisitPrep(false)">Prepare →</button>
       </div>
-      <div class="quick-actions">
-        <button class="qa-btn" onclick="openEmergencySummary()"><span class="qa-icon"><i data-lucide="file-heart" style="width:18px;height:18px;"></i></span>Emergency summary</button>
-        <button class="qa-btn" onclick="openShareFamily()"><span class="qa-icon"><i data-lucide="share-2" style="width:18px;height:18px;"></i></span>Share with family</button>
-        <button class="qa-btn" onclick="openExportVisit()"><span class="qa-icon"><i data-lucide="file-text" style="width:18px;height:18px;"></i></span>Export for visit</button>
-      </div>
       <div class="timeline-section" style="margin-top:16px;">
         <p class="section-label">Recent activity</p>
         <div>
           <div class="tl-item">
             <div class="tl-line-col"><div class="tl-dot appt" aria-hidden="true"></div><div class="tl-connector"></div></div>
-            <div class="tl-card moss-border">
-              <div class="tl-card-type-row"><i data-lucide="calendar-check" style="width:11px;height:11px;color:var(--moss);"></i><span class="tl-card-type appt">Appointment</span></div>
-              <div class="tl-card-title">Rheumatology follow-up — Dr. Park</div>
-              <div class="tl-card-body">Methotrexate dose adjusted. Morning stiffness improving. Continue current regimen.</div>
-              <div class="tl-card-date">February 28, 2026</div>
+            <div class="tl-card tl-card-with-icon moss-border">
+              <div class="tl-icon-tile tl-icon-tile-appt"><i data-lucide="calendar-check"></i></div>
+              <div class="tl-card-content">
+                <div class="tl-card-type-row"><span class="tl-card-type appt">Appointment</span><span class="tl-card-time">February 28, 2026</span></div>
+                <div class="tl-card-title">Rheumatology follow-up — Dr. Park</div>
+                <div class="tl-card-body">Methotrexate dose adjusted. Morning stiffness improving. Continue current regimen.</div>
+              </div>
             </div>
           </div>
           <div class="tl-item">
             <div class="tl-line-col"><div class="tl-dot med" aria-hidden="true"></div><div class="tl-connector"></div></div>
-            <div class="tl-card amber-border">
-              <div class="tl-card-type-row"><i data-lucide="pill" style="width:11px;height:11px;color:var(--amber);"></i><span class="tl-card-type med">Medication change</span></div>
-              <div class="tl-card-title">Methotrexate adjusted</div>
-              <div class="tl-card-body">Reduced from 15mg to 12.5mg weekly per Dr. Park.</div>
-              <div class="tl-card-date">February 28, 2026</div>
+            <div class="tl-card tl-card-with-icon amber-border">
+              <div class="tl-icon-tile tl-icon-tile-med"><i data-lucide="pill"></i></div>
+              <div class="tl-card-content">
+                <div class="tl-card-type-row"><span class="tl-card-type med">Medication change</span><span class="tl-card-time">February 28, 2026</span></div>
+                <div class="tl-card-title">Methotrexate adjusted</div>
+                <div class="tl-card-body">Reduced from 15mg to 12.5mg weekly per Dr. Park.</div>
+              </div>
             </div>
           </div>
           <div class="tl-item">
             <div class="tl-line-col"><div class="tl-dot lab" aria-hidden="true"></div></div>
-            <div class="tl-card blue-border">
-              <div class="tl-card-type-row"><i data-lucide="flask-conical" style="width:11px;height:11px;color:var(--blue);"></i><span class="tl-card-type lab">Lab result</span></div>
-              <div class="tl-card-title">A1C — 6.8%</div>
-              <div class="tl-card-body">Down from 7.1% in October. Endocrinologist pleased with progress.</div>
-              <div class="tl-card-date">February 15, 2026</div>
+            <div class="tl-card tl-card-with-icon blue-border">
+              <div class="tl-icon-tile tl-icon-tile-lab"><i data-lucide="flask-conical"></i></div>
+              <div class="tl-card-content">
+                <div class="tl-card-type-row"><span class="tl-card-type lab">Lab result</span><span class="tl-card-time">February 15, 2026</span></div>
+                <div class="tl-card-title">A1C — 6.8%</div>
+                <div class="tl-card-body">Down from 7.1% in October. Endocrinologist pleased with progress.</div>
+              </div>
             </div>
           </div>
         </div>
@@ -716,136 +979,127 @@
         <div class="tl-month">March 2026</div>
         <div class="tl-item">
           <div class="tl-line-col"><div class="tl-dot alert" aria-hidden="true"></div><div class="tl-connector"></div></div>
-          <div class="tl-card red-border">
-            <div class="tl-card-type-row"><i data-lucide="activity" style="width:11px;height:11px;color:var(--red);"></i><span class="tl-card-type alert">Wellet noticed</span></div>
-            <div class="tl-card-title">Blood pressure rising</div>
-            <div class="tl-card-body">Avg 142/89 this week. 4 readings above baseline since February 18 dose change. Dr. Johnson contacted.</div>
-            <div class="tl-card-date">March 2 — ongoing</div>
+          <div class="tl-card tl-card-with-icon red-border">
+            <div class="tl-icon-tile tl-icon-tile-alert"><i data-lucide="activity"></i></div>
+            <div class="tl-card-content">
+              <div class="tl-card-type-row"><span class="tl-card-type alert">Wellet noticed</span><span class="tl-card-time">March 2 — ongoing</span></div>
+              <div class="tl-card-title">Blood pressure rising</div>
+              <div class="tl-card-body">Avg 142/89 this week. 4 readings above baseline since February 18 dose change. Dr. Johnson contacted.</div>
+            </div>
           </div>
         </div>
         <div class="tl-item">
           <div class="tl-line-col"><div class="tl-dot appt" aria-hidden="true"></div><div class="tl-connector"></div></div>
-          <div class="tl-card moss-border">
-            <div class="tl-card-type-row"><i data-lucide="calendar" style="width:11px;height:11px;color:var(--moss);"></i><span class="tl-card-type appt">Upcoming</span></div>
-            <div class="tl-card-title">Primary care — Dr. Johnson</div>
-            <div class="tl-card-body">BP check, medication review. Address elevated readings.</div>
-            <div class="tl-card-date">March 16 @ 9:00 AM</div>
+          <div class="tl-card tl-card-with-icon moss-border">
+            <div class="tl-icon-tile tl-icon-tile-appt"><i data-lucide="calendar"></i></div>
+            <div class="tl-card-content">
+              <div class="tl-card-type-row"><span class="tl-card-type appt">Upcoming</span><span class="tl-card-time">March 16 @ 9:00 AM</span></div>
+              <div class="tl-card-title">Primary care — Dr. Johnson</div>
+              <div class="tl-card-body">BP check, medication review. Address elevated readings.</div>
+            </div>
           </div>
         </div>
         <div class="tl-item">
           <div class="tl-line-col"><div class="tl-dot appt" aria-hidden="true"></div><div class="tl-connector"></div></div>
-          <div class="tl-card moss-border">
-            <div class="tl-card-type-row"><i data-lucide="calendar-check" style="width:11px;height:11px;color:var(--moss);"></i><span class="tl-card-type appt">Appointment</span> <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div>
-            <div class="tl-card-title">Office visit — Neurology</div>
-            <div class="tl-card-date">March 28 · <span style="color:var(--moss);font-weight:500;">From Duke Health (Epic)</span></div>
+          <div class="tl-card tl-card-with-icon moss-border">
+            <div class="tl-icon-tile tl-icon-tile-appt"><i data-lucide="calendar-check"></i></div>
+            <div class="tl-card-content">
+              <div class="tl-card-type-row"><span class="tl-card-type appt">Appointment</span> <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span><span class="tl-card-time">March 28 · <span style="color:var(--moss);font-weight:500;">From Duke Health (Epic)</span></span></div>
+              <div class="tl-card-title">Office visit — Neurology</div>
+            </div>
           </div>
         </div>
         <div class="tl-item">
           <div class="tl-line-col"><div class="tl-dot lab" aria-hidden="true"></div><div class="tl-connector"></div></div>
-          <div class="tl-card blue-border">
-            <div class="tl-card-type-row"><i data-lucide="flask-conical" style="width:11px;height:11px;color:var(--blue);"></i><span class="tl-card-type lab">Lab result</span> <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div>
-            <div class="tl-card-title">CBC — WBC 6.8, Hemoglobin 14.2</div>
-            <div class="tl-card-date">March 28 · <span style="color:var(--moss);font-weight:500;">From Duke Health (Epic)</span></div>
+          <div class="tl-card tl-card-with-icon blue-border">
+            <div class="tl-icon-tile tl-icon-tile-lab"><i data-lucide="flask-conical"></i></div>
+            <div class="tl-card-content">
+              <div class="tl-card-type-row"><span class="tl-card-type lab">Lab result</span> <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span><span class="tl-card-time">March 28 · <span style="color:var(--moss);font-weight:500;">From Duke Health (Epic)</span></span></div>
+              <div class="tl-card-title">CBC — WBC 6.8, Hemoglobin 14.2</div>
+            </div>
           </div>
         </div>
         <div class="tl-item">
           <div class="tl-line-col"><div class="tl-dot lab" aria-hidden="true"></div><div class="tl-connector"></div></div>
-          <div class="tl-card blue-border">
-            <div class="tl-card-type-row"><i data-lucide="flask-conical" style="width:11px;height:11px;color:var(--blue);"></i><span class="tl-card-type lab">Lab result</span> <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div>
-            <div class="tl-card-title">Metabolic panel — Glucose 98, Creatinine 1.0</div>
-            <div class="tl-card-date">March 15 · <span style="color:var(--moss);font-weight:500;">From Duke Health (Epic)</span></div>
+          <div class="tl-card tl-card-with-icon blue-border">
+            <div class="tl-icon-tile tl-icon-tile-lab"><i data-lucide="flask-conical"></i></div>
+            <div class="tl-card-content">
+              <div class="tl-card-type-row"><span class="tl-card-type lab">Lab result</span> <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span><span class="tl-card-time">March 15 · <span style="color:var(--moss);font-weight:500;">From Duke Health (Epic)</span></span></div>
+              <div class="tl-card-title">Metabolic panel — Glucose 98, Creatinine 1.0</div>
+            </div>
           </div>
         </div>
         <div class="tl-month">February 2026</div>
         <div class="tl-item">
           <div class="tl-line-col"><div class="tl-dot med" aria-hidden="true"></div><div class="tl-connector"></div></div>
-          <div class="tl-card amber-border">
-            <div class="tl-card-type-row"><i data-lucide="pill" style="width:11px;height:11px;color:var(--amber);"></i><span class="tl-card-type med">Medication</span></div>
-            <div class="tl-card-title">Hydrochlorothiazide dose adjusted</div>
-            <div class="tl-card-body">12.5mg → 25mg daily. Started February 18. Watching for BP response.</div>
-            <div class="tl-card-date">February 18, 2026</div>
+          <div class="tl-card tl-card-with-icon amber-border">
+            <div class="tl-icon-tile tl-icon-tile-med"><i data-lucide="pill"></i></div>
+            <div class="tl-card-content">
+              <div class="tl-card-type-row"><span class="tl-card-type med">Medication</span><span class="tl-card-time">February 18, 2026</span></div>
+              <div class="tl-card-title">Hydrochlorothiazide dose adjusted</div>
+              <div class="tl-card-body">12.5mg → 25mg daily. Started February 18. Watching for BP response.</div>
+            </div>
           </div>
         </div>
         <div class="tl-item">
           <div class="tl-line-col"><div class="tl-dot lab" aria-hidden="true"></div><div class="tl-connector"></div></div>
-          <div class="tl-card blue-border">
-            <div class="tl-card-type-row"><i data-lucide="flask-conical" style="width:11px;height:11px;color:var(--blue);"></i><span class="tl-card-type lab">Lab result</span></div>
-            <div class="tl-card-title">CML BCR-ABL &lt;0.001</div>
-            <div class="tl-card-body">Undetectable. Continued improvement from &lt;0.003 six months ago. Dr. Edwards pleased.</div>
-            <div class="tl-card-date">February 28, 2026</div>
+          <div class="tl-card tl-card-with-icon blue-border">
+            <div class="tl-icon-tile tl-icon-tile-lab"><i data-lucide="flask-conical"></i></div>
+            <div class="tl-card-content">
+              <div class="tl-card-type-row"><span class="tl-card-type lab">Lab result</span><span class="tl-card-time">February 28, 2026</span></div>
+              <div class="tl-card-title">CML BCR-ABL &lt;0.001</div>
+              <div class="tl-card-body">Undetectable. Continued improvement from &lt;0.003 six months ago. Dr. Edwards pleased.</div>
+            </div>
           </div>
         </div>
         <div class="tl-item">
           <div class="tl-line-col"><div class="tl-dot note" aria-hidden="true"></div><div class="tl-connector"></div></div>
-          <div class="tl-card">
-            <div class="tl-card-type-row"><i data-lucide="pencil-line" style="width:11px;height:11px;color:var(--text-muted);"></i><span class="tl-card-type note">Your note</span></div>
-            <div class="tl-card-title">PT going well, some fatigue</div>
-            <div class="tl-card-body">"Dad tired after PT sessions but says legs feel stronger. Ask Dr. E about fatigue + ferritin."</div>
-            <div class="tl-card-date">February 22, 2026 — you</div>
+          <div class="tl-card tl-card-with-icon">
+            <div class="tl-icon-tile tl-icon-tile-note"><i data-lucide="pencil-line"></i></div>
+            <div class="tl-card-content">
+              <div class="tl-card-type-row"><span class="tl-card-type note">Your note</span><span class="tl-card-time">February 22, 2026 — you</span></div>
+              <div class="tl-card-title">PT going well, some fatigue</div>
+              <div class="tl-card-body">"Dad tired after PT sessions but says legs feel stronger. Ask Dr. E about fatigue + ferritin."</div>
+            </div>
           </div>
         </div>
         <div class="tl-month">January 2026</div>
         <div class="tl-item">
           <div class="tl-line-col"><div class="tl-dot appt" aria-hidden="true"></div><div class="tl-connector"></div></div>
-          <div class="tl-card moss-border">
-            <div class="tl-card-type-row"><i data-lucide="calendar-check" style="width:11px;height:11px;color:var(--moss);"></i><span class="tl-card-type appt">Appointment</span></div>
-            <div class="tl-card-title">Annual physical — Dr. Waite</div>
-            <div class="tl-card-body">All conditions stable. LDL slightly elevated (144). Mammogram ordered.</div>
-            <div class="tl-card-date">January 12, 2026</div>
+          <div class="tl-card tl-card-with-icon moss-border">
+            <div class="tl-icon-tile tl-icon-tile-appt"><i data-lucide="calendar-check"></i></div>
+            <div class="tl-card-content">
+              <div class="tl-card-type-row"><span class="tl-card-type appt">Appointment</span><span class="tl-card-time">January 12, 2026</span></div>
+              <div class="tl-card-title">Annual physical — Dr. Waite</div>
+              <div class="tl-card-body">All conditions stable. LDL slightly elevated (144). Mammogram ordered.</div>
+            </div>
           </div>
         </div>
         <div class="tl-item">
           <div class="tl-line-col"><div class="tl-dot appt" aria-hidden="true"></div><div class="tl-connector"></div></div>
-          <div class="tl-card moss-border">
-            <div class="tl-card-type-row"><i data-lucide="calendar-check" style="width:11px;height:11px;color:var(--moss);"></i><span class="tl-card-type appt">Appointment</span></div>
-            <div class="tl-card-title">Oncology follow-up — Dr. Edwards</div>
-            <div class="tl-card-body">Gleevec dosage confirmed. CML stable. Next labs in 6 weeks.</div>
-            <div class="tl-card-date">January 3, 2026</div>
+          <div class="tl-card tl-card-with-icon moss-border">
+            <div class="tl-icon-tile tl-icon-tile-appt"><i data-lucide="calendar-check"></i></div>
+            <div class="tl-card-content">
+              <div class="tl-card-type-row"><span class="tl-card-type appt">Appointment</span><span class="tl-card-time">January 3, 2026</span></div>
+              <div class="tl-card-title">Oncology follow-up — Dr. Edwards</div>
+              <div class="tl-card-body">Gleevec dosage confirmed. CML stable. Next labs in 6 weeks.</div>
+            </div>
           </div>
         </div>
         <div class="tl-item">
           <div class="tl-line-col"><div class="tl-dot lab" aria-hidden="true"></div></div>
-          <div class="tl-card blue-border">
-            <div class="tl-card-type-row"><i data-lucide="flask-conical" style="width:11px;height:11px;color:var(--blue);"></i><span class="tl-card-type lab">Labs</span></div>
-            <div class="tl-card-title">Basic metabolic panel — all normal</div>
-            <div class="tl-card-body">Creatinine 1.1, eGFR 59 (stable Stage 3a). Electrolytes all within range.</div>
-            <div class="tl-card-date">January 12, 2026</div>
+          <div class="tl-card tl-card-with-icon blue-border">
+            <div class="tl-icon-tile tl-icon-tile-lab"><i data-lucide="flask-conical"></i></div>
+            <div class="tl-card-content">
+              <div class="tl-card-type-row"><span class="tl-card-type lab">Labs</span><span class="tl-card-time">January 12, 2026</span></div>
+              <div class="tl-card-title">Basic metabolic panel — all normal</div>
+              <div class="tl-card-body">Creatinine 1.1, eGFR 59 (stable Stage 3a). Electrolytes all within range.</div>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- PATTERNS -->
-    <div id="tab-patterns" class="tab-pane" role="tabpanel" aria-labelledby="tab-btn-patterns">
-      <div class="patterns-section">
-        <p class="section-label" data-i18n="patterns.noticed">What Wellet has noticed</p>
-        <div class="insight-card">
-          <div class="insight-row"><div class="insight-count">7</div><div><div class="insight-label">Blood pressure readings this month</div></div></div>
-          <div class="insight-sub">Readings have been consistently higher since February 18 — the same day Hydrochlorothiazide was adjusted. This may be expected during medication titration.</div>
-          <div class="bar-wrap">
-            <div class="bar-label"><span>Morning average</span><span style="color:var(--text-primary);font-weight:500;">138/84</span></div>
-            <div class="bar"><div class="bar-fill moss" style="width:72%"></div></div>
-            <div class="bar-label"><span>Evening average</span><span style="color:var(--amber);font-weight:500;">146/91</span></div>
-            <div class="bar"><div class="bar-fill amber" style="width:88%"></div></div>
-          </div>
-        </div>
-        <div class="insight-card">
-          <div class="insight-row"><div class="insight-count">4</div><div><div class="insight-label">Appointments in the past 90 days</div></div></div>
-          <div class="insight-sub">Annual physical, oncology follow-up, PT evaluation, and eye specialist visit. All logged. Next up: Primary care March 16.</div>
-        </div>
-        <div class="insight-card">
-          <div class="insight-row"><div class="insight-count">2</div><div><div class="insight-label">Medication changes since January</div></div></div>
-          <div class="insight-sub">Hydrochlorothiazide dose increase (February 18) and Gleevec dosage confirmation (January 3). Both logged with dates and context.</div>
-        </div>
-        <div class="insight-card" style="border-color:var(--mint-deep);background:var(--mint);">
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-            <i data-lucide="eye" style="width:13px;height:13px;color:var(--moss);"></i>
-            <span style="font-size:var(--type-micro);letter-spacing:.08em;text-transform:uppercase;color:var(--moss-dark);font-weight:500;">Wellet is witnessing</span>
-          </div>
-          <p style="font-size:var(--type-meta);line-height:1.65;color:var(--text-secondary);">CML continues to improve. Fatigue noted by you on February 22 — not yet addressed by care team. PT compliance is excellent. Glaucoma stable at last eye visit.</p>
-        </div>
-      </div>
-    </div><!-- end tab-patterns -->
     </div><!-- end view-home -->
 
     <!-- PEOPLE VIEW -->
@@ -853,75 +1107,51 @@
       <div class="view-header">
         <div class="people-eyebrow" id="people-eyebrow"></div>
         <div class="view-title">People</div>
-        <div class="view-subtitle">The people you care for, and the family who helps.</div>
+        <div class="view-subtitle">Everyone you’re caring for</div>
       </div>
       <div class="people-section" id="people-list">
-        <div style="font-size:var(--type-micro);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin:4px 2px 10px;">Who you are caring for</div>
         <!-- populated by renderPeople() or demo content -->
         <div class="person-card">
           <div class="person-card-top">
             <div class="person-card-avatar moss">JB</div>
             <div>
-              <div class="person-card-name">John Bell</div>
+              <div class="person-card-name">Don Bell</div>
               <div class="person-card-rel">Dad · Age 71</div>
             </div>
-            <div class="person-card-status watching">
-              <i data-lucide="triangle-alert" style="width:13px;height:13px;"></i> Watching
-            </div>
-            <button class="remove-btn" onclick="confirmRemove('John Bell', this)" title="Remove person">
+            <div class="person-card-status stable"><i data-lucide="check-circle" style="width:13px;height:13px;"></i> Active</div>
+            <button class="remove-btn" onclick="confirmRemove('Don Bell', this)" title="Remove person">
               <i data-lucide="x" style="width:16px;height:16px;"></i>
             </button>
           </div>
-          <div class="person-card-stats">
-            <div class="person-stat"><div class="person-stat-val">6</div><div class="person-stat-label">Medications</div></div>
-            <div class="person-stat"><div class="person-stat-val">4</div><div class="person-stat-label">Diagnoses</div></div>
-            <div class="person-stat"><div class="person-stat-val">Mar 16</div><div class="person-stat-label">Next appt</div></div>
-          </div>
           <div class="person-card-action">
-            <button class="card-action-btn" onclick="switchNavTo('home')">Summary</button>
-            <button class="card-action-btn">Emergency summary</button>
-            <button class="card-action-btn" onclick="openUpload('John Bell')">Add document</button>
+            <button class="card-action-btn" onclick="switchNavTo('home')">Update</button>
+            <button class="card-action-btn" onclick="openAddEvent()">Add event</button>
             <button class="card-action-btn" onclick="openWishesList('dad')" title="Wishes"><i data-lucide="heart" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:3px;"></i>Wishes</button>
+            <button class="card-action-btn" onclick=""><i data-lucide="pencil" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:3px;"></i>Edit profile</button>
           </div>
         </div>
         <div class="person-card">
           <div class="person-card-top">
             <div class="person-card-avatar sage">MB</div>
             <div>
-              <div class="person-card-name">Mary Bell</div>
+              <div class="person-card-name">Margaret Bell</div>
               <div class="person-card-rel">Mom · Age 68</div>
             </div>
-            <div class="person-card-status stable">
-              <i data-lucide="check-circle" style="width:13px;height:13px;"></i> Stable
-            </div>
-            <button class="remove-btn" onclick="confirmRemove('Mary Bell', this)" title="Remove person">
+            <div class="person-card-status stable"><i data-lucide="check-circle" style="width:13px;height:13px;"></i> Active</div>
+            <button class="remove-btn" onclick="confirmRemove('Margaret Bell', this)" title="Remove person">
               <i data-lucide="x" style="width:16px;height:16px;"></i>
             </button>
           </div>
-          <div class="person-card-stats">
-            <div class="person-stat"><div class="person-stat-val">3</div><div class="person-stat-label">Medications</div></div>
-            <div class="person-stat"><div class="person-stat-val">2</div><div class="person-stat-label">Diagnoses</div></div>
-            <div class="person-stat"><div class="person-stat-val">Apr 4</div><div class="person-stat-label">Next appt</div></div>
-          </div>
           <div class="person-card-action">
-            <button class="card-action-btn">Summary</button>
-            <button class="card-action-btn">Emergency summary</button>
-            <button class="card-action-btn" onclick="openUpload('Mary Bell')">Add document</button>
+            <button class="card-action-btn" onclick="switchPerson(null, 'mom');switchNavTo('home')">Update</button>
+            <button class="card-action-btn" onclick="openAddEvent()">Add event</button>
             <button class="card-action-btn" onclick="openWishesList('mom')" title="Wishes"><i data-lucide="heart" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:3px;"></i>Wishes</button>
+            <button class="card-action-btn" onclick=""><i data-lucide="pencil" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:3px;"></i>Edit profile</button>
           </div>
         </div>
         <button class="add-person-btn" onclick="showOnboarding()">
           <i data-lucide="plus" style="width:16px;height:16px;"></i>
           Add another person
-        </button>
-        <div style="font-size:var(--type-micro);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin:22px 2px 10px;">Care Circle</div>
-        <button style="display:flex;align-items:center;gap:10px;width:100%;justify-content:flex-start;padding:14px;background:var(--cream);border:1px solid var(--line);border-radius:12px;font-size:var(--type-body);font-weight:500;color:var(--ink);cursor:pointer;" onclick="openCareCircle()">
-          <i data-lucide="heart-handshake" style="width:18px;height:18px;color:var(--moss);flex-shrink:0;"></i>
-          <div style="flex:1;text-align:left;">
-            <div>Care Circle</div>
-            <div style="font-size:var(--type-meta);font-weight:400;color:var(--muted);margin-top:2px;">Family and friends you share updates with</div>
-          </div>
-          <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--muted);"></i>
         </button>
       </div>
     </div><!-- end view-people -->
@@ -955,29 +1185,29 @@
             </div>
           </div>
           <div id="dad-meds-list">
-            <div class="record-row" onclick="openMedDetail('lisinopril')" style="cursor:pointer;">
+            <div class="record-row" onclick="openMedicationDetail('demo-med-lisinopril')" style="cursor:pointer;">
               <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
               <div style="flex:1;"><div class="record-label">Lisinopril 20mg</div><div class="record-meta">Once daily · Hypertension</div></div>
               <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
             </div>
-            <div class="record-row" onclick="openMedDetail('hctz')" style="cursor:pointer;">
+            <div class="record-row" onclick="openMedicationDetail('demo-med-hctz')" style="cursor:pointer;">
               <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
               <div style="flex:1;"><div class="record-label">Hydrochlorothiazide 25mg</div><div class="record-meta">Once daily · Hypertension</div></div>
               <span class="record-badge amber">Changed Feb 18</span>
               <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
             </div>
-            <div class="record-row" onclick="openMedDetail('gleevec')" style="cursor:pointer;">
+            <div class="record-row" onclick="openMedicationDetail('demo-med-gleevec')" style="cursor:pointer;">
               <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
               <div style="flex:1;"><div class="record-label">Gleevec (Imatinib) 400mg</div><div class="record-meta">Once daily · CML</div></div>
               <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
             </div>
-            <div class="record-row" onclick="openMedDetail('levodopa')" style="cursor:pointer;">
+            <div class="record-row" onclick="openMedicationDetail('demo-med-levodopa')" style="cursor:pointer;">
               <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
               <div style="flex:1;"><div class="record-label">Levodopa/Carbidopa 25-100mg <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div><div class="record-meta">3x daily · Parkinson's</div></div>
               <span class="ehr-provider-badge">From Duke Health</span>
               <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
             </div>
-            <div class="record-row" onclick="openMedDetail('lisinopril-ehr')" style="cursor:pointer;">
+            <div class="record-row" onclick="openMedicationDetail('demo-med-lisinopril-2')" style="cursor:pointer;">
               <div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
               <div style="flex:1;"><div class="record-label">Lisinopril 20mg <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div><div class="record-meta">Once daily · Hypertension</div></div>
               <span class="ehr-provider-badge">From Duke Health</span>
@@ -1006,15 +1236,17 @@
             <div style="flex:1;"><div class="record-label">Glaucoma</div><div class="record-meta">Stable · Dr. Patel</div></div>
             <span class="record-badge moss">Stable</span>
           </div>
-          <div class="record-row">
+          <div class="record-row" onclick="openConditionDetail('demo-cond-parkinsons')" style="cursor:pointer;">
             <div class="record-icon moss"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>
             <div style="flex:1;"><div class="record-label">Parkinson's disease <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div><div class="record-meta">Since Jun 2023</div></div>
             <span class="record-badge amber">Active</span>
+            <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
           </div>
-          <div class="record-row">
+          <div class="record-row" onclick="openConditionDetail('demo-cond-htn')" style="cursor:pointer;">
             <div class="record-icon moss"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>
             <div style="flex:1;"><div class="record-label">Essential hypertension <span class="ehr-badge"><i data-lucide="hospital" style="width:10px;height:10px;"></i>EHR</span></div><div class="record-meta">Since Mar 2020</div></div>
             <span class="record-badge amber">Active</span>
+            <i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>
           </div>
         </div>
 
@@ -1341,6 +1573,27 @@
             </div>
             <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
           </div>
+          <div class="settings-row" style="cursor:pointer;" onclick="openDeleteAccountSheet()">
+            <div class="settings-row-left">
+              <div class="settings-row-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="trash-2" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label" style="color:var(--red);">Delete my account</div><div class="settings-row-meta">Permanently remove everything. This cannot be undone.</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+          </div>
+        </div>
+        <!-- Sign-in (Face ID / passkey management) -->
+        <div class="settings-section" id="sv-signin-section" style="margin-top:12px;display:none;">
+          <div class="settings-section-label">Sign-in</div>
+          <div id="sv-passkeys-list">
+            <!-- Populated by renderPasskeysList() -->
+          </div>
+          <div class="settings-row" id="sv-add-passkey-row" style="cursor:pointer;" onclick="addPasskeyFromSettings()">
+            <div class="settings-row-left">
+              <div class="settings-row-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="scan-face" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label" id="sv-add-passkey-label">Set up Face ID on this device</div><div class="settings-row-meta">Skip the email code on this device</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+          </div>
         </div>
         <!-- Care Circle -->
         <div class="settings-section" style="margin-top:12px;">
@@ -1352,28 +1605,39 @@
             <i data-lucide="user-plus" style="width:15px;height:15px;"></i> Invite family member
           </button>
         </div>
-        <!-- Connected Sources -->
-        <div class="settings-section" style="margin-top:12px;">
-          <div class="settings-section-label">Connected Sources</div>
-          <div id="sv-ehr-status"></div>
-          <div class="settings-row" style="cursor:pointer;" onclick="startEhrConnect()">
+        <!-- Vault: critical documents -->
+        <div class="settings-section" id="sv-vault-section" style="margin-top:12px;">
+          <div class="settings-section-label">Vault</div>
+          <div class="settings-row" id="sv-vault-row" style="cursor:pointer;" onclick="openVaultSheet()">
             <div class="settings-row-left">
-              <div class="settings-row-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="hospital" style="width:15px;height:15px;"></i></div>
-              <div><div class="settings-row-label" id="sv-ehr-label">Connect Health Records</div><div class="settings-row-meta" id="sv-ehr-meta">Epic, Cerner, MyChart — read-only</div></div>
-            </div>
-            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
-          </div>
-          <div class="settings-row">
-            <div class="settings-row-left">
-              <div class="settings-row-icon"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>
-              <div><div class="settings-row-label">Apple Health</div><div class="settings-row-meta">Wearables &amp; sensors</div></div>
+              <div class="settings-row-icon" style="background:#FFF6E2;color:#6B4F12;"><i data-lucide="shield-check" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Critical documents</div><div class="settings-row-meta" id="sv-vault-meta">Advance directive, healthcare proxy, insurance, ID</div></div>
             </div>
             <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
           </div>
         </div>
-        <!-- Care Signals: what Wellet is watching for -->
+        <!-- Connected Sources (per-person header updated by JS) -->
         <div class="settings-section" style="margin-top:12px;">
-          <div class="settings-section-label">Care Signals</div>
+          <div class="settings-section-label" id="sv-connected-sources-label">Connected Sources</div>
+          <div id="sv-ehr-status"></div>
+          <div class="settings-row" id="sv-ehr-row" style="cursor:pointer;" onclick="startEhrConnect()">
+            <div class="settings-row-left">
+              <div class="settings-row-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="hospital" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label" id="sv-ehr-label">Connect Health Records</div><div class="settings-row-meta" id="sv-ehr-meta">Duke, UNC, WakeMed, and more &mdash; read-only</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+          </div>
+          <div class="settings-row" id="sv-apple-health-row" style="cursor:pointer;" onclick="connectAppleHealth()">
+            <div class="settings-row-left">
+              <div class="settings-row-icon"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Apple Health</div><div class="settings-row-meta" id="sv-apple-health-meta">Wearables &amp; sensors</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+          </div>
+        </div>
+        <!-- CareSignals: what Wellet is watching for -->
+        <div class="settings-section" style="margin-top:12px;">
+          <div class="settings-section-label">CareSignals</div>
           <div class="settings-row" style="cursor:pointer;" onclick="openWatchesSheet()">
             <div class="settings-row-left">
               <div class="settings-row-icon" style="background:#FFF6E2;color:#6B4F12;"><i data-lucide="bell" style="width:15px;height:15px;"></i></div>
@@ -1392,14 +1656,14 @@
             </div>
             <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
           </div>
-          <div class="settings-row" style="cursor:pointer;" onclick="window.open('https://mywellet.com/privacy','_blank')">
+          <div class="settings-row" style="cursor:pointer;" onclick="window.open('https://getwellet.com/privacy','_blank')">
             <div class="settings-row-left">
               <div class="settings-row-icon"><i data-lucide="shield" style="width:15px;height:15px;"></i></div>
               <div><div class="settings-row-label">Privacy policy</div><div class="settings-row-meta">How your data is protected</div></div>
             </div>
             <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
           </div>
-          <div class="settings-row" style="cursor:pointer;" onclick="window.open('https://mywellet.com/terms','_blank')">
+          <div class="settings-row" style="cursor:pointer;" onclick="window.open('https://getwellet.com/terms','_blank')">
             <div class="settings-row-left">
               <div class="settings-row-icon"><i data-lucide="file-text" style="width:15px;height:15px;"></i></div>
               <div><div class="settings-row-label">Terms of service</div></div>
@@ -1417,15 +1681,23 @@
             </div>
             <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
           </div>
+          <div class="settings-row" style="cursor:pointer;" onclick="openBugReportSheet()">
+            <div class="settings-row-left">
+              <div class="settings-row-icon" style="background:#FEF0EE;color:var(--red);"><i data-lucide="bug" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Report a bug</div><div class="settings-row-meta">Something broken? Let us know</div></div>
+            </div>
+            <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+          </div>
           <div class="settings-row">
             <div class="settings-row-left">
               <div class="settings-row-icon"><i data-lucide="info" style="width:15px;height:15px;"></i></div>
-              <div><div class="settings-row-label">About Wellet</div><div class="settings-row-meta" style="font-family:var(--serif),serif;font-style:italic;">A record that belongs to your family, not the hospital. · v1.0</div></div>
+              <!-- TODO: replace hardcoded version with build-time constant -->
+              <div><div class="settings-row-label">About Wellet</div><div class="settings-row-meta" id="sv-about-meta" style="font-family:var(--serif),serif;font-style:italic;">A record that belongs to your family, not the hospital.<span id="sv-version-string" style="display:none;"> &middot; v0.1.0-soft-launch</span></div></div>
             </div>
           </div>
         </div>
-        <!-- Developer preview (Phase 2 multi-hospital). Safe no-op when off. -->
-        <div class="settings-section" style="margin-top:12px;">
+        <!-- Developer preview (Phase 2 multi-hospital). Safe no-op when off. Hidden for non-admin users. -->
+        <div class="settings-section" id="sv-developer-preview-section" style="margin-top:12px;display:none;">
           <div class="settings-section-label">Developer preview</div>
           <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
             <div class="settings-row-left" style="flex:1;min-width:0;">
@@ -1433,6 +1705,57 @@
               <div><div class="settings-row-label">Multi-hospital preview</div><div class="settings-row-meta" id="phase2-toggle-desc">Off — single-hospital cache. Auto-enables when a 2nd hospital connects.</div></div>
             </div>
             <button id="phase2-toggle-btn" type="button" onclick="togglePhase2Flag()" style="flex:0 0 auto;background:#eef2f0;border:1px solid var(--border);color:var(--text-primary);font-size:var(--type-meta);font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;">Turn on</button>
+          </div>
+        </div>
+        <!-- Records preferences: Trials tile toggle -->
+        <div class="settings-section" style="margin-top:12px;">
+          <div class="settings-section-label">Records</div>
+          <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div class="settings-row-left" style="flex:1;min-width:0;">
+              <div class="settings-row-icon" style="background:#E8F5E9;color:#4CAF50;"><i data-lucide="flask-conical" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Show trials on condition pages</div><div class="settings-row-meta" id="trials-toggle-desc">Wellet surfaces recruiting studies from ClinicalTrials.gov, the public registry. You decide whether to look.</div></div>
+            </div>
+            <button id="trials-toggle-btn" type="button" onclick="toggleTrialsTileFlag()" style="flex:0 0 auto;background:var(--moss);border:1px solid var(--moss);color:#fff;font-size:var(--type-meta);font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;">On</button>
+          </div>
+        </div>
+        <!-- Records preferences: FDA treatments tile toggle -->
+        <div class="settings-section" style="margin-top:12px;">
+          <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div class="settings-row-left" style="flex:1;min-width:0;">
+              <div class="settings-row-icon" style="background:#E3F2FD;color:#1565C0;"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Show FDA-approved treatments on condition pages</div><div class="settings-row-meta" id="fda-toggle-desc">Wellet surfaces FDA-approved drug labels from the openFDA public registry. You decide whether to look.</div></div>
+            </div>
+            <button id="fda-toggle-btn" type="button" onclick="toggleFdaTreatmentsTileFlag()" style="flex:0 0 auto;background:var(--moss);border:1px solid var(--moss);color:#fff;font-size:var(--type-meta);font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;">On</button>
+          </div>
+        </div>
+        <!-- Records preferences: Centers of excellence tile toggle -->
+        <div class="settings-section" style="margin-top:12px;">
+          <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div class="settings-row-left" style="flex:1;min-width:0;">
+              <div class="settings-row-icon" style="background:#F3E5F5;color:#8E24AA;"><i data-lucide="hospital" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Show centers of excellence on condition pages</div><div class="settings-row-meta" id="centers-toggle-desc">Wellet surfaces NCI- and society-designated centers from a curated list. You decide whether to look.</div></div>
+            </div>
+            <button id="centers-toggle-btn" type="button" onclick="toggleCentersTileFlag()" style="flex:0 0 auto;background:var(--moss);border:1px solid var(--moss);color:#fff;font-size:var(--type-meta);font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;">On</button>
+          </div>
+        </div>
+        <!-- Records preferences: Patient-advocacy groups tile toggle -->
+        <div class="settings-section" style="margin-top:12px;">
+          <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div class="settings-row-left" style="flex:1;min-width:0;">
+              <div class="settings-row-icon" style="background:#FFF3E0;color:#E65100;"><i data-lucide="heart-handshake" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Show patient-advocacy groups on condition pages</div><div class="settings-row-meta" id="advocacy-toggle-desc">Wellet surfaces independent nonprofits from a curated list. Wellet does not endorse or share data.</div></div>
+            </div>
+            <button id="advocacy-toggle-btn" type="button" onclick="toggleAdvocacyTileFlag()" style="flex:0 0 auto;background:var(--moss);border:1px solid var(--moss);color:#fff;font-size:var(--type-meta);font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;">On</button>
+          </div>
+        </div>
+        <!-- Records preferences: Recent research tile toggle -->
+        <div class="settings-section" style="margin-top:12px;">
+          <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div class="settings-row-left" style="flex:1;min-width:0;">
+              <div class="settings-row-icon" style="background:#E0F7FA;color:#00838F;"><i data-lucide="book-open" style="width:15px;height:15px;"></i></div>
+              <div><div class="settings-row-label">Show recent research on condition pages</div><div class="settings-row-meta" id="research-toggle-desc">Wellet surfaces recent review articles from PubMed, the NIH public registry. You decide whether to look.</div></div>
+            </div>
+            <button id="research-toggle-btn" type="button" onclick="toggleResearchTileFlag()" style="flex:0 0 auto;background:var(--moss);border:1px solid var(--moss);color:#fff;font-size:var(--type-meta);font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;">On</button>
           </div>
         </div>
       </div>
@@ -1510,7 +1833,7 @@
     </div>
 
     <div class="er-patient-banner" id="er-patient-banner">
-      <div class="er-patient-name" id="er-patient-name">John Bell</div>
+      <div class="er-patient-name" id="er-patient-name">Don Bell</div>
       <div class="er-patient-dob" id="er-patient-dob">DOB: March 4, 1954 · Age 71</div>
     </div>
 
@@ -1521,7 +1844,7 @@
           <!-- populated by renderEmergencySummary() for authenticated users -->
           <div class="emrg-section">
             <div class="emrg-section-title"><i data-lucide="user" style="width:12px;height:12px;"></i> Patient</div>
-            <div class="emrg-row"><span class="emrg-label">Name</span><span class="emrg-val">John Bell</span></div>
+            <div class="emrg-row"><span class="emrg-label">Name</span><span class="emrg-val">Don Bell</span></div>
             <div class="emrg-row"><span class="emrg-label">Date of birth</span><span class="emrg-val">March 4, 1954 (Age 71)</span></div>
             <div class="emrg-row"><span class="emrg-label">Emergency contact</span><span class="emrg-val">Sarah Bell · (919) 555-0142</span></div>
             <div class="emrg-row"><span class="emrg-label">Allergies</span><span class="emrg-val">Penicillin (rash)</span></div>
@@ -1687,6 +2010,21 @@
   </div>
 </div>
 
+<!-- VAULT SHEET -->
+<div class="qa-overlay" id="vault-overlay" data-editorial="sheet" onclick="if(event.target===this)closeSheet('vault-overlay')">
+  <div class="qa-sheet" style="max-height:88vh;">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" aria-label="Close" onclick="closeSheet('vault-overlay')"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title">Vault</div>
+    <div class="qa-sheet-sub">Critical documents you may need on a moment&rsquo;s notice. Stored encrypted, visible only to you and your Care Circle.</div>
+    <div id="vault-list" style="padding:8px 20px 24px;overflow-y:auto;max-height:70vh;">
+      <div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:var(--type-meta);">Loading&hellip;</div>
+    </div>
+  </div>
+</div>
+
 <!-- EXPORT FOR VISIT SHEET -->
 <div class="qa-overlay" id="export-overlay" data-editorial="sheet">
   <div class="qa-sheet">
@@ -1717,6 +2055,154 @@
         <i data-lucide="download" style="width:15px;height:15px;"></i>
         Generate Visit Summary
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD OUTSIDE VISIT SHEET -->
+<div class="qa-overlay" id="manual-visit-overlay" data-editorial="sheet" onclick="if(event.target===this)closeManualVisit()">
+  <div class="qa-sheet manual-visit-sheet">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" aria-label="Close" onclick="closeManualVisit()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title">Add an outside visit</div>
+    <div class="qa-sheet-sub" id="manual-visit-sub">Care that didn't come through the EHR — physical therapy, EMG, a nutritionist, an outside ER trip.</div>
+
+    <!-- Step 1: pick a service type -->
+    <div id="manual-visit-step1" class="manual-visit-step">
+      <div id="manual-visit-picklist"></div>
+    </div>
+
+    <!-- Step 2: details (date, provider, notes, file) -->
+    <div id="manual-visit-step2" class="manual-visit-step" style="display:none;">
+      <button class="manual-visit-back" onclick="manualVisitBackToStep1()"><i data-lucide="chevron-left" style="width:14px;height:14px;"></i> Change type</button>
+      <div class="manual-visit-selected" id="manual-visit-selected"></div>
+
+      <label class="manual-visit-field">
+        <span class="manual-visit-field-label">Custom label (optional)</span>
+        <input type="text" id="manual-visit-other-label" class="manual-visit-input" placeholder="e.g. EMG of left leg" />
+      </label>
+
+      <label class="manual-visit-field">
+        <span class="manual-visit-field-label">Date</span>
+        <input type="date" id="manual-visit-date" class="manual-visit-input" />
+      </label>
+
+      <label class="manual-visit-field">
+        <span class="manual-visit-field-label">Provider or facility (optional)</span>
+        <input type="text" id="manual-visit-provider" class="manual-visit-input" placeholder="e.g. Asheville Physical Therapy" />
+      </label>
+
+      <label class="manual-visit-field">
+        <span class="manual-visit-field-label">Reason / what was treated (optional)</span>
+        <input type="text" id="manual-visit-reason" class="manual-visit-input" placeholder="e.g. lower back, left knee" />
+      </label>
+
+      <label class="manual-visit-field">
+        <span class="manual-visit-field-label">Notes (optional)</span>
+        <textarea id="manual-visit-notes" class="manual-visit-input manual-visit-textarea" rows="3" placeholder="How it went, what the provider said, next steps&hellip;"></textarea>
+      </label>
+
+      <!-- Optional attachment — reuses the existing visit_attachments pipeline. -->
+      <div class="manual-visit-field">
+        <span class="manual-visit-field-label">Attach a document (optional)</span>
+        <input type="file" id="manual-visit-file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.txt" style="display:none;" onchange="onManualVisitFilePicked(this)">
+        <button type="button" class="manual-visit-file-btn" onclick="document.getElementById('manual-visit-file').click()">
+          <i data-lucide="paperclip" style="width:14px;height:14px;"></i>
+          <span id="manual-visit-file-label">Choose file (PT eval, EMG report, etc.)</span>
+        </button>
+      </div>
+
+      <div class="manual-visit-actions">
+        <button class="btn-primary" id="manual-visit-save-btn" onclick="saveManualVisit()">
+          <i data-lucide="check" style="width:15px;height:15px;"></i>
+          Add visit
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- HEALTH STORY SHEET -->
+<!-- Pulls timeline events in a date range and weaves them into a plain-English
+     narrative you can read aloud at a specialist visit. Optional anchor text
+     becomes the opening sentence ("This all started June 1 when she fell down
+     the steps"). Output: on-screen card + PDF download + email-to-self. -->
+<div class="qa-overlay" id="story-overlay" data-editorial="sheet" onclick="if(event.target===this)closeHealthStory()">
+  <div class="qa-sheet story-sheet">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" aria-label="Close" onclick="closeHealthStory()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title">Build a health story</div>
+    <div class="qa-sheet-sub" id="story-sheet-sub">Pick a date range, anchor it to what started everything, and Wellet weaves the timeline into a story you can read aloud at the next appointment.</div>
+
+    <!-- Step 1: range + anchor -->
+    <div id="story-step1" class="story-step">
+      <label class="story-field">
+        <span class="story-field-label">From</span>
+        <input type="date" id="story-from" class="story-input" />
+      </label>
+      <label class="story-field">
+        <span class="story-field-label">To</span>
+        <input type="date" id="story-to" class="story-input" />
+      </label>
+
+      <div class="story-divider"><span>Anchor (optional)</span></div>
+      <div class="story-anchor-hint">A sentence about what started this chapter. Wellet will open the story with it.</div>
+
+      <label class="story-field">
+        <span class="story-field-label">What started this?</span>
+        <textarea id="story-anchor-text" class="story-input story-textarea" rows="2" placeholder="e.g. This all started on June 1st when Mom fell down the steps"></textarea>
+      </label>
+
+      <div class="story-field">
+        <span class="story-field-label">Cause (optional)</span>
+        <div class="story-cause-grid" id="story-cause-grid">
+          <button type="button" class="story-cause-chip" data-cause="fall" onclick="pickStoryCause(this,'fall')">Fall</button>
+          <button type="button" class="story-cause-chip" data-cause="new_symptom" onclick="pickStoryCause(this,'new_symptom')">New symptom</button>
+          <button type="button" class="story-cause-chip" data-cause="er_visit" onclick="pickStoryCause(this,'er_visit')">ER visit</button>
+          <button type="button" class="story-cause-chip" data-cause="diagnosis" onclick="pickStoryCause(this,'diagnosis')">Diagnosis</button>
+          <button type="button" class="story-cause-chip" data-cause="surgery" onclick="pickStoryCause(this,'surgery')">Surgery</button>
+          <button type="button" class="story-cause-chip" data-cause="other" onclick="pickStoryCause(this,'other')">Other</button>
+        </div>
+      </div>
+
+      <div class="story-actions">
+        <button class="btn-primary" id="story-generate-btn" onclick="generateHealthStory()">
+          <i data-lucide="book-open" style="width:15px;height:15px;"></i>
+          Build the story
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 2: generated story output -->
+    <div id="story-step2" class="story-step" style="display:none;">
+      <button class="story-back" onclick="storyBackToStep1()"><i data-lucide="chevron-left" style="width:14px;height:14px;"></i> Change dates or anchor</button>
+
+      <div class="story-output-card" id="story-output-card">
+        <div class="story-output-eyebrow" id="story-output-eyebrow">A WELLET STORY</div>
+        <div class="story-output-title" id="story-output-title"></div>
+        <div class="story-output-meta" id="story-output-meta"></div>
+        <div class="story-output-body" id="story-output-body"></div>
+        <div class="story-output-footer">Compiled by Wellet · A record that belongs to your family, not the hospital.</div>
+      </div>
+
+      <div class="story-output-actions">
+        <button class="story-action-btn" onclick="copyHealthStory()">
+          <i data-lucide="copy" style="width:14px;height:14px;"></i>
+          Copy
+        </button>
+        <button class="story-action-btn" onclick="downloadHealthStoryPDF()">
+          <i data-lucide="file-text" style="width:14px;height:14px;"></i>
+          Save as PDF
+        </button>
+        <button class="story-action-btn" onclick="emailHealthStory()">
+          <i data-lucide="mail" style="width:14px;height:14px;"></i>
+          Email to me
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -1932,8 +2418,14 @@
   </div>
 </div>
 
-<!-- SETTINGS SHEET -->
-<div class="settings-overlay" id="settings-overlay" data-editorial="sheet" onclick="if(event.target===this)closeSettings()">
+<!-- SETTINGS SHEET (LEGACY)
+     2026-06-01: Replaced by the full-page settings view (#view-settings).
+     Kept in the DOM but force-hidden because several call sites still call
+     closeSettings() / closeSheet('settings-overlay') as a no-op cleanup
+     step. A future cleanup PR can safely delete this block once every
+     closeSettings() invocation is audited and removed.
+-->
+<div class="settings-overlay" id="settings-overlay" data-editorial="sheet" style="display:none !important;" aria-hidden="true" onclick="if(event.target===this)closeSettings()">
   <div class="settings-sheet">
     <div class="settings-handle-row">
       <div class="settings-handle"></div>
@@ -2117,7 +2609,14 @@
       <div class="settings-row" style="cursor:pointer;" onclick="closeSettings();downloadFamilyRecordPDF()">
         <div class="settings-row-left">
           <div class="settings-row-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="book-heart" style="width:15px;height:15px;"></i></div>
-          <div><div class="settings-row-label">Family record (PDF)</div><div class="settings-row-meta">The full chart plus their wishes — a record that belongs to your family</div></div>
+          <div><div class="settings-row-label">Generate family record (PDF)</div><div class="settings-row-meta">The full chart plus their wishes — a record that belongs to your family</div></div>
+        </div>
+        <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
+      </div>
+      <div class="settings-row" style="cursor:pointer;" onclick="closeSettings();openFamilyRecordsList()">
+        <div class="settings-row-left">
+          <div class="settings-row-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="folder-heart" style="width:15px;height:15px;"></i></div>
+          <div><div class="settings-row-label">Saved family records</div><div class="settings-row-meta">Past records you can re-download or share with the family</div></div>
         </div>
         <div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>
       </div>
@@ -2224,9 +2723,32 @@
     <div class="qa-sheet-title" id="wishes-list-title">Wishes</div>
     <div class="qa-sheet-sub" id="wishes-list-sub" style="font-family:var(--serif),serif;font-style:italic;">What your loved one wants. In their words, kept safe for the people who need to hear it.</div>
     <div id="wishes-list-body" style="padding:8px 0 4px;"><!-- rendered by renderWishesList() --></div>
-    <div style="padding:16px 4px 4px;">
+    <div style="padding:16px 4px 4px;display:flex;flex-direction:column;gap:8px;">
       <button class="btn-primary" style="width:100%;" onclick="startWishRecording()">
         <i data-lucide="mic" style="width:16px;height:16px;"></i> Record a wish
+      </button>
+      <button id="surface-wishes-btn" type="button" onclick="surfaceWishesFromRecords()"
+        style="width:100%;padding:10px 14px;border-radius:8px;border:1px solid var(--border, #ECE8DC);background:transparent;color:var(--moss-dark);font:inherit;font-size:var(--type-meta);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;">
+        <i data-lucide="sparkles" style="width:14px;height:14px;"></i> Surface from records
+      </button>
+      <div style="font-size:var(--type-micro);color:var(--text-muted);text-align:center;line-height:1.5;font-style:italic;">Reads documents, visit notes, and check-ins for wishes they’ve already shared. Once per day.</div>
+    </div>
+  </div>
+</div>
+
+<!-- SAVED FAMILY RECORDS LIST SHEET -->
+<div class="qa-overlay" id="family-records-list-overlay" data-editorial="sheet" onclick="if(event.target===this)closeFamilyRecordsList()">
+  <div class="qa-sheet" style="padding-bottom:40px;">
+    <div class="qa-handle-row">
+      <div class="qa-handle"></div>
+      <button class="close-btn" aria-label="Close" onclick="closeFamilyRecordsList()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+    </div>
+    <div class="qa-sheet-title">Saved family records</div>
+    <div class="qa-sheet-sub" style="font-family:var(--serif),serif;font-style:italic;">Past records you&rsquo;ve compiled. Re-download for yourself, or share a private link with the family.</div>
+    <div id="family-records-list-body" style="padding:8px 0 4px;"><!-- rendered by renderFamilyRecordsList() --></div>
+    <div style="padding:16px 4px 4px;">
+      <button class="btn-primary" style="width:100%;" onclick="closeFamilyRecordsList();downloadFamilyRecordPDF()">
+        <i data-lucide="book-heart" style="width:16px;height:16px;"></i> Generate a new record
       </button>
     </div>
   </div>
@@ -3037,6 +3559,10 @@
     </div>
     <div class="qa-sheet-title">Connect Health Records</div>
     <div class="qa-sheet-sub">Search for your hospital or health system</div>
+    <div class="hospital-picker-banner" role="note">
+      <div class="hospital-picker-banner-title">We’re brand new and adding hospitals every day.</div>
+      <div class="hospital-picker-banner-body">Don’t see yours? <a href="#" role="button" onclick="event.preventDefault(); openConnectRequestModal({source:'picker-banner'}); return false;">Send us a note</a> and we’ll move yours to the top of the list and email you the moment it’s live. Or write <a href="mailto:hello@getwellet.com?subject=Add%20my%20hospital%20to%20Wellet">hello@getwellet.com</a>.</div>
+    </div>
     <div class="hospital-picker-search-wrap">
       <i data-lucide="search" style="width:16px;height:16px;"></i>
       <input type="text" class="hospital-picker-search" id="hospital-picker-input" placeholder="Search hospitals..." autocomplete="off" />
@@ -3061,6 +3587,7 @@
         <label for="cr-hospital">Hospital or health system</label>
         <input type="text" id="cr-hospital" class="cr-input" placeholder="e.g., Duke Health" maxlength="200" />
       </div>
+      <div id="cr-vendor-check-slot"></div>
       <div class="cr-row">
         <div class="cr-field">
           <label for="cr-city">City</label>
@@ -3108,8 +3635,10 @@
 </div>
 
 </div><!-- end page-wrap -->
-<script src="/assets/wellet.js?v=20260512-2340"></script>
+<script src="/assets/wellet-manual-visit-types.js?v=20260514-1900"></script>
+<script src="/assets/wellet.js?v=20260601-vault"></script>
 <script src="/guided-demo.js"></script>
+<script src="/assets/try-flow.js"></script>
 <!-- CARE CIRCLE SHARE SHEET -->
 <div class="share-overlay" id="share-overlay" onclick="if(event.target===this)closeShareSheet()">
   <div class="share-sheet" role="dialog" aria-modal="true" aria-labelledby="share-sheet-title">

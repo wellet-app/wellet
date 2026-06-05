@@ -25,8 +25,30 @@ type SupaClient = {
   from: (table: string) => any;
 };
 
-const EHR_SYSTEM = 'epic'; // Everything this function persists originated from an Epic FHIR pull
+// Legacy default kept for the fingerprint salt only — do NOT change. Existing
+// rows were fingerprinted with the literal 'epic' before this module became
+// multi-EHR aware. Bumping this string would invalidate every dedup key in the
+// database and cause every re-sync to duplicate rows. The per-row ehr_system
+// LABEL is now derived per-connection via deriveEhrSystem() and threaded in
+// from the caller; the fingerprint salt stays constant on purpose.
+const FP_SALT = 'epic';
 const SOURCE_LABEL = 'ehr'; // matches the `source` column semantics in existing tables
+
+// Derive a short ehr_system label from a FHIR base URL. This is the value that
+// lands in medications.ehr_system, health_events.ehr_system, etc. It is
+// user-visible via the provider pill on records and analytics filters, so we
+// keep the set small and stable. New EHRs get added here as we onboard them.
+// Defaults to 'epic' so legacy Epic syncs (and any unrecognized URL) keep
+// their current label.
+export function deriveEhrSystem(fhirBaseUrl: string | null | undefined): string {
+  if (!fhirBaseUrl || typeof fhirBaseUrl !== 'string') return 'epic';
+  const u = fhirBaseUrl.toLowerCase();
+  if (u.includes('va.gov')) return 'va';
+  if (u.includes('cerner.com') || u.includes('oracle.com') || u.includes('oraclecloud')) return 'cerner';
+  // Everything else (fhir.epic.com, dukehealth.org behind Epic, unchealth.org
+  // behind Epic, sandbox-fhir.epic.com, etc.) is Epic-flavored FHIR.
+  return 'epic';
+}
 
 // ---------------------------------------------------------------------------
 // Fingerprint helpers
@@ -84,7 +106,7 @@ function toDateOrNull(d: unknown): string | null {
 
 // Medications: `active` is derived from the FHIR MedicationRequest status.
 // Emergency Summary and the Records page both filter on active=true.
-function buildMedicationRows(personId: string, connectionId: string | null, mapped: any[]): Record<string, unknown>[] {
+function buildMedicationRows(personId: string, connectionId: string | null, ehrSystem: string, mapped: any[]): Record<string, unknown>[] {
   if (!Array.isArray(mapped)) return [];
   return mapped
     .map((m) => {
@@ -106,14 +128,15 @@ function buildMedicationRows(personId: string, connectionId: string | null, mapp
         start_date: toDateOrNull(m?.date_asserted),
         active,
         source: SOURCE_LABEL,
-        ehr_system: EHR_SYSTEM,
-        source_fingerprint: fp(EHR_SYSTEM, 'MedicationRequest', name.toLowerCase(), code, dateKey),
+        ehr_system: ehrSystem,
+        encounter_fhir_id: (m?.encounter_ref as string) || null,
+        source_fingerprint: fp(FP_SALT, 'MedicationRequest', name.toLowerCase(), code, dateKey),
       };
     })
     .filter((r) => r !== null) as Record<string, unknown>[];
 }
 
-function buildAllergyRows(personId: string, connectionId: string | null, mapped: any[]): Record<string, unknown>[] {
+function buildAllergyRows(personId: string, connectionId: string | null, ehrSystem: string, mapped: any[]): Record<string, unknown>[] {
   if (!Array.isArray(mapped)) return [];
   return mapped
     .map((a) => {
@@ -133,8 +156,8 @@ function buildAllergyRows(personId: string, connectionId: string | null, mapped:
         onset_date: toIsoOrNull(a?.recorded_date),
         source: SOURCE_LABEL,
         source_code: code || null,
-        source_system: EHR_SYSTEM,
-        source_fingerprint: fp(EHR_SYSTEM, 'AllergyIntolerance', substance.toLowerCase(), code, recorded),
+        source_system: ehrSystem,
+        source_fingerprint: fp(FP_SALT, 'AllergyIntolerance', substance.toLowerCase(), code, recorded),
       };
     })
     .filter((r) => r !== null) as Record<string, unknown>[];
@@ -146,6 +169,7 @@ function buildAllergyRows(personId: string, connectionId: string | null, mapped:
 function buildHealthEventRows(
   personId: string,
   connectionId: string | null,
+  ehrSystem: string,
   conditions: any[],
   visits: any[],
   immunizations: any[],
@@ -171,9 +195,10 @@ function buildHealthEventRows(
         title,
         notes: c?.status ? `Status: ${c.status}` : null,
         source: SOURCE_LABEL,
-        ehr_system: EHR_SYSTEM,
+        ehr_system: ehrSystem,
         accepted: true,
-        source_fingerprint: fp(EHR_SYSTEM, 'Condition', title.toLowerCase(), code, iso.slice(0, 10)),
+        encounter_fhir_id: (c?.encounter_ref as string) || null,
+        source_fingerprint: fp(FP_SALT, 'Condition', title.toLowerCase(), code, iso.slice(0, 10)),
       });
     }
   }
@@ -193,8 +218,24 @@ function buildHealthEventRows(
       if (!iso) continue;
       const vid = String(v?.id || '');
       const location = String(v?.location || '');
-      const encType = String(v?.type || v?.encounter_type || '');
-      const isNonVisit = NON_VISIT_RE.test(title) || NON_VISIT_RE.test(encType);
+      // 'type' on the mapped object is either 'encounter' (past) or
+      // 'appointment' (future). Appointments must NEVER be reclassified as
+      // 'note' — the non-visit regex only applies to historical encounters.
+      const sourceKind = String(v?.type || '').toLowerCase();
+      const isAppointment = sourceKind === 'appointment';
+      const encType = String(v?.encounter_type || (isAppointment ? '' : sourceKind));
+      const isNonVisit = !isAppointment && (NON_VISIT_RE.test(title) || NON_VISIT_RE.test(encType));
+      // Fingerprint differentiates Encounter vs Appointment so the same Epic
+      // resource ID across both types never collides into one row.
+      const fhirResource = isAppointment ? 'Appointment' : 'Encounter';
+      // Encounter rows store their own FHIR id as the encounter_fhir_id so
+      // child rows (labs/vitals/meds/conditions) can join back to the visit
+      // they belong to. Appointments are future-only and don't gather child
+      // resources, but we still tag them so downstream joins are uniform.
+      const classCode = String(v?.class || '');
+      const classDisplay = String(v?.class_display || '');
+      const serviceProvider = String(v?.service_provider || '');
+      const reasonText = String(v?.reason || '');
       rows.push({
         person_id: personId,
         connection_id: connectionId,
@@ -203,9 +244,15 @@ function buildHealthEventRows(
         title,
         notes: [v?.reason, location].filter(Boolean).join(' — ') || null,
         source: SOURCE_LABEL,
-        ehr_system: EHR_SYSTEM,
+        ehr_system: ehrSystem,
         accepted: true,
-        source_fingerprint: fp(EHR_SYSTEM, 'Encounter', vid, iso.slice(0, 10)),
+        encounter_fhir_id: vid || null,
+        encounter_class_code: classCode || null,
+        encounter_class_display: classDisplay || null,
+        encounter_service_provider: serviceProvider || null,
+        encounter_reason_text: reasonText || null,
+        encounter_period_end: toIsoOrNull(v?.end_date),
+        source_fingerprint: fp(FP_SALT, fhirResource, vid, iso.slice(0, 10)),
       });
     }
   }
@@ -226,9 +273,9 @@ function buildHealthEventRows(
         title,
         notes: im?.lot_number ? `Lot: ${im.lot_number}` : null,
         source: SOURCE_LABEL,
-        ehr_system: EHR_SYSTEM,
+        ehr_system: ehrSystem,
         accepted: true,
-        source_fingerprint: fp(EHR_SYSTEM, 'Immunization', title.toLowerCase(), code, iso.slice(0, 10)),
+        source_fingerprint: fp(FP_SALT, 'Immunization', title.toLowerCase(), code, iso.slice(0, 10)),
       });
     }
   }
@@ -257,9 +304,10 @@ function buildHealthEventRows(
         title,
         notes,
         source: SOURCE_LABEL,
-        ehr_system: EHR_SYSTEM,
+        ehr_system: ehrSystem,
         accepted: true,
-        source_fingerprint: fp(EHR_SYSTEM, 'DiagnosticReport', title.toLowerCase(), code, iso.slice(0, 10)),
+        encounter_fhir_id: (d?.encounter_ref as string) || null,
+        source_fingerprint: fp(FP_SALT, 'DiagnosticReport', title.toLowerCase(), code, iso.slice(0, 10)),
       });
     }
   }
@@ -286,8 +334,11 @@ function isVitalObservation(o: any): boolean {
   return VITAL_LOINC.has(code);
 }
 
-function buildLabRows(personId: string, connectionId: string | null, mapped: any[]): Record<string, unknown>[] {
+function buildLabRows(personId: string, connectionId: string | null, _ehrSystem: string, mapped: any[]): Record<string, unknown>[] {
   if (!Array.isArray(mapped)) return [];
+  // lab_results table has no ehr_system column today — _ehrSystem is accepted
+  // for symmetry with the other row builders and will be wired in once the
+  // column is added. Fingerprint still uses FP_SALT for dedup stability.
   return mapped
     .map((o) => {
       if (isVitalObservation(o)) return null;
@@ -311,8 +362,9 @@ function buildLabRows(personId: string, connectionId: string | null, mapped: any
         loinc_code: code || null,
         category: o?.category || 'laboratory',
         source: SOURCE_LABEL,
+        encounter_fhir_id: (o?.encounter_ref as string) || null,
         source_fingerprint: fp(
-          EHR_SYSTEM,
+          FP_SALT,
           'Observation.lab',
           testName.toLowerCase(),
           code,
@@ -324,8 +376,10 @@ function buildLabRows(personId: string, connectionId: string | null, mapped: any
     .filter((r) => r !== null) as Record<string, unknown>[];
 }
 
-function buildVitalRows(personId: string, connectionId: string | null, mapped: any[]): Record<string, unknown>[] {
+function buildVitalRows(personId: string, connectionId: string | null, _ehrSystem: string, mapped: any[]): Record<string, unknown>[] {
   if (!Array.isArray(mapped)) return [];
+  // vitals table has no ehr_system column today — _ehrSystem is accepted for
+  // symmetry. Fingerprint uses FP_SALT for dedup stability.
   return mapped
     .map((o) => {
       if (!isVitalObservation(o)) return null;
@@ -344,8 +398,9 @@ function buildVitalRows(personId: string, connectionId: string | null, mapped: a
         effective_date: iso,
         loinc_code: code || null,
         source: SOURCE_LABEL,
+        encounter_fhir_id: (o?.encounter_ref as string) || null,
         source_fingerprint: fp(
-          EHR_SYSTEM,
+          FP_SALT,
           'Observation.vital',
           vitalType.toLowerCase(),
           code,
@@ -454,22 +509,30 @@ export async function persistEhrData(
   // CCDA upload, Apple Health import) — those rows continue to coexist via
   // the NULLS NOT DISTINCT unique index.
   connectionId: string | null = null,
+  // Phase 3: ehr_system label — derived per-connection by the caller (most
+  // easily via deriveEhrSystem(conn.fhir_base_url)). Defaults to 'epic' so
+  // existing Epic callers don't need to change and so the legacy behavior is
+  // preserved if a caller forgets to thread it through. Note: this only
+  // affects the row LABEL — the dedup fingerprint is always salted with the
+  // legacy 'epic' constant via FP_SALT, so existing rows are not duplicated.
+  ehrSystem: string = 'epic',
 ): Promise<PersistResult> {
   const t0 = Date.now();
   const errors: string[] = [];
 
-  const medRows = buildMedicationRows(personId, connectionId, mapped.medications || []);
-  const allergyRows = buildAllergyRows(personId, connectionId, mapped.allergies || []);
+  const medRows = buildMedicationRows(personId, connectionId, ehrSystem, mapped.medications || []);
+  const allergyRows = buildAllergyRows(personId, connectionId, ehrSystem, mapped.allergies || []);
   const eventRows = buildHealthEventRows(
     personId,
     connectionId,
+    ehrSystem,
     mapped.conditions || [],
     mapped.visits || [],
     mapped.immunizations || [],
     mapped.diagnostic_reports || [],
   );
-  const labRows = buildLabRows(personId, connectionId, mapped.observations || []);
-  const vitalRows = buildVitalRows(personId, connectionId, mapped.observations || []);
+  const labRows = buildLabRows(personId, connectionId, ehrSystem, mapped.observations || []);
+  const vitalRows = buildVitalRows(personId, connectionId, ehrSystem, mapped.observations || []);
 
   // Run each table's upsert sequentially. Could parallelize with Promise.all
   // but sequencing keeps error isolation clean and a typical payload is under

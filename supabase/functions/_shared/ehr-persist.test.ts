@@ -176,6 +176,60 @@ Deno.test('empty input produces empty result, no errors', async () => {
   assertEquals(calls.length, 0, 'should not call upsert for empty batches');
 });
 
+Deno.test('encounter_fhir_id threads onto labs, vitals, meds, conditions, diagnostic reports', async () => {
+  calls.length = 0;
+  await persistEhrData(fakeAdmin as any, PERSON, {
+    medications: [
+      { name: 'Imatinib', code: '108547', status: 'active', date_asserted: '2025-11-15', encounter_ref: 'enc-A' },
+    ],
+    conditions: [
+      { name: 'CML', code: 'C92.10', onset_date: '2020-03-01', encounter_ref: 'enc-A' },
+    ],
+    diagnostic_reports: [
+      { name: 'CBC w Diff', code: '57021-8', effective_date: '2025-11-15', encounter_ref: 'enc-A' },
+    ],
+    observations: [
+      { name: 'Hemoglobin', code: '718-7', value: '13.2', unit: 'g/dL', effective_date: '2025-11-15', category: 'laboratory', encounter_ref: 'enc-A' },
+      { name: 'Systolic blood pressure', code: '8480-6', value: '132', unit: 'mmHg', effective_date: '2025-11-15', category: '', encounter_ref: 'enc-A' },
+    ],
+  });
+  const med = calls.find((c) => c.table === 'medications')!.rows[0];
+  assertEquals(med.encounter_fhir_id, 'enc-A');
+  const events = calls.find((c) => c.table === 'health_events')!.rows;
+  for (const ev of events) assertEquals(ev.encounter_fhir_id, 'enc-A');
+  const lab = calls.find((c) => c.table === 'lab_results')!.rows[0];
+  assertEquals(lab.encounter_fhir_id, 'enc-A');
+  const vital = calls.find((c) => c.table === 'vitals')!.rows[0];
+  assertEquals(vital.encounter_fhir_id, 'enc-A');
+});
+
+Deno.test('Encounter visit row carries its own id as encounter_fhir_id plus class metadata', async () => {
+  calls.length = 0;
+  await persistEhrData(fakeAdmin as any, PERSON, {
+    visits: [
+      {
+        id: 'enc-ER-99',
+        name: 'ED Visit',
+        start_date: '2025-11-15T03:14:00Z',
+        end_date: '2025-11-15T08:42:00Z',
+        class: 'EMER',
+        class_display: 'emergency',
+        service_provider: 'Duke University Hospital',
+        reason: 'chest pain',
+        location: 'Duke ED',
+      },
+    ],
+  });
+  const row = calls.find((c) => c.table === 'health_events')!.rows[0];
+  assertEquals(row.event_type, 'visit');
+  assertEquals(row.encounter_fhir_id, 'enc-ER-99');
+  assertEquals(row.encounter_class_code, 'EMER');
+  assertEquals(row.encounter_class_display, 'emergency');
+  assertEquals(row.encounter_service_provider, 'Duke University Hospital');
+  assertEquals(row.encounter_reason_text, 'chest pain');
+  assertEquals(row.encounter_period_end, '2025-11-15T08:42:00.000Z');
+});
+
 Deno.test('upsert error is captured in errors array', async () => {
   const errAdmin = {
     from(_table: string) {

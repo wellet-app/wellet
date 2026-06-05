@@ -1,0 +1,328 @@
+/* ============================================================
+   try-flow.css — Zero-auth "Try Wellet" funnel
+   Drop doc → see extraction → email to save
+   ============================================================ */
+
+#try-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: var(--linen, #F7F5F0);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.try-container {
+  max-width: 540px;
+  margin: 0 auto;
+  padding: 0 20px;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.try-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.try-header {
+  text-align: center;
+  padding: 24px 0 8px;
+}
+
+/* ── Drop zone ── */
+.try-drop-zone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border: 2px dashed var(--ink-2, #D8D3CA);
+  border-radius: 20px;
+  padding: 48px 24px;
+  margin: 16px 0;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  min-height: 320px;
+}
+.try-drop-zone.dragover {
+  border-color: var(--moss, #608F7C);
+  background: rgba(96, 143, 124, 0.06);
+}
+.try-drop-icon {
+  margin-bottom: 20px;
+  opacity: 0.7;
+}
+.try-drop-title {
+  font-family: 'Fraunces', serif;
+  font-size: clamp(22px, 5vw, 32px);
+  font-weight: 500;
+  font-variation-settings: "opsz" 24, "SOFT" 60;
+  color: var(--ink-9, #1F1B16);
+  margin: 0 0 12px;
+  line-height: 1.2;
+}
+.try-drop-subtitle {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 1.55;
+  color: var(--ink-6, #57534C);
+  max-width: 380px;
+  margin: 0 0 16px;
+}
+.try-drop-note {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--moss, #608F7C);
+  margin: 0 0 20px;
+}
+.try-drop-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 12px 28px;
+  background: var(--moss, #608F7C);
+  color: white;
+  border-radius: 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+.try-drop-btn:hover {
+  background: #4F7A68;
+  transform: translateY(-1px);
+}
+.try-drop-footer {
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-5, #6E6962);
+  line-height: 1.5;
+  padding: 8px 0 24px;
+}
+
+/* ── Extraction / results ── */
+.try-extracting {
+  text-align: center;
+  padding: 60px 20px;
+}
+.try-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--ink-1, #E6E1D6);
+  border-top-color: var(--moss, #608F7C);
+  border-radius: 50%;
+  margin: 0 auto 20px;
+  animation: trySpin 0.8s linear infinite;
+}
+@keyframes trySpin {
+  to { transform: rotate(360deg); }
+}
+.try-extracting h3 {
+  font-family: 'Fraunces', serif;
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--ink-9, #1F1B16);
+  margin: 0 0 8px;
+}
+.try-file-label {
+  font-size: 14px;
+  color: var(--ink-5, #6E6962);
+  margin: 0;
+}
+
+.try-results {
+  padding: 20px 0;
+}
+.try-results-heading {
+  font-family: 'Fraunces', serif;
+  font-size: 24px;
+  font-weight: 500;
+  font-variation-settings: "opsz" 24, "SOFT" 60;
+  color: var(--ink-9, #1F1B16);
+  margin: 0 0 16px;
+  text-align: center;
+}
+.try-results-body {
+  background: white;
+  border: 1px solid var(--ink-1, #E6E1D6);
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.try-result-section {
+  margin-bottom: 16px;
+}
+.try-result-section:last-child {
+  margin-bottom: 0;
+}
+.try-result-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--moss, #608F7C);
+  margin-bottom: 6px;
+}
+.try-result-value {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink-7, #443F38);
+}
+.try-result-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.try-result-list li {
+  padding: 4px 0;
+  font-size: 14px;
+  color: var(--ink-7, #443F38);
+  border-bottom: 1px solid var(--ink-0, #F0ECE4);
+}
+.try-result-list li:last-child {
+  border-bottom: 0;
+}
+.try-result-signal {
+  background: rgba(96, 143, 124, 0.08);
+  border: 1px solid rgba(96, 143, 124, 0.2);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: 12px;
+}
+.try-result-signal-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--moss, #608F7C);
+  margin-bottom: 4px;
+}
+.try-result-signal-text {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-7, #443F38);
+}
+
+.try-results-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 0 24px;
+}
+.try-save-btn {
+  width: 100%;
+  padding: 14px 20px;
+  background: var(--moss, #608F7C);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.try-save-btn:hover {
+  background: #4F7A68;
+}
+.try-another-btn {
+  width: 100%;
+  padding: 12px 20px;
+  background: transparent;
+  color: var(--moss, #608F7C);
+  border: 1.5px solid var(--moss, #608F7C);
+  border-radius: 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.try-another-btn:hover {
+  background: rgba(96, 143, 124, 0.06);
+}
+
+/* ── Email gate ── */
+.try-email-card {
+  background: white;
+  border: 1px solid var(--ink-1, #E6E1D6);
+  border-radius: 16px;
+  padding: 32px 24px;
+  text-align: center;
+  margin: 40px 0 24px;
+}
+.try-email-card h3 {
+  font-family: 'Fraunces', serif;
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--ink-9, #1F1B16);
+  margin: 0 0 10px;
+}
+.try-email-card p {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-6, #57534C);
+  margin: 0 0 20px;
+}
+#try-email-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+#try-email-input,
+#try-otp-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1.5px solid var(--ink-2, #D8D3CA);
+  border-radius: 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 16px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+#try-email-input:focus,
+#try-otp-input:focus {
+  border-color: var(--moss, #608F7C);
+}
+#try-otp-input {
+  text-align: center;
+  font-size: 24px;
+  letter-spacing: 0.2em;
+  font-weight: 600;
+}
+.try-email-btn {
+  width: 100%;
+  padding: 14px 20px;
+  background: var(--moss, #608F7C);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.try-email-btn:hover {
+  background: #4F7A68;
+}
+.try-email-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.try-otp-label {
+  font-size: 14px;
+  color: var(--ink-6, #57534C);
+  margin: 0 0 12px;
+}
+.try-email-note {
+  font-size: 12px;
+  color: var(--ink-5, #6E6962);
+  margin: 16px 0 0;
+}

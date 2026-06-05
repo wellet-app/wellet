@@ -6,7 +6,8 @@
    row dividers, and hairline-underlined verb actions.
    ============================================================ */
 
-#view-resources[data-editorial="resources"] {
+/* Scoped to .active so this view doesn't bleed through other views. */
+#view-resources[data-editorial="resources"].active {
   display: block;
 }
 
@@ -103,6 +104,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
+  flex-wrap: wrap;
   margin-bottom: 4px;
 }
 #view-resources[data-editorial="resources"] .resource-card-name {

@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>A note from Betsy</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap');
+
+  :root {
+    --cream: #FAF6F1;
+    --paper: #FFFFFF;
+    --ink: #1F2A24;
+    --moss: #2F5D4F;
+    --moss-soft: #E7EFEB;
+    --warm: #C97B5C;
+    --muted: #6B7670;
+    --border: #E8E2D8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%; }
+  html, body { background: var(--cream); }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    color: var(--ink);
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 20px;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 520px;
+    display: flex;
+    flex-direction: column;
+    text-align: center;
+  }
+  @media (min-width: 700px) {
+    .container { max-width: 640px; }
+    body { padding: 56px 32px; }
+  }
+  @media (min-width: 1024px) {
+    .container { max-width: 720px; }
+    body { padding: 80px 40px; }
+  }
+
+  .topline {
+    color: var(--muted);
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+  @media (min-width: 700px) { .topline { font-size: 15px; margin-bottom: 36px; } }
+
+  /* Avatar — either an image OR an initial bubble */
+  .avatar {
+    width: 80px; height: 80px;
+    border-radius: 50%;
+    margin: 0 auto 18px;
+    background: linear-gradient(135deg, #d4b896, #c97b5c);
+    display: flex; align-items: center; justify-content: center;
+    color: white;
+    font-family: 'Fraunces', serif;
+    font-size: 36px; font-weight: 500;
+    box-shadow: 0 8px 24px rgba(201,123,92,0.25);
+    overflow: hidden;
+  }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  @media (min-width: 700px) {
+    .avatar { width: 120px; height: 120px; font-size: 52px; margin-bottom: 28px; }
+  }
+  @media (min-width: 1024px) {
+    .avatar { width: 144px; height: 144px; font-size: 64px; margin-bottom: 36px; }
+  }
+
+  .greeting {
+    font-family: 'Fraunces', serif;
+    font-size: 32px;
+    font-weight: 400;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    margin-bottom: 14px;
+  }
+  .greeting .name { color: var(--moss); font-style: italic; }
+  @media (min-width: 700px) { .greeting { font-size: 48px; margin-bottom: 20px; } }
+  @media (min-width: 1024px) { .greeting { font-size: 60px; margin-bottom: 24px; } }
+
+  .message {
+    font-size: 19px;
+    line-height: 1.5;
+    color: #3a4540;
+    margin: 0 auto 28px;
+    max-width: 440px;
+  }
+  @media (min-width: 700px) { .message { font-size: 24px; line-height: 1.55; max-width: 560px; margin-bottom: 40px; } }
+  @media (min-width: 1024px) { .message { font-size: 28px; max-width: 640px; margin-bottom: 52px; } }
+
+  .next {
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 24px 22px 26px;
+    margin-bottom: 24px;
+    text-align: left;
+  }
+  @media (min-width: 700px) { .next { padding: 32px 32px 36px; border-radius: 24px; margin-bottom: 36px; } }
+  @media (min-width: 1024px) { .next { padding: 40px 44px 44px; margin-bottom: 44px; } }
+
+  .next-label {
+    font-size: 13px;
+    color: var(--moss);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    margin-bottom: 14px;
+  }
+  @media (min-width: 700px) { .next-label { font-size: 15px; margin-bottom: 20px; } }
+  @media (min-width: 1024px) { .next-label { font-size: 16px; margin-bottom: 24px; } }
+
+  .next-text {
+    font-size: 19px;
+    line-height: 1.65;
+    color: var(--ink);
+  }
+  .next-text strong { font-weight: 600; }
+  .next-text + .next-text { margin-top: 14px; }
+  @media (min-width: 700px) {
+    .next-text { font-size: 24px; line-height: 1.65; }
+    .next-text + .next-text { margin-top: 20px; }
+  }
+  @media (min-width: 1024px) {
+    .next-text { font-size: 26px; line-height: 1.7; }
+    .next-text + .next-text { margin-top: 24px; }
+  }
+
+  .primary {
+    display: block;
+    background: var(--moss);
+    color: white;
+    border: none;
+    border-radius: 16px;
+    padding: 20px;
+    font-size: 19px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    width: 100%;
+    box-shadow: 0 4px 16px rgba(47,93,79,0.25);
+    transition: transform 0.05s;
+    text-decoration: none;
+    text-align: center;
+  }
+  .primary:active { transform: scale(0.99); }
+  @media (min-width: 700px) { .primary { padding: 28px; font-size: 24px; border-radius: 20px; } }
+  @media (min-width: 1024px) { .primary { padding: 32px; font-size: 26px; border-radius: 22px; } }
+
+  /* Wearable picker (renderWearable) */
+  .wearable-search {
+    width: 100%;
+    padding: 16px 18px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--paper);
+    font-family: inherit;
+    font-size: 17px;
+    color: var(--ink);
+    margin-bottom: 16px;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .wearable-search:focus { outline: 2px solid var(--moss); outline-offset: 1px; border-color: var(--moss); }
+  @media (min-width: 700px) { .wearable-search { font-size: 20px; padding: 20px 22px; } }
+
+  .provider-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 24px;
+    max-height: 50vh;
+    overflow-y: auto;
+    padding: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+  @media (min-width: 700px) { .provider-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; max-height: 56vh; } }
+  @media (min-width: 1024px) { .provider-grid { grid-template-columns: repeat(4, 1fr); gap: 16px; } }
+
+  .provider-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 10px;
+    cursor: pointer;
+    text-align: center;
+    font-family: inherit;
+    font-size: 15px;
+    color: var(--ink);
+    font-weight: 500;
+    transition: transform 0.05s, border-color 0.15s, background 0.15s;
+    min-height: 80px;
+  }
+  .provider-tile:hover { border-color: var(--moss); background: var(--moss-soft); }
+  .provider-tile:active { transform: scale(0.97); }
+  .provider-tile.loading { opacity: 0.6; pointer-events: none; }
+  .provider-tile .ico {
+    font-size: 26px;
+    margin-bottom: 6px;
+    line-height: 1;
+  }
+  @media (min-width: 700px) {
+    .provider-tile { font-size: 17px; padding: 22px 12px; min-height: 96px; }
+    .provider-tile .ico { font-size: 32px; margin-bottom: 8px; }
+  }
+
+  .provider-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: var(--muted);
+    padding: 24px;
+    font-size: 15px;
+  }
+
+  /* Help row — two links side by side */
+  .help-row {
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 16px;
+    color: var(--muted);
+  }
+  .help-row a {
+    color: var(--moss);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    font-weight: 500;
+    padding: 6px 4px;
+  }
+  .help-row .sep { color: var(--border); }
+  @media (min-width: 700px) { .help-row { margin-top: 24px; font-size: 19px; gap: 10px; } }
+  @media (min-width: 1024px) { .help-row { margin-top: 28px; font-size: 21px; } }
+
+  .whisper {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .whisper b { color: var(--ink); font-weight: 600; letter-spacing: 0.2em; }
+  @media (min-width: 700px) { .whisper { margin-top: 40px; padding-top: 24px; font-size: 13px; } }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="topline" id="topline">A message for you</div>
+
+    <div class="avatar" id="avatar"><span id="avatar-fallback">B</span></div>
+
+    <div class="greeting" id="greeting">A note from <span class="name" id="caregiver-name">Betsy</span></div>
+
+    <div class="message" id="message">
+      They're helping look after your health — and they'd love your phone to share what it already knows.
+    </div>
+
+    <div class="next" id="next-card">
+      <div class="next-label" id="next-label">WHAT HAPPENS NEXT</div>
+      <div class="next-text" id="next-text-1">
+        When you tap below, your iPhone will ask if it's okay to share your <strong>Apple Health</strong> with <span class="caregiver-name-inline">Betsy</span>.
+      </div>
+      <div class="next-text" id="next-text-2">
+        You decide what to share. Nothing happens until you say yes.
+      </div>
+    </div>
+
+    <a class="primary" id="primary-btn" href="#">Open Apple Health</a>
+
+    <div class="help-row">
+      Not sure?
+      <a href="tel:" id="call-link">Call <span class="caregiver-name-inline">Betsy</span></a>
+      <span class="sep">·</span>
+      <a href="sms:" id="text-link">Text <span class="caregiver-name-inline">Betsy</span></a>
+    </div>
+
+    <div class="whisper">From <b>WELLET</b></div>
+  </div>
+
+<script>
+/**
+ * Wellet · data-source invite landing
+ *
+ * Renders one of these states based on (a) the invite payload and (b) the device:
+ *   - apple_health on iPhone        -> "Open Apple Health" button -> wellet://
+ *   - apple_health on iPad/desktop  -> iPad fallback: "Text me this link on my iPhone"
+ *   - ehr (e.g. Duke MyChart)       -> "Sign in to MyChart" button -> Epic OAuth (works on iPad)
+ *
+ * The page hydrates from /functions/v1/data-source-invite?action=lookup&token=<token>
+ * For now this file ships with a window.WELLET_INVITE_FIXTURE for dev preview.
+ */
+(function () {
+  // ---- helpers -----------------------------------------------------------
+  // Edge function lives on the Supabase project, not on mywellet.com.
+  // Netlify's SPA catch-all (/* -> /index.html) swallows /functions/v1/* paths,
+  // so we must hit Supabase directly. CSP already allows https://*.supabase.co.
+  var SUPABASE_URL = 'https://nrpdhxygzyfmyljzfexv.supabase.co';
+  var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU';
+  var qs = new URLSearchParams(location.search);
+  var token = qs.get('dsinvite') || qs.get('token') || '';
+  var FIXTURE = window.WELLET_INVITE_FIXTURE || null;
+
+  function initial(name) {
+    if (!name) return '·';
+    var parts = String(name).trim().split(/\s+/);
+    return (parts[0][0] || '').toUpperCase();
+  }
+  function isIPad() {
+    // ?force=ipad lets us preview the iPad fallback from any device (used by the design preview)
+    if (qs.get('force') === 'ipad') return true;
+    if (qs.get('force') === 'iphone') return false;
+    var ua = navigator.userAgent || '';
+    // Real iPad (legacy UA), and iPadOS 13+ which masquerades as Mac with touch
+    return /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  }
+  function isIPhone() {
+    if (qs.get('force') === 'iphone') return true;
+    if (qs.get('force') === 'ipad') return false;
+    return /iPhone/.test(navigator.userAgent || '');
+  }
+
+  // ---- state renderers ---------------------------------------------------
+  function renderHeader(invite) {
+    var caregiver = (invite.caregiver_name || 'someone who loves you').trim();
+    var lovedOne = (invite.loved_one_name || '').trim();
+
+    document.querySelectorAll('.caregiver-name-inline').forEach(function (el) {
+      el.textContent = caregiver;
+    });
+
+    var greetingEl = document.getElementById('greeting');
+    if (lovedOne) {
+      greetingEl.innerHTML = 'A note for <span style="color:var(--ink)">' + escape(lovedOne)
+        + '</span>,<br>from <span class="name">' + escape(caregiver) + '</span>';
+    } else {
+      greetingEl.innerHTML = 'A note from <span class="name">' + escape(caregiver) + '</span>';
+    }
+
+    document.getElementById('avatar-fallback').textContent = initial(caregiver);
+    if (invite.caregiver_photo_url) {
+      var av = document.getElementById('avatar');
+      av.innerHTML = '<img src="' + escape(invite.caregiver_photo_url) + '" alt="">';
+    }
+
+    // Help links
+    if (invite.caregiver_phone) {
+      document.getElementById('call-link').href = 'tel:' + invite.caregiver_phone;
+      document.getElementById('text-link').href = 'sms:' + invite.caregiver_phone + '?body=' +
+        encodeURIComponent("Hi " + caregiver + " — I got your Wellet link. Can you help me?");
+    }
+  }
+
+  function renderAppleHealth(invite) {
+    var caregiver = (invite.caregiver_name || 'them');
+    if (isIPad() || (!isIPhone() && !isMobile())) {
+      // ---- iPad / desktop fallback ----
+      document.getElementById('next-label').textContent = 'A SMALL THING FIRST';
+      document.getElementById('next-text-1').innerHTML =
+        '<strong>Apple Health</strong> lives on your iPhone, not your iPad.';
+      document.getElementById('next-text-2').innerHTML =
+        'Tap below and we\'ll text this same link to your iPhone. Open it there to share with ' +
+        '<span class="caregiver-name-inline">' + escape(caregiver) + '</span>.';
+      var btn = document.getElementById('primary-btn');
+      btn.textContent = 'Text this link to my iPhone';
+      btn.href = '#';
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        resendToPhone(invite, btn);
+      });
+      // Re-fill caregiver name spans we just rewrote
+      document.querySelectorAll('.caregiver-name-inline').forEach(function (el) {
+        el.textContent = caregiver;
+      });
+      return;
+    }
+
+    // iPhone path — universal link into Wellet Connect via the existing /connect handoff
+    var btn = document.getElementById('primary-btn');
+    btn.textContent = 'Open Apple Health';
+    // Send through mywellet.com /connect so the existing wellet:// + overlay fallback fires.
+    // The /connect page picks up dsinvite=<token> and links the resulting session to the invite.
+    btn.href = '/connect/loved-one?dsinvite=' + encodeURIComponent(invite.token);
+  }
+
+  function renderWearable(invite) {
+    var caregiver = (invite.caregiver_name || 'them');
+    var pinnedProvider = (invite.wearable_provider || '').toLowerCase();
+
+    // If the caregiver pre-picked a provider on the invite, skip the picker
+    // and go straight to that provider.
+    if (pinnedProvider) {
+      document.getElementById('message').innerHTML =
+        escape(caregiver) + " is helping look after your health \u2014 and they'd love your <strong>"
+        + escape(prettyProvider(pinnedProvider))
+        + "</strong> to be in the same place as everything else.";
+      document.getElementById('next-text-1').innerHTML =
+        "When you tap below, you'll sign in to <strong>" + escape(prettyProvider(pinnedProvider)) + "</strong> the same way you always do.";
+      document.getElementById('next-text-2').innerHTML =
+        escape(prettyProvider(pinnedProvider))
+        + ' will ask if it\'s okay to share with <span class="caregiver-name-inline">'
+        + escape(caregiver) + '</span>. Nothing happens until you say yes.';
+      var pbtn = document.getElementById('primary-btn');
+      pbtn.textContent = 'Connect ' + prettyProvider(pinnedProvider);
+      pbtn.href = '#';
+      pbtn.addEventListener('click', function (e) { e.preventDefault(); openTerraWidget(invite, pinnedProvider, pbtn); });
+      document.querySelectorAll('.caregiver-name-inline').forEach(function (el) { el.textContent = caregiver; });
+      return;
+    }
+
+    // Otherwise: show the full Terra provider picker so the loved one chooses.
+    document.getElementById('message').innerHTML =
+      escape(caregiver) + " is helping look after your health \u2014 and they'd love whichever app or device you use day-to-day to be in one place.";
+    document.getElementById('next-label').textContent = 'PICK YOUR APP OR DEVICE';
+    document.getElementById('next-text-1').innerHTML =
+      'Tap whichever one you use. We\'ll send you straight to it to sign in \u2014 same way you always do.';
+    document.getElementById('next-text-2').innerHTML =
+      'It will ask if it\'s okay to share with <span class="caregiver-name-inline">'
+      + escape(caregiver) + '</span>. Nothing happens until you say yes.';
+
+    // Replace the next-card body with a search + grid
+    var nextCard = document.getElementById('next-card');
+    var picker = document.createElement('div');
+    picker.style.marginTop = '20px';
+    picker.innerHTML =
+      '<input type="search" class="wearable-search" id="wearable-search" placeholder="Search Fitbit, Garmin, Oura\u2026" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">'
+      + '<div class="provider-grid" id="provider-grid"></div>';
+    nextCard.appendChild(picker);
+
+    // Hide the primary button — picker tiles are the action
+    document.getElementById('primary-btn').style.display = 'none';
+
+    var grid = document.getElementById('provider-grid');
+    var search = document.getElementById('wearable-search');
+    function paint(filterText) {
+      var f = (filterText || '').toLowerCase().trim();
+      grid.innerHTML = '';
+      var matched = TERRA_PROVIDERS.filter(function (p) {
+        if (!f) return true;
+        return p.label.toLowerCase().indexOf(f) !== -1 || p.id.indexOf(f) !== -1;
+      });
+      if (matched.length === 0) {
+        var empty = document.createElement('div');
+        empty.className = 'provider-empty';
+        empty.textContent = "No matches \u2014 try a different name?";
+        grid.appendChild(empty);
+        return;
+      }
+      matched.forEach(function (p) {
+        var tile = document.createElement('button');
+        tile.type = 'button';
+        tile.className = 'provider-tile';
+        tile.setAttribute('data-provider', p.id);
+        tile.innerHTML = '<span class="ico">' + p.ico + '</span><span>' + escape(p.label) + '</span>';
+        tile.addEventListener('click', function () {
+          // Show loading state on this tile and disable the rest
+          var all = grid.querySelectorAll('.provider-tile');
+          all.forEach(function (t) { t.classList.add('loading'); });
+          tile.classList.remove('loading');
+          tile.querySelector('span:last-child').textContent = 'Opening\u2026';
+          openTerraWidget(invite, p.id, tile);
+        });
+        grid.appendChild(tile);
+      });
+    }
+    paint('');
+    search.addEventListener('input', function () { paint(search.value); });
+
+    document.querySelectorAll('.caregiver-name-inline').forEach(function (el) { el.textContent = caregiver; });
+  }
+
+  // Terra provider catalog (display labels + lightweight icons).
+  // Source: tryterra.co/data — keep ids lowercase to match Terra's resource enum.
+  var TERRA_PROVIDERS = [
+    { id: 'fitbit',          label: 'Fitbit',          ico: '\u231A' },
+    { id: 'garmin',          label: 'Garmin',          ico: '\u231A' },
+    { id: 'oura',            label: 'Oura',            ico: '\u26AB' },
+    { id: 'whoop',           label: 'Whoop',           ico: '\u231A' },
+    { id: 'withings',        label: 'Withings',        ico: '\u2696' },
+    { id: 'polar',           label: 'Polar',           ico: '\u231A' },
+    { id: 'google',          label: 'Google Fit',      ico: '\uD83D\uDC63' },
+    { id: 'samsung',         label: 'Samsung Health',  ico: '\uD83D\uDCF1' },
+    { id: 'peloton',         label: 'Peloton',         ico: '\uD83D\uDEB4' },
+    { id: 'suunto',          label: 'Suunto',          ico: '\u231A' },
+    { id: 'wahoo',           label: 'Wahoo',           ico: '\uD83D\uDEB4' },
+    { id: 'eight',           label: 'Eight Sleep',     ico: '\uD83D\uDECF' },
+    { id: 'ifit',            label: 'iFit',            ico: '\uD83C\uDFC3' },
+    { id: 'freestylelibre',  label: 'FreeStyle Libre', ico: '\uD83E\uDE78' },
+    { id: 'dexcom',          label: 'Dexcom',          ico: '\uD83E\uDE78' },
+    { id: 'omron',           label: 'Omron',           ico: '\uD83E\uDE7A' },
+    { id: 'technogym',       label: 'Technogym',       ico: '\uD83C\uDFCB' },
+    { id: 'biostrap',        label: 'Biostrap',        ico: '\u231A' },
+    { id: 'concept2',        label: 'Concept2',        ico: '\uD83D\uDEA3' },
+    { id: 'cosinuss',        label: 'cosinuss\u00B0',  ico: '\uD83C\uDFA7' },
+    { id: 'cronometer',      label: 'Cronometer',      ico: '\uD83C\uDF4E' },
+    { id: 'eatthismuch',     label: 'Eat This Much',   ico: '\uD83C\uDF7D' },
+    { id: 'fatsecret',       label: 'FatSecret',       ico: '\uD83C\uDF74' },
+    { id: 'finalsurge',      label: 'Final Surge',     ico: '\uD83C\uDFC3' },
+    { id: 'freeletics',      label: 'Freeletics',      ico: '\uD83C\uDFCB' },
+    { id: 'huawei',          label: 'Huawei Health',   ico: '\uD83D\uDCF1' },
+    { id: 'kalibra',         label: 'Kalibra',         ico: '\uD83E\uDDEC' },
+    { id: 'livongo',         label: 'Livongo',         ico: '\uD83E\uDE78' },
+    { id: 'macrosfirst',     label: 'Macros First',    ico: '\uD83C\uDF7D' },
+    { id: 'myfitnesspal',    label: 'MyFitnessPal',    ico: '\uD83C\uDF4E' },
+    { id: 'nutracheck',      label: 'Nutracheck',      ico: '\uD83C\uDF4E' },
+    { id: 'realage',         label: 'RealAge',         ico: '\uD83E\uDDD3' },
+    { id: 'renpho',          label: 'Renpho',          ico: '\u2696' },
+    { id: 'rookmotion',      label: 'Rook Motion',     ico: '\uD83C\uDFC3' },
+    { id: 'strava',          label: 'Strava',          ico: '\uD83C\uDFC3' },
+    { id: 'tempo',           label: 'Tempo',           ico: '\uD83C\uDFCB' },
+    { id: 'trainerroad',     label: 'TrainerRoad',     ico: '\uD83D\uDEB4' },
+    { id: 'trainingpeaks',   label: 'TrainingPeaks',   ico: '\uD83C\uDFC3' },
+    { id: 'underarmour',     label: 'Under Armour',    ico: '\uD83D\uDC5F' },
+    { id: 'virginpulse',     label: 'Virgin Pulse',    ico: '\uD83D\uDC9C' },
+    { id: 'xert',            label: 'Xert',            ico: '\uD83D\uDEB4' },
+    { id: 'zwift',           label: 'Zwift',           ico: '\uD83D\uDEB4' }
+  ];
+
+  function prettyProvider(id) {
+    var found = TERRA_PROVIDERS.find(function (p) { return p.id === id; });
+    if (found) return found.label;
+    if (!id) return 'your wearable';
+    return id.charAt(0).toUpperCase() + id.slice(1);
+  }
+
+  function openTerraWidget(invite, providerId, tile) {
+    fetch(SUPABASE_URL + '/functions/v1/terra-auth', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ action: 'generate_from_invite', invite_token: invite.token, provider: providerId })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (d && d.widget_url) {
+        window.location.href = d.widget_url;
+      } else {
+        if (tile) {
+          tile.classList.remove('loading');
+          var lbl = tile.querySelector('span:last-child');
+          if (lbl) lbl.textContent = 'Try again';
+        }
+        // Also un-disable other tiles
+        var grid = document.getElementById('provider-grid');
+        if (grid) grid.querySelectorAll('.provider-tile').forEach(function (t) { t.classList.remove('loading'); });
+      }
+    }).catch(function () {
+      if (tile) tile.classList.remove('loading');
+      var grid = document.getElementById('provider-grid');
+      if (grid) grid.querySelectorAll('.provider-tile').forEach(function (t) { t.classList.remove('loading'); });
+    });
+  }
+
+  function renderEHR(invite) {
+    // Hospital display name — strip " chart" suffix for the "hospital will ask" sentence
+    // so we don't say "Duke chart will ask you". Keep the friendlier "Duke chart" form for the
+    // earlier sentence ("...your Duke chart...") which reads naturally.
+    var hospitalLabel = (invite.hospital_name || 'Your hospital chart').trim();
+    var hospitalShort = hospitalLabel.replace(/\s+chart$/i, '').replace(/\s+MyChart$/i, '');
+
+    document.getElementById('message').innerHTML =
+      escape(invite.caregiver_name || 'They') + " is helping look after your health \u2014 and they'd love your <strong>"
+      + escape(hospitalLabel)
+      + "</strong> to be in the same place as everything else.";
+
+    document.getElementById('next-text-1').innerHTML =
+      "When you tap below, you'll sign in to <strong>MyChart</strong> the same way you always do.";
+    document.getElementById('next-text-2').innerHTML =
+      escape(hospitalShort) +
+      ' will ask you if it\'s okay to share with <span class="caregiver-name-inline">'
+      + escape(invite.caregiver_name || 'them') + '</span>. Nothing happens until you say yes.';
+
+    var btn = document.getElementById('primary-btn');
+    btn.textContent = 'Sign in to MyChart';
+    // Route into the existing web app with autoconnect=ehr. wellet.js sees the
+    // dsinvite token, walks the loved one through magic-link sign-in (or sign-up),
+    // then auto-launches the Epic OAuth flow we already battle-tested with Duke.
+    // On EHR success it calls data-source-invite/consume_self so the caregiver
+    // gets the "connected" notification.
+    btn.href = '/?dsinvite=' + encodeURIComponent(invite.token) + '&autoconnect=ehr';
+
+    // Refill caregiver spans
+    var caregiver = invite.caregiver_name || 'them';
+    document.querySelectorAll('.caregiver-name-inline').forEach(function (el) {
+      el.textContent = caregiver;
+    });
+  }
+
+  function renderExpired() {
+    document.getElementById('topline').textContent = 'This link has expired';
+    document.getElementById('avatar').style.display = 'none';
+    document.getElementById('greeting').innerHTML = 'Could you ask <span class="name">your family member</span><br>to send a new link?';
+    document.getElementById('message').textContent = 'Links are good for 24 hours so they stay safe. A new one takes a moment.';
+    document.getElementById('next-card').style.display = 'none';
+    document.getElementById('primary-btn').style.display = 'none';
+    // No caregiver context on expired link — hide the help row too
+    var hr = document.querySelector('.help-row'); if (hr) hr.style.display = 'none';
+  }
+
+  function renderConsumed() {
+    document.getElementById('topline').textContent = 'You\'re all set';
+    document.getElementById('avatar').style.display = 'none';
+    document.getElementById('greeting').innerHTML = 'Thank you — <span class="name">you can close this.</span>';
+    document.getElementById('message').textContent = 'This link has already been used. You don\'t need to do anything else.';
+    document.getElementById('next-card').style.display = 'none';
+    document.getElementById('primary-btn').style.display = 'none';
+    var hr = document.querySelector('.help-row'); if (hr) hr.style.display = 'none';
+  }
+
+  function resendToPhone(invite, btn) {
+    btn.textContent = 'Sending…';
+    btn.style.opacity = '0.7';
+    fetch(SUPABASE_URL + '/functions/v1/data-source-invite?action=resend', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ token: invite.token })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (d && d.ok) {
+        btn.textContent = 'Sent — check your iPhone';
+        btn.style.background = 'var(--moss-soft)';
+        btn.style.color = 'var(--moss)';
+      } else {
+        btn.textContent = 'Try again';
+        btn.style.opacity = '1';
+      }
+    }).catch(function () {
+      btn.textContent = 'Try again';
+      btn.style.opacity = '1';
+    });
+  }
+
+  function isMobile() {
+    return /Mobile|Android|iPhone|iPad/i.test(navigator.userAgent || '');
+  }
+  function escape(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  // ---- bootstrap ---------------------------------------------------------
+  function hydrate(invite) {
+    if (!invite || invite.error === 'expired') return renderExpired();
+    if (invite.consumed_at) return renderConsumed();
+    renderHeader(invite);
+    if (invite.data_source === 'apple_health') renderAppleHealth(invite);
+    else if (invite.data_source === 'ehr') renderEHR(invite);
+    else if (invite.data_source === 'wearable') renderWearable(invite);
+    else renderExpired(); // unknown bucket → treat as expired
+  }
+
+  // Allow preview matrix to pass a fixture name via ?demo=<name>
+  var DEMO_FIXTURES = {
+    apple: { token:'demo', data_source:'apple_health', caregiver_name:'Betsy', loved_one_name:'Cheryl', caregiver_phone:'+18285551234' },
+    ehr:   { token:'demo', data_source:'ehr', caregiver_name:'Betsy', loved_one_name:'Cheryl', hospital_name:'Duke chart', caregiver_phone:'+18285551234' },
+    wearable_open:   { token:'demo', data_source:'wearable', caregiver_name:'Betsy', loved_one_name:'Cheryl', caregiver_phone:'+18285551234' },
+    wearable_pinned: { token:'demo', data_source:'wearable', wearable_provider:'fitbit', caregiver_name:'Betsy', loved_one_name:'Cheryl', caregiver_phone:'+18285551234' },
+    expired:  { error:'expired' },
+    consumed: { token:'demo', data_source:'apple_health', caregiver_name:'Betsy', consumed_at:'2026-05-18T10:00:00Z' }
+  };
+  var demo = qs.get('demo');
+  if (demo && DEMO_FIXTURES[demo]) { hydrate(DEMO_FIXTURES[demo]); return; }
+
+  if (FIXTURE) { hydrate(FIXTURE); return; }
+  if (!token) { renderExpired(); return; }
+
+  fetch(SUPABASE_URL + '/functions/v1/data-source-invite?action=lookup&token=' + encodeURIComponent(token), {
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+    }
+  })
+    .then(function (r) { return r.json(); })
+    .then(hydrate)
+    .catch(function () { renderExpired(); });
+})();
+</script>
+</body>
+</html>

@@ -5,3 +5,12 @@ deno.lock
 # local extraction artifacts (kept on disk as a safety net, never committed)
 index.html.pre-extract
 extract.py
+
+# AI tooling config — do not commit (may contain tokens)
+.mcp.json
+.aider*
+
+# Claude Code local config (per-developer, never committed)
+.claude/
+CLAUDE.md
+assets/wellet.js.pre_voice_v1.bak

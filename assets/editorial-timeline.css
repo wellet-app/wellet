@@ -26,7 +26,9 @@
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-5, #6E6962);
-  margin: 28px 0 14px;
+  /* Tightened from 28px 0 14px so the first item rides closer to the month
+     label without losing the section break. */
+  margin: 20px 0 8px;
   padding-left: 32px !important;            /* clear the rail at x=16 + gutter */
   display: block;                           /* was flex+::after — drop the trailing hairline */
   border-top: 0 !important;
@@ -58,7 +60,10 @@
   background: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
-  padding: 18px 0 !important;
+  /* Padding lives on .tl-item now (it owns the absolute-positioned dot).
+     Keep the card itself flush so its content starts at the item's
+     padding-top and stays visually aligned with the dot. */
+  padding: 0 !important;
   border-bottom: 1px solid var(--ink-1, #E6E1D6) !important;
   box-shadow: none !important;
   transition: opacity 0.15s ease-out;
@@ -102,10 +107,11 @@
   content: "";
   position: absolute;
   left: 16px;
-  /* Start just below the month label and extend through the last item.
-     Negative top value pulls into the section above tl-month margin so the
-     line meets the top of the first item's content. */
-  top: 48px;
+  /* Start just below the tightened month label. tl-month now has
+     margin: 20px 0 8px and font-size = --type-meta (~12px) → bottom of
+     label sits at roughly y=40 from the section top. Rail begins at 36 so
+     it meets the first dot (which now sits at top: 14 inside the item). */
+  top: 36px;
   bottom: 0;
   width: 1px;
   background: var(--ink-2, #D8D3CA);
@@ -122,31 +128,29 @@
   display: block !important;     /* not flex/grid — we use absolute positioning */
   grid-template-columns: none !important;
   margin: 0;
-  /* editorial-updates.css sets `padding: 18px 0` on .tl-item (specificity
-     beats ours via the [data-editorial] attribute selector), which zeroes
-     padding-left and lets the card sit underneath the rail. !important
-     forces our 32px gutter back. */
-  padding: 18px 0 18px 32px !important;
-  /* Same source draws a `border-bottom: 1px solid var(--ink-0)` between
-     every item; that's the row-divider behavior the Summary tab wants but
-     it visually conflicts with the rail. Suppress on Timeline. */
+  /* Tighter vertical rhythm: padding-top trimmed from 18 → 12, padding-bottom
+     from 18 → 14 so consecutive entries breathe without feeling airy. The
+     32px left gutter is preserved for the rail + dot. editorial-updates.css
+     specificity battle still requires !important. */
+  padding: 12px 0 14px 32px !important;
+  /* Suppress the row-divider editorial-updates.css adds on the Summary tab;
+     on Timeline the rail handles the visual separation. */
   border-bottom: 0 !important;
   position: relative;
 }
 #tab-timeline .tl-item::before {
   content: "";
   position: absolute;
-  /* Rail is at left:16 width:1, so rail center sits at x=16.5.
-     Dot is 10px now (was 9px — odd sizes can't center on a 1px rail
-     at sub-pixel positions). With dot=10 and left:11.5, dot center =
-     11.5 + 5 = 16.5 — pixel-aligned to the rail center.              */
+  /* Rail center sits at x=16.5 (left:16, width:1). Dot is 10px wide, so
+     left:11.5 puts dot-center at 16.5 — pixel-aligned to the rail. */
   left: 11.5px;
-  /* Vertically align the dot with the type-tag row (pencil + "NOTE").
-     .tl-item has padding-top:18px; the type-tag row is ~11px tall with
-     align-items:center, so its visual center sits ~y=26. Dot is 10px,
-     so top:21px puts dot-center at 21+5=26 — lined up with the icon
-     and small-caps label.                                              */
-  top: 21px;
+  /* Vertically align the dot with the type-tag row visual center.
+     With padding-top:12px and type-tag row icons ~11px tall using
+     align-items:center, the row's visual center sits at ~y=17.5
+     (12 + 11/2). Dot is 10px, so top:13 puts dot-center at 18 — within
+     half a pixel of the type-tag center. This is what gets the dot
+     touching the eyebrow line in the screenshot. */
+  top: 13px;
   width: 10px;
   height: 10px;
   border-radius: 50%;
@@ -179,8 +183,11 @@
 #tab-timeline .tl-card-type-row {
   display: flex;
   align-items: center;
-  gap: 7px;
-  margin-bottom: 8px;
+  gap: 6px;
+  /* Tightened from 8 → 4 — pulls the title up tight under the eyebrow,
+     which is the editorial cadence we want and also makes the dot read
+     as anchored to the eyebrow line. */
+  margin-bottom: 4px;
 }
 #tab-timeline .tl-card-type-row i,
 #tab-timeline .tl-card-type-row svg {
@@ -242,10 +249,11 @@
   font-weight: 500;
   font-variation-settings: "opsz" 24, "SOFT" 60;
   font-style: normal;
-  line-height: 1.32;
+  /* Tightened from 1.32 → 1.25 so long titles wrap more compactly. */
+  line-height: 1.25;
   letter-spacing: -0.005em;
   color: var(--ink-9, #1F1B16);
-  margin: 0 0 6px 0;
+  margin: 0 0 4px 0;
 }
 
 /* ----- Body — DM Sans 300, the calm read ----- */
@@ -268,7 +276,9 @@
   letter-spacing: 0.10em;
   text-transform: uppercase;
   color: var(--ink-5, #6E6962);
-  margin-top: 10px;
+  /* Tightened from 10 → 6 — the date pill should feel like a byline
+     tucked under the entry, not a separate stanza. */
+  margin-top: 6px;
 }
 
 /* ----- EHR provenance pill (e.g. "From Duke Health (Epic)") ----- */
@@ -318,10 +328,16 @@
   stroke: #fff;
 }
 
-/* Tablet+ — slightly larger title and breathing room */
+/* Tablet+ — slightly larger title and breathing room. Padding lives on
+   .tl-item now (the dot anchor), so widen there instead of on the card. */
 @media (min-width: 768px) {
-  #tab-timeline .tl-card {
-    padding: 22px 0 !important;
+  #tab-timeline .tl-item {
+    padding: 16px 0 18px 32px !important;
+  }
+  #tab-timeline .tl-item::before {
+    /* Tablet padding-top is 16 → recenter dot at y = 16 + 11/2 = 21.5,
+       dot top = 21.5 - 5 = 16.5 → use 16 for whole-pixel alignment. */
+    top: 16px;
   }
   #tab-timeline .tl-card-title {
     font-size: var(--type-h2);
@@ -332,7 +348,10 @@
   }
   #tab-timeline .tl-month {
     font-size: var(--type-meta);
-    margin: 36px 0 18px;
+    margin: 28px 0 12px;
+  }
+  #tab-timeline .timeline-section::before {
+    top: 44px;
   }
 }
 

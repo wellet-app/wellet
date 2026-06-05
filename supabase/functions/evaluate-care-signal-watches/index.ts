@@ -245,6 +245,13 @@ async function evalNewRecordArrived(w: Watch): Promise<FireDecision> {
   // Pick the most recent across kinds
   results.sort((a, b) => new Date(b.row.created_at).getTime() - new Date(a.row.created_at).getTime());
   const top = results[0];
+  // Pull a human label off the row so the timeline chip can say
+  // "Hemoglobin A1c" instead of just "New lab result".
+  const recordLabel: string =
+    (top.row.test_name as string | undefined) ||
+    (top.row.name as string | undefined) ||
+    (top.row.title as string | undefined) ||
+    "";
 
   return {
     fire: true,
@@ -253,10 +260,13 @@ async function evalNewRecordArrived(w: Watch): Promise<FireDecision> {
       dedupKey: `record:${top.row.id}`,
       kind: top.kind,
       record_id: top.row.id,
+      record_label: recordLabel,
       arrived_at: top.row.created_at,
     },
     // Factual only — no value, no flag, no interpretation.
-    factualBody: `A new ${top.kind} just arrived in their chart. Open Wellet to see it.`,
+    factualBody: recordLabel
+      ? `${recordLabel} just landed in the chart.`
+      : `A new ${top.kind} just arrived in the chart.`,
   };
 }
 
@@ -583,11 +593,20 @@ function lastNDays<T extends { date: string }>(arr: T[], n: number): T[] {
 
 async function fireWatch(w: Watch, decision: FireDecision): Promise<"sent" | "suppressed" | "failed"> {
   // Insert fire row first as 'queued', then update after delivery.
+  // Persist factualBody inside trigger_value so the Living Timeline card has a
+  // ready-made human-readable body without re-running the rule. Mirrors what we
+  // send by email.
+  const tv: Record<string, unknown> = {
+    ...(decision.triggerValue || {}),
+  };
+  if (decision.factualBody && tv.summary === undefined) {
+    tv.summary = decision.factualBody;
+  }
   const { data: fireRow, error: fireErr } = await admin
     .from("care_signal_watch_fires")
     .insert({
       watch_id: w.id,
-      trigger_value: decision.triggerValue || {},
+      trigger_value: tv,
       notification_status: "queued",
       notification_channel: "email",
     })

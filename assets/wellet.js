@@ -12,6 +12,102 @@ const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   }
 });
 
+// ── SILENT TOKEN REFRESH ────────────────────────────────────────────────────
+// Proactively refreshes the Supabase JWT every 4 minutes so edge-function
+// calls never hit an expired token — even on backgrounded mobile tabs where
+// the SDK's built-in refresh can miss.
+
+var _tokenRefreshInterval = null;
+
+function _logTokenRefresh(msg) {
+  if (typeof console !== 'undefined') console.log('[TokenRefresh] ' + msg);
+}
+
+/** Start a 4-minute interval that calls db.auth.refreshSession(). */
+function _startTokenRefreshTimer() {
+  _stopTokenRefreshTimer();
+  _logTokenRefresh('Timer started (every 4 min)');
+  _tokenRefreshInterval = setInterval(async function () {
+    try {
+      var res = await db.auth.refreshSession();
+      if (res.error) {
+        _logTokenRefresh('Refresh failed: ' + res.error.message);
+      } else {
+        _logTokenRefresh('Token refreshed OK');
+      }
+    } catch (e) {
+      _logTokenRefresh('Refresh exception: ' + e.message);
+    }
+  }, 4 * 60 * 1000);
+}
+
+/** Stop the proactive refresh timer (called on logout). */
+function _stopTokenRefreshTimer() {
+  if (_tokenRefreshInterval) {
+    clearInterval(_tokenRefreshInterval);
+    _tokenRefreshInterval = null;
+  }
+}
+
+/**
+ * Get a valid access token, refreshing if needed.
+ * @param {boolean} [forceRefresh=false] - force a token refresh
+ * @returns {Promise<string|null>} access token or null
+ */
+async function _getAuthToken(forceRefresh) {
+  try {
+    if (forceRefresh) {
+      var ref = await db.auth.refreshSession();
+      if (ref.error) { _logTokenRefresh('Force refresh failed: ' + ref.error.message); return null; }
+      return ref.data.session?.access_token || null;
+    }
+    var s = await db.auth.getSession();
+    return s.data.session?.access_token || null;
+  } catch (e) {
+    _logTokenRefresh('_getAuthToken error: ' + e.message);
+    return null;
+  }
+}
+
+/**
+ * Call a Supabase edge function with automatic 401 retry.
+ * On 401, refreshes the token once and retries. Returns the parsed JSON body.
+ * @param {string} fnName - edge function name (e.g. 'ask-wellet')
+ * @param {object} body - request payload
+ * @returns {Promise<{data: any, error: string|null}>}
+ */
+async function callEdgeFn(fnName, body) {
+  var url = SUPABASE_URL + '/functions/v1/' + fnName;
+  async function _call(token) {
+    var resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify(body)
+    });
+    return resp;
+  }
+  try {
+    var token = await _getAuthToken(false);
+    if (!token) return { data: null, error: 'no_session' };
+    var resp = await _call(token);
+    if (resp.status === 401) {
+      _logTokenRefresh('401 from ' + fnName + ', retrying with fresh token');
+      token = await _getAuthToken(true);
+      if (!token) return { data: null, error: 'refresh_failed' };
+      resp = await _call(token);
+    }
+    if (!resp.ok) return { data: null, error: 'http_' + resp.status };
+    var data = await resp.json();
+    return { data: data, error: null };
+  } catch (e) {
+    return { data: null, error: e.message };
+  }
+}
+
 // ── GLOBAL STATE ─────────────────────────────────────────────────────────────
 var isDemoMode = false;
 var currentUser = null;
@@ -84,6 +180,11 @@ var summaryCache = {};    // { personId: summaryText } to avoid re-fetching
 var _cardToRemove = null;
 var _cardToRemoveId = null; // Supabase id if real person
 var _currentAskPerson = 'dad';
+// Voice v1: conversation state for Ask Wellet
+var _askConversationId = null;     // current ask_conversations.id (lazy-created on first AI response)
+var _askHistory = [];              // [{role:'user'|'assistant', content:string}], capped at 20 entries in memory
+var _askSavePromptShown = false;   // dedupe — only show end-of-conversation save modal once
+var _askLastClassification = null; // 'lookup'|'observation'|'prep'|'other'
 var _editingContactId = null; // care_circle_members id being edited
 var _editingEventId = null;   // health_events id being edited
 var _editingMedId = null;     // medications id being edited
@@ -99,8 +200,18 @@ var STRIPE_PRICES = {
   plus_monthly: 'price_1TNJEkQk7RCcdO4CnH8kmhqX',
   plus_annual: 'price_1TNJEkQk7RCcdO4CO7oK9fje',
   pro_monthly: 'price_1TNJEkQk7RCcdO4CUxM7DeVN',
-  pro_annual: 'price_1TNJElQk7RCcdO4Ca4Qsbg6U'
+  pro_annual: 'price_1TNJElQk7RCcdO4Ca4Qsbg6U',
+  // Wellet for You — \$9.99/yr SKU, prod_UXXhO3rRybQvo6. Live in Stripe.
+  // /me users go straight to Stripe Checkout with a 30-day trial — card
+  // collected up front, no charge until day 31. See ME_TRIAL_DAYS below.
+  me_annual: 'price_1TYScAQlezMOp0Pd6L1n7Wxd'
 };
+
+// /me users get 30 days free, then \$9.99/yr auto-charges on day 31. The trial
+// is set via subscription_data.trial_period_days on the Checkout Session — see
+// supabase/functions/create-checkout-session (v16+). Card is collected on day 0
+// (payment_method_collection=always) so renewal can auto-charge without re-prompt.
+var ME_TRIAL_DAYS = 30;
 
 var PLAN_FEATURES = {
   free: ['timeline', 'basic_meds', 'upload_5', 'care_circle_2', 'one_person'],
@@ -124,7 +235,7 @@ window.addEventListener('load', function() {
     }
   }
   var tabBtns = document.querySelectorAll('.tab[id^="tab-btn-"]');
-  var tabKeys = ['tab.update', 'tab.timeline', 'tab.patterns'];
+  var tabKeys = ['tab.update', 'tab.timeline'];
   for (var _ti = 0; _ti < tabBtns.length; _ti++) {
     if (tabKeys[_ti]) tabBtns[_ti].textContent = t(tabKeys[_ti]);
   }
@@ -263,25 +374,401 @@ async function acceptInvite() {
   }
 }
 
+// ── DATA-SOURCE INVITE (loved-one SMS landing) ─────────────────────────────
+//
+// When a caregiver hits "Send Mom her connect link", the dsinvite landing page
+// (/dsinvite?token=...) bounces the loved one back here with
+// `?dsinvite=<uuid>&autoconnect=ehr` (for Duke/MyChart) or sends them to
+// /connect/loved-one (for Apple Health, which needs the iOS bridge).
+//
+// Job of this module:
+//   1. On load: stash the dsinvite token so it survives the magic-link
+//      round-trip (Supabase strips arbitrary URL params on email-link auth,
+//      so we copy into localStorage).
+//   2. After sign-in completes AND a person row exists, auto-launch the
+//      existing Epic OAuth flow targeted at the invite's hospital.
+//   3. After EHR callback success, fire-and-forget consume_self so the
+//      caregiver gets the "connected" notification and their pending
+//      view flips.
+//
+// Voice note: this is the loved one (Mom/Dad/Aunt) opening their daughter's
+// text. Keep all toasts in "loved one"/"family member" voice, never
+// "caregiver/parent".
+var _pendingDsInviteToken = null;
+var _pendingDsAutoconnect = null;
+var _dsInviteData = null;
+var _dsInviteConsumeFired = false;
+
+function _readDsInviteFromUrlOrStorage() {
+  var params = new URLSearchParams(window.location.search);
+  var token = params.get('dsinvite');
+  var auto = params.get('autoconnect');
+  if (token) {
+    if (!/^[a-f0-9\-]{36}$/.test(token)) {
+      console.warn('[dsinvite] bad token format, ignoring');
+      return;
+    }
+    _pendingDsInviteToken = token;
+    _pendingDsAutoconnect = (auto === 'ehr') ? 'ehr' : null;
+    try {
+      localStorage.setItem('wellet_ds_invite_token', token);
+      if (_pendingDsAutoconnect) localStorage.setItem('wellet_ds_invite_autoconnect', _pendingDsAutoconnect);
+    } catch (e) {}
+    return;
+  }
+  // Recover from localStorage (post magic-link return)
+  try {
+    var stored = localStorage.getItem('wellet_ds_invite_token');
+    if (stored && /^[a-f0-9\-]{36}$/.test(stored)) {
+      _pendingDsInviteToken = stored;
+      _pendingDsAutoconnect = localStorage.getItem('wellet_ds_invite_autoconnect');
+    }
+  } catch (e) {}
+}
+
+async function _lookupDsInvite(token) {
+  try {
+    var res = await fetch(SUPABASE_URL + '/functions/v1/data-source-invite?action=lookup&token=' + encodeURIComponent(token), {
+      headers: { 'apikey': SUPABASE_ANON_KEY }
+    });
+    var data = await res.json();
+    if (!res.ok || data.error) {
+      console.warn('[dsinvite] lookup failed:', data && data.error);
+      return null;
+    }
+    return data.invite || data;
+  } catch (e) {
+    console.error('[dsinvite] lookup error:', e);
+    return null;
+  }
+}
+
+// Called AFTER sign-in completes and loadUserData() has run. If the user has
+// no self-person yet (brand-new account), the existing app_mode prompt will
+// run; once they pick "Me" (chooseModeMe) the self-person is created and the
+// connect screen opens. We listen for that and auto-fire startEhrConnect().
+// If they already have a self-person, we fire immediately.
+function maybeRunDsAutoconnect() {
+  if (!_pendingDsInviteToken || _pendingDsAutoconnect !== 'ehr') return;
+  if (!currentUser) return;
+  // The hospital chart is the loved one's OWN chart — we must target the
+  // is_self person row, not a loved-one row this user may also have in their
+  // currentPeople list (e.g. a returning caregiver who also has loved ones).
+  // If a self person exists, switch currentPersonId to it; if not, no-op and
+  // wait for chooseModeMe() to create one and re-invoke us.
+  try {
+    var selfPerson = (currentPeople || []).find(function (p) { return p && p.is_self === true; });
+    if (selfPerson) {
+      if (currentPersonId !== selfPerson.id) {
+        setCurrentPersonId(selfPerson.id);
+      }
+    }
+  } catch (e) {}
+  if (!currentPersonId) {
+    console.log('[dsinvite] waiting for self-person before EHR autoconnect');
+    return;
+  }
+  if (_dsInviteData && _dsInviteData.consumed_at) {
+    console.log('[dsinvite] invite already consumed, skipping autoconnect');
+    return;
+  }
+  // Pre-seed the hospital picker if we know the hospital. For Duke specifically
+  // we know the FHIR base URL, so we can skip the picker entirely. For other
+  // hospitals we open the picker pre-filtered.
+  var hospitalHint = (_dsInviteData && _dsInviteData.hospital_name) || '';
+  try { showToast('Opening your hospital sign-in\u2026'); } catch (e) {}
+  // Use a short delay so the toast paints before the OAuth redirect.
+  setTimeout(function () {
+    try {
+      // For Duke we know the FHIR base; route directly via beginEhrOAuth
+      // (the same function selectHospital() uses after picker selection).
+      if (/duke/i.test(hospitalHint)) {
+        // Duke prod FHIR base — must match what the Confidential client is registered against.
+        beginEhrOAuth('https://apporchard.epic.com/interconnect-aocurprd-oauth/api/FHIR/R4', 'Duke Health', false);
+      } else {
+        // Open the picker and let the loved one search. Pre-fill the input so the
+        // first hits match.
+        startEhrConnect();
+        setTimeout(function () {
+          var input = document.getElementById('hospital-picker-input');
+          if (input && hospitalHint) {
+            input.value = hospitalHint;
+            input.dispatchEvent(new Event('input'));
+          }
+        }, 300);
+      }
+      // Whatever path we take, only fire once.
+      _pendingDsAutoconnect = null;
+      try { localStorage.removeItem('wellet_ds_invite_autoconnect'); } catch (e) {}
+    } catch (e) {
+      console.error('[dsinvite] autoconnect failed:', e);
+    }
+  }, 400);
+}
+
+// ── CAREGIVER: "Send Mom her connect link" ─────────────────────────────
+//
+// Caregiver opens their loved one's profile, taps "Send Mom her connect link"
+// on either the Apple Health or EHR card, picks a data source, optionally
+// confirms a phone number on file, and we POST {action:'create'} to the
+// data-source-invite edge function. The function sends the SMS through
+// Twilio (Messaging Service +1 743 500 2846) and we surface a success toast.
+// The caregiver-side "Waiting for [name]" status is built from the
+// data_source_invites_pending view (renderDsInvitePending below).
+//
+// Voice: never "caregiver/parent". Always "family member"/"loved one".
+
+// Open the modal. dataSource is 'apple_health' | 'ehr'. personId defaults to
+// currentPersonId. The phone we send to defaults to the loved one's people.phone
+// on file; we let the caregiver edit before sending.
+function openSendConnectLinkModal(opts) {
+  opts = opts || {};
+  var personId = opts.personId || currentPersonId;
+  var dataSource = opts.dataSource || 'apple_health';
+  if (!personId) { showToast('Pick a loved one first'); return; }
+  var person = (currentPeople || []).find(function (p) { return p && p.id === personId; });
+  if (!person) { showToast('Loved one not found'); return; }
+  if (person.is_self) { showToast('That\u2019s your own row \u2014 use Connect instead'); return; }
+
+  var firstName = (person.name || 'your loved one').split(' ')[0] || 'your loved one';
+  var phone = (person.phone || '').trim();
+  var hospitalName = opts.hospitalName || '';
+
+  var existing = document.getElementById('ds-invite-overlay');
+  if (existing) existing.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'ds-invite-overlay';
+  overlay.className = 'sheet-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:10000;display:flex;align-items:flex-end;justify-content:center;';
+
+  var sheet = document.createElement('div');
+  sheet.className = 'sheet';
+  sheet.style.cssText = 'background:white;border-radius:20px 20px 0 0;width:100%;max-width:520px;padding:24px 20px 32px;box-shadow:0 -8px 24px rgba(0,0,0,0.15);';
+
+  var sourceLabel;
+  var explainer;
+  if (dataSource === 'ehr') {
+    sourceLabel = hospitalName ? (hospitalName + ' chart') : 'their hospital chart';
+    explainer = 'You\u2019ll get a notification the moment ' + escHtml(firstName) + ' signs in to ' + escHtml(sourceLabel) + ' and shares with you. Nothing happens on their side until they say yes.';
+  } else if (dataSource === 'wearable') {
+    sourceLabel = 'their wearable';
+    explainer = 'We\u2019ll text ' + escHtml(firstName) + ' a link. They\u2019ll pick a device \u2014 Fitbit, Garmin, Oura, Whoop, or Withings \u2014 and tap once to share. You\u2019ll see the first records as soon as they connect.';
+  } else {
+    sourceLabel = 'Apple Health';
+    explainer = 'We\u2019ll text ' + escHtml(firstName) + ' a link. They\u2019ll tap once to share Apple Health from their iPhone. You\u2019ll get a notification when it\u2019s done.';
+  }
+
+  sheet.innerHTML =
+    '<div style="font-family:var(--serif);font-size:var(--type-h2);margin-bottom:6px;color:var(--text-primary);">Send ' + escHtml(firstName) + ' a connect link</div>'
+    + '<div style="font-size:var(--type-meta);color:var(--text-secondary);margin-bottom:18px;line-height:1.55;">' + explainer + '</div>'
+    + '<label style="display:block;font-size:var(--type-micro);color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.04em;">' + escHtml(firstName) + '\u2019s mobile number</label>'
+    + '<input id="ds-invite-phone" type="tel" autocomplete="tel" inputmode="tel" value="' + escAttr(phone) + '" placeholder="(555) 123-4567" style="width:100%;padding:14px;font-size:var(--type-body);border:1.5px solid var(--cream);border-radius:12px;margin-bottom:16px;font-family:DM Sans,sans-serif;box-sizing:border-box;">'
+    + '<button id="ds-invite-send" style="width:100%;background:var(--moss);color:white;border:none;border-radius:12px;padding:14px;font-size:var(--type-body);font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:8px;"><i data-lucide="send" style="width:16px;height:16px;"></i> Send text</button>'
+    + '<button id="ds-invite-cancel" style="width:100%;background:none;color:var(--text-muted);border:none;padding:8px;font-size:var(--type-meta);cursor:pointer;font-family:DM Sans,sans-serif;">Not now</button>'
+    + '<div style="font-size:var(--type-micro);color:var(--text-muted);text-align:center;margin-top:14px;line-height:1.4;">The link only works on ' + escHtml(firstName) + '\u2019s phone. You\u2019ll see a notification here when it\u2019s connected.</div>';
+
+  overlay.appendChild(sheet);
+  document.body.appendChild(overlay);
+  initIcons();
+
+  document.getElementById('ds-invite-cancel').onclick = function () { overlay.remove(); };
+  document.getElementById('ds-invite-send').onclick = async function () {
+    var phoneInput = document.getElementById('ds-invite-phone');
+    var toSend = (phoneInput && phoneInput.value || '').trim();
+    if (!toSend) { showToast('Add a mobile number first'); return; }
+    var sendBtn = document.getElementById('ds-invite-send');
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.style.opacity = 0.6; sendBtn.textContent = 'Sending\u2026'; }
+    try {
+      var session = (await db.auth.getSession()).data.session;
+      if (!session) { showToast('Please sign in again'); return; }
+      var payload = {
+        action: 'create',
+        person_id: personId,
+        data_source: dataSource,
+        target_contact: toSend
+      };
+      if (dataSource === 'ehr' && hospitalName) payload.hospital_name = hospitalName;
+      if (dataSource === 'ehr' && opts.fhirBaseUrl) payload.fhir_base_url = opts.fhirBaseUrl;
+      // For 'wearable' the loved one picks the provider (Fitbit/Garmin/Oura/Whoop/Withings)
+      // inside the dsinvite landing — we send the invite open-ended.
+      var res = await fetch(SUPABASE_URL + '/functions/v1/data-source-invite', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': 'Bearer ' + session.access_token
+        },
+        body: JSON.stringify(payload)
+      });
+      var data = await res.json().catch(function () { return null; });
+      if (!res.ok || (data && data.error)) {
+        var msg = (data && (data.message || data.error)) || ('HTTP ' + res.status);
+        showToast('Couldn\u2019t send: ' + msg);
+        if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = 1; sendBtn.innerHTML = '<i data-lucide="send" style="width:16px;height:16px;"></i> Send text'; initIcons(); }
+        return;
+      }
+      overlay.remove();
+      showToast('Sent to ' + firstName + ' \u2014 we\u2019ll let you know when they connect.');
+      // Re-render the per-person area so the "Waiting for [name]" state
+      // appears immediately rather than after a route change.
+      try { renderDsInvitePending(personId); } catch (e) {}
+    } catch (e) {
+      console.error('[dsinvite] create failed:', e);
+      showToast('Network error \u2014 try again');
+      if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = 1; sendBtn.innerHTML = '<i data-lucide="send" style="width:16px;height:16px;"></i> Send text'; initIcons(); }
+    }
+  };
+}
+
+// Render "Waiting for [name] to connect\u2026" state. Reads from the
+// data_source_invites_pending view (RLS scoped to caregiver_user_id) and polls
+// every 8s while the modal is mounted so the state flips to "Connected" the
+// moment consume_self lands.
+var _dsInvitePollTimers = {};
+
+async function renderDsInvitePending(personId) {
+  var host = document.getElementById('ds-invite-pending-host-' + personId);
+  if (!host) return; // host element is rendered by the EHR/Apple Health card builder when no connection exists
+  try {
+    var { data: pending, error } = await db
+      .from('data_source_invites_pending')
+      .select('id, token, data_source, target_contact, created_at, expires_at, hospital_name, resend_count')
+      .eq('person_id', personId)
+      .order('created_at', { ascending: false });
+    if (error) { console.warn('[dsinvite] pending fetch error:', error); return; }
+    if (!pending || pending.length === 0) { host.innerHTML = ''; clearDsInvitePoll(personId); return; }
+
+    var person = (currentPeople || []).find(function (p) { return p && p.id === personId; });
+    var firstName = (person && person.name || 'your loved one').split(' ')[0] || 'your loved one';
+
+    var html = '';
+    pending.forEach(function (inv) {
+      var sourceLabel;
+      if (inv.data_source === 'ehr') sourceLabel = inv.hospital_name || 'hospital chart';
+      else if (inv.data_source === 'wearable') sourceLabel = 'their wearable';
+      else sourceLabel = 'Apple Health';
+      var sentRel = _relativeTime(inv.created_at);
+      html += '<div class="ds-invite-pending" style="background:var(--cream);border:1px solid rgba(0,0,0,0.06);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;margin:8px 0;">'
+        + '<div style="width:32px;height:32px;border-radius:50%;background:white;display:flex;align-items:center;justify-content:center;flex:none;"><i data-lucide="clock" style="width:16px;height:16px;color:var(--moss);"></i></div>'
+        + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-size:var(--type-body);color:var(--text-primary);line-height:1.4;">Waiting for ' + escHtml(firstName) + ' to connect ' + escHtml(sourceLabel) + '</div>'
+        + '<div style="font-size:var(--type-micro);color:var(--text-muted);margin-top:2px;">Texted ' + sentRel + (inv.resend_count > 0 ? ' \u00B7 ' + inv.resend_count + ' resend' + (inv.resend_count === 1 ? '' : 's') : '') + '</div>'
+        + '</div>'
+        + '<button onclick="resendDsInvite(\'' + inv.token + '\')" style="background:white;border:1px solid var(--moss);color:var(--moss);border-radius:10px;padding:8px 14px;font-size:var(--type-meta);font-family:DM Sans,sans-serif;cursor:pointer;flex:none;">Resend</button>'
+        + '</div>';
+    });
+    host.innerHTML = html;
+    initIcons();
+    schedulePollDsInvite(personId);
+  } catch (e) {
+    console.error('[dsinvite] renderDsInvitePending failed:', e);
+  }
+}
+
+function schedulePollDsInvite(personId) {
+  clearDsInvitePoll(personId);
+  _dsInvitePollTimers[personId] = setTimeout(function () {
+    renderDsInvitePending(personId);
+  }, 8000);
+}
+
+function clearDsInvitePoll(personId) {
+  if (_dsInvitePollTimers[personId]) {
+    clearTimeout(_dsInvitePollTimers[personId]);
+    delete _dsInvitePollTimers[personId];
+  }
+}
+
+async function resendDsInvite(inviteToken) {
+  if (!inviteToken) return;
+  try {
+    var res = await fetch(SUPABASE_URL + '/functions/v1/data-source-invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+      body: JSON.stringify({ action: 'resend', token: inviteToken })
+    });
+    var data = await res.json().catch(function () { return null; });
+    if (!res.ok || (data && data.error)) {
+      showToast('Couldn\u2019t resend: ' + ((data && (data.message || data.error)) || ('HTTP ' + res.status)));
+      return;
+    }
+    showToast('Sent again.');
+    try { renderDsInvitePending(currentPersonId); } catch (e) {}
+  } catch (e) {
+    showToast('Network error \u2014 try again');
+  }
+}
+
+// Helper: HTML-attr escape (we already have escHtml for text content;
+// inputs need single + double quote escaping)
+function escAttr(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// Fire-and-forget consume_self. Called after the EHR callback succeeds OR
+// after Apple Health connects (Apple Health on web is iPhone-only and goes
+// through Wellet Connect on iOS, so for web this only fires on EHR). Safe to
+// call multiple times — the edge function is idempotent on consumed_at.
+async function consumeDsInviteSelf() {
+  if (_dsInviteConsumeFired) return;
+  if (!_pendingDsInviteToken) return;
+  _dsInviteConsumeFired = true;
+  try {
+    var sessRes = await db.auth.getSession();
+    var session = sessRes.data.session;
+    if (!session) {
+      _dsInviteConsumeFired = false;
+      return;
+    }
+    var res = await fetch(SUPABASE_URL + '/functions/v1/data-source-invite', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + session.access_token
+      },
+      body: JSON.stringify({ action: 'consume_self', token: _pendingDsInviteToken })
+    });
+    var data = await res.json().catch(function () { return null; });
+    console.log('[dsinvite] consume_self status', res.status, data);
+    if (res.ok) {
+      try { localStorage.removeItem('wellet_ds_invite_token'); } catch (e) {}
+      try { localStorage.removeItem('wellet_ds_invite_autoconnect'); } catch (e) {}
+      _pendingDsInviteToken = null;
+    }
+  } catch (e) {
+    console.error('[dsinvite] consume_self error:', e);
+    _dsInviteConsumeFired = false; // allow retry on next callback
+  }
+}
+
 // ── AUTH FLOW ────────────────────────────────────────────────────────────────
 async function initApp() {
+  // Zero-auth /try route — show try screen and skip auth entirely
+  if (typeof tryCheckRoute === 'function' && tryCheckRoute()) {
+    showTryScreen();
+    return;
+  }
+
+  // Capture dsinvite token from URL (or recover from localStorage post-magic-link).
+  // Lookup is async and non-blocking; we just need _dsInviteData to know the
+  // hospital name when autoconnect fires.
+  _readDsInviteFromUrlOrStorage();
+  if (_pendingDsInviteToken) {
+    _lookupDsInvite(_pendingDsInviteToken).then(function (inv) { _dsInviteData = inv; });
+  }
+
   // Check for invite token in URL first
   var hasInvite = await checkInviteOnLoad();
 
   try {
-    // DIAGNOSTIC: log what localStorage has under sb-* keys so we can tell
-    // whether the Supabase session was persisted across reloads.
-    try {
-      var sbKeys = [];
-      for (var i = 0; i < localStorage.length; i++) {
-        var k = localStorage.key(i);
-        if (k && (k.indexOf('sb-') === 0 || k.indexOf('supabase') === 0)) sbKeys.push(k);
-      }
-      console.log('[auth-boot] supabase storage keys:', sbKeys, 'path:', window.location.pathname, 'search:', window.location.search);
-    } catch(e) {}
-
     var { data: { session } } = await db.auth.getSession();
-    console.log('[auth-boot] getSession result:', session ? 'HAS_SESSION (' + (session.user && session.user.email) + ')' : 'NO_SESSION');
     if (session) {
       currentUser = session.user;
       // Guard against the rare race where onAuthStateChange already ran loadUserData
@@ -331,7 +818,6 @@ async function initApp() {
         // case _userDataLoaded is still false and we MUST run loadUserData() here, or
         // person-load → autoRefreshEhrIfNeeded → fetch-ehr-data never fires.
         if (event === 'SIGNED_IN' || (event === 'INITIAL_SESSION' && !_userDataLoaded)) {
-          console.log('[auth-boot] onAuthStateChange triggering loadUserData (event=' + event + ', userDataLoaded=' + _userDataLoaded + ')');
           _userDataLoaded = true;
           // Clear the expired-session banner now that we have a live session;
           // a fresh fetch-ehr-data will fire from loadPersonData().
@@ -340,6 +826,16 @@ async function initApp() {
           if (_pendingInviteToken && _inviteData) {
             await acceptInvite();
           }
+          // Loved-one data-source invite autoconnect. If currentPersonId is
+          // already set (returning user who already has a self-person), this
+          // fires Epic OAuth now. If they're brand-new, currentPersonId is
+          // null and this no-ops — it gets re-invoked from chooseModeMe()
+          // after the self-person row is created.
+          try { maybeRunDsAutoconnect(); } catch (e) { console.warn('[dsinvite] autoconnect failed:', e); }
+          // Replay any Terra store deferred during a cold-boot redirect
+          // (Safari hits this when handleTerraCallback fired before the
+          // Supabase session hydrated). Best-effort — never blocks.
+          try { _replayPendingTerraStore(); } catch (e) { console.warn('[Terra] replay invoke failed:', e); }
         }
       } else if (event === 'SIGNED_OUT') {
         currentUser = null;
@@ -358,6 +854,8 @@ async function initApp() {
   });
   // Check for EHR OAuth callback code in URL
   checkEhrCallbackOnLoad();
+  // Check for VA Lighthouse OAuth callback (/va-callback)
+  try { checkVaCallbackOnLoad(); } catch(e) { console.warn('[va] callback check failed:', e); }
   // Handle Wellet Connect (Apple Health bridge) callback
   handleConnectCallback();
   // Handle Terra wearable auth redirect
@@ -423,7 +921,35 @@ function requiredPlan(feature) {
 var _upgradeFeature = null;
 var _upgradeBilling = 'annual'; // 'monthly' | 'annual'
 
+// /me users in beta. Shown instead of the Plus/Pro upgrade modal so we never
+// charge a self-user $99 or $299 by mistake. Lightweight toast — keeps things
+// out of the Stripe checkout flow until the $9.99/yr SKU exists.
+function showMeBetaPanel(feature) {
+  var featureLabels = {
+    ai_summaries: 'AI summaries',
+    patterns: 'pattern detection',
+    ask_wellet: 'Ask Wellet',
+    visit_prep: 'visit prep',
+    ehr_integration: 'EHR integration',
+    caresignals: 'CareSignals',
+    data_export: 'data export',
+    multi_person: 'adding more people',
+    push_notif: 'push notifications',
+    emergency_pdf: 'emergency summary PDF'
+  };
+  var label = featureLabels[feature] || feature || 'this feature';
+  showToast('Wellet for You is in beta \u2014 ' + label + ' is included free while we test. Billing turns on later at $9.99/year.');
+}
+
 function showUpgradePrompt(feature) {
+  // /me users are on a different SKU — Wellet for You at $9.99/yr (price
+  // price_1TYScAQlezMOp0Pd6L1n7Wxd, live in Stripe). They get a 30-day trial,
+  // then auto-charge. Skip the Plus/Pro modal and route straight to Checkout.
+  // startCheckout handles the auth check; no need to gate here.
+  if (isSelfMode && isSelfMode()) {
+    startCheckout(STRIPE_PRICES.me_annual, { trial_period_days: ME_TRIAL_DAYS });
+    return;
+  }
   var plan = requiredPlan(feature);
   var planName = plan === 'pro' ? 'Pro' : 'Plus';
   var featureNames = {
@@ -525,12 +1051,24 @@ function startUpgradeCheckout() {
   if (priceId) startCheckout(priceId);
 }
 
-async function startCheckout(priceId) {
+async function startCheckout(priceId, opts) {
+  // opts: { trial_period_days?: number, promo_code?: string }
+  // trial_period_days is opt-in per call — only /me sends 30. Plus/Pro callers
+  // pass no opts and continue to charge immediately. Edge fn clamps to 1..730
+  // and ignores anything else.
+  opts = opts || {};
   try {
     var sessionResult = await db.auth.getSession();
     var session = sessionResult.data.session;
     if (!session) { showToast('Please sign in first'); return; }
     showToast('Opening checkout…');
+    var payload = {
+      price_id: priceId,
+      success_url: window.location.origin + window.location.pathname + '?billing=success',
+      cancel_url: window.location.href
+    };
+    if (opts.trial_period_days) payload.trial_period_days = opts.trial_period_days;
+    if (opts.promo_code) payload.promo_code = opts.promo_code;
     var res = await fetch(SUPABASE_URL + '/functions/v1/create-checkout-session', {
       method: 'POST',
       headers: {
@@ -538,11 +1076,7 @@ async function startCheckout(priceId) {
         'Authorization': 'Bearer ' + session.access_token,
         'apikey': SUPABASE_ANON_KEY
       },
-      body: JSON.stringify({
-        price_id: priceId,
-        success_url: window.location.origin + window.location.pathname + '?billing=success',
-        cancel_url: window.location.href
-      })
+      body: JSON.stringify(payload)
     });
     if (res.ok) {
       var data = await res.json();
@@ -912,6 +1446,37 @@ function _translateAuthError(err) {
   return err.message ? ('Couldn\u2019t sign you in: ' + err.message) : 'Couldn\u2019t sign you in \u2014 please try again.';
 }
 
+// Build the attribution payload we attach to signInWithOtp.options.data.
+// Lands on auth.users.user_metadata so the rest of the app (and analytics) can
+// see where a signup came from — specifically used by the /me bypass below.
+function _buildSignupAttribution() {
+  var params = {};
+  try {
+    var search = new URLSearchParams(window.location.search || '');
+    search.forEach(function(v, k) { params[k] = v; });
+  } catch (e) {}
+  var landing = '/';
+  try { landing = window.location.pathname || '/'; } catch (e) {}
+  // signup_location: explicit ?signup_location=... wins, then landing-path heuristic.
+  var sig = params.signup_location || '';
+  if (!sig) {
+    if (landing === '/me' || landing === '/me/' || landing.indexOf('/me') === 0) sig = 'me_landing';
+    else if (landing === '/' || landing === '/index.html') sig = 'caregiver_landing';
+    else sig = 'unknown';
+  }
+  return {
+    signup_location: sig,
+    landing_page: landing,
+    entry_path: landing + (window.location.search || ''),
+    referrer: (document.referrer || '').slice(0, 500),
+    utm_source: params.utm_source || null,
+    utm_medium: params.utm_medium || null,
+    utm_campaign: params.utm_campaign || null,
+    utm_content: params.utm_content || null,
+    utm_term: params.utm_term || null
+  };
+}
+
 async function sendMagicLink() {
   var email = document.getElementById('auth-email').value.trim();
   if (!email) { showToast('Please enter your email'); return; }
@@ -932,9 +1497,13 @@ async function sendMagicLink() {
   if (sentEmail) sentEmail.textContent = email;
   // Remember the email for the OTP verify step and the expired-session banner.
   try { localStorage.setItem('wellet_last_signin_email', email); } catch (e) {}
+  // Attribution: capture URL params + landing page so signups know where they came from.
+  // Persisted to auth.users.user_metadata via options.data — used by /me bypass and analytics.
+  var _attribution = _buildSignupAttribution();
+  try { localStorage.setItem('wellet_signup_attribution', JSON.stringify(_attribution)); } catch (e) {}
   var { error } = await db.auth.signInWithOtp({
     email: email,
-    options: { emailRedirectTo: 'https://mywellet.com', shouldCreateUser: true }
+    options: { emailRedirectTo: 'https://mywellet.com', shouldCreateUser: true, data: _attribution }
   });
   if (error) {
     showToast(_translateAuthError(error));
@@ -998,9 +1567,443 @@ async function verifyAuthCode() {
     if (input) { input.value = ''; input.focus(); }
     return;
   }
-  // Success — Supabase has set the session. Reload so the app picks it up cleanly.
+  // Success — Supabase has set the session. Hard-reload so the app picks it up cleanly.
+  // window.location.href = 'https://mywellet.com' was a soft-nav on Chrome iOS that
+  // skipped re-running initApp(), stranding the user on the login screen even though
+  // the session was written to localStorage. window.location.reload() forces a fresh
+  // document load that re-runs Supabase's session bootstrap.
   if (btn) btn.textContent = 'Signed in';
-  setTimeout(function(){ window.location.href = 'https://mywellet.com'; }, 200);
+  // Google Ads conversion: fire 'Sign-up' event ONLY for brand new signups.
+  // Detect new vs returning by comparing created_at to last_sign_in_at.
+  // If the user was created in the last 60 seconds, treat as a fresh signup.
+  try {
+    var u = data && data.user;
+    if (u && u.created_at) {
+      var createdMs = new Date(u.created_at).getTime();
+      var lastSignInMs = u.last_sign_in_at ? new Date(u.last_sign_in_at).getTime() : createdMs;
+      var isNewSignup = (lastSignInMs - createdMs) < 60000; // within 1min of account creation
+      if (isNewSignup && typeof gtag === 'function') {
+        gtag('event', 'conversion', {
+          'send_to': 'AW-985109408/vEERCMbi2bMcEKCn3tUD'
+        });
+      }
+      if (isNewSignup && typeof fbq === 'function') {
+        fbq('track', 'CompleteRegistration', { content_name: 'mywellet_signup', value: 0, currency: 'USD' });
+      }
+    }
+  } catch (e) { /* never block sign-in on attribution */ }
+
+  // Wait for the Supabase session to actually be written to localStorage before
+  // reloading. On slow iOS Safari networks, supabase-js writes the session
+  // asynchronously AFTER verifyOtp() resolves \u2014 the previous fixed 200ms
+  // timeout raced this write and the reloaded page found no session, dumping
+  // the user back to the OTP entry screen even though server-side verify
+  // succeeded (Supabase auth log shows status:200, login_method:otp, but the
+  // browser had no token to rehydrate). We now poll localStorage for up to 5s
+  // and only reload once the storage key is populated. If 5s passes without
+  // the key landing (extremely degraded network), we still reload as a last
+  // resort \u2014 the auth-state listener may have stashed it in memory and
+  // the next session check will pick it up.
+  // 2026-06-01: iOS Safari session-shape hardening. Some iOS Safari versions
+  // hand back a session object from verifyOtp() but never persist it (slow
+  // localStorage on a degraded link, or supabase-js stashed it in memory only).
+  // We now (1) try to actively setSession() so supabase-js owns the write,
+  // (2) poll BOTH the modern sb-wellet-auth key AND the legacy supabase.auth.token
+  // shape, (3) validate the session has both access_token and a future expires_at
+  // before treating it as good, and (4) fall back to writing both storage shapes
+  // ourselves if 5s passes with nothing in localStorage.
+  var _sessionData = data && data.session;
+  if (_sessionData && _sessionData.access_token && _sessionData.refresh_token) {
+    // Fire and forget — if this succeeds supabase-js writes the session for us
+    // in the exact shape its own bootstrap expects.
+    try {
+      db.auth.setSession({
+        access_token: _sessionData.access_token,
+        refresh_token: _sessionData.refresh_token
+      });
+    } catch(_e) {}
+  }
+  var _sessionWaitStart = Date.now();
+  function _hasValidStoredSession() {
+    try {
+      var keys = ['sb-wellet-auth', 'supabase.auth.token'];
+      for (var i = 0; i < keys.length; i++) {
+        var v = localStorage.getItem(keys[i]);
+        if (!v || v.length < 20) continue;
+        try {
+          var parsed = JSON.parse(v);
+          var sess = parsed && (parsed.currentSession || parsed.session || parsed);
+          if (sess && sess.access_token) return true;
+        } catch(_e) {
+          // If it's not JSON-parseable but >20 chars assume it's an opaque token
+          // — still safer to reload and let supabase-js try to hydrate.
+          return true;
+        }
+      }
+    } catch(_e) {}
+    return false;
+  }
+  function _waitForSessionThenReload() {
+    if (_hasValidStoredSession()) {
+      window.location.reload();
+      return;
+    }
+    if (Date.now() - _sessionWaitStart > 5000) {
+      // Belt-and-suspenders: write the session ourselves from the verifyOtp
+      // response in BOTH the modern and legacy shapes so the reload has
+      // SOMETHING to find regardless of which supabase-js client picks it up.
+      try {
+        if (_sessionData && _sessionData.access_token) {
+          var payload = {
+            currentSession: _sessionData,
+            expiresAt: _sessionData.expires_at
+          };
+          localStorage.setItem('sb-wellet-auth', JSON.stringify(payload));
+        }
+      } catch(_e) {}
+      window.location.reload();
+      return;
+    }
+    setTimeout(_waitForSessionThenReload, 100);
+  }
+  // Face ID / passkey: offer setup once on capable devices for first-time users.
+  // Non-blocking; never throws, never delays sign-in if WebAuthn is unavailable.
+  try { await _wpMaybeOfferSetup(_sessionData); } catch(_e) { /* ignore */ }
+  _waitForSessionThenReload();
+}
+
+// =============================================================
+// Face ID / WebAuthn passkey helpers (mywellet.com web only —
+// iOS Wellet Connect bridge is NOT touched).
+// =============================================================
+// Wire-up:
+//   - Called from verifyAuthCode() after successful OTP to offer setup
+//   - Called from showAuthFormState() to maybe-show the "Use Face ID" button
+//   - Called from Settings "Sign-in" section for list/add/remove
+//
+// All copy honors voice rules: no emojis, no exclamation points, no italics,
+// no "parent", no "track".
+
+async function _wpIsPlatformAuthAvailable() {
+  if (!window.PublicKeyCredential) return false;
+  try {
+    return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+  } catch (_e) {
+    return false;
+  }
+}
+
+function _wpB64uToBuf(s) {
+  s = String(s || '').replace(/-/g,'+').replace(/_/g,'/');
+  while (s.length % 4) s += '=';
+  var bin = atob(s);
+  var out = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out.buffer;
+}
+
+function _wpBufToB64u(buf) {
+  var bytes = new Uint8Array(buf);
+  var s = '';
+  for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+
+function _wpDeviceLabel() {
+  var ua = navigator.userAgent || '';
+  if (/iPhone/.test(ua)) return 'iPhone';
+  if (/iPad/.test(ua))   return 'iPad';
+  if (/Macintosh/.test(ua)) return 'Mac';
+  if (/Android/.test(ua)) return 'Android';
+  return 'Browser';
+}
+
+// Call verify-passkey edge function. Pass session for authenticated actions.
+async function _wpCall(action, body, session) {
+  body = body || {};
+  body.action = action;
+  var headers = { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY };
+  if (session && session.access_token) {
+    headers['Authorization'] = 'Bearer ' + session.access_token;
+  } else {
+    headers['Authorization'] = 'Bearer ' + SUPABASE_ANON_KEY;
+  }
+  var res = await fetch(SUPABASE_URL + '/functions/v1/verify-passkey', {
+    method: 'POST',
+    headers: headers,
+    body: JSON.stringify(body)
+  });
+  var json = await res.json().catch(function(){ return {}; });
+  if (!res.ok) {
+    var err = new Error(json.error || ('HTTP ' + res.status));
+    err.status = res.status;
+    throw err;
+  }
+  return json;
+}
+
+// Offer setup after first successful OTP. Silent no-op if device can't.
+async function _wpMaybeOfferSetup(session) {
+  if (!session || !session.access_token) return;
+  try {
+    if (localStorage.getItem('wellet_passkey_offered') === '1') return;
+  } catch (_e) {}
+  var available = await _wpIsPlatformAuthAvailable();
+  if (!available) return;
+  // Don't re-offer if user already has a passkey on this account
+  try {
+    var existing = await _wpCall('list', {}, session);
+    if (existing && existing.passkeys && existing.passkeys.length > 0) {
+      try { localStorage.setItem('wellet_passkey_offered', '1'); } catch(_){}
+      return;
+    }
+  } catch (_e) { /* if list fails, still offer — worst case is dupe attempt blocked server-side */ }
+  await _wpShowSetupModal(session);
+}
+
+function _wpShowSetupModal(session) {
+  return new Promise(function(resolve) {
+    var overlay = document.createElement('div');
+    overlay.id = 'wp-setup-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(20,28,32,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    var device = _wpDeviceLabel();
+    var label = (device === 'iPhone' || device === 'iPad') ? 'Face ID' : (device === 'Mac' ? 'Touch ID' : 'biometrics');
+    overlay.innerHTML =
+      '<div role="dialog" aria-modal="true" style="background:var(--bg,#FBF8F2);max-width:380px;width:100%;border-radius:18px;padding:24px;font-family:var(--font-body,system-ui);box-shadow:0 20px 60px rgba(0,0,0,0.25);">' +
+      '  <div style="font-family:var(--font-display,Georgia,serif);font-size:22px;line-height:1.25;color:var(--text-primary,#1B2A2F);margin-bottom:10px;">Skip the code next time?</div>' +
+      '  <div style="font-size:15px;line-height:1.5;color:var(--text-secondary,#56666B);margin-bottom:18px;">Use ' + label + ' to sign in instantly. Your face stays on your device — Wellet only stores a public key.</div>' +
+      '  <button id="wp-setup-yes" class="btn-primary" style="width:100%;background:var(--text-primary,#1B2A2F);color:#fff;border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:500;cursor:pointer;margin-bottom:8px;">Set up ' + label + '</button>' +
+      '  <button id="wp-setup-no" style="width:100%;background:transparent;color:var(--text-secondary,#56666B);border:none;padding:11px;font-size:14px;cursor:pointer;">Not now</button>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    function cleanup() {
+      try { overlay.remove(); } catch(_e) {}
+      resolve();
+    }
+
+    document.getElementById('wp-setup-yes').onclick = async function() {
+      var btn = document.getElementById('wp-setup-yes');
+      btn.disabled = true; btn.textContent = 'Setting up\u2026';
+      try {
+        await _wpRegister(session);
+        if (typeof showToast === 'function') showToast(label + ' set up');
+      } catch (e) {
+        // NotAllowedError = user cancelled the OS prompt — stay silent.
+        if (!e || e.name !== 'NotAllowedError') {
+          console.warn('passkey register failed:', e);
+          if (typeof showToast === 'function') showToast('Could not set up ' + label + ' — you can try again from Settings');
+        }
+      }
+      try { localStorage.setItem('wellet_passkey_offered', '1'); } catch(_){}
+      cleanup();
+    };
+    document.getElementById('wp-setup-no').onclick = function() {
+      try { localStorage.setItem('wellet_passkey_offered', '1'); } catch(_){}
+      cleanup();
+    };
+  });
+}
+
+async function _wpRegister(session) {
+  // 1) Ask server for a challenge
+  var ch = await _wpCall('register-challenge', {}, session);
+  // 2) Build the WebAuthn options
+  var publicKey = {
+    challenge: _wpB64uToBuf(ch.challenge),
+    rp: ch.rp || { id: 'mywellet.com', name: 'Wellet' },
+    user: {
+      id: _wpB64uToBuf(ch.user_handle),
+      name: ch.user.name,
+      displayName: ch.user.displayName
+    },
+    pubKeyCredParams: ch.pubKeyCredParams || [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
+    authenticatorSelection: {
+      authenticatorAttachment: 'platform',
+      userVerification: 'required',
+      residentKey: 'preferred'
+    },
+    timeout: ch.timeout || 60000,
+    attestation: 'none'
+  };
+  // 3) OS prompts Face ID
+  var cred = await navigator.credentials.create({ publicKey: publicKey });
+  if (!cred) throw new Error('No credential returned');
+  // 4) Send attestation back for verification
+  var resp = await _wpCall('register-verify', {
+    attestation: {
+      id: cred.id,
+      rawId: _wpBufToB64u(cred.rawId),
+      type: cred.type,
+      response: {
+        clientDataJSON: _wpBufToB64u(cred.response.clientDataJSON),
+        attestationObject: _wpBufToB64u(cred.response.attestationObject),
+        transports: (cred.response.getTransports && cred.response.getTransports()) || []
+      }
+    },
+    device_label: _wpDeviceLabel()
+  }, session);
+  if (!resp || !resp.success) throw new Error((resp && resp.error) || 'verify failed');
+  return resp.passkey_id;
+}
+
+// Sign-in via passkey from the auth-form-state screen.
+async function signInWithPasskey() {
+  var btn = document.getElementById('auth-passkey-btn');
+  if (btn) { btn.disabled = true; btn.dataset.label = btn.textContent; btn.textContent = 'Signing in\u2026'; }
+  try {
+    var ch = await _wpCall('auth-challenge', {}, null);
+    var publicKey = {
+      challenge: _wpB64uToBuf(ch.challenge),
+      rpId: ch.rpId || 'mywellet.com',
+      userVerification: 'required',
+      timeout: ch.timeout || 60000
+      // No allowCredentials → discoverable credentials, user-picker UI
+    };
+    var assertion = await navigator.credentials.get({ publicKey: publicKey });
+    if (!assertion) throw new Error('No assertion');
+    var resp = await _wpCall('auth-verify', {
+      assertion: {
+        id: assertion.id,
+        rawId: _wpBufToB64u(assertion.rawId),
+        type: assertion.type,
+        response: {
+          clientDataJSON: _wpBufToB64u(assertion.response.clientDataJSON),
+          authenticatorData: _wpBufToB64u(assertion.response.authenticatorData),
+          signature: _wpBufToB64u(assertion.response.signature),
+          userHandle: assertion.response.userHandle ? _wpBufToB64u(assertion.response.userHandle) : null
+        }
+      }
+    }, null);
+    if (!resp || !resp.access_token) throw new Error((resp && resp.error) || 'auth failed');
+    // Hand the session to supabase-js so it writes to sb-wellet-auth in the
+    // exact shape the bootstrap expects, then reload.
+    await db.auth.setSession({
+      access_token: resp.access_token,
+      refresh_token: resp.refresh_token
+    });
+    window.location.reload();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = btn.dataset.label || 'Use Face ID'; }
+    if (!e || e.name !== 'NotAllowedError') {
+      console.warn('signInWithPasskey failed:', e);
+      if (typeof showToast === 'function') showToast('Face ID sign-in failed — use the email code instead');
+    }
+  }
+}
+
+// Show/hide the "Use Face ID" button on the auth-form-state screen based
+// on whether this device has a platform authenticator at all. We do NOT
+// gate on "user has a passkey" because passkeys may sync in via iCloud
+// Keychain from another device — let the user try.
+async function _wpMaybeShowSignInButton() {
+  var btn = document.getElementById('auth-passkey-btn');
+  if (!btn) return;
+  var available = await _wpIsPlatformAuthAvailable();
+  btn.style.display = available ? '' : 'none';
+}
+
+// =============================================================
+// Settings → Sign-in section
+// =============================================================
+// Called from renderSettings() to populate the Face ID section.
+async function renderPasskeysSection() {
+  var section = document.getElementById('sv-signin-section');
+  var list = document.getElementById('sv-passkeys-list');
+  var addRow = document.getElementById('sv-add-passkey-row');
+  var addLabel = document.getElementById('sv-add-passkey-label');
+  if (!section || !list) return;
+  // Only show this section to signed-in real users (not demo).
+  if (!currentUser || isDemoMode) { section.style.display = 'none'; return; }
+
+  var available = await _wpIsPlatformAuthAvailable();
+  // Even if THIS device can't biometrics, the user may have passkeys from
+  // another device worth managing — still show the section, but disable
+  // the "add" row.
+  section.style.display = '';
+
+  var sessionRes = await db.auth.getSession().catch(function(){ return { data: { session: null } }; });
+  var session = sessionRes && sessionRes.data && sessionRes.data.session;
+  if (!session) { section.style.display = 'none'; return; }
+
+  // Customize the "add" row label based on device capability.
+  var device = _wpDeviceLabel();
+  var label = (device === 'iPhone' || device === 'iPad') ? 'Face ID' : (device === 'Mac' ? 'Touch ID' : 'biometrics');
+  if (addLabel) addLabel.textContent = 'Set up ' + label + ' on this device';
+  if (addRow) addRow.style.opacity = available ? '1' : '0.5';
+  if (addRow) addRow.style.pointerEvents = available ? '' : 'none';
+
+  try {
+    var res = await _wpCall('list', {}, session);
+    var passkeys = (res && res.passkeys) || [];
+    if (passkeys.length === 0) {
+      list.innerHTML = '<div class="settings-row" style="opacity:0.7;"><div class="settings-row-left"><div class="settings-row-icon" style="background:var(--bg-soft,#F5F2EC);color:var(--text-secondary);"><i data-lucide="scan-face" style="width:15px;height:15px;"></i></div><div><div class="settings-row-label">No devices yet</div><div class="settings-row-meta">Add a device below to skip the email code next time</div></div></div></div>';
+    } else {
+      list.innerHTML = passkeys.map(function(p){
+        var name = p.device_label || 'Device';
+        var lastUsed = p.last_used_at ? ('Last used ' + _wpFormatRelativeTime(p.last_used_at)) : ('Added ' + _wpFormatRelativeTime(p.created_at));
+        return '<div class="settings-row">' +
+          '<div class="settings-row-left">' +
+          '  <div class="settings-row-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="scan-face" style="width:15px;height:15px;"></i></div>' +
+          '  <div><div class="settings-row-label">' + escHtml(name) + '</div><div class="settings-row-meta">' + escHtml(lastUsed) + '</div></div>' +
+          '</div>' +
+          '<button class="auth-link-btn" style="background:none;border:none;color:var(--red);font:inherit;cursor:pointer;padding:6px 10px;font-size:13px;" onclick="removePasskey(\u0027' + escHtml(p.id) + '\u0027)">Remove</button>' +
+          '</div>';
+      }).join('');
+    }
+    if (typeof initIcons === 'function') initIcons();
+  } catch (e) {
+    console.warn('renderPasskeysSection failed:', e);
+    list.innerHTML = '';
+  }
+}
+
+function _wpFormatRelativeTime(iso) {
+  try {
+    var t = new Date(iso).getTime();
+    var diff = Date.now() - t;
+    var min = Math.floor(diff / 60000);
+    if (min < 1) return 'just now';
+    if (min < 60) return min + 'm ago';
+    var h = Math.floor(min / 60);
+    if (h < 24) return h + 'h ago';
+    var d = Math.floor(h / 24);
+    if (d < 30) return d + 'd ago';
+    return new Date(iso).toLocaleDateString();
+  } catch (_e) { return ''; }
+}
+
+async function addPasskeyFromSettings() {
+  var sessionRes = await db.auth.getSession().catch(function(){ return { data: { session: null } }; });
+  var session = sessionRes && sessionRes.data && sessionRes.data.session;
+  if (!session) { if (typeof showToast === 'function') showToast('Please sign in again'); return; }
+  var device = _wpDeviceLabel();
+  var label = (device === 'iPhone' || device === 'iPad') ? 'Face ID' : (device === 'Mac' ? 'Touch ID' : 'biometrics');
+  try {
+    await _wpRegister(session);
+    if (typeof showToast === 'function') showToast(label + ' set up');
+    renderPasskeysSection();
+  } catch (e) {
+    if (!e || e.name !== 'NotAllowedError') {
+      console.warn('addPasskeyFromSettings failed:', e);
+      if (typeof showToast === 'function') showToast('Could not set up ' + label);
+    }
+  }
+}
+
+async function removePasskey(passkeyId) {
+  if (!passkeyId) return;
+  var sessionRes = await db.auth.getSession().catch(function(){ return { data: { session: null } }; });
+  var session = sessionRes && sessionRes.data && sessionRes.data.session;
+  if (!session) return;
+  try {
+    await _wpCall('remove', { passkey_id: passkeyId }, session);
+    if (typeof showToast === 'function') showToast('Removed');
+    renderPasskeysSection();
+  } catch (e) {
+    console.warn('removePasskey failed:', e);
+    if (typeof showToast === 'function') showToast('Could not remove');
+  }
 }
 
 async function resendAuthCode() {
@@ -1013,9 +2016,13 @@ async function resendAuthCode() {
   }
   var resend = document.getElementById('auth-resend-btn');
   if (resend) { resend.disabled = true; resend.textContent = 'Sending…'; }
+  // Reuse attribution from the original send so resends don't blow it away.
+  var _attribution = {};
+  try { _attribution = JSON.parse(localStorage.getItem('wellet_signup_attribution') || '{}'); } catch (e) {}
+  if (!_attribution || !_attribution.signup_location) { _attribution = _buildSignupAttribution(); }
   var { error } = await db.auth.signInWithOtp({
     email: email,
-    options: { emailRedirectTo: 'https://mywellet.com', shouldCreateUser: true }
+    options: { emailRedirectTo: 'https://mywellet.com', shouldCreateUser: true, data: _attribution }
   });
   if (error) {
     showToast(_translateAuthError(error));
@@ -1046,6 +2053,8 @@ function showAuthFormState() {
   var toggle = document.getElementById('auth-signin-toggle');
   if (reveal) reveal.style.display = 'none';
   if (toggle) toggle.style.display = '';
+  // Face ID button: only show if the device has a platform authenticator.
+  try { _wpMaybeShowSignInButton(); } catch(_e) {}
   initIcons();
 }
 
@@ -1055,9 +2064,23 @@ function showAuthFormState() {
 async function checkAlphaAllowlist(_email) { return true; }
 
 async function handleLogout() {
+  _stopTokenRefreshTimer();
+  // Sign out is best-effort: even if Supabase's network call fails (expired
+  // session, offline, AuthSessionMissingError) we still want the local state
+  // wipe + redirect to run. Previously a thrown signOut() left the user
+  // stranded on the app shell with Settings half-closed.
+  //
+  // scope: 'local' tells supabase-js to only revoke the session in this
+  // browser (no /auth/v1/logout network round-trip). The auth-state listener
+  // still fires SIGNED_OUT synchronously so the rest of the app reacts the
+  // same way it would with a global sign-out.
   clearPhiFromStorage();
   try { localStorage.removeItem('wellet_last_person_id'); } catch(e) {}
-  await db.auth.signOut();
+  try {
+    await db.auth.signOut({ scope: 'local' });
+  } catch (e) {
+    console.warn('signOut threw, continuing with local wipe:', e);
+  }
   isDemoMode = false;
   currentUser = null;
   currentPeople = [];
@@ -1071,6 +2094,9 @@ async function handleLogout() {
   if (_audioPlayer) { _audioPlayer.pause(); _audioPlayer = null; }
   ehrCache = {};
   _emergencyBriefCache = {};
+  // Belt-and-suspenders: nuke the sb-wellet-auth storage key directly in case
+  // signOut() swallowed silently (some browsers in private mode).
+  try { localStorage.removeItem('sb-wellet-auth'); } catch(e) {}
   closeSettings();
   showAuthScreen();
   showToast('Signed out');
@@ -1221,6 +2247,19 @@ async function loadUserData() {
     appMode = profileMode;
 
     if (appMode === null) {
+      // First run. Before showing the mode question, check whether this user
+      // came from /me (or has signup_location starting with 'me_'). If so they
+      // already told us, so call chooseModeMe() directly. Otherwise show the
+      // mode question and let the user pick.
+      var _meta = (currentUser && currentUser.user_metadata) || {};
+      var _sig = _meta.signup_location || '';
+      var _landing = _meta.landing_page || '';
+      var _isMeSignup = (typeof _sig === 'string' && _sig.indexOf('me_') === 0) ||
+                        _landing === '/me' || _landing === '/me/';
+      if (_isMeSignup) {
+        try { await chooseModeMe(); } catch (e) { console.warn('me-bypass chooseModeMe failed:', e); showModeQuestion(); }
+        return;
+      }
       // First run — show mode question and stop here. The mode handlers
       // (chooseModeMe / chooseModeCaregiver) are responsible for continuing
       // the boot path once the user picks.
@@ -1253,6 +2292,7 @@ async function loadUserData() {
       applyPersonBg(currentPersonId);
       await loadPersonData(currentPersonId);
       showAuthenticatedApp();
+      _startTokenRefreshTimer();
     }
   } catch (loadErr) {
     console.error('loadUserData error:', loadErr);
@@ -1289,6 +2329,27 @@ function hideModeQuestion() {
   if (screen) screen.style.display = 'none';
 }
 
+// D12: Derive a presentable first name for the self-person without leaking
+// the raw email-prefix (e.g. "reviewer-test-1780369765987") into UI strings.
+// Order: explicit full_name metadata → email prefix only if it looks like a
+// real name (2-20 letters, no digits/punct) → safe fallback "Me".
+function _deriveSelfFirstName(user) {
+  try {
+    var meta = user && user.user_metadata ? user.user_metadata : {};
+    var full = (meta.full_name || meta.name || '').trim();
+    if (full) {
+      var first = full.split(/\s+/)[0];
+      if (first) return first.charAt(0).toUpperCase() + first.slice(1);
+    }
+    var email = (user && user.email) || '';
+    var prefix = email.split('@')[0] || '';
+    if (/^[a-zA-Z]{2,20}$/.test(prefix)) {
+      return prefix.charAt(0).toUpperCase() + prefix.slice(1);
+    }
+  } catch (e) {}
+  return 'Me';
+}
+
 // User picked "Me". Persist mode, create the self-person row, then continue
 // the boot path. Step 5a (the Connect-your-data 3-card screen) isn't built
 // yet — until it lands, fall through to showAuthenticatedApp() so the user
@@ -1315,10 +2376,12 @@ async function chooseModeMe() {
 
     // Create the self-person row. The migration's partial unique index
     // (people_one_self_per_user) prevents accidental duplicates.
-    var firstName =
-      (currentUser.user_metadata && currentUser.user_metadata.full_name && currentUser.user_metadata.full_name.split(' ')[0])
-      || (currentUser.email && currentUser.email.split('@')[0])
-      || 'Me';
+    //
+    // D12: Only use the email prefix if it looks like a human first name (no
+    // digits, no extra dots, reasonable length). Otherwise fall back to 'Me'
+    // so reviewer emails like 'reviewer-test-1780369765987@example.com' don't
+    // surface as 'REVIEWER-TEST-1780369765987’S CONNECTED SOURCES' everywhere.
+    var firstName = _deriveSelfFirstName(currentUser);
     var { data: selfPerson, error: insertErr } = await db.from('people').insert({
       user_id: currentUser.id,
       name: firstName,
@@ -1342,9 +2405,17 @@ async function chooseModeMe() {
     await loadPersonData(currentPersonId);
 
     hideModeQuestion();
-    // Step 5a: route Me users to the Connect-your-data screen so they can wire up
-    // EHR / Apple Health / Terra before landing on Home. Skip lands on Home.
-    showConnectScreen();
+    // If this user landed via a loved-one data-source invite (?dsinvite=...&
+    // autoconnect=ehr), skip the standard Connect-your-data screen and go
+    // straight to the EHR OAuth flow they were sent here for. Otherwise
+    // route Me users to the regular Connect screen.
+    if (_pendingDsInviteToken && _pendingDsAutoconnect === 'ehr') {
+      try { maybeRunDsAutoconnect(); } catch (e) { console.warn('[dsinvite] post-chooseModeMe autoconnect failed:', e); }
+    } else {
+      // Step 5a: route Me users to the Connect-your-data screen so they can wire up
+      // EHR / Apple Health / Terra before landing on Home. Skip lands on Home.
+      showConnectScreen();
+    }
   } catch (e) {
     console.error('chooseModeMe failed:', e);
     showToast('Something went wrong \u2014 please try again');
@@ -1381,10 +2452,8 @@ async function chooseModeBoth() {
     // Auto-create the self-person row — same shape as chooseModeMe, but we
     // do NOT route to Step 5a yet. Caregiver onboarding chat needs to run
     // first so the user can name + describe their loved one.
-    var firstName =
-      (currentUser.user_metadata && currentUser.user_metadata.full_name && currentUser.user_metadata.full_name.split(' ')[0])
-      || (currentUser.email && currentUser.email.split('@')[0])
-      || 'Me';
+    // D12: see _deriveSelfFirstName — same rationale as chooseModeMe.
+    var firstName = _deriveSelfFirstName(currentUser);
     var { data: selfPerson, error: insertErr } = await db.from('people').insert({
       user_id: currentUser.id,
       name: firstName,
@@ -1482,8 +2551,61 @@ function refreshConnectScreenStatus() {
   var screen = document.getElementById('connect-data-screen');
   if (!screen || screen.style.display === 'none') return;
 
-  // EHR — any active connection on currentPersonId counts.
-  var ehrConnected = !!(typeof getEhrData === 'function' && currentPersonId && getEhrData(currentPersonId));
+  // Kick off an async refresh of the Terra connections cache from Postgres
+  // every time we render. `_terraConnections` is otherwise only ever set by
+  // the post-Terra-auth success handler (line ~28416), which means after a
+  // page refresh — or any cold load with an already-connected wearable —
+  // the cache is `undefined` and the Google Health / Other wearables card
+  // stays grey even though terra_connections has an active row. We dedupe
+  // in-flight calls with _terraRefreshInFlight so concurrent renders don't
+  // stack network calls.
+  try {
+    if (typeof currentPersonId !== 'undefined' && currentPersonId &&
+        typeof loadTerraConnections === 'function' &&
+        !window._terraRefreshInFlight) {
+      window._terraRefreshInFlight = true;
+      loadTerraConnections(currentPersonId).then(function(conns) {
+        var before = (typeof _terraConnections !== 'undefined' && _terraConnections) ? _terraConnections.length : -1;
+        try { _terraConnections = conns || []; } catch(_e) {}
+        // Only re-mark if the cache actually changed (or wasn't initialized
+        // before) — avoids a redundant DOM thrash on every open.
+        if (before !== _terraConnections.length) {
+          try { refreshConnectScreenStatus(); } catch(_e) {}
+        }
+      }).catch(function(_e){}).finally(function(){
+        window._terraRefreshInFlight = false;
+      });
+    }
+  } catch(_e) {}
+
+  // EHR cards split by provider:
+  //   connect-card-ehr is the generic "Your health records" card (Epic, Cerner,
+  //     etc.) — light it up when at least one non-VA connection is connected.
+  //   connect-card-va is the gated VA Lighthouse card — light it up when at
+  //     least one va-provider connection is connected.
+  // Both reads use the merged v2 cache _connections list so the card status
+  // reflects exactly what fetch-ehr-data returned on the last sync.
+  var ehrConnected = false;
+  var vaConnected = false;
+  try {
+    if (typeof getEhrData === 'function' && currentPersonId) {
+      var _ehrData = getEhrData(currentPersonId);
+      var _conns = (_ehrData && Array.isArray(_ehrData._connections)) ? _ehrData._connections : [];
+      if (_conns.length === 0 && _ehrData) {
+        // Pre-phase-2 cache shape: no per-connection list, but the cache
+        // exists \u2014 treat as a single non-VA EHR connection.
+        ehrConnected = true;
+      } else {
+        _conns.forEach(function(c) {
+          if (!c) return;
+          if (c.status && c.status === 'disconnected') return;
+          var prov = String(c.provider || '').toLowerCase();
+          if (prov === 'va') vaConnected = true;
+          else ehrConnected = true;
+        });
+      }
+    }
+  } catch(_e) {}
   // Terra — a row in terra_connections (loaded into _terraConnections cache).
   // Only count rows that represent a real, working Terra connection:
   //   - a non-empty terra_user_id (and not the string 'None' or 'null' from
@@ -1492,17 +2614,24 @@ function refreshConnectScreenStatus() {
   // Apple Health does NOT go through Terra — exclude provider 'APPLE' here so
   // a stale APPLE row in terra_connections can never falsely mark the card
   // as connected.
+  // Split Terra connections into Google vs non-Google so the two cards
+  // (Google Health, Other wearables) light up independently. A user with
+  // only a Google connection should NOT see "Other wearables" marked
+  // connected, and vice versa.
+  var googleConnected = false;
   var terraConnected = false;
   try {
     if (typeof _terraConnections !== 'undefined' && _terraConnections && _terraConnections.length) {
-      terraConnected = _terraConnections.some(function(c){
-        if (!c) return false;
-        if (c.person_id !== currentPersonId) return false;
-        if (c.status === 'disconnected') return false;
-        if (String(c.provider || '').toUpperCase() === 'APPLE') return false;
+      _terraConnections.forEach(function(c){
+        if (!c) return;
+        if (c.person_id !== currentPersonId) return;
+        if (c.status === 'disconnected') return;
+        var prov = String(c.provider || '').toUpperCase();
+        if (prov === 'APPLE') return;
         var tuid = c.terra_user_id;
-        if (!tuid || tuid === 'None' || tuid === 'null') return false;
-        return true;
+        if (!tuid || tuid === 'None' || tuid === 'null') return;
+        if (prov === 'GOOGLE') googleConnected = true;
+        else terraConnected = true;
       });
     }
   } catch(_e) {}
@@ -1536,21 +2665,56 @@ function refreshConnectScreenStatus() {
             else    localStorage.removeItem('wellet_apple_health_last_sync_at_' + currentPersonId);
           } catch(_e) {}
           _markConnectCard('connect-card-apple', !!ts);
+          // BDB onboarding animation: finalize Apple Health progress strip
+          // when Postgres confirms a fresh sync timestamp landed.
+          try {
+            if (ts && typeof finalizeConnectProgress === 'function') {
+              finalizeConnectProgress('apple');
+            }
+          } catch(_e) {}
         })
         .catch(function(_e){});
     }
   } catch(_e) {}
 
   _markConnectCard('connect-card-ehr', ehrConnected);
+  _markConnectCard('connect-card-va', vaConnected);
   _markConnectCard('connect-card-apple', appleConnected);
+  _markConnectCard('connect-card-google', googleConnected);
   _markConnectCard('connect-card-terra', terraConnected);
 
-  // Update the bottom CTA: "I'll do this later" if nothing connected,
-  // "Done" once at least one source is in place.
+  // 2026-05-21: when a card is connected, populate a sublabel listing
+  // *which* sources are connected so users with multiple hospitals or
+  // wearables can tell them apart. Kelly's feedback — "Connected" on its
+  // own gave her no way to see which of 7 NY hospitals she'd reached.
+  if (ehrConnected) {
+    _hydrateEhrCardSources(currentPersonId);
+  } else {
+    _setConnectCardSources('connect-card-ehr', null);
+  }
+  if (terraConnected) {
+    _hydrateTerraCardSources(currentPersonId);
+    // Piece 4c: gentle 'still syncing' sub-line for wearables whose first
+    // Terra backfill hasn't landed yet. Stays calm even past the expected
+    // window. Auto-clears once data arrives. Spec:
+    // /home/user/workspace/wellet_wearable_caresignals_spec.md (Piece 4c).
+    try { _hydrateTerraCardSyncStatus(currentPersonId); } catch(_e) {}
+  } else {
+    _setConnectCardSources('connect-card-terra', null);
+    try { _setConnectCardSyncStatus('connect-card-terra', null); } catch(_e) {}
+  }
+  // Apple Health and Google Health are single sources by definition — no sublabel.
+  _setConnectCardSources('connect-card-apple', null);
+  _setConnectCardSources('connect-card-google', null);
+  // VA Lighthouse: single source (sandbox or prod), surface a clean sublabel.
+  _setConnectCardSources('connect-card-va', vaConnected ? ['VA Lighthouse Sandbox'] : null);
+
+  // Update the bottom CTA: "Skip for now \u2014 you can connect anything from Settings"
+  // if nothing connected, "Done" once at least one source is in place.
   var skipBtn = document.querySelector('#connect-data-screen .connect-skip-btn');
   if (skipBtn) {
-    var anyConnected = ehrConnected || terraConnected || appleConnected;
-    skipBtn.textContent = anyConnected ? 'Done' : "I'll do this later";
+    var anyConnected = ehrConnected || terraConnected || googleConnected || appleConnected;
+    skipBtn.textContent = anyConnected ? 'Done' : 'Skip for now \u2014 you can connect anything from Settings';
     skipBtn.classList.toggle('connect-skip-btn--primary', anyConnected);
   }
 }
@@ -1574,6 +2738,272 @@ function _markConnectCard(cardId, isConnected) {
   }
 }
 
+// 2026-05-21: write (or clear) a sublabel inside .connect-card-body listing
+// the connected source names. Accepts an array of short strings or null.
+//   _setConnectCardSources('connect-card-ehr', ['Montefiore Medical Center', 'NYU Langone'])
+//   _setConnectCardSources('connect-card-ehr', null) // clears
+// Compact rendering rule: 1 \u2192 just the name; 2 \u2192 "A \u00b7 B";
+// 3+ \u2192 "A + N more".
+function _setConnectCardSources(cardId, sources) {
+  var card = document.getElementById(cardId);
+  if (!card) return;
+  var body = card.querySelector('.connect-card-body');
+  if (!body) return;
+  var prior = body.querySelector('.connect-card-sources');
+  if (prior) prior.remove();
+  if (!sources || !sources.length) return;
+  var line;
+  if (sources.length === 1) {
+    line = sources[0];
+  } else if (sources.length === 2) {
+    line = sources[0] + ' \u00b7 ' + sources[1];
+  } else {
+    line = sources[0] + ' + ' + (sources.length - 1) + ' more';
+  }
+  var el = document.createElement('span');
+  el.className = 'connect-card-sources';
+  el.textContent = line;
+  // Place under the existing sub line, before any install hint.
+  var hint = body.querySelector('.connect-card-hint');
+  if (hint) body.insertBefore(el, hint);
+  else body.appendChild(el);
+}
+
+// Query connected EHR hospitals for this person and hydrate the EHR card
+// sublabel. Read-only on ehr_connections, scoped to status='connected'.
+// Defensive: any error \u2192 clear the sublabel; never break the card.
+function _hydrateEhrCardSources(personId) {
+  if (!personId || typeof db === 'undefined') return;
+  try {
+    db.from('ehr_connections')
+      .select('hospital_name, connected_at')
+      .eq('person_id', personId)
+      .eq('status', 'connected')
+      .order('connected_at', { ascending: false })
+      .then(function(res){
+        var rows = (res && res.data) || [];
+        var names = rows
+          .map(function(r){ return (r && r.hospital_name) ? String(r.hospital_name).trim() : ''; })
+          .filter(function(n){ return !!n; });
+        // Dedup while preserving order (handles edge cases where the same
+        // hospital was connected twice on the same person row).
+        var seen = {};
+        names = names.filter(function(n){
+          var k = n.toLowerCase();
+          if (seen[k]) return false;
+          seen[k] = true;
+          return true;
+        });
+        _setConnectCardSources('connect-card-ehr', names.length ? names : null);
+      })
+      .catch(function(_e){
+        _setConnectCardSources('connect-card-ehr', null);
+      });
+  } catch(_e) {
+    _setConnectCardSources('connect-card-ehr', null);
+  }
+}
+
+// Read the in-memory _terraConnections cache and hydrate the wearables card
+// sublabel with provider display names. Mirrors the truthiness rules used
+// for terraConnected in refreshConnectScreenStatus.
+function _hydrateTerraCardSources(personId) {
+  if (!personId) return;
+  try {
+    if (typeof _terraConnections === 'undefined' || !_terraConnections || !_terraConnections.length) {
+      _setConnectCardSources('connect-card-terra', null);
+      return;
+    }
+    var providers = _terraConnections
+      .filter(function(c){
+        if (!c) return false;
+        if (c.person_id !== personId) return false;
+        if (c.status === 'disconnected') return false;
+        var p = String(c.provider || '').toUpperCase();
+        if (p === 'APPLE') return false; // never count Apple Health here
+        var tuid = c.terra_user_id;
+        if (!tuid || tuid === 'None' || tuid === 'null') return false;
+        return true;
+      })
+      .map(function(c){ return _prettyTerraProvider(c.provider); });
+    // Dedup, preserve order.
+    var seen = {};
+    providers = providers.filter(function(p){
+      var k = p.toLowerCase();
+      if (seen[k]) return false;
+      seen[k] = true;
+      return true;
+    });
+    _setConnectCardSources('connect-card-terra', providers.length ? providers : null);
+  } catch(_e) {
+    _setConnectCardSources('connect-card-terra', null);
+  }
+}
+
+// Piece 4c: provider-aware sync-status sub-line on the wearable Connect card.
+// Renders only while a wearable is connected but has no data yet (or just
+// landed less than a few seconds ago, in which case we suppress to avoid
+// flashing the message). Terra's per-provider backfill window:
+//   GOOGLE/SAMSUNG  ~5 min  (phone push)
+//   GARMIN/WITHINGS/PELOTON/SUUNTO  ~15 min
+//   OURA/FITBIT/POLAR/WHOOP  ~60 min  (rate-limited APIs, historical pull)
+function _wearableExpectedWindowMinutes(provider) {
+  var p = String(provider || '').toUpperCase();
+  if (p === 'GOOGLE' || p === 'SAMSUNG') return 5;
+  if (p === 'GARMIN' || p === 'WITHINGS' || p === 'PELOTON' || p === 'SUUNTO') return 15;
+  if (p === 'OURA' || p === 'FITBIT' || p === 'POLAR' || p === 'WHOOP') return 60;
+  return 60;
+}
+function _wearableWindowCopy(mins) {
+  if (mins <= 5) return 'a few minutes';
+  if (mins <= 15) return '15 minutes';
+  if (mins <= 60) return 'an hour';
+  return mins + ' minutes';
+}
+function _setConnectCardSyncStatus(cardId, msg) {
+  var card = document.getElementById(cardId);
+  if (!card) return;
+  var body = card.querySelector('.connect-card-body');
+  if (!body) return;
+  var prior = body.querySelector('.connect-card-sync-status');
+  if (prior) prior.remove();
+  if (!msg) return;
+  var el = document.createElement('span');
+  el.className = 'connect-card-sync-status';
+  // Same gray + small-type treatment as connect-card-sources, but with a
+  // subtle leading dot icon to read as a status line rather than metadata.
+  el.style.cssText = 'display:block;margin-top:4px;font-size:12px;color:var(--text-secondary, #6b6b6b);font-family:DM Sans,sans-serif;';
+  el.textContent = msg;
+  var hint = body.querySelector('.connect-card-hint');
+  if (hint) body.insertBefore(el, hint);
+  else body.appendChild(el);
+}
+// Cheap data-presence check, cached for 60s per (person_id, provider). Counts
+// any health_events row for ehr_system='terra_<PROVIDER>' created after the
+// connection started. We only need to know zero vs non-zero.
+var _wearableDataPresenceCache = {};
+function _wearableHasDataSince(personId, provider, sinceISO) {
+  var key = personId + ':' + provider;
+  var now = Date.now();
+  var cached = _wearableDataPresenceCache[key];
+  if (cached && (now - cached.ts) < 60000) return Promise.resolve(cached.hasData);
+  if (typeof db === 'undefined') return Promise.resolve(true); // fail-open: never show false-alarm sub-line
+  var ehrSystem = 'terra_' + String(provider || '').toUpperCase();
+  return db.from('health_events')
+    .select('id', { count: 'exact', head: true })
+    .eq('person_id', personId)
+    .eq('ehr_system', ehrSystem)
+    .gte('created_at', sinceISO)
+    .limit(1)
+    .then(function(res){
+      var n = (res && typeof res.count === 'number') ? res.count : 0;
+      var hasData = n > 0;
+      _wearableDataPresenceCache[key] = { ts: now, hasData: hasData };
+      return hasData;
+    })
+    .catch(function(){ return true; }); // fail-open
+}
+function _hydrateTerraCardSyncStatus(personId) {
+  if (!personId) return;
+  if (typeof _terraConnections === 'undefined' || !_terraConnections || !_terraConnections.length) {
+    _setConnectCardSyncStatus('connect-card-terra', null);
+    return;
+  }
+  // Find the most-recently-connected active wearable for this person that's
+  // not Apple. If there are several, the newest one is the one most likely
+  // still in its backfill window, so we let it own the sub-line.
+  var candidates = _terraConnections.filter(function(c){
+    if (!c || c.person_id !== personId) return false;
+    if (c.status === 'disconnected') return false;
+    var p = String(c.provider || '').toUpperCase();
+    if (p === 'APPLE') return false;
+    if (!c.terra_user_id || c.terra_user_id === 'None' || c.terra_user_id === 'null') return false;
+    return true;
+  }).sort(function(a, b){
+    var ta = new Date(a.connected_at || 0).getTime();
+    var tb = new Date(b.connected_at || 0).getTime();
+    return tb - ta;
+  });
+  if (!candidates.length) { _setConnectCardSyncStatus('connect-card-terra', null); return; }
+  var conn = candidates[0];
+  var connectedAt = conn.connected_at;
+  if (!connectedAt) { _setConnectCardSyncStatus('connect-card-terra', null); return; }
+  var provider = String(conn.provider || '').toUpperCase();
+  var friendly = (typeof _terraProviderFriendly === 'function')
+    ? _terraProviderFriendly(provider)
+    : (_prettyTerraProvider(provider) || 'your wearable');
+  var minsSince = (Date.now() - new Date(connectedAt).getTime()) / 60000;
+  // Suppress for the first 20 seconds after connect — the just-shipped 6s
+  // toast is still on screen and we don't want to double up. After 20s,
+  // the toast is gone and the sub-line can stand on its own.
+  if (minsSince < 0.33) { _setConnectCardSyncStatus('connect-card-terra', null); return; }
+  _wearableHasDataSince(personId, provider, connectedAt).then(function(hasData){
+    if (hasData) {
+      // Data arrived — the existing _hydrateTerraCardSources sub-label
+      // already lists the connected device, no extra sync-status needed.
+      _setConnectCardSyncStatus('connect-card-terra', null);
+      return;
+    }
+    var expected = _wearableExpectedWindowMinutes(provider);
+    var msg;
+    if (minsSince < expected) {
+      msg = 'Waiting on first sync from ' + friendly + '. Usually arrives within ' + _wearableWindowCopy(expected) + '.';
+    } else if (minsSince < expected * 2) {
+      msg = 'Still syncing from ' + friendly + '. Sometimes the first pull takes longer than usual \u2014 hang tight.';
+    } else {
+      // Past 2x expected — gentle troubleshoot hint. Capitalize friendly
+      // app-name in 'the Oura app' (lowercase 'ring'/'watch' suffix doesn't
+      // fit there). Re-derive from provider for the action hint.
+      var appLabel = _wearableProviderAppLabel(provider);
+      msg = 'No data yet from ' + friendly + '. Try opening the ' + appLabel + ' once and pulling to refresh, then reopen Wellet.';
+    }
+    _setConnectCardSyncStatus('connect-card-terra', msg);
+  }).catch(function(){
+    _setConnectCardSyncStatus('connect-card-terra', null);
+  });
+}
+// Friendly app name for the recovery hint ("try opening the Oura app").
+// Different from _terraProviderFriendly because that returns 'Oura ring' /
+// 'Garmin watch' which reads wrong in 'open the Oura ring once.'
+function _wearableProviderAppLabel(provider) {
+  var p = String(provider || '').toUpperCase();
+  var map = {
+    'OURA': 'Oura app',
+    'FITBIT': 'Fitbit app',
+    'GARMIN': 'Garmin Connect app',
+    'WHOOP': 'WHOOP app',
+    'WITHINGS': 'Withings app',
+    'POLAR': 'Polar Flow app',
+    'SUUNTO': 'Suunto app',
+    'GOOGLE': 'Google Health Connect',
+    'SAMSUNG': 'Samsung Health app',
+    'PELOTON': 'Peloton app',
+    'STRAVA': 'Strava app'
+  };
+  return map[p] || 'wearable app';
+}
+
+// Display names for Terra provider codes. Falls back to title-casing the raw
+// code so a brand-new provider we haven't mapped still renders gracefully.
+function _prettyTerraProvider(code) {
+  var c = String(code || '').toUpperCase();
+  var map = {
+    'OURA': 'Oura',
+    'FITBIT': 'Fitbit',
+    'GARMIN': 'Garmin',
+    'WHOOP': 'WHOOP',
+    'WITHINGS': 'Withings',
+    'GOOGLE': 'Google Fit',
+    'POLAR': 'Polar',
+    'SUUNTO': 'Suunto',
+    'PELOTON': 'Peloton',
+    'STRAVA': 'Strava'
+  };
+  if (map[c]) return map[c];
+  if (!c) return 'Connected device';
+  return c.charAt(0) + c.slice(1).toLowerCase();
+}
+
 function showConnectScreen() {
   var screen = document.getElementById('connect-data-screen');
   if (!screen) {
@@ -1582,6 +3012,10 @@ function showConnectScreen() {
     showAuthenticatedApp();
     return;
   }
+  // 2026-05-21: any time the user lands on the Connect surface, treat prior
+  // in-flight attempts as abandoned. Releases stuck lock + marks stale
+  // pending rows abandoned. Deterministic, no watchdog wait.
+  try { _resetEhrConnectingStateForFreshAttempt(); } catch(e) {}
   _setConnectScreenActive();
   // Tag the body so masthead/nav stay hidden under the overlay.
   document.body.classList.add('connect-data-open');
@@ -1591,10 +3025,10 @@ function showConnectScreen() {
   var appleCard = document.getElementById('connect-card-apple');
   if (appleSub && appleCard) {
     if (!_isIPhone()) {
-      appleSub.textContent = 'Apple Health lives on iPhone — open Wellet on your iPhone to connect.';
+      appleSub.textContent = 'Apple Health lives on iPhone — open Wellet on your iPhone to connect this one.';
       appleCard.classList.add('is-disabled');
     } else {
-      appleSub.textContent = 'Steps, sleep, heart rate, and anything else on your iPhone.';
+      appleSub.textContent = 'Steps, sleep, heart rate, and anything else on your iPhone. Imports the last 30 days first, then keeps up automatically.';
       appleCard.classList.remove('is-disabled');
     }
   }
@@ -1602,7 +3036,29 @@ function showConnectScreen() {
   refreshConnectScreenStatus();
   // Show the Wellet Connect install hint under the Apple Health card on iPhone.
   try { maybeShowAppleInstallHint(); } catch(e) {}
+  // VA Lighthouse card is gated behind ?va=1 (or a sticky localStorage flag
+  // once the gate has been opened in this browser). Keeps the BDB demo card
+  // hidden from regular users while still letting reviewers find it via URL.
+  try { maybeShowVaCard(); } catch(e) {}
   if (window.lucide) try { lucide.createIcons(); } catch(e) {}
+}
+
+// Reveal the VA card only if the user landed with ?va=1 in the URL or has
+// previously opened the gate in this browser (localStorage flag). Idempotent.
+function maybeShowVaCard() {
+  var card = document.getElementById('connect-card-va');
+  if (!card) return;
+  var gateOpen = false;
+  try {
+    var qp = new URLSearchParams(window.location.search);
+    if (qp.get('va') === '1') {
+      gateOpen = true;
+      try { localStorage.setItem('wellet_va_gate', '1'); } catch(_e) {}
+    } else if (localStorage.getItem('wellet_va_gate') === '1') {
+      gateOpen = true;
+    }
+  } catch(e) {}
+  card.style.display = gateOpen ? '' : 'none';
 }
 
 function hideConnectScreen() {
@@ -1612,7 +3068,7 @@ function hideConnectScreen() {
   _clearConnectScreenActive();
 }
 
-// User taps "I'll do this later" — go to Home. Self-person row is already
+// User taps the skip CTA — go to Home. Self-person row is already
 // created and persisted; mode is locked. Connections can happen any time
 // from Settings.
 function skipConnectScreen() {
@@ -1620,12 +3076,537 @@ function skipConnectScreen() {
   showAuthenticatedApp();
 }
 
+// ─── BDB live demo: onboarding connect-progress animation ─────────
+// Two surfaces are coordinated from this module:
+//   1) An INLINE progress strip rendered into each connect card while
+//      that source is mid-connect (OAuth bounce) or mid-first-sync.
+//      Stage labels are plain-language, with a slow-path hint after 20s.
+//   2) A FULL-SCREEN stage overlay (#connect-stage-overlay) shown only the
+//      first time the user connects ANY source in this session. The
+//      overlay dissolves into the existing openFirstSyncWelcome() popup
+//      once data lands.
+// Architecture: real events with a minimum-time floor per stage. We listen
+// to the SAME signals the connect-screen status logic already uses
+// (ehr_connections cache / apple_health_last_sync_at / terra_connections)
+// plus the post-callback toast events, so we never invent an event source.
+// Voice rules apply: "loved one" / "family member", "notices" / "watches
+// for", CareSignals one word, no emojis / italics / exclamation points in
+// any user-facing string.
+
+// sessionStorage key that toggles once the first cinematic stage has
+// fired this browser session — subsequent connects use only the inline
+// strip so the user isn't blocked by a hero overlay every time.
+var _CONNECT_STAGE_SEEN_KEY = 'wellet_connect_stage_seen_v1';
+
+// Minimum time each progress stage holds before advancing, even if the
+// real underlying event has already fired. Keeps the motion legible.
+var _CONNECT_STAGE_MIN_MS = 1000;
+// Slow-path hint shows after this many ms of no terminal event.
+var _CONNECT_SLOW_PATH_MS = 20000;
+// Absolute safety timeout — if nothing has resolved by then, treat as
+// complete so the UI never sits forever. The real fetch may still be
+// in-flight; the existing welcome overlay / toast will land when it does.
+// Reduced from 90s to 30s on 2026-06-01 — FTU testing showed the cinematic
+// overlay was stranding users for too long on first-tap onboarding.
+var _CONNECT_HARD_TIMEOUT_MS = 30000;
+
+// Per-source state, keyed by source ('ehr' | 'apple' | 'google' | 'terra' | 'va').
+var _connectProgressState = {};
+
+// Plain-language stage scripts. Per design decision, EHR uses plain
+// language (signing in / reading chart / noticing what matters / almost
+// ready). Wearables and Apple Health each get a 3-stage scrip that
+// matches their actual flow.
+function _connectProgressStages(source, ctx) {
+  ctx = ctx || {};
+  var hospital = ctx.hospital || 'your hospital';
+  var firstName = ctx.firstName || 'your loved one';
+  if (source === 'ehr' || source === 'va') {
+    var hostLabel = (source === 'va') ? 'VA.gov' : hospital;
+    return [
+      { key: 'auth',    label: 'Signing in at ' + hostLabel,         icon: 'log-in' },
+      { key: 'reading', label: 'Reading ' + firstName + '\u2019s chart', icon: 'file-search' },
+      { key: 'noticing',label: 'Noticing what matters',               icon: 'sparkles' },
+      { key: 'ready',   label: 'Almost ready',                        icon: 'check' }
+    ];
+  }
+  if (source === 'apple') {
+    return [
+      { key: 'auth',    label: 'Asking Apple Health for permission', icon: 'shield' },
+      { key: 'reading', label: 'Reading the last 30 days',           icon: 'heart-pulse' },
+      { key: 'ready',   label: 'Almost ready',                       icon: 'check' }
+    ];
+  }
+  // google / terra / other wearables
+  var device = ctx.device || 'your wearable';
+  return [
+    { key: 'auth',    label: 'Signing in with ' + device,             icon: 'log-in' },
+    { key: 'reading', label: 'Reading recent signals from ' + device, icon: 'watch' },
+    { key: 'ready',   label: 'Almost ready',                          icon: 'check' }
+  ];
+}
+
+// Resolve a friendly hospital name for the EHR card from whatever's
+// cached. Falls back to the generic copy so the line still reads.
+function _connectProgressHospitalLabel(personId) {
+  try {
+    if (typeof getEhrData === 'function' && personId) {
+      var d = getEhrData(personId);
+      if (d && d.hospital_name) return d.hospital_name;
+      if (d && d.provider && typeof d.provider === 'string') return d.provider;
+      if (d && Array.isArray(d._connections) && d._connections.length) {
+        var c = d._connections.find(function(x){ return x && x.hospital_name; });
+        if (c) return c.hospital_name;
+      }
+    }
+  } catch(_e) {}
+  return 'your hospital';
+}
+
+function _connectProgressFirstName(personId) {
+  try {
+    if (typeof currentPeople !== 'undefined' && currentPeople && personId) {
+      var p = currentPeople.find(function(x){ return x.id === personId; });
+      if (p && p.name) return (p.name.split(' ')[0] || p.name);
+    }
+  } catch(_e) {}
+  // 2026-06-01 (D1): never return 'them' or 'their' — the possessive reads
+  // as broken English ("them’s chart"). Fall back to the canonical voice
+  // phrase so the headline composes to "your loved one’s chart".
+  return 'your loved one';
+}
+
+// Ensure the inline progress strip exists inside the given card. Idempotent.
+function _ensureInlineProgressDom(cardId) {
+  var card = document.getElementById(cardId);
+  if (!card) return null;
+  var existing = card.querySelector('.connect-card-progress');
+  if (existing) return existing;
+  var body = card.querySelector('.connect-card-body');
+  if (!body) return null;
+  var wrap = document.createElement('span');
+  wrap.className = 'connect-card-progress';
+  wrap.innerHTML =
+      '<div class="connect-card-progress__stage">'
+    +   '<span class="connect-card-progress__dot"></span>'
+    +   '<span class="connect-card-progress__label">Getting ready\u2026</span>'
+    +   '<span class="connect-card-progress__count"></span>'
+    + '</div>'
+    + '<div class="connect-card-progress__bar" style="--p:0"></div>'
+    + '<div class="connect-card-progress__hint"></div>';
+  body.appendChild(wrap);
+  return wrap;
+}
+
+function _cardIdForSource(source) {
+  if (source === 'ehr')    return 'connect-card-ehr';
+  if (source === 'apple')  return 'connect-card-apple';
+  if (source === 'google') return 'connect-card-google';
+  if (source === 'terra')  return 'connect-card-terra';
+  if (source === 'va')     return 'connect-card-va';
+  return null;
+}
+
+function _updateInlineProgress(source, stageIdx, stages, slowMode) {
+  var cardId = _cardIdForSource(source);
+  var card = cardId ? document.getElementById(cardId) : null;
+  if (!card) return;
+  card.classList.add('is-progressing');
+  if (slowMode) card.classList.add('is-slow'); else card.classList.remove('is-slow');
+  var strip = _ensureInlineProgressDom(cardId);
+  if (!strip) return;
+  var stage = stages[Math.min(stageIdx, stages.length - 1)];
+  var labelEl = strip.querySelector('.connect-card-progress__label');
+  var barEl   = strip.querySelector('.connect-card-progress__bar');
+  var hintEl  = strip.querySelector('.connect-card-progress__hint');
+  if (labelEl && stage && labelEl.textContent !== stage.label) {
+    labelEl.classList.remove('is-changing');
+    // Force reflow so the animation re-fires on every swap.
+    void labelEl.offsetWidth;
+    labelEl.textContent = stage.label;
+    labelEl.classList.add('is-changing');
+  }
+  var pct = (stages.length > 1) ? (stageIdx / (stages.length - 1)) : 0;
+  if (barEl) barEl.style.setProperty('--p', String(Math.max(0, Math.min(1, pct))));
+  if (hintEl) {
+    if (slowMode) {
+      var hostLabel = (source === 'va') ? 'VA.gov' :
+        (source === 'ehr') ? _connectProgressHospitalLabel((_connectProgressState[source] && _connectProgressState[source].personId) || (typeof currentPersonId !== 'undefined' ? currentPersonId : null)) : null;
+      if (source === 'ehr' || source === 'va') {
+        hintEl.textContent = hostLabel + ' is taking a moment to send the chart over \u2014 this happens sometimes, hang tight.';
+      } else if (source === 'apple') {
+        hintEl.textContent = 'Apple Health is taking a moment to hand the data over \u2014 hang tight.';
+      } else {
+        hintEl.textContent = 'Still reading from your wearable \u2014 the first sync sometimes takes a few minutes.';
+      }
+    } else {
+      hintEl.textContent = '';
+    }
+  }
+}
+
+function _clearInlineProgress(source) {
+  var cardId = _cardIdForSource(source);
+  var card = cardId ? document.getElementById(cardId) : null;
+  if (!card) return;
+  card.classList.remove('is-progressing');
+  card.classList.remove('is-slow');
+  // Leave the strip DOM in place; CSS hides it when the class is gone.
+  // Reset bar so a subsequent attempt starts at zero.
+  var bar = card.querySelector('.connect-card-progress__bar');
+  if (bar) bar.style.setProperty('--p', '0');
+  var lbl = card.querySelector('.connect-card-progress__label');
+  if (lbl) lbl.classList.remove('is-changing');
+}
+
+// Full-screen cinematic stage: built lazily, mounted to <body>. Returns
+// the wrapper element so the caller can attach its own teardown.
+function _ensureStageOverlay() {
+  var existing = document.getElementById('connect-stage-overlay');
+  if (existing) return existing;
+  var el = document.createElement('div');
+  el.id = 'connect-stage-overlay';
+  el.innerHTML =
+      '<div class="connect-stage__inner">'
+    +   '<div class="connect-stage__eyebrow">Connecting</div>'
+    +   '<h2 class="connect-stage__headline"></h2>'
+    +   '<div class="connect-stage__rings">'
+    +     '<div class="connect-stage__ring"></div>'
+    +     '<div class="connect-stage__ring"></div>'
+    +     '<div class="connect-stage__ring"></div>'
+    +     '<div class="connect-stage__heart"><i data-lucide="heart-pulse"></i></div>'
+    +   '</div>'
+    +   '<div class="connect-stage__stages"></div>'
+    +   '<div class="connect-stage__hint"></div>'
+    +   '<button type="button" class="connect-stage__cancel" id="connect-stage-cancel" aria-label="Cancel connecting">Cancel</button>'
+    + '</div>';
+  document.body.appendChild(el);
+  // Wire the Cancel button. It tears down all sources' progress state and
+  // closes the overlay so the user is never stranded.
+  // 2026-06-01 (D8): also release the in-memory _ehrConnecting lock and
+  // clear its watchdog so the user can immediately pick a different
+  // hospital after cancelling. Without this, the picker stays locked.
+  try {
+    var cancelBtn = el.querySelector('#connect-stage-cancel');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', function(){
+        try { _cancelAllConnectProgress(); } catch(_e) {}
+        try {
+          if (typeof _resetEhrConnectingStateForFreshAttempt === 'function') {
+            _resetEhrConnectingStateForFreshAttempt();
+          } else {
+            _ehrConnecting = false;
+            if (_ehrConnectingTimeoutId) { clearTimeout(_ehrConnectingTimeoutId); _ehrConnectingTimeoutId = null; }
+          }
+        } catch(_e) {}
+        _hideStageOverlay();
+      });
+      // Belt-and-suspenders: make sure pointer events are never disabled.
+      cancelBtn.style.pointerEvents = 'auto';
+      cancelBtn.style.zIndex = '2';
+      cancelBtn.style.position = 'relative';
+    }
+  } catch(_e) {}
+  return el;
+}
+
+// Cancel all in-flight connect progress state. Clears intervals/timeouts,
+// clears the inline strip, and drops the marker so the next attempt starts
+// clean. Does NOT roll back any underlying OAuth — the network call may
+// still resolve in the background; we just stop showing the UI.
+function _cancelAllConnectProgress() {
+  var sources = Object.keys(_connectProgressState || {});
+  for (var i = 0; i < sources.length; i++) {
+    var source = sources[i];
+    var s = _connectProgressState[source];
+    if (!s) continue;
+    s.terminalRequested = true;
+    if (s.tickId) { try { clearInterval(s.tickId); } catch(_e){} }
+    if (s.slowId) { try { clearTimeout(s.slowId); } catch(_e){} }
+    if (s.hardId) { try { clearTimeout(s.hardId); } catch(_e){} }
+    _clearInlineProgress(source);
+    try { sessionStorage.removeItem('wellet_connect_progress_' + source); } catch(_e) {}
+    delete _connectProgressState[source];
+  }
+}
+
+function _showStageOverlay(source, stages, ctx) {
+  var el = _ensureStageOverlay();
+  var headline = el.querySelector('.connect-stage__headline');
+  var rows = el.querySelector('.connect-stage__stages');
+  if (headline) {
+    if (source === 'ehr' || source === 'va') {
+      var _fn = (ctx && ctx.firstName) ? ctx.firstName : 'your loved one';
+      headline.innerHTML = 'Bringing in <em>' + escHtml(_fn) + '\u2019s chart</em>.';
+    } else if (source === 'apple') {
+      headline.innerHTML = 'Reading <em>Apple Health</em>.';
+    } else {
+      headline.innerHTML = 'Reading <em>' + escHtml(ctx.device || 'your wearable') + '</em>.';
+    }
+  }
+  if (rows) {
+    rows.innerHTML = stages.map(function(s, i){
+      return '<div class="connect-stage__row" data-stage="' + escHtml(s.key) + '">'
+        +   '<span class="connect-stage__icon"><i data-lucide="' + escHtml(s.icon || 'circle') + '"></i></span>'
+        +   '<span>' + escHtml(s.label) + '</span>'
+        + '</div>';
+    }).join('');
+  }
+  el.classList.remove('is-closing');
+  el.classList.add('is-open');
+  try { if (window.lucide) lucide.createIcons(); } catch(_e) {}
+}
+
+function _updateStageOverlay(stageIdx, stages, slowMode, ctx) {
+  var el = document.getElementById('connect-stage-overlay');
+  if (!el || !el.classList.contains('is-open')) return;
+  var rows = el.querySelectorAll('.connect-stage__row');
+  rows.forEach(function(row, i){
+    row.classList.remove('is-active', 'is-done');
+    if (i < stageIdx) row.classList.add('is-done');
+    else if (i === stageIdx) row.classList.add('is-active');
+  });
+  var hint = el.querySelector('.connect-stage__hint');
+  if (hint) {
+    if (slowMode) {
+      // 2026-06-01 (D9): capitalize the fallback so the sentence reads
+      // "Your hospital is taking a moment..." at the start.
+      var hostLabel = (ctx && ctx.hospital) ? ctx.hospital : 'Your hospital';
+      hint.textContent = hostLabel + ' is taking a moment to send the chart over \u2014 this happens sometimes, hang tight.';
+      hint.classList.add('is-visible');
+    } else {
+      hint.textContent = '';
+      hint.classList.remove('is-visible');
+    }
+  }
+}
+
+function _hideStageOverlay() {
+  var el = document.getElementById('connect-stage-overlay');
+  if (!el) return;
+  // 2026-06-01 (D8): always release the connecting lock on hide so the
+  // picker isn't stuck after a slow Cancel or a stuck OAuth flow.
+  try {
+    _ehrConnecting = false;
+    if (_ehrConnectingTimeoutId) { clearTimeout(_ehrConnectingTimeoutId); _ehrConnectingTimeoutId = null; }
+  } catch(_e) {}
+  el.classList.add('is-closing');
+  setTimeout(function(){
+    el.classList.remove('is-open');
+    el.classList.remove('is-closing');
+  }, 380);
+}
+
+// Has the cinematic stage already been used in this session?
+function _connectStageAlreadyShown() {
+  try { return sessionStorage.getItem(_CONNECT_STAGE_SEEN_KEY) === '1'; } catch(_e) { return false; }
+}
+function _markConnectStageShown() {
+  try { sessionStorage.setItem(_CONNECT_STAGE_SEEN_KEY, '1'); } catch(_e) {}
+}
+
+// Public: kick off the progress UI for a given source. Called from
+// connectFromMeOnboarding() BEFORE the OAuth bounce, and again from each
+// callback handler when control returns to the web app. Idempotent — if
+// already running, just re-anchors the state.
+function beginConnectProgress(source, opts) {
+  opts = opts || {};
+  if (!source) return;
+  var personId = opts.personId || (typeof currentPersonId !== 'undefined' ? currentPersonId : null);
+  var ctx = {
+    firstName: _connectProgressFirstName(personId),
+    hospital:  _connectProgressHospitalLabel(personId),
+    device:    opts.device || ''
+  };
+  var stages = _connectProgressStages(source, ctx);
+  var startedAt = Date.now();
+
+  // Persist a marker so a full page navigation (OAuth round-trip) can
+  // re-attach the inline strip when we come back.
+  try {
+    var marker = { source: source, startedAt: startedAt, personId: personId };
+    sessionStorage.setItem('wellet_connect_progress_' + source, JSON.stringify(marker));
+  } catch(_e) {}
+
+  // Cancel any prior tick / timeout for this source.
+  var prior = _connectProgressState[source];
+  if (prior && prior.tickId) { try { clearInterval(prior.tickId); } catch(_e){} }
+  if (prior && prior.slowId) { try { clearTimeout(prior.slowId); } catch(_e){} }
+  if (prior && prior.hardId) { try { clearTimeout(prior.hardId); } catch(_e){} }
+
+  // Decide whether to mount the full-screen stage. Per design: first
+  // connect of the session AND we are currently on the connect-data
+  // screen (or just left it for OAuth).
+  var useStage = !_connectStageAlreadyShown();
+  if (useStage) {
+    _showStageOverlay(source, stages, ctx);
+    _markConnectStageShown();
+  }
+
+  // Always show the inline strip too — it's the persistent surface and
+  // covers later sources in the same session.
+  _updateInlineProgress(source, 0, stages, false);
+  if (useStage) _updateStageOverlay(0, stages, false, ctx);
+
+  var state = {
+    source: source,
+    personId: personId,
+    stages: stages,
+    ctx: ctx,
+    stageIdx: 0,
+    minStageUntil: startedAt + _CONNECT_STAGE_MIN_MS,
+    terminalRequested: false,
+    slowMode: false,
+    useStage: useStage,
+    startedAt: startedAt
+  };
+  _connectProgressState[source] = state;
+
+  // Slow-path: after 20s of no terminal event, flip the slow-mode hint.
+  state.slowId = setTimeout(function(){
+    var s = _connectProgressState[source];
+    if (!s || s.terminalRequested) return;
+    s.slowMode = true;
+    _updateInlineProgress(source, s.stageIdx, s.stages, true);
+    if (s.useStage) _updateStageOverlay(s.stageIdx, s.stages, true, s.ctx);
+  }, _CONNECT_SLOW_PATH_MS);
+
+  // Hard timeout — if nothing resolves, finalize so the user isn't stuck.
+  state.hardId = setTimeout(function(){
+    var s = _connectProgressState[source];
+    if (!s || s.terminalRequested) return;
+    finalizeConnectProgress(source, { fromTimeout: true });
+  }, _CONNECT_HARD_TIMEOUT_MS);
+
+  // Stage ticker. Advances on the floor schedule. The terminal stage is
+  // reserved for finalizeConnectProgress().
+  state.tickId = setInterval(function(){
+    var s = _connectProgressState[source];
+    if (!s) return;
+    if (s.terminalRequested) return;
+    var now = Date.now();
+    if (now < s.minStageUntil) return;
+    // Hold on the penultimate stage until finalize is called — we never
+    // jump to "Almost ready" on our own.
+    var maxIdx = Math.max(0, s.stages.length - 2);
+    if (s.stageIdx < maxIdx) {
+      s.stageIdx += 1;
+      s.minStageUntil = now + _CONNECT_STAGE_MIN_MS;
+      _updateInlineProgress(source, s.stageIdx, s.stages, s.slowMode);
+      if (s.useStage) _updateStageOverlay(s.stageIdx, s.stages, s.slowMode, s.ctx);
+    }
+  }, 250);
+}
+
+// Public: a terminal event arrived (e.g. fetchEhrData resolved, or the
+// Terra widget said "connected", or Apple Health last-sync-at landed).
+// We advance to the final stage, respect any remaining min-time floor,
+// then tear down. The caller (e.g. the fetch-ehr-data .then) typically
+// also fires openFirstSyncWelcome() — that overlay lands gracefully on
+// top because we close ours first.
+function finalizeConnectProgress(source, opts) {
+  opts = opts || {};
+  var s = _connectProgressState[source];
+  if (!s || s.terminalRequested) return;
+  s.terminalRequested = true;
+  if (s.slowId) { try { clearTimeout(s.slowId); } catch(_e){} }
+  if (s.hardId) { try { clearTimeout(s.hardId); } catch(_e){} }
+  // Compute remaining floor delay so the stages don't strobe to done.
+  var remaining = Math.max(0, s.minStageUntil - Date.now());
+  // Also ensure the user sees the final stage for at least 600ms so it
+  // doesn't feel like a flicker.
+  setTimeout(function(){
+    s.stageIdx = s.stages.length - 1;
+    _updateInlineProgress(source, s.stageIdx, s.stages, false);
+    if (s.useStage) _updateStageOverlay(s.stageIdx, s.stages, false, s.ctx);
+    setTimeout(function(){
+      if (s.tickId) { try { clearInterval(s.tickId); } catch(_e){} }
+      _clearInlineProgress(source);
+      if (s.useStage) _hideStageOverlay();
+      try { sessionStorage.removeItem('wellet_connect_progress_' + source); } catch(_e) {}
+      delete _connectProgressState[source];
+    }, 700);
+  }, remaining);
+}
+
+// On page load (or any time the connect screen re-opens), check whether
+// we left a progress marker behind (because we bounced through OAuth) and
+// re-attach the inline strip if so. The terminal callback in the EHR
+// handler will fire finalizeConnectProgress when data lands.
+function _resumeConnectProgressFromMarker() {
+  ['ehr','apple','google','terra','va'].forEach(function(source){
+    var raw;
+    try { raw = sessionStorage.getItem('wellet_connect_progress_' + source); } catch(_e) { raw = null; }
+    if (!raw) return;
+    var marker;
+    try { marker = JSON.parse(raw); } catch(_e) { return; }
+    if (!marker || !marker.startedAt) return;
+    // If it's been more than 5 minutes, treat as stale and drop.
+    if (Date.now() - marker.startedAt > 5 * 60 * 1000) {
+      try { sessionStorage.removeItem('wellet_connect_progress_' + source); } catch(_e) {}
+      return;
+    }
+    if (_connectProgressState[source]) return;
+    // Resume — but skip the cinematic stage on resume; it already fired
+    // (or doesn't make sense to show after the user came back from OAuth).
+    _markConnectStageShown();
+    beginConnectProgress(source, { personId: marker.personId });
+  });
+}
+
+// Called from the existing refreshConnectScreenStatus() so each time we
+// re-render the cards, we also re-attach any in-flight progress strip.
+// Wired below via a small monkey-patch (see end of this block).
+(function(){
+  if (typeof window === 'undefined') return;
+  // Defer to next tick so refreshConnectScreenStatus is defined.
+  setTimeout(function(){
+    if (typeof refreshConnectScreenStatus === 'function' && !refreshConnectScreenStatus.__progressWrapped) {
+      var orig = refreshConnectScreenStatus;
+      refreshConnectScreenStatus = function(){
+        var r = orig.apply(this, arguments);
+        try { _resumeConnectProgressFromMarker(); } catch(_e) {}
+        return r;
+      };
+      refreshConnectScreenStatus.__progressWrapped = true;
+      try { window.refreshConnectScreenStatus = refreshConnectScreenStatus; } catch(_e) {}
+    }
+  }, 0);
+})();
+
 // Card click handler. Routes by source. The connect screen flag stays set
 // so when each connect flow returns (EHR OAuth round-trip, Terra widget
 // callback, Apple Health bridge), the callback handlers route the user
 // BACK to the connect screen with the completed card marked done. They can
 // then continue with the next source or tap "Open my Wellet" to leave.
 function connectFromMeOnboarding(source) {
+  // Judge-path Fix #4 (June 2 2026): in demo mode, NEVER fire beginConnectProgress.
+  // The old behaviour started a fake "Bringing in your loved one's chart" overlay
+  // before any demo check — Android Chrome auditors and judges saw what looked
+  // like a real hospital authentication, which is misleading.
+  // For EHR we route directly to the hospital picker (which already shows the
+  // demo disclosure modal on selection). For wearable sources we show a single
+  // toast explaining what the real connect would do.
+  if (isDemoMode) {
+    if (source === 'ehr') {
+      var screenD = document.getElementById('connect-data-screen');
+      if (screenD) screenD.style.display = 'none';
+      document.body.classList.remove('connect-data-open');
+      showAuthenticatedApp();
+      setTimeout(function() { try { startEhrConnect(); } catch(e) { console.error(e); } }, 60);
+      return;
+    }
+    if (source === 'apple')   { try { showToast('In the real app, this connects to Apple Health on your iPhone.'); } catch(_e) {} return; }
+    if (source === 'google')  { try { showToast('In the real app, this connects Google Health / Fitbit. Sign in to try it.'); } catch(_e) {} return; }
+    if (source === 'terra')   { try { showToast('In the real app, this connects Garmin, Oura, Whoop and other wearables.'); } catch(_e) {} return; }
+    if (source === 'va')      { try { showToast('In the real app, this signs you in at id.va.gov to bring in VA records.'); } catch(_e) {} return; }
+    return;
+  }
+
+  // Kick off the progress UI immediately so the user sees motion before
+  // the OAuth round-trip begins. finalizeConnectProgress() is called
+  // from the callback handlers once data lands.
+  try { beginConnectProgress(source); } catch(_e) {}
   if (source === 'ehr') {
     // EHR OAuth needs the masthead/picker DOM in place. Tear down the
     // connect screen visually but KEEP the localStorage flag set — the
@@ -1648,12 +3629,39 @@ function connectFromMeOnboarding(source) {
     connectAppleHealth();
     return;
   }
+  if (source === 'google') {
+    // Google Health = Terra widget pre-locked to provider=GOOGLE so the user
+    // skips the full provider picker and lands straight on Google's OAuth.
+    // Mark that the user launched this from the Connect screen so the Terra
+    // callback restores them to Connections (not Home/Summary). Without this
+    // flag, openTerraConnect's mobile branch stashes _currentNavView, which
+    // showAuthenticatedApp() just reset to the default tab.
+    try { sessionStorage.setItem('wellet_terra_return_to_connect', '1'); } catch(_e) {}
+    var screenG = document.getElementById('connect-data-screen');
+    if (screenG) screenG.style.display = 'none';
+    document.body.classList.remove('connect-data-open');
+    showAuthenticatedApp();
+    setTimeout(function() { try { openTerraConnect('GOOGLE'); } catch(e) { console.error(e); } }, 60);
+    return;
+  }
   if (source === 'terra') {
+    try { sessionStorage.setItem('wellet_terra_return_to_connect', '1'); } catch(_e) {}
     var screen2 = document.getElementById('connect-data-screen');
     if (screen2) screen2.style.display = 'none';
     document.body.classList.remove('connect-data-open');
     showAuthenticatedApp();
     setTimeout(function() { try { openTerraConnect(); } catch(e) { console.error(e); } }, 60);
+    return;
+  }
+  if (source === 'va') {
+    // VA Lighthouse OAuth bounces to id.va.gov, then back to /va-callback.
+    // Same shape as the EHR path: hide the connect screen but keep the
+    // active flag set so the callback restores the user to Connections.
+    var screenV = document.getElementById('connect-data-screen');
+    if (screenV) screenV.style.display = 'none';
+    document.body.classList.remove('connect-data-open');
+    showAuthenticatedApp();
+    setTimeout(function() { try { beginVaOAuth(true); } catch(e) { console.error(e); } }, 60);
     return;
   }
 }
@@ -1669,7 +3677,16 @@ function _isIPhone() {
 // Apple Health connect — iPhone only. Tries the universal link to Wellet
 // Connect; if the page is still visible after 800ms (link didn't resolve),
 // shows the install prompt.
+// Tracks the last wellet:// attempt so the install-prompt timer can decide
+// whether the link actually succeeded (page went hidden → app opened) or
+// silently failed (page stayed visible → app not installed).
+var _wcDeepLinkAttemptedAt = 0;
+
 function connectAppleHealth() {
+  if (isDemoMode) {
+    showToast('In the real app, this connects to Apple Health on your iPhone.');
+    return;
+  }
   if (!_isIPhone()) {
     showAppleHealthWebNotice();
     return;
@@ -1687,13 +3704,20 @@ function connectAppleHealth() {
   var deepLink = 'wellet://connect?type=health'
                + '&person_id=' + encodeURIComponent(currentPersonId)
                + '&return='    + encodeURIComponent(location.origin + '/connect-callback?mode=apple');
-  var t0 = Date.now();
+  _wcDeepLinkAttemptedAt = Date.now();
+  var t0 = _wcDeepLinkAttemptedAt;
   // Use location.href; Safari handles wellet:// → universal link → app open.
   // If the AASA file or app aren't installed, control returns here in <800ms
   // and document.visibilityState stays 'visible'.
   try { window.location.href = deepLink; } catch(e) { /* swallow */ }
   setTimeout(function() {
-    if (document.visibilityState === 'visible' && Date.now() - t0 < 1500) {
+    // Only show the install prompt if the page is still visible AND nothing
+    // backgrounded the tab since we fired. If the user came back already,
+    // they either successfully opened Wellet Connect or chose not to — either
+    // way, the install prompt is wrong now.
+    if (document.visibilityState === 'visible'
+        && Date.now() - t0 < 1500
+        && _wcDeepLinkAttemptedAt === t0) {
       showWelletConnectInstallPrompt();
     }
   }, 800);
@@ -1701,6 +3725,37 @@ function connectAppleHealth() {
 
 function showAppleHealthWebNotice() {
   showToast('Apple Health lives on iPhone \u2014 open Wellet on your iPhone to connect.');
+}
+
+// Tapped from the yellow "last synced 3 days ago" banner. Bounces into Wellet
+// Connect via the universal link so iOS schedules a fresh HealthKit upload.
+// Same wellet:// scheme as connectAppleHealth() but with refresh=1 so the
+// helper app knows it's a re-sync, not a first-time onboarding.
+function refreshAppleHealthFromBanner() {
+  if (!_isIPhone()) {
+    showToast('Open Wellet on your iPhone to refresh Apple Health.');
+    return;
+  }
+  if (!currentPersonId) {
+    showToast('Setting things up \u2014 try again in a moment');
+    return;
+  }
+  var deepLink = 'wellet://connect?type=health&refresh=1'
+               + '&person_id=' + encodeURIComponent(currentPersonId)
+               + '&return='    + encodeURIComponent(location.origin + '/connect-callback?mode=apple');
+  _wcDeepLinkAttemptedAt = Date.now();
+  var t0 = _wcDeepLinkAttemptedAt;
+  try { window.location.href = deepLink; } catch(e) { /* swallow */ }
+  // If the app isn't installed, fall back to the install prompt after 800ms.
+  setTimeout(function() {
+    if (document.visibilityState === 'visible'
+        && Date.now() - t0 < 1500
+        && _wcDeepLinkAttemptedAt === t0) {
+      showWelletConnectInstallPrompt();
+    }
+  }, 800);
+  // Optimistic toast so the user knows the tap registered before the bounce.
+  try { showToast('Opening Wellet Connect to refresh\u2026'); } catch(_e){}
 }
 
 function showWelletConnectInstallPrompt() {
@@ -1713,6 +3768,22 @@ function hideWelletConnectInstallPrompt() {
   var ov = document.getElementById('wc-install-overlay');
   if (ov) ov.style.display = 'none';
 }
+
+// If the user fired a wellet:// deep link and then came back to this tab
+// (Wellet Connect opened, did its thing, user switched back via app switcher
+// or by closing the in-app browser), there's nothing useful left for the
+// install prompt to do. Dismiss it on return so it doesn't sit on screen.
+// Also bumps _wcDeepLinkAttemptedAt so any in-flight 800ms timer no-ops.
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState !== 'visible') return;
+  if (_wcDeepLinkAttemptedAt === 0) return;
+  var sinceAttempt = Date.now() - _wcDeepLinkAttemptedAt;
+  // If we returned to the tab within 60s of firing wellet://, assume the
+  // round-trip happened. Beyond 60s the return is probably unrelated.
+  if (sinceAttempt > 60000) return;
+  _wcDeepLinkAttemptedAt = 0; // one-shot; reset so a later attempt is fresh
+  hideWelletConnectInstallPrompt();
+});
 
 // ── WELLET CONNECT INSTALL NUDGE ──────────────────────────────────────────────
 // Shared helper: copies currentPersonId to clipboard then opens TestFlight.
@@ -1756,93 +3827,111 @@ function maybeShowAppleInstallHint() {
 async function loadPersonData(personId) {
   setCurrentPersonId(personId);
 
-  // Load active connection ids for this person FIRST. Any EHR-derived row
-  // (health_events, medications, allergies, lab_results, vitals) is filtered
-  // to either NULL connection_id (manually entered, no sync provenance) or
-  // a connection_id that's currently 'connected'. This prevents data from
-  // disconnected / superseded / pending duplicate rows from leaking into the
-  // UI — e.g. an old Duke connection that was replaced by a new Confidential
-  // client should not contribute timeline events anymore.
+  // Load ALL EHR connection ids for this person (any status). Any EHR-derived
+  // row (health_events, medications, allergies, lab_results, vitals) is
+  // filtered to either NULL connection_id (manually entered, no sync
+  // provenance) or a connection_id belonging to this person. We intentionally
+  // include disconnected connections so a loved one's historical chart from
+  // a hospital they later disconnected from still appears in the timeline,
+  // labeled with the correct hospital name. De-duplication across
+  // superseded duplicate connections is handled by the source_fingerprint
+  // unique constraint at the DB layer, so widening the scope to disconnected
+  // connections does NOT bring back ghost rows.
   // Documents and care_circle_members are app-owned (no connection_id) and
   // skip this filter.
-  let activeConnectionIds = [];
+  let allConnectionIds = [];
+  let _connHospitalById = Object.create(null);
   try {
-    const { data: activeConns } = await db
+    const { data: allConns } = await db
       .from('ehr_connections')
-      .select('id')
-      .eq('person_id', personId)
-      .eq('status', 'connected');
-    activeConnectionIds = (activeConns || []).map(function(c) { return c.id; });
+      .select('id, hospital_name, status')
+      .eq('person_id', personId);
+    allConnectionIds = (allConns || []).map(function(c) { return c.id; });
+    (allConns || []).forEach(function(c) {
+      if (c && c.id) _connHospitalById[c.id] = c.hospital_name || '';
+    });
   } catch (connErr) {
-    console.warn('[loadPersonData] active connection lookup failed:', connErr);
-    activeConnectionIds = [];
+    console.warn('[loadPersonData] connection lookup failed:', connErr);
+    allConnectionIds = [];
+    _connHospitalById = Object.create(null);
   }
+  // Stash the connection -> hospital_name map globally so pill rendering
+  // and other downstream UI can resolve per-row provenance without an
+  // extra DB hit. Refreshed on every loadPersonData() call.
+  try { window._connHospitalById = _connHospitalById; } catch(_e) {}
   // Build a Postgrest .or() expression that means
   //   connection_id IS NULL OR connection_id IN (id1, id2, ...)
-  // If there are no active connections we still keep manual rows.
+  // If there are no connections at all we still keep manual rows.
   function _scopeToActiveConns(query) {
-    if (activeConnectionIds.length === 0) {
+    if (allConnectionIds.length === 0) {
       return query.is('connection_id', null);
     }
-    var inList = activeConnectionIds.join(',');
+    var inList = allConnectionIds.join(',');
     return query.or('connection_id.is.null,connection_id.in.(' + inList + ')');
   }
 
-  // Load events
-  const { data: events } = await _scopeToActiveConns(
-    db.from('health_events')
-      .select('*')
-      .eq('person_id', personId)
-  ).order('event_date', { ascending: false });
-  liveEvents = events || [];
+  // Each table load is wrapped in try/catch so a single failing query
+  // (expired token, network blip, malformed filter) doesn't abort the
+  // whole function and leave downstream re-renders un-called. Globals
+  // are reset to [] on failure so stale data from the previous person
+  // doesn't leak through.
 
-  // Load meds
-  const { data: meds } = await _scopeToActiveConns(
-    db.from('medications')
-      .select('*')
-      .eq('person_id', personId)
-  ).order('created_at', { ascending: true });
-  liveMeds = meds || [];
+  // 2026-05-19 (initApp 8s watchdog fix): all 7 person tables now load in
+  // parallel via Promise.all. Previously these were sequential awaits and
+  // compounded network latency pushed past the 8000ms initApp watchdog on
+  // accounts with 800+ events / 400+ labs (root-cause of the "falling back
+  // to auth screen" boot loop). Each query keeps its own try/catch so a
+  // single failure still resets its global to [] without aborting the rest.
+  // Hard caps (LIMIT) added on the four high-volume tables so a future
+  // account with 5k+ events never re-trips the same watchdog. The Records,
+  // Timeline, and CareSignals views already paginate or aggregate on top of
+  // these globals; trimming the initial load to the most recent N rows is
+  // safe for first paint and a background top-up can replace it later.
+  var pEvents = _scopeToActiveConns(
+    db.from('health_events').select('*').eq('person_id', personId)
+  ).order('event_date', { ascending: false }).limit(1000)
+    .then(function(r) { liveEvents = (r && r.data) || []; })
+    .catch(function(_e) { console.warn('[loadPersonData] events failed:', _e); liveEvents = []; });
 
-  // Load documents (app-owned, no connection_id filter)
-  const { data: docs } = await db
-    .from('documents')
-    .select('*')
-    .eq('person_id', personId)
-    .order('uploaded_at', { ascending: false });
-  liveDocs = docs || [];
+  var pMeds = _scopeToActiveConns(
+    db.from('medications').select('*').eq('person_id', personId)
+  ).order('created_at', { ascending: true }).limit(500)
+    .then(function(r) { liveMeds = (r && r.data) || []; })
+    .catch(function(_e) { console.warn('[loadPersonData] meds failed:', _e); liveMeds = []; });
 
-  // Load lab results
-  const { data: labs } = await _scopeToActiveConns(
-    db.from('lab_results')
-      .select('*')
-      .eq('person_id', personId)
-  ).order('effective_date', { ascending: false });
-  liveLabs = labs || [];
+  var pDocs = db.from('documents').select('*').eq('person_id', personId)
+    .order('uploaded_at', { ascending: false }).limit(500)
+    .then(function(r) {
+      // Hide Vault docs from the main records list — they live in Settings · Vault.
+      var all = (r && r.data) || [];
+      liveDocs = all.filter(function(d){ return !(d && typeof d.document_type === 'string' && d.document_type.indexOf('vault_') === 0); });
+    })
+    .catch(function(_e) { console.warn('[loadPersonData] docs failed:', _e); liveDocs = []; });
 
-  // Load vitals
-  const { data: vitals } = await _scopeToActiveConns(
-    db.from('vitals')
-      .select('*')
-      .eq('person_id', personId)
-  ).order('effective_date', { ascending: false });
-  liveVitals = vitals || [];
+  var pLabs = _scopeToActiveConns(
+    db.from('lab_results').select('*').eq('person_id', personId)
+  ).order('effective_date', { ascending: false }).limit(1000)
+    .then(function(r) { liveLabs = (r && r.data) || []; })
+    .catch(function(_e) { console.warn('[loadPersonData] labs failed:', _e); liveLabs = []; });
 
-  // Load allergies
-  const { data: allergies } = await _scopeToActiveConns(
-    db.from('allergies')
-      .select('*')
-      .eq('person_id', personId)
-  ).order('created_at', { ascending: false });
-  liveAllergies = allergies || [];
+  var pVitals = _scopeToActiveConns(
+    db.from('vitals').select('*').eq('person_id', personId)
+  ).order('effective_date', { ascending: false }).limit(500)
+    .then(function(r) { liveVitals = (r && r.data) || []; })
+    .catch(function(_e) { console.warn('[loadPersonData] vitals failed:', _e); liveVitals = []; });
 
-  // Load care circle members
-  const { data: circle } = await db
-    .from('care_circle_members')
-    .select('*')
-    .eq('person_id', personId)
-    .order('created_at', { ascending: true });
-  liveCareCircle = circle || [];
+  var pAllergies = _scopeToActiveConns(
+    db.from('allergies').select('*').eq('person_id', personId)
+  ).order('created_at', { ascending: false }).limit(200)
+    .then(function(r) { liveAllergies = (r && r.data) || []; })
+    .catch(function(_e) { console.warn('[loadPersonData] allergies failed:', _e); liveAllergies = []; });
+
+  var pCircle = db.from('care_circle_members').select('*').eq('person_id', personId)
+    .order('created_at', { ascending: true }).limit(200)
+    .then(function(r) { liveCareCircle = (r && r.data) || []; })
+    .catch(function(_e) { console.warn('[loadPersonData] care circle failed:', _e); liveCareCircle = []; });
+
+  await Promise.all([pEvents, pMeds, pDocs, pLabs, pVitals, pAllergies, pCircle]);
 
   // Load cached EHR data and auto-refresh if stale
   loadEhrCache(personId);
@@ -1890,6 +3979,7 @@ async function loadTimelineExtraSources(personId) {
     shareEvents: [],
     careSignalWatches: [],
     careSignalFires: [],
+    careSignalRows: [],
     medicationLogs: [],
     checkIns: []
   };
@@ -1955,6 +4045,21 @@ async function loadTimelineExtraSources(personId) {
         .limit(200);
       bucket.careSignalFires = (r6 && r6.data) || [];
     }
+  } catch (_e) {}
+  // CareSignals v2 / Path B — the new public.care_signals table written by
+  // the compute-care-signals edge function. These are AI-surfaced patterns
+  // (lab recovery, RHR drift, sleep fragmentation, post-med activity drops)
+  // built by fusing wearable + EHR data. Distinct from the legacy
+  // care_signal_watch_fires table above, which is the user-configured watch
+  // system. Both render on the timeline but with different eyebrows.
+  try {
+    var rCS2 = await db.from('care_signals')
+      .select('id, signal_type, pattern_key, severity, status, noticed_at, noticed_event_at, window_start, window_end, occurrence_number, headline, body, evidence_jsonb, display_evidence_rows, display_metric_tiles, display_eyebrow, display_stamp_at')
+      .eq('person_id', personId)
+      .neq('status', 'dismissed')
+      .order('noticed_event_at', { ascending: false, nullsFirst: false })
+      .limit(100);
+    bucket.careSignalRows = (rCS2 && rCS2.data) || [];
   } catch (_e) {}
   // Medication logs (last 200, collapse-by-day handled in renderTimeline).
   try {
@@ -2040,12 +4145,45 @@ function renderPersonSwitcher() {
 }
 
 async function switchToRealPerson(personId, el) {
+  // CRITICAL: set currentPersonId SYNCHRONOUSLY before any await so that
+  // anything reading currentPersonId during the in-flight load (including
+  // re-renders triggered by background events) sees the new person.
+  // Without this, taps on Mom would leave currentPersonId pointing at Betsy
+  // for the duration of loadPersonData, and views painted in that window
+  // showed Betsy's lede + Betsy's cached signals data.
+  try { setCurrentPersonId(personId); } catch(_e) {}
+  // Bust ALL per-person UI caches so an in-flight render from the previous
+  // person can't paint into the new person's cache slot. Prior to this we
+  // only cleared _signalsCache[NEW_personId] which left a stale slot for the
+  // person we just switched FROM — and a slow in-flight loadTerraConnections
+  // could finish AFTER currentPersonId changed and write the previous
+  // person's data into _signalsCache[NEW_personId], forcing a hard refresh
+  // to see the right person's CareSignals.
+  try {
+    if (typeof _signalsCache !== 'undefined' && _signalsCache) {
+      _signalsCache = {};
+    }
+  } catch(_e2) {}
   document.querySelectorAll('.person-pill').forEach(function(p){ p.classList.remove('active'); });
   el.classList.add('active');
   applyPersonBg(personId);
   showSkeletons();
-  await loadPersonData(personId);
+  try {
+    await loadPersonData(personId);
+  } catch (_loadErr) {
+    // loadPersonData can throw on network errors, expired tokens, or
+    // malformed Postgrest queries. The re-renders below MUST still fire
+    // so the UI reflects the newly selected person (even if with empty
+    // data). Prior to this fix, a throw here left the pill indicator on
+    // the new person but all content frozen on the previous person.
+    console.warn('[switchToRealPerson] loadPersonData failed, re-rendering with available data:', _loadErr);
+  }
   hideSkeletons();
+  // Re-render person pills so the active state is authoritative from the
+  // switcher's own render path, not just from the DOM class manipulation
+  // above. This also picks up any care_status changes that loadPersonData
+  // might have refreshed.
+  renderPersonSwitcher();
   // Home-view paints (always safe to refresh — they read currentPersonId)
   renderUpdateMe();
   renderTimeline();
@@ -2059,7 +4197,25 @@ async function switchToRealPerson(personId, el) {
     var activeView = document.querySelector('.app-view.active');
     var viewId = activeView ? activeView.id : '';
     if (viewId === 'view-signals'   && typeof renderSignalsView   === 'function') { renderSignalsView(); }
-    if (viewId === 'view-records'   && typeof renderRecordsView   === 'function') { renderRecordsView(); }
+    if (viewId === 'view-records') {
+      // If the caregiver was drilled into a Records subview (Conditions /
+      // Medications / Allergies / Visits / Labs / Documents list, OR a
+      // single-item detail like one condition + its tiles) when they
+      // switched person, renderRecordsView() alone would only repaint the
+      // tile grid — the inner subview kept rendering the previous person's
+      // content. Drop the user back to the list for the same section under
+      // the NEW person so they get a coherent view (Betsy's Conditions →
+      // Mom's Conditions, not Betsy's data under a Mom pill).
+      // _recordsDetailSection format: 'conditions' | 'conditions:<refId>'
+      var detailSection = (typeof _recordsDetailSection === 'string') ? _recordsDetailSection : null;
+      var listSection = detailSection ? detailSection.split(':')[0] : null;
+      var validSections = { medications:1, conditions:1, allergies:1, visits:1, labs:1, documents:1 };
+      if (listSection && validSections[listSection] && typeof openRecordsDetail === 'function') {
+        openRecordsDetail(listSection);
+      } else if (typeof renderRecordsView === 'function') {
+        renderRecordsView();
+      }
+    }
     if (viewId === 'view-resources' && typeof renderResourcesView === 'function') { renderResourcesView(); }
     if (viewId === 'view-people'    && typeof renderPeopleView    === 'function') { renderPeopleView(); }
     if (viewId === 'view-ask'       && typeof renderAskView       === 'function') { renderAskView(); }
@@ -2091,7 +4247,7 @@ function renderSummarySourceStrip(sources, checkInCount) {
     chips.push('<span class="update-summary-source-chip"><i data-lucide="hospital"></i>' + escHtml(ehrLabel) + '</span>');
   }
   if (sources.wearable) {
-    var wLabel = sources.wearable_provider ? capitalize(String(sources.wearable_provider).replace(/_/g,' ')) : 'Apple Health';
+    var wLabel = sources.wearable_provider ? formatWearableProvider(sources.wearable_provider) : 'Apple Health';
     chips.push('<span class="update-summary-source-chip"><i data-lucide="activity"></i>' + escHtml(wLabel) + '</span>');
   }
   if (sources.labs) {
@@ -2109,12 +4265,42 @@ function renderSummarySourceStrip(sources, checkInCount) {
     chips.push('<span class="update-summary-source-chip"><i data-lucide="list"></i>Events</span>');
   }
   if (chips.length === 0) return '';
-  return '<div class="update-summary-sources">' + chips.join('<span class="update-summary-source-sep">·</span>') + '</div>';
+  var addPill = '<button type="button" class="update-summary-sources-add" onclick="showConnectScreen()" aria-label="Add a connection"><i data-lucide="plus"></i></button>';
+  return '<div class="update-summary-sources-wrap">'
+    + '<div class="update-summary-sources-label">Summary Built From</div>'
+    + '<div class="update-summary-sources">' + chips.join('<span class="update-summary-source-sep">·</span>') + addPill + '</div>'
+    + '</div>';
 }
 
 function capitalize(s) {
   if (!s) return '';
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+// Friendly product name for Terra/wearable provider codes. Terra stores
+// provider as ALL-CAPS (GOOGLE, FITBIT, OURA, GARMIN, APPLE), but those
+// don't read like product names on the Summary card. Map known codes to
+// their consumer-facing labels; fall back to a proper Title Case for
+// anything unknown so we never render shouty UPPERCASE in body chips.
+function formatWearableProvider(code) {
+  if (!code) return '';
+  var key = String(code).trim().toUpperCase();
+  var map = {
+    'GOOGLE': 'Google Fit',
+    'FITBIT': 'Fitbit',
+    'OURA': 'Oura',
+    'GARMIN': 'Garmin',
+    'APPLE': 'Apple Health',
+    'WHOOP': 'Whoop',
+    'WITHINGS': 'Withings',
+    'POLAR': 'Polar',
+    'PELOTON': 'Peloton',
+    'STRAVA': 'Strava',
+    'SAMSUNG': 'Samsung Health'
+  };
+  if (map[key]) return map[key];
+  // Unknown provider: 'EIGHT_SLEEP' -> 'Eight Sleep'
+  return key.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, function(c){ return c.toUpperCase(); });
 }
 
 function formatTimeAgo(iso) {
@@ -2290,13 +4476,16 @@ function formatWelletSummary(txt) {
   if (!txt) return '';
   // Accept either a plain string OR the new {text,...} object for back-compat.
   if (typeof txt === 'object' && txt !== null) txt = txt.text || '';
-  var raw = String(txt).trim();
+  // Voice scrub: drop em/en dashes before parsing so they can't survive into
+  // the rendered card. The summary model still sprinkles them despite the
+  // prompt's forbidden list. Replace spaced \u2014 or \u2013 with ', '.
+  var raw = String(txt).trim().replace(/\s*[\u2014\u2013]\s*/g, ', ');
   // Normalize headings (case-insensitive, tolerate variations)
   var snapMatch = raw.match(/^[\s\S]*?snapshot\s*:?/i);
   var newsIdx = raw.search(/what['\u2019]?s\s+new[^:]*:/i);
   var snapIdx = raw.search(/snapshot\s*:/i);
   if (snapIdx === -1 && newsIdx === -1) {
-    // No known headings — render as one block, preserving paragraph breaks
+    // No known headings, render as one block, preserving paragraph breaks
     return '<div class="update-summary-section-body">' + escHtml(raw).replace(/\n\n+/g, '</p><p style="margin:6px 0 0;">').replace(/\n/g, '<br>') + '</div>';
   }
   var snapshotBody = '';
@@ -2312,7 +4501,13 @@ function formatWelletSummary(txt) {
   }
   function formatBody(s) {
     if (!s) return '';
-    return escHtml(s).replace(/\n\n+/g, '<br><br>').replace(/\n/g, '<br>');
+    // Voice: no em dashes. The summary model still slips them in despite
+    // the prompt's forbidden-words list, so post-process before render:
+    // ' \u2014 ' (spaced em dash) becomes ', ', and a bare \u2014 between
+    // words becomes ', '. \u2013 (en dash) gets the same treatment.
+    var clean = String(s)
+      .replace(/\s*[\u2014\u2013]\s*/g, ', ');
+    return escHtml(clean).replace(/\n\n+/g, '<br><br>').replace(/\n/g, '<br>');
   }
   var html = '';
   if (snapshotBody) {
@@ -2362,12 +4557,16 @@ function renderUpdateMe() {
       // Rail and dot are drawn via CSS ::before on .timeline-section and
       // .tl-item — no per-item line-col / connector divs.
       timelineHTML += '<div class="tl-item">'
-        + '<div class="tl-card ' + typeInfo.border + '">'
-        + '<div class="tl-card-type-row"><i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + typeInfo.color + ';"></i>'
-        + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span></div>'
+        + '<div class="tl-card tl-card-with-icon ' + typeInfo.border + '">'
+        + '<div class="tl-icon-tile tl-icon-tile-' + typeInfo.dot + '"><i data-lucide="' + typeInfo.icon + '"></i></div>'
+        + '<div class="tl-card-content">'
+        + '<div class="tl-card-type-row">'
+        + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span>'
+        + '<span class="tl-card-time">' + escHtml(dateStr) + '</span>'
+        + '</div>'
         + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
         + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
-        + '<div class="tl-card-date">' + dateStr + '</div>'
+        + '</div>'
         + '</div></div>';
     });
   }
@@ -2461,7 +4660,7 @@ function renderUpdateMe() {
   var hasAnyWelletSource = ehrConnected || (typeof liveDocs !== 'undefined' && liveDocs.some(function(d){ return d.extraction_status === 'completed' && d.extracted_events; })) || hasWearable;
   var fullOnboardingActions = '<div style="padding:24px 16px 8px;">'
     + '<div style="font-family:var(--serif);font-size:var(--type-h2);margin-bottom:6px;color:var(--text-primary);">Help Wellet get to know ' + escHtml(subjectName) + '</div>'
-    + '<div style="font-size:var(--type-meta);color:var(--text-secondary);line-height:1.5;margin-bottom:16px;">Upload a document or connect to health records \u2014 Wellet will read, organize, and remember everything.</div>'
+    + '<div style="font-size:var(--type-meta);color:var(--text-secondary);line-height:1.5;margin-bottom:16px;">One source is enough to start. A document is read in seconds. A hospital connection usually fills in under a minute.</div>'
     + '<div class="signals-connect-chips">'
     + '<button class="signals-chip" onclick="openUpload(\'' + escHtml(name) + '\')"><i data-lucide="upload"></i> Upload a Document</button>'
     + '<button class="signals-chip" onclick="startEhrConnect()"><i data-lucide="link"></i> ' + ehrBtnLabel + '</button>'
@@ -2474,7 +4673,7 @@ function renderUpdateMe() {
     + '<div class="visit-prep-icon"><i data-lucide="plus" style="width:18px;height:18px;"></i></div>'
     + '<div class="visit-prep-content">'
     + '<div class="visit-prep-title">Add more to Wellet</div>'
-    + '<div class="visit-prep-desc">Upload a document, connect records, or a wearable.</div>'
+    + '<div class="visit-prep-desc">Upload a document, connect another hospital, or add a wearable.</div>'
     + '</div>'
     + '<i data-lucide="chevron-right" style="width:18px;height:18px;color:var(--text-muted);"></i>'
     + '</button>';
@@ -2484,7 +4683,7 @@ function renderUpdateMe() {
     + '<div class="update-summary-header">'
     + '<span class="update-summary-label">Wellet summary</span>'
     + '</div>'
-    + '<p class="update-summary-text" style="color:var(--text-secondary);font-style:italic;">As you add documents, appointments, and medications, Wellet will build a personalized summary here.</p>'
+    + '<p class="update-summary-text" style="color:var(--text-secondary);font-style:italic;">Connect a hospital or upload one document and a plain-language summary will appear here \u2014 usually in under a minute.</p>'
     + '<p class="update-summary-text" style="font-family:var(--serif),serif;font-style:italic;color:var(--moss-dark);font-size:var(--type-meta);line-height:1.55;margin-top:10px;">A record that belongs to your family, not the hospital.</p>'
     + '</div>';
 
@@ -2568,13 +4767,16 @@ function renderUpdateMe() {
         ) : '');
   } else if (liveEvents.length === 0 && (hasCompletedDocs || ehrConnected || hasWearable)) {
     // Has document data, EHR, or wearable but no promoted events yet: real summary FIRST, then onboarding CTAs below
+    var careSignalsHeroEarlyHtml = buildCareSignalsHeroStrip(name, currentPersonId);
     var chartNoticedEarlyHtml = buildChartNoticedBanner(name, currentPersonId);
     pane.innerHTML = sharedInboxContainer
       + beforeVisitHtml
       + '<div class="update-me-section">'
       + rightNowLineHtml
       + summarySection
+      + careSignalsHeroEarlyHtml
       + chartNoticedEarlyHtml
+      + '<div id="home-wearable-import"></div>'
       + addMoreInside
       + '</div>'
       + addMoreOutside
@@ -2588,6 +4790,7 @@ function renderUpdateMe() {
         ) : '');
   } else {
     // Populated state: Wellet Summary does the editorial work; no big-numbers card.
+    var careSignalsHeroHtml = buildCareSignalsHeroStrip(name, currentPersonId);
     var alertBannerHtml = buildPatternAlertBanner(name);
     var chartNoticedHtml = buildChartNoticedBanner(name, currentPersonId);
     pane.innerHTML = sharedInboxContainer
@@ -2595,8 +4798,10 @@ function renderUpdateMe() {
       + '<div class="update-me-section">'
       + rightNowLineHtml
       + summarySection
+      + careSignalsHeroHtml
       + alertBannerHtml
       + chartNoticedHtml
+      + '<div id="home-wearable-import"></div>'
       + '</div>'
       + upcomingHtml
       + visitPrepCardHtml
@@ -2611,6 +4816,9 @@ function renderUpdateMe() {
   if (!isDemoMode && typeof renderSharedWithMeInbox === 'function') {
     try { renderSharedWithMeInbox('shared-inbox'); } catch(e) { console.warn('[shared-inbox] render failed', e); }
   }
+  // Fill the wearable-import banner placeholder asynchronously (no-op if no
+  // pending key or webhook hasn't fired yet — next render will retry).
+  try { mountWearableImportBanner(currentPersonId, 'home-wearable-import'); } catch (e) {}
 }
 
 // ── CHART NOTICED BANNERS ────────────────────────────────────────────────
@@ -2643,6 +4851,85 @@ function _chartRowKey(row) {
   var d = row.onset_date || row.date_asserted || row.recorded_date || row.effective_date || '';
   return row.name + '\u00B7' + d;
 }
+// ── CARESIGNALS HERO STRIP (BDB · before-you-call) ──────────────────────
+// A single quiet summary strip that sits above the timeline, telling the
+// caregiver how many patterns Wellet has surfaced and pointing them at the
+// CareSignals view for the full list. Mirrors the voice of
+// buildChartNoticedBanner; reads from window._tlExtraSources[personId].
+// Voice rules: "noticed" (never "track/monitor"), "loved one" (never "parent"),
+// CareSignals is one word.
+function buildCareSignalsHeroStrip(personName, personId) {
+  if (isDemoMode) return ''; // Demo carries its own static surface.
+  if (!personId) return '';
+  try {
+    var bucket = (window._tlExtraSources && window._tlExtraSources[personId]) || null;
+    if (!bucket) return '';
+    var rows = (bucket.careSignalRows || []).filter(function(cs){
+      return cs && (cs.headline || cs.body) && (cs.noticed_event_at || cs.noticed_at);
+    });
+    if (rows.length === 0) return '';
+
+    var name = escHtml(personName || 'your loved one');
+    var n = rows.length;
+
+    // Latest signal by anchor date — used as the inline preview line so the
+    // strip carries real content, not just a count.
+    rows.sort(function(a, b){
+      var ad = new Date(a.noticed_event_at || a.noticed_at).getTime() || 0;
+      var bd = new Date(b.noticed_event_at || b.noticed_at).getTime() || 0;
+      return bd - ad;
+    });
+    var latest = rows[0];
+    var latestHeadline = '';
+    try { latestHeadline = _csv2RewriteText(latest.headline || ''); } catch (_e) { latestHeadline = String(latest.headline || ''); }
+    if (latestHeadline.length > 110) latestHeadline = latestHeadline.slice(0, 107) + '\u2026';
+
+    // Format the anchor date as a short "on May 18" suffix so the preview
+    // line makes the time-anchoring obvious at a glance.
+    var anchor = new Date(latest.noticed_event_at || latest.noticed_at);
+    var anchorLabel = '';
+    if (!isNaN(anchor)) {
+      try {
+        anchorLabel = anchor.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      } catch (_e2) { anchorLabel = ''; }
+    }
+
+    var noun = (n === 1) ? '1 pattern' : (n + ' patterns');
+    var titleText = 'Wellet noticed ' + noun + ' across ' + name + '\u2019s records.';
+    var subText = 'Tap any to see when it happened.';
+
+    var previewLine = '';
+    if (latestHeadline) {
+      previewLine =
+          '<div class="cs-hero-strip-preview">'
+        +   '<span class="cs-hero-strip-dot" aria-hidden="true"></span>'
+        +   '<span class="cs-hero-strip-preview-text">'
+        +     escHtml(latestHeadline)
+        +     (anchorLabel ? ' <span class="cs-hero-strip-when">\u00B7 ' + escHtml(anchorLabel) + '</span>' : '')
+        +   '</span>'
+        + '</div>';
+    }
+
+    return ''
+      + '<div class="cs-hero-strip" role="button" tabindex="0" '
+      +   'onclick="try{switchNavTo(\'signals\');}catch(_e){}" '
+      +   'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();try{switchNavTo(\'signals\');}catch(_e){}}" '
+      +   'aria-label="' + titleText + ' ' + subText + '">'
+      +   '<div class="cs-hero-strip-row">'
+      +     '<div class="cs-hero-strip-eyebrow">What Wellet noticed</div>'
+      +     '<div class="cs-hero-strip-count" aria-hidden="true">' + n + '</div>'
+      +   '</div>'
+      +   '<div class="cs-hero-strip-title">' + escHtml(titleText) + '</div>'
+      +   '<div class="cs-hero-strip-sub">' + escHtml(subText) + '</div>'
+      +   previewLine
+      +   '<div class="cs-hero-strip-cta">Open CareSignals \u2192</div>'
+      + '</div>';
+  } catch (e) {
+    try { console.warn('[home] buildCareSignalsHeroStrip skipped:', e); } catch (_er) {}
+    return '';
+  }
+}
+
 function buildChartNoticedBanner(personName, personId) {
   if (isDemoMode) return ''; // Demo has its own static banner; don't double up.
   var ehr = null;
@@ -2754,6 +5041,188 @@ function buildChartNoticedBanner(personName, personId) {
   }).join('');
 }
 
+// ── WEARABLE IMPORT NOTICED BANNER ───────────────────────────────────────
+// Post-Terra-connect summary card. Mirrors buildChartNoticedBanner voice.
+// Spec: /home/user/workspace/wellet_wearable_caresignals_spec.md (Piece 3).
+//
+// Why this exists: when a user finishes connecting a wearable, all they used
+// to see was a transient toast. They had no proof their sleep/activity data
+// actually arrived. This card answers "did my data come through?" the same
+// way the EHR chart-noticed banner does for medications/labs.
+//
+// Flow:
+//   1. _onTerraAuthSuccessInParent writes a pending key to localStorage with
+//      { provider, terra_user_id, connected_at }.
+//   2. On every Home or Records render, this builder checks the key.
+//   3. It queries Supabase for counts of rows that landed AFTER connected_at.
+//   4. If counts > 0, render the card and clear the key.
+//   5. If counts are still 0, keep the key around and try again next render.
+//   6. Auto-expire the key after 7 days regardless.
+//
+// Voice rules: "Wellet noticed your {device} just synced." Never "track/monitor."
+function _wearablePendingKey(personId) {
+  return 'wellet_wearable_pending_summary_' + (personId || 'self');
+}
+function _readWearablePending(personId) {
+  try {
+    var raw = localStorage.getItem(_wearablePendingKey(personId));
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+function _clearWearablePending(personId) {
+  try { localStorage.removeItem(_wearablePendingKey(personId)); } catch (e) {}
+}
+function writeWearablePending(personId, provider, terraUserId) {
+  try {
+    localStorage.setItem(_wearablePendingKey(personId), JSON.stringify({
+      provider: provider || 'unknown',
+      terra_user_id: terraUserId || null,
+      connected_at: new Date().toISOString()
+    }));
+  } catch (e) {}
+}
+// Provider-aware backfill-window message shown right after the Terra widget
+// completes. Terra's backfill latency varies a lot by provider:
+//   - Oura/Fitbit/Polar: rate-limited APIs, can take 30–90 min for first data
+//   - Garmin/Withings: usually within 15 min
+//   - Google Health Connect / Samsung: near-real-time push from phone
+//   - Whoop: usually within an hour
+// This sets the right expectation so testers don't think it's broken while
+// Terra is backfilling. Piece 3 banner fires automatically once data arrives.
+function _wearableConnectedMessage(provider) {
+  var p = String(provider || '').toUpperCase();
+  // Fast: phone-resident push (under a few minutes)
+  if (p === 'GOOGLE' || p === 'SAMSUNG') {
+    return 'Connected. Your data should arrive in a few minutes — we’ll let you know when it’s here.';
+  }
+  // Medium: usually under 15 min
+  if (p === 'GARMIN' || p === 'WITHINGS' || p === 'PELOTON' || p === 'SUUNTO') {
+    var friendlyFast = _terraProviderFriendly(provider) || 'Wearable';
+    return friendlyFast.charAt(0).toUpperCase() + friendlyFast.slice(1) + ' connected. Your data usually arrives within 15 minutes — we’ll let you know when it’s here.';
+  }
+  // Slow: rate-limited APIs, can take an hour
+  if (p === 'OURA' || p === 'FITBIT' || p === 'POLAR' || p === 'WHOOP') {
+    var friendlySlow = _terraProviderFriendly(provider) || 'Wearable';
+    return friendlySlow.charAt(0).toUpperCase() + friendlySlow.slice(1) + ' connected. Sleep and activity data usually arrives within an hour — we’ll let you know when it’s here.';
+  }
+  // Unknown provider: safe medium message
+  return 'Wearable connected. Your data usually arrives within the hour — we’ll let you know when it’s here.';
+}
+// Friendly provider names. Falls back to "wearable" for unknown providers so
+// the copy never reads as "Wellet noticed your UNKNOWN just synced."
+function _terraProviderFriendly(provider) {
+  if (!provider) return 'wearable';
+  var p = String(provider).toUpperCase();
+  var map = {
+    'OURA': 'Oura ring',
+    'GARMIN': 'Garmin watch',
+    'WHOOP': 'Whoop band',
+    'FITBIT': 'Fitbit',
+    'WITHINGS': 'Withings scale',
+    'POLAR': 'Polar watch',
+    'PELOTON': 'Peloton bike',
+    'GOOGLE': 'Google Health data',
+    'GOOGLEFIT': 'Google Fit data',
+    'STRAVA': 'Strava activity',
+    'SUUNTO': 'Suunto watch',
+    'COROS': 'Coros watch',
+    'WAHOO': 'Wahoo device',
+    'EIGHT': 'Eight Sleep'
+  };
+  return map[p] || 'wearable';
+}
+// Count rows landed since connected_at, scoped to a single provider's
+// ehr_system so a re-connect of a different watch doesn't recount the
+// previous one's history.
+async function getWearableImportCounts(personId, provider, connectedAt) {
+  var ehrSystem = 'terra_' + String(provider || 'unknown').toUpperCase();
+  var out = { sleepNights: 0, activityDays: 0, workouts: 0, vitals: 0 };
+  try {
+    var sleepQ = db.from('health_events').select('id', { count: 'exact', head: true })
+      .eq('person_id', personId).eq('event_type', 'sleep').eq('source', 'terra')
+      .eq('ehr_system', ehrSystem).ilike('title', 'Sleep (%').gte('created_at', connectedAt);
+    var activityQ = db.from('health_events').select('id', { count: 'exact', head: true })
+      .eq('person_id', personId).eq('event_type', 'activity').eq('source', 'terra')
+      .eq('ehr_system', ehrSystem).gte('created_at', connectedAt);
+    var workoutsQ = db.from('health_events').select('id', { count: 'exact', head: true })
+      .eq('person_id', personId).eq('event_type', 'workout').eq('source', 'terra')
+      .eq('ehr_system', ehrSystem).gte('created_at', connectedAt);
+    var vitalsQ = db.from('vitals').select('id', { count: 'exact', head: true })
+      .eq('person_id', personId).eq('source', 'terra').gte('created_at', connectedAt);
+    var results = await Promise.all([sleepQ, activityQ, workoutsQ, vitalsQ]);
+    out.sleepNights  = results[0] && results[0].count || 0;
+    out.activityDays = results[1] && results[1].count || 0;
+    out.workouts     = results[2] && results[2].count || 0;
+    out.vitals       = results[3] && results[3].count || 0;
+  } catch (e) {
+    console.warn('[WearableImport] count query failed:', e);
+  }
+  return out;
+}
+// Async builder — returns HTML string or ''. Callers should await it.
+async function buildWearableImportNoticedBanner(personId) {
+  if (isDemoMode) return '';
+  var pending = _readWearablePending(personId);
+  if (!pending || !pending.connected_at) return '';
+
+  // 7-day expiry — if Terra never delivered, give up quietly.
+  var ageMs = Date.now() - new Date(pending.connected_at).getTime();
+  if (isNaN(ageMs) || ageMs > 7 * 86400000) {
+    _clearWearablePending(personId);
+    return '';
+  }
+
+  var counts = await getWearableImportCounts(personId, pending.provider, pending.connected_at);
+  var total = counts.sleepNights + counts.activityDays + counts.workouts + counts.vitals;
+  if (total === 0) return ''; // Webhook hasn't fired yet — keep the key, retry next render.
+
+  var providerFriendly = _terraProviderFriendly(pending.provider);
+  var bits = [];
+  if (counts.sleepNights > 0)  bits.push(counts.sleepNights  + ' night' + (counts.sleepNights  === 1 ? '' : 's') + ' of sleep');
+  if (counts.activityDays > 0) bits.push(counts.activityDays + ' day'   + (counts.activityDays === 1 ? '' : 's') + ' of activity');
+  if (counts.workouts > 0)     bits.push(counts.workouts     + ' workout' + (counts.workouts === 1 ? '' : 's'));
+  if (counts.vitals > 0 && bits.length < 3) bits.push(counts.vitals + ' vitals readings');
+
+  var locations = [];
+  if (counts.sleepNights > 0)  locations.push('Sleep');
+  if (counts.activityDays > 0) locations.push('Activity');
+  if (counts.workouts > 0)     locations.push('Workouts');
+  if (counts.vitals > 0)       locations.push('Vitals');
+  var locationStr = locations.length === 1
+    ? locations[0]
+    : locations.slice(0, -1).join(', ') + ' and ' + locations[locations.length - 1];
+
+  var body = bits.join(', ') + ' came through. Find this anytime on the Records page under ' + locationStr + '.';
+  var title = 'Wellet noticed your ' + providerFriendly + ' just synced';
+
+  // Card actually rendered with real counts — safe to clear the pending key.
+  _clearWearablePending(personId);
+
+  return '<div class="alert-banner">'
+    + '<div class="alert-icon"><i data-lucide="sparkles" style="width:16px;height:16px;"></i></div>'
+    + '<div>'
+    + '<div class="alert-title">' + escHtml(title) + '</div>'
+    + '<div class="alert-body">' + escHtml(body) + '</div>'
+    + '</div></div>';
+}
+// Mount helper — call after innerHTML is written. Looks up #<targetId>,
+// fills it with the banner HTML if any, re-runs initIcons() to render the
+// lucide sparkle icon. Safe to call from any render path. No-op if target
+// element isn't in the DOM.
+async function mountWearableImportBanner(personId, targetId) {
+  if (!personId || !targetId) return;
+  try {
+    var html = await buildWearableImportNoticedBanner(personId);
+    if (!html) return;
+    var el = document.getElementById(targetId);
+    if (!el) return;
+    el.innerHTML = html;
+    try { initIcons(); } catch (e) {}
+  } catch (e) {
+    console.warn('[WearableImport] mount failed:', e);
+  }
+}
+
 // ── RIGHT NOW LINE (C7) ──────────────────────────────────────────────────
 // One quiet sentence at the very top of Home, above the Wellet Summary card.
 // Format: "{FirstName} · {state}" — calm, italic, no card/icon/border.
@@ -2782,7 +5251,9 @@ function buildRightNowLine(personName, personId) {
   var appts = [];
   try {
     appts = (typeof liveEvents !== 'undefined' ? liveEvents : []).filter(function(e) {
-      return e && e.event_type === 'appointment' && e.event_date
+      // Accept both 'appointment' and 'visit' — Duke/Epic send Encounters as
+      // event_type='visit'. Same filter for past-window cutoff.
+      return e && (e.event_type === 'appointment' || e.event_type === 'visit') && e.event_date
         && new Date(e.event_date) >= new Date(now.getTime() - 3600000);
     }).map(function(e) {
       return { title: e.title || '', date: new Date(e.event_date) };
@@ -3174,7 +5645,10 @@ function renderTimeline() {
   // Floating Add-event button (FAB) — rendered once, anchored to the screen.
   // Replaces the previous right-aligned button that floated in dead space
   // above the timeline list.
-  var fabHtml = '<button class="tl-add-fab" onclick="openAddEvent()" aria-label="Add event" title="Add event">'
+  // Timeline FAB: tap = quick add event, long-press (550ms) = open the
+  // “Add outside visit” sheet. The long-press handler is wired in initIcons
+  // -- look for _wireTimelineFabLongPress() below.
+  var fabHtml = '<button class="tl-add-fab" id="tl-add-fab" onclick="_handleTlFabTap(event)" aria-label="Add event \u00b7 long-press for outside visit" title="Tap to add an event \u00b7 long-press for an outside visit">'
     + '<i data-lucide="plus" style="width:20px;height:20px;"></i></button>';
 
   // Merge EHR events into timeline. Each item carries a _section hint so the
@@ -3303,7 +5777,8 @@ function renderTimeline() {
   // the rest of the page. See wellet_living_timeline_spec.md.
   var extra = (window._tlExtraSources && window._tlExtraSources[currentPersonId]) || {
     careCircleMembers: [], careCircleShares: [], shares: [], shareEvents: [],
-    careSignalWatches: [], careSignalFires: [], medicationLogs: [], checkIns: []
+    careSignalWatches: [], careSignalFires: [], careSignalRows: [],
+    medicationLogs: [], checkIns: []
   };
 
   // 1) Documents (non-voice). Uploaded labs, discharge summaries, etc. Voice
@@ -3416,29 +5891,196 @@ function renderTimeline() {
   try {
     var watchById = Object.create(null);
     (extra.careSignalWatches || []).forEach(function(w) { if (w && w.id) watchById[w.id] = w; });
+    // Voice helper for CareSignals body copy. The edge function historically
+    // wrote "in their chart" — caregiver phrasing that reads wrong on a
+    // self-mode timeline and a little impersonal even in caregiver mode.
+    // Rewrite to "in your chart" / "in {Mom}'s chart" using the person
+    // we're rendering for. Also strip the trailing "Open Wellet to see it."
+    // which is notification-template wallpaper — the user is *already* in
+    // Wellet looking at the card.
+    function _csRewriteBody(s) {
+      if (!s) return s;
+      var personName = null;
+      try {
+        var pers = (currentPeople || []).find(function(p){ return p && p.id === currentPersonId; });
+        if (pers && !pers.is_self) personName = pers.name || null;
+      } catch(_e) {}
+      var possessive = personName ? (personName + '\u2019s') : 'your';
+      return String(s)
+        .replace(/\btheir chart\b/gi, possessive + ' chart')
+        .replace(/\bin their\b/gi, 'in ' + possessive)
+        .replace(/\s*Open Wellet to see it\.?\s*$/i, '')
+        .trim();
+    }
+    // Headline builder. The watch.description field is the *config string*
+    // the user picked when setting the watch up (e.g. "Notify me when new
+    // records arrive at your hospital") — fine for the Settings list, but
+    // it reads like an instruction when it's used as a Timeline headline.
+    // Build a tight "Wellet noticed" headline from watch_type + trigger
+    // shape instead, and keep the original description as a fallback.
+    function _csHeadline(watchType, tv, fallback) {
+      try {
+        switch (watchType) {
+          case 'new_record_arrived': {
+            var kind = tv && tv.kind ? String(tv.kind) : 'record';
+            if (kind === 'record') return 'New record on file';
+            return 'New ' + kind + ' on file';
+          }
+          case 'wearable_silence': return 'Wearable went quiet';
+          case 'resting_hr_elevated': return 'Resting heart rate ran high';
+          case 'resting_hr_above_baseline': return 'Resting heart rate above baseline';
+          case 'low_step_streak': return 'Steps stayed low for a stretch';
+          case 'short_sleep_streak': return 'Sleep ran short for a stretch';
+          case 'medication_refill_gap': return 'Possible refill gap';
+          case 'pcp_visit_gap': return 'Primary care visit overdue';
+        }
+      } catch(_e) {}
+      return fallback || 'Something worth a look';
+    }
     (extra.careSignalFires || []).forEach(function(f) {
       if (!f || !f.fired_at) return;
       var w = watchById[f.watch_id];
       var desc = (w && w.description) || (w && w.watch_type ? String(w.watch_type).replace(/_/g,' ') : 'a signal worth following');
-      // Trigger value, if it's a simple primitive, becomes the body.
+      // Pull a human-readable body + a tight "measurement" chip out of the
+      // trigger_value blob. Shape varies by watch_type \u2014 see
+      // evaluate-care-signal-watches/index.ts. Defensive throughout.
       var body = '';
+      var measurementChip = '';
       try {
-        if (f.trigger_value && typeof f.trigger_value === 'object') {
-          if (f.trigger_value.summary) body = String(f.trigger_value.summary);
-          else if (f.trigger_value.value !== undefined) body = 'Reading: ' + f.trigger_value.value;
+        var tv = f.trigger_value;
+        if (tv && typeof tv === 'object') {
+          // Body: summary (factualBody persisted by the evaluator) is best;
+          // fall back to a primitive value when present.
+          if (tv.summary) body = _csRewriteBody(String(tv.summary));
+          else if (tv.value !== undefined) body = 'Reading: ' + tv.value;
+          // Measurement chip \u2014 short, glanceable, e.g. "92 bpm", "3,400 steps",
+          // "4 days silent", "new lab". Keep this tiny.
+          if (tv.threshold_bpm !== undefined) {
+            measurementChip = '> ' + tv.threshold_bpm + ' bpm';
+          } else if (tv.threshold !== undefined && tv.baseline_mean !== undefined) {
+            measurementChip = '> ' + tv.threshold + ' bpm (baseline ' + tv.baseline_mean + ')';
+          } else if (tv.threshold_steps !== undefined) {
+            measurementChip = '< ' + Number(tv.threshold_steps).toLocaleString() + ' steps';
+          } else if (tv.age_days !== undefined) {
+            measurementChip = (tv.provider ? (tv.provider + ' \u00b7 ') : '') + Math.floor(tv.age_days) + 'd silent';
+          } else if (tv.kind) {
+            // Prefer a specific name when the evaluator persisted one;
+            // otherwise fall back to looking up by record_id in whatever
+            // collection the kind maps to. Last resort: generic 'New {kind}'.
+            var label = tv.record_label || '';
+            if (!label && tv.record_id) {
+              try {
+                var coll = null;
+                if (/lab/i.test(tv.kind) && Array.isArray(liveLabs)) coll = liveLabs;
+                else if (/medication/i.test(tv.kind) && typeof liveMeds !== 'undefined' && Array.isArray(liveMeds)) coll = liveMeds;
+                else if (typeof liveEvents !== 'undefined' && Array.isArray(liveEvents)) coll = liveEvents;
+                if (coll) {
+                  for (var li = 0; li < coll.length; li++) {
+                    if (coll[li] && coll[li].id === tv.record_id) {
+                      label = coll[li].test_name || coll[li].name || coll[li].title || '';
+                      break;
+                    }
+                  }
+                }
+              } catch(_e2) {}
+            }
+            measurementChip = label || ('New ' + String(tv.kind).replace(/_/g, ' '));
+          } else if (tv.months_threshold !== undefined) {
+            measurementChip = tv.months_threshold + 'mo overdue';
+          }
         }
       } catch(_e) {}
+      // Build a clean headline from watch_type + trigger shape, falling back
+      // to the watch's description if the type isn't one we know about.
+      var headline = _csHeadline(w && w.watch_type, f.trigger_value, desc);
       careSignalTimelineItems.push({
         event_type: 'care_signal',
-        title: 'Wellet noticed: ' + desc,
+        title: 'Wellet noticed: ' + headline,
         event_date: f.fired_at,
         notes: body,
         source: 'care_signal',
         _section: 'caresignals',
-        _refId: f.id
+        _refId: f.id,
+        // Custom fields used by the special CareSignals card renderer below.
+        _caresignal_chip: measurementChip,
+        _caresignal_watch_type: w && w.watch_type ? String(w.watch_type) : '',
       });
     });
   } catch (eCS) { try { console.warn('[timeline] CareSignals merge skipped:', eCS); } catch (er) {} }
+
+  // 4b) CareSignals v2 / Path B — AI-surfaced patterns from public.care_signals.
+  //     Distinct from (4): these were not user-configured. Wellet noticed them
+  //     by fusing wearable + EHR data. Each row becomes one timeline tile with
+  //     a ◇ "Noticed" eyebrow, headline + body, sources_combined chips, and
+  //     (when occurrence_number > 1) a recurrence line. Tap routes to the
+  //     CareSignals view via the shared 'care_signal' source.
+  var careSignalV2TimelineItems = [];
+  try {
+    // Friendly name lookup for the body — rewrite generic "Mom's" if we are
+    // rendering for someone else, or strip if rendering for self.
+    var _csv2PersonName = null;
+    var _csv2IsSelf = false;
+    try {
+      var _csv2Pers = (currentPeople || []).find(function(p){ return p && p.id === currentPersonId; });
+      if (_csv2Pers) {
+        _csv2IsSelf = !!_csv2Pers.is_self;
+        _csv2PersonName = _csv2IsSelf ? null : (_csv2Pers.name || null);
+      }
+    } catch(_e) {}
+    function _csv2RewriteText(s) {
+      if (!s) return s;
+      var out = String(s);
+      // Stored copy uses "Mom" by convention. If the loved one has a different
+      // name, swap it in. If self-mode, swap "Mom’s" → "your" / "Mom" → "you".
+      if (_csv2IsSelf) {
+        out = out.replace(/Mom’s/g, 'your').replace(/Mom's/g, 'your').replace(/\bMom\b/g, 'you');
+      } else if (_csv2PersonName && _csv2PersonName !== 'Mom') {
+        out = out.replace(/Mom’s/g, _csv2PersonName + '’s').replace(/Mom's/g, _csv2PersonName + '’s').replace(/\bMom\b/g, _csv2PersonName);
+      }
+      return out;
+    }
+    function _csv2FormatSourceChip(src) {
+      switch (String(src || '').toLowerCase()) {
+        case 'wearable_observations': return 'Apple Health';
+        case 'medications': return 'Medications';
+        case 'lab_results': return 'Labs';
+        case 'health_events': return 'Visits';
+        case 'observations': return 'Vitals';
+        case 'conditions': return 'Conditions';
+        default: return String(src || '').replace(/_/g, ' ');
+      }
+    }
+    (extra.careSignalRows || []).forEach(function(cs) {
+      if (!cs) return;
+      // Timeline placement uses noticed_event_at (when the pattern actually
+      // occurred in the historical record) so tiles land where the human would
+      // expect — visit date for RHR drift, med start date for activity drops,
+      // latest lab date for lab signals, etc. Falls back to noticed_at only
+      // for rows that pre-date the backfill.
+      var anchorDate = cs.noticed_event_at || cs.noticed_at;
+      if (!anchorDate) return;
+      var ev = cs.evidence_jsonb || {};
+      var sources = Array.isArray(ev.sources_combined) ? ev.sources_combined : [];
+      var sourceChips = sources.map(_csv2FormatSourceChip).filter(Boolean);
+      careSignalV2TimelineItems.push({
+        event_type: 'care_signal',
+        title: _csv2RewriteText(cs.headline || 'Wellet noticed a pattern'),
+        event_date: anchorDate,
+        notes: _csv2RewriteText(cs.body || ''),
+        source: 'care_signal',
+        _section: 'caresignals',
+        _refId: cs.id,
+        // Path B render hints — distinguish from legacy fires.
+        _caresignal_v2: true,
+        _caresignal_v2_severity: String(cs.severity || 'notice'),
+        _caresignal_v2_signal_type: String(cs.signal_type || ''),
+        _caresignal_v2_sources: sourceChips,
+        _caresignal_v2_occurrence: cs.occurrence_number || 1,
+        // Keep noticed_at available for the "Wellet noticed this on..." subline
+        _caresignal_v2_noticed_at: cs.noticed_at
+      });
+    });
+  } catch (eCS2) { try { console.warn('[timeline] CareSignals v2 merge skipped:', eCS2); } catch (er) {} }
 
   // 5) Medication logs — collapse to one card per day when 3+ doses on the
   //    same day. Otherwise one card per log. "Logged by you" voice.
@@ -3520,6 +6162,7 @@ function renderTimeline() {
     .concat(careCircleTimelineItems)
     .concat(shareTimelineItems)
     .concat(careSignalTimelineItems)
+    .concat(careSignalV2TimelineItems)
     .concat(medicationLogTimelineItems)
     .concat(checkInTimelineItems);
 
@@ -3530,9 +6173,26 @@ function renderTimeline() {
   var filterKey = 'wellet_timeline_filter_' + currentPersonId;
   var activeFilter = 'all';
   try { activeFilter = window.localStorage.getItem(filterKey) || 'all'; } catch(_lse) {}
-  // Map filter id → predicate over an event's source/event_type tag.
+  // Map filter id → predicate over an event's source/event_type tag. Chips
+  // are a hybrid of SOURCE filters (where did this come from?) and TYPE
+  // filters (what kind of thing is this?). On accounts where every event
+  // is 'ehr' the source axis is useless on its own — but the type axis
+  // still has plenty of variety (visits, conditions, labs, immunizations,
+  // notes), so we offer those instead. _ev_kind() collapses the raw
+  // event_type into the buckets the chips care about.
+  function _ev_kind(ev) {
+    var t = (ev && ev.event_type) ? String(ev.event_type).toLowerCase() : '';
+    if (t === 'visit' || t === 'appointment' || t === 'encounter') return 'visits';
+    if (t === 'condition' || t === 'diagnosis')                    return 'diagnoses';
+    if (t === 'diagnostic_report' || t === 'observation' || t === 'lab' || t === 'lab_result') return 'labs';
+    if (t === 'immunization' || t === 'vaccine')                    return 'immunizations';
+    if (t === 'medication' || t === 'med' || t === 'prescription')  return 'meds';
+    if (t === 'note' || t === 'document')                           return 'notes';
+    return 'other';
+  }
   function _tlMatchesFilter(ev, filter) {
     if (!filter || filter === 'all') return true;
+    // Source-based filters
     switch (filter) {
       case 'ehr':         return ev.source === 'ehr';
       case 'you':         return !ev.source || ev.source === 'user';
@@ -3540,50 +6200,104 @@ function renderTimeline() {
       case 'documents':   return ev.source === 'document';
       case 'care_circle': return ev.source === 'care_circle' || ev.source === 'share';
       case 'care_signal': return ev.source === 'care_signal';
-      case 'meds':        return ev.source === 'med_log';
-      default: return true;
     }
+    // Type-based filters (work across any source)
+    return _ev_kind(ev) === filter;
   }
   // Stash globally so onclick handlers can reuse without re-render churn.
   window._tlSetFilter = function(personId, nextFilter) {
     try { window.localStorage.setItem('wellet_timeline_filter_' + personId, nextFilter); } catch(_e) {}
     try { renderTimeline(); } catch(_e) {}
   };
-  // Render chips only when there is enough variety to be useful (>1 source).
+  // Render chips when there's enough variety to be useful on EITHER axis:
+  // multiple sources OR multiple event-kinds. Single-event timelines stay clean.
   var sourceSetSeen = {};
-  allEvents.forEach(function(e){ sourceSetSeen[e.source || 'user'] = true; });
-  var chipDefs = [
-    { id:'all',         label:'All' },
+  var kindSetSeen = {};
+  allEvents.forEach(function(e){
+    sourceSetSeen[e.source || 'user'] = true;
+    kindSetSeen[_ev_kind(e)] = true;
+  });
+  // Source-axis chips
+  var sourceChipDefs = [
     { id:'ehr',         label:'EHR',         needsSrc: 'ehr' },
     { id:'you',         label:'You',         needsSrc: 'user' },
     { id:'voice',       label:'Voice',       needsSrc: 'voice' },
     { id:'documents',   label:'Documents',   needsSrc: 'document' },
     { id:'care_circle', label:'Care circle', needsSrc: 'care_circle' },
-    { id:'care_signal', label:'CareSignals', needsSrc: 'care_signal' },
-    { id:'meds',        label:'Meds',        needsSrc: 'med_log' }
+    { id:'care_signal', label:'CareSignals', needsSrc: 'care_signal' }
+  ];
+  // Type-axis chips (order matters: visits and diagnoses first because they're
+  // what users hunt for most when prepping for an appointment).
+  var typeChipDefs = [
+    { id:'visits',        label:'Visits',        needsKind:'visits' },
+    { id:'diagnoses',     label:'Diagnoses',     needsKind:'diagnoses' },
+    { id:'labs',          label:'Labs',          needsKind:'labs' },
+    { id:'meds',          label:'Meds',          needsKind:'meds' },
+    { id:'immunizations', label:'Vaccines',      needsKind:'immunizations' },
+    { id:'notes',         label:'Notes',         needsKind:'notes' }
   ];
   var filterChipsHtml = '';
-  // Show chips when there are at least 2 different sources represented (besides
-  // 'All'). Below that the chips feel like clutter on an empty timeline.
-  var distinctSources = 0;
-  Object.keys(sourceSetSeen).forEach(function(k){ if (k !== 'user' || sourceSetSeen[k]) distinctSources++; });
-  if (distinctSources >= 2) {
-    var chipBtns = chipDefs.filter(function(c) {
-      if (c.id === 'all') return true;
-      // 'you' chip needs at least one user-source event (or the 'user' key).
-      if (c.id === 'you') return !!sourceSetSeen['user'] || liveEvents.length > 0;
-      // 'care_circle' chip shows when either care_circle or share is present.
-      if (c.id === 'care_circle') return !!sourceSetSeen['care_circle'] || !!sourceSetSeen['share'];
-      return !!sourceSetSeen[c.needsSrc];
-    }).map(function(c) {
-      var active = c.id === activeFilter;
-      return '<button class="tl-filter-chip' + (active ? ' is-active' : '') + '"'
-        + ' onclick="window._tlSetFilter(\'' + currentPersonId + '\',\'' + c.id + '\')"'
-        + ' aria-pressed="' + (active ? 'true' : 'false') + '">'
-        + escHtml(c.label) + '</button>';
-    }).join('');
-    filterChipsHtml = '<div class="tl-filter-chips" role="tablist" aria-label="Filter timeline by source">'
+  var distinctSources = Object.keys(sourceSetSeen).length;
+  var distinctKinds = Object.keys(kindSetSeen).length;
+  // Render whenever there's *any* axis worth filtering on. Empty timelines
+  // (no kinds, no sources) silently skip.
+  if (distinctSources >= 2 || distinctKinds >= 2) {
+    var chipBtns = '';
+    // Always lead with 'All'.
+    var allActive = (activeFilter === 'all' || !activeFilter);
+    chipBtns += '<button class="tl-filter-chip' + (allActive ? ' is-active' : '') + '"'
+      + ' onclick="window._tlSetFilter(\'' + currentPersonId + '\',\'all\')"'
+      + ' aria-pressed="' + (allActive ? 'true' : 'false') + '">All</button>';
+    // Source chips — only when source axis has variety (>=2 sources).
+    if (distinctSources >= 2) {
+      chipBtns += sourceChipDefs.filter(function(c) {
+        if (c.id === 'you')         return !!sourceSetSeen['user'] || liveEvents.length > 0;
+        if (c.id === 'care_circle') return !!sourceSetSeen['care_circle'] || !!sourceSetSeen['share'];
+        return !!sourceSetSeen[c.needsSrc];
+      }).map(function(c) {
+        var active = c.id === activeFilter;
+        return '<button class="tl-filter-chip' + (active ? ' is-active' : '') + '"'
+          + ' onclick="window._tlSetFilter(\'' + currentPersonId + '\',\'' + c.id + '\')"'
+          + ' aria-pressed="' + (active ? 'true' : 'false') + '">'
+          + escHtml(c.label) + '</button>';
+      }).join('');
+    }
+    // Type chips — always offer when there's type variety, even when only
+    // one source. That's the path that unblocks Betsy's all-EHR view.
+    if (distinctKinds >= 2) {
+      chipBtns += typeChipDefs.filter(function(c) {
+        return !!kindSetSeen[c.needsKind];
+      }).map(function(c) {
+        var active = c.id === activeFilter;
+        return '<button class="tl-filter-chip' + (active ? ' is-active' : '') + '"'
+          + ' onclick="window._tlSetFilter(\'' + currentPersonId + '\',\'' + c.id + '\')"'
+          + ' aria-pressed="' + (active ? 'true' : 'false') + '">'
+          + escHtml(c.label) + '</button>';
+      }).join('');
+    }
+    filterChipsHtml = '<div class="tl-filter-chips" role="tablist" aria-label="Filter timeline">'
       + chipBtns + '</div>';
+  }
+
+  // "Build health story" header lives above the filter chips and is offered
+  // whenever there's anything in the timeline. Pulls events in a date range
+  // and weaves them into a plain-English narrative you can read aloud at a
+  // specialist visit, copy, download as a PDF, or email to yourself.
+  var storyHeaderHtml = '';
+  if (allEvents.length > 0) {
+    storyHeaderHtml = '<div class="tl-story-header">'
+      + '<div class="tl-story-header-row">'
+      +   '<button class="tl-story-btn" onclick="openHealthStory()" aria-label="Build a health story from this timeline">'
+      +     '<i data-lucide="book-open" style="width:14px;height:14px;"></i>'
+      +     '<span class="tl-story-btn-label">Build health story</span>'
+      +   '</button>'
+      +   '<button class="tl-manual-visit-link" onclick="openManualVisit()" aria-label="Add an outside visit" title="Care that didn\u2019t come through the EHR">'
+      +     '<i data-lucide="plus-circle" style="width:13px;height:13px;"></i>'
+      +     '<span>Add outside visit</span>'
+      +   '</button>'
+      + '</div>'
+      + '<div class="tl-story-hint">A narrative you can read aloud at the next appointment.</div>'
+      + '</div>';
   }
   // Apply the filter. "All" returns everything.
   var allEventsUnfiltered = allEvents;
@@ -3613,9 +6327,10 @@ function renderTimeline() {
         + (!ehrData && !isDemoMode ? buildEhrPrompt() : '')
         + '</div>';
     }
-    pane.innerHTML = emptyHeader + emptyChips + '<div class="timeline-section">' + emptyBody + '</div>';
+    pane.innerHTML = emptyHeader + storyHeaderHtml + emptyChips + '<div class="timeline-section">' + emptyBody + '</div>';
     // Append FAB once per render (deduped by id)
     if (!document.querySelector('#tab-timeline .tl-add-fab')) pane.insertAdjacentHTML('beforeend', fabHtml);
+    _wireTimelineFabLongPress();
     initIcons();
     return;
   }
@@ -3631,9 +6346,10 @@ function renderTimeline() {
     months[key].events.push(ev);
   });
 
-  // EHR status bar FIRST, then filter chips, then timeline list. FAB after.
+  // EHR status bar FIRST, then story header, then filter chips, then list.
   var html = '';
   if (ehrData) html += buildEhrStatusBar(ehrData);
+  if (storyHeaderHtml) html += storyHeaderHtml;
   if (filterChipsHtml) html += filterChipsHtml;
   html += '<div class="timeline-section">';
   Object.keys(months).sort().reverse().forEach(function(k) {
@@ -3673,7 +6389,48 @@ function renderTimeline() {
       } else if (!isEhr) {
         clickAttr = ' onclick="openEditEvent(\'' + (ev.id || '') + '\')"';
       } else {
-        var section = ev._section || (ev.event_type === 'lab_result' ? 'labs' : (ev.event_type === 'appointment' ? 'visits' : 'conditions'));
+        // Map event_type → best Records tab. Prior fallback dumped everything
+        // not-lab/not-visit into 'conditions', which was wrong for immunizations,
+        // allergies, vitals, meds, etc.
+        var section = ev._section;
+        if (!section) {
+          switch (ev.event_type) {
+            case 'lab_result':
+            case 'observation':
+            case 'diagnostic_report':
+              section = 'labs'; break;
+            case 'appointment':
+            case 'visit':
+            case 'encounter':
+            case 'procedure':
+              section = 'visits'; break;
+            case 'medication':
+            case 'med':
+              section = 'meds'; break;
+            case 'allergy':
+            case 'allergies':
+              section = 'allergies'; break;
+            case 'immunization':
+            case 'immunizations':
+            case 'vaccine':
+              section = 'immunizations'; break;
+            case 'vital':
+            case 'vitals':
+              section = 'vitals'; break;
+            case 'care_team':
+            case 'practitioner':
+              section = 'care_team'; break;
+            case 'document':
+              section = 'documents'; break;
+            case 'condition':
+            case 'diagnosis':
+              section = 'conditions'; break;
+            default:
+              // Unknown EHR type — don't fake a destination, just drop the user
+              // on the Records hub.
+              section = 'records';
+          }
+        }
         clickAttr = ' onclick="openTimelineItem(\'' + section + '\',\'' + refIdSafe + '\')" style="cursor:pointer;"';
       }
       // Register share context for this timeline item
@@ -3717,7 +6474,21 @@ function renderTimeline() {
       var pillStyle = '';
       switch (ev.source) {
         case 'ehr':
-          pillLabel = 'From ' + (ev._ehrProvider || 'EHR');
+          // Per-row provenance: prefer the hospital tied to THIS event's
+          // connection_id, then the row's stamped _hospital_name (from
+          // getMergedEhr's v2 cache), then the merged-string fallback,
+          // then a generic 'your records' for true orphans (connection_id
+          // is NULL and no provider info attached). This is what stops
+          // Duke visits showing up labeled with the only active hospital's
+          // name when the user is connected to a single other EHR.
+          var _connMap = (typeof window !== 'undefined' && window._connHospitalById) ? window._connHospitalById : null;
+          var _connHosp = (ev && ev.connection_id && _connMap) ? _connMap[ev.connection_id] : '';
+          var _pillName = _connHosp || ev._hospital_name || ev._ehrProvider || '';
+          if (!_pillName && !ev.connection_id) {
+            pillLabel = 'From your records';
+          } else {
+            pillLabel = 'From ' + (_pillName || 'EHR');
+          }
           pillColor = 'var(--moss)'; pillStyle = 'font-weight:500;'; break;
         case 'voice':
           pillLabel = 'Voice note'; pillStyle = 'font-style:italic;'; break;
@@ -3736,27 +6507,155 @@ function renderTimeline() {
           pillLabel = 'Logged by you'; break;
         case 'check_in':
           pillLabel = 'Daily check-in'; break;
+        case 'manual_visit':
+        case 'manual':
+          pillLabel = 'Added manually';
+          pillColor = 'var(--moss)'; pillStyle = 'font-weight:500;'; break;
         default:
-          pillLabel = 'Added by you';
+          // Visits the user typed in by hand still get the "Added manually"
+          // pill when manual_service_type is present \u2014 keeps EHR-vs-user
+          // provenance honest even on older rows without an explicit source.
+          if (ev.manual_service_type) {
+            pillLabel = 'Added manually';
+            pillColor = 'var(--moss)'; pillStyle = 'font-weight:500;';
+          } else {
+            pillLabel = 'Added by you';
+          }
       }
-      html += '<div class="tl-item">'
-        + '<div class="tl-card ' + typeInfo.border + '" data-ask-lp="' + askKeyTl + '"' + clickAttr + '>'
-        + '<div class="tl-card-type-row"><i data-lucide="' + typeInfo.icon + '" style="width:11px;height:11px;color:' + typeInfo.color + ';"></i>'
-        + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span>'
-        + '</div>'
-        + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
-        + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
-        + '<div class="tl-card-date">' + dateStr
-        + ' \u00B7 <span style="color:' + pillColor + ';' + pillStyle + '">' + escHtml(pillLabel) + '</span>'
-        + '</div>'
-        + '</div></div>';
+      // CareSignals fires get a distinct, standout card: amber-mint accent rail,
+      // sparkles icon, bigger eyebrow, optional measurement chip.
+      if (ev.source === 'care_signal' && ev._caresignal_v2) {
+        // Path B v1 \u2014 AI-surfaced pattern from public.care_signals. Distinct
+        // eyebrow (\u25c7 Noticed), severity-tinted, source chips, occurrence note.
+        var csv2Title = String(ev.title || '').replace(/^Wellet noticed:\s*/i, '');
+        var csv2Sev = String(ev._caresignal_v2_severity || 'notice');
+        var csv2SevColor = csv2Sev === 'attention' ? '#b8860b' : 'var(--moss-deep,var(--moss))';
+        var csv2Sources = Array.isArray(ev._caresignal_v2_sources) ? ev._caresignal_v2_sources : [];
+        var csv2Occ = ev._caresignal_v2_occurrence || 1;
+        var csv2SourceChipsHtml = csv2Sources.map(function(s){
+          return '<span class="tl-cs-chip">' + escHtml(s) + '</span>';
+        }).join('');
+        var csv2OccHtml = csv2Occ > 1 ? (' \u00B7 <span style="color:' + csv2SevColor + ';font-weight:500;">Pattern seen ' + csv2Occ + ' times</span>') : '';
+        html += '<div class="tl-item">'
+          + '<div class="tl-card tl-card-caresignal tl-card-caresignal-v2 tl-cs-' + escHtml(csv2Sev) + '" data-ask-lp="' + askKeyTl + '"' + clickAttr + '>'
+          + '<div class="tl-card-type-row tl-cs-eyebrow">'
+          +   '<span style="color:' + csv2SevColor + ';font-size:14px;line-height:1;font-weight:600;">\u25c7</span>'
+          +   '<span class="tl-card-type tl-cs-label" style="color:' + csv2SevColor + ';">Noticed</span>'
+          +   csv2SourceChipsHtml
+          + '</div>'
+          + '<div class="tl-card-title tl-cs-title">' + escHtml(csv2Title) + '</div>'
+          + (ev.notes ? '<div class="tl-card-body tl-cs-body">' + escHtml(ev.notes) + '</div>' : '')
+          + '<div class="tl-card-date tl-cs-meta">' + dateStr + csv2OccHtml + '</div>'
+          + '</div></div>';
+      } else if (ev.source === 'care_signal') {
+        // Trim the redundant "Wellet noticed: " prefix on the title \u2014 the eyebrow
+        // already says it.
+        var csTitle = String(ev.title || '').replace(/^Wellet noticed:\s*/i, '');
+        var chip = ev._caresignal_chip || '';
+        html += '<div class="tl-item">'
+          + '<div class="tl-card tl-card-caresignal" data-ask-lp="' + askKeyTl + '"' + clickAttr + '>'
+          + '<div class="tl-card-type-row tl-cs-eyebrow">'
+          +   '<i data-lucide="sparkles" style="width:13px;height:13px;color:var(--moss-deep,var(--moss));"></i>'
+          +   '<span class="tl-card-type tl-cs-label">Wellet noticed</span>'
+          +   (chip ? '<span class="tl-cs-chip">' + escHtml(chip) + '</span>' : '')
+          + '</div>'
+          + '<div class="tl-card-title tl-cs-title">' + escHtml(csTitle) + '</div>'
+          + (ev.notes ? '<div class="tl-card-body tl-cs-body">' + escHtml(ev.notes) + '</div>' : '')
+          + '<div class="tl-card-date tl-cs-meta">' + dateStr
+          +   ' \u00B7 <span style="color:var(--moss);font-weight:500;font-style:italic;">You asked Wellet to watch this</span>'
+          + '</div>'
+          + '</div></div>';
+      } else {
+        // Encounter rollup: visits (manual or EHR) with a known encounter class
+        // get a color-coded accent rail \u2014 ER red, Inpatient blue, Outpatient
+        // moss, Virtual gray. Mirrors what specialists scan for on a paper
+        // chart so the family member can find an ER trip at a glance.
+        var encInfo = null;
+        var encClass = ev.encounter_class || null;
+        if (!encClass && ev.manual_service_type && window.WELLET_MANUAL_VISIT_BY_SLUG) {
+          var manualItem = window.WELLET_MANUAL_VISIT_BY_SLUG[ev.manual_service_type];
+          if (manualItem) encClass = manualItem.encounter_class;
+        }
+        if (encClass && window.WELLET_ENCOUNTER_CLASS_INFO) {
+          encInfo = window.WELLET_ENCOUNTER_CLASS_INFO[encClass] || null;
+        }
+        if (encInfo) {
+          html += '<div class="tl-item">'
+            + '<div class="tl-card tl-card-with-icon tl-card-encounter tl-enc-' + escHtml(encInfo.color_token) + '" data-ask-lp="' + askKeyTl + '"' + clickAttr + '>'
+            + '<div class="tl-icon-tile tl-icon-tile-' + typeInfo.dot + '" style="background:' + encInfo.hex + '1F;color:' + encInfo.hex + ';"><i data-lucide="' + typeInfo.icon + '"></i></div>'
+            + '<div class="tl-card-content">'
+            + '<div class="tl-card-type-row">'
+            +   '<span class="tl-card-type tl-enc-label" style="color:' + encInfo.hex + ';">' + escHtml(encInfo.label) + '</span>'
+            +   '<span class="tl-card-time">' + escHtml(dateStr) + '</span>'
+            + '</div>'
+            + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
+            + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
+            + '<div class="tl-card-date"><span style="color:' + pillColor + ';' + pillStyle + '">' + escHtml(pillLabel) + '</span></div>'
+            + '</div>'
+            + '</div></div>';
+        } else {
+          html += '<div class="tl-item">'
+            + '<div class="tl-card tl-card-with-icon ' + typeInfo.border + '" data-ask-lp="' + askKeyTl + '"' + clickAttr + '>'
+            + '<div class="tl-icon-tile tl-icon-tile-' + typeInfo.dot + '"><i data-lucide="' + typeInfo.icon + '"></i></div>'
+            + '<div class="tl-card-content">'
+            + '<div class="tl-card-type-row">'
+            + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span>'
+            + '<span class="tl-card-time">' + escHtml(dateStr) + '</span>'
+            + '</div>'
+            + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
+            + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
+            + (ev.event_type === 'ask_wellet_conversation' && ev.transcript_url ? '<div class="tl-card-body" style="margin-top:4px;"><a href="' + escHtml(ev.transcript_url) + '" target="_blank" rel="noopener" style="color:var(--moss-deep,var(--moss));font-size:13px;font-weight:500;text-decoration:none;">View transcript →</a></div>' : '')
+            + '<div class="tl-card-date"><span style="color:' + pillColor + ';' + pillStyle + '">' + escHtml(pillLabel) + '</span></div>'
+            + '</div>'
+            + '</div></div>';
+        }
+      }
     });
   });
   html += '</div>';
   pane.innerHTML = html;
   // Append FAB once per render (deduped by selector)
   if (!document.querySelector('#tab-timeline .tl-add-fab')) pane.insertAdjacentHTML('beforeend', fabHtml);
+  _wireTimelineFabLongPress();
   initIcons();
+}
+
+// Timeline FAB long-press: tap opens the quick-add event sheet, holding the
+// button for ~550ms opens the "Add outside visit" sheet. We use pointer
+// events so it works on touch + mouse + Apple Pencil identically. On a long
+// press we set _tlFabLongPressFired so the click handler that fires after
+// pointerup is suppressed.
+var _tlFabLongPressTimer = null;
+var _tlFabLongPressFired = false;
+function _handleTlFabTap(e) {
+  if (_tlFabLongPressFired) {
+    _tlFabLongPressFired = false;
+    if (e && e.preventDefault) e.preventDefault();
+    return;
+  }
+  openAddEvent();
+}
+function _wireTimelineFabLongPress() {
+  var fab = document.getElementById('tl-add-fab');
+  if (!fab || fab._lpWired) return;
+  fab._lpWired = true;
+  var start = function() {
+    _tlFabLongPressFired = false;
+    if (_tlFabLongPressTimer) clearTimeout(_tlFabLongPressTimer);
+    _tlFabLongPressTimer = setTimeout(function() {
+      _tlFabLongPressFired = true;
+      // Gentle haptic if available.
+      if (navigator.vibrate) { try { navigator.vibrate(12); } catch(_) {} }
+      openManualVisit();
+    }, 550);
+  };
+  var cancel = function() {
+    if (_tlFabLongPressTimer) { clearTimeout(_tlFabLongPressTimer); _tlFabLongPressTimer = null; }
+  };
+  fab.addEventListener('pointerdown', start);
+  fab.addEventListener('pointerup', cancel);
+  fab.addEventListener('pointerleave', cancel);
+  fab.addEventListener('pointercancel', cancel);
 }
 
 // ── RENDER PEOPLE VIEW ────────────────────────────────────────────────────────
@@ -3775,7 +6674,7 @@ function renderPeopleView() {
       + '<div class="person-card-top">'
       + '<div class="person-card-avatar moss">' + escHtml(initials) + '</div>'
       + '<div><div class="person-card-name">' + escHtml(p.name) + '</div>'
-      + '<div class="person-card-rel">' + escHtml(p.relationship || '') + '</div></div>'
+      + '<div class="person-card-rel">' + escHtml(_relationshipLabel(p.relationship)) + '</div></div>'
       + '<div class="person-card-status stable"><i data-lucide="check-circle" style="width:13px;height:13px;"></i> Active</div>'
       + '<button class="remove-btn" onclick="confirmRemovePerson(\'' + p.id + '\',\'' + p.name.replace(/'/g,"\\\'") + '\')" title="Remove person">'
       + '<i data-lucide="x" style="width:16px;height:16px;"></i></button>'
@@ -3798,7 +6697,11 @@ function renderPeopleView() {
 }
 
 async function switchToRealPersonNav(personId) {
-  await loadPersonData(personId);
+  try {
+    await loadPersonData(personId);
+  } catch (_e) {
+    console.warn('[switchToRealPersonNav] loadPersonData failed:', _e);
+  }
   renderPersonSwitcher();
   renderUpdateMe();
   renderTimeline();
@@ -4433,7 +7336,11 @@ function _rdMedsContent(activeMeds, ehrMeds, ehrData, ehrProvider) {
     if (!ehrData) html += buildEhrPrompt();
   } else {
     activeMeds.forEach(function(med) {
-      html += '<div class="record-row" onclick="openEditMed(\''+med.id+'\')">'
+      // Manual meds now also route through openMedicationDetail — which renders
+      // the same 6-tile detail view used for EHR meds and surfaces an explicit
+      // "Edit medication" button. Previously this row jumped straight into the
+      // edit modal with no intermediate screen.
+      html += '<div class="record-row" style="cursor:pointer;" onclick="openMedicationDetail(\''+med.id+'\')">'
         + '<div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>'
         + '<div style="flex:1;"><div class="record-label">'+escHtml(med.name)+(med.dose?' '+escHtml(med.dose):'')+'</div>'
         + '<div class="record-meta">'+(med.frequency?escHtml(med.frequency):'')+(med.prescriber?' \u00B7 '+escHtml(med.prescriber):'')+'</div></div>'
@@ -4441,18 +7348,27 @@ function _rdMedsContent(activeMeds, ehrMeds, ehrData, ehrProvider) {
         + '</div>';
     });
     ehrMeds.forEach(function(med, idx) {
-      var did = 'ehr-med-'+idx;
-      var mp = [];
-      if (med.dosage) mp.push(escHtml(med.dosage));
-      if (med.frequency) mp.push(escHtml(med.frequency));
-      if (med.status) mp.push('Status: '+escHtml(med.status));
-      if (med.date_asserted) mp.push('Prescribed: '+escHtml(med.date_asserted));
-      html += '<div class="record-row" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\''+did+'\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
+      // Tap an EHR medication row → full detail screen with the four public-
+      // data tiles (About, How to use, Side effects, Interactions) sourced from
+      // RxNorm / MedlinePlus / openFDA. Previously this row only toggled an
+      // inline expand/collapse so the family never saw the rich detail their
+      // patient portal already shows. EHR med rows must carry a stable id so
+      // openMedicationDetail() can look the row up via _findEhrItemById.
+      // 2026-05-19: fetch-ehr-data's mapMedications/mapConditions/mapAllergies
+      // were dropping the FHIR resource id, so med.id was empty and every row
+      // silently fell back to openRecordsDetail('medications') — looked like
+      // "nothing happens." Defensive synth ensures we always have a stable
+      // refId until the edge function redeploy lands. _findEhrItemById was
+      // taught to look up by _refId too.
+      var refId = med.id || med._refId || _ehrSynthRefId('med', med, idx);
+      if (!med._refId) { try { med._refId = refId; } catch(_e) {} }
+      var onclickAttr = 'onclick="openMedicationDetail(\''+refId.replace(/'/g, "\\'")+'\')"';
+      html += '<div class="record-row" style="cursor:pointer;" '+onclickAttr+'>'
         + '<div class="record-icon amber"><i data-lucide="pill" style="width:15px;height:15px;"></i></div>'
-        + '<div style="flex:1;"><div class="record-label">'+escHtml(med.name)+' '+ehrBadgeHtml()+'</div>'
+        + '<div style="flex:1;min-width:0;"><div class="record-label">'+escHtml(med.name)+' '+ehrBadgeHtml()+'</div>'
         + '<div class="record-meta">'+escHtml(med.dosage||med.frequency||'')+'</div></div>'
         + rowProviderBadge(med, ehrProvider, ehrData)
-        + '<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.6;">'+mp.join('<br>')+'</div>'
+        + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);flex-shrink:0;margin-left:6px;"></i>'
         + '</div>';
     });
   }
@@ -4503,21 +7419,27 @@ function _rdConditionsContent(ehrConditions, ehrData, ehrProvider) {
     + condActive.length+' active \u00B7 '+condPrev.length+' preventive \u00B7 '+condResolved.length+' historical'+'</div>';
 
   function condRow(c, idx, pfx) {
-    var did = 'cond-'+pfx+'-'+idx;
+    // Tap → open the full detail screen (onset, recorded, status, related
+    // visits, care team chip, and the five public-data tiles: clinical trials,
+    // FDA treatments, centers of excellence, advocacy groups, research papers).
+    // Previously this row just toggled an inline expand/collapse — so taps
+    // never reached openConditionDetail() and none of the tiles ever rendered.
+    // The .condition-card class is kept so attachAskLongPressAll() still binds
+    // long-press → Ask Wellet with kind='condition' (see L5050).
+    // 2026-05-19: same id-missing bug as meds — synthesize a stable refId so
+    // the row click always opens the detail screen. See _rdMedsContent comment.
+    var refId = c.id || c._refId || _ehrSynthRefId('cond', c, idx);
+    if (!c._refId) { try { c._refId = refId; } catch(_e) {} }
     var badge = c.status==='active'
       ? '<span class="record-badge amber">Active</span>'
       : '<span class="record-badge moss">'+escHtml(c.status||'Recorded')+'</span>';
-    var meta = [];
-    if (c.onset_date)    meta.push('Onset: '+formatEventDate(c.onset_date));
-    if (c.recorded_date) meta.push('Recorded: '+formatEventDate(c.recorded_date));
-    if (c.code)          meta.push('Code: '+escHtml(c.code));
-    if (c.status)        meta.push('Status: '+escHtml(c.status));
-    return '<div class="record-row" style="cursor:pointer;flex-wrap:wrap;" onclick="var d=document.getElementById(\''+did+'\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'">'
+    var onclickAttr = 'onclick="openConditionDetail(\''+refId.replace(/'/g, "\\'")+'\')"';
+    return '<div class="record-row condition-card" style="cursor:pointer;" '+onclickAttr+'>'
       + '<div class="record-icon moss"><i data-lucide="heart-pulse" style="width:15px;height:15px;"></i></div>'
       + '<div style="flex:1;"><div class="record-label">'+escHtml(c.name)+'</div>'
       + '<div class="record-meta">'+(c.onset_date?'Since '+formatEventDate(c.onset_date):(c.recorded_date?formatEventDate(c.recorded_date):''))+'</div></div>'
       + badge
-      + (meta.length?'<div id="'+did+'" style="display:none;width:100%;padding:8px 0 0 44px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.6;">'+meta.join('<br>')+'</div>':'')
+      + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);flex-shrink:0;margin-left:6px;"></i>'
       + '</div>';
   }
 
@@ -4630,6 +7552,19 @@ function loadVisitSummary(encId, domId) {
   var payload = buildVisitSummaryPayload(enc);
   payload.person_id = currentPersonId;
 
+  // Hard timeout — the summarize-visit edge function has been silently
+  // timing out on long Duke visits, leaving the card stuck on the italic
+  // "Writing a plain-language summary\u2026" forever. After 30s we flip
+  // to the error state and let the user move on.
+  var resolved = false;
+  var timeoutId = setTimeout(function() {
+    if (resolved) return;
+    resolved = true;
+    entry.summary.state = 'error';
+    entry.summary.error = 'timeout';
+    renderVisitSummaryInto(domId, entry);
+  }, 30000);
+
   db.auth.getSession().then(function(sessionRes) {
     var session = sessionRes.data.session;
     if (!session) throw new Error('no session');
@@ -4646,11 +7581,17 @@ function loadVisitSummary(encId, domId) {
     if (!res || !res.ok) throw new Error('summary fetch failed');
     return res.json();
   }).then(function(data) {
+    if (resolved) return;
+    resolved = true;
+    clearTimeout(timeoutId);
     if (!data || !data.summary) throw new Error(data && data.error ? data.error : 'empty summary');
     entry.summary.state = 'done';
     entry.summary.text = data.summary;
     renderVisitSummaryInto(domId, entry);
   }).catch(function(e) {
+    if (resolved) return;
+    resolved = true;
+    clearTimeout(timeoutId);
     entry.summary.state = 'error';
     entry.summary.error = (e && e.message) || 'unknown error';
     renderVisitSummaryInto(domId, entry);
@@ -4665,23 +7606,162 @@ function renderVisitSummaryInto(domId, entry) {
   } else if (entry.summary.state === 'done') {
     el.innerHTML = '<div style="color:var(--text-primary);">' + escHtml(entry.summary.text) + '</div>';
   } else if (entry.summary.state === 'error') {
-    el.innerHTML = '<div style="color:var(--text-muted);font-style:italic;">Summary unavailable right now.</div>';
+    // 'timeout' = soft (summarize-visit took >30s and likely returned an empty
+    // result on a long Duke visit). Other errors get a quieter generic line.
+    var msg = (entry.summary.error === 'timeout')
+      ? 'Summary is taking longer than usual \u2014 the visit notes are still in the chart below.'
+      : 'Summary unavailable right now \u2014 the visit notes are still in the chart below.';
+    el.innerHTML = '<div style="color:var(--text-muted);font-style:italic;">' + msg + '</div>';
   }
 }
 
-// Open a DocumentReference attachment. Fetches the Binary through our edge function
-// so the browser never sees the EHR access token, then opens it in a new tab.
+// Open a DocumentReference attachment. Fetches the Binary through our edge
+// function so the browser never sees the EHR access token, then opens it in
+// a new tab.
+//
+// Safari popup-blocker fix (2026-05-14): Mobile Safari blocks window.open()
+// that fires after async work because it's no longer in the original
+// user-gesture tick. We work around this by opening an about:blank tab
+// SYNCHRONOUSLY on click, holding the reference, and redirecting it to the
+// blob URL once the fetch resolves. If the fetch fails we close the tab
+// and surface a friendly inline error on the doc link (no more harsh
+// alert() telling the user to reconnect MyChart \u2014 most failures aren't
+// auth problems).
 function openEhrDocument(encId, docId) {
   if (!currentPersonId || !docId) return;
   var entry = visitSummaryCache[encId] || (visitSummaryCache[encId] = { summary: { state: 'idle' }, docs: {} });
   var doc = entry.docs[docId];
-  // Reuse any previously-fetched blob URL while the tab is open
+
+  // Reuse any previously-fetched blob URL while the tab is open. This path
+  // is synchronous so the popup blocker doesn't fire.
   if (doc && doc.state === 'done' && doc.url) {
     window.open(doc.url, '_blank', 'noopener');
     return;
   }
   if (doc && doc.state === 'loading') return;
+
+  // Open the placeholder tab SYNCHRONOUSLY \u2014 inside the click handler, before
+  // any await. Safari treats this as a direct user gesture. If the user has
+  // popups blocked at the OS level, popupWin will be null and we degrade to
+  // an inline error on the doc link.
+  var popupWin = null;
+  try { popupWin = window.open('about:blank', '_blank'); } catch (_eOpen) { popupWin = null; }
+  if (popupWin) {
+    try {
+      popupWin.document.write('<html><head><title>Opening document\u2026</title>'
+        + '<style>body{margin:0;padding:40px 24px;font:15px -apple-system,system-ui,sans-serif;color:#4a4a4a;background:#F7F5F0;text-align:center;}</style>'
+        + '</head><body>Opening document\u2026</body></html>');
+      popupWin.document.close();
+    } catch (_eWrite) { /* cross-origin or other write issue \u2014 the blank tab still works as a redirect target */ }
+  }
+
   entry.docs[docId] = { state: 'loading' };
+  // Look up which hospital this visit belongs to so we can point the caregiver
+  // at the right patient portal (Duke MyChart vs VA MyHealtheVet, etc.) when
+  // the API-side fetch fails. AVS and Provider Summary are commonly absent or
+  // intentionally gated on the Epic side \u2014 the portal is the reliable
+  // fallback while we keep working on the API path.
+  var _hospFallback = (function(){
+    try {
+      var ehrDataLookup = getEhrData(currentPersonId);
+      var visitsLookup = (ehrDataLookup && ehrDataLookup.visits) ? ehrDataLookup.visits : [];
+      var matchVisit = null;
+      for (var vi = 0; vi < visitsLookup.length && !matchVisit; vi++) {
+        if (visitsLookup[vi].id === encId) matchVisit = visitsLookup[vi];
+      }
+      var connMap = (typeof window !== 'undefined' && window._connHospitalById) ? window._connHospitalById : null;
+      var hospName = '';
+      if (matchVisit && matchVisit.connection_id && connMap) hospName = connMap[matchVisit.connection_id] || '';
+      if (!hospName && matchVisit) hospName = matchVisit._hospital_name || matchVisit.hospital_name || '';
+      var lower = String(hospName || '').toLowerCase();
+      if (lower.indexOf('duke') !== -1) return { name: 'Duke MyChart', url: 'https://www.dukemychart.org' };
+      if (lower.indexOf('va ') !== -1 || lower.indexOf('veteran') !== -1 || lower === 'va') return { name: 'VA MyHealtheVet', url: 'https://www.myhealth.va.gov' };
+      if (lower.indexOf('unc') !== -1) return { name: 'UNC My UNC Chart', url: 'https://myuncchart.org' };
+      if (lower.indexOf('wakemed') !== -1) return { name: 'WakeMed MyChart', url: 'https://mychart.wakemed.org' };
+      // Generic Epic fallback \u2014 hospital_name unknown or unmapped
+      if (hospName) return { name: hospName + ' patient portal', url: '' };
+    } catch (_eHosp) {}
+    return { name: '', url: '' };
+  })();
+
+  var renderDocError = function(reason) {
+    entry.docs[docId] = { state: 'error', error: reason || 'unknown' };
+    // Map raw reason strings to caregiver-friendly explanations. We surface a
+    // little more detail now that the edge function returns specific errors
+    // (origin mismatch, token expired, 404 from Epic, timeout) so the user
+    // and we can tell apart the failure modes.
+    var rawReason = String(reason || 'unknown');
+    var explanation;
+    if (/timed out/i.test(rawReason)) {
+      explanation = 'The hospital didn\u2019t respond in time. Try again in a moment.';
+    } else if (/token expired|reconnect/i.test(rawReason)) {
+      explanation = 'Your hospital session expired. Open the Records tab and reconnect.';
+    } else if (/origin|host does not match/i.test(rawReason)) {
+      explanation = 'The document link points to a different hospital than the one we have connected. Please reconnect this hospital.';
+    } else if (/no ehr connection/i.test(rawReason)) {
+      explanation = 'We couldn\u2019t find an active hospital connection for this person.';
+    } else if (/404|not found|empty/i.test(rawReason)) {
+      explanation = 'The hospital isn\u2019t sharing this document through their API right now.';
+    } else if (/doc_not_found/i.test(rawReason)) {
+      explanation = 'This visit doesn\u2019t have that document attached.';
+    } else {
+      explanation = 'The hospital may not be sharing it through their API at the moment.';
+    }
+    // Append the portal fallback for any non-trivial failure (skip doc_not_found).
+    var portalSuffix = '';
+    if (_hospFallback && _hospFallback.url && !/doc_not_found/i.test(rawReason)) {
+      portalSuffix = ' You can also find this document by logging into ' + _hospFallback.name + '.';
+    } else if (_hospFallback && _hospFallback.name && !_hospFallback.url && !/doc_not_found/i.test(rawReason)) {
+      portalSuffix = ' You can also find this document by logging into your ' + _hospFallback.name + '.';
+    }
+    if (popupWin) {
+      try {
+        popupWin.document.open();
+        var portalLink = '';
+        if (_hospFallback && _hospFallback.url) {
+          portalLink = '<a href="' + _hospFallback.url + '" target="_blank" rel="noopener" style="display:inline-block;margin-top:18px;padding:12px 20px;background:#608F7C;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">Open ' + _hospFallback.name + '</a>';
+        }
+        popupWin.document.write('<html><head><title>Document unavailable</title>'
+          + '<style>body{margin:0;padding:48px 24px;font:15px/1.6 -apple-system,system-ui,sans-serif;color:#4a4a4a;background:#F7F5F0;text-align:center;}'
+          + 'h1{font-family:Georgia,serif;font-size:22px;color:#608F7C;margin:0 0 12px;}'
+          + 'p{max-width:380px;margin:8px auto;}'
+          + 'a.close{display:inline-block;margin-top:24px;color:#608F7C;text-decoration:none;font-weight:600;}'
+          + '</style></head><body>'
+          + '<h1>Wellet</h1>'
+          + '<p>This document isn\u2019t available right now.</p>'
+          + '<p style="color:#888;font-size:13px;">' + explanation.replace(/&/g,'&amp;').replace(/</g,'&lt;') + portalSuffix.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</p>'
+          + portalLink
+          + '<br><a class="close" href="#" onclick="window.close();return false;">Close window</a>'
+          + '</body></html>');
+        popupWin.document.close();
+      } catch (_eErr) { /* cross-origin or other write issue \u2014 user will see the original "Opening document\u2026" placeholder, which is still better than a hard crash */ }
+    }
+    // Inline error replaces the doc link inside the visit detail. Quieter
+    // than a blocking alert() and lets the caregiver still see the rest
+    // of the visit context. We match by walking every doc link and checking
+    // its onclick attribute \u2014 simpler and safer than building a CSS
+    // selector that has to escape both single and double quotes around an
+    // arbitrary docId.
+    try {
+      var allLinks = document.querySelectorAll('a[onclick*="openEhrDocument"]');
+      var needle = "'" + encId + "','" + docId + "'";
+      for (var li = 0; li < allLinks.length; li++) {
+        var a = allLinks[li];
+        var oc = a.getAttribute('onclick') || '';
+        if (oc.indexOf(needle) === -1) continue;
+        a.style.opacity = '0.55';
+        a.style.pointerEvents = 'none';
+        // Avoid stacking duplicate error messages on retry
+        if (a.parentNode && !a.parentNode.querySelector('.ehr-doc-error-msg')) {
+          var msg = document.createElement('span');
+          msg.className = 'ehr-doc-error-msg';
+          msg.style.cssText = 'display:block;margin-top:6px;font-size:var(--type-micro);color:var(--text-muted);font-style:italic;font-weight:400;';
+          msg.textContent = 'Couldn\u2019t open this document. ' + explanation + portalSuffix;
+          a.parentNode.appendChild(msg);
+        }
+      }
+    } catch (_e) { /* never let UI feedback crash the flow */ }
+  };
 
   // Find the doc metadata (includes the Epic Binary URL) on the encounter
   var ehrData = getEhrData(currentPersonId);
@@ -4694,12 +7774,22 @@ function openEhrDocument(encId, docId) {
       if (v.documents[j].id === docId) { targetDoc = v.documents[j]; break; }
     }
   }
-  if (!targetDoc) return;
+  if (!targetDoc) { renderDocError('doc_not_found'); return; }
 
+  // Hard timeout so 'Opening document…' can't hang forever. 25s is enough
+  // for a typical Epic Binary fetch (most return in < 3s) but short enough
+  // that the caregiver isn't left staring at a spinner.
+  var docTimeoutMs = 25000;
+  var docTimedOut = false;
+  var docAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  var docTimer = setTimeout(function() {
+    docTimedOut = true;
+    if (docAbort) { try { docAbort.abort(); } catch (_eAbort) {} }
+  }, docTimeoutMs);
   db.auth.getSession().then(function(sessionRes) {
     var session = sessionRes.data.session;
     if (!session) throw new Error('no session');
-    return fetch(SUPABASE_URL + '/functions/v1/fetch-ehr-document', {
+    var fetchOpts = {
       method: 'POST',
       headers: {
         'Authorization': 'Bearer ' + session.access_token,
@@ -4711,13 +7801,24 @@ function openEhrDocument(encId, docId) {
         document_id: targetDoc.id,
         document_url: targetDoc.url || '',
       }),
-    });
+    };
+    if (docAbort) fetchOpts.signal = docAbort.signal;
+    return fetch(SUPABASE_URL + '/functions/v1/fetch-ehr-document', fetchOpts);
   }).then(function(res) {
-    if (!res || !res.ok) throw new Error('document fetch failed');
+    clearTimeout(docTimer);
+    if (!res) throw new Error('document fetch failed');
+    if (!res.ok) {
+      // Surface the real status so we don't say 'document fetch failed' on a
+      // 400 origin mismatch or 401 token expiry.
+      return res.json().catch(function() { return {}; }).then(function(j) {
+        var msg = (j && j.error) ? String(j.error) : ('HTTP ' + res.status);
+        throw new Error(msg);
+      });
+    }
     return res.json();
   }).then(function(data) {
     if (!data || !data.data_base64) throw new Error(data && data.error ? data.error : 'empty document');
-    // Decode base64 into a Blob and open it in a new tab
+    // Decode base64 into a Blob and redirect the already-open tab to it.
     var bin = atob(data.data_base64);
     var len = bin.length;
     var bytes = new Uint8Array(len);
@@ -4725,10 +7826,21 @@ function openEhrDocument(encId, docId) {
     var blob = new Blob([bytes], { type: data.content_type || 'application/octet-stream' });
     var url = URL.createObjectURL(blob);
     entry.docs[docId] = { state: 'done', url: url };
-    window.open(url, '_blank', 'noopener');
+    if (popupWin) {
+      try { popupWin.location.href = url; }
+      catch (_eLoc) { window.open(url, '_blank', 'noopener'); }
+    } else {
+      // Popup was blocked at OS level \u2014 try a fresh window.open. This will
+      // likely also be blocked but it's the best fallback we have.
+      window.open(url, '_blank', 'noopener');
+    }
   }).catch(function(e) {
-    entry.docs[docId] = { state: 'error', error: (e && e.message) || 'unknown error' };
-    try { alert('Could not open document. Please try reconnecting Epic MyChart.'); } catch(_e) {}
+    clearTimeout(docTimer);
+    var reason;
+    if (docTimedOut) reason = 'timed out';
+    else if (e && e.name === 'AbortError') reason = 'timed out';
+    else reason = (e && e.message) || 'unknown';
+    renderDocError(reason);
   });
 }
 
@@ -4808,10 +7920,14 @@ function _rdVisitsContent(apptEvents, ehrVisitsRecent, ehrVisitsOlder, ehrData, 
 
     var docLinks = '';
     function docLinkHtml(label, doc, iconName) {
-      return '<a onclick="event.stopPropagation();openEhrDocument(\''+encId+'\',\''+escHtml(doc.id)+'\')" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--moss);cursor:pointer;text-decoration:none;font-weight:600;font-size:var(--type-body);line-height:1.2;flex:1;min-width:0;">'
-        + '<i data-lucide="'+iconName+'" style="width:18px;height:18px;flex-shrink:0;"></i>'
-        + '<span style="flex:1;min-width:0;line-height:1.2;">' + escHtml(label) + '</span>'
-        + '<i data-lucide="external-link" style="width:14px;height:14px;flex-shrink:0;opacity:0.6;"></i></a>';
+      // 12px font + tight 1.25 line-height + word-wrap so two-word labels like
+      // 'After Visit Summary' fit on iPhone width (390px) without colliding with
+      // the external-link icon. The icon stays on its own line via flex column.
+      return '<a onclick="event.stopPropagation();openEhrDocument(\''+encId+'\',\''+escHtml(doc.id)+'\')" '
+        + 'style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--moss);cursor:pointer;text-decoration:none;font-weight:600;font-size:13px;line-height:1.25;flex:1;min-width:0;min-height:44px;">'
+        + '<i data-lucide="'+iconName+'" style="width:16px;height:16px;flex-shrink:0;"></i>'
+        + '<span style="flex:1;min-width:0;line-height:1.25;word-break:keep-all;hyphens:none;">' + escHtml(label) + '</span>'
+        + '<i data-lucide="external-link" style="width:12px;height:12px;flex-shrink:0;opacity:0.55;"></i></a>';
     }
     if (encId && (avsDoc || providerDoc)) {
       docLinks += '<div style="display:flex;gap:8px;margin:14px 0 4px;flex-wrap:wrap;">';
@@ -5275,7 +8391,18 @@ function openRecordsDetail(section) {
   var ehrVisitsRecent = allEhrVisits.filter(function(v){ var t=v.start_date?new Date(v.start_date).getTime():0; return t>=twoYearsAgoMs; });
   var ehrVisitsOlder  = allEhrVisits.filter(function(v){ var t=v.start_date?new Date(v.start_date).getTime():0; return t>0&&t<twoYearsAgoMs; });
   var ehrProvider = ehrData ? ehrData.provider || 'EHR' : '';
-  var activeMeds  = liveMeds.filter(function(m){ return m.active; });
+  // EHR-synced meds get persisted into the `medications` table by ehr-persist
+  // with source='ehr'. We render them in the ehrMeds branch (which routes
+  // tap → openMedicationDetail with NIH info tiles). Filtering them out of
+  // activeMeds prevents a double-render that previously routed taps to the
+  // edit modal instead of the detail view.
+  var activeMeds  = liveMeds.filter(function(m){ return m.active && m.source !== 'ehr'; });
+  // DB-backed fallback when the v2 cache is empty/stale (e.g. a superseded
+  // connection shadows the active one). liveMeds is already connection-
+  // filtered by loadPersonData, so DB is the safe source of truth.
+  if (ehrMeds.length === 0) {
+    ehrMeds = _ehrMedsFromLiveMeds(liveMeds);
+  }
   var labEvents   = liveEvents.filter(function(e){ return e.event_type==='lab_result'; });
   var apptEvents  = liveEvents.filter(function(e){ return e.event_type==='appointment'; });
 
@@ -5293,6 +8420,8 @@ function openRecordsDetail(section) {
         var m = /^Status:\s*(.+)$/i.exec(notes);
         if (m) status = (m[1] || '').trim().toLowerCase();
         return {
+          // Stable id so openConditionDetail() can look this row up by refId.
+          id: e.ref_id || e._refId || e.id || '',
           name: e.title || '',
           code: '',
           status: status,
@@ -5365,6 +8494,23 @@ function openRecordsDetail(section) {
 // does. Back goes to the section list (openRecordsDetail(section)) so users
 // retain the breadcrumb of where they came from.
 
+// Build a stable synthetic refId for an EHR row when the FHIR resource id
+// is missing. Keyed on type + name + code + a date field. Index is NOT
+// included — conditions are rendered in 3 separate groups (active/preventive/
+// historical) with per-group indexes, while lookup iterates the flat array
+// with a flat index, so an index suffix would never round-trip cleanly.
+// Same-name/same-code/same-date rows collapse to the same key (acceptable:
+// they'd open the same detail screen anyway, and the render path already
+// dedups by name).
+function _ehrSynthRefId(prefix, row, _idx) {
+  if (!row) return prefix + ':unnamed';
+  var name = (row.name || '').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '').slice(0, 40);
+  var code = (row.code || '').toString().slice(0, 24);
+  var date = (row.date_asserted || row.onset_date || row.recorded_date || row.effective_date || '').toString().slice(0, 10);
+  var key = [prefix, name || 'unnamed', code, date].filter(Boolean).join(':');
+  return key;
+}
+
 // Look up an encounter / lab / condition by id from the current EHR cache,
 // with a fallback to liveEvents (DB-backed) when the cache hasn't loaded yet.
 function _findEhrItemById(kind, refId) {
@@ -5373,12 +8519,12 @@ function _findEhrItemById(kind, refId) {
   if (kind === 'encounter') {
     var visits = ehrData.visits || ehrData.encounters || [];
     for (var i = 0; i < visits.length; i++) {
-      if (visits[i].id === refId) return visits[i];
+      if (visits[i].id === refId || visits[i]._refId === refId) return visits[i];
     }
     // Conditions sometimes carry encounter-shaped rows (Epic Outpatient).
     var conds = ehrData.conditions || [];
     for (var j = 0; j < conds.length; j++) {
-      if (conds[j].id === refId && (conds[j].location || conds[j].reason)) {
+      if ((conds[j].id === refId || conds[j]._refId === refId) && (conds[j].location || conds[j].reason)) {
         return { id: conds[j].id, name: conds[j].name, start_date: conds[j].onset_date || conds[j].recorded_date,
                  location: conds[j].location || '', reason: conds[j].reason || '', providers: [], documents: [] };
       }
@@ -5388,18 +8534,35 @@ function _findEhrItemById(kind, refId) {
   if (kind === 'lab') {
     var obs = ehrData.observations || [];
     for (var k = 0; k < obs.length; k++) {
-      if (obs[k].id === refId) return Object.assign({ _isReport: false }, obs[k]);
+      if (obs[k].id === refId || obs[k]._refId === refId) return Object.assign({ _isReport: false }, obs[k]);
     }
     var reports = ehrData.diagnostic_reports || [];
     for (var m = 0; m < reports.length; m++) {
-      if (reports[m].id === refId) return Object.assign({ _isReport: true }, reports[m]);
+      if (reports[m].id === refId || reports[m]._refId === refId) return Object.assign({ _isReport: true }, reports[m]);
     }
     return null;
   }
   if (kind === 'condition') {
     var conds2 = ehrData.conditions || [];
     for (var n = 0; n < conds2.length; n++) {
-      if (conds2[n].id === refId) return conds2[n];
+      if (conds2[n].id === refId || conds2[n]._refId === refId) return conds2[n];
+    }
+    // Fallback: regenerate synth refId on the fly. Handles the case where the
+    // EHR cache was replaced between render and click (e.g. background
+    // fetchEhrData fired after the list rendered) so the freshly-loaded rows
+    // never got _refId stamped at render time.
+    for (var n2 = 0; n2 < conds2.length; n2++) {
+      if (_ehrSynthRefId('cond', conds2[n2], n2) === refId) return conds2[n2];
+    }
+    return null;
+  }
+  if (kind === 'medication') {
+    var meds = ehrData.medications || [];
+    for (var p = 0; p < meds.length; p++) {
+      if (meds[p].id === refId || meds[p]._refId === refId) return meds[p];
+    }
+    for (var p2 = 0; p2 < meds.length; p2++) {
+      if (_ehrSynthRefId('med', meds[p2], p2) === refId) return meds[p2];
     }
     return null;
   }
@@ -5660,6 +8823,11 @@ function openConditionDetail(refId) {
   if (!view) return;
   var cond = _findEhrItemById('condition', refId);
   if (!cond) {
+    // Loud diagnostic: silent fallback here used to look like "click does
+    // nothing" because we'd re-render the same conditions list. Keep the
+    // fallback (consistent UX) but emit a warn so the next time it happens
+    // we know exactly which refId failed to round-trip through the cache.
+    try { console.warn('[records] openConditionDetail: no match for refId', refId, '— falling back to list'); } catch(_e) {}
     if (typeof openRecordsDetail === 'function') openRecordsDetail('conditions');
     return;
   }
@@ -5724,12 +8892,23 @@ function openConditionDetail(refId) {
     + '</div>'
     + relatedHtml
     + renderCareTeamChipSection(cond)
+    + renderTrialsTile(cond.code || '', cond.name || '', currentPersonId)
+    + renderFdaTreatmentsTile(cond.code || '', cond.name || '', currentPersonId)
+    + renderCentersTile(cond.code || '', cond.name || '', currentPersonId)
+    + renderAdvocacyTile(cond.code || '', cond.name || '', currentPersonId)
+    + renderResearchPapersTile(cond.code || '', cond.name || '', currentPersonId)
     + _detailAskCta(askKey)
     + '</div>';
 
   _recordsDetailSection = 'conditions:' + (cond.id || '');
   view.innerHTML = html;
   initIcons();
+  // Load the Trials tile asynchronously — fetch fires after DOM is ready.
+  try { _loadTrialsTile(); } catch(_e) {}
+  try { _loadFdaTreatmentsTile(); } catch(_e) {}
+  try { _loadCentersTile(); } catch(_e) {}
+  try { _loadAdvocacyTile(); } catch(_e) {}
+  try { _loadResearchPapersTile(); } catch(_e) {}
   try {
     var card = view.querySelector('[data-ask-lp="' + askKey + '"]');
     if (card && typeof attachAskLongPress === 'function') {
@@ -5737,6 +8916,1299 @@ function openConditionDetail(refId) {
     }
   } catch (_e) {}
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// TRIALS TILE v1
+// Surfaces recruiting studies from ClinicalTrials.gov on the Condition
+// detail screen. Public-registry data only — no app-side interpretation.
+//
+// Four bright lines (non-negotiable):
+//   1. Wellet never claims a match. No eligibility language anywhere.
+//   2. All data is public-registry, returned verbatim from the registry.
+//   3. Tap-out always goes to clinicaltrials.gov — never embedded.
+//   4. Persistent disclaimer on every populated tile view.
+//
+// Voice: "surfaces" not "recommends". "loved one" not "parent".
+//        "notices" / "watches for" not "track" / "monitor".
+//        CareSignals is one word.
+// ────────────────────────────────────────────────────────────────────────────
+
+var TRIALS_PREF_KEY = 'welletShowTrials';
+
+function isTrialsTileEnabled() {
+  try {
+    var v = localStorage.getItem(TRIALS_PREF_KEY);
+    if (v === null) {
+      localStorage.setItem(TRIALS_PREF_KEY, '1');
+      return true;
+    }
+    return v === '1';
+  } catch(e) { return true; }
+}
+
+function renderTrialsTile(conditionCode, conditionText, personId) {
+  if (!isTrialsTileEnabled()) return '';
+  if (typeof _careTeamChipsHideAll === 'function' && _careTeamChipsHideAll(conditionCode)) return '';
+  if (!conditionCode || !conditionText) return '';
+
+  return '<div id="trials-tile-container" class="editorial-trials-tile" style="margin-top:22px;" '
+    + 'data-condition-code="' + _escAttr(conditionCode) + '" '
+    + 'data-condition-text="' + _escAttr(conditionText) + '" '
+    + 'data-person-id="' + _escAttr(personId || '') + '">'
+    + '<div class="editorial-trials-eyebrow">Trials near you \u00B7 public registry</div>'
+    + '<div id="trials-tile-inner" class="editorial-trials-card">'
+    +   '<div style="color:var(--text-muted);font-size:var(--type-meta);padding:14px 0;">Looking up trials near you\u2026</div>'
+    + '</div>'
+    + '</div>';
+}
+
+function _loadTrialsTile() {
+  var container = document.getElementById('trials-tile-container');
+  if (!container) return;
+
+  var conditionCode = container.dataset.conditionCode || '';
+  var conditionText = container.dataset.conditionText || '';
+  var personId      = container.dataset.personId || '';
+
+  var hospitalHint = '';
+  try {
+    var ehrData = typeof getEhrData === 'function' ? getEhrData(personId || currentPersonId) : null;
+    if (ehrData && ehrData.fhir_base_url) hospitalHint = ehrData.fhir_base_url;
+    if (!hospitalHint && ehrData && ehrData.connections) {
+      var connIds = Object.keys(ehrData.connections);
+      if (connIds.length > 0) {
+        var firstConn = ehrData.connections[connIds[0]];
+        hospitalHint = (firstConn && firstConn.fhir_base_url) || '';
+      }
+    }
+  } catch(e) {}
+
+  var supabaseUrl = (typeof db !== 'undefined' && db.supabaseUrl) || 'https://nrpdhxygzyfmyljzfexv.supabase.co';
+  var fnUrl = supabaseUrl.replace(/\/$/, '') + '/functions/v1/fetch-clinical-trials';
+
+  function _fireTrialsFetch(authToken) {
+    var anonKey = (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : '';
+    fetch(fnUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + (authToken || anonKey),
+      'apikey': anonKey
+    },
+    body: JSON.stringify({
+      condition_code: conditionCode,
+      condition_text: conditionText,
+      person_id: personId,
+      hospital_id: hospitalHint,
+      radius_miles: 50,
+      max_results: 10
+    })
+  })
+  .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+  .then(function(data) {
+    var inner = document.getElementById('trials-tile-inner');
+    if (!inner) return;
+
+    var trials = (data && Array.isArray(data.trials)) ? data.trials : [];
+
+    if (trials.length === 0) {
+      // Honest empty state — tell the user we looked. Tap-out goes to the
+      // canonical ClinicalTrials.gov search so they can verify independently.
+      var ctSearchUrl = 'https://clinicaltrials.gov/search?cond='
+        + encodeURIComponent(conditionText || '');
+      inner.innerHTML = _tileEmptyHtml(
+        'No recruiting trials within 50 miles on ClinicalTrials.gov for \u201C'
+          + (conditionText || 'this condition') + '.\u201D',
+        'Search ClinicalTrials.gov',
+        ctSearchUrl
+      );
+      try {
+        _wa.track('feature', 'trials_tile_viewed', {
+          condition_code: conditionCode,
+          trials_count: 0
+        });
+      } catch(e) {}
+      return;
+    }
+
+    var countLabel = trials.length + ' trial' + (trials.length !== 1 ? 's' : '') + ' recruiting within 50 mi';
+
+    var rowsHtml = '';
+    trials.forEach(function(trial) {
+      if (!trial || !trial.nct_id) return;
+      var title   = escHtml(trial.title || 'Untitled study');
+      var sponsor = escHtml(trial.sponsor || '');
+      var nctId   = escHtml(trial.nct_id);
+      var distStr = (trial.distance_miles != null) ? ' \u00B7 ' + escHtml(String(trial.distance_miles)) + ' mi' : '';
+      var url     = escHtml(trial.url || 'https://clinicaltrials.gov');
+
+      rowsHtml += '<button type="button" class="editorial-trials-row" '
+        + 'onclick="openTrialDetail(\'' + _escAttr(trial.nct_id) + '\', \'' + _escAttr(trial.url || 'https://clinicaltrials.gov') + '\')">'
+        +   '<div class="editorial-trials-row-title">' + title + '</div>'
+        +   '<div class="editorial-trials-row-meta">' + sponsor + distStr + ' \u00B7 ' + nctId + '</div>'
+        + '</button>';
+    });
+
+    var disclaimerPronoun = 'their';
+    try {
+      var p = (currentPeople || []).find(function(x) { return x && x.id === (personId || currentPersonId); });
+      if (p) {
+        if (p.pronouns === 'she/her' || p.gender === 'female') disclaimerPronoun = 'her';
+        else if (p.pronouns === 'he/him' || p.gender === 'male') disclaimerPronoun = 'his';
+      }
+    } catch(e) {}
+    var disclaimer = 'Public registry. Talk to ' + disclaimerPronoun + ' care team before applying.';
+
+    inner.innerHTML = '<div class="editorial-trials-count">' + escHtml(countLabel) + '</div>'
+      + '<div class="editorial-trials-rows">' + rowsHtml + '</div>'
+      + '<div class="editorial-trials-disclaimer">' + escHtml(disclaimer) + '</div>';
+
+    try {
+      _wa.track('feature', 'trials_tile_viewed', {
+        condition_code: conditionCode,
+        trials_count: trials.length
+      });
+    } catch(e) {}
+  })
+  .catch(function() {
+    var tileContainer = document.getElementById('trials-tile-container');
+    if (tileContainer) tileContainer.style.display = 'none';
+  });
+  }
+  try {
+    db.auth.getSession().then(function(sessionRes) {
+      var session = sessionRes && sessionRes.data && sessionRes.data.session;
+      _fireTrialsFetch((session && session.access_token) || '');
+    }).catch(function() { _fireTrialsFetch(''); });
+  } catch(e) { _fireTrialsFetch(''); }
+}
+
+function openTrialDetail(nctId, url) {
+  if (!url) url = nctId ? 'https://clinicaltrials.gov/study/' + encodeURIComponent(nctId) : 'https://clinicaltrials.gov';
+  try {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
+      window.Capacitor.Plugins.Browser.open({ url: url });
+      return;
+    }
+  } catch(_e) {}
+  window.open(url, '_blank', 'noopener');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SHARED TILE HELPERS — empty-state renderer, external open
+// Used by all 5 diagnosis tiles (Trials · FDA · Centers · Advocacy · Research)
+// when the public registry returns zero rows. Honors Wellet's "we surface, you
+// decide" voice — even when there's nothing to surface, we tell the user we
+// looked. Tap-out (when provided) goes to the canonical public search URL.
+function _tileOpenExternalUrl(url) {
+  if (!url) return;
+  try {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
+      window.Capacitor.Plugins.Browser.open({ url: url });
+      return;
+    }
+  } catch(_e) {}
+  window.open(url, '_blank', 'noopener');
+}
+
+function _tileEmptyHtml(message, ctaLabel, ctaUrl) {
+  var safeMsg = (typeof escHtml === 'function') ? escHtml(message) : String(message);
+  var html = '<div class="editorial-tile-empty">'
+    + '<div class="editorial-tile-empty-text">' + safeMsg + '</div>';
+  if (ctaUrl && ctaLabel) {
+    var escUrl = (typeof _escAttr === 'function') ? _escAttr(ctaUrl) : String(ctaUrl);
+    var escLabel = (typeof escHtml === 'function') ? escHtml(ctaLabel) : String(ctaLabel);
+    html += '<button type="button" class="editorial-tile-empty-cta" '
+      + 'onclick="_tileOpenExternalUrl(\'' + escUrl + '\')">'
+      + escLabel + ' \u203A</button>';
+  }
+  html += '</div>';
+  return html;
+}
+
+// DIAGNOSIS TILES 2-5 (FDA · Centers · Advocacy · Research) — shipped 2026-05-17
+// ═══════════════════════════════════════════════════════════════════════════
+// ============================================================================
+// FDA TREATMENTS TILE — wellet.js additions
+// Append this block to assets/wellet.js
+//
+// Contains:
+//   1. PREF_KEY constant + isEnabled guard
+//   2. renderFdaTreatmentsTile() — returns HTML string
+//   3. _loadFdaTreatmentsTile() — async loader (fetch → DOM)
+//   4. openFdaTreatmentDetail() — tap handler (Capacitor.Browser / window.open)
+//   5. updateFdaToggleUI() — settings toggle UI updater
+//   6. toggleFdaTreatmentsTileFlag() — settings toggle action
+//
+// Anchor instructions: see wellet_js_anchors.md
+// ============================================================================
+
+// ────────────────────────────────────────────────────────────────────────────
+// FDA TREATMENTS TILE v1
+// Surfaces FDA-approved drug labels from openFDA on the Condition detail
+// screen. Public-registry data only — no app-side interpretation.
+//
+// Bright lines (non-negotiable):
+//   1. Wellet never claims a match. No eligibility language anywhere.
+//   2. All data is public FDA label data, verbatim from openFDA.
+//   3. Tap-out always goes to DailyMed — the canonical public source.
+//   4. Persistent disclaimer on every populated tile view.
+//
+// Voice: "surfaces" not "recommends". "loved one" not "parent".
+//        "notices" / "watches for" not "track" / "monitor".
+//        CareSignals is one word.
+// ────────────────────────────────────────────────────────────────────────────
+
+var FDA_TREATMENTS_PREF_KEY = 'welletShowFdaTreatments';
+
+function isFdaTreatmentsTileEnabled() {
+  try {
+    var v = localStorage.getItem(FDA_TREATMENTS_PREF_KEY);
+    if (v === null) {
+      localStorage.setItem(FDA_TREATMENTS_PREF_KEY, '1');
+      return true;
+    }
+    return v === '1';
+  } catch(e) { return true; }
+}
+
+// ── Render ───────────────────────────────────────────────────────────────────
+// Returns the static shell HTML (with a "Loading…" placeholder inside the
+// card). _loadFdaTreatmentsTile() fills the card after the view is in DOM.
+
+function renderFdaTreatmentsTile(conditionCode, conditionText, personId) {
+  if (!isFdaTreatmentsTileEnabled()) return '';
+  if (typeof _careTeamChipsHideAll === 'function' && _careTeamChipsHideAll(conditionCode)) return '';
+  if (!conditionCode || !conditionText) return '';
+
+  return '<div id="fda-tile-container" class="editorial-fda-tile" style="margin-top:22px;" '
+    + 'data-condition-code="' + _escAttr(conditionCode) + '" '
+    + 'data-condition-text="' + _escAttr(conditionText) + '" '
+    + 'data-person-id="'      + _escAttr(personId || '') + '">'
+    + '<div class="editorial-fda-eyebrow">FDA-approved treatments \u00B7 openFDA</div>'
+    + '<div id="fda-tile-inner" class="editorial-fda-card">'
+    +   '<div style="color:var(--text-muted);font-size:var(--type-meta);padding:14px 0;">Loading\u2026</div>'
+    + '</div>'
+    + '</div>';
+}
+
+// ── Async Loader ─────────────────────────────────────────────────────────────
+// Called from openConditionDetail AFTER view.innerHTML is set.
+// Reads dataset from the container element so it works even if currentPerson
+// context changes between render and load.
+
+function _loadFdaTreatmentsTile() {
+  var container = document.getElementById('fda-tile-container');
+  if (!container) return;
+
+  var conditionCode = container.dataset.conditionCode || '';
+  var conditionText = container.dataset.conditionText || '';
+  var personId      = container.dataset.personId || '';
+
+  var supabaseUrl = (typeof db !== 'undefined' && db.supabaseUrl) || 'https://nrpdhxygzyfmyljzfexv.supabase.co';
+  var fnUrl = supabaseUrl.replace(/\/$/, '') + '/functions/v1/fetch-fda-treatments';
+
+  function _fireFdaFetch(authToken) {
+    var anonKey = (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : '';
+    fetch(fnUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + (authToken || anonKey),
+      'apikey': anonKey
+    },
+    body: JSON.stringify({
+      condition_code: conditionCode,
+      condition_text: conditionText,
+      person_id: personId
+    })
+  })
+  .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+  .then(function(data) {
+    var inner = document.getElementById('fda-tile-inner');
+    if (!inner) return;
+
+    var treatments = (data && Array.isArray(data.treatments)) ? data.treatments : [];
+
+    if (treatments.length === 0) {
+      var fdaSearchUrl = 'https://dailymed.nlm.nih.gov/dailymed/search.cfm?query='
+        + encodeURIComponent(conditionText || conditionCode || '');
+      inner.innerHTML = _tileEmptyHtml(
+        'No FDA-approved drug labels in openFDA for \u201C'
+          + (conditionText || 'this condition') + '.\u201D',
+        'Search DailyMed', fdaSearchUrl);
+      try { if (typeof _wa !== 'undefined' && _wa.track) _wa.track('feature','fda_tile_viewed',{condition_code:conditionCode,treatment_count:0}); } catch(e){}
+      return;
+    }
+
+    var n = treatments.length;
+    var countLabel = n + ' FDA-approved treatment' + (n !== 1 ? 's' : '') + ' for this condition';
+
+    var rowsHtml = '';
+    treatments.forEach(function(t) {
+      if (!t) return;
+      var brandDisplay = escHtml(t.brand_name || t.generic_name || 'Unknown');
+      var metaDisplay  = escHtml(
+        (t.generic_name || '') + (t.manufacturer ? ' \u00B7 ' + t.manufacturer : '')
+      );
+      var setId = t.set_id || '';
+      var url   = t.url   || 'https://www.fda.gov/drugs';
+
+      rowsHtml += '<button type="button" class="editorial-fda-row" '
+        + 'onclick="openFdaTreatmentDetail(\'' + _escAttr(setId) + '\', \'' + _escAttr(url) + '\')">'
+        +   '<div class="editorial-fda-row-title">' + brandDisplay + '</div>'
+        +   '<div class="editorial-fda-row-meta">'  + metaDisplay  + '</div>'
+        + '</button>';
+    });
+
+    // Pronoun-aware disclaimer
+    var disclaimerPronoun = 'their';
+    try {
+      var p = (currentPeople || []).find(function(x) {
+        return x && x.id === (personId || currentPersonId);
+      });
+      if (p) {
+        if (p.pronouns === 'she/her' || p.gender === 'female')      disclaimerPronoun = 'her';
+        else if (p.pronouns === 'he/him' || p.gender === 'male')    disclaimerPronoun = 'his';
+      }
+    } catch(e) {}
+    var disclaimer = 'Public FDA labels. Talk to ' + disclaimerPronoun + ' care team before any treatment change.';
+
+    inner.innerHTML = '<div class="editorial-fda-count">' + escHtml(countLabel) + '</div>'
+      + '<div class="editorial-fda-rows">' + rowsHtml + '</div>'
+      + '<div class="editorial-fda-disclaimer">' + escHtml(disclaimer) + '</div>';
+
+    try {
+      _wa.track('feature', 'fda_treatments_tile_viewed', {
+        condition_code: conditionCode,
+        treatment_count: treatments.length
+      });
+    } catch(e) {}
+  })
+  .catch(function() {
+    var tileContainer = document.getElementById('fda-tile-container');
+    if (tileContainer) tileContainer.style.display = 'none';
+  });
+  }
+  try {
+    db.auth.getSession().then(function(sessionRes) {
+      var session = sessionRes && sessionRes.data && sessionRes.data.session;
+      _fireFdaFetch((session && session.access_token) || '');
+    }).catch(function() { _fireFdaFetch(''); });
+  } catch(e) { _fireFdaFetch(''); }
+}
+
+// ── Tap handler ───────────────────────────────────────────────────────────────
+// Opens the DailyMed SPL or FDA DAF page in the system browser.
+// Same Capacitor.Browser / window.open pattern as openTrialDetail.
+
+function openFdaTreatmentDetail(setId, url) {
+  if (!url) {
+    url = setId
+      ? 'https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid=' + encodeURIComponent(setId)
+      : 'https://www.fda.gov/drugs';
+  }
+  try {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
+      window.Capacitor.Plugins.Browser.open({ url: url });
+      return;
+    }
+  } catch(_e) {}
+  window.open(url, '_blank', 'noopener');
+}
+
+// ── Settings toggle ───────────────────────────────────────────────────────────
+// Mirrors updateTrialsToggleUI / toggleTrialsTileFlag exactly.
+
+function updateFdaToggleUI() {
+  var btn = document.getElementById('fda-toggle-btn');
+  if (!btn) return;
+  var on = isFdaTreatmentsTileEnabled();
+  if (on) {
+    btn.textContent      = 'On';
+    btn.style.background  = 'var(--moss)';
+    btn.style.color       = '#fff';
+    btn.style.borderColor = 'var(--moss)';
+  } else {
+    btn.textContent      = 'Off';
+    btn.style.background  = '#eef2f0';
+    btn.style.color       = 'var(--text-primary)';
+    btn.style.borderColor = 'var(--border)';
+  }
+}
+
+function toggleFdaTreatmentsTileFlag() {
+  try {
+    if (isFdaTreatmentsTileEnabled()) {
+      localStorage.setItem(FDA_TREATMENTS_PREF_KEY, '0');
+      try { showToast('FDA treatments tile off'); } catch(e) {}
+    } else {
+      localStorage.setItem(FDA_TREATMENTS_PREF_KEY, '1');
+      try { showToast('FDA treatments tile on'); } catch(e) {}
+    }
+  } catch(e) { console.warn('fda toggle:', e); }
+  updateFdaToggleUI();
+}
+// ============================================================================
+// wellet.js ADDITIONS — Tile 3: Centers of Excellence
+// Add these blocks to assets/wellet.js per wellet_js_anchors.md
+// 2026-05-17
+// ============================================================================
+
+// ─── PREF KEY & TOGGLE ───────────────────────────────────────────────────────
+
+var CENTERS_PREF_KEY = 'welletShowCenters';
+
+function isCentersTileEnabled() {
+  try {
+    var v = localStorage.getItem(CENTERS_PREF_KEY);
+    if (v === null) {
+      localStorage.setItem(CENTERS_PREF_KEY, '1');
+      return true;
+    }
+    return v === '1';
+  } catch (e) { return true; }
+}
+
+// ─── RENDER FUNCTION — returns HTML string ───────────────────────────────────
+// Called from openConditionDetail() during html build phase.
+// Sits AFTER renderFDATreatmentsTile() and BEFORE renderAdvocacyGroupsTile()
+// per rendering order: Trials → FDA → Centers → Advocacy → Research
+
+function renderCentersTile(conditionCode, conditionText, personId) {
+  if (!isCentersTileEnabled()) return '';
+  if (typeof _careTeamChipsHideAll === 'function' && _careTeamChipsHideAll(conditionCode)) return '';
+  if (!conditionCode || !conditionText) return '';
+
+  return '<div id="centers-tile-container" class="editorial-centers-tile" style="margin-top:22px;" '
+    + 'data-condition-code="' + _escAttr(conditionCode) + '" '
+    + 'data-condition-text="' + _escAttr(conditionText) + '" '
+    + 'data-person-id="' + _escAttr(personId || '') + '">'
+    + '<div class="editorial-centers-eyebrow">Centers of excellence &middot; curated</div>'
+    + '<div id="centers-tile-inner" class="editorial-centers-card">'
+    +   '<div style="color:var(--text-muted);font-size:var(--type-meta);padding:14px 0;">Loading\u2026</div>'
+    + '</div>'
+    + '</div>';
+}
+
+// ─── ASYNC LOADER — called after view.innerHTML is set ────────────────────────
+
+function _loadCentersTile() {
+  var container = document.getElementById('centers-tile-container');
+  if (!container) return;
+
+  var conditionCode = container.dataset.conditionCode || '';
+  var conditionText = container.dataset.conditionText || '';
+  var personId      = container.dataset.personId || '';
+
+  // Resolve hospital hint from EHR data if available
+  var hospitalHint = '';
+  try {
+    var ehr = (typeof getEhrData === 'function') ? getEhrData(personId) : null;
+    hospitalHint = (ehr && ehr.hospital_id) ? ehr.hospital_id : '';
+  } catch (e) {}
+
+  var supabaseUrl = (typeof db !== 'undefined' && db.supabaseUrl)
+    ? db.supabaseUrl
+    : 'https://nrpdhxygzyfmyljzfexv.supabase.co';
+  var fnUrl = supabaseUrl.replace(/\/$/, '') + '/functions/v1/fetch-centers-of-excellence';
+
+  function _fireCentersFetch(authToken) {
+    var anonKey = (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : '';
+    fetch(fnUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + (authToken || anonKey),
+      'apikey': anonKey
+    },
+    body: JSON.stringify({
+      condition_code: conditionCode,
+      condition_text: conditionText,
+      person_id: personId,
+      hospital_id: hospitalHint
+    })
+  })
+  .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+  .then(function(data) {
+    var inner = document.getElementById('centers-tile-inner');
+    if (!inner) return;
+
+    var centers = (data && Array.isArray(data.centers)) ? data.centers : [];
+    if (centers.length === 0) {
+      inner.innerHTML = _tileEmptyHtml(
+        'No designated centers in our curated list for \u201C'
+          + (conditionText || 'this condition') + '.\u201D',
+        '', '');
+      try { if (typeof _wa !== 'undefined' && _wa.track) _wa.track('feature','centers_tile_viewed',{condition_code:conditionCode,center_count:0}); } catch(e){}
+      return;
+    }
+
+    // Build count summary: "5 centers within 280 mi"
+    var furthest = centers[centers.length - 1].distance_miles || 0;
+    var noun = centers.length === 1 ? 'center' : 'centers';
+    var summary = centers.length + ' ' + noun + ' within ' + furthest + ' mi';
+
+    // Pronoun-aware disclaimer
+    var pronoun = 'their';
+    try {
+      var profile = (typeof getPersonProfile === 'function') ? getPersonProfile(personId) : null;
+      if (profile && profile.pronouns) {
+        if (profile.pronouns === 'she/her') pronoun = 'her';
+        else if (profile.pronouns === 'he/him') pronoun = 'his';
+      }
+    } catch (e) {}
+
+    // Build rows
+    var rows = '';
+    for (var i = 0; i < centers.length; i++) {
+      var c = centers[i];
+      var escapedName = _escAttr(c.name || '');
+      var escapedUrl  = _escAttr(c.url  || '');
+      rows += '<div class="editorial-centers-row" '
+        + 'onclick="openCenterDetail(\'' + escapedName + '\',\'' + escapedUrl + '\')" '
+        + 'role="button" tabindex="0" '
+        + 'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){openCenterDetail(\'' + escapedName + '\',\'' + escapedUrl + '\')}">'
+        + '<div class="editorial-centers-row-name">' + _escHtml(c.name || '') + '</div>'
+        + '<div class="editorial-centers-row-meta">'
+        +   _escHtml(c.designation || '') + ' &middot; ' + _escHtml(c.city || '') + ', ' + _escHtml(c.state || '')
+        +   ' &middot; ' + (c.distance_miles || 0) + ' mi'
+        + '</div>'
+        + '</div>';
+    }
+
+    inner.innerHTML = ''
+      + '<div class="editorial-centers-summary">' + _escHtml(summary) + '</div>'
+      + '<div class="editorial-centers-rows">' + rows + '</div>'
+      + '<div class="editorial-centers-disclaimer">'
+      +   'Independent designations. Talk to ' + pronoun + ' care team about referrals.'
+      + '</div>';
+
+    // Analytics
+    try {
+      if (typeof _wa !== 'undefined' && typeof _wa.track === 'function') {
+        _wa.track('feature', 'centers_tile_viewed', {
+          condition_code: conditionCode,
+          center_count: centers.length
+        });
+      }
+    } catch (e) {}
+  })
+  .catch(function() {
+    var tile = document.getElementById('centers-tile-container');
+    if (tile) tile.style.display = 'none';
+  });
+  }
+  try {
+    db.auth.getSession().then(function(sessionRes) {
+      var session = sessionRes && sessionRes.data && sessionRes.data.session;
+      _fireCentersFetch((session && session.access_token) || '');
+    }).catch(function() { _fireCentersFetch(''); });
+  } catch(e) { _fireCentersFetch(''); }
+}
+
+// ─── TAP-OUT HANDLER ─────────────────────────────────────────────────────────
+// Opens institution homepage. Uses Capacitor.Browser on native; window.open on web.
+
+function openCenterDetail(name, url) {
+  if (!url) return;
+  try {
+    if (typeof Capacitor !== 'undefined'
+        && Capacitor.Plugins
+        && Capacitor.Plugins.Browser) {
+      Capacitor.Plugins.Browser.open({ url: url });
+    } else {
+      window.open(url, '_blank', 'noopener');
+    }
+  } catch (e) {
+    window.open(url, '_blank', 'noopener');
+  }
+}
+
+// ─── SETTINGS TOGGLE HANDLERS ────────────────────────────────────────────────
+// Mirror of updateTrialsToggleUI / toggleTrialsTileFlag
+
+function updateCentersToggleUI() {
+  var btn = document.getElementById('centers-toggle-btn');
+  if (!btn) return;
+  var on = isCentersTileEnabled();
+  if (on) {
+    btn.textContent      = 'On';
+    btn.style.background  = 'var(--moss)';
+    btn.style.color       = '#fff';
+    btn.style.borderColor = 'var(--moss)';
+  } else {
+    btn.textContent      = 'Off';
+    btn.style.background  = '#eef2f0';
+    btn.style.color       = 'var(--text-primary)';
+    btn.style.borderColor = 'var(--border)';
+  }
+}
+
+function toggleCentersTileFlag() {
+  try {
+    if (isCentersTileEnabled()) {
+      localStorage.setItem(CENTERS_PREF_KEY, '0');
+      try { showToast('Centers of excellence off'); } catch(e) {}
+    } else {
+      localStorage.setItem(CENTERS_PREF_KEY, '1');
+      try { showToast('Centers of excellence on'); } catch(e) {}
+    }
+  } catch (e) { console.warn('centers toggle:', e); }
+  updateCentersToggleUI();
+}
+// ============================================================================
+// Tile 4 — Patient-Advocacy Groups
+// Add to assets/wellet.js (see wellet_js_anchors.md for exact insertion points)
+//
+// Functions added:
+//   isAdvocacyEnabled()
+//   renderAdvocacyTile(conditionCode, conditionText, personId)
+//   _loadAdvocacyTile()
+//   openAdvocacyDetail(name, url)
+//   updateAdvocacyToggleUI()
+//   toggleAdvocacyTileFlag()
+//
+// Settings pref key: 'welletShowAdvocacy'
+// Edge function: fetch-advocacy-groups
+// Eyebrow: Patient-advocacy groups · curated
+// Disclaimer: Independent nonprofits. Wellet does not endorse or share data.
+// Analytics event: advocacy_tile_viewed { condition_code, group_count }
+// ============================================================================
+
+// ── 1. Preference helper ────────────────────────────────────────────────────
+var ADVOCACY_PREF_KEY = 'welletShowAdvocacy';
+
+function isAdvocacyEnabled() {
+  try {
+    var v = localStorage.getItem(ADVOCACY_PREF_KEY);
+    if (v === null) {
+      localStorage.setItem(ADVOCACY_PREF_KEY, '1');
+      return true;
+    }
+    return v === '1';
+  } catch(e) { return true; }
+}
+
+// ── 2. Render function — returns HTML string ─────────────────────────────────
+// Called synchronously inside openConditionDetail's html concatenation.
+// Tile sits between Centers of Excellence (Tile 3) and Recent Research (Tile 5).
+function renderAdvocacyTile(conditionCode, conditionText, personId) {
+  if (!isAdvocacyEnabled()) return '';
+  if (typeof _careTeamChipsHideAll === 'function' && _careTeamChipsHideAll(conditionCode)) return '';
+  if (!conditionCode || !conditionText) return '';
+
+  return '<div id="advocacy-tile-container" class="editorial-advocacy-tile" style="margin-top:22px;" '
+    + 'data-condition-code="' + _escAttr(conditionCode) + '" '
+    + 'data-condition-text="' + _escAttr(conditionText) + '" '
+    + 'data-person-id="' + _escAttr(personId || '') + '">'
+    + '<div class="editorial-advocacy-eyebrow">Patient-advocacy groups \u00b7 curated</div>'
+    + '<div id="advocacy-tile-inner" class="editorial-advocacy-card">'
+    +   '<div style="color:var(--text-muted);font-size:var(--type-meta);padding:14px 0;">Loading\u2026</div>'
+    + '</div>'
+    + '</div>';
+}
+
+// ── 3. Async loader — called from openConditionDetail AFTER view.innerHTML ──
+function _loadAdvocacyTile() {
+  var container = document.getElementById('advocacy-tile-container');
+  if (!container) return;
+
+  var conditionCode = container.dataset.conditionCode || '';
+  var conditionText = container.dataset.conditionText || '';
+  var personId      = container.dataset.personId || '';
+
+  var supabaseUrl = (typeof db !== 'undefined' && db.supabaseUrl) || 'https://nrpdhxygzyfmyljzfexv.supabase.co';
+  var fnUrl = supabaseUrl.replace(/\/$/, '') + '/functions/v1/fetch-advocacy-groups';
+
+  function _fireAdvocacyFetch(authToken) {
+    var anonKey = (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : '';
+    fetch(fnUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + (authToken || anonKey),
+      'apikey': anonKey
+    },
+    body: JSON.stringify({
+      condition_code: conditionCode,
+      condition_text: conditionText,
+      person_id: personId
+    })
+  })
+  .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+  .then(function(data) {
+    var inner = document.getElementById('advocacy-tile-inner');
+    if (!inner) return;
+
+    var groups = (data && Array.isArray(data.groups)) ? data.groups : [];
+    if (groups.length === 0) {
+      inner.innerHTML = _tileEmptyHtml(
+        'No advocacy groups in our curated list for \u201C'
+          + (conditionText || 'this condition') + '.\u201D',
+        '', '');
+      try { if (typeof _wa !== 'undefined' && _wa.track) _wa.track('feature','advocacy_tile_viewed',{condition_code:conditionCode,group_count:0}); } catch(e){}
+      return;
+    }
+
+    // Count label: "{N} advocacy group{s} for this condition"
+    var plural = groups.length === 1 ? '' : 's';
+    var countLabel = groups.length + ' advocacy group' + plural + ' for this condition';
+
+    var html = '<div class="editorial-advocacy-count">' + _escHtml(countLabel) + '</div>';
+
+    groups.forEach(function(g) {
+      html += '<div class="editorial-advocacy-row" onclick="openAdvocacyDetail(' + JSON.stringify(g.name) + ',' + JSON.stringify(g.url) + ')" style="cursor:pointer;">';
+      html += '<div class="editorial-advocacy-name">' + _escHtml(g.name) + '</div>';
+      html += '<div class="editorial-advocacy-meta">' + _escHtml(g.tagline) + '</div>';
+      if (g.phone) {
+        // Render tap-to-call link inline; stop propagation so row click doesn't also fire
+        var phoneFormatted = g.phone;
+        html += '<div class="editorial-advocacy-phone">'
+          + '<a href="tel:' + _escAttr(phoneFormatted) + '" '
+          + 'onclick="event.stopPropagation();" '
+          + 'class="editorial-advocacy-phone-link">'
+          + _escHtml(phoneFormatted)
+          + '</a></div>';
+      }
+      html += '</div>';
+    });
+
+    html += '<div class="editorial-advocacy-disclaimer">Independent nonprofits. Wellet does not endorse or share data.</div>';
+
+    inner.innerHTML = html;
+
+    // Analytics
+    if (typeof _wa !== 'undefined' && typeof _wa.track === 'function') {
+      try {
+        _wa.track('feature', 'advocacy_tile_viewed', {
+          condition_code: conditionCode,
+          group_count: groups.length
+        });
+      } catch(e) {}
+    }
+  })
+  .catch(function() {
+    var tile = document.getElementById('advocacy-tile-container');
+    if (tile) tile.style.display = 'none';
+  });
+  }
+  try {
+    db.auth.getSession().then(function(sessionRes) {
+      var session = sessionRes && sessionRes.data && sessionRes.data.session;
+      _fireAdvocacyFetch((session && session.access_token) || '');
+    }).catch(function() { _fireAdvocacyFetch(''); });
+  } catch(e) { _fireAdvocacyFetch(''); }
+}
+
+// ── 4. Tap-out handler ────────────────────────────────────────────────────────
+function openAdvocacyDetail(name, url) {
+  if (!url) return;
+  try {
+    if (typeof Capacitor !== 'undefined' && Capacitor.Plugins && Capacitor.Plugins.Browser) {
+      Capacitor.Plugins.Browser.open({ url: url });
+    } else {
+      window.open(url, '_blank', 'noopener');
+    }
+  } catch(e) {
+    window.open(url, '_blank', 'noopener');
+  }
+}
+
+// ── 5. Settings toggle UI helper ─────────────────────────────────────────────
+// Mirror of updateTrialsToggleUI — call this when Settings sheet opens
+function updateAdvocacyToggleUI() {
+  var btn = document.getElementById('advocacy-toggle-btn');
+  if (!btn) return;
+  var on = isAdvocacyEnabled();
+  if (on) {
+    btn.textContent      = 'On';
+    btn.style.background  = 'var(--moss)';
+    btn.style.color       = '#fff';
+    btn.style.borderColor = 'var(--moss)';
+  } else {
+    btn.textContent      = 'Off';
+    btn.style.background  = '#eef2f0';
+    btn.style.color       = 'var(--text-primary)';
+    btn.style.borderColor = 'var(--border)';
+  }
+}
+
+// ── 6. Settings toggle flag handler ──────────────────────────────────────────
+// Called from index.html button onclick="toggleAdvocacyTileFlag()"
+function toggleAdvocacyTileFlag() {
+  try {
+    if (isAdvocacyEnabled()) {
+      localStorage.setItem(ADVOCACY_PREF_KEY, '0');
+      try { showToast('Advocacy groups off'); } catch(e) {}
+    } else {
+      localStorage.setItem(ADVOCACY_PREF_KEY, '1');
+      try { showToast('Advocacy groups on'); } catch(e) {}
+    }
+  } catch (e) { console.warn('advocacy toggle:', e); }
+  updateAdvocacyToggleUI();
+}
+// =============================================================================
+// Tile 5 — Recent Research (PubMed reviews + meta-analyses)
+// Append this block to assets/wellet.js
+// See wellet_js_anchors.md for exact insertion points.
+// =============================================================================
+
+// ---------------------------------------------------------------------------
+// Pref key + toggle helper
+// ---------------------------------------------------------------------------
+var RESEARCH_PREF_KEY = 'welletShowResearch';
+
+function isResearchTileEnabled() {
+  try {
+    var v = localStorage.getItem(RESEARCH_PREF_KEY);
+    if (v === null) {
+      localStorage.setItem(RESEARCH_PREF_KEY, '1');
+      return true;
+    }
+    return v === '1';
+  } catch(e) { return true; }
+}
+
+// ---------------------------------------------------------------------------
+// Render function — returns HTML string, does NOT touch the DOM
+// ---------------------------------------------------------------------------
+function renderResearchPapersTile(conditionCode, conditionText, personId) {
+  if (!isResearchTileEnabled()) return '';
+  if (typeof _careTeamChipsHideAll === 'function' && _careTeamChipsHideAll(conditionCode)) return '';
+  if (!conditionCode || !conditionText) return '';
+
+  return '<div id="research-tile-container" class="editorial-research-tile" style="margin-top:22px;" '
+    + 'data-condition-code="' + _escAttr(conditionCode) + '" '
+    + 'data-condition-text="' + _escAttr(conditionText) + '" '
+    + 'data-person-id="' + _escAttr(personId || '') + '">'
+    + '<div class="editorial-research-eyebrow">Recent research · PubMed reviews</div>'
+    + '<div id="research-tile-inner" class="editorial-research-card">'
+    +   '<div style="color:var(--text-muted);font-size:var(--type-meta);padding:14px 0;">Loading…</div>'
+    + '</div>'
+    + '</div>';
+}
+
+// ---------------------------------------------------------------------------
+// Async loader — call after view.innerHTML is set in openConditionDetail
+// ---------------------------------------------------------------------------
+function _loadResearchPapersTile() {
+  var container = document.getElementById('research-tile-container');
+  if (!container) return;
+
+  var conditionCode = container.dataset.conditionCode || '';
+  var conditionText = container.dataset.conditionText || '';
+  var personId      = container.dataset.personId || '';
+
+  var supabaseUrl = (typeof db !== 'undefined' && db.supabaseUrl)
+    || 'https://nrpdhxygzyfmyljzfexv.supabase.co';
+  var fnUrl = supabaseUrl.replace(/\/$/, '') + '/functions/v1/fetch-research-papers';
+
+  function _fireResearchFetch(authToken) {
+    var anonKey = (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : '';
+    fetch(fnUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + (authToken || anonKey),
+      'apikey': anonKey
+    },
+    body: JSON.stringify({
+      condition_code: conditionCode,
+      condition_text: conditionText,
+      person_id: personId
+    })
+  })
+  .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+  .then(function(data) {
+    var inner = document.getElementById('research-tile-inner');
+    if (!inner) return;
+
+    var papers = (data && Array.isArray(data.papers)) ? data.papers : [];
+
+    if (papers.length === 0) {
+      var pmSearchUrl = 'https://pubmed.ncbi.nlm.nih.gov/?term='
+        + encodeURIComponent((conditionText || conditionCode || '') + ' AND review[pt]');
+      inner.innerHTML = _tileEmptyHtml(
+        'No recent reviews on PubMed for \u201C'
+          + (conditionText || 'this condition') + '.\u201D',
+        'Search PubMed', pmSearchUrl);
+      try { if (typeof _wa !== 'undefined' && _wa.track) _wa.track('feature','research_tile_viewed',{condition_code:conditionCode,paper_count:0}); } catch(e){}
+      return;
+    }
+
+    // Pronoun for disclaimer
+    var pronoun = 'their';
+    try {
+      if (typeof currentPersonId !== 'undefined' && currentPersonId && typeof getPersonPronoun === 'function') {
+        pronoun = getPersonPronoun(currentPersonId) || 'their';
+      }
+    } catch(e) {}
+
+    // Count label — "N recent review[s] from PubMed" (no "from PubMed" if N=1)
+    var n = papers.length;
+    var countLabel = n === 1
+      ? '1 recent review'
+      : n + ' recent reviews from PubMed';
+
+    var rows = '';
+    for (var i = 0; i < papers.length; i++) {
+      var p = papers[i];
+      var pmid = _escAttr(p.pmid || '');
+      var url  = _escAttr(p.url  || 'https://pubmed.ncbi.nlm.nih.gov/');
+      var title = _escHtml(p.title || '');
+      var meta  = _escHtml((p.journal || '') + (p.pub_date ? ', ' + p.pub_date : '')
+                         + (p.authors_short ? ' · ' + p.authors_short : ''));
+
+      rows += '<div class="editorial-research-row" '
+            + 'data-pmid="' + pmid + '" '
+            + 'data-url="' + url + '" '
+            + 'onclick="openResearchPaperDetail(\'' + pmid + '\', \'' + url + '\')">'
+            + '<div class="editorial-research-row-title">' + title + '</div>'
+            + '<div class="editorial-research-row-meta">' + meta + '</div>'
+            + '</div>';
+    }
+
+    var disclaimer = 'Public research summaries. Reading them is not a substitute for '
+      + pronoun + ' care team\u2019s interpretation.';
+
+    inner.innerHTML = ''
+      + '<div class="editorial-research-count">' + _escHtml(countLabel) + '</div>'
+      + rows
+      + '<div class="editorial-research-disclaimer">' + _escHtml(disclaimer) + '</div>';
+
+    // Analytics — no PII, no item-level IDs
+    try {
+      if (typeof _wa !== 'undefined' && typeof _wa.track === 'function') {
+        _wa.track('feature', 'research_papers_tile_viewed', {
+          condition_code: conditionCode,
+          paper_count: papers.length
+        });
+      }
+    } catch(e) {}
+  })
+  .catch(function() {
+    var tile = document.getElementById('research-tile-container');
+    if (tile) tile.style.display = 'none';
+  });
+  }
+  try {
+    db.auth.getSession().then(function(sessionRes) {
+      var session = sessionRes && sessionRes.data && sessionRes.data.session;
+      _fireResearchFetch((session && session.access_token) || '');
+    }).catch(function() { _fireResearchFetch(''); });
+  } catch(e) { _fireResearchFetch(''); }
+}
+
+// ---------------------------------------------------------------------------
+// Tap handler — opens PubMed abstract in Capacitor browser or new tab
+// ---------------------------------------------------------------------------
+function openResearchPaperDetail(pmid, url) {
+  var target = url || ('https://pubmed.ncbi.nlm.nih.gov/' + pmid + '/');
+  try {
+    if (typeof Capacitor !== 'undefined'
+        && Capacitor.Plugins
+        && Capacitor.Plugins.Browser) {
+      Capacitor.Plugins.Browser.open({ url: target });
+    } else {
+      window.open(target, '_blank', 'noopener');
+    }
+  } catch(e) {
+    window.open(target, '_blank', 'noopener');
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// MEDICATION DETAIL v2 — public-source medication info
+// Shipped 2026-05-19. Tap an EHR med row → detail screen with four tiles
+// sourced from RxNorm + MedlinePlus + openFDA (fetch-medication-detail edge fn).
+//
+// Bright lines (non-negotiable):
+//   1. Wellet never offers medical advice. We surface what U.S. NLM and FDA
+//      publish, verbatim, with a tap-out to the canonical source on every tile.
+//   2. Voice: "loved one" / "family member" — never "parent".
+//             "notices" / "watches for" — never "track" / "monitor".
+//             CareSignals is one word.
+//   3. Persistent attribution on every populated tile (mirrors trials tile).
+// ────────────────────────────────────────────────────────────────────────────
+
+function openMedicationDetail(refId) {
+  var view = document.getElementById('view-records');
+  if (!view) return;
+  var med = _findEhrItemById('medication', refId);
+  var isManual = false;
+  // Fallback for manual meds (rows from the local `medications` table that
+  // weren't synced from an EHR). Without this branch, tapping a manual med
+  // hit the legacy edit modal directly — we now route every med tap through
+  // this detail view, and surface Edit / Delete affordances inside it.
+  if (!med && Array.isArray(liveMeds)) {
+    for (var li = 0; li < liveMeds.length; li++) {
+      if (liveMeds[li] && liveMeds[li].id === refId) {
+        var m = liveMeds[li];
+        med = {
+          id: m.id,
+          name: m.name || 'Medication',
+          dosage: m.dose || '',
+          frequency: m.frequency || '',
+          status: m.active ? 'active' : 'inactive',
+          date_asserted: m.start_date || m.created_at || '',
+          prescriber: m.prescriber || ''
+        };
+        isManual = true;
+        break;
+      }
+    }
+  }
+  if (!med) {
+    try { console.warn('[records] openMedicationDetail: no match for refId', refId, '— falling back to list'); } catch(_e) {}
+    if (typeof openRecordsDetail === 'function') openRecordsDetail('medications');
+    return;
+  }
+
+  var doseLabel  = med.dosage || '';
+  var freqLabel  = med.frequency || '';
+  var statusLabel = med.status || '';
+  if (statusLabel) statusLabel = statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1).toLowerCase();
+  var prescribedLabel = med.date_asserted ? formatEventDate(med.date_asserted) : '';
+  var prescriberLabel = med.prescriber || (med.requester && med.requester.display) || '';
+
+  // Register Ask Wellet context — long-press the header card to ask about
+  // this exact medication.
+  if (!window._askCtxRegistry) window._askCtxRegistry = {};
+  var askKey = 'med_' + (med.id || Object.keys(window._askCtxRegistry).length);
+  window._askCtxRegistry[askKey] = {
+    kind: 'medication',
+    name: med.name || 'Medication',
+    date: med.date_asserted || '',
+    status: statusLabel,
+    meta: { dose: doseLabel, frequency: freqLabel, prescriber: prescriberLabel }
+  };
+
+  var html = '<div class="records-detail-view">'
+    + _detailBackBar('medications', 'Medications')
+    + '<div style="font-size:var(--type-h1);font-weight:700;color:var(--text-primary);line-height:1.3;margin-bottom:4px;">' + escHtml(med.name || 'Medication') + '</div>'
+    + (doseLabel ? '<div style="font-size:var(--type-body);color:var(--text-secondary);margin-bottom:18px;">' + escHtml(doseLabel) + (freqLabel ? ' \u00B7 ' + escHtml(freqLabel) : '') + '</div>' : '<div style="margin-bottom:18px;"></div>')
+    + '<div data-ask-lp="' + askKey + '" style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:6px 16px;">'
+    +   _detailRow('Dose', doseLabel)
+    +   _detailRow('Frequency', freqLabel)
+    +   _detailRow('Status', statusLabel)
+    +   _detailRow('Prescribed', prescribedLabel)
+    +   _detailRow('Prescriber', prescriberLabel)
+    + '</div>'
+    // Manual meds: surface Edit + Delete as visible buttons (Betsy's UX
+    // ask — reviewers were being dropped straight into the edit modal
+    // with no intermediate detail screen).
+    + (isManual
+      ? '<div style="display:flex;gap:10px;margin-top:14px;">'
+        + '<button onclick="openEditMed(\'' + (med.id||'').replace(/\'/g, "\\'") + '\')" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;background:#fff;border:1.5px solid var(--moss);border-radius:10px;color:var(--moss);font-family:\'DM Sans\',sans-serif;font-size:var(--type-meta);font-weight:500;cursor:pointer;"><i data-lucide="pencil" style="width:15px;height:15px;"></i> Edit medication</button>'
+        + '</div>'
+      : '')
+    + renderMedPillTile(med)
+    + renderMedAboutTile(med)
+    + renderMedUseTile(med)
+    + renderMedSideEffectsTile(med)
+    + renderMedInteractionsTile(med)
+    + renderMedFullLabelTile(med)
+    + _detailAskCta(askKey)
+    + '</div>';
+
+  _recordsDetailSection = 'medications:' + (med.id || '');
+  view.innerHTML = html;
+  initIcons();
+  // One edge-fn call fills every tile — fired once after DOM is in place.
+  try { _loadMedicationDetailTiles(med); } catch(_e) {}
+  try {
+    var card = view.querySelector('[data-ask-lp="' + askKey + '"]');
+    if (card && typeof attachAskLongPress === 'function') {
+      attachAskLongPress(card, window._askCtxRegistry[askKey]);
+    }
+  } catch (_e) {}
+}
+
+// ── Tile shells — all five share the same loader (_loadMedicationDetailTiles) ──
+
+function _medTileShell(id, eyebrow, placeholder) {
+  return '<div id="' + id + '-container" class="editorial-trials-tile" style="margin-top:22px;">'
+    + '<div class="editorial-trials-eyebrow">' + escHtml(eyebrow) + '</div>'
+    + '<div id="' + id + '-inner" class="editorial-trials-card">'
+    +   '<div style="color:var(--text-muted);font-size:var(--type-meta);padding:14px 0;">' + escHtml(placeholder) + '</div>'
+    + '</div>'
+    + '</div>';
+}
+
+function renderMedPillTile(med)         { return _medTileShell('med-pill',     'What this pill looks like \u00B7 openFDA',                          'Looking up the pill\u2026'); }
+function renderMedAboutTile(med)        { return _medTileShell('med-about',    'About this medicine \u00B7 MedlinePlus, U.S. National Library of Medicine', 'Looking up plain-English information\u2026'); }
+function renderMedUseTile(med)          { return _medTileShell('med-use',      'How to use \u00B7 MedlinePlus, U.S. National Library of Medicine',  'Looking up usage information\u2026'); }
+function renderMedSideEffectsTile(med)  { return _medTileShell('med-side',     'Side effects \u00B7 MedlinePlus, U.S. National Library of Medicine','Looking up side effects\u2026'); }
+function renderMedInteractionsTile(med) { return _medTileShell('med-inter',    'Interactions and warnings \u00B7 FDA drug label (openFDA)',         'Looking up interactions\u2026'); }
+function renderMedFullLabelTile(med)    { return _medTileShell('med-label',    'Full leaflet \u00B7 public sources',                                'Looking up the full label\u2026'); }
+
+// ── Single loader fans out one edge-fn call across all six tiles ──
+// 2026-05-19: fixed v1→v2 supabase-js auth bug. Previously called
+// `db.auth.session()` (v1 sync API) which returns undefined on v2 → empty
+// Authorization header → browser blocked the POST after CORS preflight.
+// Edge function logs showed only OPTIONS 204, never the POST. Now uses
+// `db.auth.getSession()` (v2 async API) like the rest of the codebase.
+function _loadMedicationDetailTiles(med) {
+  if (!med || !med.name) return;
+
+  var supabaseUrl = (typeof db !== 'undefined' && db.supabaseUrl) || 'https://nrpdhxygzyfmyljzfexv.supabase.co';
+  var fnUrl = supabaseUrl.replace(/\/$/, '') + '/functions/v1/fetch-medication-detail';
+
+  // RxNorm code may already be attached if Epic resolved it on its side.
+  var rxcui = '';
+  if (med && med.code) {
+    // Some Epic payloads stash the RxCUI in code.coding[].system + code
+    if (typeof med.code === 'string') rxcui = med.code;
+  }
+
+  function _fireMedDetailFetch(authToken) {
+    var headers = {
+      'Content-Type': 'application/json',
+      'apikey': (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : ''
+    };
+    // Use the user's session token if we have it; otherwise fall back to
+    // the anon key (the edge function accepts either for public NIH data).
+    headers['Authorization'] = 'Bearer ' + (authToken || ((typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : ''));
+
+    fetch(fnUrl, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({
+        name: med.name || '',
+        rxcui: rxcui || '',
+        person_id: (typeof currentPersonId !== 'undefined') ? currentPersonId : ''
+      })
+    })
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function(data) { _renderMedTilesFromPayload(data || {}); })
+    .catch(function(err) {
+      console.warn('[med detail] fetch failed:', err);
+      _renderMedTilesFromPayload({});
+    });
+  }
+
+  try {
+    db.auth.getSession().then(function(sessionRes) {
+      var session = sessionRes && sessionRes.data && sessionRes.data.session;
+      var token = (session && session.access_token) || '';
+      _fireMedDetailFetch(token);
+    }).catch(function() {
+      _fireMedDetailFetch('');
+    });
+  } catch(e) {
+    _fireMedDetailFetch('');
+  }
+}
+
+function _renderMedTilesFromPayload(data) {
+  // PILL TILE
+  var pillInner = document.getElementById('med-pill-inner');
+  if (pillInner) {
+    var p = data && data.pill;
+    if (p && (p.shape || p.color || p.imprint || p.text || p.size_mm)) {
+      var bits = [];
+      // 2026-05-19: .editorial-meta-row was referenced but never defined in CSS,
+      // so the two spans collapsed to inline text ("Colorwhite", "Shapecapsule").
+      // Inline the flex layout so label and value sit on opposite ends with a
+      // dotted leader-of-air between them.
+      var rowStyle = 'display:flex;justify-content:space-between;align-items:baseline;gap:16px;font-size:var(--type-meta);padding:6px 0;border-bottom:1px solid var(--border, rgba(0,0,0,0.06));';
+      if (p.color)   bits.push('<div class="editorial-meta-row" style="'+rowStyle+'"><span style="color:var(--text-secondary);">Color</span><span style="color:var(--text-primary);font-weight:500;text-transform:capitalize;">' + escHtml(p.color) + '</span></div>');
+      if (p.shape)   bits.push('<div class="editorial-meta-row" style="'+rowStyle+'"><span style="color:var(--text-secondary);">Shape</span><span style="color:var(--text-primary);font-weight:500;text-transform:capitalize;">' + escHtml(p.shape) + '</span></div>');
+      if (p.imprint) bits.push('<div class="editorial-meta-row" style="'+rowStyle+'"><span style="color:var(--text-secondary);">Imprint</span><span style="color:var(--text-primary);font-weight:500;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">' + escHtml(p.imprint) + '</span></div>');
+      if (p.size_mm) bits.push('<div class="editorial-meta-row" style="'+rowStyle+'"><span style="color:var(--text-secondary);">Size</span><span style="color:var(--text-primary);font-weight:500;">' + escHtml(p.size_mm) + '</span></div>');
+      if (p.ndc)     bits.push('<div class="editorial-meta-row" style="'+rowStyle+'border-bottom:0;"><span style="color:var(--text-secondary);">NDC</span><span style="color:var(--text-muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">' + escHtml(p.ndc) + '</span></div>');
+      var pillHtml = '<div style="display:grid;gap:8px;padding:6px 0 4px;">' + bits.join('') + '</div>';
+      if (p.text) pillHtml += '<div style="margin-top:10px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.5;white-space:pre-wrap;">' + escHtml(p.text.slice(0, 400)) + (p.text.length > 400 ? '\u2026' : '') + '</div>';
+      pillHtml += '<div class="editorial-tile-attribution" style="margin-top:12px;font-size:var(--type-micro);color:var(--text-muted);">Pill description from openFDA. RxImage retired May 2026.</div>';
+      pillInner.innerHTML = pillHtml;
+    } else {
+      pillInner.innerHTML = _tileEmptyHtml('No public pill description on file for this medication.', '', '');
+    }
+  }
+
+  // Helper: paint a text tile with attribution + tap-out
+  function paintTextTile(innerId, payload, fallbackMsg) {
+    var inner = document.getElementById(innerId);
+    if (!inner) return;
+    if (payload && payload.text) {
+      var html = '<div style="font-size:var(--type-meta);color:var(--text-primary);line-height:1.6;white-space:pre-wrap;">' + escHtml(payload.text) + '</div>';
+      html += '<div class="editorial-tile-attribution" style="margin-top:12px;font-size:var(--type-micro);color:var(--text-muted);">From ' + escHtml(payload.source || 'public source') + '.</div>';
+      if (payload.url) {
+        html += '<button type="button" class="editorial-tile-empty-cta" style="margin-top:10px;" onclick="_tileOpenExternalUrl(\'' + _escAttr(payload.url) + '\')">Read the full leaflet \u203A</button>';
+      }
+      inner.innerHTML = html;
+    } else {
+      inner.innerHTML = _tileEmptyHtml(fallbackMsg, '', '');
+    }
+  }
+
+  paintTextTile('med-about-inner',  data && data.about,        'No plain-English summary on file from MedlinePlus or openFDA for this medication.');
+  paintTextTile('med-use-inner',    data && data.use,          'No usage information on file from MedlinePlus or openFDA for this medication.');
+  paintTextTile('med-side-inner',   data && data.side_effects, 'No side-effect information on file from MedlinePlus or openFDA for this medication.');
+  paintTextTile('med-inter-inner',  data && data.interactions, 'No drug-interaction information on file in the FDA label for this medication.');
+
+  // FULL LABEL TILE — two tap-outs (MedlinePlus + openFDA)
+  var labelInner = document.getElementById('med-label-inner');
+  if (labelInner) {
+    var fl = data && data.full_label;
+    if (fl && (fl.medlineplus_url || fl.openfda_url)) {
+      var lh = '<div style="font-size:var(--type-meta);color:var(--text-secondary);line-height:1.6;">Open the canonical public-source leaflet for this medication.</div>'
+        + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">';
+      if (fl.medlineplus_url) lh += '<button type="button" class="editorial-tile-empty-cta" onclick="_tileOpenExternalUrl(\'' + _escAttr(fl.medlineplus_url) + '\')">MedlinePlus \u203A</button>';
+      if (fl.openfda_url)     lh += '<button type="button" class="editorial-tile-empty-cta" onclick="_tileOpenExternalUrl(\'' + _escAttr(fl.openfda_url)     + '\')">FDA drug label \u203A</button>';
+      lh += '</div>';
+      lh += '<div class="editorial-tile-attribution" style="margin-top:12px;font-size:var(--type-micro);color:var(--text-muted);">Public sources \u00B7 U.S. National Library of Medicine and the U.S. Food and Drug Administration.</div>';
+      labelInner.innerHTML = lh;
+    } else {
+      labelInner.innerHTML = _tileEmptyHtml('No public leaflet on file for this medication.', '', '');
+    }
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// END MEDICATION DETAIL v2
+// ────────────────────────────────────────────────────────────────────────────
+
+
+// ---------------------------------------------------------------------------
+// Settings toggle — mirrors updateTrialsToggleUI / toggleTrialsTileFlag
+// ---------------------------------------------------------------------------
+function updateResearchToggleUI() {
+  var btn = document.getElementById('research-toggle-btn');
+  if (!btn) return;
+  var on = isResearchTileEnabled();
+  if (on) {
+    btn.textContent      = 'On';
+    btn.style.background  = 'var(--moss)';
+    btn.style.color       = '#fff';
+    btn.style.borderColor = 'var(--moss)';
+  } else {
+    btn.textContent      = 'Off';
+    btn.style.background  = '#eef2f0';
+    btn.style.color       = 'var(--text-primary)';
+    btn.style.borderColor = 'var(--border)';
+  }
+}
+
+function toggleResearchTileFlag() {
+  try {
+    if (isResearchTileEnabled()) {
+      localStorage.setItem(RESEARCH_PREF_KEY, '0');
+      try { showToast('Research papers off'); } catch(e) {}
+    } else {
+      localStorage.setItem(RESEARCH_PREF_KEY, '1');
+      try { showToast('Research papers on'); } catch(e) {}
+    }
+  } catch (e) { console.warn('research toggle:', e); }
+  updateResearchToggleUI();
+}
+
+// ─── END DIAGNOSIS TILES 2-5 ─────────────────────────────────────────────────
+
 
 // ────────────────────────────────────────────────────────────────────────────
 // CARE-TEAM CHIPS · "What your care team might not tell you"
@@ -5883,7 +10355,6 @@ function askCareTeamChip(intent, conditionName, icdCode) {
 }
 
 function _fetchCareTeamInfo(intent, conditionName, icdCode) {
-  var ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU';
   // Pull hospital hint from active EHR connection if available — purely for
   // geo-radius on trials. We pass no PHI; just a regex hint like "duke".
   var hospitalHint = null;
@@ -5892,29 +10363,17 @@ function _fetchCareTeamInfo(intent, conditionName, icdCode) {
     if (conns.length > 0) hospitalHint = conns[0].fhir_base_url || conns[0].hospital_name || null;
   } catch (_e) {}
 
-  return (async function() {
-    var sess = await db.auth.getSession();
-    var tok = sess && sess.data && sess.data.session && sess.data.session.access_token;
-    if (!tok) throw new Error('No session token');
-    var resp = await fetch('https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/fetch-care-team-info', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + tok,
-        'apikey': ANON_KEY
-      },
-      body: JSON.stringify({
-        intent: intent,
-        condition_text: conditionName,
-        icd10: icdCode || '',
-        person_id: currentPersonId,
-        hospital_hint: hospitalHint,
-        max_results: 5
-      })
-    });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    return await resp.json();
-  })();
+  return callEdgeFn('fetch-care-team-info', {
+    intent: intent,
+    condition_text: conditionName,
+    icd10: icdCode || '',
+    person_id: currentPersonId,
+    hospital_hint: hospitalHint,
+    max_results: 5
+  }).then(function(result) {
+    if (result.error) throw new Error(result.error);
+    return result.data;
+  });
 }
 
 function _renderCareTeamAnswer(intent, conditionName, payload) {
@@ -6073,7 +10532,10 @@ function renderRecordsView() {
   var ehrProcedures = ehrData ? ehrData.procedures   || [] : [];
   var ehrReports    = ehrData ? (ehrData.diagnostic_reports || []) : [];
   var ehrProvider   = ehrData ? ehrData.provider || 'EHR' : '';
-  var activeMeds    = liveMeds.filter(function(m){ return m.active; });
+  // Filter ehr-sourced meds out of activeMeds — see _rdMedsContent for the
+  // full rationale. Otherwise the Medications tile count double-counts every
+  // EHR med (once in liveMeds with source='ehr', once in ehrMeds).
+  var activeMeds    = liveMeds.filter(function(m){ return m.active && m.source !== 'ehr'; });
   var labEvents     = liveEvents.filter(function(e){ return e.event_type==='lab_result'; });
   var noteEvents    = liveEvents.filter(function(e){ return e.event_type==='note'; });
   var apptEvents    = liveEvents.filter(function(e){ return e.event_type==='appointment'; });
@@ -6093,6 +10555,8 @@ function renderRecordsView() {
         var m = /^Status:\s*(.+)$/i.exec(notes);
         if (m) status = (m[1] || '').trim().toLowerCase();
         return {
+          // Stable id so openConditionDetail() can look this row up by refId.
+          id: e.ref_id || e._refId || e.id || '',
           name: e.title || '',
           code: '',
           status: status,
@@ -6118,6 +10582,15 @@ function renderRecordsView() {
       });
     ehrVisitsRecent = allEhrVisits.filter(function(v){ var t=v.start_date?new Date(v.start_date).getTime():0; return t>=twoYearsAgoMs; });
     ehrVisitsOlder  = allEhrVisits.filter(function(v){ var t=v.start_date?new Date(v.start_date).getTime():0; return t>0&&t<twoYearsAgoMs; });
+  }
+
+  // DB-backed fallback for EHR Medications when the v2 cache is empty or
+  // stale. Loved ones with 2 hospitals can have a superseded connection in
+  // their v2 entry whose `medications: []` shadows the active one. liveMeds
+  // is already filtered by loadPersonData to active connection_ids so it's
+  // safe to fall through. DB is source of truth.
+  if (ehrMeds.length === 0) {
+    ehrMeds = _ehrMedsFromLiveMeds(liveMeds);
   }
 
   // ── computed counts for tile summaries ───────────────────────────────────
@@ -6180,6 +10653,12 @@ function renderRecordsView() {
   // now consistent with them.
   html += '</div>';
   if (ehrData) html += buildEhrStatusBar(ehrData);
+
+  // Wearable-import "Wellet noticed your <device> just synced" banner.
+  // Filled async after view.innerHTML by mountWearableImportBanner().
+  if (!isDemoMode && currentPersonId) {
+    html += '<div id="records-wearable-import"></div>';
+  }
 
   html += '<div class="records-section">';
 
@@ -6489,48 +10968,37 @@ function renderRecordsView() {
   initIcons();
   applyRecordsCollapse();
 
-  // Render EHR connection status inline (mirrors Terra inline pattern).
-  // Also hides the contradictory "Connect health records" prompt below
-  // the tile grid when a connection is confirmed (cache OR DB).
-  if (!isDemoMode && currentPersonId) {
-    var ehrStatusEl = document.getElementById('records-ehr-status');
-    if (ehrStatusEl) {
-      var renderEhrStatusRow = function(providerLabel, lastSyncIso) {
-        var lastSync = lastSyncIso ? formatTimeAgo(lastSyncIso) : '';
-        var rh = '<div class="terra-inline-list">';
-        rh += '<div class="terra-inline-item">';
-        rh += '<span class="terra-status-dot terra-status-dot--active"></span>';
-        rh += 'Connected: ' + escHtml(providerLabel);
-        if (lastSync) rh += ' \u00B7 last synced ' + escHtml(lastSync);
-        rh += ' <button class="terra-inline-disconnect" style="text-decoration:none;border:1px solid var(--border);border-radius:6px;padding:2px 8px;" onclick="syncNowFromRecords()">Sync now</button>';
-        rh += '</div>';
-        rh += '</div>';
-        ehrStatusEl.innerHTML = rh;
-        // Remove the contradictory "Connect health records" prompt — we're connected.
-        var promptEl = document.getElementById('ehr-section-prompt');
-        if (promptEl && promptEl.parentNode) promptEl.parentNode.removeChild(promptEl);
-      };
+  // Fill the wearable-import banner if there's a pending Terra connection summary.
+  try { mountWearableImportBanner(currentPersonId, 'records-wearable-import'); } catch (e) {}
 
-      var ehrForStatus = getEhrData(currentPersonId);
-      if (ehrForStatus && ehrForStatus.provider) {
-        renderEhrStatusRow(ehrForStatus.provider, ehrForStatus.synced_at);
-      } else {
-        // No local cache — check DB for an orphan connection so we don't
-        // leave the UI silent when records actually are connected.
-        try {
-          db.from('ehr_connections')
-            .select('provider, last_synced_at, hospital_name, status')
-            .eq('person_id', currentPersonId)
-            .eq('status', 'connected')
-            .maybeSingle()
-            .then(function(res){
-              if (!res || !res.data) return;
-              var d = res.data;
-              renderEhrStatusRow(d.hospital_name || d.provider || 'EHR', d.last_synced_at);
-            }).catch(function(){});
-        } catch(e) {}
+  // First-look educational toast on Records when wearable data has landed.
+  // One-time per personId, skipped in demo. Lives here so it only fires when
+  // the user actually opens the page that the post-import banner points at.
+  if (!isDemoMode && currentPersonId) {
+    (async function() {
+      try {
+        var introKey = 'wellet_wearable_records_intro_shown_' + currentPersonId;
+        if (localStorage.getItem(introKey) === '1') return;
+        var probe = await db.from('health_events')
+          .select('id', { count: 'exact', head: true })
+          .eq('person_id', currentPersonId)
+          .eq('source', 'terra')
+          .limit(1);
+        if (probe && probe.count && probe.count > 0) {
+          showToast('Sleep, activity, and workouts from your wearables live here too. We file them with the rest of the chart.', 'info');
+          try { localStorage.setItem(introKey, '1'); } catch (e) {}
+        }
+      } catch (e) {
+        console.warn('[WearableImport] intro toast probe failed:', e);
       }
-    }
+    })();
+  }
+
+  // Render the Sources card (multi-connection view). v1 ships as a Records-tab
+  // section above the chart sections — see /home/user/workspace/wellet_connections_screen_spec.md.
+  // Replaces the previous single-line "Connected: <provider>" inline status.
+  if (!isDemoMode && currentPersonId) {
+    try { renderSourcesCard(currentPersonId); } catch(e) { console.warn('[Sources] render failed:', e); }
   }
 
   // Load Terra connections asynchronously for inline display
@@ -6563,6 +11031,313 @@ async function switchRecordsToRealPerson(personId, el) {
   el.classList.add('active');
   await loadPersonData(personId);
   renderRecordsView();
+}
+
+// ── SOURCES CARD ────────────────────────────────────────────────────────────
+// v1: Multi-connection view in the Records tab. Spec:
+// /home/user/workspace/wellet_connections_screen_spec.md
+//
+// Show/hide rule:
+//   0 connections (after superseded filter) → hide entire card
+//   1 connection → collapsed single-line summary, tap to expand
+//   2+ connections → fully expanded card with grouped rows
+//
+// Groups (in order):
+//   Connected → status='connected' AND needs_reconnect != true
+//   Pending   → status='pending'
+//   Needs reconnect → needs_reconnect=true (regardless of status)
+//
+// Rows older than 24h with no connected_at land in Pending with a softer
+// "didn't finish" copy; rows under 24h read as "waiting for hospital approval"
+// (covers Kelly's Epic-propagation case).
+
+var _sourcesCardExpanded = {}; // personId → boolean (forced-expand override for 1-conn case)
+
+function _sourceTimeAgo(iso) {
+  if (!iso) return '';
+  try {
+    if (typeof formatTimeAgo === 'function') return formatTimeAgo(iso);
+  } catch(e) {}
+  return '';
+}
+
+// Pick a Lucide icon for the connection state. Always 'hospital' for v1
+// (we don't have per-system logos in the picker yet).
+function _sourceIcon(state) {
+  if (state === 'needs_reconnect') return 'unplug';
+  if (state === 'pending') return 'clock';
+  return 'hospital';
+}
+
+// Plain-English status line per row. Never expose OAuth or HTTP codes.
+function _sourceStatusLine(row, nowMs) {
+  var hospital = escHtml(row.hospital_name || row.provider || 'this hospital');
+  if (row.needs_reconnect) {
+    return 'Your access expired \u00B7 sign in again to keep syncing';
+  }
+  if (row.status === 'connected') {
+    var ago = _sourceTimeAgo(row.last_synced_at);
+    if (ago) return 'Synced ' + escHtml(ago);
+    if (row.connected_at) return 'Connected ' + escHtml(_sourceTimeAgo(row.connected_at) || '');
+    return 'Connected';
+  }
+  // pending
+  var createdMs = row.created_at ? new Date(row.created_at).getTime() : 0;
+  var ageHours = createdMs ? (nowMs - createdMs) / 3600000 : 0;
+  if (ageHours >= 24) {
+    // The user did their part more than a day ago. The work is on us now.
+    // No "contact us" tax — our hospital_connect_request alert already fired
+    // to Betsy and the every-2h tester-signal cron is on it.
+    return 'This one\u2019s taking longer than usual \u2014 we\u2019re looking into it on our end. No action needed from you.';
+  }
+  // Under 24h — the Kelly case: Epic hasn't propagated the activation yet.
+  // Put the work on us, not on her. She already did her part.
+  return hospital + ' is getting set up on our end \u00B7 we\u2019ll let you know the moment your records start flowing in';
+}
+
+function _sourceStatusTone(row, nowMs) {
+  if (row.needs_reconnect) return 'red';
+  if (row.status === 'pending') {
+    var createdMs = row.created_at ? new Date(row.created_at).getTime() : 0;
+    var ageHours = createdMs ? (nowMs - createdMs) / 3600000 : 0;
+    return ageHours >= 24 ? 'red' : 'amber';
+  }
+  return ''; // connected = default (no extra color)
+}
+
+function _sourcePrimaryAction(row) {
+  if (row.needs_reconnect) {
+    return { label: 'Sign in again', cls: 'sources-action-primary amber',
+             handler: 'retrySourceConnection' };
+  }
+  if (row.status === 'pending') {
+    return { label: 'Try again', cls: 'sources-action-primary amber',
+             handler: 'retrySourceConnection' };
+  }
+  return { label: 'Refresh now', cls: 'sources-action-primary',
+           handler: 'refreshSourceConnection' };
+}
+
+function _renderSourceRow(row, nowMs) {
+  var hospital = escHtml(row.hospital_name || row.provider || 'Hospital');
+  var tone = _sourceStatusTone(row, nowMs);
+  var iconName = _sourceIcon(row.needs_reconnect ? 'needs_reconnect' : row.status);
+  var iconCls = tone === 'red' ? 'red' : (tone === 'amber' ? 'amber' : '');
+  var primary = _sourcePrimaryAction(row);
+  // Args: fhirBaseUrl + hospital_name. Escape single quotes for inline onclick.
+  var fbu = (row.fhir_base_url || '').replace(/'/g, "\\'");
+  var hn  = (row.hospital_name || row.provider || '').replace(/'/g, "\\'");
+  var cid = (row.id || '').replace(/'/g, "\\'");
+
+  var html = '<div class="sources-row" data-conn-id="' + escHtml(row.id || '') + '">';
+  html += '<div class="sources-row-icon ' + iconCls + '"><i data-lucide="' + iconName + '" style="width:16px;height:16px;"></i></div>';
+  html += '<div class="sources-row-body">';
+  html += '<div class="sources-row-title">' + hospital + '</div>';
+  html += '<div class="sources-row-status ' + tone + '">' + _sourceStatusLine(row, nowMs) + '</div>';
+  html += '<div class="sources-row-actions">';
+  html += '<button type="button" class="' + primary.cls + '" onclick="' + primary.handler + "('" + cid + "','" + fbu + "','" + hn + "')\">" + escHtml(primary.label) + '</button>';
+  html += '<button type="button" class="sources-action-secondary" onclick="disconnectSourceConnection(\'' + cid + "','" + hn + "')\" aria-label=\"Remove this connection\">Remove</button>";
+  html += '</div></div></div>';
+  return html;
+}
+
+function renderSourcesCard(personId) {
+  if (!personId) return;
+  var container = document.getElementById('records-ehr-status');
+  if (!container) return;
+
+  // Loading skeleton so the section isn't flashy-empty during the fetch.
+  container.innerHTML = '<div class="sources-card" aria-busy="true">'
+    + '<div class="sources-card-header"><div class="sources-card-title">Sources</div></div>'
+    + '<div class="sources-group"><div class="sources-row"><div class="sources-row-icon"></div>'
+    + '<div class="sources-row-body"><div class="sources-row-title" style="opacity:0.4;">Reading your connections\u2026</div></div></div></div>'
+    + '</div>';
+  initIcons();
+
+  db.from('ehr_connections')
+    .select('id, hospital_name, provider, status, needs_reconnect, connected_at, last_synced_at, created_at, fhir_base_url, patient_id, client_id_used')
+    .eq('person_id', personId)
+    .order('connected_at', { ascending: false, nullsFirst: false })
+    .then(function(res) {
+      var rows = (res && res.data) ? res.data : [];
+      // Hide rows in dead-end states.
+      rows = rows.filter(function(r){ return r.status !== 'superseded' && r.status !== 'disconnected'; });
+      _paintSourcesCard(personId, rows);
+    })
+    .catch(function(err) {
+      console.warn('[Sources] fetch failed:', err);
+      // On failure, fall back to nothing rather than a confusing partial card.
+      container.innerHTML = '';
+      // Remove the contradictory "Connect health records" prompt only if we know we have data;
+      // here we silently bail so the existing prompt remains visible.
+    });
+}
+
+function _paintSourcesCard(personId, rows) {
+  var container = document.getElementById('records-ehr-status');
+  if (!container) return;
+  var nowMs = Date.now();
+
+  if (!rows || rows.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  // Bucket: needs_reconnect wins over status.
+  var connected = [];
+  var pending   = [];
+  var reconnect = [];
+  rows.forEach(function(r) {
+    if (r.needs_reconnect) { reconnect.push(r); return; }
+    if (r.status === 'connected') { connected.push(r); return; }
+    if (r.status === 'pending')   { pending.push(r);   return; }
+  });
+
+  // If there's at least one connected row, remove the contradictory
+  // "Connect health records" prompt below the tile grid.
+  if (connected.length > 0) {
+    var promptEl = document.getElementById('ehr-section-prompt');
+    if (promptEl && promptEl.parentNode) promptEl.parentNode.removeChild(promptEl);
+  }
+
+  var totalRows = rows.length;
+  var forceExpand = _sourcesCardExpanded[personId] === true;
+
+  // Collapsed single-row summary (1 connection, expanded=false).
+  if (totalRows === 1 && !forceExpand) {
+    var row = rows[0];
+    var dotClass = row.status === 'connected' && !row.needs_reconnect
+      ? 'terra-status-dot terra-status-dot--active'
+      : 'terra-status-dot terra-status-dot--inactive';
+    var meta = '';
+    if (row.status === 'connected' && !row.needs_reconnect) {
+      var ago = _sourceTimeAgo(row.last_synced_at);
+      meta = ago ? 'synced ' + escHtml(ago) : 'connected';
+    } else if (row.needs_reconnect) {
+      meta = 'needs reconnect';
+    } else {
+      meta = 'pending';
+    }
+    var hospital = escHtml(row.hospital_name || row.provider || 'Hospital');
+    container.innerHTML = '<div class="sources-card">'
+      + '<div class="sources-collapsed" onclick="toggleSourcesCard(\'' + personId + '\')" role="button" tabindex="0">'
+      + '<span class="' + dotClass + '"></span>'
+      + '<span class="sources-collapsed-name">' + hospital + '</span>'
+      + '<span class="sources-collapsed-meta">\u00B7 ' + meta + '</span>'
+      + '<i data-lucide="chevron-down" class="sources-collapsed-expand" style="width:16px;height:16px;"></i>'
+      + '</div></div>';
+    initIcons();
+    return;
+  }
+
+  // Expanded card.
+  var html = '<div class="sources-card">';
+  html += '<div class="sources-card-header">';
+  html += '<div class="sources-card-title">Sources</div>';
+  html += '<button type="button" class="sources-card-add" onclick="startEhrConnect()">';
+  html += '<i data-lucide="plus" style="width:14px;height:14px;"></i> Add hospital</button>';
+  html += '</div>';
+
+  // All-pending reassurance: when no live connections yet but pending exists,
+  // remind the user this is normal and we're handling it.
+  if (connected.length === 0 && (pending.length + reconnect.length) > 0) {
+    html += '<div class="sources-reassure">';
+    html += '<i data-lucide="leaf" style="width:16px;height:16px;"></i>';
+    html += '<div>Your records will start showing here once the first hospital comes through. Most users see their first records within a day.</div>';
+    html += '</div>';
+  }
+
+  if (reconnect.length > 0) {
+    html += '<div class="sources-group">';
+    html += '<div class="sources-group-label">Needs reconnect</div>';
+    reconnect.forEach(function(r){ html += _renderSourceRow(r, nowMs); });
+    html += '</div>';
+  }
+  if (pending.length > 0) {
+    html += '<div class="sources-group">';
+    html += '<div class="sources-group-label">Pending</div>';
+    pending.forEach(function(r){ html += _renderSourceRow(r, nowMs); });
+    html += '</div>';
+  }
+  if (connected.length > 0) {
+    html += '<div class="sources-group">';
+    html += '<div class="sources-group-label">Connected</div>';
+    connected.forEach(function(r){ html += _renderSourceRow(r, nowMs); });
+    html += '</div>';
+  }
+  html += '</div>';
+  container.innerHTML = html;
+  initIcons();
+}
+
+function toggleSourcesCard(personId) {
+  _sourcesCardExpanded[personId] = !_sourcesCardExpanded[personId];
+  renderSourcesCard(personId);
+}
+
+// Action: refresh a single connected source.
+// v1 simply triggers the existing person-wide fetchEhrData; per-connection
+// background-sync is a v2 follow-up.
+function refreshSourceConnection(connectionId, fhirBaseUrl, hospitalName) {
+  if (isDemoMode) { showToast('Demo mode \u2014 refresh not available'); return; }
+  if (!currentPersonId) { showToast('No loved one selected'); return; }
+  try { showToast('Reading your chart\u2026 usually under a minute'); } catch(e) {}
+  try { fetchEhrData(currentPersonId); } catch(e) {
+    console.warn('[Sources] refresh failed:', e);
+    showToast('Sync didn\u2019t finish \u2014 try again');
+  }
+}
+
+// Action: retry / sign-in-again for a pending or needs_reconnect row.
+function retrySourceConnection(connectionId, fhirBaseUrl, hospitalName) {
+  if (isDemoMode) { showToast('Demo mode \u2014 not available'); return; }
+  if (!currentPersonId) { showToast('No loved one selected'); return; }
+  if (!fhirBaseUrl || !hospitalName) {
+    // Fallback: open the picker so the user can re-find the hospital.
+    try { startEhrConnect(); } catch(e) {}
+    return;
+  }
+  try {
+    beginEhrOAuth(fhirBaseUrl, hospitalName, false);
+  } catch(e) {
+    console.warn('[Sources] retry failed:', e);
+    showToast('Couldn\u2019t reopen \u2014 try again from the hospital picker');
+  }
+}
+
+// Action: remove a single connection row.
+// v1 routes through the existing person-wide disconnect (epic-auth, action='disconnect').
+// Spec note: per-row disconnect is a v2 follow-up; for now the button copy is
+// honest about scope when the user has multiple connections.
+function disconnectSourceConnection(connectionId, hospitalName) {
+  if (isDemoMode) { showToast('Demo mode \u2014 not available'); return; }
+  if (!currentPersonId) { showToast('No loved one selected'); return; }
+  // For a pending row, we can safely delete the stub locally.
+  // For a connected row, we go through the full disconnect flow.
+  db.from('ehr_connections')
+    .select('status, needs_reconnect')
+    .eq('id', connectionId)
+    .maybeSingle()
+    .then(function(res) {
+      var row = res && res.data;
+      if (!row) { showToast('Couldn\u2019t find this connection'); return; }
+      if (row.status === 'pending' && !row.needs_reconnect) {
+        if (!confirm('Remove this pending connection? You can try again any time.')) return;
+        return db.from('ehr_connections').delete().eq('id', connectionId).then(function() {
+          showToast('Pending connection removed');
+          renderSourcesCard(currentPersonId);
+        });
+      }
+      // Connected or needs_reconnect: defer to the existing person-wide disconnect.
+      try { disconnectEhr(); } catch(e) {
+        console.warn('[Sources] disconnect failed:', e);
+        showToast('Disconnect failed \u2014 try from Settings');
+      }
+    })
+    .catch(function(err){
+      console.warn('[Sources] disconnect lookup failed:', err);
+      try { disconnectEhr(); } catch(e) {}
+    });
 }
 
 // ── COLLAPSIBLE RECORDS SECTIONS ─────────────────────────────────────────────
@@ -8157,7 +12932,9 @@ function openHealthImportPicker() {
 function openAddEvent(personId) {
   var pid = personId || currentPersonId;
   var person = currentPeople.find(function(p){ return p.id === pid; });
-  document.getElementById('add-event-person-label').textContent = 'Adding to ' + (person ? person.name + '\'s' : 'your') + ' timeline';
+  // D13: in me-mode the row IS the user, so use "your timeline" instead of
+  // showing the email-prefix-derived person name.
+  document.getElementById('add-event-person-label').textContent = 'Adding to ' + ((person && !isSelfMode()) ? person.name + '\'s' : 'your') + ' timeline';
   // Set today's date as default
   var today = new Date().toISOString().split('T')[0];
   document.getElementById('event-date-input').value = today;
@@ -8272,7 +13049,8 @@ function openMedDetail(medKey) {
 // ── ADD MEDICATION ────────────────────────────────────────────────────────────
 function openAddMed() {
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
-  document.getElementById('add-med-person-label').textContent = 'Adding to ' + (person ? person.name + '\'s' : 'your') + ' records';
+  // D13: same as add-event-person-label — hide person-name in me-mode.
+  document.getElementById('add-med-person-label').textContent = 'Adding to ' + ((person && !isSelfMode()) ? person.name + '\'s' : 'your') + ' records';
   document.getElementById('med-name-input').value = '';
   document.getElementById('med-dose-input').value = '';
   document.getElementById('med-freq-input').value = '';
@@ -8549,7 +13327,13 @@ async function deleteMed() {
 }
 
 // ── RENDER PATTERNS (dynamic for authenticated users) ────────────────────────
-function renderPatterns() {
+// Patterns tab deleted 2026-05-14 — it was a counts dashboard impersonating
+// CareSignals' "noticing" language and confusing testers. CareSignals (the
+// bottom-nav destination, powered by detectRecurringPatterns()) is now the
+// single place Wellet "notices" anything. renderPatterns() is kept as a
+// no-op stub so the ~12 historical call sites stay safe without surgery.
+function renderPatterns() { /* deleted — see CareSignals view */ }
+function _renderPatterns_legacy_unused() {
   var pane = document.getElementById('tab-patterns');
   if (!pane) return;
   if (isDemoMode) return; // keep demo HTML untouched
@@ -8734,14 +13518,36 @@ function showAuthScreen() {
   // is showing (auth screen has its own dedicated Start over button).
   try {
     document.body.classList.remove('is-authenticated');
+    document.body.classList.remove('is-landing');
     document.body.classList.add('is-auth-screen');
   } catch(_e) {}
   // Reset auth sub-states to default (show form, hide sent)
   document.getElementById('auth-form-state').style.display = 'block';
   document.getElementById('auth-sent-state').style.display = 'none';
+  // Re-check Face ID availability for the sign-in button.
+  try { _wpMaybeShowSignInButton(); } catch(_e) {}
   // Hide bug report button when logged out
   var bugBtn = document.getElementById('bug-report-btn');
   if (bugBtn) bugBtn.style.display = 'none';
+  // Pre-fill email from ?email= URL param (from getwellet.com inline signup).
+  // Falls back to localStorage if no URL param. Does not overwrite a value
+  // the user has already typed in the field.
+  try {
+    var emailInput = document.getElementById('auth-email');
+    if (emailInput && !emailInput.value) {
+      var urlEmail = null;
+      try {
+        urlEmail = new URLSearchParams(window.location.search).get('email');
+      } catch (_e) {}
+      if (urlEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(urlEmail)) {
+        emailInput.value = urlEmail.trim().toLowerCase();
+      } else {
+        var stored = null;
+        try { stored = localStorage.getItem('wellet_last_signin_email'); } catch (_e) {}
+        if (stored) emailInput.value = stored;
+      }
+    }
+  } catch (_e) {}
   window.scrollTo(0, 0);
   initIcons();
 }
@@ -8804,6 +13610,10 @@ function showLanding() {
   document.getElementById('landing').style.display = 'flex';
   document.getElementById('app').style.display = 'none';
   document.getElementById('onboarding').style.display = 'none';
+  // 2026-06-01 (D11): mark body as on-landing so the global "Start over"
+  // rescue pill is suppressed for cold reviewers — they haven't done
+  // anything to undo yet, and the lone pill reads as a confused affordance.
+  try { document.body.classList.add('is-landing'); } catch(_e) {}
   // Hide bug report button on landing (logged out)
   var bugBtn = document.getElementById('bug-report-btn');
   if (bugBtn) bugBtn.style.display = 'none';
@@ -8817,6 +13627,8 @@ function showOnboarding() {
   document.getElementById('loading-screen').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('landing').style.display = 'none';
+  // 2026-06-01 (D11): leaving landing — restore Start over availability.
+  try { document.body.classList.remove('is-landing'); } catch(_e) {}
   document.getElementById('app').style.display = 'none';
   document.getElementById('onboarding').style.display = 'flex';
   document.getElementById('ob-chat-screen').style.display = 'flex';
@@ -8877,7 +13689,7 @@ function obResumeChat() {
       document.getElementById('ob-input').focus();
     }, 600);
   } else if (obChat.phase === 'person_name') {
-    obTypeThen('And what should I call the person you\u2019re caring for?', function(){
+    obTypeThen('And what should I call your loved one?', function(){
       document.getElementById('ob-input').disabled = false;
       document.getElementById('ob-send-btn').disabled = false;
       document.getElementById('ob-input').placeholder = 'Their name\u2026';
@@ -8985,7 +13797,8 @@ function getEventTypeInfo(type) {
     share:       { dot:'note', border:'moss-border', icon:'send', color:'var(--moss)', label:'Share' },
     care_signal: { dot:'alert', border:'moss-border', icon:'activity', color:'var(--moss)', label:'Wellet noticed' },
     med_log:     { dot:'med',  border:'amber-border', icon:'pill', color:'var(--amber)', label:'Meds logged' },
-    check_in:    { dot:'note', border:'', icon:'heart-pulse', color:'var(--text-muted)', label:'Check-in' }
+    check_in:    { dot:'note', border:'', icon:'heart-pulse', color:'var(--text-muted)', label:'Check-in' },
+    ask_wellet_conversation: { dot:'note', border:'moss-border', icon:'message-circle', color:'var(--moss)', label:'Conversation with Wellet' }
   };
   return map[type] || map['note'];
 }
@@ -9504,12 +14317,58 @@ async function reconcileMedication(personId, newMed, dedupResult) {
 // ── EHR INTEGRATION (Epic SMART on FHIR) ────────────────────────────────────
 var ehrCache = {}; // { personId: { data: {...}, synced_at: '...' } }
 var _ehrConnecting = false;
+var _ehrConnectingTimeoutId = null;
 var _ehrPendingPersonId = null;
+
+// 2026-05-21: clear the _ehrConnecting lock + its watchdog. Used by every
+// success/error path in beginEhrOAuth, the bfcache restore handler, and the
+// watchdog itself. Centralized so we never leave the lock stuck again.
+function _clearEhrConnectingLock() {
+  _ehrConnecting = false;
+  if (_ehrConnectingTimeoutId) {
+    clearTimeout(_ehrConnectingTimeoutId);
+    _ehrConnectingTimeoutId = null;
+  }
+}
+
+// 2026-05-21: when the user re-enters the Connect Health Records surface,
+// treat any prior in-flight attempt as abandoned. The 90s watchdog is a
+// last-resort safety net; this function is the deterministic reset that
+// fires the instant the user comes back to the connect surface.
+//
+// Two things happen:
+//   1. Release the in-memory _ehrConnecting lock + clear its watchdog.
+//   2. Best-effort: mark any 'pending' ehr_connections rows for the current
+//      person as 'abandoned' in Postgres so they stop polluting status UI
+//      and operational queries. Fire-and-forget — never blocks the UI.
+function _resetEhrConnectingStateForFreshAttempt() {
+  _clearEhrConnectingLock();
+  _ehrPendingPersonId = null;
+  try { localStorage.removeItem('wellet_ehr_pending_person'); } catch(e) {}
+
+  // Mark stale 'pending' rows abandoned for the current person. Best-effort.
+  try {
+    if (!db || !currentPersonId) return;
+    db.from('ehr_connections')
+      .update({ status: 'abandoned' })
+      .eq('person_id', currentPersonId)
+      .eq('status', 'pending')
+      .then(function(res) {
+        if (res && res.error) {
+          console.warn('[ehr] could not mark pending rows abandoned:', res.error);
+        }
+      }, function(err) {
+        console.warn('[ehr] abandoned-update threw:', err);
+      });
+  } catch(e) {
+    console.warn('[ehr] _resetEhrConnectingStateForFreshAttempt threw:', e);
+  }
+}
 
 // Reset EHR connecting state on back-button/page restore (bfcache)
 window.addEventListener('pageshow', function(e) {
   if (e.persisted || performance.getEntriesByType('navigation')[0]?.type === 'back_forward') {
-    _ehrConnecting = false;
+    _clearEhrConnectingLock();
     _ehrPendingPersonId = null;
     // Close hospital picker if it was open
     var picker = document.getElementById('hospital-picker-overlay');
@@ -9547,12 +14406,15 @@ document.addEventListener('visibilitychange', function() {
 // Demo EHR data for Dad
 var DEMO_EHR_DATA = {
   conditions: [
-    { type:'condition', source:'ehr', name:"Parkinson's disease", code:'49049000', status:'active', onset_date:'2023-06-15', recorded_date:'2023-06-15' },
-    { type:'condition', source:'ehr', name:'Essential hypertension', code:'59621000', status:'active', onset_date:'2020-03-10', recorded_date:'2020-03-10' }
+    { id:'demo-cond-parkinsons', type:'condition', source:'ehr', name:"Parkinson's disease", code:'49049000', status:'active', onset_date:'2023-06-15', recorded_date:'2023-06-15' },
+    { id:'demo-cond-htn', type:'condition', source:'ehr', name:'Essential hypertension', code:'59621000', status:'active', onset_date:'2020-03-10', recorded_date:'2020-03-10' }
   ],
   medications: [
-    { type:'medication', source:'ehr', name:'Levodopa/Carbidopa 25-100mg', code:'197741', status:'active', dosage:'1 tablet three times daily', frequency:'3x daily', date_asserted:'2023-07-01' },
-    { type:'medication', source:'ehr', name:'Lisinopril 20mg', code:'314077', status:'active', dosage:'1 tablet daily', frequency:'Once daily', date_asserted:'2020-04-01' }
+    { id:'demo-med-levodopa', type:'medication', source:'ehr', name:'Levodopa/Carbidopa 25-100mg', code:'197741', status:'active', dosage:'1 tablet three times daily', frequency:'3x daily', date_asserted:'2023-07-01' },
+    { id:'demo-med-lisinopril', type:'medication', source:'ehr', name:'Lisinopril 20mg', code:'314077', status:'active', dosage:'1 tablet daily', frequency:'Once daily', date_asserted:'2020-04-01' },
+    { id:'demo-med-gleevec', type:'medication', source:'ehr', name:'Gleevec (Imatinib) 400mg', code:'354373', status:'active', dosage:'1 capsule daily', frequency:'Once daily', date_asserted:'2019-08-01' },
+    { id:'demo-med-hctz', type:'medication', source:'ehr', name:'Hydrochlorothiazide 25mg', code:'310429', status:'active', dosage:'1 tablet daily', frequency:'Once daily', date_asserted:'2022-04-01' },
+    { id:'demo-med-lisinopril-2', type:'medication', source:'ehr', name:'Lisinopril 20mg (Primary Care)', code:'314077', status:'active', dosage:'1 tablet daily', frequency:'Once daily', date_asserted:'2022-04-01' }
   ],
   allergies: [
     { type:'allergy', source:'ehr', name:'Sulfonamide', code:'387406002', severity:'moderate', reactions:['Skin rash','Hives'], status:'active', recorded_date:'2019-11-20' }
@@ -9563,7 +14425,38 @@ var DEMO_EHR_DATA = {
     { type:'observation', source:'ehr', name:'Hemoglobin', code:'718-7', value:'14.2', unit:'g/dL', reference_range:'13.5-17.5', status:'final', effective_date:'2026-03-28', category:'laboratory' },
     { type:'observation', source:'ehr', name:'Comprehensive metabolic panel', code:'24323-8', value:'', unit:'', reference_range:'', status:'final', effective_date:'2026-03-15', category:'laboratory' },
     { type:'observation', source:'ehr', name:'Glucose', code:'2345-7', value:'98', unit:'mg/dL', reference_range:'70-100', status:'final', effective_date:'2026-03-15', category:'laboratory' },
-    { type:'observation', source:'ehr', name:'Creatinine', code:'2160-0', value:'1.0', unit:'mg/dL', reference_range:'0.7-1.3', status:'final', effective_date:'2026-03-15', category:'laboratory' }
+    { type:'observation', source:'ehr', name:'Creatinine', code:'2160-0', value:'1.0', unit:'mg/dL', reference_range:'0.7-1.3', status:'final', effective_date:'2026-03-15', category:'laboratory' },
+    // ── Vital signs: 12-visit BP series + weight trend, so CareSignals "From your chart" can render BP + weight cards. Morning readings (am visits) run ~15 mmHg higher than afternoon — matches the L1 "Blood pressure runs higher in the morning" pattern. ──
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'144', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2025-09-22', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'88', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2025-09-22', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'128', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2025-10-18', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'78', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2025-10-18', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'146', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2025-11-20', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'92', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2025-11-20', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'130', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2025-12-12', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'80', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2025-12-12', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'142', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2026-01-08', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'86', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2026-01-08', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'126', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2026-01-22', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'78', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2026-01-22', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'138', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2026-02-15', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'88', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2026-02-15', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'124', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2026-03-15', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'76', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2026-03-15', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'140', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2026-03-28', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'86', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2026-03-28', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'144', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2026-04-08', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'90', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2026-04-08', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'128', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2026-04-22', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'78', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2026-04-22', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure systolic', code:'8480-6', value:'142', unit:'mmHg', reference_range:'<120', status:'final', effective_date:'2026-05-15', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Blood pressure diastolic', code:'8462-4', value:'88', unit:'mmHg', reference_range:'<80', status:'final', effective_date:'2026-05-15', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Body weight', code:'29463-7', value:'172', unit:'lb', reference_range:'', status:'final', effective_date:'2025-09-22', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Body weight', code:'29463-7', value:'170', unit:'lb', reference_range:'', status:'final', effective_date:'2025-11-20', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Body weight', code:'29463-7', value:'169', unit:'lb', reference_range:'', status:'final', effective_date:'2026-01-08', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Body weight', code:'29463-7', value:'168', unit:'lb', reference_range:'', status:'final', effective_date:'2026-02-15', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Body weight', code:'29463-7', value:'168', unit:'lb', reference_range:'', status:'final', effective_date:'2026-03-28', category:'vital-signs' },
+    { type:'observation', source:'ehr', name:'Body weight', code:'29463-7', value:'167', unit:'lb', reference_range:'', status:'final', effective_date:'2026-05-15', category:'vital-signs' }
   ],
   encounters: [
     { type:'encounter', source:'ehr', name:'Office visit — Neurology', status:'finished', start_date:'2026-03-28', end_date:'2026-03-28', class:'AMB' },
@@ -9603,7 +14496,7 @@ var DEMO_TIMELINE_EXTRAS = {
   // Outbound shares + view receipts (3 opens demonstrates the rollup card)
   shares: [
     { id:'ds-1', person_id:'demo-cheryl',
-      summary_text:"Cheryl had her neurology follow-up Thursday. Levodopa dose unchanged. Next visit Jul 22.",
+      summary_text:"Don had his neurology follow-up Thursday. Levodopa dose unchanged. Next visit Jul 22.",
       created_at:_demoDaysAgo(9, 19, 0), expires_at:_demoDaysAgo(-21, 19, 0) }
   ],
   shareEvents: [
@@ -9641,7 +14534,7 @@ var DEMO_DOCS = [
     document_type:'voice_note',
     uploaded_at:_demoDaysAgo(5, 11, 12),
     extraction_status:'complete',
-    extracted_events:{ summary:'Cheryl seemed a little more tired this morning. Took her morning meds at 8:10. Mentioned her left hand was shaking more than usual.' }
+    extracted_events:{ summary:'Don seemed a little more tired this morning. Took his morning meds at 8:10. Mentioned his left hand was shaking more than usual.' }
   },
   { id:'ddoc-lab-1', person_id:'demo-cheryl',
     file_name:'Quest labs — March 2026.pdf',
@@ -9760,6 +14653,89 @@ function buildSparkline(values, width, height, color) {
     + '</svg>';
 }
 
+// Richer 7-day chart for the rhythm cards: area fill + value labels on max
+// day, dots on each non-zero day, and day-of-week ticks underneath. `values`
+// is the 7-day trend (oldest -> newest). `color` is the stroke color; we
+// derive a soft fill from it.
+function buildRhythmChart(values, width, height, color, unitSuffix) {
+  var W = width;
+  var H = height;
+  var padL = 6, padR = 6, padT = 16, padB = 18;
+  var chartW = W - padL - padR;
+  var chartH = H - padT - padB;
+  var nonZero = (values || []).filter(function(v){ return v > 0; });
+  if (nonZero.length === 0) {
+    return '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"></svg>';
+  }
+  var max = Math.max.apply(null, values);
+  var min = Math.min.apply(null, nonZero);
+  // Pad the visual range so the line never hugs the top/bottom.
+  var rangeRaw = max - min;
+  var pad = rangeRaw > 0 ? rangeRaw * 0.15 : Math.max(1, max * 0.1);
+  var lo = Math.max(0, min - pad);
+  var hi = max + pad;
+  var range = hi - lo || 1;
+  var n = values.length;
+  var stepX = n > 1 ? chartW / (n - 1) : 0;
+  function px(i){ return padL + i * stepX; }
+  function py(v){ return padT + chartH - ((v - lo) / range) * chartH; }
+  // Line points and area points.
+  var linePts = [];
+  var areaPts = [];
+  for (var i = 0; i < n; i++) {
+    var v = values[i];
+    if (v > 0) {
+      linePts.push(px(i) + ',' + py(v));
+      areaPts.push(px(i) + ',' + py(v));
+    }
+  }
+  if (linePts.length === 0) {
+    return '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"></svg>';
+  }
+  // Close the area path along the bottom.
+  var firstX = parseFloat(linePts[0].split(',')[0]);
+  var lastX = parseFloat(linePts[linePts.length-1].split(',')[0]);
+  var baseY = padT + chartH;
+  var areaPath = 'M' + firstX + ',' + baseY + ' L' + areaPts.join(' L') + ' L' + lastX + ',' + baseY + ' Z';
+  // Day labels: oldest = 6 days ago, newest = today.
+  var dayNames = ['S','M','T','W','T','F','S'];
+  var today = new Date();
+  var labels = [];
+  for (var d = n - 1; d >= 0; d--) {
+    var dt = new Date(today.getFullYear(), today.getMonth(), today.getDate() - d);
+    labels.push(dayNames[dt.getDay()]);
+  }
+  // Find max-value index for the headline label.
+  var maxIdx = 0;
+  for (var mi = 0; mi < n; mi++) { if (values[mi] >= values[maxIdx]) maxIdx = mi; }
+  // Build SVG.
+  var svg = '<svg width="100%" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true" style="display:block;">';
+  // Soft grid baseline.
+  svg += '<line x1="' + padL + '" y1="' + (padT + chartH) + '" x2="' + (W - padR) + '" y2="' + (padT + chartH) + '" stroke="#E5DFD2" stroke-width="1"/>';
+  // Area fill.
+  svg += '<path d="' + areaPath + '" fill="' + color + '" fill-opacity="0.12"/>';
+  // Line.
+  svg += '<polyline fill="none" stroke="' + color + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="' + linePts.join(' ') + '"/>';
+  // Dots on each non-zero day.
+  for (var di = 0; di < n; di++) {
+    if (values[di] > 0) {
+      svg += '<circle cx="' + px(di) + '" cy="' + py(values[di]) + '" r="' + (di === maxIdx ? 3 : 2) + '" fill="' + color + '"/>';
+    }
+  }
+  // Max-value label.
+  var maxLabel = (values[maxIdx] >= 1000) ? Math.round(values[maxIdx]/1000*10)/10 + 'k' : Math.round(values[maxIdx]);
+  if (unitSuffix) maxLabel += unitSuffix;
+  var labelX = Math.max(padL + 14, Math.min(W - padR - 14, px(maxIdx)));
+  svg += '<text x="' + labelX + '" y="' + (py(values[maxIdx]) - 6) + '" text-anchor="middle" font-family="DM Sans, system-ui, sans-serif" font-size="10" font-weight="600" fill="#3D3530">' + maxLabel + '</text>';
+  // Day-of-week ticks.
+  for (var li = 0; li < n; li++) {
+    var isToday = (li === n - 1);
+    svg += '<text x="' + px(li) + '" y="' + (H - 4) + '" text-anchor="middle" font-family="DM Sans, system-ui, sans-serif" font-size="9" fill="' + (isToday ? '#3D3530' : '#9B8F7E') + '" font-weight="' + (isToday ? '600' : '400') + '">' + labels[li] + '</text>';
+  }
+  svg += '</svg>';
+  return svg;
+}
+
 function buildProgressRing(percent, size, color) {
   var r = (size - 6) / 2;
   var circ = 2 * Math.PI * r;
@@ -9865,7 +14841,13 @@ async function renderSignalsView() {
 
   if (!data) {
     var sigFirstName = getPersonFirstName();
-    var cacheKey = currentPersonId || '_nopid';
+    // Capture the personId at render-start so an in-flight async load can
+    // detect if the user has since switched people. Without this guard, a
+    // slow loadTerraConnections from a prior person could complete after a
+    // switch and (a) paint stale data, (b) write into the new person's
+    // cache slot — the bug that forced a hard refresh after switching.
+    var startPersonId = currentPersonId;
+    var cacheKey = startPersonId || '_nopid';
     var cached = _signalsCache[cacheKey];
     var cacheFresh = cached && (Date.now() - cached.ts) < _SIGNALS_CACHE_TTL_MS;
 
@@ -9878,7 +14860,7 @@ async function renderSignalsView() {
       el.innerHTML = '<div class="signals-view">'
         + '<header class="view-header">'
         + '<p class="view-header__eyebrow">Loading\u2026</p>'
-        + '<h1 class="view-header__title">Signals</h1>'
+        + '<h1 class="view-header__title">CareSignals</h1>'
         + '<p class="view-header__lede">Daily rhythms from ' + escHtml(sigFirstName) + '\u2019s wearables, sensors, and medications \u2014 patterns you might miss.</p>'
         + '</header>'
         + '<div class="terra-loading"><i data-lucide="loader" style="width:20px;height:20px;animation:spin 1s linear infinite;"></i>'
@@ -9906,7 +14888,14 @@ async function renderSignalsView() {
     console.log('[Signals] connections loaded:', conns.length, 'data:', terraData ? 'yes' : 'no');
     var activeConns = conns.filter(function(c){ return c.status === 'active'; });
 
-    // Update cache
+    // If the user switched people while we were loading, drop this result
+    // entirely — don't paint stale data and don't poison the cache.
+    if (currentPersonId !== startPersonId) {
+      console.log('[Signals] person switched during load, discarding result for', startPersonId);
+      return;
+    }
+
+    // Update cache (keyed on the person we actually loaded for)
     _signalsCache[cacheKey] = { ts: Date.now(), activeConns: activeConns, terraData: terraData };
 
     // 3) Repaint with fresh data (unless the view has since navigated away).
@@ -9927,6 +14916,350 @@ function invalidateSignalsCache(personId) {
 }
 
 // ── CareSignals v2 helpers ──────────────────────────────────────────────────
+// Pull the user's most-chartable EHR signals (BP, weight, common labs, active
+// meds) so CareSignals has something to surface even when no Apple Watch /
+// wearable is connected. This is what answers "why would I add a device?" —
+// once you see your own BP trending over years, the value of adding daily
+// readings via a wearable becomes obvious.
+//
+// Returns:
+//   {
+//     bp:    { systolic: [...], diastolic: [...], dates: [...], latest, summary }
+//     weight:{ values: [...], dates: [...], latest, unit, summary }
+//     labs:  [{ name, code, values:[], dates:[], unit, range, latest, latestStatus }, ...]
+//     meds:  [{ name, dose, startDate }, ...]
+//   }
+// All keys optional — caller renders only what's populated.
+async function _loadEhrTrends(personId) {
+  if (!personId || !db) return null;
+  var out = { bp: null, weight: null, labs: [], meds: [] };
+  try {
+    var loads = await Promise.all([
+      // Vitals — last 60 months so BP/weight trends have shape even for
+      // loved ones with sparser chronic-monitoring schedules.
+      db.from('vitals')
+        .select('vital_type, value, unit, effective_date')
+        .eq('person_id', personId)
+        .gte('effective_date', new Date(Date.now() - 60 * 30 * 24 * 60 * 60 * 1000).toISOString())
+        .order('effective_date', { ascending: true })
+        .limit(500)
+        .then(function(r){ return (r && r.data) || []; })
+        .catch(function(e){ console.warn('[EHR trends] vitals error', e); return []; }),
+      // Labs — last 60 months, numeric only. The wider window lets liver
+      // panels (ALT/AST/Alk Phos) and CBC trends on long-running chronic
+      // meds surface even when there's no recent Western metabolic panel.
+      db.from('lab_results')
+        .select('test_name, loinc_code, value, unit, reference_range, status, effective_date')
+        .eq('person_id', personId)
+        .gte('effective_date', new Date(Date.now() - 60 * 30 * 24 * 60 * 60 * 1000).toISOString())
+        .order('effective_date', { ascending: true })
+        .limit(500)
+        .then(function(r){ return (r && r.data) || []; })
+        .catch(function(e){ console.warn('[EHR trends] labs error', e); return []; }),
+      // Active meds.
+      db.from('medications')
+        .select('name, dose, frequency, active, start_date')
+        .eq('person_id', personId)
+        .eq('active', true)
+        .order('start_date', { ascending: false, nullsFirst: false })
+        .limit(20)
+        .then(function(r){ return (r && r.data) || []; })
+        .catch(function(e){ console.warn('[EHR trends] meds error', e); return []; })
+    ]);
+    var vitals = loads[0], labs = loads[1], meds = loads[2];
+    // ── Vitals: pair systolic/diastolic by date; keep last 12 readings.
+    var sys = vitals.filter(function(v){ return v.vital_type === 'Systolic blood pressure'; });
+    var dia = vitals.filter(function(v){ return v.vital_type === 'Diastolic blood pressure'; });
+    if (sys.length >= 2 && dia.length >= 2) {
+      // Group by date (YYYY-MM-DD) so we pair each visit's S/D.
+      var bpMap = {};
+      sys.forEach(function(v){ var d = String(v.effective_date).slice(0,10); var num = parseFloat(v.value); if (!isNaN(num)) bpMap[d] = bpMap[d] || {date:d}; if (!isNaN(num)) bpMap[d].sys = num; });
+      dia.forEach(function(v){ var d = String(v.effective_date).slice(0,10); var num = parseFloat(v.value); if (!isNaN(num)) bpMap[d] = bpMap[d] || {date:d}; if (!isNaN(num)) bpMap[d].dia = num; });
+      var paired = Object.keys(bpMap).map(function(k){ return bpMap[k]; })
+        .filter(function(r){ return r.sys && r.dia; })
+        .sort(function(a,b){ return a.date < b.date ? -1 : 1; });
+      if (paired.length >= 2) {
+        var last = paired.slice(-12);
+        var latest = last[last.length - 1];
+        var prior = last.length > 1 ? last[last.length - 2] : null;
+        var summary;
+        if (latest.sys >= 140 || latest.dia >= 90) summary = 'Latest reading elevated';
+        else if (latest.sys >= 130 || latest.dia >= 80) summary = 'Latest reading borderline';
+        else summary = 'Latest reading in range';
+        if (prior) {
+          var delta = latest.sys - prior.sys;
+          if (Math.abs(delta) >= 5) summary += ' \u00b7 ' + (delta > 0 ? '\u2191' : '\u2193') + ' ' + Math.abs(delta) + ' from prior visit';
+        }
+        out.bp = {
+          systolic: last.map(function(r){ return r.sys; }),
+          diastolic: last.map(function(r){ return r.dia; }),
+          dates: last.map(function(r){ return r.date; }),
+          latest: latest.sys + '/' + latest.dia,
+          latestDate: latest.date,
+          summary: summary
+        };
+      }
+    }
+    // Weight
+    var wRows = vitals.filter(function(v){ return v.vital_type === 'Weight'; })
+      .map(function(v){ return { v: parseFloat(v.value), d: String(v.effective_date).slice(0,10), unit: v.unit || 'kg' }; })
+      .filter(function(r){ return !isNaN(r.v); })
+      .sort(function(a,b){ return a.d < b.d ? -1 : 1; });
+    if (wRows.length >= 2) {
+      var lastW = wRows.slice(-12);
+      var latestW = lastW[lastW.length - 1];
+      var earliestW = lastW[0];
+      var dW = latestW.v - earliestW.v;
+      var unit = latestW.unit || 'kg';
+      // Convert kg → lbs for display if the EHR gave us kg (Duke does kg).
+      var displayUnit = unit;
+      var conv = 1;
+      if (/^kg/i.test(unit)) { displayUnit = 'lb'; conv = 2.20462; }
+      var summaryW = 'Latest ' + Math.round(latestW.v * conv) + ' ' + displayUnit;
+      if (Math.abs(dW) >= 1) summaryW += ' \u00b7 ' + (dW > 0 ? '\u2191' : '\u2193') + ' ' + Math.abs(Math.round(dW * conv)) + ' ' + displayUnit + ' over ' + lastW.length + ' visits';
+      out.weight = {
+        values: lastW.map(function(r){ return Math.round(r.v * conv * 10) / 10; }),
+        dates: lastW.map(function(r){ return r.d; }),
+        latest: Math.round(latestW.v * conv) + ' ' + displayUnit,
+        latestDate: latestW.d,
+        unit: displayUnit,
+        summary: summaryW
+      };
+    }
+    // ── Labs: pick the top "chartable" tests — numeric value, ≥3 readings, and a
+    // curated allowlist that's clinically meaningful to surface.
+    var labWhitelist = {
+      // Western metabolic / cardiac panel
+      'Hemoglobin A1C':       { display:'Hemoglobin A1C', priority: 1 },
+      'Glucose':              { display:'Glucose',        priority: 2 },
+      'Cholesterol, Total':   { display:'Total Cholesterol', priority: 3 },
+      'HDL':                  { display:'HDL',            priority: 4 },
+      'LDL':                  { display:'LDL',            priority: 4 },
+      'Triglyceride':         { display:'Triglycerides',  priority: 5 },
+      // Kidney
+      'Creatinine':           { display:'Creatinine',     priority: 6 },
+      'Glomerular Filtration Rate (eGFR)': { display:'eGFR (kidney function)', priority: 6 },
+      'BUN':                  { display:'BUN (kidney)',   priority: 7 },
+      'Blood Urea Nitrogen':  { display:'BUN (kidney)',   priority: 7 },
+      // CBC — important for chronic meds like imatinib
+      'Hemoglobin':           { display:'Hemoglobin',     priority: 8 },
+      'Hematocrit':           { display:'Hematocrit',     priority: 8 },
+      'Platelet Count':       { display:'Platelets',      priority: 8 },
+      'White Blood Cell Count': { display:'WBC',          priority: 8 },
+      'WBC':                  { display:'WBC',            priority: 8 },
+      // Thyroid / vitamins
+      'TSH':                  { display:'TSH (thyroid)',  priority: 9 },
+      'Vitamin D':            { display:'Vitamin D',      priority: 10 },
+      'Ferritin':             { display:'Ferritin',       priority: 10 },
+      // Liver panel — chronic-monitoring labs that often dominate when
+      // there's no recent metabolic panel (e.g. CML patients on imatinib).
+      'ALT':                  { display:'ALT (liver)',    priority: 11 },
+      'Alanine Aminotransferase': { display:'ALT (liver)', priority: 11 },
+      'AST':                  { display:'AST (liver)',    priority: 11 },
+      'Aspartate Aminotransferase': { display:'AST (liver)', priority: 11 },
+      'Alk Phos':             { display:'Alk Phos (liver)', priority: 12 },
+      'Alkaline Phosphatase': { display:'Alk Phos (liver)', priority: 12 },
+      'Albumin':              { display:'Albumin',        priority: 12 },
+      'Bilirubin':            { display:'Bilirubin',      priority: 12 },
+      'Bilirubin, Total':     { display:'Bilirubin',      priority: 12 },
+      // Basic metabolic — electrolytes / calcium
+      'Sodium':               { display:'Sodium',         priority: 13 },
+      'Potassium':            { display:'Potassium',      priority: 13 },
+      'Chloride':             { display:'Chloride',       priority: 13 },
+      'Calcium':              { display:'Calcium',        priority: 13 }
+    };
+    var byTest = {};
+    labs.forEach(function(l) {
+      if (!l.test_name || !labWhitelist[l.test_name]) return;
+      var n = parseFloat(l.value);
+      if (isNaN(n)) return;
+      var k = l.test_name;
+      byTest[k] = byTest[k] || { name: labWhitelist[k].display, code: l.loinc_code, unit: l.unit, range: l.reference_range, status: l.status, priority: labWhitelist[k].priority, rows: [] };
+      byTest[k].rows.push({ v:n, d: String(l.effective_date).slice(0,10), status: l.status });
+    });
+    Object.keys(byTest).forEach(function(k) {
+      var t = byTest[k];
+      if (t.rows.length < 3) return; // need a real trend
+      t.rows.sort(function(a,b){ return a.d < b.d ? -1 : 1; });
+      var last = t.rows.slice(-10);
+      var latest = last[last.length - 1];
+      out.labs.push({
+        name: t.name,
+        code: t.code,
+        values: last.map(function(r){ return r.v; }),
+        dates: last.map(function(r){ return r.d; }),
+        unit: t.unit || '',
+        range: t.range || '',
+        latest: latest.v,
+        latestDate: latest.d,
+        latestStatus: (latest.status || '').toLowerCase(),
+        priority: t.priority
+      });
+    });
+    out.labs.sort(function(a,b){ return a.priority - b.priority; });
+    out.labs = out.labs.slice(0, 4); // show top 4 max so the section stays scannable
+    // Active meds: trim Epic's verbose dose strings for chip display.
+    out.meds = (meds || []).slice(0, 6).map(function(m) {
+      // Pull just the drug name + strength (e.g. "lisinopril 20 MG tablet")
+      // and drop Epic's "Take 1 tablet by mouth\u2026, Starting \u2026, Electronic" trailer.
+      var name = String(m.name || '').replace(/\s+tablet$/i, '').trim();
+      var shortDose = '';
+      if (m.dose) {
+        var dose = String(m.dose);
+        // Capture "Take N tablet(s) (X mg total)" or "Inject X mLs (Y mg total)" prefix.
+        var match = dose.match(/^(Take[^,]+|Inject[^,]+)/i);
+        shortDose = match ? match[1].trim() : (dose.split(',')[0] || '').trim();
+        if (shortDose.length > 56) shortDose = shortDose.slice(0, 54) + '\u2026';
+      }
+      return {
+        name: name,
+        dose: shortDose,
+        frequency: m.frequency || '',
+        startDate: m.start_date || null
+      };
+    });
+    return out;
+  } catch (e) {
+    console.warn('[EHR trends] load failed', e);
+    return null;
+  }
+}
+
+// Render the "From your chart" section: BP card, weight card, lab mini-charts,
+// active meds list. Returns '' when the user truly has no EHR data.
+function _buildEhrTrendsHtml(ehrTrends, sigFirstName) {
+  if (!ehrTrends) return '';
+  var hasAny = !!(ehrTrends.bp || ehrTrends.weight || (ehrTrends.labs || []).length || (ehrTrends.meds || []).length);
+  if (!hasAny) return '';
+  var html = '';
+  // ── BP + Weight: side-by-side big-number cards with a 12-visit trend.
+  if (ehrTrends.bp || ehrTrends.weight) {
+    html += '<div class="cs-ehr-vitals-grid">';
+    if (ehrTrends.bp) {
+      var bp = ehrTrends.bp;
+      html += '<div class="cs-ehr-card">';
+      html += '<div class="cs-ehr-card-label">Blood pressure</div>';
+      html += '<div class="cs-ehr-card-metric">' + escHtml(bp.latest) + ' <span class="cs-ehr-card-unit">mmHg</span></div>';
+      html += '<div class="cs-ehr-card-spark">' + buildDualLineChart(bp.systolic, bp.diastolic, 280, 86, '#B85450', '#3B6EA5') + '</div>';
+      html += '<div class="cs-ehr-card-legend">';
+      html += '<span class="cs-ehr-legend-dot" style="background:#B85450;"></span><span>Systolic</span>';
+      html += '<span class="cs-ehr-legend-dot" style="background:#3B6EA5;margin-left:10px;"></span><span>Diastolic</span>';
+      html += '</div>';
+      html += '<div class="cs-ehr-card-sub">' + escHtml(bp.summary) + ' \u00b7 last visit ' + escHtml(_humanDate(bp.latestDate)) + '</div>';
+      html += '</div>';
+    }
+    if (ehrTrends.weight) {
+      var w = ehrTrends.weight;
+      html += '<div class="cs-ehr-card">';
+      html += '<div class="cs-ehr-card-label">Weight</div>';
+      html += '<div class="cs-ehr-card-metric">' + escHtml(w.latest) + '</div>';
+      html += '<div class="cs-ehr-card-spark">' + buildRhythmChart(w.values, 280, 86, '#5A6F50', '') + '</div>';
+      html += '<div class="cs-ehr-card-sub">' + escHtml(w.summary) + ' \u00b7 last visit ' + escHtml(_humanDate(w.latestDate)) + '</div>';
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+  // ── Labs: 2-column mini-card grid.
+  if ((ehrTrends.labs || []).length > 0) {
+    html += '<div class="cs-ehr-section-sub">From recent labs</div>';
+    html += '<div class="cs-ehr-labs-grid">';
+    ehrTrends.labs.forEach(function(l) {
+      var statusClass = '';
+      if (l.latestStatus === 'abnormal' || l.latestStatus === 'high' || l.latestStatus === 'low' || l.latestStatus === 'h' || l.latestStatus === 'l') statusClass = ' cs-ehr-lab-card--alert';
+      html += '<div class="cs-ehr-lab-card' + statusClass + '">';
+      html += '<div class="cs-ehr-lab-name">' + escHtml(l.name) + '</div>';
+      html += '<div class="cs-ehr-lab-value">' + escHtml(String(l.latest)) + (l.unit ? ' <span class="cs-ehr-lab-unit">' + escHtml(l.unit) + '</span>' : '') + '</div>';
+      try { html += '<div class="cs-ehr-lab-spark">' + buildRhythmChart(l.values, 200, 56, '#5A6F50', '') + '</div>'; } catch(_e){}
+      var when = _humanDate(l.latestDate);
+      var rangeBit = l.range ? ' \u00b7 ref ' + escHtml(l.range) : '';
+      html += '<div class="cs-ehr-lab-sub">' + escHtml(when) + rangeBit + '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+  // ── Active meds: compact list.
+  if ((ehrTrends.meds || []).length > 0) {
+    html += '<div class="cs-ehr-section-sub">Active medications</div>';
+    html += '<div class="cs-ehr-meds-list">';
+    ehrTrends.meds.forEach(function(m) {
+      html += '<div class="cs-ehr-med-row">';
+      html += '<div class="cs-ehr-med-icon"><i data-lucide="pill" style="width:14px;height:14px;"></i></div>';
+      html += '<div class="cs-ehr-med-body">';
+      html += '<div class="cs-ehr-med-name">' + escHtml(m.name) + '</div>';
+      var subBits = [];
+      if (m.dose) subBits.push(m.dose);
+      if (m.frequency) subBits.push(m.frequency);
+      if (m.startDate) subBits.push('Since ' + _humanDate(m.startDate));
+      if (subBits.length) html += '<div class="cs-ehr-med-sub">' + escHtml(subBits.join(' \u00b7 ')) + '</div>';
+      html += '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+  return html;
+}
+
+// Human date helper used by the EHR trends section. Falls back gracefully if
+// the input is malformed.
+function _humanDate(d) {
+  if (!d) return '';
+  try {
+    var dt = new Date(d);
+    if (isNaN(dt.getTime())) return String(d);
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch (_e) {
+    return String(d);
+  }
+}
+
+// Dual-line chart for paired metrics (systolic/diastolic). Reuses the same
+// padding & day-tick conventions as buildRhythmChart but draws two lines.
+function buildDualLineChart(seriesA, seriesB, width, height, colorA, colorB) {
+  if (!seriesA || !seriesB || seriesA.length === 0) return '';
+  var W = width, H = height;
+  var padL = 6, padR = 6, padT = 14, padB = 18;
+  var chartW = W - padL - padR;
+  var chartH = H - padT - padB;
+  var combined = seriesA.concat(seriesB).filter(function(v){ return v > 0; });
+  if (combined.length === 0) return '';
+  var max = Math.max.apply(null, combined);
+  var min = Math.min.apply(null, combined);
+  var pad = (max - min) > 0 ? (max - min) * 0.15 : Math.max(2, max * 0.05);
+  var lo = Math.max(0, min - pad);
+  var hi = max + pad;
+  var range = hi - lo || 1;
+  var n = seriesA.length;
+  var stepX = n > 1 ? chartW / (n - 1) : 0;
+  function px(i){ return padL + i * stepX; }
+  function py(v){ return padT + chartH - ((v - lo) / range) * chartH; }
+  function makeLine(series, color) {
+    var pts = [];
+    for (var i = 0; i < series.length; i++) {
+      if (series[i] > 0) pts.push(px(i) + ',' + py(series[i]));
+    }
+    if (pts.length === 0) return '';
+    var out = '<polyline fill="none" stroke="' + color + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="' + pts.join(' ') + '"/>';
+    for (var j = 0; j < series.length; j++) {
+      if (series[j] > 0) out += '<circle cx="' + px(j) + '" cy="' + py(series[j]) + '" r="2" fill="' + color + '"/>';
+    }
+    return out;
+  }
+  var svg = '<svg width="100%" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true" style="display:block;">';
+  svg += '<line x1="' + padL + '" y1="' + (padT + chartH) + '" x2="' + (W - padR) + '" y2="' + (padT + chartH) + '" stroke="#E5DFD2" stroke-width="1"/>';
+  svg += makeLine(seriesA, colorA);
+  svg += makeLine(seriesB, colorB);
+  // Latest-value labels
+  var latestA = seriesA[seriesA.length - 1];
+  var latestB = seriesB[seriesB.length - 1];
+  if (latestA > 0) svg += '<text x="' + (W - padR) + '" y="' + (py(latestA) - 4) + '" text-anchor="end" font-family="DM Sans, system-ui, sans-serif" font-size="10" font-weight="600" fill="' + colorA + '">' + Math.round(latestA) + '</text>';
+  if (latestB > 0) svg += '<text x="' + (W - padR) + '" y="' + (py(latestB) + 11) + '" text-anchor="end" font-family="DM Sans, system-ui, sans-serif" font-size="10" font-weight="600" fill="' + colorB + '">' + Math.round(latestB) + '</text>';
+  // X-tick: "oldest \u2192 latest" hint instead of day-of-week (irregular visit spacing).
+  svg += '<text x="' + padL + '" y="' + (H - 4) + '" text-anchor="start" font-family="DM Sans, system-ui, sans-serif" font-size="9" fill="#9B8F7E">oldest</text>';
+  svg += '<text x="' + (W - padR) + '" y="' + (H - 4) + '" text-anchor="end" font-family="DM Sans, system-ui, sans-serif" font-size="9" fill="#3D3530" font-weight="600">latest</text>';
+  svg += '</svg>';
+  return svg;
+}
+
 // Pull the last 7 days of Apple Health from wearable_observations and roll it
 // up into a compact rhythm summary. Returns null on any failure or no data so
 // callers can render an empty state cleanly.
@@ -10089,11 +15422,14 @@ function _buildRightNowLine(name, checkIns, conns, terraData, rhythmAH) {
 // it. Empty state nudges toward the "Tell Wellet" CTA in the section head.
 function _renderWatchesSectionHtml(watches, name) {
   if (!watches || watches.length === 0) {
+    // D13: in me-mode the watched subject is the user themselves, so the example
+    // should read "if you take" instead of leaking the email-derived first name.
+    var _exSubject = isSelfMode() ? 'you take' : (escHtml(name) + ' takes');
     return ''
       + '<div class="cs-watches-empty">'
-      +   'Nothing on watch yet. Tap '
-      +   '<em>Tell Wellet what to watch for</em> '
-      +   'to add the first one \u2014 like \u201cnotice if ' + escHtml(name) + ' takes fewer than 1,000 steps for three days.\u201d'
+      +   'Nothing to notice yet. Tap '
+      +   '<em>Tell Wellet what to notice</em> '
+      +   'to add the first one \u2014 like \u201cnotice if ' + _exSubject + ' fewer than 1,000 steps for three days.\u201d'
       + '</div>';
   }
   // Sort: active first, then by created_at desc (already)
@@ -10105,7 +15441,12 @@ function _renderWatchesSectionHtml(watches, name) {
   var out = '<div class="cs-watches-list">';
   for (var i = 0; i < sorted.length; i++) {
     var w = sorted[i];
-    var friendly = _watchTypeFriendly(w.watch_type, w.parameters);
+    // 2026-06-01 (D2): prefer the human-written description when present
+    // (demo seeds and admin-authored watches carry it). Falls back to the
+    // friendly label derived from watch_type so legacy rows still render.
+    var friendly = (w.description && String(w.description).trim())
+      ? String(w.description).trim()
+      : _watchTypeFriendly(w.watch_type, w.parameters);
     var paused = (w.active === false);
     var statusChip = paused
       ? '<span class="watch-row-status watch-row-status-paused">Paused</span>'
@@ -10153,11 +15494,30 @@ function _buildRhythmHtml(terraData, rhythmAH, checkIns) {
   // see WHY a metric looks weird (e.g. "Steps 0" because background sync
   // hasn't flushed today's writes from Wellet Connect yet).
   var freshLabel = '';
+  var isStale = false; // > 24h old → tiles show "no fresh data" not "0"
   if (ah.lastSyncAt) {
-    try { freshLabel = 'Apple Health \u00b7 last synced ' + formatTimeAgo(ah.lastSyncAt); } catch(_e) {}
+    try {
+      var ageMs = Date.now() - new Date(ah.lastSyncAt).getTime();
+      isStale = ageMs > 24 * 60 * 60 * 1000;
+      freshLabel = 'Apple Health \u00b7 last synced ' + formatTimeAgo(ah.lastSyncAt);
+    } catch(_e) {}
   }
   var html = '';
-  if (freshLabel) {
+  if (isStale) {
+    // Stale banner: tells the user the displayed numbers are old and lets them
+    // tap to bounce into Wellet Connect (which resumes HealthKit background
+    // delivery). On iPhone the wellet:// universal link opens the app; on
+    // desktop/Android the click is a no-op visual.
+    var refreshHref = 'javascript:refreshAppleHealthFromBanner();';
+    html += '<a href="' + refreshHref + '" class="cs-rhythm-stale cs-rhythm-stale--tappable" role="button">';
+    html += '<div class="cs-rhythm-stale-icon"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></div>';
+    html += '<div class="cs-rhythm-stale-body">';
+    html += '<div class="cs-rhythm-stale-title">' + escHtml(freshLabel || 'Apple Health is quiet') + '</div>';
+    html += '<div class="cs-rhythm-stale-sub">Tap to open Wellet Connect on your iPhone and refresh today\u2019s heart rate and steps.</div>';
+    html += '</div>';
+    html += '<div class="cs-rhythm-stale-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>';
+    html += '</a>';
+  } else if (freshLabel) {
     html += '<div class="cs-rhythm-freshness">' + escHtml(freshLabel) + '</div>';
   }
   html += '<div class="cs-rhythm-grid">';
@@ -10176,18 +15536,37 @@ function _buildRhythmHtml(terraData, rhythmAH, checkIns) {
     html += '<div class="cs-rhythm-card">';
     html += '<div class="cs-rhythm-label">Resting heart rate</div>';
     html += '<div class="cs-rhythm-metric">' + mean + ' <span class="cs-rhythm-unit">bpm</span></div>';
-    try { html += '<div class="cs-rhythm-spark">' + buildSparkline(src.trend, 120, 28, 'var(--red, #B85450)') + '</div>'; } catch (_e) {}
-    html += '<div class="cs-rhythm-sub">7-day average</div>';
+    try { html += '<div class="cs-rhythm-spark">' + buildRhythmChart(src.trend, 280, 72, '#B85450', '') + '</div>'; } catch (_e) {}
+    html += '<div class="cs-rhythm-sub">' + (isStale ? 'Last 7 days · numbers may be stale' : '7-day average') + '</div>';
     html += '</div>';
   }
-  // Steps sparkline
+  // Steps sparkline — if stale AND today=0, show last non-zero day instead of
+  // a misleading "0 today" headline.
   if (hasSteps) {
     var todaySteps = ah.steps.today || 0;
+    var stepsLabel = 'Today \u00b7 7-day trend';
+    var stepsHeadline = todaySteps.toLocaleString();
+    if (isStale && todaySteps === 0) {
+      var trendArr = ah.steps.trend || [];
+      var lastNonZero = 0;
+      var daysBack = 0;
+      for (var si = trendArr.length - 1; si >= 0; si--) {
+        if (trendArr[si] > 0) { lastNonZero = trendArr[si]; daysBack = trendArr.length - 1 - si; break; }
+      }
+      if (lastNonZero > 0) {
+        stepsHeadline = lastNonZero.toLocaleString();
+        stepsLabel = daysBack === 1 ? 'Yesterday\u2019s steps · awaiting fresh sync'
+                    : daysBack <= 6 ? daysBack + ' days ago · awaiting fresh sync'
+                    : 'Recent steps · awaiting fresh sync';
+      } else {
+        stepsLabel = 'Awaiting fresh sync';
+      }
+    }
     html += '<div class="cs-rhythm-card">';
     html += '<div class="cs-rhythm-label">Steps</div>';
-    html += '<div class="cs-rhythm-metric">' + todaySteps.toLocaleString() + '</div>';
-    try { html += '<div class="cs-rhythm-spark">' + buildSparkline(ah.steps.trend, 120, 28, 'var(--moss, #5A6F50)') + '</div>'; } catch (_e) {}
-    html += '<div class="cs-rhythm-sub">Today \u00b7 7-day trend</div>';
+    html += '<div class="cs-rhythm-metric">' + stepsHeadline + '</div>';
+    try { html += '<div class="cs-rhythm-spark">' + buildRhythmChart(ah.steps.trend, 280, 72, '#5A6F50', '') + '</div>'; } catch (_e) {}
+    html += '<div class="cs-rhythm-sub">' + escHtml(stepsLabel) + '</div>';
     html += '</div>';
   }
   // Sleep — prefer family check-in sleep_quality; otherwise show a calm
@@ -10213,9 +15592,12 @@ function _buildRhythmHtml(terraData, rhythmAH, checkIns) {
 // Care Circle check-in feed (last 5). Empty state encourages the first one.
 function _renderCircleSectionHtml(checkIns, name) {
   if (!checkIns || checkIns.length === 0) {
+    // D13: in me-mode the circle is the user's own — first-person phrasing
+    // avoids leaking the email prefix into the empty state.
+    var _circleOwner = isSelfMode() ? 'your' : (escHtml(name) + '\u2019s');
     return ''
       + '<div class="cs-circle-empty">'
-      +   'No check-ins from ' + escHtml(name) + '\u2019s circle yet. When family or friends log how they\u2019re feeling, it shows up here.'
+      +   'No check-ins from ' + _circleOwner + ' circle yet. When family or friends log how they\u2019re feeling, it shows up here.'
       + '</div>';
   }
   var out = '<div class="cs-circle-list">';
@@ -10421,7 +15803,7 @@ async function openAddWatchModal() {
     +     '<i data-lucide="bell" style="width:18px;height:18px;"></i>'
     +   '</div>'
     +   '<div style="flex:1;min-width:0;">'
-    +     '<div style="font-family:\'Fraunces\', Georgia, serif;font-size:20px;font-weight:500;color:#1F2A22;line-height:1.25;margin-bottom:4px;">Tell Wellet what to watch for</div>'
+    +     '<div style="font-family:\'Fraunces\', Georgia, serif;font-size:20px;font-weight:500;color:#1F2A22;line-height:1.25;margin-bottom:4px;">Tell Wellet what to notice</div>'
     +     '<div style="font-size:13px;color:#6B6356;line-height:1.5;">Pick something below. Wellet will notice it for ' + safeName + ' and send a gentle nudge if it happens.</div>'
     +   '</div>'
     + '</div>'
@@ -10530,6 +15912,203 @@ async function openAddWatchModal() {
   });
 }
 
+// ── Rich CareSignal cards (v2 — public.care_signals) ─────────────────────
+// Renders one ATTENTION/NOTICE card per row. Each card carries an eyebrow
+// (severity-toned), a timestamp, a serif headline, a quiet body, three
+// evidence rows (icon + head + sub), three metric tiles, and two CTAs.
+// Data shape:
+//   row.display_evidence_rows = [{icon, head, sub}, …]   (icon: stethoscope|pill|watch|heart-pulse|flask|calendar)
+//   row.display_metric_tiles  = [{eyebrow, value, sub, value_kind:'number'|'text'}, …]
+function _csIconSvg(name) {
+  var paths = {
+    'stethoscope': '<path d="M11 2v3a3 3 0 0 0 3 3v0"/><path d="M5 2v3a3 3 0 0 0 3 3v0"/><path d="M8 8v4a4 4 0 0 0 8 0V8"/><path d="M16 12v2a4 4 0 0 1-8 0"/><circle cx="18" cy="18" r="2.5"/>',
+    'pill': '<path d="M10.5 20.5L20.5 10.5a4.95 4.95 0 1 0-7-7L3.5 13.5a4.95 4.95 0 1 0 7 7Z"/><path d="M8.5 8.5l7 7"/>',
+    'watch': '<rect x="7" y="7" width="10" height="10" rx="2"/><path d="M9 7V4h6v3"/><path d="M9 17v3h6v-3"/>',
+    'heart-pulse': '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/><path d="M3.5 13h4l1.5-3 3 6 1.5-3h4"/>',
+    'flask': '<path d="M10 2v6L4 18a3 3 0 0 0 2.6 4.5h10.8A3 3 0 0 0 20 18L14 8V2"/><path d="M8.5 2h7"/><path d="M7 14h10"/>',
+    'calendar': '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>'
+  };
+  var inner = paths[name] || paths['heart-pulse'];
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + inner + '</svg>';
+}
+function _csFormatStamp(iso) {
+  if (!iso) return '';
+  try {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var hrs = d.getHours();
+    var mins = d.getMinutes();
+    var ampm = hrs >= 12 ? 'PM' : 'AM';
+    hrs = hrs % 12; if (hrs === 0) hrs = 12;
+    var mm = mins < 10 ? '0' + mins : '' + mins;
+    return months[d.getMonth()] + ' ' + d.getDate() + ' \u00b7 ' + hrs + ':' + mm + ' ' + ampm;
+  } catch (_e) { return ''; }
+}
+function _buildEvidenceRowHtml(row) {
+  if (!row) return '';
+  var icon = row.icon || 'heart-pulse';
+  var head = row.head || '';
+  var sub = row.sub || '';
+  var html = '<div class="cs-evidence__row">';
+  html += '<span class="cs-evidence__icon" aria-hidden="true">' + _csIconSvg(icon) + '</span>';
+  html += '<div class="cs-evidence__text">';
+  html += '<p class="cs-evidence__head">' + escHtml(head) + '</p>';
+  if (sub) html += '<p class="cs-evidence__sub">' + escHtml(sub) + '</p>';
+  html += '</div></div>';
+  return html;
+}
+function _buildMetricTileHtml(tile) {
+  if (!tile) return '';
+  var valueClass = 'cs-tile__value';
+  if (tile.value_kind === 'text') valueClass += ' cs-tile__value--text';
+  var html = '<div class="cs-tile">';
+  if (tile.eyebrow) html += '<div class="cs-tile__eyebrow">' + escHtml(tile.eyebrow) + '</div>';
+  html += '<div class="' + valueClass + '">' + escHtml(tile.value || '') + '</div>';
+  if (tile.sub) html += '<div class="cs-tile__sub">' + escHtml(tile.sub) + '</div>';
+  html += '</div>';
+  return html;
+}
+function _buildCareSignalCardHtml(signal, sigFirstName, primaryCtaLabel, secondaryCtaLabel) {
+  if (!signal) return '';
+  var sev = (signal.severity || 'notice').toLowerCase();
+  var status = (signal.status || 'active').toLowerCase();
+  var isHandled = (status === 'acted_on' || status === 'dismissed' || status === 'resolved');
+  var eyebrowLabel = signal.display_eyebrow || (sev === 'attention' ? 'ATTENTION' : (sev === 'urgent' ? 'URGENT' : 'NOTICE'));
+  var eyebrowClass = 'cs-attention__eyebrow';
+  if (sev !== 'attention' && sev !== 'urgent') eyebrowClass += ' cs-attention__eyebrow--notice';
+  var stampSrc = signal.display_stamp_at || signal.noticed_event_at || signal.noticed_at || signal.created_at;
+  var stamp = _csFormatStamp(stampSrc);
+  var rows = Array.isArray(signal.display_evidence_rows) ? signal.display_evidence_rows : [];
+  var tiles = Array.isArray(signal.display_metric_tiles) ? signal.display_metric_tiles.slice(0, 3) : [];
+  var sid = escHtml(signal.id || '');
+
+  var articleCls = 'cs-attention' + (isHandled ? ' cs-attention--handled' : '');
+  var html = '<article class="' + articleCls + '" data-care-signal-id="' + sid + '" data-status="' + escHtml(status) + '" aria-label="CareSignal">';
+  html += '<div class="cs-attention__top">';
+  html += '<span class="' + eyebrowClass + '">' + escHtml(eyebrowLabel) + '</span>';
+  html += '<div class="cs-attention__top-right">';
+  if (stamp) html += '<span class="cs-attention__stamp">' + escHtml(stamp) + '</span>';
+  if (isHandled) {
+    var badge = status === 'acted_on' ? 'Handled' : (status === 'dismissed' ? 'Dismissed' : 'Resolved');
+    html += '<span class="cs-attention__statusbadge cs-attention__statusbadge--' + escHtml(status) + '">' + escHtml(badge) + '</span>';
+  }
+  if (!isHandled) {
+    html += '<button type="button" class="cs-attention__kebab" aria-label="More actions" onclick="_onCareSignalKebab(event, \'' + sid + '\')">';
+    html += '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="3.5" r="1.3" fill="currentColor"/><circle cx="8" cy="8" r="1.3" fill="currentColor"/><circle cx="8" cy="12.5" r="1.3" fill="currentColor"/></svg>';
+    html += '</button>';
+    html += '<div class="cs-kebab-menu" role="menu" hidden>';
+    html += '<button type="button" role="menuitem" onclick="_onCareSignalSavePrecall(\'' + sid + '\')">Save to Before you call</button>';
+    html += '<button type="button" role="menuitem" onclick="_onCareSignalShare(\'' + sid + '\', \'' + escHtml(sigFirstName || '') + '\')">Share with ' + escHtml(sigFirstName || 'family') + '</button>';
+    html += '</div>';
+  } else {
+    html += '<button type="button" class="cs-attention__restore" onclick="_onCareSignalRestore(\'' + sid + '\')" aria-label="Restore">Restore</button>';
+  }
+  html += '</div>';
+  html += '</div>';
+  if (signal.headline) html += '<h2 class="cs-attention__title">' + escHtml(signal.headline) + '</h2>';
+  if (signal.body) html += '<p class="cs-attention__body">' + escHtml(signal.body) + '</p>';
+  if (rows.length || tiles.length) html += '<hr class="cs-attention__rule">';
+  if (rows.length) {
+    html += '<div class="cs-evidence">';
+    for (var i = 0; i < rows.length; i++) html += _buildEvidenceRowHtml(rows[i]);
+    html += '</div>';
+  }
+  if (tiles.length) {
+    html += '<div class="cs-tiles">';
+    for (var j = 0; j < tiles.length; j++) html += _buildMetricTileHtml(tiles[j]);
+    // Pad missing tiles so the grid stays balanced
+    for (var k = tiles.length; k < 3; k++) html += '<div class="cs-tile" aria-hidden="true"></div>';
+    html += '</div>';
+  }
+  if (!isHandled) {
+    html += '<div class="cs-attention__actions">';
+    html += '<button type="button" class="cs-cta-primary" onclick="_onCareSignalHandled(\'' + sid + '\')">I handled this</button>';
+    html += '<button type="button" class="cs-cta-secondary" onclick="_onCareSignalDismiss(\'' + sid + '\')">Not worth noticing</button>';
+    html += '</div>';
+  }
+  html += '</article>';
+  return html;
+}
+
+// ── CareSignal action handlers ───────────────────────────────────────────
+// Hits POST /functions/v1/care-signal-action with the current user JWT.
+// Idempotent server-side; refreshes the Signals view on success.
+async function _csCallAction(signalId, action, opts) {
+  opts = opts || {};
+  if (!signalId || !action) return { ok: false, error: 'missing signal_id or action' };
+  try {
+    var sess = (await db.auth.getSession()).data.session;
+    if (!sess || !sess.access_token) return { ok: false, error: 'not signed in' };
+    var body = { signal_id: signalId, action: action };
+    if (opts.note) body.note = String(opts.note).slice(0, 500);
+    var res = await fetch(SUPABASE_URL + '/functions/v1/care-signal-action', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + sess.access_token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify(body)
+    });
+    var data = null;
+    try { data = await res.json(); } catch(_e) {}
+    if (!res.ok) return { ok: false, error: (data && data.error) || ('HTTP ' + res.status) };
+    return { ok: true, status: data && data.status, status_changed_at: data && data.status_changed_at };
+  } catch (e) {
+    console.error('[CareSignal] action error', action, e);
+    return { ok: false, error: e && e.message || String(e) };
+  }
+}
+async function _onCareSignalHandled(signalId) {
+  var r = await _csCallAction(signalId, 'acted_on');
+  try { if (typeof showToast === 'function') showToast(r.ok ? 'Marked as handled.' : 'Could not save — try again.'); } catch(_e){}
+  if (r.ok && typeof renderSignalsView === 'function') { try { renderSignalsView(); } catch(_e){} }
+}
+async function _onCareSignalDismiss(signalId) {
+  var r = await _csCallAction(signalId, 'dismissed');
+  try { if (typeof showToast === 'function') showToast(r.ok ? 'Dismissed.' : 'Could not dismiss — try again.'); } catch(_e){}
+  if (r.ok && typeof renderSignalsView === 'function') { try { renderSignalsView(); } catch(_e){} }
+}
+async function _onCareSignalRestore(signalId) {
+  var r = await _csCallAction(signalId, 'restore');
+  try { if (typeof showToast === 'function') showToast(r.ok ? 'Restored.' : 'Could not restore — try again.'); } catch(_e){}
+  if (r.ok && typeof renderSignalsView === 'function') { try { renderSignalsView(); } catch(_e){} }
+}
+function _onCareSignalKebab(ev, signalId) {
+  try { ev.stopPropagation(); } catch(_e){}
+  var card = document.querySelector('.cs-attention[data-care-signal-id="' + signalId + '"]');
+  if (!card) return;
+  var menu = card.querySelector('.cs-kebab-menu');
+  if (!menu) return;
+  // Close other open menus first
+  document.querySelectorAll('.cs-kebab-menu:not([hidden])').forEach(function(m){ if (m !== menu) m.hidden = true; });
+  menu.hidden = !menu.hidden;
+  if (!menu.hidden) {
+    var closeFn = function(e) {
+      if (!menu.contains(e.target) && !e.target.closest('.cs-attention__kebab')) {
+        menu.hidden = true;
+        document.removeEventListener('click', closeFn, true);
+      }
+    };
+    setTimeout(function(){ document.addEventListener('click', closeFn, true); }, 0);
+  }
+}
+function _onCareSignalSavePrecall(signalId) {
+  // Close menu and show toast — wire up Before-you-call save in next pass.
+  var card = document.querySelector('.cs-attention[data-care-signal-id="' + signalId + '"]');
+  if (card) { var m = card.querySelector('.cs-kebab-menu'); if (m) m.hidden = true; }
+  try { if (typeof showToast === 'function') showToast('Saved to Before you call.'); } catch(_e){}
+}
+function _onCareSignalShare(signalId, firstName) {
+  var card = document.querySelector('.cs-attention[data-care-signal-id="' + signalId + '"]');
+  if (card) { var m = card.querySelector('.cs-kebab-menu'); if (m) m.hidden = true; }
+  try { if (typeof showToast === 'function') showToast('Share sheet coming next.'); } catch(_e){}
+}
+// Legacy entry points (kept for any external callers)
+function _onCareSignalPrimary(signalId) { return _onCareSignalHandled(signalId); }
+function _onCareSignalSecondary(signalId) { return _onCareSignalDismiss(signalId); }
+
 // ── CareSignals v2: 5-section editorial shell ─────────────────────────────
 // Sections (top to bottom):
 //   1) Right Now      — synthesized line from recent check-ins / wearable data
@@ -10546,11 +16125,13 @@ async function _paintSignals(el, sigFirstName, activeConns, terraData) {
   var hasDevices = activeConns.length > 0;
   var hasTerraData = hasDevices && terraData && (terraData.vitals.length > 0 || terraData.events.length > 0);
 
-  // Load watches + check-ins + Apple Health rhythm in parallel. Failures are
-  // non-fatal — we just render an empty/quiet section.
+  // Load watches + check-ins + Apple Health rhythm + EHR trends in parallel.
+  // Failures are non-fatal — we just render an empty/quiet section.
   var watches = [];
   var checkIns = [];
   var rhythmAH = null; // { heartRate, restingHr, steps, hrv, lastSyncAt }
+  var ehrTrends = null; // { bp, weight, labs, meds }
+  var careSignalsV2 = []; // public.care_signals rows (AI-surfaced patterns)
   if (personId && db) {
     try {
       var loads = await Promise.all([
@@ -10569,11 +16150,24 @@ async function _paintSignals(el, sigFirstName, activeConns, terraData) {
           .then(function(r){ return (r && r.data) || []; })
           .catch(function(e){ console.error('[Signals] check_ins load error', e); return []; }),
         _loadAppleHealthRhythm(personId)
-          .catch(function(e){ console.error('[Signals] AH rhythm load error', e); return null; })
+          .catch(function(e){ console.error('[Signals] AH rhythm load error', e); return null; }),
+        _loadEhrTrends(personId)
+          .catch(function(e){ console.error('[Signals] EHR trends load error', e); return null; }),
+        db.from('care_signals')
+          .select('id, signal_type, pattern_key, severity, status, status_changed_at, acted_on_at, noticed_at, noticed_event_at, window_start, window_end, occurrence_number, headline, body, evidence_jsonb, display_evidence_rows, display_metric_tiles, display_eyebrow, display_stamp_at')
+          .eq('person_id', personId)
+          .in('status', ['active', 'acted_on', 'dismissed'])
+          .order('noticed_event_at', { ascending: false, nullsFirst: false })
+          .order('noticed_at', { ascending: false })
+          .limit(40)
+          .then(function(r){ return (r && r.data) || []; })
+          .catch(function(e){ console.error('[Signals] care_signals v2 load error', e); return []; })
       ]);
-      watches  = loads[0] || [];
-      checkIns = loads[1] || [];
-      rhythmAH = loads[2] || null;
+      watches       = loads[0] || [];
+      checkIns      = loads[1] || [];
+      rhythmAH      = loads[2] || null;
+      ehrTrends     = loads[3] || null;
+      careSignalsV2 = loads[4] || [];
     } catch (e) {
       console.error('[Signals] parallel loads failed', e);
     }
@@ -10595,11 +16189,13 @@ async function _paintSignals(el, sigFirstName, activeConns, terraData) {
   }
   var eyebrowBits = [];
   if (activeWatches.length > 0) {
-    eyebrowBits.push(activeWatches.length === 1 ? '1 watch active' : activeWatches.length + ' watches active');
+    eyebrowBits.push(activeWatches.length === 1 ? '1 thing to notice' : activeWatches.length + ' things to notice');
   }
   if (lastSyncStr) eyebrowBits.push('Synced ' + lastSyncStr);
   var eyebrow = eyebrowBits.length ? eyebrowBits.join(' \u00b7 ') : 'CareSignals';
-  var lede = 'What Wellet is noticing for ' + escHtml(sigFirstName) + ' \u2014 quiet patterns, watches, and check-ins from the people closest to them.';
+  var lede = isSelfMode()
+    ? 'What Wellet is noticing for you \u2014 quiet patterns and check-ins from the people closest to you.'
+    : 'What Wellet is noticing for ' + escHtml(sigFirstName) + ' \u2014 quiet patterns and check-ins from the people closest to them.';
 
   var ch = '<div class="signals-view">';
   ch += '<header class="view-header">';
@@ -10609,26 +16205,85 @@ async function _paintSignals(el, sigFirstName, activeConns, terraData) {
   ch += '</header>';
 
   // ── 1. Right Now ───────────────────────────────────────────────────────
-  var rightNowLine = _buildRightNowLine(sigFirstName, checkIns, activeConns, terraData, rhythmAH);
-  if (rightNowLine) {
+  // Rich CareSignal cards stacked. Falls back to legacy one-line summary if v2 empty.
+  // Split into active (top) and recently noticed (handled/dismissed, collapsible below).
+  var _csActive = [];
+  var _csRecent = [];
+  if (careSignalsV2 && careSignalsV2.length) {
+    for (var _csIdx = 0; _csIdx < careSignalsV2.length; _csIdx++) {
+      var _cs = careSignalsV2[_csIdx];
+      var _csStat = (_cs && _cs.status) ? String(_cs.status).toLowerCase() : 'active';
+      if (_csStat === 'acted_on' || _csStat === 'dismissed' || _csStat === 'resolved') _csRecent.push(_cs);
+      else _csActive.push(_cs);
+    }
+    // Cap recently noticed to last 10 by status_changed_at desc
+    _csRecent.sort(function(a, b){
+      var ta = a && (a.status_changed_at || a.acted_on_at || a.noticed_event_at || a.noticed_at) || '';
+      var tb = b && (b.status_changed_at || b.acted_on_at || b.noticed_event_at || b.noticed_at) || '';
+      return tb.localeCompare(ta);
+    });
+    if (_csRecent.length > 10) _csRecent = _csRecent.slice(0, 10);
+  }
+  if (_csActive.length) {
     ch += '<section class="cs-section cs-section--rightnow">';
+    ch += '<div class="cs-section-head">';
     ch += '<div class="cs-section-eyebrow">Right now</div>';
-    ch += '<p class="cs-rightnow-line">' + rightNowLine + '</p>';
+    ch += '<button type="button" class="cs-all-chip" onclick="navigateTo(\'timeline\')">All signals</button>';
+    ch += '</div>';
+    for (var csi = 0; csi < _csActive.length; csi++) {
+      ch += _buildCareSignalCardHtml(_csActive[csi], sigFirstName);
+    }
+    ch += '</section>';
+  } else if (!_csRecent.length) {
+    var rightNowLine = _buildRightNowLine(sigFirstName, checkIns, activeConns, terraData, rhythmAH);
+    if (rightNowLine) {
+      ch += '<section class="cs-section cs-section--rightnow">';
+      ch += '<div class="cs-section-eyebrow">Right now</div>';
+      ch += '<p class="cs-rightnow-line">' + rightNowLine + '</p>';
+      ch += '</section>';
+    }
+  }
+  // Recently noticed (handled / dismissed) — collapsible, dimmed cards with Restore
+  if (_csRecent.length) {
+    ch += '<section class="cs-section cs-section--recently">';
+    ch += '<details class="cs-recently">';
+    ch += '<summary class="cs-recently__summary">';
+    ch += '<span class="cs-section-eyebrow">Recently noticed</span>';
+    ch += '<span class="cs-recently__count">' + _csRecent.length + '</span>';
+    ch += '<span class="cs-recently__chev" aria-hidden="true">' + '\u25BE' + '</span>';
+    ch += '</summary>';
+    ch += '<div class="cs-recently__list">';
+    for (var cri = 0; cri < _csRecent.length; cri++) {
+      ch += _buildCareSignalCardHtml(_csRecent[cri], sigFirstName);
+    }
+    ch += '</div>';
+    ch += '</details>';
     ch += '</section>';
   }
 
-  // ── 2. Watches ─────────────────────────────────────────────────────────
+  // ── 2. What to notice ─────────────────────────────────────────────────
   ch += '<section class="cs-section cs-section--watches">';
   ch += '<div class="cs-section-head">';
-  ch += '<div class="cs-section-eyebrow">Watches</div>';
+  ch += '<div class="cs-section-eyebrow">What to notice</div>';
   ch += '<button type="button" class="cs-section-action" onclick="openAddWatchModal()">';
-  ch += '<i data-lucide="plus" style="width:13px;height:13px;"></i><span>Tell Wellet what to watch for</span>';
+  ch += '<i data-lucide="plus" style="width:13px;height:13px;"></i><span>Tell Wellet what to notice</span>';
   ch += '</button>';
   ch += '</div>';
   ch += _renderWatchesSectionHtml(watches, sigFirstName);
   ch += '</section>';
 
-  // ── 3. This Week’s Rhythm ──────────────────────────────────────────────
+  // ── 3. From your chart (EHR trends) ────────────────────────────────────
+  // Shown BEFORE the wearable rhythm because for users without a watch,
+  // this is the entire reason CareSignals isn't empty.
+  var ehrHtml = _buildEhrTrendsHtml(ehrTrends, sigFirstName);
+  if (ehrHtml) {
+    ch += '<section class="cs-section cs-section--ehr-trends">';
+    ch += '<div class="cs-section-eyebrow">From ' + escHtml(sigFirstName) + '\u2019s chart</div>';
+    ch += ehrHtml;
+    ch += '</section>';
+  }
+
+  // ── 4. This Week\u2019s Rhythm ──────────────────────────────────────────
   var rhythmHtml = _buildRhythmHtml(terraData, rhythmAH, checkIns);
   if (rhythmHtml) {
     ch += '<section class="cs-section cs-section--rhythm">';
@@ -10721,7 +16376,7 @@ async function _paintSignals(el, sigFirstName, activeConns, terraData) {
       var ch = '<div class="signals-view">';
       ch += '<header class="view-header">';
       ch += '<p class="view-header__eyebrow">' + escHtml(_hdrEyebrow) + '</p>';
-      ch += '<h1 class="view-header__title">Signals</h1>';
+      ch += '<h1 class="view-header__title">CareSignals</h1>';
       ch += '<p class="view-header__lede">' + _hdrLede + '</p>';
       ch += '</header>';
       ch += chDevices;
@@ -10931,208 +16586,205 @@ function openAskWithWatchContext(metric, personName) {
   }, 60);
 }
 
-// Demo-mode renderer (unchanged legacy path)
+// Demo-mode renderer — aligned with live _paintSignals() structure.
+// Uses DEMO_TIMELINE_EXTRAS watches + check-ins + DEMO_EHR_DATA for EHR trends.
+// Preserves the wearable data section (demo has Apple Watch data) but removes
+// the legacy medication checklist, adherence chart, and home sensors sections.
 function _renderSignalsDemo(el, data, demoFirstName) {
-  var now = new Date();
-  var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  var dateStr = days[now.getDay()] + ', ' + months[now.getMonth()] + ' ' + now.getDate();
-  var dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-
-  var cabinetHour = -1;
-  var cabinetTimeStr = '';
-  for (var si = 0; si < data.sensors.length; si++) {
-    if (data.sensors[si].id === 'medcabinet') {
-      cabinetTimeStr = data.sensors[si].lastEvent;
-      var cParts = cabinetTimeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
-      if (cParts) {
-        cabinetHour = parseInt(cParts[1], 10);
-        if (cParts[3].toUpperCase() === 'PM' && cabinetHour !== 12) cabinetHour += 12;
-        if (cParts[3].toUpperCase() === 'AM' && cabinetHour === 12) cabinetHour = 0;
-      }
-      break;
-    }
-  }
-
-  var html = '<div class="signals-view">';
-
-  // ── Editorial view header (Fraunces masthead anchor) ──
   var demoName = demoFirstName || 'Dad';
-  html += '<header class="view-header">';
-  html += '<p class="view-header__eyebrow">Apple Watch \u00b7 Synced 8 min ago</p>';
-  html += '<h1 class="view-header__title">Signals</h1>';
-  html += '<p class="view-header__lede">Daily rhythms from ' + escHtml(demoName) + '\u2019s wearables, sensors, and medications \u2014 patterns you might miss.</p>';
-  html += '</header>';
 
-  // ── Section 1: Medication Tracker ──────────────────────────────────────
-  html += '<div class="signals-section">';
-  html += '<div class="signals-section-title">Today\u2019s Medications</div>';
-  html += '<div class="signals-section-sub">' + escHtml(dateStr) + '</div>';
-  html += '<div class="signals-card">';
-  for (var mi = 0; mi < data.medications.length; mi++) {
-    var med = data.medications[mi];
-    html += '<div class="med-item">';
-    html += '<div class="med-icon-wrap"><i data-lucide="pill"></i></div>';
-    html += '<div class="med-info">';
-    html += '<div class="med-name">' + escHtml(med.name) + '</div>';
-    html += '<div class="med-dose">' + escHtml(med.dose) + ' \u00b7 ' + escHtml(med.frequency) + '</div>';
-    html += '<div class="med-times">';
-    for (var ti = 0; ti < med.times.length; ti++) {
-      var status = getMedStatus(med.times[ti], now, cabinetHour);
-      var badgeClass = 'med-badge med-badge--' + status;
-      var statusIcon = '';
-      var statusLabel = '';
-      if (status === 'taken') { statusIcon = ''; statusLabel = 'Taken'; }
-      else if (status === 'missed') { statusIcon = ''; statusLabel = 'Missed'; }
-      else if (status === 'due') { statusIcon = ''; statusLabel = 'Due now'; }
-      else { statusIcon = ''; statusLabel = 'Upcoming'; }
-      html += '<span class="' + badgeClass + '">' + formatTime12(med.times[ti]) + ' \u00b7 ' + statusLabel + '</span>';
+  // Pull demo watches + check-ins from the timeline extras seed data.
+  var demoExtras = (typeof DEMO_TIMELINE_EXTRAS !== 'undefined') ? DEMO_TIMELINE_EXTRAS : {};
+  var watches = demoExtras.careSignalWatches || [];
+  var checkIns = demoExtras.checkIns || [];
+
+  // Demo EHR trends — build a lightweight representation from DEMO_EHR_DATA
+  // so the "From your chart" section renders something honest.
+  var demoEhr = (typeof DEMO_EHR_DATA !== 'undefined') ? DEMO_EHR_DATA : null;
+  var demoEhrTrends = null;
+  if (demoEhr) {
+    // Build BP + weight trends from the new vital-signs observation seeds so the
+    // CareSignals "From your chart" section renders the same BP + weight cards
+    // that ship in the live product.
+    var _vitals = (demoEhr.observations || []).filter(function(o){ return o.category === 'vital-signs'; });
+    var _sysObs = _vitals.filter(function(o){ return o.code === '8480-6'; }).sort(function(a,b){ return a.effective_date.localeCompare(b.effective_date); });
+    var _diaObs = _vitals.filter(function(o){ return o.code === '8462-4'; }).sort(function(a,b){ return a.effective_date.localeCompare(b.effective_date); });
+    var _wtObs  = _vitals.filter(function(o){ return o.code === '29463-7'; }).sort(function(a,b){ return a.effective_date.localeCompare(b.effective_date); });
+    var _bp = null;
+    if (_sysObs.length > 0 && _diaObs.length > 0) {
+      var _latestSys = _sysObs[_sysObs.length-1];
+      var _latestDia = _diaObs[_diaObs.length-1];
+      _bp = {
+        latest: _latestSys.value + '/' + _latestDia.value,
+        latestDate: _latestSys.effective_date,
+        systolic: _sysObs.map(function(o){ return parseInt(o.value, 10); }),
+        diastolic: _diaObs.map(function(o){ return parseInt(o.value, 10); }),
+        summary: 'Morning readings run ~15 mmHg higher than afternoon'
+      };
     }
-    html += '</div></div></div>';
-  }
-  html += '</div>';
-
-  // Adherence signal card
-  if (cabinetHour >= 0) {
-    html += '<div class="adherence-signal">';
-    html += '<i data-lucide="check-circle"></i>';
-    html += '<div class="adherence-signal-text">Medicine cabinet opened at ' + escHtml(cabinetTimeStr) + ' \u2014 matches morning medication window</div>';
-    html += '</div>';
-  }
-
-  // Weekly adherence chart
-  html += '<div class="signals-card" style="margin-top:10px;">';
-  html += '<div class="signals-label">Weekly Adherence</div>';
-  html += '<div class="adherence-chart">';
-  for (var ai = 0; ai < data.weeklyAdherence.length; ai++) {
-    var pct = data.weeklyAdherence[ai];
-    var barH = Math.max(4, pct / 100 * 48);
-    var barClass = 'adherence-bar';
-    if (pct === 100) barClass += ' adherence-bar--full';
-    else if (pct > 0) barClass += ' adherence-bar--partial';
-    else barClass += ' adherence-bar--zero';
-    html += '<div class="adherence-bar-wrap">';
-    html += '<div class="' + barClass + '" style="height:' + barH + 'px"></div>';
-    html += '<div class="adherence-day">' + dayNames[ai] + '</div>';
-    html += '</div>';
-  }
-  html += '</div></div>';
-  html += '</div>';
-
-  // ── Section 2: Wearable Data ──────────────────────────────────────────
-  var w = data.wearable;
-  html += '<div class="signals-section">';
-  html += '<div class="signals-section-title">' + escHtml(w.device) + ' \u00b7 ' + escHtml(w.personName) + '<span class="wearable-sync">' + escHtml(w.lastSync) + '</span></div>';
-  html += '<div class="signals-section-sub">via Health Sharing</div>';
-  html += '<div class="wearable-grid">';
-
-  // Heart rate card
-  html += '<div class="wearable-card">';
-  html += '<div class="signals-label">' + t('signals.heartRate') + '</div>';
-  html += '<div class="signals-metric">' + w.heartRate.current + ' <span style="font-size:var(--type-body);font-weight:400;color:var(--text-secondary);">bpm</span></div>';
-  html += '<div class="wearable-sparkline">' + buildSparkline(w.heartRate.trend, 120, 28, 'var(--signal-warm)') + '</div>';
-  html += '<div class="signals-metric-sm">' + w.heartRate.min + '\u2013' + w.heartRate.max + ' today</div>';
-  html += '</div>';
-
-  // Steps card
-  var stepsPct = Math.round(w.steps.today / w.steps.goal * 100);
-  html += '<div class="wearable-card">';
-  html += '<div class="signals-label">' + t('signals.steps') + '</div>';
-  html += '<div class="signals-metric">' + w.steps.today.toLocaleString() + '</div>';
-  html += '<div class="progress-ring-wrap">';
-  html += buildProgressRing(stepsPct, 40, 'var(--moss)');
-  html += '<div class="progress-ring-label">' + stepsPct + '% of goal</div>';
-  html += '</div>';
-  html += '</div>';
-
-  // Sleep card
-  var sleepH = Math.floor(w.sleep.total / 60);
-  var sleepM = w.sleep.total % 60;
-  html += '<div class="wearable-card">';
-  html += '<div class="signals-label">' + t('signals.sleep') + '</div>';
-  html += '<div class="signals-metric">' + sleepH + 'h ' + sleepM + 'm</div>';
-  html += buildSleepBar(w.sleep);
-  html += '<div class="signals-metric-sm">' + escHtml(w.sleep.bedTime) + ' \u2013 ' + escHtml(w.sleep.wakeTime) + '</div>';
-  html += '</div>';
-
-  // Blood oxygen card
-  html += '<div class="wearable-card">';
-  html += '<div class="signals-label">' + t('signals.bloodOxygen') + '</div>';
-  html += '<div class="signals-metric">' + w.spo2.current + '<span style="font-size:var(--type-body);font-weight:400;">%</span></div>';
-  html += '<div style="display:flex;align-items:center;gap:4px;margin-top:4px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--moss);display:inline-block;"></span><span class="signals-metric-sm">' + w.spo2.min + '\u2013' + w.spo2.max + '% range</span></div>';
-  html += '</div>';
-
-  html += '</div>';
-
-  // Trend alert
-  html += '<div class="trend-alert">';
-  html += '<div class="trend-alert-title"><i data-lucide="trending-up"></i>Resting heart rate trending up</div>';
-  html += '<div class="trend-alert-body">Resting heart rate has increased 8 bpm over the last 2 weeks (56 \u2192 64 bpm). This could reflect medication changes, reduced activity, or stress. Worth noting at the next appointment.</div>';
-  html += '</div>';
-
-  html += '</div>';
-
-  // ── Section 3: Home Sensors ───────────────────────────────────────────
-  html += '<div class="signals-section">';
-  html += '<div class="signals-section-title">Home Sensors</div>';
-  html += '<div class="signals-section-sub">Zigbee \u00b7 ' + data.sensors.length + ' devices</div>';
-  html += '<div class="signals-card">';
-  for (var sei = 0; sei < data.sensors.length; sei++) {
-    var s = data.sensors[sei];
-    html += '<div class="sensor-item">';
-    html += '<div class="sensor-icon-wrap"><i data-lucide="' + escHtml(s.icon) + '"></i></div>';
-    html += '<div class="sensor-info">';
-    html += '<div class="sensor-name">' + escHtml(s.name) + '</div>';
-    html += '<div class="sensor-detail">Last: ' + escHtml(s.lastEvent) + ' \u00b7 ' + s.eventsToday + ' event' + (s.eventsToday !== 1 ? 's' : '') + ' today</div>';
-    html += '</div>';
-    html += '<div class="sensor-status"></div>';
-    html += '</div>';
-  }
-  html += '</div>';
-
-  // Daily routine timeline
-  html += '<div class="signals-card" style="margin-top:10px;">';
-  html += '<div class="signals-label">Today\u2019s Activity</div>';
-  html += '<div class="signals-timeline">';
-  for (var tli = 0; tli < data.timeline.length; tli++) {
-    var ev = data.timeline[tli];
-    var hlClass = ev.highlight ? ' tl-event--highlight' : '';
-    html += '<div class="tl-event' + hlClass + '">';
-    html += '<div class="tl-dot" aria-hidden="true"></div>';
-    html += '<div class="tl-time">' + escHtml(ev.time) + '</div>';
-    html += '<div class="tl-desc"><i data-lucide="' + escHtml(ev.icon) + '"></i>' + escHtml(ev.event);
-    if (ev.note) html += ' <span style="color:var(--text-muted);font-size:var(--type-micro);">(' + escHtml(ev.note) + ')</span>';
-    html += '</div>';
-    html += '</div>';
-  }
-  html += '</div></div>';
-  html += '</div>';
-
-  // ── Section 4: Pattern Detection ──────────────────────────────────────
-  html += '<div class="signals-section">';
-  html += '<div class="signals-section-title">Patterns</div>';
-  html += '<div class="signals-section-sub">AI analysis across all signals</div>';
-  for (var pi = 0; pi < data.patterns.length; pi++) {
-    var p = data.patterns[pi];
-    html += '<div class="pattern-card pattern-card--' + escHtml(p.accent) + '">';
-    // L1 v1: "Recurring" eyebrow flags patterns that span multiple days
-    if (p.recurring) {
-      html += '<div class="pattern-eyebrow">RECURRING \u00B7 WELLET NOTICED</div>';
+    var _wt = null;
+    if (_wtObs.length > 0) {
+      var _latestWt = _wtObs[_wtObs.length-1];
+      _wt = {
+        latest: _latestWt.value + ' lb',
+        latestDate: _latestWt.effective_date,
+        values: _wtObs.map(function(o){ return parseFloat(o.value); }),
+        summary: 'Down 5 lb over 8 months'
+      };
     }
-    html += '<div class="pattern-title"><i data-lucide="' + escHtml(p.icon) + '"></i>' + escHtml(p.title) + '</div>';
-    html += '<div class="pattern-body">' + escHtml(p.body) + '</div>';
-    html += '<div class="pattern-sources">';
-    for (var psi = 0; psi < p.sources.length; psi++) {
-      html += '<span class="pattern-source">' + escHtml(p.sources[psi]) + '</span>';
-    }
-    html += '</div></div>';
+    demoEhrTrends = {
+      meds: demoEhr.medications || [],
+      conditions: demoEhr.conditions || [],
+      bp: _bp,
+      weight: _wt
+    };
   }
-  html += '</div>';
 
-  html += '</div>';
+  var ch = '<div class="signals-view">';
 
-  el.innerHTML = html;
-  initIcons();
+  // \u2500\u2500 Editorial masthead \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  var activeWatches = watches.filter(function(w){ return w.active !== false; });
+  var eyebrowBits = [];
+  if (activeWatches.length > 0) {
+    eyebrowBits.push(activeWatches.length === 1 ? '1 thing to notice' : activeWatches.length + ' things to notice');
+  }
+  eyebrowBits.push('Apple Watch \u00b7 Synced 8 min ago');
+  var eyebrow = eyebrowBits.join(' \u00b7 ');
+  var lede = 'What Wellet is noticing for ' + escHtml(demoName) + ' \u2014 quiet patterns and check-ins from the people closest to them.';
+
+  ch += '<header class="view-header">';
+  ch += '<p class="view-header__eyebrow">' + escHtml(eyebrow) + '</p>';
+  ch += '<h1 class="view-header__title">CareSignals</h1>';
+  ch += '<p class="view-header__lede">' + lede + '</p>';
+  ch += '</header>';
+
+  // \u2500\u2500 1. What to notice (watches) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  ch += '<section class="cs-section cs-section--watches">';
+  ch += '<div class="cs-section-head">';
+  ch += '<div class="cs-section-eyebrow">What to notice</div>';
+  ch += '<button type="button" class="cs-section-action" onclick="openAddWatchModal()">';
+  ch += '<i data-lucide="plus" style="width:13px;height:13px;"></i><span>Tell Wellet what to notice</span>';
+  ch += '</button>';
+  ch += '</div>';
+  ch += (typeof _renderWatchesSectionHtml === 'function')
+    ? _renderWatchesSectionHtml(watches, demoName)
+    : '';
+  ch += '</section>';
+
+  // \u2500\u2500 2. From your chart (EHR trends) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  // For demo we build a lightweight static "From your chart" section using
+  // DEMO_EHR_DATA instead of calling the async _loadEhrTrends() edge function.
+  if (demoEhrTrends && (demoEhrTrends.meds.length > 0 || demoEhrTrends.conditions.length > 0 || demoEhrTrends.bp || demoEhrTrends.weight)) {
+    ch += '<section class="cs-section cs-section--ehr-trends">';
+    ch += '<div class="cs-section-eyebrow">From ' + escHtml(demoName) + '\u2019s chart</div>';
+    // Shipped BP + weight cards — delegate to the live renderer so demo matches production.
+    if ((demoEhrTrends.bp || demoEhrTrends.weight) && typeof _buildEhrTrendsHtml === 'function') {
+      // Pass a copy without meds/conditions so the live renderer only emits the
+      // BP + weight cards (we already render meds + conditions below in the
+      // simpler demo mini-lists, which match the rest of the demo's aesthetic).
+      ch += _buildEhrTrendsHtml({ bp: demoEhrTrends.bp, weight: demoEhrTrends.weight, labs: [], meds: [] }, demoName);
+    }
+    // Active medications mini-list
+    if (demoEhrTrends.meds.length > 0) {
+      ch += '<div class="cs-ehr-card">';
+      ch += '<div class="cs-ehr-card-title"><i data-lucide="pill" style="width:14px;height:14px;color:var(--amber);"></i> Active medications from EHR</div>';
+      ch += '<div class="cs-ehr-card-body">';
+      demoEhrTrends.meds.slice(0, 4).forEach(function(m) {
+        ch += '<div class="cs-ehr-med-row">'
+          + '<span class="cs-ehr-med-name">' + escHtml(m.name || '') + '</span>'
+          + (m.dosage ? '<span class="cs-ehr-med-dose">' + escHtml(m.dosage) + '</span>' : '')
+          + '</div>';
+      });
+      ch += '</div></div>';
+    }
+    // Active conditions mini-list
+    if (demoEhrTrends.conditions.length > 0) {
+      ch += '<div class="cs-ehr-card" style="margin-top:10px;">';
+      ch += '<div class="cs-ehr-card-title"><i data-lucide="heart-pulse" style="width:14px;height:14px;color:var(--moss);"></i> Active conditions from EHR</div>';
+      ch += '<div class="cs-ehr-card-body">';
+      demoEhrTrends.conditions.slice(0, 4).forEach(function(c) {
+        ch += '<div class="cs-ehr-med-row">'
+          + '<span class="cs-ehr-med-name">' + escHtml(c.name || '') + '</span>'
+          + (c.status ? '<span class="cs-ehr-med-dose">' + escHtml(c.status) + '</span>' : '')
+          + '</div>';
+      });
+      ch += '</div></div>';
+    }
+    ch += '</section>';
+  }
+
+  // \u2500\u2500 3. This week\u2019s rhythm (wearable) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  // Use the legacy wearable grid section which has the demo Apple Watch data.
+  var w = data && data.wearable ? data.wearable : null;
+  if (w) {
+    ch += '<section class="cs-section cs-section--rhythm">';
+    ch += '<div class="cs-section-eyebrow">This week\u2019s rhythm</div>';
+    ch += '<div class="wearable-grid">';
+    // Heart rate card
+    if (w.heartRate) {
+      ch += '<div class="wearable-card">';
+      ch += '<div class="signals-label">' + (typeof t === 'function' ? t('signals.heartRate') : 'Heart rate') + '</div>';
+      ch += '<div class="signals-metric">' + escHtml(String(w.heartRate.current)) + ' <span style="font-size:var(--type-body);font-weight:400;color:var(--text-secondary);">bpm</span></div>';
+      if (w.heartRate.trend && typeof buildSparkline === 'function') {
+        ch += '<div class="wearable-sparkline">' + buildSparkline(w.heartRate.trend, 120, 28, 'var(--signal-warm)') + '</div>';
+      }
+      ch += '<div class="signals-metric-sm">' + w.heartRate.min + '\u2013' + w.heartRate.max + ' today</div>';
+      ch += '</div>';
+    }
+    // Steps card
+    if (w.steps) {
+      var stepsPct = Math.round(w.steps.today / w.steps.goal * 100);
+      ch += '<div class="wearable-card">';
+      ch += '<div class="signals-label">' + (typeof t === 'function' ? t('signals.steps') : 'Steps') + '</div>';
+      ch += '<div class="signals-metric">' + w.steps.today.toLocaleString() + '</div>';
+      if (typeof buildProgressRing === 'function') {
+        ch += '<div class="progress-ring-wrap">';
+        ch += buildProgressRing(stepsPct, 40, 'var(--moss)');
+        ch += '<div class="progress-ring-label">' + stepsPct + '% of goal</div>';
+        ch += '</div>';
+      }
+      ch += '</div>';
+    }
+    // Sleep card
+    if (w.sleep) {
+      var sleepH = Math.floor(w.sleep.total / 60);
+      var sleepM = w.sleep.total % 60;
+      ch += '<div class="wearable-card">';
+      ch += '<div class="signals-label">' + (typeof t === 'function' ? t('signals.sleep') : 'Sleep') + '</div>';
+      ch += '<div class="signals-metric">' + sleepH + 'h ' + sleepM + 'm</div>';
+      if (typeof buildSleepBar === 'function') ch += buildSleepBar(w.sleep);
+      ch += '</div>';
+    }
+    ch += '</div></section>';
+  }
+
+  // \u2500\u2500 4. Care circle check-ins \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  ch += '<section class="cs-section cs-section--circle">';
+  ch += '<div class="cs-section-eyebrow">Care circle check-ins</div>';
+  ch += (typeof _renderCircleSectionHtml === 'function')
+    ? _renderCircleSectionHtml(checkIns, demoName)
+    : '';
+  ch += '</section>';
+
+  // \u2500\u2500 5. Wearables & devices \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  // Show a static demo device card (Apple Watch) to illustrate the connection UI.
+  ch += '<section class="cs-section cs-section--devices">';
+  ch += '<div class="cs-section-eyebrow">Wearables &amp; devices</div>';
+  ch += '<div class="cs-device-card">';
+  ch += '<div class="cs-device-card-top">';
+  ch += '<i data-lucide="watch" style="width:20px;height:20px;color:var(--moss);"></i>';
+  ch += '<div class="cs-device-card-meta">';
+  ch += '<div class="cs-device-card-name">Apple Watch</div>';
+  ch += '<div class="cs-device-card-sub">via Health Sharing \u00b7 Synced 8 min ago</div>';
+  ch += '</div>';
+  ch += '<span class="cs-device-card-status">Connected</span>';
+  ch += '</div></div>';
+  ch += '</section>';
+
+  ch += '</div>'; // .signals-view
+
+  el.innerHTML = ch;
+  if (typeof initIcons === 'function') initIcons();
 }
 
 // Load cached EHR data from localStorage
@@ -11369,6 +17021,37 @@ function togglePhase2Flag() {
   try { if (typeof renderTimeline === 'function') renderTimeline(); } catch(e){}
 }
 
+// ── TRIALS TILE TOGGLE ───────────────────────────────────────────────────────────────────
+function updateTrialsToggleUI() {
+  var btn  = document.getElementById('trials-toggle-btn');
+  if (!btn) return;
+  var on = isTrialsTileEnabled();
+  if (on) {
+    btn.textContent  = 'On';
+    btn.style.background   = 'var(--moss)';
+    btn.style.color        = '#fff';
+    btn.style.borderColor  = 'var(--moss)';
+  } else {
+    btn.textContent  = 'Off';
+    btn.style.background   = '#eef2f0';
+    btn.style.color        = 'var(--text-primary)';
+    btn.style.borderColor  = 'var(--border)';
+  }
+}
+
+function toggleTrialsTileFlag() {
+  try {
+    if (isTrialsTileEnabled()) {
+      localStorage.setItem(TRIALS_PREF_KEY, '0');
+      try { showToast('Trials tile off'); } catch(e) {}
+    } else {
+      localStorage.setItem(TRIALS_PREF_KEY, '1');
+      try { showToast('Trials tile on'); } catch(e) {}
+    }
+  } catch(e) { console.warn('trials toggle:', e); }
+  updateTrialsToggleUI();
+}
+
 // Check if cached EHR data is stale (older than 15 minutes).
 // 2026-05-04: tightened from 30→15 min so reopening the app reliably picks
 // up new chart activity from a loved one's hospital. Multiple Duke sync rows
@@ -11380,6 +17063,34 @@ function isEhrCacheStale(personId) {
   if (!cached || !cached.synced_at) return true;
   var age = Date.now() - new Date(cached.synced_at).getTime();
   return age > 15 * 60 * 1000;
+}
+
+// Adapt a row from public.medications (DB shape) into the shape the EHR
+// medications render path expects (ehrData.medications[]). DB is the source
+// of truth — the v2 localStorage cache is only an instant-paint optimization.
+// When the v2 cache is stale, empty, or scoped to a superseded connection,
+// liveMeds (already filtered to active connections by loadPersonData) becomes
+// the fallback so Records can never show "0" when DB has rows.
+function _ehrMedsFromLiveMeds(meds) {
+  if (!Array.isArray(meds)) return [];
+  return meds
+    .filter(function(m){ return m && m.source === 'ehr' && m.active !== false; })
+    .map(function(m) {
+      return {
+        id: m.id || '',
+        name: m.name || '',
+        // ehr cache rows use `dosage`; live rows use `dose`. Render path reads either.
+        dosage: m.dose || '',
+        dose: m.dose || '',
+        frequency: m.frequency || '',
+        prescriber: m.prescriber || '',
+        start_date: m.start_date || '',
+        end_date: m.end_date || '',
+        status: m.active === false ? 'stopped' : 'active',
+        source: 'ehr',
+        _connection_id: m.connection_id || null,
+      };
+    });
 }
 
 // Legacy v1 reader — same body as before, kept so the flag can dispatch.
@@ -11436,7 +17147,35 @@ var ACTIVATED_FHIR_URLS = [
   'https://ws-interconnect-fhir.partners.org/Interconnect-FHIR-MU-PRD/api/FHIR/R4/', // Mass General Brigham
   // Mayo Clinic: not in Epic's R4 bundle as of 2026-04-27. Captured via form.
   'https://unified-api.ucsf.edu/clinical/apex/api/FHIR/R4/',                         // UCSF Health
-  'https://fhir.kp.org/service/ptnt_care/EpicEdiFhirRoutingSvc/v2014/esb-envlbl/212/api/FHIR/R4/' // Kaiser Permanente - Southern California
+  'https://fhir.kp.org/service/ptnt_care/EpicEdiFhirRoutingSvc/v2014/esb-envlbl/212/api/FHIR/R4/', // Kaiser Permanente - Southern California
+  // NY metro Tier 1 (added 2026-05-20 in response to tester signal — Kelly Washburn).
+  // All 6 endpoints verified via .well-known/smart-configuration: 200 OK, S256 PKCE,
+  // Confidential client supported. wellet_confidential (fhir_base_pattern '%') handles
+  // OAuth for all of them. No appointment scope — visits/meds/labs/conditions/allergies
+  // /care-team/immunizations/observations/diagnostic-reports only.
+  'https://epicproxy-pub.et1089.epichosted.com/FHIRProxy/api/FHIR/R4/',              // NewYork-Presbyterian + Weill Cornell Medicine (shared endpoint)
+  'https://epicfhir.nyumc.org/FHIRPRD/api/FHIR/R4/',                                 // NYU Langone Health
+  'https://epicsoapproxyprd.mountsinai.org/FHIR-PRD/api/FHIR/R4/',                   // Mount Sinai (NYC) — also covers Health Center / Hudson Yards / Concierge Care
+  'https://soapepic.montefiore.org/FhirProxyPrd/api/FHIR/R4/',                       // Montefiore Health System
+  'https://epicproxy.et1353.epichosted.com/APIPROXYPRD/api/FHIR/R4/',                // Memorial Sloan Kettering Cancer Center
+  'https://epicproxy.et0927.epichosted.com/FHIRProxy/api/FHIR/R4/',                  // Hospital for Special Surgery
+  // Michigan / Great Lakes (added 2026-05-27 — activated 2 days prior; was
+  // missing from this allow-list, which is why it didn't appear in the picker).
+  // Verified .well-known/smart-configuration: 200 OK, S256 PKCE, private_key_jwt,
+  // client-confidential-asymmetric, refresh_token grant. wellet_confidential
+  // (fhir_base_pattern '%') handles OAuth.
+  'https://fhir.hfhs.org/FHIRProxy/api/FHIR/R4/',                                    // Henry Ford Health System
+  // Atlanta metro (added 2026-05-27 — activated on open.epic.com but missing
+  // from this allow-list, same root cause as Henry Ford). All 5 verified via
+  // .well-known/smart-configuration: 200 OK, S256 PKCE, private_key_jwt,
+  // client-confidential-asymmetric, refresh_token grant. Northside Hospital
+  // is NOT in Epic's R4 bundle (likely Cerner) — captured via the
+  // "Add my health system" form for the Cerner Wave 1 rollout.
+  'https://epicrp-prd.eushc.org/OAUTH2-PRD/api/FHIR/R4/',                            // Emory Healthcare
+  'https://webproxy.piedmont.org/ARR-FHIR/api/FHIR/R4/',                             // Piedmont Healthcare
+  'https://epicsoap.wellstar.org/fhirproxy/api/FHIR/R4/',                            // Wellstar Health System
+  'https://wpprod.choa.org/FHIR_PRD/api/FHIR/R4/',                                   // Children's Healthcare of Atlanta (CHOA)
+  'https://surescripts.gmh.edu/OAuth2PRD/api/FHIR/R4/'                               // Grady Health System
 ];
 
 function _normFhirUrl(u) {
@@ -11460,11 +17199,43 @@ function isActivatedHospital(fhirBaseUrl) {
 // Empty arrays are NEVER cached or served from cache — a zero-length result
 // is always treated as a miss so a transient init-time race can't poison the
 // session for 24 hours.
+// Normalize hospital names from Epic's Open registry. Epic publishes some
+// names with a double-possessive typo ("Childrens's Healthcare of Atlanta"
+// and a handful of others). Fix these at render time so we don't ship
+// grammatically-broken UI without redeploying the edge function.
+function _normalizeHospitalName(name) {
+  if (!name) return '';
+  // Catch "Childrens's" and similar double-possessives across the dataset.
+  // Replace double 's's at end of Childrens/Childrens-like words with a single
+  // possessive: "Childrens's" -> "Children's". Also handle "Childrens " (no
+  // apostrophe at all) when followed by Healthcare/Hospital/Medical/etc.
+  var out = String(name);
+  out = out.replace(/\bChildrens'?s\b/g, "Children's");
+  out = out.replace(/\bChildrens(?=\s+(Healthcare|Hospital|Medical|Health|Specialty|Specialists|Mercy|National|Hospitals|of))/gi, "Children's");
+  return out;
+}
+
+// Voice rules: never render the raw DB relationship value ("parent", "child",
+// "partner", "self", "other") to the user. Map to caregiver-voice labels.
+// 2026-06-01: caught on FTU — People list was showing "parent" verbatim.
+function _relationshipLabel(rel) {
+  if (!rel) return '';
+  var r = String(rel).toLowerCase().trim();
+  if (r === 'parent' || r === 'aging_parent') return 'Loved one';
+  if (r === 'partner' || r === 'spouse') return 'Partner';
+  if (r === 'child') return 'Child';
+  if (r === 'self') return 'Myself';
+  if (r === 'other') return 'Family member';
+  // Anything unknown — surface as "Family member" rather than the raw token,
+  // never expose "parent"/"track"/etc.
+  return 'Family member';
+}
+
 function loadEpicEndpoints(cb) {
   // Bump v whenever the loader logic, ACTIVATED_FHIR_URLS, or the cache
   // shape changes so existing users with stale data refresh.
-  var CACHE_KEY = 'wellet_epic_endpoints_v5';
-  var CACHE_TS_KEY = 'wellet_epic_endpoints_v5_ts';
+  var CACHE_KEY = 'wellet_epic_endpoints_v7';
+  var CACHE_TS_KEY = 'wellet_epic_endpoints_v7_ts';
   var CACHE_TTL = 24 * 60 * 60 * 1000;
 
   // Also wipe legacy cache keys on first run so users on v2/v3/v4 don't keep
@@ -11476,6 +17247,10 @@ function loadEpicEndpoints(cb) {
     localStorage.removeItem('wellet_epic_endpoints_v3_ts');
     localStorage.removeItem('wellet_epic_endpoints_v4');
     localStorage.removeItem('wellet_epic_endpoints_v4_ts');
+    localStorage.removeItem('wellet_epic_endpoints_v5');
+    localStorage.removeItem('wellet_epic_endpoints_v5_ts');
+    localStorage.removeItem('wellet_epic_endpoints_v6');
+    localStorage.removeItem('wellet_epic_endpoints_v6_ts');
   } catch(e) {}
 
   // Check in-memory cache first — but only if it's non-empty. An empty array
@@ -11515,7 +17290,7 @@ function loadEpicEndpoints(cb) {
     .then(function(data) {
       var endpoints = (data.Entries || data).map(function(e) {
         return {
-          name: e.OrganizationName || e.Name || '',
+          name: _normalizeHospitalName(e.OrganizationName || e.Name || ''),
           fhirBaseUrl: e.FHIRPatientFacingURI || e.BaseURL || e.FHIRBaseUrl || '',
           city: e.City || '',
           state: e.State || ''
@@ -11546,11 +17321,182 @@ function loadEpicEndpoints(cb) {
     });
 }
 
+// 2026-05-21: Hospital pre-check helpers — calls ehr-vendor-check edge fn when
+// the user types a query that doesn't match any Epic endpoint in our bundle, and
+// renders a 4-bucket result card inline. Identified-via-Perplexity attribution
+// surfaces only when the source is Sonar.
+var _vendorCheckCache = {};      // key=normalized query -> {result, ts}
+var _vendorCheckInflight = {};   // key=normalized query -> Promise
+var _vendorCheckDebounce = null;
+
+function _normVendorQuery(q) {
+  return String(q || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function precheckHospitalVendor(query, city, state, fhirBaseUrl) {
+  var key = _normVendorQuery(query) + '|' + _normVendorQuery(city || '') + '|' + _normVendorQuery(state || '') + '|' + _normVendorQuery(fhirBaseUrl || '');
+  if (_vendorCheckCache[key] && (Date.now() - _vendorCheckCache[key].ts) < 5 * 60 * 1000) {
+    return Promise.resolve(_vendorCheckCache[key].result);
+  }
+  if (_vendorCheckInflight[key]) return _vendorCheckInflight[key];
+
+  var p = db.auth.getSession().then(function(s) {
+    var headers = {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY
+    };
+    var session = s && s.data && s.data.session;
+    if (session && session.access_token) {
+      headers['Authorization'] = 'Bearer ' + session.access_token;
+    }
+    return fetch(SUPABASE_URL + '/functions/v1/ehr-vendor-check', {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({
+        hospital_name: query || null,
+        city: city || null,
+        state: state || null,
+        fhir_base_url: fhirBaseUrl || null
+      })
+    });
+  }).then(function(res) {
+    if (!res.ok) throw new Error('vendor-check http ' + res.status);
+    return res.json();
+  }).then(function(result) {
+    _vendorCheckCache[key] = { result: result, ts: Date.now() };
+    delete _vendorCheckInflight[key];
+    return result;
+  }).catch(function(err) {
+    console.warn('[ehr-vendor-check] failed', err);
+    delete _vendorCheckInflight[key];
+    return null;
+  });
+  _vendorCheckInflight[key] = p;
+  return p;
+}
+
+// Render a 4-bucket result card. Returns HTML string.
+function _vendorCheckCardHtml(result, query) {
+  if (!result || !result.vendor_guess) return '';
+  var v = result.vendor_guess;
+  var conf = result.vendor_confidence || 'low';
+  var src = result.vendor_source || '';
+  var viaPplx = !!result.via_perplexity;
+  var matched = result.matched_hospital || query || 'this hospital';
+
+  var title = '';
+  var body = '';
+  var ctaHtml = '';
+  var tone = 'info'; // info | good | warn | block
+
+  if (v === 'epic_activated') {
+    tone = 'good';
+    title = 'Good news — ' + escHtml(matched) + ' is wired up.';
+    body = 'Pick it from the list above to connect now.';
+  } else if (v === 'epic_not_activated') {
+    tone = 'warn';
+    title = escHtml(matched) + ' is on Epic, but not activated yet.';
+    body = 'We\u2019ll need to turn it on for your hospital. Send us a request and we\u2019ll prioritize it.';
+    ctaHtml = '<button type="button" class="vendor-check-cta" onclick="openConnectRequestModal({hospital_name:' + JSON.stringify(matched) + ',issue_type:\'unsupported_version\',source:\'precheck_picker\',vendor_guess:\'epic_not_activated\',vendor_confidence:' + JSON.stringify(conf) + ',vendor_source:' + JSON.stringify(src) + ',vendor_lookup_payload:' + JSON.stringify(JSON.stringify(result)) + '})">Request access</button>'
+      + ' <button type="button" class="vendor-check-cta vendor-check-cta--ghost" onclick="_goUploadFromVendorCard()">Upload a record instead</button>';
+  } else if (v === 'kaiser_blocked' || v === 'va_blocked') {
+    tone = 'block';
+    title = escHtml(matched) + ' doesn\u2019t share records this way yet.';
+    body = (v === 'kaiser_blocked'
+      ? 'Kaiser Permanente keeps records inside their own portal and hasn\u2019t opened FHIR access to outside apps. You can still upload PDFs from kp.org for now.'
+      : 'VA records aren\u2019t available through this connection yet. You can still upload VA Blue Button PDFs.');
+    // 2026-06-01 (D7): give blocked vendors an explicit upload CTA instead
+    // of leaving the reviewer at a dead end.
+    ctaHtml = '<button type="button" class="vendor-check-cta" onclick="_goUploadFromVendorCard()">Upload a record instead</button>';
+  } else if (v === 'cerner' || v === 'meditech' || v === 'athena' || v === 'nextgen' || v === 'allscripts' || v === 'eclinicalworks') {
+    tone = 'warn';
+    var vendorLabel = ({cerner:'Oracle Cerner', meditech:'Meditech', athena:'athenahealth', nextgen:'NextGen', allscripts:'Veradigm/Allscripts', eclinicalworks:'eClinicalWorks'})[v] || v;
+    title = escHtml(matched) + ' uses ' + vendorLabel + ', not Epic.';
+    body = 'We\u2019re adding non-Epic vendors next. Send us a request and we\u2019ll let you know as soon as it\u2019s ready.';
+    ctaHtml = '<button type="button" class="vendor-check-cta" onclick="openConnectRequestModal({hospital_name:' + JSON.stringify(matched) + ',issue_type:\'unsupported_version\',source:\'precheck_picker\',vendor_guess:' + JSON.stringify(v) + ',vendor_confidence:' + JSON.stringify(conf) + ',vendor_source:' + JSON.stringify(src) + ',vendor_lookup_payload:' + JSON.stringify(JSON.stringify(result)) + '})">Tell us your hospital</button>';
+  } else if (v === 'other' || v === 'unknown') {
+    tone = 'info';
+    title = 'We couldn\u2019t place ' + escHtml(matched) + ' yet.';
+    body = 'Send us a few details and we\u2019ll find the right path for you.';
+    ctaHtml = '<button type="button" class="vendor-check-cta" onclick="openConnectRequestModal({hospital_name:' + JSON.stringify(query || matched) + ',issue_type:\'not_found\',source:\'precheck_picker\',vendor_guess:' + JSON.stringify(v) + ',vendor_confidence:' + JSON.stringify(conf) + ',vendor_source:' + JSON.stringify(src) + ',vendor_lookup_payload:' + JSON.stringify(JSON.stringify(result)) + '})">Tell us your hospital</button>';
+  } else {
+    return '';
+  }
+
+  var attribution = (src === 'sonar' || viaPplx)
+    ? '<div class="vendor-check-attribution"><em>Identified via Perplexity</em></div>'
+    : '';
+
+  // 2026-06-01 (D6): prefer the backend-authored note when present. The
+  // ehr-vendor-check edge function returns hospital-specific copy that is
+  // more accurate than our generic fallback strings.
+  var displayBody = (result && typeof result.note === 'string' && result.note.trim())
+    ? escHtml(result.note.trim())
+    : body;
+
+  return '<div class="vendor-check-card vendor-check-card--' + tone + '">'
+    + '<div class="vendor-check-title">' + title + '</div>'
+    + '<div class="vendor-check-body">' + displayBody + '</div>'
+    + (ctaHtml ? '<div class="vendor-check-actions">' + ctaHtml + '</div>' : '')
+    + attribution
+    + '</div>';
+}
+
+// 2026-06-01 (D3/D7): shared helper to route from a vendor-check card (or
+// the Connect screen's "Upload a record" card) into the real upload flow.
+// Prefers openUploadById/openUpload (the canonical sheet); falls through to
+// records view if no person context is available.
+function _goUploadFromVendorCard() {
+  try {
+    // Best path: open the real upload sheet for the active person.
+    if (typeof openUploadById === 'function' && typeof currentPersonId !== 'undefined' && currentPersonId) {
+      openUploadById(currentPersonId);
+      return;
+    }
+    if (typeof openUpload === 'function') {
+      var person = null;
+      try {
+        if (typeof currentPeople !== 'undefined' && Array.isArray(currentPeople) && currentPersonId) {
+          person = currentPeople.find(function(p){ return p && p.id === currentPersonId; });
+        }
+      } catch (_eP) {}
+      openUpload(person && person.name ? person.name : 'your loved one');
+      return;
+    }
+    // Fallbacks for pre-app contexts: route to records and show a toast.
+    if (typeof showView === 'function') { showView('records'); }
+    else if (typeof renderRecordsView === 'function') { renderRecordsView(); }
+    if (typeof showToast === 'function') {
+      showToast('Pick a person, then tap Upload to add a record.');
+    }
+  } catch (e) { console.warn('[upload-cta] failed', e); }
+}
+
 function renderHospitalList(filtered) {
   var list = document.getElementById('hospital-picker-list');
   if (!list) return;
   if (!filtered || filtered.length === 0) {
-    list.innerHTML = '<li class="hospital-picker-empty">No hospitals found. Try a different search term.</li>';
+    var inputEl = document.getElementById('hospital-picker-input');
+    var query = inputEl ? inputEl.value.trim() : '';
+    var baseEmpty = '<li class="hospital-picker-empty">No hospitals found. Try a different search term.</li>';
+    // If query too short, just show the empty message.
+    if (!query || query.length < 3) {
+      list.innerHTML = baseEmpty;
+      return;
+    }
+    // Render placeholder while we check.
+    list.innerHTML = baseEmpty
+      + '<li class="vendor-check-slot"><div class="vendor-check-card vendor-check-card--loading"><div class="vendor-check-body">Checking what kind of system ' + escHtml(query) + ' uses\u2026</div></div></li>';
+    precheckHospitalVendor(query).then(function(result) {
+      // Make sure the query is still current
+      var cur = document.getElementById('hospital-picker-input');
+      var stillSame = cur && cur.value.trim() === query;
+      if (!stillSame) return;
+      var slot = list.querySelector('.vendor-check-slot');
+      if (!slot) return;
+      var cardHtml = _vendorCheckCardHtml(result, query);
+      slot.innerHTML = cardHtml || '';
+    });
     return;
   }
   var shown = filtered.slice(0, 50);
@@ -11558,22 +17504,137 @@ function renderHospitalList(filtered) {
   for (var i = 0; i < shown.length; i++) {
     var h = shown[i];
     var loc = [h.city, h.state].filter(Boolean).join(', ');
-    html += '<li class="hospital-picker-item" onclick="selectHospital(' + i + ')">'
+    // 2026-05-21: stash the hospital's identity directly on the <li> via data-*
+    // attrs instead of a numeric index into list._filtered. The old idx scheme
+    // was vulnerable to a race where a second renderHospitalList() (from a
+    // debounced input event, a delayed loadEpicEndpoints callback, or the
+    // vendor-check-slot async path) could mutate _filtered between the
+    // onclick's render time and the tap dispatch, surfacing the WRONG hospital
+    // (e.g. tapping Cleveland Clinic and triggering Kaiser Permanente). With
+    // data attrs the tap resolves against the element that was actually
+    // tapped, immune to any subsequent list mutation.
+    html += '<li class="hospital-picker-item"'
+      + ' data-fhir-base-url="' + escHtml(h.fhirBaseUrl) + '"'
+      + ' data-hospital-name="' + escHtml(h.name) + '"'
+      + ' onclick="selectHospitalFromEl(this)">'
       + '<div class="hospital-picker-name">' + escHtml(h.name) + '</div>'
       + (loc ? '<div class="hospital-picker-loc">' + escHtml(loc) + '</div>' : '')
       + '</li>';
   }
   list.innerHTML = html;
-  // Store filtered list for selection
+  // Kept for backwards compatibility with any in-flight onclick handlers from
+  // a previous render. New taps go through selectHospitalFromEl(this).
   list._filtered = shown;
 }
 
+// Resolve the tapped hospital from the <li> that was actually clicked, not
+// from an index into a shared mutable array. This is the picker's primary
+// selection path as of 2026-05-21.
+function selectHospitalFromEl(el) {
+  if (!el) return;
+  var fhirBaseUrl = el.getAttribute('data-fhir-base-url') || '';
+  var name = el.getAttribute('data-hospital-name') || '';
+  if (!fhirBaseUrl || !name) return;
+  // Judge-path Fix #2 (June 2 2026): demo users get a disclosure modal that
+  // explains what would happen in the real OAuth flow, without forging a
+  // signin against the hospital. They can dismiss back to the picker.
+  if (isDemoMode) {
+    _showDemoConnectDisclosure(name);
+    return;
+  }
+  // 2026-05-24: explicit user intent to start a new OAuth. If a prior attempt
+  // left _ehrConnecting=true (back from MyChart without callback, OAuth tab
+  // closed, app backgrounded, etc.), clear it BEFORE we close the picker.
+  // The old reset in beginEhrOAuth only triggered when picker was still open,
+  // but we close it first — so the lock would silently swallow the tap.
+  if (_ehrConnecting) {
+    try { _resetEhrConnectingStateForFreshAttempt(); } catch(e) { _ehrConnecting = false; }
+  }
+  closeSheet('hospital-picker-overlay');
+  if (_obFromEhr && !currentPersonId) {
+    _obEhrPending = { fhirBaseUrl: fhirBaseUrl, name: name };
+    try { localStorage.setItem('wellet_ob_ehr_hospital', JSON.stringify(_obEhrPending)); } catch(e) {}
+    obShowNameScreen(null);
+    return;
+  }
+  beginEhrOAuth(fhirBaseUrl, name, false);
+}
+
+// Judge-path Fix #2 (June 2 2026): show a lightweight disclosure modal when a
+// demo user taps a hospital row. Explains the real OAuth handshake (MyChart
+// sign-in → SMART on FHIR → R4 records pulled into Wellet) so a CMIO-profile
+// reviewer can evaluate the integration claim without us forging a session.
+function _showDemoConnectDisclosure(hospitalName) {
+  var safeName = (hospitalName || 'this hospital').replace(/[<>"&]/g, '');
+  // Reuse the existing overlay so it sits above the picker. Inline modal so
+  // we don't depend on a separate template existing.
+  var existing = document.getElementById('demo-connect-disclosure');
+  if (existing) { try { existing.parentNode.removeChild(existing); } catch(e){} }
+  var wrap = document.createElement('div');
+  wrap.id = 'demo-connect-disclosure';
+  wrap.style.cssText = 'position:fixed;inset:0;z-index:10010;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;padding:20px;';
+  wrap.innerHTML = ''
+    + '<div role="dialog" aria-label="Demo — what happens when you connect" style="max-width:420px;width:100%;background:var(--bg,#FFFFFF);border-radius:14px;padding:24px;box-shadow:0 12px 40px rgba(0,0,0,0.18);font-family:var(--font-body,inherit);">'
+    +   '<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary,#5A6A66);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">'
+    +     '<i data-lucide="compass" style="width:14px;height:14px;"></i>Demo'
+    +   '</div>'
+    +   '<h3 style="font-family:var(--font-display,inherit);font-size:22px;line-height:1.25;margin:0 0 14px;color:var(--text-primary);">Here’s what would happen at ' + safeName + '</h3>'
+    +   '<ol style="margin:0 0 18px;padding-left:20px;font-size:14px;line-height:1.6;color:var(--text-primary);">'
+    +     '<li>You’d be sent to your hospital’s MyChart sign-in (Epic SMART on FHIR R4, PKCE-secured).</li>'
+    +     '<li>You’d approve which records Wellet can read — medications, conditions, labs, visits.</li>'
+    +     '<li>Wellet pulls a fresh copy into your loved one’s record. Usually under a minute.</li>'
+    +     '<li>From then on, Wellet watches for the changes that matter and surfaces them as CareSignals.</li>'
+    +   '</ol>'
+    +   '<p style="margin:0 0 18px;font-size:13px;color:var(--text-secondary,#5A6A66);line-height:1.5;">Your demo loved ones already have a sample Duke Health (Epic) connection so you can see what populated records look like. Sign in with your own email to connect ' + safeName + ' for real.</p>'
+    +   '<div style="display:flex;flex-direction:column;gap:8px;">'
+    +     '<button type="button" onclick="_dismissDemoConnectDisclosure(true)" style="width:100%;padding:12px;border-radius:10px;background:var(--text-primary);color:#fff;border:none;font-family:inherit;font-size:15px;cursor:pointer;">Sign in to connect for real</button>'
+    +     '<button type="button" onclick="_dismissDemoConnectDisclosure(false)" style="width:100%;padding:12px;border-radius:10px;background:transparent;color:var(--text-primary);border:1px solid var(--border,#E2DCD2);font-family:inherit;font-size:15px;cursor:pointer;">Keep exploring the demo</button>'
+    +   '</div>'
+    + '</div>';
+  document.body.appendChild(wrap);
+  try { initIcons(); } catch(e) {}
+  // Click-outside to dismiss
+  wrap.addEventListener('click', function(ev) {
+    if (ev.target === wrap) _dismissDemoConnectDisclosure(false);
+  });
+}
+
+function _dismissDemoConnectDisclosure(goToSignIn) {
+  var el = document.getElementById('demo-connect-disclosure');
+  if (el && el.parentNode) el.parentNode.removeChild(el);
+  if (goToSignIn) {
+    try { closeSheet('hospital-picker-overlay'); } catch(e) {}
+    // Leave demo mode and return to the auth screen so the visitor can sign in.
+    try {
+      if (typeof exitDemoMode === 'function') { exitDemoMode(); }
+      else { window.location.search = ''; }
+    } catch(e) { window.location.search = ''; }
+  }
+}
+
+// Legacy entry point. Older renders (or anything cached) may still call this
+// by numeric index; route through the new resolver when possible, otherwise
+// fall back to the original idx-into-_filtered path.
 function selectHospital(idx) {
   var list = document.getElementById('hospital-picker-list');
-  if (!list || !list._filtered || !list._filtered[idx]) return;
+  if (!list) return;
+  var items = list.querySelectorAll('.hospital-picker-item');
+  if (items && items[idx] && items[idx].getAttribute('data-fhir-base-url')) {
+    selectHospitalFromEl(items[idx]);
+    return;
+  }
+  if (!list._filtered || !list._filtered[idx]) return;
   var h = list._filtered[idx];
+  // Judge-path Fix #2 (June 2 2026): demo mode disclosure on legacy idx path too.
+  if (isDemoMode) {
+    _showDemoConnectDisclosure(h.name);
+    return;
+  }
+  // 2026-05-24: same lock reset as selectHospitalFromEl (legacy idx path)
+  if (_ehrConnecting) {
+    try { _resetEhrConnectingStateForFreshAttempt(); } catch(e) { _ehrConnecting = false; }
+  }
   closeSheet('hospital-picker-overlay');
-  // If during onboarding (no person yet), store hospital choice and go to name screen
   if (_obFromEhr && !currentPersonId) {
     _obEhrPending = { fhirBaseUrl: h.fhirBaseUrl, name: h.name };
     try { localStorage.setItem('wellet_ob_ehr_hospital', JSON.stringify(_obEhrPending)); } catch(e) {}
@@ -11596,17 +17657,31 @@ function filterHospitals(query) {
 
 // Open the hospital picker overlay
 function startEhrConnect() {
-  if (isDemoMode) {
-    showToast('In the real app, this connects to your provider\u2019s records');
-    return;
+  // Judge-path Fix #2 (June 2 2026): instead of bailing in demo mode with a
+  // toast (which hid the entire connect-hospital surface from CMIO-profile
+  // reviewers), open the real picker so they can see the activated-hospital
+  // list, the search box, and the row UX. Selection is intercepted below in
+  // selectHospitalFromEl() / selectHospital() with a disclosure modal that
+  // explains the OAuth handshake without actually initiating it.
+  if (!isDemoMode) {
+    if (!currentUser) {
+      showToast('Please sign in first');
+      return;
+    }
+    if (!currentPersonId) {
+      showToast('Please select a person first');
+      return;
+    }
   }
-  if (!currentUser) {
-    showToast('Please sign in first');
-    return;
-  }
-  if (!currentPersonId) {
-    showToast('Please select a person first');
-    return;
+
+  // 2026-05-21: user tapped Connect Health Records — reset any prior
+  // in-flight attempt before opening the picker. Two effects:
+  //   - in-memory _ehrConnecting lock released so the next pick isn't dropped
+  //   - any 'pending' ehr_connections row for this person flipped to
+  //     'abandoned' so UI/ops queries don't see ghost connections.
+  // Skip in demo mode — nothing to reset and no pending row exists.
+  if (!isDemoMode) {
+    try { _resetEhrConnectingStateForFreshAttempt(); } catch(e) {}
   }
 
   openSheetAccessible('hospital-picker-overlay');
@@ -11634,6 +17709,8 @@ function _hospitalPickerInputHandler() {
     var input = document.getElementById('hospital-picker-input');
     var query = input ? input.value.trim() : '';
     var filtered = filterHospitals(query);
+    // Bumped to 600ms only when the filter is empty (i.e. pre-check will fire);
+    // otherwise keep the snappy 200ms feel from filterHospitals.
     renderHospitalList(filtered);
   }, 200);
 }
@@ -11665,6 +17742,14 @@ function openConnectRequestModal(opts) {
   if (stateEl) stateEl.value = opts.state || '';
   if (issueEl) issueEl.value = opts.issue_type || 'not_found';
   if (notesEl) notesEl.value = opts.notes || '';
+
+  // 2026-05-21: if caller pre-filled vendor info (e.g. from picker pre-check), show it.
+  // Also wire blur-pre-check on the hospital field.
+  _crPrefillVendor(opts);
+  if (hospitalEl) {
+    hospitalEl.removeEventListener('blur', _crHospitalBlurHandler);
+    hospitalEl.addEventListener('blur', _crHospitalBlurHandler);
+  }
   if (emailEl) {
     var defaultEmail = '';
     try { if (currentUser && currentUser.email) defaultEmail = currentUser.email; } catch(e) {}
@@ -11700,6 +17785,120 @@ function closeConnectRequestModal() {
   var overlay = document.getElementById('cr-overlay');
   if (overlay) overlay.classList.remove('show');
   _crContext = {};
+  var slot = document.getElementById('cr-vendor-check-slot');
+  if (slot) slot.innerHTML = '';
+}
+
+// 2026-05-27: Henry Ford recovery screen.
+// Patient completed Epic OAuth (the hospital may have even texted them to
+// confirm), but Wellet’s client_id isn’t on the hospital’s production allow-list,
+// so the token exchange returned invalid_client / unauthorized_client. The
+// backend already filed a hospital_connect_requests row (→ auto-Linear ticket
+// via the every-2h cron), so this screen just acknowledges + offers a useful
+// next step. No form to refill, no retry CTA (retrying without hospital action
+// is genuinely pointless).
+function openAlmostThereModal(opts) {
+  opts = opts || {};
+  var hospital = opts.hospital_name || 'this hospital';
+  var filed = opts.request_filed === true;
+
+  // Build a one-shot overlay so we don’t need new markup in index.html.
+  // Reuses .cr-overlay styling for consistency.
+  var existing = document.getElementById('almost-there-overlay');
+  if (existing) { try { existing.remove(); } catch(e) {} }
+
+  var overlay = document.createElement('div');
+  overlay.id = 'almost-there-overlay';
+  overlay.className = 'cr-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-labelledby', 'at-title');
+
+  var safeHospital = String(hospital).replace(/[<>&"']/g, function(c) {
+    return ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'})[c];
+  });
+
+  var filedLine = filed
+    ? '<p class="at-filed"><span class="at-check">\u2713</span> We\u2019ve added you to the queue for ' + safeHospital + '. You\u2019ll get an email the moment Wellet is ready there.</p>'
+    : '<p class="at-filed">We\u2019ll let you know the moment Wellet is ready at ' + safeHospital + '.</p>';
+
+  overlay.innerHTML = '' +
+    '<div class="cr-sheet at-sheet">' +
+      '<div class="cr-handle"></div>' +
+      '<div class="cr-title" id="at-title">Almost there.</div>' +
+      '<p class="at-lede">You got the green light from ' + safeHospital + '. The last piece they still need to flip is on their developer side \u2014 it\u2019s not something you or Wellet can do right now.</p>' +
+      filedLine +
+      '<div class="cr-actions at-actions">' +
+        '<button type="button" class="cr-btn secondary" onclick="closeAlmostThereModal()">Not now</button>' +
+        '<button type="button" class="cr-btn primary" onclick="closeAlmostThereModal(); if (typeof showConnectScreen===\'function\') { try { showConnectScreen(); } catch(e) {} }">Connect a different hospital</button>' +
+      '</div>' +
+    '</div>';
+
+  document.body.appendChild(overlay);
+  // Trigger transition
+  requestAnimationFrame(function() { overlay.classList.add('show'); });
+}
+
+function closeAlmostThereModal() {
+  var overlay = document.getElementById('almost-there-overlay');
+  if (overlay) {
+    overlay.classList.remove('show');
+    setTimeout(function() { try { overlay.remove(); } catch(e) {} }, 300);
+  }
+}
+
+// 2026-05-21: Pre-fill vendor banner inside the connect-request modal when the
+// picker pre-check already produced a result, or when the user pastes a hospital
+// name into the form and blurs the field.
+function _crPrefillVendor(opts) {
+  var slot = document.getElementById('cr-vendor-check-slot');
+  if (!slot) return;
+  if (opts && opts.vendor_guess) {
+    var synthetic = {
+      vendor_guess: opts.vendor_guess,
+      vendor_confidence: opts.vendor_confidence,
+      vendor_source: opts.vendor_source,
+      matched_hospital: opts.hospital_name,
+      via_perplexity: !!(opts.vendor_lookup_payload && (function() {
+        try { var p = (typeof opts.vendor_lookup_payload === 'string') ? JSON.parse(opts.vendor_lookup_payload) : opts.vendor_lookup_payload; return p && p.via_perplexity; } catch(e) { return false; }
+      })())
+    };
+    slot.innerHTML = _vendorCheckCardHtml(synthetic, opts.hospital_name || '');
+  } else {
+    slot.innerHTML = '';
+  }
+}
+
+var _crHospitalBlurDebounce = null;
+function _crHospitalBlurHandler() {
+  var hospitalEl = document.getElementById('cr-hospital');
+  var cityEl = document.getElementById('cr-city');
+  var stateEl = document.getElementById('cr-state');
+  var slot = document.getElementById('cr-vendor-check-slot');
+  if (!hospitalEl || !slot) return;
+  var query = hospitalEl.value.trim();
+  if (query.length < 3) { slot.innerHTML = ''; return; }
+  // If picker already pre-filled and the hospital name hasn't changed, keep it.
+  if (_crContext && _crContext.vendor_guess && _crContext.hospital_name === query) return;
+  slot.innerHTML = '<div class="vendor-check-card vendor-check-card--loading"><div class="vendor-check-body">Checking what kind of system this hospital uses\u2026</div></div>';
+  clearTimeout(_crHospitalBlurDebounce);
+  _crHospitalBlurDebounce = setTimeout(function() {
+    var city = cityEl ? cityEl.value.trim() : '';
+    var state = stateEl ? stateEl.value.trim() : '';
+    precheckHospitalVendor(query, city, state).then(function(result) {
+      var cur = document.getElementById('cr-hospital');
+      if (!cur || cur.value.trim() !== query) return;
+      // Store vendor result in _crContext so submit picks it up.
+      if (result) {
+        _crContext.vendor_guess = result.vendor_guess || null;
+        _crContext.vendor_confidence = result.vendor_confidence || null;
+        _crContext.vendor_source = result.vendor_source || null;
+        _crContext.vendor_blocked = (result.vendor_blocked === true) ? true : null;
+        _crContext.vendor_lookup_payload = result;
+      }
+      slot.innerHTML = result ? _vendorCheckCardHtml(result, query) : '';
+    });
+  }, 300);
 }
 
 function submitConnectRequest() {
@@ -11748,7 +17947,13 @@ function submitConnectRequest() {
     error_code: _crContext.error_code || null,
     error_message: _crContext.error_message || null,
     person_id: _crContext.person_id || (typeof currentPersonId !== 'undefined' ? currentPersonId : null),
-    source: _crContext.source || null
+    source: _crContext.source || null,
+    // 2026-05-21: surface the pre-check result so triage can prioritize.
+    vendor_guess: _crContext.vendor_guess || null,
+    vendor_confidence: _crContext.vendor_confidence || null,
+    vendor_source: _crContext.vendor_source || null,
+    vendor_blocked: _crContext.vendor_blocked || null,
+    vendor_lookup_payload: _crContext.vendor_lookup_payload || null
   };
 
   if (btn) {
@@ -11801,8 +18006,158 @@ function submitConnectRequest() {
   });
 }
 
+// ============================================================================
+// PRE-LAUNCH EXPECTATION MODAL — Pattern 1 of the connections overcommunication
+// plan. One reusable modal that runs BEFORE Epic/VA/Terra OAuth redirects, so
+// the user knows: (1) what's about to happen, (2) what Wellet never sees,
+// (3) where they end up, (4) what to do if it fails. Shows every time unless
+// the user ticks "Don't show this for <provider> again" — persisted per-
+// provider in localStorage under wellet_preflight_suppressed_<provider>.
+//
+// CRITICAL: the original OAuth work must fire from the Continue button's
+// click handler, NOT from a setTimeout or .then() inside the modal flow.
+// Mobile Safari treats anything outside a direct user-gesture stack as
+// untrusted and silently blocks window.open / window.location.assign in some
+// edge cases. The Continue button itself IS a user gesture — we hand the
+// callback to the modal and call it synchronously from the click handler.
+// ============================================================================
+function _preflightSuppressedFor(provider) {
+  try {
+    return localStorage.getItem('wellet_preflight_suppressed_' + provider) === '1';
+  } catch (_e) { return false; }
+}
+function _setPreflightSuppressed(provider, suppressed) {
+  try {
+    if (suppressed) localStorage.setItem('wellet_preflight_suppressed_' + provider, '1');
+    else localStorage.removeItem('wellet_preflight_suppressed_' + provider);
+  } catch (_e) {}
+}
+// opts: { provider, title, bullets[], primaryLabel, dismissLabel }
+// onContinue: called from the Continue button's click handler (preserves user gesture)
+function showConnectPreflightModal(opts, onContinue) {
+  opts = opts || {};
+  var provider = opts.provider || 'connect';
+  var title = opts.title || 'Before you continue';
+  var bullets = Array.isArray(opts.bullets) ? opts.bullets : [];
+  var primaryLabel = opts.primaryLabel || 'Continue';
+  var dismissLabel = opts.dismissLabel || ('Don\u2019t show this for ' + provider + ' again');
+  // Remove any prior preflight overlay so re-taps don\u2019t stack.
+  var prior = document.getElementById('connect-preflight-overlay');
+  if (prior) prior.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'connect-preflight-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(44,42,38,0.55);z-index:400;display:flex;align-items:center;justify-content:center;padding:24px;font-family:DM Sans,sans-serif;';
+
+  var card = document.createElement('div');
+  card.style.cssText = 'background:white;border-radius:20px;padding:24px 22px 20px;max-width:380px;width:100%;box-shadow:0 12px 40px rgba(44,42,38,0.18);';
+
+  var titleEl = document.createElement('div');
+  titleEl.style.cssText = 'font-family:var(--serif,Source Serif Pro,Georgia,serif);font-size:var(--type-h2,22px);line-height:1.25;margin-bottom:14px;color:var(--text-primary,#2c2a26);';
+  titleEl.textContent = title;
+  card.appendChild(titleEl);
+
+  var ul = document.createElement('ul');
+  ul.style.cssText = 'list-style:none;margin:0 0 18px;padding:0;';
+  bullets.forEach(function(b) {
+    var li = document.createElement('li');
+    li.style.cssText = 'position:relative;padding-left:20px;margin-bottom:10px;font-size:var(--type-body,15px);line-height:1.5;color:var(--text-primary,#2c2a26);';
+    var dot = document.createElement('span');
+    dot.style.cssText = 'position:absolute;left:0;top:9px;width:6px;height:6px;border-radius:50%;background:var(--moss,#5f7a5e);';
+    li.appendChild(dot);
+    var txt = document.createElement('span');
+    txt.textContent = b;
+    li.appendChild(txt);
+    ul.appendChild(li);
+  });
+  card.appendChild(ul);
+
+  // Dismiss checkbox row
+  var dismissRow = document.createElement('label');
+  dismissRow.style.cssText = 'display:flex;align-items:flex-start;gap:8px;margin-bottom:16px;font-size:13px;color:var(--text-secondary,#6b665e);cursor:pointer;line-height:1.4;';
+  var cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.id = 'connect-preflight-dismiss';
+  cb.style.cssText = 'margin-top:2px;flex:0 0 auto;';
+  dismissRow.appendChild(cb);
+  var cbLabel = document.createElement('span');
+  cbLabel.textContent = dismissLabel;
+  dismissRow.appendChild(cbLabel);
+  card.appendChild(dismissRow);
+
+  // Buttons
+  var btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:10px;';
+
+  var cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.style.cssText = 'flex:1;background:transparent;color:var(--text-secondary,#6b665e);border:1px solid var(--border,#e4e0d8);border-radius:12px;padding:12px;font-size:var(--type-body,15px);font-family:DM Sans,sans-serif;cursor:pointer;';
+  cancelBtn.onclick = function() { overlay.remove(); };
+
+  var continueBtn = document.createElement('button');
+  continueBtn.type = 'button';
+  continueBtn.textContent = primaryLabel;
+  continueBtn.style.cssText = 'flex:1.6;background:var(--moss,#5f7a5e);color:white;border:none;border-radius:12px;padding:12px;font-size:var(--type-body,15px);font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;';
+  continueBtn.onclick = function() {
+    try {
+      if (cb.checked) _setPreflightSuppressed(provider, true);
+    } catch (_e) {}
+    overlay.remove();
+    // CRITICAL: call onContinue synchronously inside this click handler so
+    // the downstream window.open / window.location.assign inherits the
+    // user-gesture activation. Do NOT setTimeout or Promise.then this.
+    try { if (typeof onContinue === 'function') onContinue(); }
+    catch (e) { console.error('[preflight] onContinue threw:', e); }
+  };
+
+  btnRow.appendChild(cancelBtn);
+  btnRow.appendChild(continueBtn);
+  card.appendChild(btnRow);
+
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+  // Focus the primary CTA for keyboard users.
+  try { continueBtn.focus(); } catch (_e) {}
+}
+
 // Begin the actual OAuth redirect for a selected hospital (or sandbox)
-function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox) {
+function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox, _skipPreflight) {
+  // Pattern 1 — pre-launch expectation modal. Shows the user what's about to
+  // happen and what Wellet never sees, BEFORE we redirect to MyChart. Skipped
+  // if the user previously checked “Don\u2019t show this for Epic again,” or if
+  // we're already past the modal (recursive call from Continue button).
+  if (!_skipPreflight && !_preflightSuppressedFor('epic')) {
+    var label = isSandbox ? 'the Epic Sandbox' : (hospitalName || 'your hospital');
+    var partnerLabel = isSandbox ? 'the Epic Sandbox login' : ((hospitalName || 'your hospital') + ' MyChart');
+    showConnectPreflightModal({
+      provider: 'epic',
+      title: 'Before you sign in to ' + partnerLabel,
+      bullets: [
+        'You\u2019ll sign in with the MyChart username and password on the next screen.',
+        'Wellet never sees that password \u2014 ' + (isSandbox ? 'Epic' : (hospitalName || 'your hospital')) + ' sends us a secure access token instead.',
+        'You\u2019ll come back here in about 30 seconds, and we\u2019ll start pulling visits, meds, and labs.',
+        'If a sign-in page doesn\u2019t open in a moment, check your popup blocker.'
+      ],
+      primaryLabel: 'Continue to ' + (isSandbox ? 'Epic Sandbox' : (hospitalName || 'sign in')),
+      dismissLabel: 'Don\u2019t show this for Epic again'
+    }, function() {
+      // Re-enter, skipping the preflight check this time.
+      beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox, true);
+    });
+    return;
+  }
+
+  // 2026-05-21: if the picker is visible the user is clearly initiating a
+  // new attempt — any prior _ehrConnecting=true is stale (e.g. previous
+  // attempt where they hit back from MyChart without completing OAuth).
+  // Reset before the guard so the tap isn't silently dropped.
+  var pickerEl = document.getElementById('hospital-picker-overlay');
+  var pickerOpen = !!(pickerEl && pickerEl.classList.contains('open'));
+  if (pickerOpen && _ehrConnecting) {
+    console.warn('[ehr] picker open with stale _ehrConnecting=true \u2014 resetting');
+    try { _resetEhrConnectingStateForFreshAttempt(); } catch(e) {}
+  }
   if (_ehrConnecting) return;
   var personId = currentPersonId;
   if (!personId && _obFromEhr) {
@@ -11824,6 +18179,19 @@ function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox) {
   _ehrConnecting = true;
   _ehrPendingPersonId = personId;
 
+  // 2026-05-21: watchdog. If we never redirect to Epic and never hit a
+  // success/error branch within 90s (e.g. the user closed the OAuth tab
+  // mid-flight and came back without a back-navigation event), auto-clear
+  // the lock so the next hospital pick isn't silently swallowed.
+  if (_ehrConnectingTimeoutId) clearTimeout(_ehrConnectingTimeoutId);
+  _ehrConnectingTimeoutId = setTimeout(function() {
+    if (_ehrConnecting) {
+      console.warn('[ehr] connecting lock watchdog fired \u2014 clearing stuck lock');
+      _clearEhrConnectingLock();
+      try { showToast('Connection attempt timed out \u2014 try again'); } catch(e) {}
+    }
+  }, 90000);
+
   try { localStorage.setItem('wellet_ehr_pending_person', personId); } catch(e) {}
 
   var label = isSandbox ? 'Epic Sandbox' : (hospitalName || 'your hospital');
@@ -11840,7 +18208,7 @@ function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox) {
   }).then(function(session) {
     if (!session) {
       showToast('Session expired. Please sign in again.');
-      _ehrConnecting = false;
+      _clearEhrConnectingLock();
       return;
     }
     var payload = { action: 'start', person_id: personId };
@@ -11866,7 +18234,7 @@ function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox) {
     try { console.log('[ehr] epic-auth response status', res.status); } catch(e) {}
     return res.json();
   }).then(function(data) {
-    _ehrConnecting = false;
+    _clearEhrConnectingLock();
     if (!data) return;
     try { console.log('[ehr] epic-auth body', data); } catch(e) {}
     if (data.error) {
@@ -11912,19 +18280,101 @@ function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox) {
       try {
         var authUrl = new URL(data.authorize_url);
         if (authUrl.protocol === 'https:') {
-          window.location.href = data.authorize_url;
+          // 2026-05-21: the 2nd-hospital-bounce-back bug. On the 2nd attempt
+          // (after backing out of the 1st hospital's MyChart) Safari was
+          // sitting on a history entry pushed by openSheetAccessible. Setting
+          // window.location.href in that state silently failed for some users
+          // — the page stayed put, the toast faded, and the user landed back
+          // on the 3-button Connect screen with no OAuth. Belt-and-suspenders
+          // fix:
+          //   1. Collapse the sheet history entry first so we redirect from
+          //      the underlying tab state, not from a stacked sheet state.
+          //   2. Use location.assign() (the canonical "navigate" API).
+          //   3. Schedule a verification check 600ms later — if we're still
+          //      on the same page, retry the navigation as window.location
+          //      .replace(). If THAT also fails, show a tappable fallback so
+          //      the user can manually trigger the redirect.
+          try {
+            if (history.state && history.state.type === 'sheet' && history.state.id === 'hospital-picker-overlay') {
+              history.replaceState({ type: 'tab', view: _currentNavView || 'connect' }, '');
+            }
+          } catch(_e) {}
+          var targetUrl = data.authorize_url;
+          try { console.log('[ehr] navigating to authorize_url', targetUrl); } catch(_e) {}
+          try { window.location.assign(targetUrl); } catch(_e) {
+            try { window.location.href = targetUrl; } catch(__e) {}
+          }
+          // Verification + retry — if the page didn't navigate within 600ms,
+          // the assign call was silently dropped (history conflict, bfcache,
+          // pending unload race). Try replace() which is more aggressive,
+          // then fall back to a tappable toast.
+          setTimeout(function() {
+            try {
+              if (document.visibilityState === 'visible' && location.host !== authUrl.host) {
+                console.warn('[ehr] redirect did not fire — retrying with location.replace()');
+                try { window.location.replace(targetUrl); } catch(_e) {
+                  try { window.location.href = targetUrl; } catch(__e) {}
+                }
+                setTimeout(function() {
+                  if (document.visibilityState === 'visible' && location.host !== authUrl.host) {
+                    console.error('[ehr] redirect still failed — surfacing tappable fallback');
+                    try { _showEhrContinueFallback(targetUrl, hospitalName); } catch(_e) {
+                      try { window.open(targetUrl, '_self'); } catch(__e) {}
+                    }
+                  }
+                }, 600);
+              }
+            } catch(_e) {}
+          }, 600);
         } else {
           showToast('Invalid authorize URL');
         }
       } catch(e) {
         showToast('Invalid authorize URL');
       }
+    } else {
+      // 2026-05-21: 200 OK but no authorize_url AND no error. Should be
+      // unreachable, but never leave the user staring at a faded toast.
+      try { console.warn('[ehr] epic-auth returned 200 with no authorize_url and no error', data); } catch(_e) {}
+      showToast('Could not start the connection — try again');
     }
   }).catch(function(err) {
-    _ehrConnecting = false;
+    _clearEhrConnectingLock();
     console.error('EHR connect error:', err);
     showToast('Failed to start EHR connection');
   });
+}
+
+// 2026-05-21: tappable fallback overlay shown when the automatic redirect to
+// the hospital's authorize_url silently fails (e.g. iOS Safari history-stack
+// race after a back-out from a prior MyChart attempt). Tapping "Continue"
+// performs a user-gesture navigation which always succeeds.
+function _showEhrContinueFallback(targetUrl, hospitalName) {
+  // Avoid stacking multiple overlays if the user retries.
+  var existing = document.getElementById('ehr-continue-fallback');
+  if (existing) existing.remove();
+  var overlay = document.createElement('div');
+  overlay.id = 'ehr-continue-fallback';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(44,42,38,0.55);z-index:400;display:flex;align-items:center;justify-content:center;padding:24px;';
+  var card = document.createElement('div');
+  card.style.cssText = 'background:white;border-radius:20px;padding:24px;max-width:340px;width:100%;text-align:center;font-family:DM Sans,sans-serif;';
+  var label = hospitalName ? ('your ' + hospitalName + ' sign-in') : 'your hospital sign-in';
+  card.innerHTML = '<div style="font-family:var(--serif);font-size:var(--type-h2);margin-bottom:8px;">One more tap</div>'
+    + '<div style="font-size:var(--type-body);color:var(--text-secondary);line-height:1.5;margin-bottom:18px;">Safari needs a tap to continue to ' + escHtml(label) + '.</div>';
+  var btn = document.createElement('button');
+  btn.textContent = 'Continue';
+  btn.style.cssText = 'background:var(--moss);color:white;border:none;border-radius:12px;padding:12px 28px;font-size:var(--type-body);font-weight:500;font-family:DM Sans,sans-serif;cursor:pointer;width:100%;';
+  btn.onclick = function() {
+    overlay.remove();
+    try { window.location.assign(targetUrl); } catch(_e) {
+      try { window.open(targetUrl, '_self'); } catch(__e) {
+        try { window.location.href = targetUrl; } catch(___e) {}
+      }
+    }
+  };
+  card.appendChild(btn);
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
 }
 
 // Handle the Epic OAuth callback (called on page load if code is present)
@@ -11974,10 +18424,34 @@ function handleEhrCallback() {
     }).then(function(data) {
       if (!data) return;
       if (data.error) {
+        try { localStorage.removeItem('wellet_ehr_pending_person'); } catch(e) {}
+
+        // 2026-05-27: Henry Ford pattern. Patient completed Epic OAuth at the
+        // hospital end (sometimes even gets a hospital text), but the token
+        // exchange came back with invalid_client / unauthorized_client because
+        // the hospital hasn’t approved Wellet’s confidential client on their
+        // production allow-list. Backend already filed a hospital_connect_requests
+        // row, so we just show a clean "almost there" screen with no form to refill.
+        if (data.error === 'hospital_not_approved') {
+          var hospitalLabelHna = data.hospital_name || 'this hospital';
+          openAlmostThereModal({
+            hospital_name: hospitalLabelHna,
+            request_filed: data.request_filed === true,
+            person_id: personId
+          });
+          return;
+        }
+
+        // Patient hit Cancel/Deny inside Epic. Not a bug — gentler copy, no row.
+        if (data.error === 'patient_declined') {
+          var hospitalLabelPd = data.hospital_name || 'this hospital';
+          showToast('No problem \u2014 you can connect a different hospital, or come back to ' + hospitalLabelPd + ' anytime.');
+          return;
+        }
+
         // Surface server error messages (e.g., unsupported_fhir_version, server_misconfigured)
         var msg = data.message || data.error || 'Unknown error';
         showToast('EHR connection failed: ' + msg);
-        try { localStorage.removeItem('wellet_ehr_pending_person'); } catch(e) {}
         // Offer the "Let us know" path
         var cbIssue = (data.error === 'unsupported_fhir_version') ? 'unsupported_version' : 'oauth_error';
         var cbHospital = data.hospital_name || '';
@@ -12026,6 +18500,8 @@ function handleEhrCallback() {
         try { fetchEhrData(personId, true); } catch(_e) {}
         // Re-open the connect screen and refresh status so EHR shows ✓.
         try { showConnectScreen(); } catch(_e) {}
+        // Loved-one invite: mark consumed for the caregiver notification.
+        try { consumeDsInviteSelf(); } catch (_dsErr) { console.warn('[dsinvite] consume_self failed:', _dsErr); }
         // Clear the legacy onboarding-chat flag if it was also set so it
         // doesn't fire later.
         try { localStorage.removeItem('wellet_ob_ehr_return'); } catch(_e) {}
@@ -12037,6 +18513,9 @@ function handleEhrCallback() {
       if (fromOnboarding) {
         showToast('Health records connected!');
         var hospital = data.hospital_name || data.provider || 'your hospital';
+        // Loved-one invite consume — fire here too in case the loved one
+        // ended up in the onboarding flow rather than the connect screen.
+        try { consumeDsInviteSelf(); } catch (_dsErr) { console.warn('[dsinvite] consume_self failed:', _dsErr); }
         // Mark onboarding state so the chat knows EHR is connected (used by
         // obShowConnectChips to hide the already-completed option if the user
         // comes back to it later).
@@ -12056,6 +18535,10 @@ function handleEhrCallback() {
       // Take the user straight to Records so they can watch the data land
       try { switchNavTo('records'); } catch(e) { console.warn('switchNavTo(records) after EHR connect failed:', e); }
       fetchEhrData(personId, true);
+      // Loved-one invite: mark consumed so the caregiver gets the connected
+      // notification. Fire-and-forget — the loved one is already connected
+      // either way.
+      try { consumeDsInviteSelf(); } catch (_dsErr) { console.warn('[dsinvite] consume_self failed:', _dsErr); }
       // After a short delay, ask if they'd like a heads-up when new records arrive.
       var _hospitalName = data.hospital_name || data.provider || 'your hospital';
       setTimeout(function() {
@@ -12192,6 +18675,15 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
       return;
     }
     saveEhrCache(personId, data);
+    // Fresh EHR data invalidates today's daily summary. Otherwise the
+    // "Summary built from" strip stays stuck on whatever sources were live
+    // when the snapshot was first generated (e.g. wearable-only) and never
+    // picks up a newly-connected hospital like VA Lighthouse. Drop both the
+    // in-memory and persisted entry so the next renderUpdateMe regenerates.
+    try {
+      if (typeof summaryCache !== 'undefined' && summaryCache) { delete summaryCache[personId]; }
+      if (typeof _clearTodaysSummaryStorage === 'function') { _clearTodaysSummaryStorage(personId); }
+    } catch (_e) { /* best-effort */ }
     // Phase 2 dual-write: when the response carries connections[] (v55+),
     // also persist the per-connection v2 shape. v1 stays the source of truth
     // until Phase 2 is on; v2 is read-only until then.
@@ -12251,6 +18743,14 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
     console.error('EHR fetch error:', err);
     try { showToast("Couldn\u2019t reach health records \u2014 try again"); } catch(e){}
     try { restoreRecordsEhrStatus(); } catch(e){}
+    // BDB onboarding animation: clear strip + cinematic stage on EHR/VA
+    // fetch failure so the user isn't left staring at a spinner.
+    try {
+      if (typeof finalizeConnectProgress === 'function') {
+        finalizeConnectProgress('ehr');
+        finalizeConnectProgress('va');
+      }
+    } catch(_e) {}
   });
 }
 
@@ -12269,19 +18769,31 @@ function refreshEhrData() {
 }
 
 // Disconnect EHR
+// 2026-05-24: hardened. Native confirm() can silently no-op on iOS Chrome and
+// other WebViews (returns undefined / dialog suppressed). We now (a) treat any
+// truthy-or-undefined return as "proceed" — the destructive action lives behind
+// an UNDO-via-reconnect anyway, (b) only show success on HTTP 2xx, and (c)
+// surface the actual HTTP status to the toast on failure so we stop showing
+// "Disconnected" when nothing was deleted server-side.
 function disconnectEhr() {
   console.log('[EHR] disconnectEhr called, isDemoMode:', isDemoMode, 'currentPersonId:', currentPersonId);
   if (isDemoMode) { showToast('Demo mode — disconnect not available'); return; }
   var personId = currentPersonId;
   if (!personId) { showToast('No person selected'); return; }
-  if (!confirm('Disconnect health records? Cached data on this device will be removed.')) return;
+
+  // confirm() can silently return undefined on iOS Chrome / in-app browsers.
+  // We require an explicit "false" (user clicked Cancel) to bail.
+  var confirmed;
+  try { confirmed = confirm('Disconnect health records? Cached data on this device will be removed.'); }
+  catch(e) { confirmed = true; }
+  if (confirmed === false) return;
 
   showToast('Disconnecting...');
   clearEhrCache(personId);
 
   db.auth.getSession().then(function(sessionRes) {
     var session = sessionRes.data.session;
-    if (!session) { showToast('Not signed in'); return; }
+    if (!session) { showToast('Not signed in'); return null; }
     return fetch(SUPABASE_URL + '/functions/v1/epic-auth', {
       method: 'POST',
       headers: {
@@ -12292,7 +18804,12 @@ function disconnectEhr() {
       body: JSON.stringify({ action: 'disconnect', person_id: personId })
     });
   }).then(function(resp) {
-    console.log('[EHR] disconnect response:', resp && resp.status);
+    if (!resp) return; // no session path
+    console.log('[EHR] disconnect response:', resp.status);
+    if (!resp.ok) {
+      showToast('Disconnect failed (' + resp.status + ') — still connected');
+      return;
+    }
     showToast('Health records disconnected');
     // Clear any remaining in-memory data
     liveMeds = liveMeds.filter(function(m) { return m.source !== 'ehr'; });
@@ -12305,7 +18822,7 @@ function disconnectEhr() {
     initIcons();
   }).catch(function(err) {
     console.error('EHR disconnect error:', err);
-    showToast('Disconnect failed — check console');
+    showToast('Disconnect failed — ' + (err && err.message ? err.message : 'network error'));
   });
 }
 
@@ -12352,6 +18869,77 @@ function updateSettingsEhr() {
   }
 }
 
+// ── Connected Sources section header + per-row status (settings view) ────────
+// Updates the "Connected Sources" section label to "{NAME}'S CONNECTED SOURCES"
+// and syncs connection status into the sv-* rows.
+function _updateSvConnectedSourcesHeader() {
+  var label = document.getElementById('sv-connected-sources-label');
+  if (!label) return;
+  var name = getPersonFirstName();
+  // D13: in me-mode the section is the user's own sources — say "YOUR CONNECTED
+  // SOURCES" instead of upper-casing the email prefix.
+  if (isSelfMode()) {
+    label.textContent = 'YOUR CONNECTED SOURCES';
+  } else if (name && name !== 'Patient') {
+    label.textContent = name.toUpperCase() + '\u2019S CONNECTED SOURCES';
+  } else {
+    label.textContent = 'Connected Sources';
+  }
+
+  // ── EHR row status ──
+  var ehrMeta = document.getElementById('sv-ehr-meta');
+  var ehrLabel = document.getElementById('sv-ehr-label');
+  var ehrStatus = document.getElementById('sv-ehr-status');
+  var ehrData = getEhrData(currentPersonId);
+  if (ehrData && ehrData.provider && ehrData.synced_at) {
+    // Connected — fold status into the row itself.
+    if (ehrLabel) ehrLabel.textContent = 'Health Records';
+    if (ehrMeta) ehrMeta.innerHTML = '<span style="color:var(--moss);font-weight:500;">Connected</span> \u00b7 '
+      + escHtml(ehrData.provider)
+      + ' \u00b7 <span style="color:var(--text-muted);">synced ' + escHtml(formatEventDate(ehrData.synced_at)) + '</span>';
+    if (ehrStatus) ehrStatus.innerHTML = '';
+  } else if (ehrData && ehrData.provider) {
+    if (ehrLabel) ehrLabel.textContent = 'Health Records';
+    if (ehrMeta) ehrMeta.innerHTML = '<span style="color:var(--moss);font-weight:500;">Connected</span> \u00b7 ' + escHtml(ehrData.provider);
+    if (ehrStatus) ehrStatus.innerHTML = '';
+  } else {
+    if (ehrLabel) ehrLabel.textContent = 'Connect Health Records';
+    if (ehrMeta) ehrMeta.textContent = 'Duke, UNC, WakeMed, and more \u2014 read-only';
+    if (ehrStatus) ehrStatus.innerHTML = '';
+  }
+
+  // ── Apple Health row status ──
+  var appleMeta = document.getElementById('sv-apple-health-meta');
+  if (appleMeta) {
+    var appleTs = null;
+    try { appleTs = localStorage.getItem('wellet_apple_health_last_sync_at_' + currentPersonId); } catch(_e) {}
+    if (appleTs && appleTs !== 'null' && appleTs !== 'None') {
+      var ago = _relativeTime(appleTs);
+      appleMeta.innerHTML = '<span style="color:var(--moss);font-weight:500;">Connected</span>'
+        + (ago ? ' \u00b7 last synced ' + escHtml(ago) : '');
+    } else {
+      appleMeta.textContent = 'Wearables & sensors';
+    }
+  }
+}
+
+// Tiny relative-time helper for connection status display.
+function _relativeTime(isoStr) {
+  try {
+    var then = new Date(isoStr).getTime();
+    var now = Date.now();
+    var mins = Math.round((now - then) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + ' min ago';
+    var hrs = Math.round(mins / 60);
+    if (hrs < 24) return hrs + ' hr ago';
+    var days = Math.round(hrs / 24);
+    if (days === 1) return 'yesterday';
+    if (days < 7) return days + ' days ago';
+    return formatEventDate(isoStr);
+  } catch(_e) { return ''; }
+}
+
 // Update profile EHR section
 function updateProfileEhr(personId) {
   var section = document.getElementById('profile-ehr-section');
@@ -12372,12 +18960,37 @@ function updateProfileEhr(personId) {
       + '</div></div>';
     initIcons();
   } else {
-    section.innerHTML = '<div class="ehr-connect-card" onclick="startEhrConnect()">'
+    // Loved-one (not is_self) gets a "Send connect link" button + pending host
+    // for the SMS invite flow, alongside the direct "Connect Health Records"
+    // tile. is_self users see only the direct tile (they connect themselves).
+    var _person = (currentPeople || []).find(function(p){ return p && p.id === pid; });
+    var _isLovedOne = _person && _person.is_self !== true;
+    var _firstName = _person && _person.name ? String(_person.name).split(' ')[0] : 'them';
+    var html = '<div class="ehr-connect-card" onclick="startEhrConnect()">'
       + '<div class="ehr-connect-icon"><i data-lucide="hospital" style="width:22px;height:22px;"></i></div>'
       + '<div class="ehr-connect-title">Connect Health Records</div>'
       + '<div class="ehr-connect-desc">Import medications, conditions, and lab results from your provider</div>'
       + '</div>';
+    if (_isLovedOne) {
+      html += '<button class="ds-invite-send-btn" onclick="event.stopPropagation();openSendConnectLinkModal({personId:\'' + escAttr(pid) + '\', dataSource:\'ehr\'})" '
+        + 'style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:10px;padding:12px 14px;border:1px solid var(--border, #E5E5E7);background:#FFF;color:var(--text, #111);border-radius:12px;font-size:var(--type-body, 15px);font-weight:500;cursor:pointer;">'
+        + '<i data-lucide="message-square" style="width:16px;height:16px;"></i>'
+        + 'Text ' + escHtml(_firstName) + ' a connect link'
+        + '</button>';
+      // Wearable invite — Fitbit/Garmin/Oura/Whoop/Withings. Loved one picks
+      // their tracker on the dsinvite landing; provider is set at consume.
+      html += '<button class="ds-invite-send-btn ds-invite-wearable-btn" onclick="event.stopPropagation();openSendConnectLinkModal({personId:\'' + escAttr(pid) + '\', dataSource:\'wearable\'})" '
+        + 'style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:8px;padding:12px 14px;border:1px solid var(--border, #E5E5E7);background:#FFF;color:var(--text, #111);border-radius:12px;font-size:var(--type-body, 15px);font-weight:500;cursor:pointer;">'
+        + '<i data-lucide="watch" style="width:16px;height:16px;"></i>'
+        + 'Text ' + escHtml(_firstName) + ' a wearable invite'
+        + '</button>';
+      html += '<div id="ds-invite-pending-host-' + escAttr(pid) + '" style="margin-top:10px;"></div>';
+    }
+    section.innerHTML = html;
     initIcons();
+    if (_isLovedOne) {
+      try { renderDsInvitePending(pid); } catch (e) { console.warn('renderDsInvitePending:', e); }
+    }
   }
 }
 
@@ -12413,9 +19026,19 @@ function ehrProviderBadgeHtml(provider) {
 // single-connection people (Mom today) so behavior is unchanged.
 function rowProviderBadge(row, fallbackProvider, ehrData) {
   try {
-    var multi = ehrData && ehrData._connections && ehrData._connections.length >= 2;
-    if (multi && row && row._hospital_name) {
-      return ehrProviderBadgeHtml(row._hospital_name);
+    // Per-row attribution first. Three signals, in order of trust:
+    //   1. row._hospital_name stamped by getMergedEhr() from the v2 cache
+    //   2. row.connection_id -> hospital_name via window._connHospitalById
+    //      (covers DB-direct rows like health_events that bypass the v2 cache,
+    //       including rows from a disconnected historical connection)
+    //   3. fallbackProvider (the merged-string global) only when we truly
+    //      have nothing else.
+    var connMap = (typeof window !== 'undefined' && window._connHospitalById) ? window._connHospitalById : null;
+    var connHosp = (row && row.connection_id && connMap) ? connMap[row.connection_id] : '';
+    var perRow = (row && row._hospital_name) || connHosp || '';
+    if (perRow) return ehrProviderBadgeHtml(perRow);
+    if (row && !row.connection_id && !row._hospital_name) {
+      return ehrProviderBadgeHtml('your records');
     }
   } catch(e) {}
   return ehrProviderBadgeHtml(fallbackProvider);
@@ -12751,7 +19374,10 @@ function _collectAllergyNames(ehrData) {
 
 function buildBeforeYouCallBanner(personName, ehrData) {
   if (!ehrData) return '';
-  var firstName = personName || 'them';
+  // 2026-06-01 (D1): fallback is 'Your loved one' (capitalized) so the
+  // composed sentence "Your loved one is on warfarin (blood thinner)."
+  // reads cleanly when no name is resolved.
+  var firstName = personName || 'Your loved one';
   var lines = [];
 
   var allergies = _collectAllergyNames(ehrData);
@@ -13161,14 +19787,51 @@ function refreshAttachmentList(scope, key) {
 
 // Build the "no EHR connected" prompt
 function buildEhrPrompt() {
-  return '<div class="ehr-section-prompt" id="ehr-section-prompt">'
+  // Judge-path Fix #3 (June 2 2026): surface all three intake paths in the in-app
+  // empty state. Previously the landing page mentioned PDF upload + Apple Health,
+  // but the in-app Records empty state only offered "Connect health records" —
+  // users who skipped the marketing copy never discovered the fallbacks.
+  return '<div class="ehr-section-prompt" id="ehr-section-prompt" style="display:flex;flex-direction:column;gap:8px;">'
+    + '<div>'
     + '<i data-lucide="hospital" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:3px;color:var(--moss);"></i>'
     + '<a onclick="startEhrConnect()">Connect health records</a> to see medications, conditions, and lab results from your provider.'
+    + '</div>'
+    + '<div style="font-size:13px;color:var(--text-secondary);line-height:1.5;">'
+    + 'No hospital login handy? '
+    + '<a onclick="_goUploadFromVendorCard()" style="text-decoration:underline;cursor:pointer;">Upload a PDF</a>'
+    + ' or <a onclick="_goAppleHealthFromPrompt()" style="text-decoration:underline;cursor:pointer;">connect Apple Health</a>'
+    + ' instead — both work.'
+    + '</div>'
     + '</div>';
 }
 
+// Apple Health entry point from the records empty-state prompt. In demo mode we
+// surface a friendly toast; otherwise route through the canonical Apple Health
+// connect flow (loved-one bridge for caregivers, or in-app HealthKit setup for
+// self-use accounts).
+function _goAppleHealthFromPrompt() {
+  if (isDemoMode) {
+    showToast('In the real app, this connects to Apple Health on your iPhone.');
+    return;
+  }
+  try {
+    // Try the canonical helpers in priority order. These already exist and
+    // handle the caregiver-vs-self routing, deep-linking to the iOS bridge,
+    // and the loved-one SMS handoff.
+    if (typeof openAppleHealthConnect === 'function') { openAppleHealthConnect(); return; }
+    if (typeof connectAppleHealth === 'function') { connectAppleHealth(); return; }
+    if (typeof startAppleHealthConnect === 'function') { startAppleHealthConnect(); return; }
+    if (typeof showConnectionsScreen === 'function') { showConnectionsScreen(); return; }
+    // Last-resort fallback: route to the in-app Connections screen via hash.
+    window.location.hash = '#connections';
+  } catch (e) {
+    console.warn('_goAppleHealthFromPrompt:', e);
+    showToast('Open the Connections screen to set up Apple Health.');
+  }
+}
+
 // Restore the inline EHR status row from any transient state
-// (e.g. "Syncing health records..." spinner) back to whatever the current
+// (e.g. "Reading your chart…" spinner) back to whatever the current
 // records view normally shows. Used by the watchdog and silent-bail paths
 // in fetchEhrData so the spinner never gets stuck if the sync fails or
 // short-circuits before re-rendering.
@@ -13191,7 +19854,7 @@ function syncNowFromRecords() {
     statusEl.innerHTML = '<div class="terra-inline-list">'
       + '<div class="terra-inline-item" style="opacity:0.7;">'
       + '<span class="terra-status-dot terra-status-dot--inactive"></span>'
-      + 'Syncing health records\u2026'
+      + 'Reading your chart\u2026 usually under a minute'
       + '</div></div>';
   }
   // Watchdog: if the row is still in the spinning state 25s later, the
@@ -13199,9 +19862,9 @@ function syncNowFromRecords() {
   // knows to try again.
   setTimeout(function() {
     var el = document.getElementById('records-ehr-status');
-    if (el && el.innerHTML.indexOf('Syncing health records') !== -1) {
+    if (el && el.innerHTML.indexOf('Reading your chart') !== -1) {
       try { restoreRecordsEhrStatus(); } catch(e){}
-      try { showToast("Sync didn\u2019t finish \u2014 try again"); } catch(e){}
+      try { showToast("Your chart didn\u2019t finish reading \u2014 tap to try again"); } catch(e){}
     }
   }, 25000);
   try {
@@ -13221,6 +19884,213 @@ function checkEhrCallbackOnLoad() {
   }
 }
 
+// ── VA LIGHTHOUSE OAUTH ─────────────────────────────────────────────────────
+// VA Lighthouse uses SMART on FHIR with R4 patient/* scopes (verified against
+// https://sandbox-api.va.gov/services/fhir/v0/r4/.well-known/smart-configuration).
+// The flow mirrors beginEhrOAuth/handleEhrCallback but POSTs to the va-auth
+// edge function and round-trips through /va-callback. Gated in the UI behind
+// ?va=1 - see maybeShowVaCard().
+
+function beginVaOAuth(isSandbox, _skipPreflight) {
+  var personId = currentPersonId;
+  if (!personId) {
+    showToast('Please select a person first');
+    return;
+  }
+  // Pattern 1 — pre-launch expectation modal for VA. Critical here because
+  // unlike Epic, VA records take 2–3 minutes for the first pull (VA Lighthouse
+  // backfill latency), and the user signs in with their LOVED ONE's VA.gov
+  // credentials — a detail many testers miss without the heads-up.
+  if (!_skipPreflight && !_preflightSuppressedFor('va')) {
+    showConnectPreflightModal({
+      provider: 'va',
+      title: 'Before you sign in to VA.gov',
+      bullets: [
+        'You\u2019ll sign in with your loved one\u2019s VA.gov username and password on the next screen.',
+        'Wellet never sees that password \u2014 VA.gov sends us a secure access token instead.',
+        'VA records usually take 2\u20133 minutes for the first pull \u2014 that\u2019s normal.',
+        'If a sign-in page doesn\u2019t open in a moment, check your popup blocker.'
+      ],
+      primaryLabel: 'Continue to VA.gov',
+      dismissLabel: 'Don\u2019t show this for VA again'
+    }, function() {
+      beginVaOAuth(isSandbox, true);
+    });
+    return;
+  }
+  try { localStorage.setItem('wellet_va_pending_person', personId); } catch(e) {}
+  showToast('Connecting to VA' + (isSandbox ? ' (Sandbox)' : '') + '\u2026');
+
+  db.auth.refreshSession().then(function(refreshRes) {
+    var session = refreshRes && refreshRes.data && refreshRes.data.session;
+    if (!session) {
+      return db.auth.getSession().then(function(s) { return s.data.session; });
+    }
+    return session;
+  }).then(function(session) {
+    if (!session) {
+      showToast('Session expired. Please sign in again.');
+      return;
+    }
+    var payload = { action: 'start', person_id: personId, sandbox: !!isSandbox };
+    return fetch(SUPABASE_URL + '/functions/v1/va-auth', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + session.access_token,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify(payload)
+    });
+  }).then(function(res) {
+    if (!res) return;
+    try { console.log('[va] va-auth start status', res.status); } catch(e) {}
+    return res.json();
+  }).then(function(data) {
+    if (!data) return;
+    try { console.log('[va] va-auth start body', data); } catch(e) {}
+    if (data.error) {
+      var msg = 'VA: ' + (data.message || data.error);
+      showToast(msg);
+      return;
+    }
+    if (data.authorize_url) {
+      try {
+        var u = new URL(data.authorize_url);
+        if (u.protocol === 'https:') {
+          try { window.location.assign(data.authorize_url); } catch(_e) {
+            try { window.location.href = data.authorize_url; } catch(__e) {}
+          }
+          return;
+        }
+      } catch(e) {}
+      showToast('VA: invalid authorize URL');
+    } else {
+      showToast('VA: could not start the connection. Try again.');
+    }
+  }).catch(function(err) {
+    console.error('[va] start error:', err);
+    showToast('Failed to start VA connection');
+  });
+}
+
+// Exchange the VA authorization code (called on /va-callback page load).
+function handleVaCallback() {
+  var params = new URLSearchParams(window.location.search);
+  var code = params.get('code');
+  if (!code) { console.log('[va] callback: no code param'); return; }
+  if (!/^[a-zA-Z0-9\-_.+=\/]{1,2048}$/.test(code)) { console.warn('[va] code failed validation'); return; }
+  var state = params.get('state') || '';
+
+  var personId;
+  try { personId = localStorage.getItem('wellet_va_pending_person'); } catch(e) {}
+  if (!personId) { console.warn('[va] callback: no pending person_id'); return; }
+
+  // Clean URL back to root so a refresh doesn't replay the code.
+  try { window.history.replaceState({}, '', window.location.origin + '/'); } catch(e) {}
+
+  var checkAuth = setInterval(function() {
+    if (!currentUser) return;
+    clearInterval(checkAuth);
+
+    showToast('Completing VA connection\u2026');
+    db.auth.getSession().then(function(sessionRes) {
+      var session = sessionRes && sessionRes.data && sessionRes.data.session;
+      if (!session) return;
+      return fetch(SUPABASE_URL + '/functions/v1/va-auth', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + session.access_token,
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({ action: 'callback', code: code, state: state, person_id: personId })
+      });
+    }).then(function(res) {
+      if (!res) return;
+      return res.json();
+    }).then(function(data) {
+      if (!data) return;
+      try { console.log('[va] callback body', data); } catch(e) {}
+      if (data.error) {
+        showToast('VA connection failed: ' + (data.message || data.error));
+        try { localStorage.removeItem('wellet_va_pending_person'); } catch(e) {}
+        return;
+      }
+      try { localStorage.removeItem('wellet_va_pending_person'); } catch(e) {}
+      setCurrentPersonId(personId);
+      if (typeof loadPersonData === 'function') {
+        try { loadPersonData(personId); } catch(e) {}
+      }
+      // VA records flow through the same fetch-ehr-data edge function (the VA
+      // branch added in commit 5b30ff5), so the existing path lights up.
+      if (typeof _isConnectScreenActive === 'function' && _isConnectScreenActive()) {
+        showToast('VA records connected!');
+        try { fetchEhrData(personId, true); } catch(_e) {}
+        try { showConnectScreen(); } catch(_e) {}
+        return;
+      }
+      showToast('VA records connected! Fetching data\u2026');
+      try { switchNavTo('records'); } catch(e) {}
+      try { fetchEhrData(personId, true); } catch(e) {}
+    }).catch(function(err) {
+      console.error('[va] callback error:', err);
+      showToast('VA connection failed');
+    });
+  }, 500);
+  setTimeout(function() { clearInterval(checkAuth); }, 15000);
+}
+
+// Check for VA callback on page load. VA Lighthouse registered our app with
+// /oauth/callback as the redirect URI; /va-callback is kept as an alias for
+// back-compat. The state token round-trips through the va-auth edge function
+// so we don't need provider-specific paths once we add more OAuth sources.
+function checkVaCallbackOnLoad() {
+  var p = window.location.pathname;
+  if (p === '/oauth/callback' || p === '/va-callback') {
+    handleVaCallback();
+  }
+}
+
+// Disconnect a VA connection for the current person.
+function disconnectVa() {
+  if (isDemoMode) { showToast('Demo mode. Disconnect not available.'); return; }
+  var personId = currentPersonId;
+  if (!personId) { showToast('No person selected'); return; }
+  if (!confirm('Disconnect VA records? Cached data on this device will be removed.')) return;
+
+  showToast('Disconnecting VA\u2026');
+  try { clearEhrCache(personId); } catch(e) {}
+
+  db.auth.getSession().then(function(sessionRes) {
+    var session = sessionRes && sessionRes.data && sessionRes.data.session;
+    if (!session) { showToast('Not signed in'); return; }
+    return fetch(SUPABASE_URL + '/functions/v1/va-auth', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + session.access_token,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ action: 'disconnect', person_id: personId })
+    });
+  }).then(function(resp) {
+    try { console.log('[va] disconnect status', resp && resp.status); } catch(e) {}
+    showToast('VA records disconnected');
+    try { liveMeds = liveMeds.filter(function(m) { return m.source !== 'ehr'; }); } catch(e) {}
+    try { liveAllergies = liveAllergies.filter(function(a) { return a.source !== 'ehr'; }); } catch(e) {}
+    try { liveLabs = liveLabs.filter(function(l) { return l.source !== 'ehr'; }); } catch(e) {}
+    try { renderRecordsView(); } catch(e) {}
+    try { renderTimeline(); } catch(e) {}
+    try { updateSettingsEhr(); } catch(e) {}
+    try { updateProfileEhr(personId); } catch(e) {}
+    try { initIcons(); } catch(e) {}
+  }).catch(function(err) {
+    console.error('[va] disconnect error:', err);
+    showToast('VA disconnect failed');
+  });
+}
+
 // Handle the /connect-callback universal-link return from the Wellet Connect
 // iOS app. Reads ?mode=ehr|apple|terra and ?status=ok|error and routes the
 // confirmation to the right card. Three buttons, three sources, never crossing:
@@ -13235,11 +20105,86 @@ function checkEhrCallbackOnLoad() {
 // (a wearable_observations row or people.apple_health_last_sync_at stamp).
 // Until then we show a softer "finishing up" toast and let
 // refreshConnectScreenStatus do the actual card update on its next read.
+// Detect whether this browser tab has a usable Supabase session in localStorage.
+// We check the raw storage key (not db.auth.getSession()) because the new Safari
+// tab opened by Wellet Connect's universal-link return may have a partitioned
+// storage view where Supabase's in-memory client hasn't rehydrated yet. If the
+// raw token is present, the auth listener will catch up shortly; if it is
+// absent, we know the new tab is isolated from the original tab's session and
+// we render a soft landing instead of dumping the user at the auth gate.
+function _hasStoredSupabaseSession() {
+  try {
+    var keys = ['sb-wellet-auth', 'sb-nrpdhxygzyfmyljzfexv-auth-token'];
+    for (var i = 0; i < keys.length; i++) {
+      var raw = localStorage.getItem(keys[i]);
+      if (raw && raw.length > 20) return true;
+    }
+    // Walk all localStorage keys for any sb-*-auth-token pattern (defensive
+    // against future Supabase storage-key changes).
+    for (var j = 0; j < localStorage.length; j++) {
+      var k = localStorage.key(j);
+      if (k && /^sb-.*-auth-token$/.test(k)) {
+        var v = localStorage.getItem(k);
+        if (v && v.length > 20) return true;
+      }
+    }
+  } catch(e) {}
+  return false;
+}
+
+// Render a soft landing for the no-session case (Safari opened the universal
+// link in a brand-new tab that doesn't share storage with the original Wellet
+// tab). We tell the user the connection succeeded and point them back to their
+// existing tab \u2014 no harsh auth screen, no "sign in again" confusion.
+function _renderConnectCallbackSoftLanding(mode, status) {
+  try {
+    var label = 'Apple Health';
+    if (mode === 'ehr') label = 'Health records';
+    else if (mode === 'terra') label = 'Your wearable';
+    var headline = status === 'ok'
+      ? label + ' is connected.'
+      : label + ' didn\u2019t finish connecting.';
+    var body = status === 'ok'
+      ? 'You can close this tab and switch back to your Wellet tab to see it. If you don\u2019t have one open, tap below.'
+      : 'Switch back to your Wellet tab and try again. If that doesn\u2019t work, tap below to start fresh.';
+    var ctaLabel = 'Open Wellet';
+    var html = ''
+      + '<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;background:#f7f5ee;color:#2c3a30;font-family:\'DM Sans\',system-ui,-apple-system,sans-serif;font-weight:300;line-height:1.5;">'
+      + '<div style="max-width:380px;">'
+      + '<div style="width:64px;height:64px;border-radius:50%;background:#e9efe6;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;">'
+      + '<span style="font-family:\'Fraunces\',Georgia,serif;font-size:32px;color:#608F7C;">' + (status === 'ok' ? '\u2713' : '!') + '</span>'
+      + '</div>'
+      + '<h1 style="font-family:\'Fraunces\',Georgia,serif;font-weight:300;font-size:28px;line-height:1.2;color:#4a7361;margin:0 0 12px;letter-spacing:-0.01em;">' + headline + '</h1>'
+      + '<p style="font-size:15px;color:#6b7a6f;margin:0 0 28px;">' + body + '</p>'
+      + '<a href="/" style="display:inline-block;padding:14px 28px;background:#608F7C;color:#f7f5ee;text-decoration:none;border-radius:999px;font-weight:400;font-size:16px;-webkit-tap-highlight-color:transparent;">' + ctaLabel + '</a>'
+      + '<p style="margin-top:32px;font-size:13px;color:#6b7a6f;">Already signed in on another tab? Just close this one.</p>'
+      + '</div>'
+      + '</div>';
+    document.body.innerHTML = html;
+    document.title = 'Wellet \u2014 ' + (status === 'ok' ? 'Connected' : 'Try again');
+  } catch(e) {
+    // If anything goes wrong building the landing, fall back to a redirect home.
+    try { window.location.replace('/'); } catch(_e) {}
+  }
+}
+
 function handleConnectCallback() {
   if (window.location.pathname !== '/connect-callback') return;
   var params = new URLSearchParams(window.location.search);
   var status = params.get('status');
   var mode = (params.get('mode') || 'apple').toLowerCase();
+
+  // No-session branch: the universal-link return from Wellet Connect opened a
+  // brand-new Safari tab that doesn't share the original tab's Supabase
+  // session (iOS storage partitioning, SFSafariViewController isolation, etc).
+  // Render a soft landing so the tester knows their connection succeeded and
+  // can swipe back to their existing Wellet tab \u2014 instead of staring at
+  // the auth screen wondering what broke.
+  if (!_hasStoredSupabaseSession()) {
+    _renderConnectCallbackSoftLanding(mode, status);
+    return;
+  }
+
   try {
     if (status === 'ok') {
       if (mode === 'ehr') {
@@ -13463,12 +20408,44 @@ function evaluateReconnectBanner() {
       var nowMs = Date.now();
       var staleMs = 7 * 24 * 60 * 60 * 1000;
 
-      // 1. needs_reconnect — first hit wins
+      // 1. needs_reconnect — first hit wins. 2026-05-19: try a silent refresh
+      //    against epic-auth BEFORE showing the banner. Background sync runs
+      //    hourly but the user may open the app between cron ticks; if our
+      //    refresh_token is still valid, a transparent refresh clears the
+      //    flag and avoids a needless OAuth round-trip. Guarded per-session
+      //    so we don't hammer Epic on every person switch.
+      var needsReconnectConn = null;
       for (var i = 0; i < conns.length; i++) {
-        if (conns[i].needs_reconnect === true) {
-          _bannerRender({ kind: 'needs_reconnect', connection_id: conns[i].id, hospital_name: conns[i].hospital_name, fhir_base_url: conns[i].fhir_base_url });
+        if (conns[i].needs_reconnect === true) { needsReconnectConn = conns[i]; break; }
+      }
+      if (needsReconnectConn) {
+        window.__welletRefreshAttempted = window.__welletRefreshAttempted || {};
+        var connId = needsReconnectConn.id;
+        if (window.__welletRefreshAttempted[connId]) {
+          // Already tried this session and it didn't clear — render the banner.
+          _bannerRender({ kind: 'needs_reconnect', connection_id: connId, hospital_name: needsReconnectConn.hospital_name, fhir_base_url: needsReconnectConn.fhir_base_url });
           return;
         }
+        window.__welletRefreshAttempted[connId] = true;
+        // Hide any stale banner while we try the silent refresh.
+        _bannerHide();
+        tryEpicRefresh(personId).then(function(result) {
+          if (result && result.ok) {
+            // Refresh worked — pull fresh data, no banner needed.
+            try { loadPersonData(personId); } catch(e) { console.warn('[banner] reload after silent refresh failed', e); }
+            try { updateHeaderSyncMeta(); } catch(e) {}
+            return;
+          }
+          // Refresh failed (expired refresh_token, no session, Epic rejected) —
+          // re-check the connection: epic-auth may have flipped status to
+          // 'needs_reconnect' as a side effect, in which case we should still
+          // show the banner. Use the conn we already have.
+          _bannerRender({ kind: 'needs_reconnect', connection_id: connId, hospital_name: needsReconnectConn.hospital_name, fhir_base_url: needsReconnectConn.fhir_base_url });
+        }).catch(function(err) {
+          console.warn('[banner] silent refresh threw', err);
+          _bannerRender({ kind: 'needs_reconnect', connection_id: connId, hospital_name: needsReconnectConn.hospital_name, fhir_base_url: needsReconnectConn.fhir_base_url });
+        });
+        return;
       }
 
       // 2. scope regression — today's `ehr_sync_log` schema is person-level
@@ -13591,7 +20568,7 @@ function _shortenClinicalName(name) {
 // If there's no chart data yet, falls back to a generic four. Voice rules:
 // "notices/watches for", never "tracks/monitors".
 function buildAskChips(personId, firstName) {
-  var name = escHtml(firstName || 'them');
+  var name = escHtml(firstName || 'your loved one');
   var ehr = null;
   try { ehr = getEhrData(personId); } catch (e) { ehr = null; }
 
@@ -13637,7 +20614,7 @@ function buildAskChips(personId, firstName) {
 
 // ── CARE SIGNALS v1: watch-mode suggestion chips ─────────────────────────────
 function buildWatchSuggestionChips(firstName) {
-  var name = escHtml(firstName || 'them');
+  var name = escHtml(firstName || 'your loved one');
   var ctx = window._pendingAskContext || {};
   var metric = ctx.metric || '';
   var chips = [];
@@ -13732,32 +20709,17 @@ async function confirmWatchProposal(key, btnEl) {
   if (!prop) { showToast && showToast('That option expired \u2014 ask again.'); return; }
   if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Saving\u2026'; }
   try {
-    var token = null;
-    try {
-      var s = await db.auth.getSession();
-      token = (s && s.data && s.data.session && s.data.session.access_token) || null;
-    } catch(_e){}
-    if (!token) {
-      addWelletMessage('Your session expired. Please sign out and sign back in, then try again.');
+    var result = await callEdgeFn('create-care-signal-watch', {
+      person_id: prop.person_id,
+      watch_type: prop.watch_type,
+      parameters: prop.parameters
+    });
+    if (result.error === 'no_session' || result.error === 'refresh_failed') {
+      addWelletMessage('I couldn\u2019t verify your session. Please sign out and sign back in, then try again.');
       if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Confirm'; }
       return;
     }
-    var res = await fetch(
-      'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/create-care-signal-watch',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + token,
-          'apikey': ANON_KEY
-        },
-        body: JSON.stringify({
-          person_id: prop.person_id,
-          watch_type: prop.watch_type,
-          parameters: prop.parameters
-        })
-      }
-    );
+    var res = result.error ? { ok: false, status: 500, text: async function() { return result.error; } } : { ok: true, json: async function() { return result.data; } };
     if (res.ok) {
       var saved = await res.json().catch(function(){ return {}; });
       // Replace the card with a confirmation message
@@ -13817,8 +20779,32 @@ function _watchTypeFriendly(watch_type, params) {
     case 'new_record_arrived':
       var kinds = (p.kinds && p.kinds.length) ? p.kinds.join(', ') : 'new records';
       return 'New ' + kinds + ' arrive';
+    // 2026-06-01 (D2): humanize signal keys that previously leaked as raw
+    // identifiers (e.g. "medication_missed") into the CareSignals card.
+    case 'medication_missed':
+      return 'Watching for missed medications';
+    case 'blood_pressure_high':
+    case 'bp_high':
+      return 'Watching for high blood pressure readings';
+    case 'blood_pressure_low':
+    case 'bp_low':
+      return 'Watching for low blood pressure readings';
+    case 'weight_change':
+      return 'Watching for sudden weight changes';
+    case 'glucose_high':
+      return 'Watching for high glucose readings';
+    case 'lab_out_of_range':
+      return 'Watching for labs that fall out of range';
+    case 'visit_no_show':
+      return 'Watching for missed appointments';
     default:
-      return watch_type;
+      // Last-resort: turn snake_case into Title Case ("medication_missed"
+      // → "Medication missed") so we never show a raw machine key.
+      if (typeof watch_type === 'string' && watch_type.length) {
+        var spaced = watch_type.replace(/_/g, ' ').toLowerCase();
+        return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+      }
+      return 'A signal worth following';
   }
 }
 
@@ -14042,6 +21028,11 @@ function promptNewRecordsWatchOptIn(personId, hospitalName) {
           body: JSON.stringify({
             person_id: personId,
             watch_type: 'new_record_arrived',
+            // create-care-signal-watch v7 requires a non-empty description.
+            // The hospital name gives the caregiver a recognisable label in
+            // the Settings list later ("New records at Duke Health").
+            description: 'Notify me when new records arrive'
+              + (hospitalName ? ' at ' + hospitalName : ''),
             parameters: { kinds: ['lab', 'visit', 'imaging', 'discharge', 'medication'] }
           })
         }
@@ -14088,9 +21079,57 @@ function adjustWatchProposal(key) {
 
 function renderAskView() {
   // Render ask view for authenticated mode with real people
-  if (isDemoMode) return;
+  if (isDemoMode) {
+    // 2026-06-01 (D5): seed starter chips on the demo Ask view so the
+    // "SOME PLACES TO START" section is never empty for reviewers landing
+    // cold on mywellet.com. Uses the current demo persona's first name when
+    // available so the chips read naturally.
+    try {
+      var demoChips = document.getElementById('suggestion-chips');
+      if (demoChips && !demoChips.innerHTML.trim()) {
+        var demoName = 'Dad';
+        try {
+          var activeTab = document.querySelector('.demo-tab.active');
+          if (activeTab && /vet|mom/i.test(activeTab.id || '')) demoName = 'Mom';
+        } catch (_e) {}
+        var demoStarters = (demoName === 'Mom')
+          ? [
+              'Is ' + demoName + ' stable?',
+              'When is ' + demoName + '’s next appointment?',
+              'What changed this month?',
+              'What meds is ' + demoName + ' taking?'
+            ]
+          : [
+              'How is ' + demoName + ' doing this week?',
+              'When is ' + demoName + '’s next appointment?',
+              'What changed this month?',
+              'What meds is ' + demoName + ' taking?'
+            ];
+        demoChips.innerHTML = demoStarters.map(function(q) {
+          return '<button class="chip" onclick="askQuestion(this.textContent)">' + q + '</button>';
+        }).join('');
+        demoChips.style.display = 'flex';
+      }
+    } catch (_eDemoChips) { /* never let chip seeding crash the demo view */ }
+    return;
+  }
   var personBar = document.querySelector('#view-ask .ask-person-bar');
   if (!personBar) return;
+
+  // Header-cut-off fix (2026-05-14): when there's only the intro bubble in
+  // chat-area, mark it .is-empty-state so the mobile CSS rule shrinks the
+  // container (flex:0 0 auto) instead of letting it stretch and scroll the
+  // lede out of view. Also force scrollTop to 0 so a prior conversation
+  // scroll position can't hide the bubble when the user re-enters Ask.
+  try {
+    var chatAreaEl = document.getElementById('chat-area');
+    if (chatAreaEl) {
+      var groups = chatAreaEl.querySelectorAll('.chat-group');
+      if (groups.length <= 1) chatAreaEl.classList.add('is-empty-state');
+      else chatAreaEl.classList.remove('is-empty-state');
+      chatAreaEl.scrollTop = 0;
+    }
+  } catch (_eAskScroll) { /* never let UI prep crash the render */ }
 
   var inputElEmpty = document.getElementById('ask-input');
   var chipsEmpty = document.getElementById('suggestion-chips');
@@ -14141,9 +21180,47 @@ function renderAskView() {
 }
 
 function selectAskRealPerson(el, personId) {
-  currentPersonId = personId;
+  // No-op if the user tapped the already-active pill.
+  if (!personId || personId === currentPersonId) {
+    if (el) {
+      document.querySelectorAll('#view-ask .ask-person-pill').forEach(function(p){ p.classList.remove('active'); });
+      el.classList.add('active');
+    }
+    return;
+  }
+  // Wipe the conversation so the previous loved one's question + answer
+  // don't sit above the new loved one's intro bubble (and so we don't
+  // forward the wrong history to ask-wellet on the next question).
+  try { _resetAskConversation(); } catch(_e) {}
+  try {
+    var chatArea = document.getElementById('chat-area');
+    if (chatArea) {
+      // Keep only the very first .chat-group (the intro bubble). renderAskView
+      // will rewrite its text to the new loved one's name.
+      var firstGroup = chatArea.querySelector('.chat-group');
+      chatArea.innerHTML = '';
+      if (firstGroup) chatArea.appendChild(firstGroup);
+      chatArea.scrollTop = 0;
+    }
+  } catch(_eClear) {}
+  // Optimistic pill update so the tap feels instant even before loadPersonData
+  // (called by switchToRealPerson) finishes. renderAskView rebuilds them at the
+  // end of the switch so the authoritative active state comes from there.
   document.querySelectorAll('#view-ask .ask-person-pill').forEach(function(p){ p.classList.remove('active'); });
-  el.classList.add('active');
+  if (el) el.classList.add('active');
+  // Delegate to the canonical switcher. It sets currentPersonId synchronously,
+  // applies the person bg, reloads ehrData / summaryCache for the new loved
+  // one, and re-runs renderAskView at the end which updates the intro bubble,
+  // placeholder, and suggestion chips coherently. Without this, the bar
+  // appeared to switch but the intro + chips kept saying the previous loved
+  // one's name and the next /ask-wellet request could race with a stale
+  // currentPersonId mutation order.
+  if (typeof switchToRealPerson === 'function') {
+    try { switchToRealPerson(personId, el); return; } catch(_eSwitch) {}
+  }
+  // Fallback path (switchToRealPerson missing for some reason) — keep the
+  // old minimal behavior so the bar at least functions.
+  currentPersonId = personId;
   var person = currentPeople.find(function(p){ return p.id === personId; });
   var firstName = person ? person.name.split(' ')[0] : 'them';
   var inputEl = document.getElementById('ask-input');
@@ -14153,11 +21230,17 @@ function selectAskRealPerson(el, personId) {
     chips.innerHTML = buildAskChips(personId, firstName);
     chips.style.display = 'flex';
   }
-  addWelletMessage('Switched to ' + escHtml(firstName) + '. Ask me anything about their health records.');
+  try {
+    var introBubble = document.getElementById('ask-intro-bubble');
+    if (introBubble) {
+      introBubble.textContent = 'Ask me anything about ' + firstName + '\u2019s health. I\u2019ll answer from what\u2019s in ' + firstName + '\u2019s records.';
+    }
+  } catch(_eIntro) {}
 }
 
 function selectAskPerson(el, person) {
   // Demo mode only
+  try { _resetAskConversation(); } catch(_e){}
   _currentAskPerson = person;
   document.querySelectorAll('.ask-person-pill').forEach(function(p){ p.classList.remove('active'); });
   el.classList.add('active');
@@ -14268,7 +21351,7 @@ function stopVoiceInput() {
   var input = document.getElementById('ask-input');
   if (input && !input.value.trim()) {
     var firstName = isDemoMode ? (_currentAskPerson === 'mom' ? 'Mom' : 'Dad') :
-      (currentPeople.length ? currentPeople.find(function(p){return p.id===currentPersonId;})?.name.split(' ')[0] || 'them' : 'them');
+      (currentPeople.length ? currentPeople.find(function(p){return p.id===currentPersonId;})?.name.split(' ')[0] || 'your loved one' : 'your loved one');
     input.placeholder = 'Ask about ' + firstName + '\u2019s health\u2026';
   }
 }
@@ -14322,7 +21405,7 @@ function buildDemoContext(person) {
       + 'No significant changes this month. Next appointment is April 4.';
   }
   // Dad — built from DEMO_EHR_DATA + DEMO_CARESIGNALS
-  var ctx = 'Patient: Dad (John Bell), age 74\n'
+  var ctx = 'Patient: Dad (Don Bell), age 74\n'
     + 'Relationship: Father\n'
     + 'Conditions: Parkinson\'s disease (active, onset June 2023), Essential hypertension (active, onset March 2020)\n'
     + 'Allergies: Sulfonamide (moderate — skin rash, hives)\n'
@@ -14430,7 +21513,9 @@ function sendAskMessage() {
           bodyObj = {
             question: text,
             person_id: currentPersonId,
-            context: pendingCtx
+            context: pendingCtx,
+            history: (_askHistory || []).slice(0, -1).slice(-10),  // exclude the question we just added; cap 10
+            conversation_id: _askConversationId  // null on first turn, populated on subsequent
           };
         }
         return await withTimeout(fetch(
@@ -14458,7 +21543,7 @@ function sendAskMessage() {
         }
         if (!token) {
           removeTyping(typingId);
-          addWelletMessage('Your session expired. Please sign out and sign back in so I can access ' + escHtml((currentPeople.find(function(p){return p.id===currentPersonId;}) || {}).name || 'your records') + '.');
+          addWelletMessage('I\u2019m having trouble connecting right now. Please try again in a moment, or sign out and back in if it keeps happening.');
           return;
         }
         var res = await callAskWellet(token);
@@ -14500,15 +21585,24 @@ function sendAskMessage() {
             handleWatchModeResponse(data);
           } else {
             addWelletMessage(renderMarkdownSafe(data.answer || data.response || 'I couldn\u2019t find an answer to that.'));
+            // Voice v1: capture classification and conversation_id
+            _askLastClassification = data.classification || null;
+            if (data.conversation_id && !_askConversationId) _askConversationId = data.conversation_id;
+            // Persist this turn (user + assistant) into ask_messages via Supabase JS client
+            try { _persistAskTurn(text, data.answer || '', data.classification || 'other', data.model || null, !!data.live_ehr); } catch(_e){}
+            // Soft save chip for observation/prep
+            if (data.classification === 'observation' || data.classification === 'prep') {
+              _renderSaveChip(data.classification);
+            }
           }
         } else if (res.status === 401) {
           console.error('ask-wellet 401 after double refresh; prompting re-auth');
-          addWelletMessage('I\u2019m having trouble verifying your session. Tap the menu and sign out, then sign back in and I\u2019ll be ready.');
+          addWelletMessage('I couldn\u2019t verify your session after retrying. Please sign out and sign back in \u2014 I\u2019ll be ready when you return.');
         } else if (res.status === 404) {
           var errBody404 = '';
           try { errBody404 = await res.text(); } catch(_e){}
           console.error('ask-wellet 404', errBody404);
-          addWelletMessage('I couldn\u2019t look up those records just now. Please sign out and sign back in, then try again.');
+          addWelletMessage('I couldn\u2019t look up those records just now. Please try again in a moment.');
         } else {
           var errBody = '';
           try { errBody = await res.text(); } catch(_e){}
@@ -14591,7 +21685,12 @@ function addUserMessage(text) {
   g.className = 'chat-group from-user';
   g.innerHTML = '<div class="chat-bubble user">' + escHtml(text) + '</div>';
   area.appendChild(g);
+  // Real conversation started — release the empty-state cap so chat-area
+  // expands back to flex:1 and the conversation can scroll.
+  area.classList.remove('is-empty-state');
   area.scrollTop = area.scrollHeight;
+  // Voice v1: capture into history
+  try { _askHistory.push({ role: 'user', content: String(text || '') }); if (_askHistory.length > 20) _askHistory = _askHistory.slice(-20); } catch(_e){}
 }
 
 function addWelletMessage(html) {
@@ -14600,8 +21699,146 @@ function addWelletMessage(html) {
   g.className = 'chat-group from-wellet';
   g.innerHTML = '<div class="chat-bubble wellet">' + html + '</div>';
   area.appendChild(g);
+  area.classList.remove('is-empty-state');
   area.scrollTop = area.scrollHeight;
+  // Voice v1: optional TTS playback. Defaults OFF; enable via window._welletTTS = true.
+  try {
+    if (window._welletTTS && 'speechSynthesis' in window) {
+      var tmp = document.createElement('div'); tmp.innerHTML = html;
+      var plain = (tmp.textContent || tmp.innerText || '').trim();
+      if (plain && plain.length < 1200) {
+        var u = new SpeechSynthesisUtterance(plain);
+        u.rate = 1.0; u.pitch = 1.0;
+        // Prefer Samantha (iOS) or Google US English
+        try {
+          var voices = window.speechSynthesis.getVoices() || [];
+          var pref = voices.find(function(v){ return /samantha/i.test(v.name); })
+                  || voices.find(function(v){ return /google.*us english/i.test(v.name); })
+                  || voices.find(function(v){ return v.lang === 'en-US'; });
+          if (pref) u.voice = pref;
+        } catch(_e){}
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(u);
+      }
+    }
+  } catch(_e){}
   initIcons();
+  // Voice v1: capture plain text into history (strip HTML).
+  try {
+    var tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    var plain = (tmp.textContent || tmp.innerText || '').trim();
+    if (plain) {
+      _askHistory.push({ role: 'assistant', content: plain });
+      if (_askHistory.length > 20) _askHistory = _askHistory.slice(-20);
+    }
+  } catch(_e){}
+}
+
+// Voice v1: persist a turn into ask_messages. Lazy-creates the
+// ask_conversations row on first call. Best-effort — failures are logged
+// but don't break the chat flow.
+async function _persistAskTurn(userText, assistantText, classification, model, liveEhr) {
+  if (!currentPersonId || isDemoMode) return;
+  try {
+    // Lazy-create conversation row
+    if (!_askConversationId) {
+      var u = (db.auth.getUser ? (await db.auth.getUser()).data.user : null);
+      var ins = await db.from('ask_conversations').insert({
+        person_id: currentPersonId,
+        user_id: u && u.id,
+        modality: 'text',
+        save_state: 'pending'
+      }).select('id').single();
+      if (ins && ins.data && ins.data.id) _askConversationId = ins.data.id;
+    }
+    if (!_askConversationId) return;
+    // Insert both rows
+    await db.from('ask_messages').insert([
+      { conversation_id: _askConversationId, role: 'user', content: String(userText || ''), modality: 'text' },
+      { conversation_id: _askConversationId, role: 'assistant', content: String(assistantText || ''), modality: 'text', classification: classification || null, model: model || null, live_ehr_used: !!liveEhr }
+    ]);
+    // Bump counters on conversation
+    var counterCol = ({ observation: 'observations_count', prep: 'prep_count', lookup: 'lookup_count', other: 'other_count' })[classification] || 'other_count';
+    await db.rpc('increment_ask_conversation_counter', { conv_id: _askConversationId, col: counterCol }).catch(function(){ /* if rpc doesn't exist, skip */ });
+  } catch(e) {
+    console.warn('[ask-wellet] persistAskTurn failed:', e && e.message);
+  }
+}
+
+// Voice v1: render a soft "Save to timeline" chip under the latest Wellet bubble.
+function _renderSaveChip(classification) {
+  try {
+    var area = document.getElementById('chat-area');
+    if (!area) return;
+    var groups = area.querySelectorAll('.chat-group.from-wellet');
+    var last = groups[groups.length - 1];
+    if (!last) return;
+    // Don't double-render
+    if (last.querySelector('.ask-save-chip')) return;
+    var label = classification === 'prep' ? 'Save these questions to the timeline' : 'Save this to the timeline';
+    var chip = document.createElement('div');
+    chip.className = 'ask-save-chip';
+    chip.style.cssText = 'margin-top:6px;padding:6px 12px;border-radius:14px;background:rgba(167,201,160,0.14);color:var(--moss-deep,var(--moss));font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(167,201,160,0.35);';
+    chip.innerHTML = '<i data-lucide="bookmark" style="width:13px;height:13px;"></i>' + escHtml(label);
+    chip.addEventListener('click', function(e){ e.stopPropagation(); _openSaveToTimeline(); });
+    last.appendChild(chip);
+    if (typeof initIcons === 'function') initIcons();
+  } catch(_e){}
+}
+
+// Voice v1: open end-of-conversation save flow. Calls ask-wellet-save edge fn.
+async function _openSaveToTimeline() {
+  if (!_askConversationId || !currentPersonId) {
+    alert('Nothing to save yet — try asking a question first.');
+    return;
+  }
+  // Build default title from the last user turn
+  var defaultTitle = '';
+  try {
+    for (var i = _askHistory.length - 1; i >= 0; i--) {
+      if (_askHistory[i].role === 'user') {
+        defaultTitle = String(_askHistory[i].content).slice(0, 80);
+        break;
+      }
+    }
+  } catch(_e){}
+  var title = prompt('Give this conversation a short title for your timeline:', defaultTitle);
+  if (title === null) return;  // cancelled
+  title = (title || defaultTitle || 'Conversation with Wellet').trim().slice(0, 200);
+  try {
+    var ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU';
+    var s = await db.auth.getSession();
+    var tok = s && s.data && s.data.session && s.data.session.access_token;
+    if (!tok) { alert('Your session expired. Please sign back in.'); return; }
+    var res = await fetch('https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/ask-wellet-save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok, 'apikey': ANON_KEY },
+      body: JSON.stringify({ conversation_id: _askConversationId, title: title })
+    });
+    if (res.ok) {
+      addWelletMessage('Saved to ' + escHtml((currentPeople.find(function(p){return p.id===currentPersonId;}) || {}).name || 'their') + ' timeline.');
+      // Refresh timeline if visible
+      try { if (typeof renderTimeline === 'function') renderTimeline(); } catch(_e){}
+    } else {
+      var t = ''; try { t = await res.text(); } catch(_e){}
+      console.error('ask-wellet-save failed:', res.status, t);
+      addWelletMessage('I couldn\u2019t save that just now. Please try again in a moment.');
+    }
+  } catch(e) {
+    console.error('save failed:', e);
+    addWelletMessage('I couldn\u2019t save that just now. Please try again in a moment.');
+  }
+}
+
+// Voice v1: reset conversation state. Call this when the user switches loved
+// ones, when they explicitly tap "End conversation", or when they leave the
+// Ask Wellet tab.
+function _resetAskConversation() {
+  _askConversationId = null;
+  _askHistory = [];
+  _askSavePromptShown = false;
+  _askLastClassification = null;
 }
 
 function showTyping() {
@@ -14705,7 +21942,7 @@ function openShareFamily() {
 
   var firstName = getPersonFirstName();
   var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
-  var fullName = isDemoMode ? 'John Bell' : (person ? person.name : 'your loved one');
+  var fullName = isDemoMode ? 'Don Bell' : (person ? person.name : 'your loved one');
 
   // Update subtitle
   document.getElementById('share-sheet-sub').textContent = 'Send a summary of what\u2019s going on with ' + firstName;
@@ -14757,7 +21994,7 @@ var _lastShareUrl = '';
 function gatherSharePayload() {
   var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
   var firstName = getPersonFirstName();
-  var fullName = isDemoMode ? 'John Bell' : (person ? person.name : 'Patient');
+  var fullName = isDemoMode ? 'Don Bell' : (person ? person.name : 'Patient');
   var summaryText = document.getElementById('share-preview-text').textContent || '';
   var includeNotes = document.getElementById('share-toggle-notes').classList.contains('on');
   var includeMeds = document.getElementById('share-toggle-meds').classList.contains('on');
@@ -14843,8 +22080,16 @@ async function createShareLink(action) {
 
   try {
     var payload = gatherSharePayload();
-    var session = await db.auth.getSession();
-    var token = session.data.session ? session.data.session.access_token : '';
+    // 5s timeout on getSession() — supabase-js v2 can hang on iOS Safari
+    // when a silent token refresh stalls. Without this, the spinner sits forever.
+    var session = await Promise.race([
+      db.auth.getSession(),
+      new Promise(function(_, reject) {
+        setTimeout(function() { reject(new Error('Session timeout')); }, 5000);
+      })
+    ]);
+    var token = session.data && session.data.session ? session.data.session.access_token : '';
+    if (!token) throw new Error('No active session');
 
     var resp = await fetch(SUPABASE_URL + '/functions/v1/create-share', {
       method: 'POST',
@@ -14900,19 +22145,27 @@ async function createShareLink(action) {
       var fbToken = generateShareToken();
       var expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-      var { data, error } = await db.from('shares').insert({
-        token: fbToken,
-        user_id: currentUser.id,
-        person_id: fallbackPayload.person_id,
-        person_name: fallbackPayload.person_name,
-        summary_text: fallbackPayload.summary_text,
-        recent_events: fallbackPayload.recent_events,
-        medications: fallbackPayload.medications,
-        appointments: fallbackPayload.appointments,
-        include_notes: fallbackPayload.include_notes,
-        include_meds: fallbackPayload.include_meds,
-        expires_at: expiresAt
-      }).select().single();
+      // 8s timeout on fallback insert — same supabase-js client, same hang risk
+      var insertRes = await Promise.race([
+        db.from('shares').insert({
+          token: fbToken,
+          user_id: currentUser.id,
+          person_id: fallbackPayload.person_id,
+          person_name: fallbackPayload.person_name,
+          summary_text: fallbackPayload.summary_text,
+          recent_events: fallbackPayload.recent_events,
+          medications: fallbackPayload.medications,
+          appointments: fallbackPayload.appointments,
+          include_notes: fallbackPayload.include_notes,
+          include_meds: fallbackPayload.include_meds,
+          expires_at: expiresAt
+        }).select().single(),
+        new Promise(function(_, reject) {
+          setTimeout(function() { reject(new Error('Insert timeout')); }, 8000);
+        })
+      ]);
+      var data = insertRes && insertRes.data;
+      var error = insertRes && insertRes.error;
 
       if (error) throw error;
 
@@ -14967,7 +22220,7 @@ function copyShareLink() {
 async function openShareEmail(url) {
   var firstName = getPersonFirstName();
   var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
-  var fullName = isDemoMode ? 'John Bell' : (person ? person.name : firstName);
+  var fullName = isDemoMode ? 'Don Bell' : (person ? person.name : firstName);
 
   // Gather selected recipients
   var recipients = [];
@@ -15040,6 +22293,233 @@ async function openShareEmail(url) {
     showToast('Opened in Mail (fallback)');
   }
 }
+
+// ─── ADD OUTSIDE VISIT (manual) ───────────────────────────────────────────
+// Care that happens outside the EHR we're connected to — PT, EMG,
+// nutritionist, an out-of-network ER trip. Same encounter card shape as
+// EHR-sourced visits but with an "Added manually" pill.
+// ─────────────────────────────────────────────────────────────────────────
+var _manualVisitState = {
+  service_slug: null,    // e.g. 'physical_therapy'
+  service_item: null,    // entry from WELLET_MANUAL_VISIT_BY_SLUG
+  file: null,            // optional File pending upload
+};
+
+function openManualVisit(opts) {
+  if (!currentPersonId) { showToast('Pick a family member first.'); return; }
+  _manualVisitState = { service_slug: null, service_item: null, file: null };
+  renderManualVisitPickList();
+  // Reset form state.
+  var d = document.getElementById('manual-visit-date');
+  if (d) {
+    var dateStr = (opts && opts.date) ? opts.date : new Date().toISOString().slice(0,10);
+    d.value = dateStr;
+  }
+  ['manual-visit-other-label','manual-visit-provider','manual-visit-reason','manual-visit-notes'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  var fileLabel = document.getElementById('manual-visit-file-label');
+  if (fileLabel) fileLabel.textContent = 'Choose file (PT eval, EMG report, etc.)';
+  var fileInput = document.getElementById('manual-visit-file');
+  if (fileInput) fileInput.value = '';
+  // Show step 1, hide step 2.
+  document.getElementById('manual-visit-step1').style.display = '';
+  document.getElementById('manual-visit-step2').style.display = 'none';
+  // Personalize subtitle with first name — "your" in self-mode, "Mom\u2019s" otherwise.
+  var sub = document.getElementById('manual-visit-sub');
+  if (sub) {
+    var firstName = (typeof getPersonFirstName === 'function') ? getPersonFirstName() : '';
+    var poss = (typeof possSegment === 'function')
+      ? possSegment(isSelfMode() ? '' : firstName, true)
+      : (firstName ? firstName + '\u2019s' : 'the');
+    sub.textContent = "Care that didn\u2019t come through " + poss + " connected EHR \u2014 physical therapy, EMG, a nutritionist, an outside ER trip.";
+  }
+  openSheetAccessible('manual-visit-overlay');
+  initIcons();
+}
+
+function closeManualVisit() {
+  closeSheet('manual-visit-overlay');
+}
+
+function renderManualVisitPickList() {
+  var groups = window.WELLET_MANUAL_VISIT_TYPES || [];
+  var html = '';
+  groups.forEach(function (g) {
+    html += '<div class="manual-visit-group-label">' + escHtml(g.section) + '</div>';
+    html += '<div class="manual-visit-options">';
+    g.items.forEach(function (item) {
+      var classInfo = window.WELLET_ENCOUNTER_CLASS_INFO[item.encounter_class] || {};
+      var dotColor = classInfo.hex || '#4b6341';
+      html += '<button type="button" class="manual-visit-option" data-slug="' + escHtml(item.slug) + '" onclick="pickManualVisitType(\'' + escHtml(item.slug) + '\')">';
+      html += '<span class="manual-visit-option-icon"><i data-lucide="' + escHtml(item.icon) + '"></i></span>';
+      html += '<span class="manual-visit-option-label">' + escHtml(item.label) + '</span>';
+      html += '<span class="manual-visit-option-dot" style="background:' + dotColor + ';" title="' + escHtml(classInfo.label || '') + '"></span>';
+      html += '</button>';
+    });
+    html += '</div>';
+  });
+  var host = document.getElementById('manual-visit-picklist');
+  if (host) {
+    host.innerHTML = html;
+    initIcons();
+  }
+}
+
+function pickManualVisitType(slug) {
+  var item = window.WELLET_MANUAL_VISIT_BY_SLUG[slug];
+  if (!item) return;
+  _manualVisitState.service_slug = slug;
+  _manualVisitState.service_item = item;
+  // Show selected chip on step 2.
+  var classInfo = window.WELLET_ENCOUNTER_CLASS_INFO[item.encounter_class] || {};
+  var sel = document.getElementById('manual-visit-selected');
+  if (sel) {
+    sel.innerHTML =
+      '<span class="manual-visit-selected-icon" style="color:' + (classInfo.hex || '#4b6341') + ';"><i data-lucide="' + escHtml(item.icon) + '"></i></span>'
+      + '<span class="manual-visit-selected-label">' + escHtml(item.label) + '</span>'
+      + '<span class="manual-visit-selected-class">' + escHtml(classInfo.label || '') + '</span>';
+  }
+  // Show or hide the custom label field. Required for 'other', optional otherwise.
+  var otherLabel = document.getElementById('manual-visit-other-label');
+  var otherWrap = otherLabel ? otherLabel.closest('.manual-visit-field') : null;
+  if (otherWrap) {
+    if (slug === 'other') {
+      otherWrap.style.display = '';
+      otherLabel.placeholder = 'What was this visit? (required)';
+      var labelSpan = otherWrap.querySelector('.manual-visit-field-label');
+      if (labelSpan) labelSpan.textContent = 'What was this visit?';
+    } else {
+      // Keep visible but optional \u2014 lets people add detail like "EMG of left leg".
+      otherWrap.style.display = '';
+      otherLabel.placeholder = 'Optional detail \u2014 e.g. ' + (item.label.toLowerCase()) + ' of left leg';
+      var labelSpan2 = otherWrap.querySelector('.manual-visit-field-label');
+      if (labelSpan2) labelSpan2.textContent = 'Custom label (optional)';
+    }
+  }
+  document.getElementById('manual-visit-step1').style.display = 'none';
+  document.getElementById('manual-visit-step2').style.display = '';
+  initIcons();
+  // Move focus to the date input \u2014 most likely first field user wants to set.
+  setTimeout(function () {
+    var d = document.getElementById('manual-visit-date');
+    if (d) d.focus();
+  }, 80);
+}
+
+function manualVisitBackToStep1() {
+  document.getElementById('manual-visit-step1').style.display = '';
+  document.getElementById('manual-visit-step2').style.display = 'none';
+  initIcons();
+}
+
+function onManualVisitFilePicked(input) {
+  var f = input && input.files && input.files[0];
+  var label = document.getElementById('manual-visit-file-label');
+  if (!f) {
+    _manualVisitState.file = null;
+    if (label) label.textContent = 'Choose file (PT eval, EMG report, etc.)';
+    return;
+  }
+  if (f.size > 25 * 1024 * 1024) {
+    showToast('File is over 25MB \u2014 try a smaller one.');
+    input.value = '';
+    _manualVisitState.file = null;
+    return;
+  }
+  _manualVisitState.file = f;
+  if (label) label.textContent = f.name;
+}
+
+async function saveManualVisit() {
+  var item = _manualVisitState.service_item;
+  if (!item) { showToast('Pick a visit type.'); return; }
+  if (!currentPersonId) { showToast('Pick a family member first.'); return; }
+
+  var dateEl = document.getElementById('manual-visit-date');
+  var dateStr = dateEl ? (dateEl.value || '').trim() : '';
+  if (!dateStr) { showToast('Pick a date for the visit.'); if (dateEl) dateEl.focus(); return; }
+
+  var customLabel = (document.getElementById('manual-visit-other-label').value || '').trim();
+  if (item.slug === 'other' && !customLabel) {
+    showToast('Describe what this visit was.');
+    document.getElementById('manual-visit-other-label').focus();
+    return;
+  }
+  var provider = (document.getElementById('manual-visit-provider').value || '').trim();
+  var reason   = (document.getElementById('manual-visit-reason').value   || '').trim();
+  var notes    = (document.getElementById('manual-visit-notes').value    || '').trim();
+
+  // Display label for the timeline card.
+  var displayLabel = customLabel || item.label;
+  // Event title: label \u2014 provider when provided.
+  var title = provider ? (displayLabel + ' \u2014 ' + provider) : displayLabel;
+  var classInfo = window.WELLET_ENCOUNTER_CLASS_INFO[item.encounter_class] || {};
+
+  // Disable the save button while inserting.
+  var btn = document.getElementById('manual-visit-save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+
+  try {
+    // Build event_date as ISO at noon UTC so it lands on the right day in any
+    // viewer's timezone (avoids the "PT visit shows up on the day before" bug).
+    var iso = new Date(dateStr + 'T12:00:00Z').toISOString();
+
+    var row = {
+      person_id: currentPersonId,
+      event_type: 'visit',
+      event_date: iso,
+      title: title,
+      notes: notes || null,
+      source: 'manual',
+      // Encounter metadata so the rollup query treats manual visits the same
+      // as EHR-sourced visits.
+      encounter_class_code: item.encounter_class,
+      encounter_class_display: classInfo.label || null,
+      encounter_service_provider: provider || null,
+      encounter_reason_text: reason || null,
+      manual_service_type: item.slug,
+      manual_service_label: displayLabel,
+    };
+
+    var ins = await db.from('health_events').insert(row).select().single();
+    if (ins.error) {
+      console.error('[manual-visit] insert error', ins.error);
+      showToast('Couldn\u2019t save visit: ' + (ins.error.message || 'unknown error'));
+      if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+      return;
+    }
+
+    // Optional file upload \u2014 ties to the new event via visit_attachments.event_id.
+    if (_manualVisitState.file) {
+      try {
+        await uploadAttachment(_manualVisitState.file, 'manual_visit', 'event', ins.data.id);
+      } catch (e) {
+        console.warn('[manual-visit] attachment failed (visit still saved)', e);
+      }
+    }
+
+    // Refresh local cache + redraw the timeline.
+    try { await loadPersonData(currentPersonId); } catch (e) { console.warn(e); }
+    closeManualVisit();
+    showToast('Added ' + displayLabel + ' on ' + formatDateShort(iso));
+  } catch (e) {
+    console.error('[manual-visit] save error', e);
+    showToast('Couldn\u2019t save visit.');
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+  }
+}
+
+// Small date formatter used in the success toast. Falls back gracefully when
+// the existing app helper isn't in scope.
+function formatDateShort(iso) {
+  try {
+    var d = new Date(iso);
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  } catch (e) { return ''; }
+}
+
 function openExportVisit() {
   var firstName = getPersonFirstName();
   var subEl = document.getElementById('export-sheet-sub');
@@ -15887,6 +23367,191 @@ function conditionToSlugs(condStr) {
   return Object.keys(slugs);
 }
 
+// ── CAREGIVER PAY PROGRAMS ─────────────────────────────────────────────────
+// Surfaces 1-4 federal/state programs that may pay the family caregiver, the
+// loved one's clinic, or both, based on diagnosis and insurance signals in
+// the chart. Informational only — Wellet does not pay caregivers and does not
+// guarantee program approval. We surface eligibility; the family applies.
+//
+// Feature flag: localStorage.getItem('wellet_caregiver_pay_cards') — defaults
+// to '1' (on). Set to '0' to hide instantly if compliance feedback comes in.
+var CAREGIVER_PAY_PREF_KEY = 'wellet_caregiver_pay_cards';
+function isCaregiverPayEnabled() {
+  try {
+    var v = localStorage.getItem(CAREGIVER_PAY_PREF_KEY);
+    return v === null || v === '1';
+  } catch (e) { return true; }
+}
+
+// Four programs. Order is the default sort priority when no diagnosis signal
+// boosts a specific card. Matching boosts move the most-relevant card to top.
+var CAREGIVER_PAY_PROGRAMS = [
+  {
+    id: 'medicare_cts',
+    eyebrow: 'Medicare \u00b7 any care plan',
+    title: 'Ask your loved one\u2019s clinic to bill caregiver training',
+    body: 'Medicare pays physicians and therapists to train family caregivers \u2014 codes 96202, 97550, and G0541. There is no diagnosis restriction. Most clinics do not bill it because no one asks.',
+    primaryCtaLabel: 'Open the CMS FAQ',
+    primaryCtaUrl: 'https://www.cms.gov/files/document/health-related-social-needs-faq.pdf',
+    secondaryCtaLabel: 'How Wellet helps',
+    secondaryCtaUrl: 'https://getwellet.com/use-cases.html#medicare-cts',
+    dollarBadge: 'Per session',
+    defaultPriority: 1
+  },
+  {
+    id: 'va_pcafc',
+    eyebrow: 'VA \u00b7 service-connected veterans',
+    title: 'VA may pay you up to $2,500/month tax-free to care for your veteran',
+    body: 'The VA Program of Comprehensive Assistance for Family Caregivers pays primary family caregivers directly. Your veteran needs a serious service-connected condition and a documented care need. Wellet helps you gather the records the application requires.',
+    primaryCtaLabel: 'Check PCAFC eligibility',
+    primaryCtaUrl: 'https://www.caregiver.va.gov/support/PCAFC-Stipend.asp',
+    secondaryCtaLabel: 'How Wellet helps',
+    secondaryCtaUrl: 'https://getwellet.com/use-cases.html#va-pcafc',
+    dollarBadge: 'Up to $2,500/mo',
+    defaultPriority: 2
+  },
+  {
+    id: 'medicaid_sfc',
+    eyebrow: 'Medicaid \u00b7 state-by-state',
+    title: 'Your state\u2019s Medicaid may pay you up to $1,100/month',
+    body: 'Structured Family Caregiving pays a family member who lives with and provides daily care for a Medicaid-eligible loved one with a nursing-home-level care need. North Carolina partners with Careforth. Other states use different agencies.',
+    primaryCtaLabel: 'See if your loved one qualifies (NC)',
+    primaryCtaUrl: 'https://join.careforth.com/nc/',
+    secondaryCtaLabel: 'Find your state\u2019s program',
+    secondaryCtaUrl: 'https://www.medicaidplanningassistance.org/structured-family-caregiving/',
+    dollarBadge: 'Up to $1,100/mo (NC)',
+    defaultPriority: 3
+  },
+  {
+    id: 'cms_guide',
+    eyebrow: 'Medicare \u00b7 dementia',
+    title: 'GUIDE may add up to $2,500/year in respite if your loved one has dementia',
+    body: 'The CMS GUIDE Model pays participating clinics to deliver dementia care management and pays for up to $2,500/year of respite services so you can rest. Around 400 organizations participate nationwide.',
+    primaryCtaLabel: 'Find a GUIDE participant',
+    primaryCtaUrl: 'https://www.cms.gov/priorities/innovation/innovation-models/guide',
+    secondaryCtaLabel: 'How Wellet helps',
+    secondaryCtaUrl: 'https://getwellet.com/use-cases.html#cms-guide',
+    dollarBadge: 'Up to $2,500/yr',
+    defaultPriority: 4
+  }
+];
+
+// Returns the ordered list of programs to show for this person plus a
+// per-program "why" line when we can show one. v1 uses chart-condition
+// signals only; v2 will add insurance + ADL signals from CareSignals.
+function getCaregiverPayMatches(person) {
+  if (!isCaregiverPayEnabled()) return [];
+  if (!person) {
+    return CAREGIVER_PAY_PROGRAMS.map(function(p){ return { program: p, why: null, score: p.defaultPriority }; });
+  }
+
+  var conditionsRaw = (person.conditions || '').toLowerCase();
+  var slugs = conditionToSlugs(person.conditions || '');
+  var slugSet = {};
+  slugs.forEach(function(s) { slugSet[s] = true; });
+
+  // Detect VA chart connection. Wellet tags VA Lighthouse connections under
+  // a few possible flags; check the most reliable signals first.
+  var hasVaConnection = false;
+  try {
+    var conns = (person.ehr_connections || person.connections || []);
+    if (Array.isArray(conns)) {
+      hasVaConnection = conns.some(function(c){
+        var v = (c && (c.vendor || c.system || c.provider) || '').toLowerCase();
+        var name = (c && c.hospital_name || '').toLowerCase();
+        return v.indexOf('va') === 0 || v.indexOf('lighthouse') >= 0 || name.indexOf('va.gov') >= 0 || name.indexOf('veterans') >= 0;
+      });
+    }
+    if (!hasVaConnection && person.is_veteran === true) hasVaConnection = true;
+  } catch (e) { /* defensive */ }
+
+  return CAREGIVER_PAY_PROGRAMS.map(function(p) {
+    var score = p.defaultPriority * 10; // lower is higher
+    var why = null;
+
+    if (p.id === 'cms_guide' && slugSet.dementia) {
+      score = 1;
+      why = 'Surfaced first because your loved one\u2019s chart lists dementia.';
+    } else if (p.id === 'cms_guide' && slugSet.alzheimers) {
+      score = 1;
+      why = 'Surfaced first because your loved one\u2019s chart lists Alzheimer\u2019s.';
+    } else if (p.id === 'va_pcafc' && hasVaConnection) {
+      score = 2;
+      why = 'Surfaced first because a VA chart is connected.';
+    } else if (p.id === 'medicare_cts') {
+      // CTS applies to any care plan. Keep it near the top — it\u2019s the
+      // most universally accessible signal.
+      score = Math.min(score, 5);
+    }
+
+    return { program: p, why: why, score: score };
+  }).sort(function(a, b) { return a.score - b.score; });
+}
+
+// Logs a card view / cta tap to Supabase if a user is signed in. Best-effort.
+function _logCaregiverPayEvent(eventType, cardId, ctaLabel) {
+  try {
+    if (!currentUser || !db || isDemoMode) return;
+    db.from('resource_card_events').insert({
+      user_id: currentUser.id,
+      care_recipient_id: currentPersonId || null,
+      card_id: cardId,
+      event_type: eventType,
+      cta: ctaLabel || null
+    }).then(function(){ /* best-effort */ }, function(){ /* swallow */ });
+  } catch (e) { /* swallow */ }
+}
+// Expose for inline onclick handlers in the card markup.
+try { window.logCaregiverPayCta = function(cardId, ctaLabel) { _logCaregiverPayEvent('cta_tap', cardId, ctaLabel); }; } catch(e) {}
+
+function renderCaregiverPaySection(person) {
+  if (!isCaregiverPayEnabled()) return '';
+  var matches = getCaregiverPayMatches(person);
+  if (!matches.length) return '';
+
+  var personName = (person && person.name) ? person.name.split(' ')[0] : 'your loved one';
+  var html = '<div class="resources-section caregiver-pay-section">';
+  html += '<div class="resources-section-title">Caregiver pay programs</div>';
+  html += '<p class="caregiver-pay-eyebrow" style="margin:4px 0 18px;color:var(--text-muted);font-size:var(--type-meta);line-height:1.45;">'
+       +  'Programs that may pay you, your family, or '
+       +  escHtml(personName) + '\u2019s clinic \u2014 based on her diagnosis and coverage.'
+       +  '</p>';
+
+  for (var i = 0; i < matches.length; i++) {
+    var m = matches[i];
+    var p = m.program;
+    var cardId = escHtml(p.id);
+    html += '<div class="resource-card caregiver-pay-card" data-card-id="' + cardId + '" style="border-left:3px solid #b8956b;">';
+    html += '<div class="resource-card-header">';
+    html += '<div class="resource-card-name" style="line-height:1.3;">' + escHtml(p.title) + '</div>';
+    html += '<span class="resource-tag" style="background:#faf3e8;color:#8a6a3f;border:1px solid #e8d5b0;">' + escHtml(p.dollarBadge) + '</span>';
+    html += '</div>';
+    html += '<div class="caregiver-pay-eyebrow-row" style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#b8956b;font-weight:600;margin:6px 0 8px;">' + escHtml(p.eyebrow) + '</div>';
+    if (m.why) {
+      html += '<p class="resources-why" style="margin:0 0 10px;font-style:normal;color:var(--text-muted);font-size:var(--type-meta);">' + escHtml(m.why) + '</p>';
+    }
+    html += '<div class="resource-card-desc">' + escHtml(p.body) + '</div>';
+    html += '<div class="resource-card-actions">';
+    html += '<a class="resource-btn resource-btn-visit" href="' + escHtml(p.primaryCtaUrl) + '" target="_blank" rel="noopener noreferrer" '
+         +  'onclick="try{logCaregiverPayCta(\'' + cardId + '\',\'primary\')}catch(e){}">'
+         +  '<i data-lucide="external-link" style="width:14px;height:14px;"></i> ' + escHtml(p.primaryCtaLabel)
+         +  '</a>';
+    if (p.secondaryCtaUrl) {
+      html += '<a class="resource-btn" href="' + escHtml(p.secondaryCtaUrl) + '" target="_blank" rel="noopener noreferrer" '
+           +  'style="background:transparent;color:var(--text-muted);" '
+           +  'onclick="try{logCaregiverPayCta(\'' + cardId + '\',\'secondary\')}catch(e){}">'
+           +  escHtml(p.secondaryCtaLabel) + ' \u2192</a>';
+    }
+    html += '</div></div>';
+  }
+
+  html += '<p class="caregiver-pay-disclaimer" style="margin:18px 0 4px;color:var(--text-muted);font-size:11px;line-height:1.5;">'
+       +  'Wellet does not pay caregivers and does not guarantee program approval. Eligibility and payment amounts are set by each program. We surface programs that may match your loved one\u2019s diagnosis, coverage, and care needs \u2014 you apply directly to the program.'
+       +  '</p>';
+  html += '</div>';
+  return html;
+}
+
 async function loadResources() {
   if (_resourcesLoaded && _resourcesCache.length > 0) return;
   var { data, error } = await db.from('caregiver_resources').select('*').eq('vetted', true).order('name');
@@ -16038,6 +23703,9 @@ async function renderResourcesView() {
   // Legacy title/sub kept in markup for back-compat; CSS hides them.
   html += '<div class="resources-view-title">Resources</div>';
   html += '<div class="resources-view-sub">Vetted organizations that support caregivers like you. Bookmark any to save for later.</div>';
+
+  // Caregiver-pay programs section (top of Resources).
+  html += renderCaregiverPaySection(person);
 
   // Saved section
   if (saved.length > 0) {
@@ -16736,7 +24404,9 @@ function buildInviteRightNow(personName, personId) {
   var appts = [];
   try {
     appts = (typeof liveEvents !== 'undefined' ? liveEvents : []).filter(function(e) {
-      return e && e.event_type === 'appointment' && e.event_date
+      // Accept both 'appointment' and 'visit' — Duke/Epic send Encounters as
+      // event_type='visit'. Same filter for past-window cutoff.
+      return e && (e.event_type === 'appointment' || e.event_type === 'visit') && e.event_date
         && new Date(e.event_date) >= new Date(now.getTime() - 3600000);
     }).map(function(e) {
       return { title: e.title || '', date: new Date(e.event_date) };
@@ -16852,7 +24522,7 @@ function buildInviteRightNow(personName, personId) {
 function buildInviteCopy(args) {
   var memberName = args.memberName || 'there';
   var personName = args.personName || 'my loved one';
-  var firstName = (personName || '').split(' ')[0] || 'them';
+  var firstName = (personName || '').split(' ')[0] || 'your loved one';
   var role = (args.role || 'secondary').toLowerCase();
   if (role !== 'primary' && role !== 'emergency') role = 'secondary';
   var inviteLink = args.inviteLink || '';
@@ -16998,7 +24668,7 @@ function openInviteChannelChooser(inviteArgs, member, data) {
   sheet.className = 'sheet';
   sheet.style.cssText = 'background:white;border-radius:20px 20px 0 0;width:100%;max-width:520px;padding:24px 20px 32px;box-shadow:0 -8px 24px rgba(0,0,0,0.15);';
 
-  var firstName = (inviteArgs.personName || '').split(' ')[0] || 'them';
+  var firstName = (inviteArgs.personName || '').split(' ')[0] || 'your loved one';
   sheet.innerHTML =
     '<div style="font-family:var(--serif);font-size:var(--type-h2);margin-bottom:6px;color:var(--text-primary);">Send invite to ' + escHtml(inviteArgs.memberName) + '</div>'
     + '<div style="font-size:var(--type-meta);color:var(--text-secondary);margin-bottom:20px;line-height:1.5;">A personalized invite to join ' + escHtml(firstName) + "'s care circle. Pick how you'd like to send it." + '</div>'
@@ -17078,12 +24748,22 @@ function _firstSyncCounts(data) {
 // Otherwise (legacy chat-onboarding path), shows a single CTA into Records.
 function openFirstSyncWelcome(personId, data) {
   if (!personId || !data) { switchNavTo('records'); return; }
+  // BDB onboarding animation: a terminal data event has landed. Close any
+  // in-flight connect-progress UI (inline strip + cinematic stage) so this
+  // success overlay can land cleanly on top. Safe no-op if nothing was
+  // showing.
+  try {
+    if (typeof finalizeConnectProgress === 'function') {
+      finalizeConnectProgress('ehr');
+      finalizeConnectProgress('va');
+    }
+  } catch(_e) {}
 
   // Resolve a friendly first name without depending on currentPeople loading order.
   var person = (typeof currentPeople !== 'undefined' && currentPeople)
     ? currentPeople.find(function(p){ return p.id === personId; }) : null;
   var fullName = (person && person.name) || (data.patient && data.patient.name) || 'your loved one';
-  var firstName = (fullName || '').split(' ')[0] || 'them';
+  var firstName = (fullName || '').split(' ')[0] || 'your loved one';
 
   var counts = _firstSyncCounts(data);
   var rightNow = buildInviteRightNow(fullName, personId);
@@ -17298,13 +24978,45 @@ function _headerMenuOutsideClick(e) {
   }
 }
 
+// 2026-06-01: Gate developer-only UI (multi-hospital preview toggle, version
+// strings) so non-admin users don't see internal tooling. Admin is currently
+// just the founder's email; if we add a team this lifts to a roles table.
+function _isWelletAdmin() {
+  try {
+    if (!currentUser) return false;
+    var email = (currentUser.email || '').toLowerCase().trim();
+    if (!email) return false;
+    var admins = ['betsy.eble@gmail.com'];
+    return admins.indexOf(email) !== -1;
+  } catch(_e) { return false; }
+}
+
+function _applySettingsAdminGate() {
+  var isAdmin = _isWelletAdmin();
+  var devSection = document.getElementById('sv-developer-preview-section');
+  if (devSection) devSection.style.display = isAdmin ? '' : 'none';
+  var versionEl = document.getElementById('sv-version-string');
+  if (versionEl) versionEl.style.display = isAdmin ? '' : 'none';
+}
+
 function openSettings() {
-  // P4: Navigate to full-page settings view
-  updateSettingsAccount();
-  updateSettingsEhr();
-  if (!isDemoMode) { renderCareCircle(); }
-  renderSettingsPlanCard();
-  try { updatePhase2ToggleUI(); } catch(e){}
+  // P4: Navigate to full-page settings view.
+  // Defensive try-catch around each update so a single failure can't
+  // prevent the view from rendering.
+  try { updateSettingsAccount(); } catch(_e) {}
+  try { updateSettingsEhr(); } catch(_e) {}
+  if (!isDemoMode) { try { renderCareCircle(); } catch(_e) {} }
+  try { renderSettingsPlanCard(); } catch(_e) {}
+  try { renderPasskeysSection(); } catch(_e) {}
+  try { _applySettingsAdminGate(); } catch(_e) {}
+  try { updatePhase2ToggleUI(); } catch(_e) {}
+  try { updateTrialsToggleUI(); } catch(_e) {}
+  try { updateFdaToggleUI(); } catch(_e) {}
+  try { updateCentersToggleUI(); } catch(_e) {}
+  try { updateAdvocacyToggleUI(); } catch(_e) {}
+  try { updateResearchToggleUI(); } catch(_e) {}
+  // Update the Connected Sources section header with the active person's name.
+  try { _updateSvConnectedSourcesHeader(); } catch(_e) {}
   switchNavTo('settings');
   initIcons();
 }
@@ -18096,6 +25808,17 @@ function switchTab(el, id) {
 }
 
 function switchNavTo(view, skipPush) {
+  // D14: the Welcome overlay (qa-overlay) sits above the bottom nav and was
+  // absorbing taps — the active tab pill flipped but the view didn\u2019t switch
+  // because the overlay swallowed the event. Any nav tap now dismisses the
+  // overlay first so the nav action proceeds normally on the next tap and,
+  // because the overlay is gone, this tap as well.
+  try {
+    var _welcomeEl = document.getElementById('welcome-overlay');
+    if (_welcomeEl && _welcomeEl.classList.contains('show')) {
+      closeSheet('welcome-overlay');
+    }
+  } catch (_e) {}
   document.querySelectorAll('.app-view').forEach(function(v){ v.classList.remove('active'); });
   var viewEl = document.getElementById('view-' + view);
   if (!viewEl) { console.warn('switchNavTo: no view for', view); return; }
@@ -18119,11 +25842,16 @@ function switchNavTo(view, skipPush) {
   document.getElementById('header-tab-bar').style.display = isHome ? 'flex' : 'none';
   if (view === 'signals') { renderSignalsView(); }
   if (view === 'resources') { renderResourcesView(); }
+  if (view === 'records') { try { renderRecordsView(); } catch(_e) {} }
   if (view === 'people' && !isDemoMode) { renderPeopleView(); }
-  if (view === 'ask' && !isDemoMode) { renderAskView(); }
+  // 2026-06-01 (D5): call renderAskView in demo mode too so the demo branch
+  // inside it (starter chip seeding) runs and the "Some places to start"
+  // section is never empty for reviewers.
+  if (view === 'ask') { try { renderAskView(); } catch(_e) {} }
   if (view === 'settings') {
     updateSettingsViewAccount();
     if (!isDemoMode) { try { renderCareCircle(); } catch(e){} }
+    try { _updateSvConnectedSourcesHeader(); } catch(e){}
   }
   // Push history state for back button support
   if (!skipPush && view !== _currentNavView) {
@@ -18145,6 +25873,26 @@ function switchPerson(el, personKey) {
   headerPills.forEach(function(p, i){ p.classList.remove('active'); p.setAttribute('aria-selected', 'false'); if (p === el) idx = i; });
   el.classList.add('active');
   el.setAttribute('aria-selected', 'true');
+  // LIVE-MODE SAFETY NET: if a real-account pill somehow got wired to the
+  // legacy switchPerson(this) onclick instead of switchToRealPerson, we still
+  // need to actually switch the active person. Find the corresponding entry
+  // in currentPeople by pill index and delegate.
+  if (!isDemoMode) {
+    try {
+      // Build the same filtered list that renderPersonSwitcher uses so the
+      // index here lines up with the visible pill index.
+      var visiblePeople = (currentPeople || []).filter(function(p) {
+        var st = p.care_status || 'active';
+        return st !== 'archived' && st !== 'closed';
+      });
+      var matched = visiblePeople[idx];
+      if (matched && matched.id && matched.id !== currentPersonId
+          && typeof switchToRealPerson === 'function') {
+        switchToRealPerson(matched.id, el);
+        return; // switchToRealPerson handles everything below
+      }
+    } catch(_eLive) {}
+  }
   var bg = _personBgPalette[idx % _personBgPalette.length];
   document.documentElement.style.setProperty('--person-bg', bg);
   // Mark the active person on <body> so any view can react via CSS/JS hooks
@@ -18273,7 +26021,7 @@ var obChat = {
 };
 
 var _obChatSituations = [
-  { id: 'aging_parent', label: 'An aging parent' },
+  { id: 'aging_parent', label: 'An aging loved one' },
   { id: 'partner',      label: 'My partner or spouse' },
   { id: 'child',        label: 'My child' },
   { id: 'self',         label: 'Myself' },
@@ -18559,7 +26307,7 @@ async function obHandleVaCcda(file, inputEl) {
   } catch (e) {
     console.error('merge failed', e);
     await supabase.from('ehr_source_events').update({ parse_status: 'failed', parse_error: String(e).slice(0,500) }).eq('id', sourceEvent.id);
-    obAddBubble('wellet', 'I got partway through reading it and hit a snag. Your file is saved \u2014 try uploading again or email me at betsy.eble@gmail.com.');
+    obAddBubble('wellet', 'I got partway through reading it and hit a snag. Your file is saved \u2014 try uploading again or email us at hello@getwellet.com.');
     if (inputEl) inputEl.value = '';
     return;
   }
@@ -19329,7 +27077,7 @@ async function obSend() {
       obChat.phase = 'person_name';
       obSaveChatState();
       setTimeout(function(){
-        obTypeThen('Nice to meet you, ' + escHtml(val) + '. And what should I call the person you\u2019re caring for?', function(){
+        obTypeThen('Nice to meet you, ' + escHtml(val) + '. And what should I call your loved one?', function(){
           document.getElementById('ob-input').disabled = false;
           document.getElementById('ob-send-btn').disabled = false;
           document.getElementById('ob-input').placeholder = 'Their name\u2026';
@@ -20058,9 +27806,771 @@ function pdfAddFooter(doc) {
 }
 
 function getPersonFirstName() {
-  if (isDemoMode) return 'John';
+  if (isDemoMode) {
+    // Demo characters are Don Bell (Dad) and Margaret Bell (Mom). Resolve
+    // from _currentAskPerson when set, then fall back to which Records pill
+    // is visible (records-mom shown means Mom). Default to Don.
+    if (typeof _currentAskPerson !== 'undefined' && _currentAskPerson === 'mom') return 'Margaret';
+    try {
+      var momEl = document.getElementById('records-mom');
+      if (momEl && momEl.style.display !== 'none') return 'Margaret';
+    } catch(_e) {}
+    return 'Don';
+  }
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
   return person ? person.name.split(' ')[0] : 'Patient';
+}
+
+// ── HEALTH STORY ────────────────────────────────────────────────────────────
+// Pulls timeline events in a date range and weaves them into plain-English
+// prose a family member can read aloud at a specialist visit. Optional anchor
+// ("This started June 1 when she fell") opens the story. Output is rendered
+// on-screen, can be copied, exported to PDF, or emailed to the signed-in user.
+//
+// Reuses the same merged event sources renderTimeline() uses: liveEvents +
+// EHR data (visits / labs / meds / immunizations / observations / conditions)
+// + medication logs + check-ins + CareSignals fires. Everything in this module
+// is read-only.
+
+window._lastStoryMeta = null;   // { fromIso, toIso, anchor, cause, personName, body }
+window._lastStoryPlain = '';    // plain-text version for copy/email
+window._storyCause = null;
+
+function openHealthStory() {
+  // Reset any previous run.
+  window._lastStoryMeta = null;
+  window._lastStoryPlain = '';
+  window._storyCause = null;
+  var step1 = document.getElementById('story-step1');
+  var step2 = document.getElementById('story-step2');
+  if (step1) step1.style.display = '';
+  if (step2) step2.style.display = 'none';
+  // Clear inputs
+  var anchor = document.getElementById('story-anchor-text');
+  if (anchor) anchor.value = '';
+  // Reset cause chips
+  var chips = document.querySelectorAll('#story-cause-grid .story-cause-chip');
+  chips.forEach(function(c) { c.classList.remove('is-active'); });
+  // Default date range: from = earliest event in current timeline data,
+  // to = today. User can change either.
+  var fromEl = document.getElementById('story-from');
+  var toEl   = document.getElementById('story-to');
+  if (fromEl && toEl) {
+    var earliest = _storyEarliestEventDate();
+    var today = new Date();
+    toEl.value = _storyDateToIsoLocal(today);
+    if (earliest) {
+      fromEl.value = _storyDateToIsoLocal(earliest);
+    } else {
+      // 90 days back as a safe default if we can't find an event date
+      var d = new Date();
+      d.setDate(d.getDate() - 90);
+      fromEl.value = _storyDateToIsoLocal(d);
+    }
+  }
+  if (typeof openSheetAccessible === 'function') openSheetAccessible('story-overlay');
+  else {
+    var sheet = document.getElementById('story-overlay');
+    if (sheet) sheet.classList.add('show');
+  }
+  if (typeof initIcons === 'function') initIcons();
+}
+
+function closeHealthStory() {
+  if (typeof closeSheetAccessible === 'function') closeSheetAccessible('story-overlay');
+  else {
+    var sheet = document.getElementById('story-overlay');
+    if (sheet) sheet.classList.remove('show');
+  }
+}
+
+function storyBackToStep1() {
+  var step1 = document.getElementById('story-step1');
+  var step2 = document.getElementById('story-step2');
+  if (step1) step1.style.display = '';
+  if (step2) step2.style.display = 'none';
+}
+
+function pickStoryCause(btn, cause) {
+  var chips = document.querySelectorAll('#story-cause-grid .story-cause-chip');
+  chips.forEach(function(c) { c.classList.remove('is-active'); });
+  if (window._storyCause === cause) {
+    // Tap again to deselect.
+    window._storyCause = null;
+  } else {
+    window._storyCause = cause;
+    if (btn) btn.classList.add('is-active');
+  }
+}
+
+function _storyDateToIsoLocal(d) {
+  // YYYY-MM-DD in local time. <input type=date> wants local.
+  var y = d.getFullYear();
+  var m = String(d.getMonth() + 1).padStart(2, '0');
+  var day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
+
+function _storyEarliestEventDate() {
+  // Look at liveEvents + EHR data to find the earliest date worth offering as
+  // the default "From". Returns a Date, or null if nothing's loaded yet.
+  var dates = [];
+  (liveEvents || []).forEach(function(e) {
+    if (e && e.event_date) dates.push(new Date(e.event_date));
+  });
+  var ehr = (typeof getEhrData === 'function') ? getEhrData(currentPersonId) : null;
+  if (ehr) {
+    (ehr.visits || []).forEach(function(v) { if (v.start_date) dates.push(new Date(v.start_date)); });
+    (ehr.conditions || []).forEach(function(c) { var d = c.onset_date || c.recorded_date; if (d) dates.push(new Date(d)); });
+    (ehr.observations || []).forEach(function(o) { if (o.effective_date) dates.push(new Date(o.effective_date)); });
+    (ehr.procedures || []).forEach(function(p) { if (p.performed_date) dates.push(new Date(p.performed_date)); });
+    (ehr.diagnostic_reports || []).forEach(function(r) { var d = r.effective_date || r.issued; if (d) dates.push(new Date(d)); });
+    (ehr.medications || []).forEach(function(m) { var d = m.authored_on || m.start_date; if (d) dates.push(new Date(d)); });
+    (ehr.immunizations || []).forEach(function(i) { if (i.date) dates.push(new Date(i.date)); });
+  }
+  var valid = dates.filter(function(d) { return !isNaN(d.getTime()); });
+  if (valid.length === 0) return null;
+  return new Date(Math.min.apply(null, valid.map(function(d){ return d.getTime(); })));
+}
+
+function _storyFormatLong(d) {
+  if (!d || isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
+function _storyFormatShort(d) {
+  if (!d || isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// Collect every relevant event in the date range, normalised into
+// { date, kind, title, detail, source } shape. "kind" is one of:
+// visit | er | inpatient | virtual | surgery | diagnosis | lab | med | immunization | report | wellet_noticed | note.
+// Strip noisy EHR title fragments so the narrative reads like prose, not raw
+// Epic strings. We drop redundant location/provider tails and known noise
+// prefixes ("Outpatient \u2014 ", "Refill \u2014 Medication Refill \u2014 ...", etc).
+function _storyCleanTitle(t) {
+  if (!t) return '';
+  var s = String(t).trim();
+  // Drop a leading "Outpatient \u2014 " prefix — adds nothing to the prose.
+  s = s.replace(/^Outpatient\s*[\u2014\-]\s*/i, '');
+  // "Refill \u2014 Medication Refill \u2014 Duke Primary Care of Galloway Ridge" \u2192 "Refill".
+  s = s.replace(/^Refill\b[\s\S]*$/i, 'Refill');
+  // "Patient Message \u2014 DPC Engagement Center Virtual" \u2192 "Patient Message".
+  s = s.replace(/^Patient Message\b[\s\S]*$/i, 'Patient Message');
+  // Collapse "Foo \u2014 Foo" duplicates.
+  s = s.replace(/^([^\u2014]{3,})\s\u2014\s\1\b/i, '$1');
+  // Trim trailing location tail if it repeats the provider ("... \u2014 Duke Primary Care of Galloway Ridge").
+  // Keep the first segment if there are 3+ em-dash segments.
+  var parts = s.split(/\s\u2014\s/);
+  if (parts.length >= 3) s = parts.slice(0, 2).join(' \u2014 ');
+  return s.trim();
+}
+
+// Classify an EHR "visit" row by its raw title so we can route Patient Message
+// rows out of the visit count and into a single summary line.
+function _storyClassifyVisitTitle(rawTitle) {
+  var nm = String(rawTitle || '').toLowerCase();
+  if (/\bpatient message\b/.test(nm) || /\bmessage\b/.test(nm)) return 'patient_message';
+  if (/\brefill\b/.test(nm)) return 'refill';
+  if (/\btelephone|phone call\b/.test(nm)) return 'phone_call';
+  if (/\bletter\b/.test(nm)) return 'letter';
+  if (/\bresult note\b/.test(nm)) return 'result_note';
+  return null;
+}
+
+function _storyCollectEvents(fromDate, toDate) {
+  var out = [];
+  function inRange(d) {
+    if (!d || isNaN(d.getTime())) return false;
+    return d >= fromDate && d <= toDate;
+  }
+  function push(d, kind, title, detail, source) {
+    if (!inRange(d)) return;
+    out.push({ date: d, kind: kind, title: title || '', detail: detail || '', source: source || '' });
+  }
+  // 1) User-created + voice + share + caresignals + checkin events from liveEvents
+  (liveEvents || []).forEach(function(e) {
+    var d = new Date(e.event_date);
+    var kind = 'note';
+    var et = (e.event_type || '').toLowerCase();
+    if (et === 'appointment') kind = 'visit';
+    else if (et === 'lab_result') kind = 'lab';
+    else if (et === 'condition') kind = 'diagnosis';
+    else if (et === 'medication') kind = 'med';
+    else if (et === 'immunization') kind = 'immunization';
+    else if (et === 'visit') kind = 'visit';
+    if (e.source === 'care_signal') kind = 'wellet_noticed';
+    if (e.source === 'med_log') kind = 'med';
+    var srcLabel = '';
+    if (e.source === 'ehr')         srcLabel = 'EHR';
+    else if (e.source === 'voice')       srcLabel = 'voice note';
+    else if (e.source === 'document')    srcLabel = 'upload';
+    else if (e.source === 'care_signal') srcLabel = 'Wellet noticed';
+    else if (e.source === 'med_log')     srcLabel = 'med log';
+    else if (e.source === 'check_in')    srcLabel = 'check-in';
+    else if (e.source === 'care_circle') srcLabel = 'care circle';
+    else                                 srcLabel = 'added manually';
+    push(d, kind, e.title || '', e.notes || '', srcLabel);
+  });
+  // 2) EHR data — separately because liveEvents doesn't carry full EHR.
+  var ehr = (typeof getEhrData === 'function') ? getEhrData(currentPersonId) : null;
+  if (ehr) {
+    var ehrProv = ehr.provider || 'EHR';
+    var seenIds = Object.create(null);
+    (ehr.visits || ehr.encounters || []).forEach(function(v) {
+      if (v.id) seenIds[v.id] = true;
+      var cls = String(v.class || '').toLowerCase();
+      var nm = String(v.name || '').toLowerCase();
+      var typ = String(v.type || '').toLowerCase();
+      // Filter out non-visit chatter (patient messages, refills, etc.) — they
+      // come through the EHR encounters bucket but aren't "saw a provider".
+      var nonVisit = _storyClassifyVisitTitle(v.name);
+      var kind;
+      if (nonVisit === 'patient_message' || nonVisit === 'phone_call' || nonVisit === 'letter' || nonVisit === 'result_note') {
+        kind = nonVisit;
+      } else if (nonVisit === 'refill') {
+        kind = 'med';
+      } else if (cls === 'emer' || cls === 'emergency' || /\b(er|emergency)\b/.test(nm + ' ' + typ)) {
+        kind = 'er';
+      } else if (cls === 'imp' || cls === 'inpatient' || /\b(inpatient|hospitalization|admit)\b/.test(nm + ' ' + typ)) {
+        kind = 'inpatient';
+      } else if (cls === 'virtual' || /\b(telemed|telehealth|video visit|e-?visit)\b/.test(nm + ' ' + typ)) {
+        kind = 'virtual';
+      } else {
+        kind = 'visit';
+      }
+      var detail = '';
+      if (v.reason && v.location) detail = v.reason + ' \u2014 ' + v.location;
+      else detail = v.location || v.reason || '';
+      push(new Date(v.start_date), kind, _storyCleanTitle(v.name) || 'Visit', detail, 'from ' + ehrProv);
+    });
+    (ehr.conditions || []).forEach(function(c) {
+      if (c.id && seenIds[c.id]) return;
+      push(new Date(c.onset_date || c.recorded_date), 'diagnosis', c.name || 'Condition', c.clinical_status || '', 'from ' + ehrProv);
+    });
+    (ehr.procedures || []).forEach(function(p) {
+      var nm = String(p.name || '').toLowerCase();
+      var kind = /\b(surgery|surgical|repair|release|reconstruction|implantation|excision|fusion|biopsy|ablation)\b/.test(nm) ? 'surgery' : 'visit';
+      push(new Date(p.performed_date), kind, p.name || 'Procedure', p.body_site || '', 'from ' + ehrProv);
+    });
+    (ehr.observations || []).forEach(function(o) {
+      var detail = (o.value ? String(o.value) + (o.unit ? ' ' + o.unit : '') : '') + (o.interpretation ? ' (' + o.interpretation + ')' : '');
+      push(new Date(o.effective_date), 'lab', o.name || 'Result', detail, 'from ' + ehrProv);
+    });
+    (ehr.diagnostic_reports || []).forEach(function(r) {
+      var dt = r.effective_date || r.issued;
+      var detail = (r.conclusion || '').trim();
+      push(new Date(dt), 'report', r.name || 'Report', detail, 'from ' + ehrProv);
+    });
+    (ehr.medications || []).forEach(function(m) {
+      var dt = m.authored_on || m.start_date;
+      if (!dt) return;
+      var detail = (m.dose || '') + (m.frequency ? ' \u00b7 ' + m.frequency : '');
+      push(new Date(dt), 'med', 'Started ' + (m.name || 'medication'), detail, 'from ' + ehrProv);
+    });
+    (ehr.immunizations || []).forEach(function(i) {
+      push(new Date(i.date), 'immunization', i.name || 'Vaccine', '', 'from ' + ehrProv);
+    });
+  }
+  // Chronological forward order (oldest first — stories read forward).
+  out.sort(function(a, b) { return a.date - b.date; });
+  return out;
+}
+
+// Build a coherent narrative from the collected events.
+function _storyBuildNarrative(events, anchorText, cause, personFirstName, fromDate, toDate) {
+  var paragraphs = [];
+  var she = 'they'; // gender-neutral default
+  // Try to use the person's pronoun if it's stored, otherwise stick with name.
+  var personRef = personFirstName || 'They';
+
+  // OPENING — anchor sentence if provided, otherwise a clean opener.
+  if (anchorText && anchorText.trim()) {
+    paragraphs.push(anchorText.trim());
+  } else {
+    var causeFlavor = '';
+    if (cause === 'fall')        causeFlavor = ' after a fall';
+    else if (cause === 'new_symptom') causeFlavor = ' after a new symptom appeared';
+    else if (cause === 'er_visit')    causeFlavor = ' starting with an ER visit';
+    else if (cause === 'diagnosis')   causeFlavor = ' starting with a new diagnosis';
+    else if (cause === 'surgery')     causeFlavor = ' starting with surgery';
+    paragraphs.push('This is the story of ' + personRef + "'s care from " +
+      _storyFormatLong(fromDate) + ' to ' + _storyFormatLong(toDate) + causeFlavor + '.');
+  }
+
+  if (events.length === 0) {
+    paragraphs.push('There are no recorded events in this window. Once visits, labs, or medications are added or pulled from a connected hospital, they will show up here.');
+    return paragraphs.join('\n\n');
+  }
+
+  // ── Pre-process: filter noise, dedupe repeated refills/visits ────────────
+  // 1) Patient messages, phone calls, letters, result notes: pulled out for a
+  //    single summary line per group ("5 messages with the care team").
+  // 2) Refill rows: collapse N refills of the same medication into one line.
+  // 3) Repeated visit titles within the same group: roll up ("3 PT appointments").
+  var msgKinds = { patient_message: 1, phone_call: 1, letter: 1, result_note: 1 };
+  var prosed = [];
+  var stashedMessages = [];
+  events.forEach(function(ev) {
+    if (msgKinds[ev.kind]) { stashedMessages.push(ev); return; }
+    prosed.push(ev);
+  });
+
+  // Group events by 2-week window so paragraphs have a natural cadence (not
+  // wall-of-text per month, not a paragraph per event).
+  function weekKey(d) {
+    // ISO-ish year + 2-week bucket of the year.
+    var start = new Date(d.getFullYear(), 0, 1);
+    var diff = (d - start) / 86400000;
+    var bi = Math.floor(diff / 14);
+    return d.getFullYear() + '-w' + bi;
+  }
+  function weekLabel(events) {
+    var first = events[0].date;
+    var last  = events[events.length - 1].date;
+    var sameMonth = first.getMonth() === last.getMonth() && first.getFullYear() === last.getFullYear();
+    if (sameMonth) {
+      return first.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }
+    return first.toLocaleDateString('en-US', { month: 'short' }) + '\u2013' +
+           last.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  }
+
+  var groups = [];
+  var byKey = Object.create(null);
+  prosed.forEach(function(ev) {
+    var k = weekKey(ev.date);
+    if (!byKey[k]) {
+      byKey[k] = { key: k, events: [] };
+      groups.push(byKey[k]);
+    }
+    byKey[k].events.push(ev);
+  });
+  // Distribute messages into their group too (so the per-group message line
+  // shows up next to the prose for that window).
+  var msgByKey = Object.create(null);
+  stashedMessages.forEach(function(ev) {
+    var k = weekKey(ev.date);
+    if (!msgByKey[k]) msgByKey[k] = [];
+    msgByKey[k].push(ev);
+  });
+  // Ensure groups exist for windows that only contain messages.
+  Object.keys(msgByKey).forEach(function(k) {
+    if (!byKey[k]) {
+      var first = msgByKey[k][0];
+      byKey[k] = { key: k, events: [] };
+      groups.push(byKey[k]);
+    }
+  });
+  groups.sort(function(a, b) {
+    var ad = (a.events[0] || msgByKey[a.key][0]).date;
+    var bd = (b.events[0] || msgByKey[b.key][0]).date;
+    return ad - bd;
+  });
+
+  // Build a paragraph per group, with dedupe + rollup.
+  // Track the previous group's label so consecutive groups in the same month
+  // don't say "Then in June 2025" three times in a row — instead the second+
+  // use "Later that month, ...".
+  var lastLabelEmitted = null;
+  groups.forEach(function(g, gi) {
+    var groupEvents = g.events.slice();
+    var label = weekLabel(groupEvents.length > 0 ? groupEvents : msgByKey[g.key]);
+    var lead;
+    if (gi === 0) {
+      lead = 'In ' + label + ', ';
+    } else if (label === lastLabelEmitted) {
+      lead = 'Later that month, ';
+    } else {
+      lead = 'Then in ' + label + ', ';
+    }
+    lastLabelEmitted = label;
+
+    // Dedupe refills: collapse same med (case-insensitive cleaned title) into one.
+    var refillCounts = Object.create(null);
+    var refillFirstDate = Object.create(null);
+    var nonRefillMeds = [];
+    var visitCounts = Object.create(null);
+    var visitFirstDate = Object.create(null);
+    var nonVisitEvents = [];
+    var rolledMeds = [];
+    var rolledVisits = [];
+
+    groupEvents.forEach(function(ev) {
+      if (ev.kind === 'med' && /^refill$/i.test(ev.title || '')) {
+        // Try to pull the actual med name from detail; fall back to "Refill".
+        var medName = (ev.detail || '').split(/\s\u00b7\s/)[0].trim() || 'Refill';
+        refillCounts[medName] = (refillCounts[medName] || 0) + 1;
+        if (!refillFirstDate[medName]) refillFirstDate[medName] = ev.date;
+        return;
+      }
+      if (ev.kind === 'visit' || ev.kind === 'virtual') {
+        var key = (ev.title || '').toLowerCase().trim();
+        if (key) {
+          visitCounts[key] = (visitCounts[key] || 0) + 1;
+          if (!visitFirstDate[key]) visitFirstDate[key] = { date: ev.date, title: ev.title, kind: ev.kind, detail: ev.detail };
+        }
+      }
+      nonVisitEvents.push(ev);
+    });
+    // Lowercase-helper for visit titles in prose ("Cardiology Follow-up" → "a cardiology follow-up").
+    function _articleized(t) {
+      var s = (t || 'a visit').replace(/\b(\w)/g, function(_, c) { return c; }).trim();
+      // "Office Visit" -> "an office visit"; keep proper-noun visits as-is.
+      if (/^[A-Z]{2,}/.test(s)) return s; // already an acronym
+      var lower = s.replace(/\b(?!Dr\.|MD|DO|RN|NP|PA|PT|OT|ER|ICU|MRI|CT|EKG|ECG|EEG)([A-Z][a-z]+)/g, function(m) { return m.toLowerCase(); });
+      var first = lower.charAt(0).toLowerCase();
+      var art = /^[aeiou]/.test(first) ? 'an ' : 'a ';
+      return art + lower;
+    }
+
+    // Build rolled-up med refill sentences.
+    Object.keys(refillCounts).forEach(function(med) {
+      var n = refillCounts[med];
+      var word = n === 1 ? 'once' : n === 2 ? 'twice' : n + ' times';
+      rolledMeds.push((med || 'A medication') + ' was refilled ' + word + '.');
+    });
+
+    // Build the prose sentence list, replacing visit repeats with a rollup.
+    var sentences = [];
+    var visitRolledKeys = Object.create(null);
+    nonVisitEvents.forEach(function(ev) {
+      if ((ev.kind === 'visit' || ev.kind === 'virtual') && visitCounts[(ev.title || '').toLowerCase().trim()] >= 2) {
+        var k = (ev.title || '').toLowerCase().trim();
+        if (visitRolledKeys[k]) return;
+        visitRolledKeys[k] = true;
+        var n = visitCounts[k];
+        var word = n === 2 ? 'twice' : n + ' times';
+        // Use the articleized form so it reads as "3 physical therapy visits".
+        var rolledTitle = _articleized(ev.title).replace(/^an?\s/, '');
+        sentences.push(personRef + ' had ' + rolledTitle + ' ' + word + '.');
+        return;
+      }
+      var when = _storyFormatShort(ev.date);
+      var s = '';
+      switch (ev.kind) {
+        case 'er':
+          // Only lowercase the reason, keep location proper-cased.
+          var erReason = '';
+          if (ev.detail) {
+            var dParts = ev.detail.split(/\s\u2014\s/);
+            var reasonPart = dParts[0] || '';
+            erReason = ' for ' + reasonPart.charAt(0).toLowerCase() + reasonPart.slice(1);
+            if (dParts.length > 1) erReason += ' at ' + dParts.slice(1).join(', ');
+          }
+          s = personRef + ' went to the ER on ' + when + erReason + '.';
+          break;
+        case 'inpatient':
+          s = personRef + ' was admitted on ' + when + (ev.detail ? ' \u2014 ' + ev.detail : '') + '.';
+          break;
+        case 'surgery':
+          s = 'On ' + when + ', ' + personRef.toLowerCase() + ' had surgery: ' + (ev.title || 'procedure') + (ev.detail ? ' (' + ev.detail + ')' : '') + '.';
+          break;
+        case 'visit':
+          s = 'On ' + when + ', ' + personRef.toLowerCase() + ' had ' + _articleized(ev.title) + '.';
+          break;
+        case 'virtual':
+          s = 'On ' + when + ', ' + personRef.toLowerCase() + ' had a video visit' + (ev.title ? ' for ' + _articleized(ev.title).replace(/^an?\s/, '') : '') + '.';
+          break;
+        case 'diagnosis':
+          s = 'On ' + when + ', ' + (ev.title || 'a new diagnosis') + ' was added to the chart.';
+          break;
+        case 'lab':
+          s = (ev.title || 'A lab') + ' was drawn on ' + when + '.';
+          break;
+        case 'report':
+          s = 'A ' + (ev.title || 'report') + ' came back on ' + when + '.';
+          break;
+        case 'med':
+          var medTitle = ev.title || 'a medication was logged';
+          if (/^started\s+/i.test(medTitle)) {
+            // "Started Alendronate" → "Mom started Alendronate"
+            var rest = medTitle.replace(/^started\s+/i, '');
+            s = 'On ' + when + ', ' + personRef.toLowerCase() + ' started ' + rest + (ev.detail ? ' (' + ev.detail + ')' : '') + '.';
+          } else {
+            s = 'On ' + when + ', ' + medTitle + (ev.detail ? ' (' + ev.detail + ')' : '') + '.';
+          }
+          break;
+        case 'immunization':
+          s = personRef + ' got ' + (ev.title || 'a vaccine') + ' on ' + when + '.';
+          break;
+        case 'wellet_noticed':
+          s = 'On ' + when + ', Wellet noticed: ' + (ev.title || '') + '.';
+          break;
+        default:
+          s = 'On ' + when + ', ' + (ev.title || 'a note was added') + '.';
+      }
+      s = s.replace(/\s+/g, ' ').replace(/\s\./g, '.').trim();
+      if (personRef && /^[A-Z]/.test(personRef)) {
+        var lower = personRef.toLowerCase();
+        s = s.replace(new RegExp('\\b' + lower + '\\b', 'g'), personRef);
+      }
+      sentences.push(s);
+    });
+
+    // Append rolled-up refill sentences after the prose.
+    rolledMeds.forEach(function(line) { sentences.push(line); });
+
+    // Append a single line for any patient messages in this window.
+    var msgs = msgByKey[g.key] || [];
+    if (msgs.length > 0) {
+      var word = msgs.length === 1 ? 'message' : 'messages';
+      sentences.push('There ' + (msgs.length === 1 ? 'was 1 ' : 'were ' + msgs.length + ' ') + word + ' with the care team.');
+    }
+
+    if (sentences.length === 0) return;
+
+    // Break into sub-paragraphs of ~5 sentences each for readability.
+    var CHUNK = 5;
+    for (var ci = 0; ci < sentences.length; ci += CHUNK) {
+      var chunk = sentences.slice(ci, ci + CHUNK);
+      var paragraph;
+      if (ci === 0) {
+        // First sub-paragraph carries the lead-in ("In June 2025, ...").
+        var first = chunk[0];
+        var firstLowered = first.charAt(0).toLowerCase() + first.slice(1);
+        paragraph = lead + firstLowered + (chunk.length > 1 ? ' ' + chunk.slice(1).join(' ') : '');
+        var properNoun = personRef && /^[A-Z]/.test(personRef) ? personRef : null;
+        if (properNoun) {
+          var leadRe = new RegExp('^(In [^,]+, |Then in [^,]+, |Later that month, )' + properNoun.toLowerCase(), '');
+          paragraph = paragraph.replace(leadRe, '$1' + properNoun);
+        }
+      } else {
+        paragraph = chunk.join(' ');
+      }
+      paragraphs.push(paragraph.replace(/\s+/g, ' ').trim());
+    }
+  });
+
+  // Closing summary line — counts by kind.
+  var counts = { er: 0, inpatient: 0, surgery: 0, visit: 0, virtual: 0, diagnosis: 0, lab: 0, report: 0, med: 0, immunization: 0, wellet_noticed: 0, note: 0, patient_message: 0 };
+  events.forEach(function(ev) { if (counts[ev.kind] != null) counts[ev.kind]++; });
+  var allVisits = counts.visit + counts.virtual + counts.er + counts.inpatient + counts.surgery;
+  var summaryBits = [];
+  if (allVisits)        summaryBits.push(allVisits + ' visit' + (allVisits === 1 ? '' : 's'));
+  if (counts.lab + counts.report) summaryBits.push((counts.lab + counts.report) + ' lab' + (counts.lab + counts.report === 1 ? '' : 's') + ' or report' + (counts.lab + counts.report === 1 ? '' : 's'));
+  if (counts.diagnosis) summaryBits.push(counts.diagnosis + ' diagnos' + (counts.diagnosis === 1 ? 'is' : 'es'));
+  if (counts.med)       summaryBits.push(counts.med + ' medication' + (counts.med === 1 ? '' : 's'));
+  if (counts.immunization) summaryBits.push(counts.immunization + ' vaccine' + (counts.immunization === 1 ? '' : 's'));
+  if (summaryBits.length > 0) {
+    paragraphs.push('In summary, this window covered ' + summaryBits.slice(0, -1).join(', ') + (summaryBits.length > 1 ? ', and ' : '') + summaryBits[summaryBits.length - 1] + '.');
+  }
+  return paragraphs.join('\n\n');
+}
+
+function generateHealthStory() {
+  var fromEl = document.getElementById('story-from');
+  var toEl   = document.getElementById('story-to');
+  var anchorEl = document.getElementById('story-anchor-text');
+  if (!fromEl || !toEl) return;
+  if (!fromEl.value || !toEl.value) {
+    if (typeof showToast === 'function') showToast('Pick a date range first');
+    return;
+  }
+  var fromDate = new Date(fromEl.value + 'T00:00:00');
+  var toDate   = new Date(toEl.value   + 'T23:59:59');
+  if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+    if (typeof showToast === 'function') showToast('Those dates look off');
+    return;
+  }
+  if (fromDate > toDate) {
+    if (typeof showToast === 'function') showToast('The From date is after the To date');
+    return;
+  }
+  var personFirstName = (typeof getPersonFirstName === 'function') ? getPersonFirstName() : 'They';
+  var anchorText = anchorEl ? anchorEl.value : '';
+  var cause = window._storyCause || null;
+
+  var events = _storyCollectEvents(fromDate, toDate);
+  var body = _storyBuildNarrative(events, anchorText, cause, personFirstName, fromDate, toDate);
+
+  // Resolve person full name + title.
+  var personFull = personFirstName;
+  try {
+    if (!isDemoMode) {
+      var p = currentPeople.find(function(x){ return x.id === currentPersonId; });
+      if (p && p.name) personFull = p.name;
+    } else {
+      personFull = 'Don Bell';
+    }
+  } catch(_e) {}
+
+  var rangeLabel = _storyFormatLong(fromDate) + ' \u2013 ' + _storyFormatLong(toDate);
+  var titleEl = document.getElementById('story-output-title');
+  var metaEl  = document.getElementById('story-output-meta');
+  var bodyEl  = document.getElementById('story-output-body');
+  if (titleEl) titleEl.textContent = personFull + "'s story";
+  if (metaEl)  metaEl.textContent  = rangeLabel + ' \u00b7 ' + events.length + ' event' + (events.length === 1 ? '' : 's');
+  if (bodyEl) {
+    // Render paragraphs as <p>, escape HTML.
+    bodyEl.innerHTML = body.split('\n\n').map(function(para) {
+      return '<p>' + (typeof escHtml === 'function' ? escHtml(para) : para) + '</p>';
+    }).join('');
+  }
+
+  // Stash for copy / PDF / email.
+  window._lastStoryMeta = {
+    fromIso: fromEl.value, toIso: toEl.value,
+    fromDate: fromDate, toDate: toDate,
+    anchor: anchorText, cause: cause,
+    personFull: personFull, personFirst: personFirstName,
+    rangeLabel: rangeLabel, body: body,
+    eventCount: events.length
+  };
+  window._lastStoryPlain = personFull + "'s story\n" + rangeLabel + '\n\n' + body +
+    '\n\n\u2014 Compiled by Wellet \u00b7 A record that belongs to your family, not the hospital.';
+
+  // Reveal step 2.
+  var step1 = document.getElementById('story-step1');
+  var step2 = document.getElementById('story-step2');
+  if (step1) step1.style.display = 'none';
+  if (step2) step2.style.display = '';
+  if (typeof initIcons === 'function') initIcons();
+  // Scroll the sheet up so the new card is visible.
+  var sheet = document.querySelector('#story-overlay .qa-sheet');
+  if (sheet) sheet.scrollTop = 0;
+}
+
+function copyHealthStory() {
+  var text = window._lastStoryPlain || '';
+  if (!text) {
+    if (typeof showToast === 'function') showToast('Build the story first');
+    return;
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() {
+      if (typeof showToast === 'function') showToast('Story copied');
+    }, function() {
+      _storyFallbackCopy(text);
+    });
+  } else {
+    _storyFallbackCopy(text);
+  }
+}
+function _storyFallbackCopy(text) {
+  try {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    if (typeof showToast === 'function') showToast('Story copied');
+  } catch(_e) {
+    if (typeof showToast === 'function') showToast('Copy failed \u2014 try selecting the text');
+  }
+}
+
+function downloadHealthStoryPDF() {
+  var meta = window._lastStoryMeta;
+  if (!meta) {
+    if (typeof showToast === 'function') showToast('Build the story first');
+    return;
+  }
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    if (typeof showToast === 'function') showToast('PDF library not loaded');
+    return;
+  }
+  var doc = new window.jspdf.jsPDF();
+  var pageW = doc.internal.pageSize.getWidth();
+  var pageH = doc.internal.pageSize.getHeight();
+  var marginX = 22;
+  var maxW = pageW - marginX * 2;
+
+  // Cream cover-style background top band.
+  doc.setFillColor(252, 248, 240);
+  doc.rect(0, 0, pageW, pageH, 'F');
+
+  // Eyebrow
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(150, 140, 120);
+  doc.text('WELLET \u00B7 A FAMILY STORY', marginX, 24);
+  doc.setDrawColor(220, 210, 190);
+  doc.setLineWidth(0.3);
+  doc.line(marginX, 28, pageW - marginX, 28);
+
+  // Serif title
+  doc.setFont('Times', 'normal');
+  doc.setFontSize(26);
+  doc.setTextColor(40, 40, 40);
+  var titleStr = (meta.personFull || 'Patient') + "'s story";
+  var titleLines = doc.splitTextToSize(titleStr, maxW);
+  doc.text(titleLines, marginX, 46);
+  var y = 46 + titleLines.length * 9 + 4;
+
+  // Meta row (range + event count)
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(120, 120, 120);
+  doc.text(meta.rangeLabel + '  \u00b7  ' + meta.eventCount + ' event' + (meta.eventCount === 1 ? '' : 's'), marginX, y);
+  y += 10;
+
+  // Body — split into paragraphs, wrap each.
+  doc.setFont('Times', 'normal');
+  doc.setFontSize(12);
+  doc.setTextColor(40, 40, 40);
+  var paragraphs = String(meta.body || '').split(/\n\n+/);
+  paragraphs.forEach(function(para, i) {
+    var lines = doc.splitTextToSize(para, maxW);
+    // Page-break if we'd overflow.
+    var blockH = lines.length * 6 + 4;
+    if (y + blockH > pageH - 22) {
+      doc.addPage();
+      doc.setFillColor(252, 248, 240);
+      doc.rect(0, 0, pageW, pageH, 'F');
+      y = 24;
+      doc.setFont('Times', 'normal');
+      doc.setFontSize(12);
+      doc.setTextColor(40, 40, 40);
+    }
+    doc.text(lines, marginX, y);
+    y += blockH;
+  });
+
+  // Footer on each page.
+  var pageCount = doc.internal.getNumberOfPages();
+  for (var pi = 1; pi <= pageCount; pi++) {
+    doc.setPage(pi);
+    doc.setFont('Times', 'italic');
+    doc.setFontSize(9);
+    doc.setTextColor(96, 143, 124);
+    doc.text('A record that belongs to your family, not the hospital.', marginX, pageH - 18);
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text('Compiled by Wellet \u00b7 mywellet.com', marginX, pageH - 12);
+    doc.text('Page ' + pi + ' of ' + pageCount, pageW - marginX - 22, pageH - 12);
+  }
+
+  var safeName = (meta.personFull || 'patient').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  var fname = 'wellet-' + safeName + '-story-' + meta.fromIso + '-to-' + meta.toIso + '.pdf';
+  doc.save(fname);
+  if (typeof showToast === 'function') showToast('PDF saved');
+}
+
+function emailHealthStory() {
+  var meta = window._lastStoryMeta;
+  if (!meta) {
+    if (typeof showToast === 'function') showToast('Build the story first');
+    return;
+  }
+  var to = '';
+  try { if (currentUser && currentUser.email) to = currentUser.email; } catch(_e) {}
+  var subject = (meta.personFull || 'Patient') + "'s health story \u00b7 " + meta.rangeLabel;
+  var bodyText = (meta.personFull || 'Patient') + "'s story\n" + meta.rangeLabel + '\n\n' + meta.body +
+    '\n\n\u2014 Compiled by Wellet \u00b7 A record that belongs to your family, not the hospital.';
+  // mailto: has a length limit on many clients (~2000 chars), so truncate body
+  // gracefully with a tail note pointing back to the app/PDF.
+  var maxLen = 1800;
+  if (bodyText.length > maxLen) {
+    bodyText = bodyText.substring(0, maxLen) + '\n\n[\u2026 truncated for email. Open Wellet and tap Save as PDF for the full version.]';
+  }
+  var href = 'mailto:' + encodeURIComponent(to) +
+    '?subject=' + encodeURIComponent(subject) +
+    '&body=' + encodeURIComponent(bodyText);
+  window.location.href = href;
 }
 
 // ── FEATURE 1: EMERGENCY SUMMARY PDF ────────────────────────────────────────
@@ -20083,7 +28593,7 @@ function downloadEmergencyPDF() {
   if (isDemoMode) {
     // Demo mode: use hardcoded demo data
     y = pdfAddSection(doc, 'Patient', y, [
-      { label: 'Name', value: 'John Bell' },
+      { label: 'Name', value: 'Don Bell' },
       { label: 'Date of birth', value: 'March 4, 1954 (Age 71)' },
       { label: 'Emergency contact', value: 'Sarah Bell \u00b7 (919) 555-0142' },
       { label: 'Allergies', value: 'Penicillin (rash)' }
@@ -20184,7 +28694,7 @@ function downloadSharePDF() {
   var y = 25;
   var firstName = getPersonFirstName();
   var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
-  var fullName = isDemoMode ? 'John Bell' : (person ? person.name : 'Patient');
+  var fullName = isDemoMode ? 'Don Bell' : (person ? person.name : 'Patient');
 
   // Header
   doc.setFont('Helvetica', 'bold');
@@ -20299,10 +28809,10 @@ async function downloadFamilyRecordPDF() {
   var pageW = doc.internal.pageSize.getWidth();
   var pageH = doc.internal.pageSize.getHeight();
 
-  // Resolve person (demo: 'John Bell'; live: currentPersonId)
+  // Resolve person (demo: 'Don Bell'; live: currentPersonId)
   var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
   if (!isDemoMode && !person) { showToast('Open a profile first'); return; }
-  var fullName  = isDemoMode ? 'John Bell' : person.name;
+  var fullName  = isDemoMode ? 'Don Bell' : person.name;
   var firstName = getPersonFirstName();
 
   // ── COVER PAGE ────────────────────────────────────────────────────────────
@@ -20567,8 +29077,322 @@ async function downloadFamilyRecordPDF() {
   }
 
   pdfAddFooter(doc);
-  doc.save(firstName + '-Family-Record-' + new Date().toISOString().slice(0,10) + '.pdf');
-  showToast('Family record downloaded');
+
+  // Always trigger the local download — the file belongs to the family.
+  var fileName = firstName + '-Family-Record-' + new Date().toISOString().slice(0,10) + '.pdf';
+  doc.save(fileName);
+
+  // Persist live records to Supabase so the family can re-download or share.
+  // Demo mode is download-only.
+  if (!isDemoMode && currentPersonId) {
+    try {
+      var session = await db.auth.getSession();
+      var userId = session && session.data && session.data.session && session.data.session.user && session.data.session.user.id;
+      if (userId) {
+        var pdfBlob = doc.output('blob');
+        var fileSize = (pdfBlob && pdfBlob.size) || 0;
+
+        // Insert metadata row FIRST so we have an id for the storage path.
+        var recordId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : null;
+        var storagePath = userId + '/' + (recordId || Date.now()) + '.pdf';
+
+        var snapshot = {
+          patient: fullName,
+          wishes_preview: (wishes || []).slice(0, 3).map(function(w) {
+            var t = '';
+            try {
+              var ee = w && w.extracted_events;
+              if (ee && typeof ee === 'object') {
+                if (typeof ee.transcript === 'string') t = ee.transcript;
+                else if (typeof ee.text === 'string') t = ee.text;
+                else if (typeof ee.summary === 'string') t = ee.summary;
+              }
+            } catch (e) {}
+            return t.slice(0, 200);
+          }).filter(Boolean)
+        };
+
+        var insertRow = {
+          user_id: userId,
+          person_id: currentPersonId,
+          person_name: fullName,
+          storage_path: storagePath,
+          file_size_bytes: fileSize,
+          wishes_count: (wishes || []).length,
+          conditions_count: (person && person.conditions) ? person.conditions.split(',').filter(function(s){ return s.trim(); }).length : 0,
+          medications_count: (typeof liveMeds !== 'undefined' ? liveMeds.filter(function(m){ return m.active; }).length : 0),
+          events_count: (typeof liveEvents !== 'undefined' ? Math.min(liveEvents.length, 50) : 0),
+          snapshot: snapshot
+        };
+        if (recordId) insertRow.id = recordId;
+
+        var insertRes = await db.from('family_records').insert(insertRow).select('id').single();
+        if (!insertRes.error && insertRes.data) {
+          var savedId = insertRes.data.id;
+          var finalPath = userId + '/' + savedId + '.pdf';
+
+          // If we generated the id client-side it already matches; otherwise
+          // update the storage path to use the server-assigned id.
+          if (finalPath !== storagePath) {
+            await db.from('family_records').update({ storage_path: finalPath }).eq('id', savedId);
+          }
+
+          var upload = await db.storage.from('family-records').upload(finalPath, pdfBlob, {
+            contentType: 'application/pdf',
+            upsert: true
+          });
+          if (upload.error) {
+            console.warn('family-record upload failed', upload.error);
+            // Clean up the orphan row.
+            try { await db.from('family_records').delete().eq('id', savedId); } catch (e) {}
+          }
+        } else if (insertRes.error) {
+          console.warn('family_records insert failed', insertRes.error);
+        }
+      }
+    } catch (persistErr) {
+      // Persistence is best-effort. The user already has the PDF.
+      console.warn('family-record persistence skipped:', persistErr);
+    }
+  }
+
+  showToast('Family record saved');
+}
+
+// Generate a short share token for a family record. 12 chars, url-safe.
+function generateFamilyRecordToken() {
+  var chars = 'abcdefghijkmnpqrstuvwxyz23456789';
+  var out = '';
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    var arr = new Uint8Array(12);
+    crypto.getRandomValues(arr);
+    for (var i = 0; i < 12; i++) out += chars[arr[i] % chars.length];
+  } else {
+    for (var j = 0; j < 12; j++) out += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return out;
+}
+
+// Toggle sharing on a saved family record. Returns the share URL.
+async function shareFamilyRecord(recordId) {
+  if (!recordId) return null;
+  try {
+    var token = generateFamilyRecordToken();
+    var res = await db.from('family_records')
+      .update({ share_token: token })
+      .eq('id', recordId)
+      .select('share_token')
+      .single();
+    if (res.error || !res.data) {
+      showToast('Could not create share link');
+      return null;
+    }
+    var shareUrl = 'https://mywellet.com/family-record.html?t=' + res.data.share_token;
+    try { await navigator.clipboard.writeText(shareUrl); showToast('Share link copied'); }
+    catch (e) { showToast('Share link ready'); }
+    return shareUrl;
+  } catch (e) {
+    console.warn('shareFamilyRecord failed', e);
+    return null;
+  }
+}
+
+// Revoke sharing on a saved family record.
+async function revokeFamilyRecord(recordId) {
+  if (!recordId) return;
+  if (!confirm('Revoke this share link? Anyone with it will lose access.')) return;
+  try {
+    var res = await db.from('family_records')
+      .update({ share_token: null })
+      .eq('id', recordId);
+    if (!res.error) {
+      showToast('Share link revoked');
+      // Refresh the list if it's open.
+      if (document.getElementById('family-records-list-overlay')
+          && document.getElementById('family-records-list-overlay').classList.contains('open')) {
+        renderFamilyRecordsList();
+      }
+    }
+  } catch (e) { console.warn('revokeFamilyRecord failed', e); }
+}
+
+// ── SAVED FAMILY RECORDS LIST UI ─────────────────────────────────────────────
+function openFamilyRecordsList() {
+  var overlay = document.getElementById('family-records-list-overlay');
+  if (!overlay) return;
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  renderFamilyRecordsList();
+  if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+}
+
+function closeFamilyRecordsList() {
+  var overlay = document.getElementById('family-records-list-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+async function renderFamilyRecordsList() {
+  var body = document.getElementById('family-records-list-body');
+  if (!body) return;
+
+  if (isDemoMode) {
+    body.innerHTML = '<div style="padding:32px 16px;text-align:center;color:var(--text-muted);font-size:var(--type-meta);line-height:1.6;">' +
+      '<i data-lucide="book-heart" style="width:28px;height:28px;color:var(--moss);opacity:0.5;"></i>' +
+      '<div style="margin-top:12px;">Saved records show up here after you generate one.</div>' +
+      '<div style="margin-top:6px;font-style:italic;font-family:var(--serif),serif;">Demo mode doesn&rsquo;t save records.</div>' +
+      '</div>';
+    if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+    return;
+  }
+
+  body.innerHTML = '<div style="padding:24px 16px;text-align:center;color:var(--text-muted);font-size:var(--type-meta);">Loading…</div>';
+
+  try {
+    var personId = currentPersonId;
+    var query = db.from('family_records')
+      .select('id, person_id, person_name, share_token, file_size_bytes, wishes_count, conditions_count, medications_count, events_count, generated_at, expires_at, view_count, last_viewed_at')
+      .order('generated_at', { ascending: false })
+      .limit(50);
+    if (personId) query = query.eq('person_id', personId);
+
+    var res = await query;
+    if (res.error) {
+      body.innerHTML = '<div style="padding:24px 16px;text-align:center;color:var(--text-muted);font-size:var(--type-meta);">Could not load saved records.</div>';
+      return;
+    }
+
+    var rows = res.data || [];
+    if (rows.length === 0) {
+      body.innerHTML = '<div style="padding:32px 16px;text-align:center;color:var(--text-muted);font-size:var(--type-meta);line-height:1.6;">' +
+        '<i data-lucide="book-heart" style="width:28px;height:28px;color:var(--moss);opacity:0.5;"></i>' +
+        '<div style="margin-top:12px;">No saved records yet.</div>' +
+        '<div style="margin-top:6px;font-style:italic;font-family:var(--serif),serif;">Generate one below and it will live here.</div>' +
+        '</div>';
+      if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+      return;
+    }
+
+    var html = rows.map(function(r) { return _renderFamilyRecordRow(r); }).join('');
+    body.innerHTML = html;
+    if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+  } catch (e) {
+    console.warn('renderFamilyRecordsList failed', e);
+    body.innerHTML = '<div style="padding:24px 16px;text-align:center;color:var(--text-muted);font-size:var(--type-meta);">Could not load saved records.</div>';
+  }
+}
+
+function _renderFamilyRecordRow(r) {
+  var gen = r.generated_at ? new Date(r.generated_at) : null;
+  var dateStr = gen ? gen.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  var sizeKB = r.file_size_bytes ? Math.round(r.file_size_bytes / 1024) : null;
+  var sizeStr = sizeKB ? (sizeKB >= 1024 ? (sizeKB / 1024).toFixed(1) + ' MB' : sizeKB + ' KB') : '';
+  var name = r.person_name || 'Family member';
+
+  // Counts strip
+  var counts = [];
+  if (r.wishes_count) counts.push(r.wishes_count + ' wish' + (r.wishes_count === 1 ? '' : 'es'));
+  if (r.conditions_count) counts.push(r.conditions_count + ' condition' + (r.conditions_count === 1 ? '' : 's'));
+  if (r.medications_count) counts.push(r.medications_count + ' med' + (r.medications_count === 1 ? '' : 's'));
+  var countsStr = counts.join(' · ');
+
+  // Share state
+  var shareBlock = '';
+  if (r.share_token) {
+    var shareUrl = 'https://mywellet.com/family-record.html?t=' + r.share_token;
+    var viewMeta = (r.view_count > 0)
+      ? ('Viewed ' + r.view_count + ' time' + (r.view_count === 1 ? '' : 's'))
+      : 'Not viewed yet';
+    shareBlock =
+      '<div style="margin-top:10px;padding:10px 12px;background:var(--mint);border-radius:8px;">' +
+        '<div style="display:flex;align-items:center;gap:6px;font-size:var(--type-micro);color:var(--moss-dark);text-transform:uppercase;letter-spacing:0.06em;font-weight:500;">' +
+          '<i data-lucide="link-2" style="width:11px;height:11px;"></i>Share link is live' +
+        '</div>' +
+        '<div style="margin-top:4px;font-size:var(--type-micro);color:var(--moss-dark);word-break:break-all;font-family:var(--mono, monospace);">' + escHtml(shareUrl) + '</div>' +
+        '<div style="margin-top:4px;font-size:var(--type-micro);color:var(--text-muted);font-style:italic;">' + viewMeta + '</div>' +
+        '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">' +
+          '<button onclick="copyFamilyRecordLink(\'' + r.id + '\')" style="padding:4px 10px;border-radius:6px;border:1px solid var(--moss);background:transparent;color:var(--moss-dark);font:inherit;font-size:var(--type-micro);cursor:pointer;">Copy link</button>' +
+          '<button onclick="revokeFamilyRecord(\'' + r.id + '\')" style="padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);font:inherit;font-size:var(--type-micro);cursor:pointer;">Revoke</button>' +
+        '</div>' +
+      '</div>';
+  } else {
+    shareBlock =
+      '<div style="margin-top:10px;">' +
+        '<button onclick="shareFamilyRecordFromList(\'' + r.id + '\')" style="padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--moss-dark);font:inherit;font-size:var(--type-meta);cursor:pointer;display:inline-flex;align-items:center;gap:6px;">' +
+          '<i data-lucide="share-2" style="width:13px;height:13px;"></i> Create share link' +
+        '</button>' +
+      '</div>';
+  }
+
+  return (
+    '<div style="padding:14px 0;border-top:1px solid var(--border);">' +
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="font-family:var(--serif),serif;font-size:16px;color:var(--text-primary);">' + escHtml(name) + '’s Record</div>' +
+          '<div style="margin-top:2px;font-size:var(--type-micro);color:var(--text-muted);letter-spacing:0.04em;">' + escHtml(dateStr) + (sizeStr ? ' · ' + sizeStr : '') + '</div>' +
+          (countsStr ? '<div style="margin-top:6px;font-size:var(--type-meta);color:var(--text-secondary);">' + escHtml(countsStr) + '</div>' : '') +
+        '</div>' +
+        '<button onclick="redownloadFamilyRecord(\'' + r.id + '\')" style="padding:6px 10px;border-radius:8px;border:1px solid var(--moss);background:var(--moss);color:white;font:inherit;font-size:var(--type-meta);cursor:pointer;display:inline-flex;align-items:center;gap:6px;flex-shrink:0;">' +
+          '<i data-lucide="download" style="width:13px;height:13px;"></i> Download' +
+        '</button>' +
+      '</div>' +
+      shareBlock +
+    '</div>'
+  );
+}
+
+// Re-download a saved family record via short-lived signed URL.
+async function redownloadFamilyRecord(recordId) {
+  if (!recordId) return;
+  try {
+    var rec = await db.from('family_records')
+      .select('storage_path, person_name, generated_at')
+      .eq('id', recordId)
+      .single();
+    if (rec.error || !rec.data) { showToast('Could not load that record'); return; }
+
+    var signed = await db.storage
+      .from('family-records')
+      .createSignedUrl(rec.data.storage_path, 60);
+    if (signed.error || !signed.data || !signed.data.signedUrl) {
+      showToast('Could not create download link');
+      return;
+    }
+
+    // Trigger the download.
+    var firstName = (rec.data.person_name || '').split(' ')[0] || 'Family';
+    var dateStr = rec.data.generated_at ? new Date(rec.data.generated_at).toISOString().slice(0,10) : new Date().toISOString().slice(0,10);
+    var a = document.createElement('a');
+    a.href = signed.data.signedUrl;
+    a.download = firstName + '-Family-Record-' + dateStr + '.pdf';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){ document.body.removeChild(a); }, 100);
+    showToast('Downloading…');
+  } catch (e) {
+    console.warn('redownloadFamilyRecord failed', e);
+    showToast('Download failed');
+  }
+}
+
+// Wrap shareFamilyRecord so we can refresh the list after.
+async function shareFamilyRecordFromList(recordId) {
+  var url = await shareFamilyRecord(recordId);
+  if (url) renderFamilyRecordsList();
+}
+
+// Copy an existing share link to clipboard.
+async function copyFamilyRecordLink(recordId) {
+  if (!recordId) return;
+  try {
+    var rec = await db.from('family_records').select('share_token').eq('id', recordId).single();
+    if (rec.error || !rec.data || !rec.data.share_token) { showToast('No active link'); return; }
+    var url = 'https://mywellet.com/family-record.html?t=' + rec.data.share_token;
+    try { await navigator.clipboard.writeText(url); showToast('Link copied'); }
+    catch (e) { showToast('Link ready'); }
+  } catch (e) { console.warn('copyFamilyRecordLink failed', e); }
 }
 
 // ── FEATURE 3: EXPORT FOR VISIT ─────────────────────────────────────────────
@@ -20721,7 +29545,7 @@ async function generateVisitExport() {
   try {
     var firstName = getPersonFirstName();
     var person = isDemoMode ? null : currentPeople.find(function(p){ return p.id === currentPersonId; });
-    var fullName = isDemoMode ? 'John Bell' : (person ? person.name : 'Patient');
+    var fullName = isDemoMode ? 'Don Bell' : (person ? person.name : 'Patient');
 
     // Gather medications
     var medications = [];
@@ -21566,14 +30390,22 @@ function buildBeforeVisitCard(personFirstName, personId, name) {
       rows = rows.filter(function(r) { return !r.personName || r.personName === personFirstName; });
     }
   } else {
+    // Live mode: accept both 'appointment' AND 'visit' rows. Duke (and most
+    // Epic orgs) send Encounter resources that map to event_type='visit',
+    // not 'appointment' — so filtering on 'appointment' alone hides every
+    // future visit pulled from the EHR. Past rows are dropped below.
     rows = (typeof liveEvents !== 'undefined' ? liveEvents : []).filter(function(e) {
-      return e.event_type === 'appointment' && e.event_date;
+      return (e.event_type === 'appointment' || e.event_type === 'visit') && e.event_date;
     }).map(function(e) {
       return { title: e.title, date: e.event_date, notes: e.notes || '' };
     });
   }
   if (!rows || !rows.length) return '';
 
+  // Find the NEXT future appointment (any future date — not just today/tomorrow).
+  // Earlier this gate clamped to dayDiff <= 1, which meant the card never
+  // fired for visits a few days out. Betsy's rule: the moment an appt is on
+  // the books, surface the card so prep can start anytime.
   var imminent = null;
   rows.sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
   for (var i = 0; i < rows.length; i++) {
@@ -21582,13 +30414,23 @@ function buildBeforeVisitCard(personFirstName, personId, name) {
     var apptDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
     var dayDiff = Math.round((apptDay - startOfToday) / 86400000);
     if (dayDiff < 0) continue; // skip past
-    if (dayDiff <= 1) { imminent = { appt: rows[i], date: d, dayDiff: dayDiff }; break; }
-    else break; // appointments are sorted; first non-imminent ends the search
+    imminent = { appt: rows[i], date: d, dayDiff: dayDiff };
+    break; // appointments are sorted; first future row wins
   }
   if (!imminent) return '';
 
-  // 2. Format hero line
-  var whenWord = imminent.dayDiff === 0 ? 'Today' : 'Tomorrow';
+  // 2. Format hero line — graceful for any future distance.
+  //   dayDiff 0   → 'Today'
+  //   dayDiff 1   → 'Tomorrow'
+  //   dayDiff 2-6 → 'Tuesday' (weekday name)
+  //   dayDiff 7+  → 'Tuesday, May 19'
+  var WEEKDAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var whenWord;
+  if (imminent.dayDiff === 0) whenWord = 'Today';
+  else if (imminent.dayDiff === 1) whenWord = 'Tomorrow';
+  else if (imminent.dayDiff < 7) whenWord = WEEKDAYS[imminent.date.getDay()];
+  else whenWord = WEEKDAYS[imminent.date.getDay()] + ', ' + MONTHS[imminent.date.getMonth()] + ' ' + imminent.date.getDate();
   var timeStr = '';
   var hh = imminent.date.getHours();
   var mm = imminent.date.getMinutes();
@@ -21677,10 +30519,16 @@ function buildBeforeVisitCard(personFirstName, personId, name) {
     + '</div>'
     + '</div>';
 
-  // Subline copy: gentle, never clinical, never "track".
-  var subLine = whenWord === 'Today'
-    ? 'A quiet pre-flight before you walk into the room with ' + escHtml(personFirstName) + '.'
-    : 'A quiet pre-flight for the visit. Open it when you have a minute.';
+  // Subline copy: gentle, never clinical, never "track". Wording adapts to
+  // how soon the visit is — same calm voice, just honest about timing.
+  var subLine;
+  if (imminent.dayDiff === 0) {
+    subLine = 'A quiet pre-flight before you walk into the room with ' + escHtml(personFirstName) + '.';
+  } else if (imminent.dayDiff === 1) {
+    subLine = 'A quiet pre-flight for the visit. Open it when you have a minute.';
+  } else {
+    subLine = 'No rush \u2014 you can start prep now and come back to it.';
+  }
 
   var wishesPersonId = isDemoMode ? (personId === 'mom' ? 'mom' : 'dad') : (personId || '');
   var secondaryBtn = (wishesCount > 0)
@@ -21718,7 +30566,9 @@ function buildUpcomingHtml(personFirstName) {
       return { title: e.title, date: e.event_date, notes: e.notes || '' };
     });
   }
-  if (!rows || rows.length === 0) return '';
+  if (!rows || rows.length === 0) {
+    return buildUpcomingExplainerHtml(personFirstName);
+  }
   rows.sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
   rows = rows.slice(0, 3);
 
@@ -21773,6 +30623,45 @@ function formatUpcomingDateLine(d) {
     line += ' \u00b7 ' + h12 + ':' + mStr + ' ' + ampm;
   }
   return line;
+}
+
+// When the Upcoming block has zero rows, show a quiet explainer ONLY if the
+// active person has a live Duke connection. Duke's R4 endpoint silently
+// refuses Appointment.Search (HTTP 403, empty body) even though we request
+// patient/Appointment.read at authorize and every other scoped resource
+// returns 200. Until Duke enables the scope on our Confidential client we
+// surface a short note pointing families to My Duke Health, instead of
+// leaving them staring at an empty Summary thinking the app is broken.
+// Other hospitals (and demo mode, and accounts with no EHR yet) fall
+// through silently — same behavior as before.
+function buildUpcomingExplainerHtml(personFirstName) {
+  if (isDemoMode) return '';
+  if (!currentPersonId) return '';
+  var merged = null;
+  try {
+    if (typeof getMergedEhr === 'function') merged = getMergedEhr(currentPersonId);
+  } catch(_e) { merged = null; }
+  var conns = (merged && Array.isArray(merged._connections)) ? merged._connections : [];
+  if (conns.length === 0) return '';
+  var hasDuke = false;
+  for (var i = 0; i < conns.length; i++) {
+    var c = conns[i] || {};
+    var name = (c.hospital_name || '').toLowerCase();
+    var base = (c.fhir_base_url || '').toLowerCase();
+    if (name.indexOf('duke') !== -1 || base.indexOf('duke') !== -1) { hasDuke = true; break; }
+  }
+  if (!hasDuke) return '';
+  var who = personFirstName ? escHtml(personFirstName) : 'your loved one';
+  var html = '<div class="upcoming-block">';
+  html += '<div class="upcoming-section-label">Upcoming for ' + who + '</div>';
+  html += '<div class="upcoming-explainer">';
+  html += '<div class="upcoming-explainer-body">Duke doesn\u2019t share upcoming visits with apps like Wellet yet. Everything else from Duke is flowing \u2014 conditions, meds, labs, immunizations \u2014 just not the appointment calendar. For the latest schedule, open My Duke Health.</div>';
+  html += '<div class="upcoming-explainer-actions">';
+  html += '<a class="upcoming-explainer-link" href="https://my.dukemychart.org/" target="_blank" rel="noopener noreferrer">Open My Duke Health \u2192</a>';
+  html += '</div>';
+  html += '</div>';
+  html += '</div>';
+  return html;
 }
 
 function getDemoAppointments() {
@@ -22655,17 +31544,34 @@ renderPersonSwitcher = function() {
   initIcons();
 };
 
-// Override renderAskView to hide archived/closed in ask person bar
+// Override renderAskView to hide archived/closed in ask person bar and show
+// an empty-state when the active person has no records.
 var _origRenderAskView = renderAskView;
 renderAskView = function() {
-  if (isDemoMode) return;
+  // 2026-06-01 (D5): in demo mode, delegate to the original which seeds the
+  // "Some places to start" chips so the section is never empty for cold
+  // reviewers. Without this, the override short-circuited the demo branch.
+  if (isDemoMode) {
+    try { _origRenderAskView(); } catch(_e) {}
+    return;
+  }
   var personBar = document.querySelector('#view-ask .ask-person-bar');
-  if (!personBar || !currentPeople.length) return;
+
+  // No people at all → fall back to original which renders a "Connect a chart" CTA.
+  if (!currentPeople.length) {
+    try { _origRenderAskView(); } catch(_e) {}
+    return;
+  }
+  if (!personBar) return;
+
+  // Filter out archived/closed people for the pill bar.
+  var visiblePeople = currentPeople.filter(function(p) {
+    var status = p.care_status || 'active';
+    return status !== 'archived' && status !== 'closed';
+  });
 
   var pillsHtml = '';
-  currentPeople.forEach(function(p) {
-    var status = p.care_status || 'active';
-    if (status === 'archived' || status === 'closed') return;
+  visiblePeople.forEach(function(p) {
     var active = p.id === currentPersonId ? ' active' : '';
     pillsHtml += '<button class="ask-person-pill' + active + '" onclick="selectAskRealPerson(this,\'' + p.id + '\')">'
       + '<span style="width:6px;height:6px;border-radius:50%;background:currentColor;opacity:0.7;display:inline-block;"></span>'
@@ -22675,19 +31581,91 @@ renderAskView = function() {
 
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
   var firstName = person ? person.name.split(' ')[0] : '';
-  var inputEl = document.getElementById('ask-input');
-  if (inputEl) inputEl.placeholder = 'Ask about ' + escHtml(possSegment(firstName, true)) + ' health\u2026';
+
+  // Check whether the active person has any records.
+  var ehrData = getEhrData(currentPersonId) || {};
+  var hasObs = (ehrData.observations || []).length > 0;
+  var hasMeds = (ehrData.medications || []).length > 0;
+  var hasConds = (ehrData.conditions || []).length > 0;
+  var hasLiveData = (liveEvents || []).length > 0 || (liveMeds || []).length > 0;
+  var hasRecords = hasObs || hasMeds || hasConds || hasLiveData;
 
   var chatArea = document.getElementById('chat-area');
+  var chips = document.getElementById('suggestion-chips');
+  var inputEl = document.getElementById('ask-input');
+
+  if (!hasRecords) {
+    // Empty state — person has no records yet.
+    // D13: in me-mode the user IS the person, so swap "your loved one's"
+    // language for first-person copy and drop the "switch to a different
+    // family member" hint (there's no switcher in me-mode).
+    var _selfMode = isSelfMode();
+    if (chatArea) {
+      var _intro, _btnLabel, _switchLine;
+      if (_selfMode) {
+        _intro = 'Wellet answers from your records. Upload one to <em style="color:#B8731C;font-style:italic;">unlock</em> Ask Wellet.';
+        _btnLabel = 'Add your records';
+        _switchLine = '';
+      } else {
+        _intro = 'Wellet answers from what\u2019s in your loved one\u2019s records. Add records for ' + escHtml(firstName)
+          + ' to <em style="color:#B8731C;font-style:italic;">unlock</em> Ask Wellet for them.';
+        _btnLabel = 'Add records for ' + escHtml(firstName);
+        _switchLine = '<div style="margin-top:16px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.5;">'
+          + 'Or <em style="color:#B8731C;font-style:italic;">switch</em> to a different family member at the top of the screen.'
+          + '</div>';
+      }
+      chatArea.innerHTML = '<div style="text-align:center;padding:40px 24px 20px;">'
+        + '<div style="font-size:var(--type-body);color:#2C2A26;line-height:1.6;max-width:320px;margin:0 auto;">'
+        + _intro
+        + '</div>'
+        + '<button onclick="showConnectScreen()" style="margin-top:20px;padding:12px 24px;background:var(--moss);color:#fff;border:none;border-radius:999px;font-size:var(--type-body);font-weight:600;font-family:inherit;cursor:pointer;">'
+        + _btnLabel + '</button>'
+        + _switchLine
+        + '</div>';
+    }
+    if (chips) { chips.innerHTML = ''; chips.style.display = 'none'; }
+    if (inputEl) inputEl.placeholder = _selfMode ? 'Upload a record to ask questions\u2026' : 'Add records to ask questions\u2026';
+    return;
+  }
+
+  // Normal state — person has records, render the full Ask interface.
+  // D13: in me-mode "Ask about your health" reads cleanly; caregiver mode keeps
+  // the possSegment-derived loved-one phrasing.
+  if (inputEl) inputEl.placeholder = isSelfMode()
+    ? 'Ask about your health\u2026'
+    : 'Ask about ' + escHtml(possSegment(firstName, true)) + ' health\u2026';
+
   if (chatArea) {
-    var firstBubble = chatArea.querySelector('.chat-group.from-wellet .chat-bubble.wellet');
-    if (firstBubble && firstBubble.textContent.indexOf('Ask me anything about') !== -1) {
-      firstBubble.textContent = 'Ask me anything about ' + firstName + '\u2019s health. I\u2019ll answer from what\u2019s in ' + firstName + '\u2019s records.';
+    // Prefer the stable id from index.html so the intro bubble updates even
+    // when the chat-area has prior conversation above it (e.g. before we
+    // wipe it on a person switch).
+    var introBubble = document.getElementById('ask-intro-bubble');
+    if (!introBubble) introBubble = chatArea.querySelector('.chat-group.from-wellet .chat-bubble.wellet');
+    if (introBubble) {
+      // D13: first-person intro in me-mode — avoids "Ask me anything about
+      // reviewer-test-xxx\u2019s health\u2026" leaking the email prefix.
+      introBubble.textContent = isSelfMode()
+        ? 'Ask me anything about your health. I\u2019ll answer from what\u2019s in your records.'
+        : 'Ask me anything about ' + firstName + '\u2019s health. I\u2019ll answer from what\u2019s in ' + firstName + '\u2019s records.';
     }
   }
 
-  var chips = document.getElementById('suggestion-chips');
   if (chips) {
+    try {
+      if (typeof buildAskChips === 'function') {
+        // buildAskChips(personId, firstName) — returns a string of <button>
+        // markup, not an array. Earlier code had the args swapped AND treated
+        // the return as an array, which silently fell through to the static
+        // fallback below (and on a Mom→Betsy switch left the chips stuck on
+        // the previous loved one's name).
+        var smartChipsHtml = buildAskChips(currentPersonId, firstName);
+        if (smartChipsHtml && typeof smartChipsHtml === 'string' && smartChipsHtml.length) {
+          chips.innerHTML = smartChipsHtml;
+          chips.style.display = 'flex';
+          return;
+        }
+      }
+    } catch(_e) {}
     chips.innerHTML =
       '<button class="chip" onclick="askQuestion(this.textContent)">What medications is ' + escHtml(firstName) + ' taking?</button>'
       + '<button class="chip" onclick="askQuestion(this.textContent)">Summarize recent health events</button>'
@@ -22743,7 +31721,7 @@ renderPeopleView = function() {
       + '<div class="person-card-top">'
       + '<div class="person-card-avatar moss">' + escHtml(initials) + '</div>'
       + '<div><div class="person-card-name">' + escHtml(p.name) + '</div>'
-      + '<div class="person-card-rel">' + escHtml(p.relationship || '') + '</div></div>'
+      + '<div class="person-card-rel">' + escHtml(_relationshipLabel(p.relationship)) + '</div></div>'
       + '<div class="person-card-status ' + statusClass + '">' + statusLabel + '</div>'
       + '<button class="remove-btn" onclick="confirmRemovePerson(\'' + p.id + '\',\'' + p.name.replace(/'/g,"\\\\'") + '\')" title="Remove person">'
       + '<i data-lucide="x" style="width:16px;height:16px;"></i></button>'
@@ -22871,23 +31849,77 @@ function _onTerraAuthSuccessInParent(payload) {
   if (_terraHandledKey === dedupeKey) return;
   _terraHandledKey = dedupeKey;
   console.log('[Terra] auth success in parent:', payload);
+  // Drop a pending-summary breadcrumb so Home + Records can show the
+  // "Wellet noticed your <device> just synced" banner once Terra's webhook
+  // finishes backfilling sleep/activity/workout data. Spec:
+  // /home/user/workspace/wellet_wearable_caresignals_spec.md (Piece 3).
+  try { writeWearablePending(payload.person_id, payload.provider, payload.terra_user_id); } catch (e) {}
   storeTerraConnection(payload.person_id, payload.terra_user_id, payload.provider).then(function() {
     invalidateSignalsCache(payload.person_id);
-    showToast('Wearable connected successfully', 'success');
+    // Provider-aware expectation-setting toast. Different wearables have very
+    // different backfill windows via Terra (Oura/Fitbit are rate-limited and
+    // can take ~an hour; Garmin/Withings under 15min; Google/Samsung near-real-
+    // time). The generic 2s 'connected successfully' toast left testers like
+    // Emma staring at an empty Records page wondering if it had broken — so we
+    // set the right expectation up front. Piece 3 banner handles the 'data
+    // arrived' follow-up automatically.
+    showToast(_wearableConnectedMessage(payload.provider), { duration: 6000 });
     if (typeof renderSignalsView === 'function') { try { renderSignalsView(); } catch(e){} }
-    // Higher priority: if onboarding connect screen is active, return user to it with \u2713
-    if (typeof _isConnectScreenActive === 'function' && _isConnectScreenActive()) {
-      try { showConnectScreen(); } catch(e) { console.warn('[Terra] showConnectScreen failed:', e); }
-      return;
-    }
-    if (obChat && obChat.phase === 'connect') {
-      obOnDeviceConnected(payload.provider || 'your device');
-    }
+    // Refresh the in-memory Terra connections cache so refreshConnectScreenStatus
+    // sees the new row and lights up the Google Health / Other wearables card.
+    // Without this, _terraConnections is whatever it was at page load (often
+    // empty after a mobile top-level redirect) and the card stays grey even
+    // though the row is in Postgres. Mirrors the EHR + Apple flows which both
+    // refresh their source-of-truth before re-rendering Connections.
+    var reload = (typeof loadTerraConnections === 'function')
+      ? loadTerraConnections(payload.person_id).then(function(conns) {
+          try { _terraConnections = conns || []; } catch(_e) {}
+        }).catch(function(_e){})
+      : Promise.resolve();
+    Promise.resolve(reload).then(function() {
+      // Re-open the Connect screen if either (a) it's still active, or
+      // (b) the user launched the flow from a Connect card on mobile and
+      // we stashed the return-to-connect flag in sessionStorage. Higher
+      // priority: if onboarding connect screen is active, return user to
+      // it with \u2713.
+      var returnToConnect = false;
+      try { returnToConnect = sessionStorage.getItem('wellet_terra_return_to_connect') === '1'; } catch(_e) {}
+      var connectActive = (typeof _isConnectScreenActive === 'function' && _isConnectScreenActive());
+      if (connectActive || returnToConnect) {
+        try { sessionStorage.removeItem('wellet_terra_return_to_connect'); } catch(_e) {}
+        try { showConnectScreen(); } catch(e) { console.warn('[Terra] showConnectScreen failed:', e); }
+        // BDB onboarding animation: a Terra terminal event just landed.
+        // Close both the google and terra inline strips (the user could
+        // have launched from either card) and the cinematic stage if it's
+        // still up. Wearable data itself can still be trickling in over
+        // the next few minutes \u2014 the per-card sync-status sublabel
+        // (handled by _hydrateTerraCardSyncStatus) covers that quieter.
+        try {
+          if (typeof finalizeConnectProgress === 'function') {
+            finalizeConnectProgress('google');
+            finalizeConnectProgress('terra');
+          }
+        } catch(_e) {}
+        return;
+      }
+      if (obChat && obChat.phase === 'connect') {
+        obOnDeviceConnected(payload.provider || 'your device');
+      }
+    });
   });
 }
 
 function _onTerraAuthFailureInParent() {
   showToast('Wearable connection was cancelled', 'error');
+  // BDB onboarding animation: clear the inline strip + cinematic stage
+  // when the user cancels or the Terra popup errors. Otherwise the strip
+  // would sit there spinning forever.
+  try {
+    if (typeof finalizeConnectProgress === 'function') {
+      finalizeConnectProgress('google');
+      finalizeConnectProgress('terra');
+    }
+  } catch(_e) {}
   if (obChat && obChat.phase === 'connect') {
     obTypeThen('No worries \u2014 we can try again later, or you can connect a different way.', obShowConnectChips, 700);
   }
@@ -22933,19 +31965,95 @@ window.addEventListener('storage', function(event) {
   } catch(e) {}
 });
 
-async function openTerraConnect() {
+async function openTerraConnect(provider, _skipPreflight) {
   if (!currentPersonId) { showToast('Select a person first', 'error'); return; }
 
+  // Pattern 1 — pre-launch expectation modal for wearables. Suppression is
+  // keyed by canonical provider code (e.g. 'OURA', 'GARMIN') so the user can
+  // dismiss it per-device. If no provider is selected yet (Terra widget will
+  // pick), key under 'terra' as a generic fallback.
+  if (!_skipPreflight) {
+    var prov = (provider ? String(provider) : 'terra').toLowerCase();
+    if (!_preflightSuppressedFor(prov)) {
+      var friendly = (typeof _terraProviderFriendly === 'function') ? _terraProviderFriendly(provider) : (provider || 'your wearable');
+      var partnerLine;
+      var primary;
+      if (provider) {
+        partnerLine = 'You\u2019ll sign in to your ' + friendly + ' account on the next screen \u2014 through Terra, our wearable partner.';
+        primary = 'Continue to ' + friendly;
+      } else {
+        partnerLine = 'You\u2019ll pick your wearable on the next screen and sign in through Terra, our wearable partner.';
+        primary = 'Continue';
+      }
+      // Provider-aware backfill window line. Mirrors _wearableExpectedWindowMinutes /
+      // _wearableConnectedMessage so users hear a consistent expectation before AND
+      // after they connect.
+      var p = (provider || '').toString().toUpperCase();
+      var windowLine;
+      if (p === 'GOOGLE' || p === 'SAMSUNG') {
+        windowLine = 'Sleep and activity data usually arrives within a few minutes after you finish signing in.';
+      } else if (p === 'GARMIN' || p === 'WITHINGS' || p === 'PELOTON' || p === 'SUUNTO') {
+        windowLine = 'Sleep and activity data usually arrives within 15 minutes after you finish signing in.';
+      } else if (p === 'OURA' || p === 'FITBIT' || p === 'POLAR' || p === 'WHOOP') {
+        windowLine = 'Sleep and activity data usually arrives within an hour after you finish signing in.';
+      } else {
+        windowLine = 'Sleep and activity data usually arrives within an hour after you finish signing in \u2014 some devices are quicker.';
+      }
+      showConnectPreflightModal({
+        provider: prov,
+        title: 'Before you connect ' + friendly,
+        bullets: [
+          partnerLine,
+          'Wellet never sees your ' + friendly + ' password.',
+          windowLine,
+          'If a sign-in page doesn\u2019t open in a moment, check your popup blocker.'
+        ],
+        primaryLabel: primary,
+        dismissLabel: 'Don\u2019t show this for ' + friendly + ' again'
+      }, function() {
+        openTerraConnect(provider, true);
+      });
+      return;
+    }
+  }
+
   try {
-    var sessionRes = await db.auth.getSession();
-    var session = sessionRes.data.session;
-    if (!session) { showToast('Please sign in first', 'error'); return; }
+    // 5s timeout on getSession() — on iOS Safari / installed PWA the
+    // Supabase v2 SDK occasionally hangs forever on getSession(), which
+    // would leave the user tapping Connect with no visible response.
+    // (Same hang we fixed in createShareLink for Kelly's bug.)
+    var sessionTimeout = new Promise(function(_, reject) {
+      setTimeout(function() { reject(new Error('getSession timeout')); }, 5000);
+    });
+    var session;
+    try {
+      var sessionRes = await Promise.race([db.auth.getSession(), sessionTimeout]);
+      session = sessionRes && sessionRes.data && sessionRes.data.session;
+    } catch (sessErr) {
+      console.warn('[Terra] getSession timed out, falling back to localStorage:', sessErr);
+      // Fallback: read the access token directly from localStorage where
+      // supabase-js persists it. Works as long as the user actually has a
+      // session — we just can't wait for the SDK to confirm it.
+      try {
+        var keys = Object.keys(localStorage).filter(function(k) { return k.indexOf('sb-') === 0 && k.indexOf('-auth-token') > 0; });
+        for (var i = 0; i < keys.length; i++) {
+          var raw = localStorage.getItem(keys[i]);
+          if (!raw) continue;
+          var parsed = JSON.parse(raw);
+          if (parsed && parsed.access_token) { session = parsed; break; }
+          if (parsed && parsed.currentSession && parsed.currentSession.access_token) { session = parsed.currentSession; break; }
+        }
+      } catch (lsErr) { console.warn('[Terra] localStorage session read failed:', lsErr); }
+    }
+    if (!session || !session.access_token) { showToast('Please sign in first', 'error'); return; }
     var token = session.access_token;
 
     // Reset the dedupe key so a new connect attempt can be captured
     _terraHandledKey = null;
 
     showToast('Starting wearable connection\u2026');
+    var generateBody = { action: 'generate', person_id: currentPersonId };
+    if (provider) generateBody.provider = String(provider).toUpperCase();
     var res = await fetch(SUPABASE_URL + '/functions/v1/terra-auth', {
       method: 'POST',
       headers: {
@@ -22953,7 +32061,7 @@ async function openTerraConnect() {
         'Authorization': 'Bearer ' + token,
         'apikey': SUPABASE_ANON_KEY
       },
-      body: JSON.stringify({ action: 'generate', person_id: currentPersonId })
+      body: JSON.stringify(generateBody)
     });
 
     if (!res.ok) {
@@ -23102,19 +32210,71 @@ function handleTerraCallback() {
     _onTerraAuthFailureInParent();
   }
 
-  // Mobile came back via top-level redirect \u2014 send the user back to the
-  // CareSignals view they were on when they started the connect flow.
-  if (pending && pending.view) {
+  // Mobile came back via top-level redirect. Two cases:
+  //   1. User launched from the Connect screen (Google Health / Other
+  //      wearables card) \u2014 honor that flag and re-open Connections so
+  //      they see the freshly-lit card. Without this, _currentNavView was
+  //      reset to the default tab (Home/Summary) by showAuthenticatedApp()
+  //      before the redirect, so pending.view would route to Summary.
+  //   2. User launched from elsewhere (e.g. CareSignals "+ Connect a
+  //      wearable") \u2014 restore that view as before.
+  var fromConnect = false;
+  try {
+    fromConnect = sessionStorage.getItem('wellet_terra_return_to_connect') === '1';
+    // Don't remove the flag here \u2014 _onTerraAuthSuccessInParent reads it
+    // too, after the async storeTerraConnection + loadTerraConnections
+    // round-trip, and clears it itself.
+  } catch(_e) {}
+  if (fromConnect) {
+    try { showAuthenticatedApp(); } catch(_e) {}
+    // showConnectScreen() is also called from _onTerraAuthSuccessInParent
+    // (success path) once the connections cache reloads. Calling it here
+    // too means the overlay opens immediately on return; the later call
+    // just re-renders with the now-Connected card.
+    try { if (typeof showConnectScreen === 'function') showConnectScreen(); } catch(_e) {}
+  } else if (pending && pending.view) {
     try { switchNavTo(pending.view); } catch(e) { console.warn('[Terra] restore view failed:', e); }
   }
 }
 
+// Backstop key: if a Terra callback lands during a cold Safari boot, the
+// Supabase session may not be hydrated yet and the store call would silently
+// no-op. We stash the pending store here and replay it from onAuthStateChange
+// once INITIAL_SESSION fires.
+var _TERRA_PENDING_STORE_KEY = 'wellet_terra_pending_store';
+
 async function storeTerraConnection(personId, terraUserId, provider) {
-  var session = (await db.auth.getSession()).data.session;
-  if (!session) return;
+  // Wait for the Supabase session to hydrate from localStorage. On a Safari
+  // cold boot from a Terra redirect (mywellet.com/?terra_auth=success&…), the
+  // session isn't ready when handleTerraCallback fires synchronously during
+  // initApp. Without this loop, we'd silently drop the store and the
+  // connection card would stay grey forever (no DB row, no edge call).
+  var session = null;
+  for (var attempt = 0; attempt < 15; attempt++) {
+    try {
+      var res = await db.auth.getSession();
+      session = res && res.data ? res.data.session : null;
+    } catch (_e) { session = null; }
+    if (session) break;
+    await new Promise(function(r){ setTimeout(r, 200); });
+  }
+
+  if (!session) {
+    // Stash so the next SIGNED_IN/INITIAL_SESSION event can replay it.
+    try {
+      localStorage.setItem(_TERRA_PENDING_STORE_KEY, JSON.stringify({
+        person_id: personId,
+        terra_user_id: terraUserId,
+        provider: provider,
+        ts: Date.now()
+      }));
+      console.warn('[Terra] store deferred — session not ready, stashed for replay');
+    } catch (_e) {}
+    return;
+  }
 
   try {
-    await fetch(SUPABASE_URL + '/functions/v1/terra-auth', {
+    var storeRes = await fetch(SUPABASE_URL + '/functions/v1/terra-auth', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -23128,8 +32288,41 @@ async function storeTerraConnection(personId, terraUserId, provider) {
         provider: provider
       })
     });
+    if (storeRes && storeRes.ok) {
+      try { localStorage.removeItem(_TERRA_PENDING_STORE_KEY); } catch (_e) {}
+    } else {
+      console.warn('[Terra] store returned non-OK:', storeRes && storeRes.status);
+    }
   } catch (e) {
     console.error('Store Terra connection error:', e);
+  }
+}
+
+// Replay any pending Terra store left over from a cold-boot redirect where
+// the Supabase session wasn't yet hydrated. Called from onAuthStateChange.
+async function _replayPendingTerraStore() {
+  var raw = null;
+  try { raw = localStorage.getItem(_TERRA_PENDING_STORE_KEY); } catch (_e) { return; }
+  if (!raw) return;
+  var pending;
+  try { pending = JSON.parse(raw); } catch (_e) { try { localStorage.removeItem(_TERRA_PENDING_STORE_KEY); } catch(_){} return; }
+  if (!pending || !pending.person_id || !pending.terra_user_id) {
+    try { localStorage.removeItem(_TERRA_PENDING_STORE_KEY); } catch(_e) {}
+    return;
+  }
+  console.log('[Terra] replaying pending store:', pending);
+  try {
+    // Run through the success handler so the cache refresh + UI relight runs too.
+    _terraHandledKey = null;
+    _onTerraAuthSuccessInParent({
+      type: 'terra_auth_success',
+      person_id: pending.person_id,
+      terra_user_id: pending.terra_user_id,
+      provider: pending.provider || 'unknown',
+      ts: Date.now()
+    });
+  } catch (e) {
+    console.warn('[Terra] replay failed:', e);
   }
 }
 
@@ -23192,8 +32385,8 @@ async function openShareHistory() {
   if (isDemoMode) {
     var now = new Date();
     var demoShares = [
-      { token: 'demo1', person_name: 'John Bell', created_at: new Date(now - 2 * 86400000).toISOString(), expires_at: new Date(now + 5 * 86400000).toISOString() },
-      { token: 'demo2', person_name: 'John Bell', created_at: new Date(now - 10 * 86400000).toISOString(), expires_at: new Date(now - 3 * 86400000).toISOString() }
+      { token: 'demo1', person_name: 'Don Bell', created_at: new Date(now - 2 * 86400000).toISOString(), expires_at: new Date(now + 5 * 86400000).toISOString() },
+      { token: 'demo2', person_name: 'Don Bell', created_at: new Date(now - 10 * 86400000).toISOString(), expires_at: new Date(now - 3 * 86400000).toISOString() }
     ];
     renderShareHistory(demoShares);
     return;
@@ -23294,7 +32487,7 @@ async function exportAllData(format) {
     var shares = [];
 
     if (isDemoMode) {
-      people = [{ name: 'John Bell', relationship: 'Father', conditions: 'CML, Hypertension' }];
+      people = [{ name: 'Don Bell', relationship: 'Father', conditions: 'CML, Hypertension' }];
       healthEvents = liveEvents.length > 0 ? liveEvents : [{ title: 'Demo event', event_type: 'note', event_date: new Date().toISOString() }];
       medications = liveMeds.length > 0 ? liveMeds : [{ name: 'Lisinopril', dose: '20mg', frequency: 'daily', active: true }];
       careCircle = liveCareCircle;
@@ -24439,7 +33632,7 @@ function refreshCurrentView() {
 
   // Update tab labels
   var tabBtns = document.querySelectorAll('.tab[id^="tab-btn-"]');
-  var tabKeys = ['tab.update', 'tab.timeline', 'tab.patterns'];
+  var tabKeys = ['tab.update', 'tab.timeline'];
   for (var ti = 0; ti < tabBtns.length; ti++) {
     if (tabKeys[ti]) tabBtns[ti].textContent = t(tabKeys[ti]);
   }
@@ -24885,16 +34078,13 @@ function _advanceOnboard() {
 }
 
 function maybeShowOnboardTooltips() {
-  try {
-    if (localStorage.getItem('wellet_onboarded') === 'true') return;
-  } catch(e) { return; }
-  if (isDemoMode) return;
-  if (document.getElementById('auth-screen') && document.getElementById('auth-screen').style.display !== 'none') return;
-  _onboardStep = 0;
-  setTimeout(function() {
-    _showOnboardTooltip(0);
-    document.addEventListener('click', _advanceOnboard);
-  }, 1200);
+  // 2026-05-23: first-run tour tooltips retired. The Summary > Ask >
+  // CareSignals tooltip chain felt like noise on top of an already-busy
+  // first-load. Mark the user as onboarded so the flag is consistent
+  // everywhere and never paint a tooltip. Helper fns above are kept in
+  // case we want a re-skinned tour later.
+  try { localStorage.setItem('wellet_onboarded', 'true'); } catch(e) {}
+  return;
 }
 
 // ── BROWSER BACK BUTTON SUPPORT (pushState / popstate) ────────────────────────
@@ -25014,34 +34204,94 @@ function _ptrFinish(success) {
 }
 
 // ── OFFLINE BANNER + GRACEFUL DEGRADATION ───────────────────────────────
-var _wasOffline = !navigator.onLine;
+// navigator.onLine lies in real-world conditions: Chrome can stay stuck on
+// `false` after a VPN flip, captive portal, or DNS hiccup, and Safari can get
+// stuck after a Wi-Fi → cellular handoff or an OAuth redirect chain. We never
+// trust it on its own — every time it says "offline" we actively probe a real
+// endpoint and only show the banner if the probe also fails.
+var _wasOffline = false;
+var _probeInFlight = false;
+var _probeIntervalId = null;
 
-function updateOfflineBanner() {
+function _showOfflineBanner() {
   var banner = document.getElementById('offline-banner');
   if (!banner) return;
-  if (!navigator.onLine) {
-    banner.classList.add('visible');
-    _wasOffline = true;
-    initIcons();
-  } else {
-    banner.classList.remove('visible');
-    if (_wasOffline) {
-      _wasOffline = false;
-      // Show "back online" confirmation
-      var toast = document.createElement('div');
-      toast.className = 'back-online-toast';
-      toast.innerHTML = '<i data-lucide="wifi" style="width:14px;height:14px;"></i> Back online';
-      document.body.appendChild(toast);
-      initIcons();
-      setTimeout(function() { toast.remove(); }, 2800);
-    }
+  banner.classList.add('visible');
+  _wasOffline = true;
+  try { initIcons(); } catch (_) {}
+  // Start a self-healing poll while the banner is up so we recover even if
+  // the browser never fires its own 'online' event.
+  if (!_probeIntervalId) {
+    _probeIntervalId = setInterval(function() { probeConnectivity(); }, 15000);
   }
+}
+
+function _hideOfflineBanner() {
+  var banner = document.getElementById('offline-banner');
+  if (!banner) return;
+  banner.classList.remove('visible');
+  if (_probeIntervalId) {
+    clearInterval(_probeIntervalId);
+    _probeIntervalId = null;
+  }
+  if (_wasOffline) {
+    _wasOffline = false;
+    // Show "back online" confirmation
+    var toast = document.createElement('div');
+    toast.className = 'back-online-toast';
+    toast.innerHTML = '<i data-lucide="wifi" style="width:14px;height:14px;"></i> Back online';
+    document.body.appendChild(toast);
+    try { initIcons(); } catch (_) {}
+    setTimeout(function() { try { toast.remove(); } catch (_) {} }, 2800);
+  }
+}
+
+// Active probe: hit a known small same-origin asset. If ANY response comes back
+// (even a 304 or 404), we have network. Only network/DNS failures throw.
+function probeConnectivity() {
+  if (_probeInFlight) return;
+  _probeInFlight = true;
+  var url = '/favicon.ico?probe=' + Date.now();
+  // 4s ceiling so a hung probe never wedges us in "offline" forever.
+  var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  var timer = ctrl ? setTimeout(function() { try { ctrl.abort(); } catch (_) {} }, 4000) : null;
+  fetch(url, { method: 'HEAD', cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
+    .then(function() {
+      _hideOfflineBanner();
+    })
+    .catch(function() {
+      // Only show the banner if BOTH navigator.onLine claims offline AND the
+      // probe failed — otherwise it's a single-endpoint hiccup, not real offline.
+      if (!navigator.onLine) _showOfflineBanner();
+    })
+    .finally(function() {
+      if (timer) clearTimeout(timer);
+      _probeInFlight = false;
+    });
+}
+
+function updateOfflineBanner() {
+  // Browser says we're offline → verify with a real probe before showing UI.
+  if (!navigator.onLine) {
+    probeConnectivity();
+    return;
+  }
+  // Browser says we're online → hide immediately, no probe needed.
+  _hideOfflineBanner();
 }
 
 window.addEventListener('online', updateOfflineBanner);
 window.addEventListener('offline', updateOfflineBanner);
-// Check on load
-if (!navigator.onLine) updateOfflineBanner();
+// Any time the user comes back to the tab, re-verify. This is what rescues
+// users whose browser got stuck on navigator.onLine=false.
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible') probeConnectivity();
+});
+window.addEventListener('focus', function() { probeConnectivity(); });
+// Check on load — but via the real probe, not the lying flag.
+if (!navigator.onLine) {
+  probeConnectivity();
+}
 
 // ── SKELETON LOADING STATES ──────────────────────────────────────────────
 function showSkeletons() {
@@ -25231,8 +34481,8 @@ async function openWishesList(personId) {
   // Demo fallback: the static demo person cards aren't in currentPeople, so map
   // the well-known ids back to the names the rest of the demo uses.
   if ((!person) && isDemoMode) {
-    if (personId === 'dad') _wishPersonName = 'John Bell';
-    else if (personId === 'mom') _wishPersonName = 'Mary Bell';
+    if (personId === 'dad') _wishPersonName = 'Don Bell';
+    else if (personId === 'mom') _wishPersonName = 'Margaret Bell';
   }
   var firstName = _wishPersonName.split(' ')[0];
   // "your loved one" should stay intact, not get split to "your".
@@ -25258,22 +34508,41 @@ function closeWishesList() {
 async function renderWishesList(personId) {
   var body = document.getElementById('wishes-list-body');
   if (!body) return;
-  var wishes = [];
+
+  // Two sources, unioned + sorted by most recent:
+  //   1. Voice-recorded wishes: rows in `documents` with document_type='wish'
+  //   2. AI-surfaced wishes:    rows in `wishes` table from extract-wishes edge fn
+  // Demo mode keeps the original soft demo content so reviewers see something populated.
+  var voiceWishes = [];
+  var aiWishes = [];
+
   if (isDemoMode) {
-    // Quiet demo content so the empty state isn't the only thing reviewers see.
-    wishes = _demoWishesFor(personId);
+    voiceWishes = _demoWishesFor(personId);
+    // Show an AI-surfaced wish for Dad so reviewers see the full Wishes surface.
+    if (personId === 'dad' || personId === null || personId === undefined) {
+      if (typeof _demoAiWishForDad === 'function') aiWishes = [_demoAiWishForDad()];
+    }
   } else {
     try {
-      var res = await db.from('documents')
-        .select('id, file_name, document_type, extracted_events, extraction_status, uploaded_at')
-        .eq('person_id', personId)
-        .eq('document_type', 'wish')
-        .order('uploaded_at', { ascending: false });
-      if (!res.error && res.data) wishes = res.data;
+      var both = await Promise.all([
+        db.from('documents')
+          .select('id, file_name, document_type, extracted_events, extraction_status, uploaded_at')
+          .eq('person_id', personId)
+          .eq('document_type', 'wish')
+          .order('uploaded_at', { ascending: false }),
+        db.from('wishes')
+          .select('id, content, category, source_type, source_id, source_quote, confidence, status, created_at')
+          .eq('person_id', personId)
+          .neq('status', 'archived')
+          .order('created_at', { ascending: false })
+          .limit(200)
+      ]);
+      if (!both[0].error && both[0].data) voiceWishes = both[0].data;
+      if (!both[1].error && both[1].data) aiWishes = both[1].data;
     } catch (e) { /* leave empty rather than crash */ }
   }
 
-  if (!wishes.length) {
+  if (!voiceWishes.length && !aiWishes.length) {
     body.innerHTML = '<div style="text-align:center;padding:32px 12px;">'
       + '<div style="font-size:var(--type-display);opacity:0.25;margin-bottom:12px;"><i data-lucide="heart" style="width:32px;height:32px;"></i></div>'
       + '<div style="font-family:var(--serif),serif;font-style:italic;color:var(--moss-dark);font-size:var(--type-body);line-height:1.55;max-width:34ch;margin:0 auto 10px;">Nothing recorded yet.</div>'
@@ -25283,52 +34552,233 @@ async function renderWishesList(personId) {
     return;
   }
 
+  // Normalize both sources into one render-ready array with a common timestamp.
+  var rows = [];
+  voiceWishes.forEach(function(w) {
+    var ts = w.uploaded_at ? new Date(w.uploaded_at).getTime() : 0;
+    rows.push({ kind: 'voice', ts: ts, data: w });
+  });
+  aiWishes.forEach(function(w) {
+    var ts = w.created_at ? new Date(w.created_at).getTime() : 0;
+    rows.push({ kind: 'ai', ts: ts, data: w });
+  });
+  rows.sort(function(a, b) { return b.ts - a.ts; });
+
   var html = '';
-  wishes.forEach(function(w) {
-    var ts = w.uploaded_at ? new Date(w.uploaded_at) : null;
-    var dateStr = ts ? ts.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-    // Pull the transcript out of extracted_events if the edge function stored it there.
-    var transcript = '';
-    try {
-      var ee = w.extracted_events;
-      if (ee && typeof ee === 'object') {
-        if (typeof ee.transcript === 'string') transcript = ee.transcript;
-        else if (typeof ee.text === 'string') transcript = ee.text;
-        else if (typeof ee.summary === 'string') transcript = ee.summary;
-      }
-    } catch (e) {}
-    var status = w.extraction_status || '';
-    var statusBadge = '';
-    if (status === 'pending' || status === 'processing') {
-      statusBadge = '<span style="font-size:var(--type-micro);color:var(--text-muted);font-style:italic;">Transcribing\u2026</span>';
-    } else if (status === 'failed') {
-      statusBadge = '<span style="font-size:var(--type-micro);color:#C0392B;">Transcription failed</span>';
-    }
-    var bodyText = transcript
-      ? '<p style="font-family:var(--serif),serif;font-style:italic;color:var(--text-primary);font-size:var(--type-body);line-height:1.55;margin:6px 0 0;">\u201C' + escHtml(transcript) + '\u201D</p>'
-      : (statusBadge ? '<div style="margin-top:6px;">' + statusBadge + '</div>' : '<div style="margin-top:6px;font-size:var(--type-micro);color:var(--text-muted);font-style:italic;">Voice recording \u00b7 transcript pending</div>');
-    html += '<div style="padding:14px 4px;border-top:1px solid var(--border, #ECE8DC);">'
-      + '<div style="display:flex;align-items:center;gap:8px;">'
-      +   '<i data-lucide="heart" style="width:13px;height:13px;color:var(--moss);"></i>'
-      +   '<span style="font-size:var(--type-micro);letter-spacing:0.06em;text-transform:uppercase;color:var(--moss-dark);font-weight:500;">Wish</span>'
-      +   '<span style="font-size:var(--type-micro);color:var(--text-muted);margin-left:auto;">' + escHtml(dateStr) + '</span>'
-      + '</div>'
-      + bodyText
-      + '</div>';
+  rows.forEach(function(row) {
+    if (row.kind === 'voice') html += _renderVoiceWishRow(row.data);
+    else html += _renderAiWishRow(row.data);
   });
   body.innerHTML = html;
   initIcons();
 }
 
+function _renderVoiceWishRow(w) {
+  var ts = w.uploaded_at ? new Date(w.uploaded_at) : null;
+  var dateStr = ts ? ts.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  var transcript = '';
+  try {
+    var ee = w.extracted_events;
+    if (ee && typeof ee === 'object') {
+      if (typeof ee.transcript === 'string') transcript = ee.transcript;
+      else if (typeof ee.text === 'string') transcript = ee.text;
+      else if (typeof ee.summary === 'string') transcript = ee.summary;
+    }
+  } catch (e) {}
+  var status = w.extraction_status || '';
+  var statusBadge = '';
+  if (status === 'pending' || status === 'processing') {
+    statusBadge = '<span style="font-size:var(--type-micro);color:var(--text-muted);font-style:italic;">Transcribing\u2026</span>';
+  } else if (status === 'failed') {
+    statusBadge = '<span style="font-size:var(--type-micro);color:#C0392B;">Transcription failed</span>';
+  }
+  var bodyText = transcript
+    ? '<p style="font-family:var(--serif),serif;font-style:italic;color:var(--text-primary);font-size:var(--type-body);line-height:1.55;margin:6px 0 0;">\u201C' + escHtml(transcript) + '\u201D</p>'
+    : (statusBadge ? '<div style="margin-top:6px;">' + statusBadge + '</div>' : '<div style="margin-top:6px;font-size:var(--type-micro);color:var(--text-muted);font-style:italic;">Voice recording \u00b7 transcript pending</div>');
+  return '<div style="padding:14px 4px;border-top:1px solid var(--border, #ECE8DC);">'
+    + '<div style="display:flex;align-items:center;gap:8px;">'
+    +   '<i data-lucide="heart" style="width:13px;height:13px;color:var(--moss);"></i>'
+    +   '<span style="font-size:var(--type-micro);letter-spacing:0.06em;text-transform:uppercase;color:var(--moss-dark);font-weight:500;">Wish</span>'
+    +   '<span style="font-size:var(--type-micro);color:var(--text-muted);margin-left:auto;">' + escHtml(dateStr) + '</span>'
+    + '</div>'
+    + bodyText
+    + '</div>';
+}
+
+function _renderAiWishRow(w) {
+  var ts = w.created_at ? new Date(w.created_at) : null;
+  var dateStr = ts ? ts.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  var category = (w.category || 'other').replace(/_/g, ' ');
+  var conf = (w.confidence || 'low').toLowerCase();
+  var status = (w.status || 'suggested').toLowerCase();
+  var isSuggested = status === 'suggested';
+  var isConfirmed = status === 'confirmed';
+  var pillBg = conf === 'high' ? '#DDE7C7' : (conf === 'medium' ? '#F0E5C8' : '#EADFD2');
+  var pillFg = conf === 'high' ? '#4E5A3C' : (conf === 'medium' ? '#6B5A2A' : '#6B4A2A');
+  var eyebrowLabel = isConfirmed ? 'Confirmed wish' : (status === 'suggested' ? 'Surfaced from records' : 'Wish');
+
+  var actionRow = '';
+  if (isSuggested) {
+    actionRow = '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">'
+      + '<button class="ai-wish-chip ai-wish-confirm" onclick="confirmAiWish(\'' + escHtml(w.id) + '\')" '
+      +   'style="font:inherit;font-size:var(--type-micro);padding:5px 12px;border-radius:99px;border:1px solid var(--moss);background:var(--moss);color:#fff;cursor:pointer;">Confirm</button>'
+      + '<button class="ai-wish-chip ai-wish-edit" onclick="editAiWish(\'' + escHtml(w.id) + '\')" '
+      +   'style="font:inherit;font-size:var(--type-micro);padding:5px 12px;border-radius:99px;border:1px solid var(--border, #ECE8DC);background:transparent;color:var(--moss-dark);cursor:pointer;">Edit</button>'
+      + '<button class="ai-wish-chip ai-wish-archive" onclick="archiveAiWish(\'' + escHtml(w.id) + '\')" '
+      +   'style="font:inherit;font-size:var(--type-micro);padding:5px 12px;border-radius:99px;border:1px solid var(--border, #ECE8DC);background:transparent;color:var(--text-muted);cursor:pointer;">Archive</button>'
+      + '</div>';
+  }
+
+  var quoteBlock = w.source_quote
+    ? '<div style="font-family:var(--serif),serif;font-style:italic;font-size:var(--type-meta);line-height:1.55;color:var(--moss-dark);background:#F6F3E8;border-left:3px solid var(--moss);padding:8px 12px;border-radius:0 6px 6px 0;margin-top:8px;">\u201C' + escHtml(w.source_quote) + '\u201D</div>'
+    : '';
+
+  return '<div data-ai-wish-id="' + escHtml(w.id) + '" style="padding:14px 4px;border-top:1px solid var(--border, #ECE8DC);' + (isSuggested ? '' : 'opacity:0.95;') + '">'
+    + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+    +   '<i data-lucide="' + (isConfirmed ? 'heart' : 'sparkles') + '" style="width:13px;height:13px;color:var(--moss);"></i>'
+    +   '<span style="font-size:var(--type-micro);letter-spacing:0.06em;text-transform:uppercase;color:var(--moss-dark);font-weight:500;">' + escHtml(eyebrowLabel) + '</span>'
+    +   '<span style="font-size:var(--type-micro);padding:1px 8px;border-radius:99px;background:#F0EDE0;color:var(--moss-dark);">' + escHtml(category) + '</span>'
+    +   '<span style="font-size:var(--type-micro);padding:1px 8px;border-radius:99px;background:' + pillBg + ';color:' + pillFg + ';">' + escHtml(conf) + '</span>'
+    +   '<span style="font-size:var(--type-micro);color:var(--text-muted);margin-left:auto;">' + escHtml(dateStr) + '</span>'
+    + '</div>'
+    + '<p style="font-family:var(--serif),serif;font-style:italic;color:var(--text-primary);font-size:var(--type-body);line-height:1.55;margin:8px 0 0;">' + escHtml(w.content || '') + '</p>'
+    + quoteBlock
+    + actionRow
+    + '</div>';
+}
+
+// ── AI WISH ACTIONS ──────────────────────────────────────────────────────────
+
+async function confirmAiWish(wishId) {
+  if (!wishId) return;
+  try {
+    var res = await db.from('wishes')
+      .update({ status: 'confirmed', confirmed_at: new Date().toISOString() })
+      .eq('id', wishId)
+      .select('id')
+      .maybeSingle();
+    if (res.error) { showToast('Could not confirm'); return; }
+    showToast('Confirmed');
+    if (_wishPersonId) await renderWishesList(_wishPersonId);
+  } catch (e) { showToast('Could not confirm'); }
+}
+
+async function archiveAiWish(wishId) {
+  if (!wishId) return;
+  if (!confirm('Archive this wish? You can still see it in the database, but it will be hidden from this list.')) return;
+  try {
+    var res = await db.from('wishes')
+      .update({ status: 'archived' })
+      .eq('id', wishId)
+      .select('id')
+      .maybeSingle();
+    if (res.error) { showToast('Could not archive'); return; }
+    showToast('Archived');
+    if (_wishPersonId) await renderWishesList(_wishPersonId);
+  } catch (e) { showToast('Could not archive'); }
+}
+
+async function editAiWish(wishId) {
+  if (!wishId) return;
+  try {
+    var cur = await db.from('wishes')
+      .select('content')
+      .eq('id', wishId)
+      .maybeSingle();
+    if (cur.error || !cur.data) { showToast('Could not load'); return; }
+    var next = prompt('Edit the wish in their words:', cur.data.content || '');
+    if (next === null) return;
+    var trimmed = String(next).trim();
+    if (!trimmed) { showToast('Wish cannot be empty'); return; }
+    if (trimmed === cur.data.content) return;
+    var res = await db.from('wishes')
+      .update({ content: trimmed.slice(0, 280) })
+      .eq('id', wishId)
+      .select('id')
+      .maybeSingle();
+    if (res.error) { showToast('Could not save'); return; }
+    showToast('Saved');
+    if (_wishPersonId) await renderWishesList(_wishPersonId);
+  } catch (e) { showToast('Could not save'); }
+}
+
+// Calls the extract-wishes edge function for the currently open loved one,
+// throttled to once per 24h per person via localStorage. The button shows
+// remaining wait time when throttled.
+async function surfaceWishesFromRecords() {
+  if (!_wishPersonId) { showToast('Open a profile first'); return; }
+  if (isDemoMode) { showToast('Demo mode \u2014 not available'); return; }
+  var throttleKey = 'wellet:surface-wishes:' + _wishPersonId;
+  var last = 0;
+  try { last = parseInt(localStorage.getItem(throttleKey) || '0', 10) || 0; } catch (e) {}
+  var hoursSince = (Date.now() - last) / (3600 * 1000);
+  if (hoursSince < 24) {
+    var hoursLeft = Math.ceil(24 - hoursSince);
+    showToast('Already checked today \u2014 try again in ' + hoursLeft + 'h');
+    return;
+  }
+
+  var btn = document.getElementById('surface-wishes-btn');
+  var originalHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader-2" style="width:16px;height:16px;"></i> Reading records\u2026';
+    initIcons();
+  }
+
+  try {
+    var session = null;
+    try { var s = await db.auth.getSession(); session = s && s.data ? s.data.session : null; } catch (e) {}
+    if (!session) { showToast('Sign in first'); return; }
+
+    var resp = await fetch(SUPABASE_URL + '/functions/v1/extract-wishes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ person_id: _wishPersonId })
+    });
+    var json = null;
+    try { json = await resp.json(); } catch (e) {}
+    if (!resp.ok) {
+      showToast('Could not read records');
+      return;
+    }
+    try { localStorage.setItem(throttleKey, String(Date.now())); } catch (e) {}
+    var added = (json && typeof json.suggested === 'number') ? json.suggested : 0;
+    if (added > 0) {
+      showToast('Surfaced ' + added + ' new ' + (added === 1 ? 'wish' : 'wishes'));
+    } else {
+      showToast('Nothing new surfaced');
+    }
+    await renderWishesList(_wishPersonId);
+  } catch (e) {
+    showToast('Could not read records');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+      initIcons();
+    }
+  }
+}
+
 function _demoWishesFor(personId) {
   // Two soft wishes per demo person so reviewers see the feature populated.
+  // One AI-surfaced wish is included to show the wish-extraction feature.
   var now = Date.now();
   var d = function(daysAgo) { return new Date(now - daysAgo * 24 * 3600 * 1000).toISOString(); };
   if (personId === 'dad' || personId === null || personId === undefined) {
-    return [
+    // voiceWishes returned as document-shaped objects; aiWish matches the `wishes` table shape
+    var dadVoice = [
       { id: 'w-dad-1', document_type: 'wish', extraction_status: 'completed', uploaded_at: d(12), extracted_events: { transcript: 'He said again today: no more hospitals if it gets to that. He wants to be home, with the dog, with the windows open.' } },
       { id: 'w-dad-2', document_type: 'wish', extraction_status: 'completed', uploaded_at: d(34), extracted_events: { transcript: 'Wants Joanne to make medical decisions, not the kids. He was very clear about it.' } }
     ];
+    // _renderWishesList merges voice + ai rows by kind; return voice wishes only from this
+    // function. The AI wish is injected directly inside renderWishesList for demo mode.
+    return dadVoice;
   }
   if (personId === 'mom') {
     return [
@@ -25336,6 +34786,23 @@ function _demoWishesFor(personId) {
     ];
   }
   return [];
+}
+
+// AI-surfaced demo wish — shown for Dad to demonstrate the AI wish-extraction feature.
+// Shape matches the `wishes` table (used by _renderAiWishRow).
+function _demoAiWishForDad() {
+  var now = Date.now();
+  var d = function(daysAgo) { return new Date(now - daysAgo * 24 * 3600 * 1000).toISOString(); };
+  return {
+    id: 'w-dad-ai-1',
+    content: 'No aggressive interventions. He wants comfort care if the CML progresses beyond remission.',
+    category: 'end_of_life',
+    source_type: 'ai_extracted',
+    source_quote: 'I’ve had a good run. If the leukemia comes back hard, I don’t want them doing heroics.',
+    confidence: 'high',
+    status: 'suggested',
+    created_at: d(7)
+  };
 }
 
 // ── WISH RECORDING ───────────────────────────────────────────────────────────
@@ -25655,5 +35122,262 @@ async function _uploadWishRecording() {
     _wa.init();
     return result;
   };
+})();
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VAULT v0.5 — Critical documents in Settings.
+// Reuses public.documents with document_type='vault_<slot>'. No new tables.
+// Pattern: clicking a vault row sets _uploadDocType then opens the existing
+// upload flow. parse-document edge function early-returns on vault_* types.
+// ─────────────────────────────────────────────────────────────────────────────
+(function(){
+  var VAULT_CATEGORIES = [
+    { key: 'vault_advance_directive',   label: 'Advance directive',  meta: 'Living will or advance care plan',  icon: 'scroll-text',  group: 'legal',     multi: false },
+    { key: 'vault_healthcare_proxy',    label: 'Healthcare proxy',   meta: 'Medical power of attorney',         icon: 'user-check',   group: 'legal',     multi: false },
+    { key: 'vault_molst_polst',         label: 'MOLST / POLST',      meta: 'Medical orders for life-sustaining treatment', icon: 'clipboard-signature', group: 'legal', multi: false },
+    { key: 'vault_dnr_dni',             label: 'DNR / DNI',          meta: 'Do not resuscitate / intubate',     icon: 'shield-alert', group: 'legal',     multi: false },
+    { key: 'vault_organ_donor',         label: 'Organ donor card',   meta: 'Donor registration card',           icon: 'heart',        group: 'legal',     multi: false },
+    { key: 'vault_insurance_primary',   label: 'Primary insurance',  meta: 'Front and back of the card',        icon: 'credit-card',  group: 'identity',  multi: false },
+    { key: 'vault_insurance_secondary', label: 'Secondary insurance', meta: 'Medicare, Medicaid, or supplement', icon: 'credit-card', group: 'identity', multi: false },
+    { key: 'vault_photo_id',            label: 'Photo ID',           meta: 'Driver\u2019s license or passport',    icon: 'id-card',     group: 'identity',  multi: false },
+    { key: 'vault_other_legal',         label: 'Other legal',        meta: 'Will, trust, POA \u2014 anything else',     icon: 'file-text',   group: 'legal',     multi: true },
+    { key: 'vault_other_medical',       label: 'Other medical',      meta: 'Allergy card, implant card, surgical history', icon: 'file-text', group: 'medical', multi: true }
+  ];
+
+  var GROUP_LABELS = {
+    legal: 'Legal & end-of-life',
+    identity: 'Insurance & ID',
+    medical: 'Other medical'
+  };
+  var GROUP_ORDER = ['legal', 'identity', 'medical'];
+
+  var _vaultActiveSlot = null;   // category key currently being uploaded to
+  var _vaultDocs = [];            // cached docs for the active person
+
+  // Expose for HTML onclick + debugging
+  window.VAULT_CATEGORIES = VAULT_CATEGORIES;
+
+  window.openVaultSheet = async function openVaultSheet() {
+    var ov = document.getElementById('vault-overlay');
+    if (!ov) return;
+    ov.classList.add('show');
+    try { history.pushState({ type: 'sheet', id: 'vault-overlay' }, ''); } catch(_e) {}
+    // Always render first so the Loading… placeholder is replaced even if the
+    // documents fetch hangs or throws. Re-render after fetch completes.
+    try { renderVaultList(); } catch(_e) { console.error('[vault] initial render failed', _e); }
+    try { initIcons(); } catch(_e) {}
+    try { await loadVaultDocs(); } catch(e) { console.error('[vault] load failed', e); }
+    try { renderVaultList(); } catch(_e) { console.error('[vault] render failed', _e); }
+    try { initIcons(); } catch(_e) {}
+  };
+
+  async function loadVaultDocs() {
+    _vaultDocs = [];
+    if (typeof isDemoMode !== 'undefined' && isDemoMode) {
+      return; // demo: empty vault, all slots show "Add"
+    }
+    if (typeof currentPersonId === 'undefined' || !currentPersonId) return;
+    if (typeof db === 'undefined' || !db) return;
+    // Race the supabase query against a 6s timeout so a hung network call
+    // can’t leave the sheet stuck on Loading… (the open handler already
+    // rendered the empty list, so timing out here just means no docs yet).
+    var queryPromise = db.from('documents')
+      .select('id, file_name, storage_path, document_type, uploaded_at')
+      .eq('person_id', currentPersonId)
+      .like('document_type', 'vault_%')
+      .order('uploaded_at', { ascending: false });
+    var timeoutPromise = new Promise(function(resolve){
+      setTimeout(function(){ resolve({ data: null, error: { message: 'timeout' } }); }, 6000);
+    });
+    var res;
+    try { res = await Promise.race([queryPromise, timeoutPromise]); }
+    catch (e) { console.warn('[vault] documents query threw', e); res = null; }
+    if (res && res.data) _vaultDocs = res.data;
+    else if (res && res.error) console.warn('[vault] documents query error', res.error);
+  }
+
+  function docsForSlot(key) {
+    return _vaultDocs.filter(function(d){ return d.document_type === key; });
+  }
+
+  function renderVaultList() {
+    var list = document.getElementById('vault-list');
+    if (!list) return;
+    var html = '';
+    GROUP_ORDER.forEach(function(group){
+      var cats = VAULT_CATEGORIES.filter(function(c){ return c.group === group; });
+      if (!cats.length) return;
+      html += '<div style="margin-top:14px;margin-bottom:6px;font-size:var(--type-micro);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;font-weight:600;">'
+        + escHtml(GROUP_LABELS[group]) + '</div>';
+      cats.forEach(function(cat){
+        var docs = docsForSlot(cat.key);
+        var hasAny = docs.length > 0;
+        html += renderVaultRow(cat, docs, hasAny);
+      });
+    });
+    // Phase-3 teaser row, not actionable yet
+    html += '<div style="margin-top:18px;padding:12px 14px;background:var(--mint);border-radius:10px;font-size:var(--type-meta);color:var(--text-secondary);line-height:1.5;">'
+      + '<div style="font-weight:600;color:var(--moss);margin-bottom:4px;">Coming next</div>'
+      + 'Share a code at the bedside, print an ER packet, and remind your Care Circle to review yearly.'
+      + '</div>';
+    list.innerHTML = html;
+  }
+
+  function renderVaultRow(cat, docs, hasAny) {
+    var iconHtml = '<div class="settings-row-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="' + cat.icon + '" style="width:15px;height:15px;"></i></div>';
+    var label = escHtml(cat.label);
+    var meta = hasAny ? (docs.length + ' on file') : escHtml(cat.meta);
+    var rightHtml;
+    if (cat.multi) {
+      rightHtml = '<div style="display:flex;align-items:center;gap:6px;color:var(--moss);font-size:var(--type-meta);font-weight:600;">Add<i data-lucide="plus" style="width:14px;height:14px;"></i></div>';
+    } else if (hasAny) {
+      rightHtml = '<div style="display:flex;align-items:center;gap:4px;color:var(--moss);font-size:var(--type-meta);font-weight:600;">View<i data-lucide="chevron-right" style="width:14px;height:14px;"></i></div>';
+    } else {
+      rightHtml = '<div style="display:flex;align-items:center;gap:6px;color:var(--moss);font-size:var(--type-meta);font-weight:600;">Add<i data-lucide="plus" style="width:14px;height:14px;"></i></div>';
+    }
+    var primaryAction = (hasAny && !cat.multi)
+      ? "vaultViewDoc('" + escAttr(docs[0].id) + "')"
+      : "vaultStartUpload('" + escAttr(cat.key) + "')";
+    var row = '<div class="settings-row" style="cursor:pointer;" onclick="' + primaryAction + '">'
+      + '<div class="settings-row-left">'
+      + iconHtml
+      + '<div><div class="settings-row-label">' + label + '</div>'
+      + '<div class="settings-row-meta">' + meta + '</div></div>'
+      + '</div>'
+      + rightHtml
+      + '</div>';
+    // If multi or has multiple docs, list each doc as a sub-row
+    if (hasAny) {
+      docs.forEach(function(d){
+        var name = escHtml(d.file_name || 'Document');
+        var when = '';
+        try {
+          if (d.uploaded_at) when = new Date(d.uploaded_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+        } catch(_e){}
+        row += '<div class="settings-row" style="cursor:pointer;padding-left:54px;background:#FAFAF7;" onclick="vaultViewDoc(\u0027' + escAttr(d.id) + '\u0027)">'
+          + '<div class="settings-row-left" style="gap:8px;">'
+          + '<div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);"><i data-lucide="file-text" style="width:14px;height:14px;"></i></div>'
+          + '<div><div class="settings-row-label" style="font-size:var(--type-meta);">' + name + '</div>'
+          + '<div class="settings-row-meta" style="font-size:var(--type-micro);">' + when + '</div></div>'
+          + '</div>'
+          + '<div style="display:flex;align-items:center;gap:8px;">'
+          + '<button onclick="event.stopPropagation();vaultDeleteDoc(\u0027' + escAttr(d.id) + '\u0027);" style="background:none;border:0;color:var(--text-muted);padding:6px;cursor:pointer;"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button>'
+          + '<i data-lucide="chevron-right" style="width:16px;height:16px;color:var(--text-muted);"></i>'
+          + '</div>'
+          + '</div>';
+      });
+    }
+    return row;
+  }
+
+  function escAttr(s) {
+    return String(s == null ? '' : s).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  }
+  // Reuse global escHtml if present, else define a local fallback
+  if (typeof escHtml !== 'function') {
+    window.escHtml = function(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+        return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
+      });
+    };
+  }
+
+  // Click handler — starts a vault upload for the given slot. Reuses the
+  // existing handleFileSelected / confirmUpload pipeline by pre-setting
+  // _uploadDocType and triggering the hidden file picker.
+  window.vaultStartUpload = function(slotKey) {
+    var cat = VAULT_CATEGORIES.find(function(c){ return c.key === slotKey; });
+    if (!cat) return;
+    if (typeof isDemoMode !== 'undefined' && isDemoMode) {
+      if (typeof showToast === 'function') showToast('Vault is available after you sign in');
+      return;
+    }
+    // Single-slot upload with no warning yet — we trust the file picker
+    // dialog as the confirmation step. Replace-with-warning will move to v1.
+    _vaultActiveSlot = slotKey;
+    if (typeof _uploadDocType !== 'undefined') _uploadDocType = slotKey;
+    try { window._uploadDocType = slotKey; } catch(_e){}
+    var input = document.getElementById('upload-file-input');
+    if (input) {
+      try { input.value = ''; } catch(_e){}
+      input.click();
+    }
+  };
+
+  window.vaultViewDoc = async function(docId) {
+    if (!docId) return;
+    if (typeof db === 'undefined' || !db) return;
+    var doc = _vaultDocs.find(function(d){ return d.id === docId; });
+    if (!doc) {
+      var res = await db.from('documents').select('*').eq('id', docId).single();
+      if (res && res.data) doc = res.data;
+    }
+    if (!doc) return;
+    try {
+      var signed = await db.storage.from('documents').createSignedUrl(doc.storage_path, 3600);
+      if (signed && signed.data && signed.data.signedUrl) {
+        window.open(signed.data.signedUrl, '_blank');
+      } else if (typeof showToast === 'function') {
+        showToast('Could not open document');
+      }
+    } catch(e) {
+      console.error('[vault] view failed', e);
+      if (typeof showToast === 'function') showToast('Could not open document');
+    }
+  };
+
+  window.vaultDeleteDoc = async function(docId) {
+    if (!docId) return;
+    if (!confirm('Remove this document from your vault? The file will be deleted.')) return;
+    if (typeof db === 'undefined' || !db) return;
+    var doc = _vaultDocs.find(function(d){ return d.id === docId; });
+    try {
+      if (doc && doc.storage_path) {
+        try { await db.storage.from('documents').remove([doc.storage_path]); } catch(_e){}
+      }
+      await db.from('documents').delete().eq('id', docId);
+      if (typeof showToast === 'function') showToast('Removed from vault');
+      await loadVaultDocs();
+      renderVaultList();
+      try { initIcons(); } catch(_e){}
+    } catch(e) {
+      console.error('[vault] delete failed', e);
+      if (typeof showToast === 'function') showToast('Could not delete');
+    }
+  };
+
+  // After a vault upload completes, refresh the list. Hook into confirmUpload
+  // by wrapping it.
+  if (typeof confirmUpload === 'function') {
+    var _origConfirmUpload = confirmUpload;
+    window.confirmUpload = async function() {
+      var wasVault = _uploadDocType && /^vault_/.test(_uploadDocType);
+      var result = await _origConfirmUpload.apply(this, arguments);
+      if (wasVault) {
+        _vaultActiveSlot = null;
+        try {
+          await loadVaultDocs();
+          renderVaultList();
+          try { initIcons(); } catch(_e){}
+        } catch(_e){}
+      }
+      return result;
+    };
+  }
+
+  // If the file picker is cancelled, _uploadDocType lingers. Clear it on
+  // handleFileSelected start when we're in a vault flow but no file was picked.
+  // Easier: also clear when closeUpload is called.
+  if (typeof closeUpload === 'function') {
+    var _origCloseUpload = closeUpload;
+    window.closeUpload = function() {
+      if (_vaultActiveSlot && _uploadDocType && /^vault_/.test(_uploadDocType)) {
+        _uploadDocType = null;
+        _vaultActiveSlot = null;
+      }
+      return _origCloseUpload.apply(this, arguments);
+    };
+  }
 })();
 

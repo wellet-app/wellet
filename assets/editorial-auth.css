@@ -61,12 +61,12 @@
   font-family: var(--sans);
   font-size: var(--type-micro);
   font-weight: 500;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.04em;
   color: var(--moss-deep);
   border: 1px solid var(--moss-deep);
   border-radius: 4px;
   padding: 5px 10px;
-  text-transform: uppercase;
+  text-transform: none;
   background: transparent;
 }
 
@@ -354,33 +354,32 @@
   color: var(--ink-5);
 }
 
-/* Dark moss "Check your email" card — the inverted state needs light text
-   that wins over the editorial ink colors above. Same specificity as the
-   editorial selectors, declared after, so the cascade picks these up only
-   when the .auth-sent-card class is present. */
+/* Lightened "Check your email" card — background is now a soft moss tint
+   (#E8EDEA in wellet.css) so the typed-in 6-digit code stays readable.
+   These overrides keep the editorial ink palette intact on this card. */
 #auth-screen[data-editorial="auth"] .auth-sent-card .auth-sent-icon {
-  background: rgba(255, 255, 255, 0.10);
-  color: #F2F0EA;
+  background: rgba(96, 143, 124, 0.14);
+  color: var(--moss-deep);
 }
 #auth-screen[data-editorial="auth"] .auth-sent-card .auth-sent-title {
-  color: #FFFFFF;
+  color: var(--ink-9);
 }
 #auth-screen[data-editorial="auth"] .auth-sent-card .auth-sent-body {
-  color: rgba(242, 240, 234, 0.90);
+  color: var(--ink-7);
 }
 #auth-screen[data-editorial="auth"] .auth-sent-card .auth-sent-body strong {
-  color: #FFFFFF;
+  color: var(--ink-9);
   font-weight: 600;
 }
 #auth-screen[data-editorial="auth"] .auth-sent-card .auth-demo-link,
 #auth-screen[data-editorial="auth"] .auth-sent-card .auth-demo-link--on-card {
-  color: rgba(242, 240, 234, 0.90);
-  text-decoration-color: rgba(242, 240, 234, 0.55);
+  color: var(--moss-deep);
+  text-decoration-color: rgba(96, 143, 124, 0.55);
 }
 #auth-screen[data-editorial="auth"] .auth-sent-card .auth-demo-link:hover,
 #auth-screen[data-editorial="auth"] .auth-sent-card .auth-demo-link--on-card:hover {
-  color: #FFFFFF;
-  text-decoration-color: #FFFFFF;
+  color: var(--ink-9);
+  text-decoration-color: var(--ink-9);
 }
 
 /* The waitlist ("private alpha") gate input — same editorial underline
