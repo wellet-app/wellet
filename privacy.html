@@ -1,6 +1,32 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=AW-985109408"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'AW-985109408');
+  </script>
+  <!-- Meta Pixel Code -->
+  <script>
+  !function(f,b,e,v,n,t,s)
+  {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+  n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+  if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+  n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];
+  s.parentNode.insertBefore(t,s)}(window, document,'script',
+  'https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init', '1491844009404209');
+  fbq('track', 'PageView');
+  </script>
+  <noscript><img height="1" width="1" style="display:none"
+  src="https://www.facebook.com/tr?id=1491844009404209&ev=PageView&noscript=1"
+  /></noscript>
+  <!-- End Meta Pixel Code -->
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Privacy Policy — Wellet</title>
@@ -149,7 +175,7 @@
 <main class="legal-container">
 <h1>Wellet Privacy Policy</h1>
 
-<p><strong>Effective Date: April 30, 2026</strong></p>
+<p><strong>Effective Date: May 17, 2026</strong></p>
 
 <hr>
 
@@ -209,6 +235,44 @@
 <li>Discharge summaries, medication photos, and other documents you upload</li>
 </ul>
 
+<h3>Apple Health Data (via Wellet Connect)</h3>
+
+<p>If you choose to install our companion iPhone app, <strong>Wellet Connect</strong>, you can share Apple Health data from your iPhone with your Wellet account. Wellet Connect is a one-way bridge: it reads only the data types you authorize, sends them to your own Wellet account, and never writes anything back to Apple Health.</p>
+
+<p><strong>What we read from Apple Health (only the categories you explicitly approve in iOS):</strong></p>
+<ul>
+<li>Step count</li>
+<li>Heart rate</li>
+<li>Heart rate variability (HRV)</li>
+<li>Sleep analysis</li>
+<li>Body mass (weight)</li>
+<li>Workouts</li>
+</ul>
+
+<p><strong>What we do with it:</strong></p>
+<ul>
+<li>Display it to <strong>you</strong> inside your own Wellet account, alongside any medical records you've connected</li>
+<li>Store it in your Wellet account, encrypted in transit (TLS) and at rest (AES-256), with Row-Level Security so only you and people in your Care Circle can read it</li>
+<li><strong>Nothing else.</strong> We do not use Apple Health data for analytics, advertising, marketing, research, model training, or for any purpose unrelated to displaying it to you and the people you've explicitly invited to your Care Circle.</li>
+</ul>
+
+<p><strong>What we don't do with it:</strong></p>
+<ul>
+<li>We do not share Apple Health data with any third party other than Supabase (our database infrastructure)</li>
+<li>We do not use Apple Health data to train AI models</li>
+<li>We do not sell, rent, or trade Apple Health data</li>
+<li>We do not use Apple Health data for advertising or targeted marketing</li>
+<li>We do not write data back to your Apple Health app</li>
+</ul>
+
+<p><strong>Your control:</strong></p>
+<ul>
+<li>You can revoke Wellet Connect's access to any Apple Health data type at any time from <strong>iPhone &rsaquo; Settings &rsaquo; Health &rsaquo; Data Access &amp; Devices &rsaquo; Wellet Connect</strong>. Revoking access stops new uploads immediately.</li>
+<li>You can delete Apple Health data already in your Wellet account by deleting your account (Section 8) or by emailing <strong>privacy@getwellet.com</strong>.</li>
+</ul>
+
+<p>This handling complies with Apple's HealthKit Privacy Requirements. Apple Health data, like all other information you store in Wellet, is governed by this Privacy Policy and is <strong>not</strong> governed by HIPAA (see Section 1 for why).</p>
+
 <h3>AI Conversation Data</h3>
 <ul>
 <li>Questions and prompts you submit to <strong>Ask Wellet</strong> (our AI health Q&A feature)</li>
@@ -225,6 +289,8 @@
 
 <h3>SMS / Text Messaging</h3>
 <p>When you invite a family member or loved one through <strong>Wellet Connect</strong>, the phone number you enter is used solely to send a one-time invitation SMS, and an optional reminder if the invitation is not accepted. SMS delivery is handled by our messaging vendor, <strong>Twilio</strong>. We do not sell, rent, or share these phone numbers with third parties for marketing. Recipients can reply <strong>STOP</strong> at any time to opt out, and <strong>HELP</strong> for support. Standard carrier message and data rates may apply. See the <a href="/terms#19-sms-messaging-terms" target="_blank" rel="noopener">SMS Messaging Terms</a> for full details.</p>
+
+<p><strong>No mobile information will be shared with third parties or affiliates for marketing or promotional purposes.</strong> All other categories of information collected by Wellet — including service providers, payment processors, and vendors necessary to operate Wellet on your behalf, as well as any disclosures required by law — specifically exclude mobile opt-in data and SMS consent records. Mobile opt-in data and consent information will not be shared with any third parties.</p>
 
 <h3>Feedback</h3>
 <ul>
@@ -286,6 +352,8 @@
 <p>What this means in practice: health data you submit through Ask Wellet or Update Me is processed by OpenAI under <a href="https://openai.com/policies/privacy-policy" target="_blank" rel="noopener">OpenAI's standard API terms and privacy policy</a>, not under a healthcare-specific BAA. We encourage you to review OpenAI's privacy practices if this is important to your decision about using these features.</p>
 
 <p>You can use Wellet's core record-keeping features — entering health events, managing profiles, uploading documents — without using Ask Wellet or Update Me.</p>
+
+<p><strong>Apple Health data is never sent to OpenAI or any other AI service.</strong> AI features (Ask Wellet, Update Me) operate only on the medical records and notes you've added to your family member's profile, never on Apple Health data.</p>
 
 <h3>Future Integrations</h3>
 
@@ -362,7 +430,14 @@
 <td>Phone numbers entered into Wellet Connect (no health data)</td>
 <td>Sends invitation and reminder SMS to family members and loved ones</td>
 </tr>
+<tr>
+<td><strong>Apple HealthKit (on your iPhone)</strong></td>
+<td>Reads the Apple Health categories you authorize</td>
+<td>Source of Apple Health data when you choose to share it via Wellet Connect. Data leaves Apple Health only when you explicitly authorize each category.</td>
+</tr>
 </tbody></table></div>
+
+<p style="font-size:var(--text-sm);color:var(--color-text-muted);margin-top:calc(var(--space-3) * -1);">Note: Apple HealthKit itself is not a third party Wellet shares data <em>with</em> &mdash; HealthKit is the iOS framework Wellet <em>reads from</em> on your device. We include it in the table for transparency about the data flow.</p>
 
 <p><strong>We do not:</strong></p>
 <ul>
@@ -387,6 +462,7 @@
 <li><strong>Export your data</strong> — download a complete archive of your health records (PDF + structured data) from your account settings</li>
 <li><strong>Delete records</strong> — remove individual health events, documents, or entire care recipient profiles</li>
 <li><strong>Revoke Care Circle access</strong> — remove any caregiver's access to a care recipient's record instantly from your settings</li>
+<li><strong>Revoke Apple Health access</strong> — stop new Apple Health uploads any time from <strong>iPhone &rsaquo; Settings &rsaquo; Health &rsaquo; Data Access &amp; Devices &rsaquo; Wellet Connect</strong></li>
 <li><strong>Unsubscribe from marketing</strong> — every marketing email includes an unsubscribe link, and you can opt out at any time</li>
 <li><strong>Delete your account</strong> — see Section 8 for full details</li>
 </ul>
@@ -408,7 +484,7 @@
 <li>After the grace period, <strong>100% of your data is permanently and irreversibly deleted within 45 days of your original request</strong> — this includes your account information, all care recipient profiles, health events, uploaded documents, AI conversation history, Care Circle records, <strong>and any data imported from non-VA sources</strong> (such as MyChart exports, PDFs, or other EHR imports)</li>
 </ol>
 
-<p>There is no partial deletion. When you go, everything goes with you — VA and non-VA data alike.</p>
+<p>There is no partial deletion. When you go, everything goes with you — VA and non-VA data alike. Apple Health data stored in your Wellet account is deleted on the same schedule (30-day grace period, permanent deletion within 45 days).</p>
 
 <h3>Inactive Accounts</h3>
 <p>We do not currently have an automated policy for deleting inactive accounts, but we may implement one with advance notice.</p>

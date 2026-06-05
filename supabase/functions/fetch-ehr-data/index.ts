@@ -17,7 +17,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders } from '../_shared/cors.ts';
-import { persistEhrData } from '../_shared/ehr-persist.ts';
+import { persistEhrData, deriveEhrSystem } from '../_shared/ehr-persist.ts';
 
 function getAdminClient() {
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
@@ -51,6 +51,16 @@ const EPIC_LEGACY_PUBLIC_CLIENT_ID = 'a00e2e38-f814-4946-9b7c-a92901a8aebc';
 const EPIC_PROD_KID = 'wellet-prod-2026-04';
 const EPIC_NONPROD_KID = 'wellet-nonprod-2026-04';
 const EPIC_SANDBOX_FHIR_BASE = 'https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4';
+
+// VA Lighthouse: public client + PKCE only, no client_assertion. Sandbox
+// client id is hard-coded; production is read from env so we can flip without
+// a code redeploy once production-access is approved. See va-auth/index.ts.
+const VA_SANDBOX_CLIENT_ID = '0oa1ao6rezk9V5D9u2p8';
+const VA_SANDBOX_FHIR_BASE = 'https://sandbox-api.va.gov/services/fhir/v0/r4';
+function vaClientIdFor(connFhirBaseUrl: string): string {
+  if (connFhirBaseUrl === VA_SANDBOX_FHIR_BASE) return VA_SANDBOX_CLIENT_ID;
+  return Deno.env.get('VA_PROD_CLIENT_ID') ?? '';
+}
 
 function base64UrlEncode(buffer: Uint8Array): string {
   let binary = '';
@@ -500,6 +510,10 @@ function mapConditions(resources: unknown[]) {
     const coding = (r.code as Record<string, unknown>)?.coding as Record<string, unknown>[] || [];
     const firstCoding = coding[0] || {};
     return {
+      // FHIR resource id — used by the app's openConditionDetail() to look
+      // the row up. Without this the row click silently re-renders the
+      // conditions list (see 2026-05-19 click-no-op investigation).
+      id: (r.id as string) || '',
       type: 'condition',
       source: 'ehr',
       name: ((r.code as Record<string, unknown>)?.text as string) || (firstCoding.display as string) || 'Unknown condition',
@@ -534,6 +548,11 @@ function mapMedications(resources: unknown[]) {
     const prescriberName = (requester.display as string) || '';
 
     return {
+      // FHIR resource id — needed by openMedicationDetail() to look the row
+      // up. Without this the row click silently re-renders the medications
+      // list (see 2026-05-19 click-no-op investigation). Dedup below keeps
+      // the most-recent entry's id alongside the name.
+      id: (r.id as string) || '',
       type: 'medication',
       source: 'ehr',
       name: medName,
@@ -577,6 +596,8 @@ function mapAllergies(resources: unknown[]) {
       : [];
 
     return {
+      // FHIR resource id — mirrors mapMedications/mapConditions fix.
+      id: (r.id as string) || '',
       type: 'allergy',
       source: 'ehr',
       name: ((r.code as Record<string, unknown>)?.text as string) || (firstCoding.display as string) || 'Unknown allergen',
@@ -1165,9 +1186,23 @@ async function refreshAccessTokenIfNeeded(
   // don't quietly fail and force users into a reconnect loop.
   const isLegacyPublic = conn.client_id_used === EPIC_LEGACY_PUBLIC_CLIENT_ID;
   const isSandbox = conn.fhir_base_url === EPIC_SANDBOX_FHIR_BASE;
+  const isVa = (conn.provider as string | undefined) === 'va';
 
   let body: URLSearchParams;
-  if (isLegacyPublic) {
+  if (isVa) {
+    // VA Lighthouse is a public client - refresh body is just client_id +
+    // refresh_token. No client_assertion, no client_secret.
+    const vaClientId = (conn.client_id_used as string | undefined) || vaClientIdFor(conn.fhir_base_url as string);
+    if (!vaClientId) {
+      console.error('[fetch-ehr-data] VA refresh missing client_id', { conn_id: conn.id, fhir_base_url: conn.fhir_base_url });
+      return { ok: false, detail: 'va_client_id_missing' };
+    }
+    body = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: decRefresh as string,
+      client_id: vaClientId,
+    });
+  } else if (isLegacyPublic) {
     body = new URLSearchParams({
       grant_type: 'refresh_token',
       refresh_token: decRefresh as string,
@@ -1207,15 +1242,36 @@ async function refreshAccessTokenIfNeeded(
 
   if (!res.ok) {
     const errText = await res.text();
+    const respHeaders: Record<string, string> = {};
+    for (const [k, v] of res.headers.entries()) {
+      if (/^(www-authenticate|x-epic|x-request-id|content-type|date)$/i.test(k)) {
+        respHeaders[k] = v;
+      }
+    }
     console.error('[fetch-ehr-data] Refresh exchange failed', {
       status: res.status,
-      err: errText.slice(0, 300),
+      body: errText.slice(0, 1000),
+      headers: respHeaders,
+      person_id: conn.person_id,
+      conn_id: conn.id,
       tokenUrl: conn.token_url,
       clientId: conn.client_id_used,
+      fhir_base_url: conn.fhir_base_url,
+      is_legacy_public: isLegacyPublic,
+      refresh_token_age_days: conn.created_at ? Math.floor((Date.now() - new Date(conn.created_at).getTime()) / 86400000) : null,
     });
     await admin.from('ehr_connections')
       .update({ needs_reconnect: true })
       .eq('id', conn.id);
+    // Drop a sync_log row so the Duke watcher cron sees refresh failures.
+    try {
+      await admin.from('ehr_sync_log').insert({
+        person_id: conn.person_id,
+        patient_id: conn.patient_id,
+        status: res.status,
+        result_counts: { refresh_error: true, epic_body: errText.slice(0, 500), epic_headers: respHeaders },
+      });
+    } catch (_) { /* best-effort */ }
     return { ok: false, detail: `refresh_rejected_${res.status}` };
   }
 
@@ -1576,6 +1632,10 @@ async function fetchAndPersistOneConnection(
     // Step 4: Persist into canonical Wellet tables. Pass conn.id as the 4th
     // arg so every row is source-tagged with this connection — lets the
     // per-hospital pill UI and per-connection reconnect banners find their data.
+    // Derive ehr_system from the connection's fhir_base_url so VA records get
+    // tagged 'va', Epic records 'epic', etc., instead of every row being
+    // mislabeled 'epic'. See deriveEhrSystem() in _shared/ehr-persist.ts.
+    const ehrSystemTag = deriveEhrSystem(conn.fhir_base_url as string | null);
     const persist = await persistEhrData(admin, personId, {
       medications: medicationsMapped,
       allergies: allergiesMapped,
@@ -1584,7 +1644,7 @@ async function fetchAndPersistOneConnection(
       immunizations: immunizationsMapped,
       diagnostic_reports: diagnosticReportsMapped,
       observations: observationsMapped,
-    }, conn.id);
+    }, conn.id, ehrSystemTag);
 
     if (persist.errors.length > 0) {
       console.error('[fetch-ehr-data] persistence errors', {
@@ -1961,6 +2021,11 @@ Deno.serve(async (req) => {
         _phase2: true,
       }, 401);
     }
+
+    // Note: CareSignals refresh after a successful sync is handled by the
+    // trg_compute_care_signals AFTER INSERT trigger on ehr_sync_log, which
+    // fires compute-care-signals via pg_net.http_post. See migration
+    // compute_care_signals_trigger_on_sync_log (2026-06-01).
 
     return jsonResponse(responseData);
 

@@ -121,7 +121,7 @@ em.fr {
   .masthead .person .name { font-size: var(--type-h2); }
 }
 .masthead .wordmark {
-  color: var(--moss-deep);
+  color: var(--moss-text);
   display: inline-flex;
   align-items: center;
 }

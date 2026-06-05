@@ -245,6 +245,13 @@ async function evalNewRecordArrived(w: Watch): Promise<FireDecision> {
   // Pick the most recent across kinds
   results.sort((a, b) => new Date(b.row.created_at).getTime() - new Date(a.row.created_at).getTime());
   const top = results[0];
+  // Pull a human label off the row so the timeline chip can say
+  // "Hemoglobin A1c" instead of just "New lab result".
+  const recordLabel: string =
+    (top.row.test_name as string | undefined) ||
+    (top.row.name as string | undefined) ||
+    (top.row.title as string | undefined) ||
+    "";
 
   return {
     fire: true,
@@ -253,10 +260,13 @@ async function evalNewRecordArrived(w: Watch): Promise<FireDecision> {
       dedupKey: `record:${top.row.id}`,
       kind: top.kind,
       record_id: top.row.id,
+      record_label: recordLabel,
       arrived_at: top.row.created_at,
     },
     // Factual only — no value, no flag, no interpretation.
-    factualBody: `A new ${top.kind} just arrived in their chart. Open Wellet to see it.`,
+    factualBody: recordLabel
+      ? `${recordLabel} just landed in the chart.`
+      : `A new ${top.kind} just arrived in the chart.`,
   };
 }
 

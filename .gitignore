@@ -13,3 +13,4 @@ extract.py
 # Claude Code local config (per-developer, never committed)
 .claude/
 CLAUDE.md
+assets/wellet.js.pre_voice_v1.bak

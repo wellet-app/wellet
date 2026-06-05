@@ -1,0 +1,506 @@
+{
+  "version": "2026-05-17",
+  "groups_by_icd10_prefix": {
+    "C": [
+      {
+        "name": "American Cancer Society",
+        "tagline": "24/7 helpline, transportation help, lodging during treatment",
+        "phone": "800-227-2345",
+        "url": "https://www.cancer.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "National Comprehensive Cancer Network",
+        "tagline": "Free plain-language patient guidelines for every cancer type",
+        "phone": null,
+        "url": "https://www.nccn.org/patientresources/patient-resources/guidelines-for-patients",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "CancerCare",
+        "tagline": "Free counseling, support groups, financial aid, and education",
+        "phone": "800-813-4673",
+        "url": "https://www.cancercare.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "LIVESTRONG",
+        "tagline": "Free navigation services and resources for cancer survivors",
+        "phone": null,
+        "url": "https://www.livestrong.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Cancer Support Community",
+        "tagline": "Free helpline, support groups, and navigation for patients and families",
+        "phone": "888-793-9355",
+        "url": "https://www.cancersupportcommunity.org/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "C92": [
+      {
+        "name": "Leukemia & Lymphoma Society",
+        "tagline": "Free information specialists, peer support, financial aid for blood cancers",
+        "phone": "800-955-4572",
+        "url": "https://www.lls.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "National CML Society",
+        "tagline": "CML-specific peer support, monthly virtual support groups",
+        "phone": null,
+        "url": "https://nationalcmlsociety.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "American Cancer Society",
+        "tagline": "24/7 helpline, transportation help, lodging during treatment",
+        "phone": "800-227-2345",
+        "url": "https://www.cancer.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "CancerCare",
+        "tagline": "Free counseling, support groups, financial aid, and education",
+        "phone": "800-813-4673",
+        "url": "https://www.cancercare.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Cancer Support Community",
+        "tagline": "Free helpline, support groups, and navigation for patients and families",
+        "phone": "888-793-9355",
+        "url": "https://www.cancersupportcommunity.org/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "C50": [
+      {
+        "name": "Susan G. Komen",
+        "tagline": "Patient Care Center helpline, financial aid, and local resources",
+        "phone": "877-465-6636",
+        "url": "https://www.komen.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Breastcancer.org",
+        "tagline": "Trusted information, community forums, and expert Q&A",
+        "phone": null,
+        "url": "https://www.breastcancer.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Living Beyond Breast Cancer",
+        "tagline": "Peer-to-peer helpline, free educational programs, financial grants",
+        "phone": "888-753-5222",
+        "url": "https://www.lbbc.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Young Survival Coalition",
+        "tagline": "Peer support and resources for breast cancer in adults under 40",
+        "phone": null,
+        "url": "https://www.youngsurvival.org/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "E10": [
+      {
+        "name": "Breakthrough T1D",
+        "tagline": "Research updates, advocacy, and local chapter community for T1D",
+        "phone": null,
+        "url": "https://www.breakthrought1d.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "American Diabetes Association",
+        "tagline": "Helpline, free resources, and insurance navigation for diabetes",
+        "phone": "800-342-2383",
+        "url": "https://www.diabetes.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Beyond Type 1",
+        "tagline": "Peer community, real-world guides, and advocacy for T1D adults",
+        "phone": null,
+        "url": "https://beyondtype1.org/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "E11": [
+      {
+        "name": "American Diabetes Association",
+        "tagline": "Helpline, free resources, and insurance navigation for diabetes",
+        "phone": "800-342-2383",
+        "url": "https://www.diabetes.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "DiabetesSisters",
+        "tagline": "Peer support programs and resources for women living with diabetes",
+        "phone": null,
+        "url": "https://diabetessisters.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Beyond Type 2",
+        "tagline": "Community and management tools for adults with type 2 diabetes",
+        "phone": null,
+        "url": "https://beyondtype1.org/type-2-diabetes-management/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "I": [
+      {
+        "name": "American Heart Association",
+        "tagline": "Heart health education, caregiver guides, and local resources",
+        "phone": null,
+        "url": "https://www.heart.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "WomenHeart",
+        "tagline": "Education and peer support for women living with heart disease",
+        "phone": null,
+        "url": "https://www.womenheart.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Mended Hearts",
+        "tagline": "Information line and peer visitor program for heart patients",
+        "phone": "888-432-7899",
+        "url": "https://mendedhearts.org/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "I50": [
+      {
+        "name": "American Heart Association",
+        "tagline": "Heart failure caregiver guides, medication support, and local programs",
+        "phone": null,
+        "url": "https://www.heart.org/en/health-topics/heart-failure",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Heart Failure Society of America Patient Hub",
+        "tagline": "Free tools and resources on heart failure stages, symptoms, and care",
+        "phone": null,
+        "url": "https://hfsa.org/patient",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Mended Hearts",
+        "tagline": "Information line and peer visitor program for heart patients",
+        "phone": "888-432-7899",
+        "url": "https://mendedhearts.org/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "G30": [
+      {
+        "name": "Alzheimer's Association",
+        "tagline": "24/7 helpline, local chapters, free care consultations",
+        "phone": "800-272-3900",
+        "url": "https://www.alz.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Alzheimer's Foundation of America",
+        "tagline": "Licensed social worker helpline 7 days a week, caregiver support",
+        "phone": "866-232-8484",
+        "url": "https://alzfdn.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "BrightFocus Foundation",
+        "tagline": "Free virtual programs and research updates on Alzheimer's disease",
+        "phone": "800-437-2423",
+        "url": "https://www.brightfocus.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "AlzAuthors",
+        "tagline": "Caregiver-written books, blogs, and free tip sheets on dementia",
+        "phone": null,
+        "url": "https://alzauthors.com/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "G31": [
+      {
+        "name": "Alzheimer's Association",
+        "tagline": "24/7 helpline, local chapters, free care consultations",
+        "phone": "800-272-3900",
+        "url": "https://www.alz.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Alzheimer's Foundation of America",
+        "tagline": "Licensed social worker helpline 7 days a week, caregiver support",
+        "phone": "866-232-8484",
+        "url": "https://alzfdn.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "BrightFocus Foundation",
+        "tagline": "Free virtual programs and research updates on Alzheimer's disease",
+        "phone": "800-437-2423",
+        "url": "https://www.brightfocus.org/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "F03": [
+      {
+        "name": "Alzheimer's Association",
+        "tagline": "24/7 helpline, local chapters, free care consultations",
+        "phone": "800-272-3900",
+        "url": "https://www.alz.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Alzheimer's Foundation of America",
+        "tagline": "Licensed social worker helpline 7 days a week, caregiver support",
+        "phone": "866-232-8484",
+        "url": "https://alzfdn.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "AlzAuthors",
+        "tagline": "Caregiver-written books, blogs, and free tip sheets on dementia",
+        "phone": null,
+        "url": "https://alzauthors.com/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "G20": [
+      {
+        "name": "Michael J. Fox Foundation for Parkinson's Research",
+        "tagline": "Research updates, clinical trial matching, and caregiver resources",
+        "phone": null,
+        "url": "https://www.michaeljfox.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Parkinson's Foundation",
+        "tagline": "Helpline, local chapters, and wellness programs for Parkinson's",
+        "phone": "800-473-4636",
+        "url": "https://www.parkinson.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "American Parkinson Disease Association",
+        "tagline": "Free information line, local support groups, and education programs",
+        "phone": "800-223-2732",
+        "url": "https://www.apdaparkinson.org/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "J44": [
+      {
+        "name": "COPD Foundation",
+        "tagline": "COPD360social peer community, resources, and research updates",
+        "phone": null,
+        "url": "https://www.copdfoundation.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "American Lung Association",
+        "tagline": "Lung helpline, Better Breathers Clubs, and COPD management programs",
+        "phone": "800-586-4872",
+        "url": "https://www.lung.org/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "J45": [
+      {
+        "name": "Allergy & Asthma Network",
+        "tagline": "Free phone helpline, educational resources, and asthma action tools",
+        "phone": "800-878-4403",
+        "url": "https://allergyasthmanetwork.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "American Lung Association",
+        "tagline": "Lung helpline, asthma education programs, and Better Breathers Clubs",
+        "phone": "800-586-4872",
+        "url": "https://www.lung.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Asthma and Allergy Foundation of America",
+        "tagline": "Helpline, asthma educator referrals, and free patient materials",
+        "phone": "800-727-8462",
+        "url": "https://aafa.org/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "M": [
+      {
+        "name": "Arthritis Foundation",
+        "tagline": "Free helpline, Live Yes! community, and arthritis management resources",
+        "phone": "800-283-7800",
+        "url": "https://www.arthritis.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "CreakyJoints",
+        "tagline": "Patient community, ArthritisPower research registry, and education",
+        "phone": null,
+        "url": "https://creakyjoints.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Lupus Foundation of America",
+        "tagline": "Health educator helpline, local support groups, and lupus resources",
+        "phone": "800-558-0121",
+        "url": "https://www.lupus.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "National Psoriasis Foundation",
+        "tagline": "Patient helpline, treatment guidance, and peer support for psoriasis",
+        "phone": "800-723-9166",
+        "url": "https://www.psoriasis.org/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "K7": [
+      {
+        "name": "American Liver Foundation",
+        "tagline": "Free helpline, physician referrals, and liver disease education",
+        "phone": "800-465-4837",
+        "url": "https://liverfoundation.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Global Liver Institute",
+        "tagline": "Advocacy training, policy engagement, and liver health awareness programs",
+        "phone": null,
+        "url": "https://globalliver.org/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "N18": [
+      {
+        "name": "National Kidney Foundation",
+        "tagline": "NKF Cares helpline, peer mentors, and kidney disease resources",
+        "phone": "855-653-2273",
+        "url": "https://www.kidney.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "American Kidney Fund",
+        "tagline": "Financial assistance, education, and insurance support for kidney patients",
+        "phone": "800-638-8299",
+        "url": "https://www.kidneyfund.org/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "D5": [
+      {
+        "name": "Aplastic Anemia & MDS International Foundation",
+        "tagline": "Free helpline, peer support, and specialist referrals for bone marrow failure",
+        "phone": "800-747-2820",
+        "url": "https://www.aamds.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Leukemia & Lymphoma Society",
+        "tagline": "Free information specialists, peer support, and financial aid for blood cancers",
+        "phone": "800-955-4572",
+        "url": "https://www.lls.org/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "D6": [
+      {
+        "name": "Sickle Cell Disease Association of America",
+        "tagline": "Local chapter network, education, and advocacy for sickle cell disease",
+        "phone": "410-523-1555",
+        "url": "https://www.sicklecelldisease.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Aplastic Anemia & MDS International Foundation",
+        "tagline": "Free helpline, peer support, and specialist referrals for bone marrow failure",
+        "phone": "800-747-2820",
+        "url": "https://www.aamds.org/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "D7": [
+      {
+        "name": "Sickle Cell Disease Association of America",
+        "tagline": "Local chapter network, education, and advocacy for sickle cell disease",
+        "phone": "410-523-1555",
+        "url": "https://www.sicklecelldisease.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Aplastic Anemia & MDS International Foundation",
+        "tagline": "Free helpline, peer support, and specialist referrals for bone marrow failure",
+        "phone": "800-747-2820",
+        "url": "https://www.aamds.org/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "G35": [
+      {
+        "name": "National Multiple Sclerosis Society",
+        "tagline": "Helpline, MS Navigator program, and local support for MS community",
+        "phone": "800-344-4867",
+        "url": "https://www.nationalmssociety.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "Multiple Sclerosis Foundation",
+        "tagline": "Free programs, peer counseling, and assistive technology for MS patients",
+        "phone": "954-776-6805",
+        "url": "https://msfocus.org/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "G12": [
+      {
+        "name": "The ALS Association",
+        "tagline": "Local chapter care services, equipment lending, and ALS support",
+        "phone": null,
+        "url": "https://www.als.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "I AM ALS",
+        "tagline": "Patient-led community, virtual support groups, and advocacy for ALS",
+        "phone": null,
+        "url": "https://iamals.org/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "Q90": [
+      {
+        "name": "National Down Syndrome Society",
+        "tagline": "Helpline, advocacy, and resources for Down syndrome families",
+        "phone": "800-221-4602",
+        "url": "https://ndss.org/",
+        "last_reviewed": "2026-05-17"
+      },
+      {
+        "name": "National Down Syndrome Congress",
+        "tagline": "Telephone hotline and information on any topic related to Down syndrome",
+        "phone": "770-604-9500",
+        "url": "https://www.ndsccenter.org/",
+        "last_reviewed": "2026-05-17"
+      }
+    ],
+    "Q87": [
+      {
+        "name": "NORD — National Organization for Rare Disorders",
+        "tagline": "Rare disease database, patient assistance programs, and organization finder",
+        "phone": null,
+        "url": "https://rarediseases.org/",
+        "last_reviewed": "2026-05-17"
+      }
+    ]
+  }
+}

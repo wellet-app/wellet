@@ -34,8 +34,8 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-  body { font-family: 'DM Sans', sans-serif; background: var(--person-bg); color: var(--text-primary); min-height: 100vh; transition: background 0.4s ease; }
-  .page-wrap { max-width: 768px; margin: 0 auto; background: var(--person-bg); min-height: 100vh; transition: background 0.4s ease; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--person-bg); color: var(--text-primary); min-height: 100vh; min-height: 100dvh; transition: background 0.4s ease; }
+  .page-wrap { max-width: 768px; margin: 0 auto; background: var(--person-bg); min-height: 100vh; min-height: 100dvh; transition: background 0.4s ease; }
 
   /* iOS zoom-on-focus prevention: text-entry inputs must render at 16px on mobile.
      iOS Safari auto-zooms when focusing any input under 16px. The 768px media query
@@ -45,10 +45,10 @@
   input[type="month"], textarea, select { font-size: 16px; }
 
   /* ── AUTH SCREEN ── */
-  #auth-screen { display: none; flex-direction: column; min-height: 100vh; background: var(--cream); }
+  #auth-screen { display: none; flex-direction: column; min-height: 100vh; min-height: 100dvh; background: var(--cream); }
   .auth-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 28px 0; }
   .auth-header-wordmark { width: 100px; display: block; }
-  .auth-early-badge { font-size: var(--type-micro); font-weight: 500; letter-spacing: 0.08em; color: var(--moss-text); border: 1.5px solid var(--moss); border-radius: 6px; padding: 5px 12px; text-transform: uppercase; }
+  .auth-early-badge { font-size: var(--type-micro); font-weight: 500; letter-spacing: 0.04em; color: var(--moss-text); border: 1.5px solid var(--moss); border-radius: 6px; padding: 5px 12px; text-transform: none; }
 
   .auth-headline { padding: 12px 28px 0; }
   .auth-headline h1 { font-family: var(--serif); font-size: var(--type-display); line-height: 1.15; font-weight: 400; color: #2C2A26; margin: 0; }
@@ -95,42 +95,45 @@
     margin-bottom: 12px;
   }
 
-  /* Confirmation card after “Send magic link” — inverted (dark moss) so the
-     state change actually lands. Lighter copy + white icon chip. */
+  /* Confirmation card after “Send magic link”. Lightened from the original
+     dark moss (#2A3A33) to a soft moss tint so the typed-in 6-digit code
+     (which renders in dark ink) is readable on the same card. */
   .auth-sent-card {
-    background: #2A3A33;
+    background: #E8EDEA;
     border-radius: 18px;
     padding: 32px 22px 24px;
     margin: 8px 0 4px;
-    color: #F2F0EA;
-    box-shadow: 0 6px 22px rgba(20, 25, 23, 0.18);
+    color: var(--text-primary);
+    box-shadow: 0 6px 22px rgba(20, 25, 23, 0.08);
   }
   .auth-sent-card .auth-sent-icon {
-    background: rgba(255, 255, 255, 0.10);
-    color: #F2F0EA;
+    background: rgba(96, 143, 124, 0.14);
+    color: var(--moss-deep);
   }
   .auth-sent-card .auth-sent-title {
-    color: #FFFFFF;
+    color: var(--text-primary);
   }
   .auth-sent-card .auth-sent-body {
-    color: rgba(242, 240, 234, 0.86);
+    color: var(--text-primary);
+    opacity: 0.86;
   }
   .auth-sent-card .auth-sent-body strong {
-    color: #FFFFFF;
+    color: var(--text-primary);
     font-weight: 600;
+    opacity: 1;
   }
   .auth-sent-aside {
     display: block;
     margin-top: 6px;
     font-size: var(--type-meta);
-    color: rgba(242, 240, 234, 0.72);
+    color: var(--text-secondary);
     line-height: 1.5;
   }
-  /* Demo button needs to stay legible on the dark card */
+  /* Demo button on the lightened card */
   .auth-demo-link--on-card {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.28);
-    color: #FFFFFF;
+    background: rgba(96, 143, 124, 0.10);
+    border-color: rgba(96, 143, 124, 0.35);
+    color: var(--moss-deep);
   }
   .auth-demo-link--on-card:hover {
     background: rgba(255, 255, 255, 0.14);
@@ -196,7 +199,8 @@
   /* Hide on the dedicated auth screen (it has its own button) and once the
      authenticated app is mounted. */
   body.is-authenticated .global-start-over,
-  body.is-auth-screen .global-start-over {
+  body.is-auth-screen .global-start-over,
+  body.is-landing .global-start-over {
     display: none !important;
   }
   .auth-privacy-detail { max-height: 0; overflow: hidden; transition: max-height 0.35s ease, opacity 0.35s ease; opacity: 0; }
@@ -207,7 +211,7 @@
   @media (max-width: 340px) { .auth-signals { grid-template-columns: 1fr; } }
 
   /* ── LANDING ── */
-  #landing { display: none; flex-direction: column; min-height: 100vh; }
+  #landing { display: none; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
 
   .hero-band { background: var(--moss); padding: 52px 28px 32px; color: white; }
   .hero-wordmark { width: 110px; margin-bottom: 18px; display: block; }
@@ -331,14 +335,14 @@
   .reminder-badge { display: inline-flex; align-items: center; gap: 4px; font-size: var(--type-micro); font-weight: 500; padding: 2px 8px; border-radius: 8px; background: var(--mint); color: var(--moss-dark); margin-left: 6px; vertical-align: middle; }
 
   /* ── APP ── */
-  #app { display: none; flex-direction: column; min-height: 100vh; }
+  #app { display: none; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
   .app-header { background: white; border-bottom: 1px solid var(--border); padding: calc(env(safe-area-inset-top, 0px) + 10px) 20px 0; position: sticky; top: 0; z-index: 10; }
   html { scroll-padding-top: 160px; }
   .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; position: relative; }
   .app-logo-row { display: flex; align-items: center; gap: 10px; }
   .app-icon { width: 30px; height: 30px; border-radius: 7px; overflow: hidden; flex-shrink: 0; }
   .app-wordmark { height: 24px; display: block; }
-  .app-wordmark path { fill: #3D6B58; }
+  .app-wordmark path { fill: var(--moss-text, #4F7A68); }
   .header-meta { font-size: var(--type-meta); color: var(--text-muted); margin-top: 1px; }
   .header-actions { display: flex; gap: 8px; }
   .icon-btn { min-width: 44px; min-height: 44px; border-radius: 50%; background: var(--mint); display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; color: var(--moss); transition: background 0.15s; }
@@ -578,7 +582,6 @@
   .contact-card { background: var(--cream); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; }
   .contact-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--moss); display: flex; align-items: center; justify-content: center; font-weight: 500; font-size: var(--type-meta); color: white; flex-shrink: 0; }
   .contact-avatar.sage { background: #7AA898; }
-  .contact-avatar.forest { background: var(--forest); }
   .contact-name { font-size: var(--type-body); font-weight: 500; }
   .contact-meta { font-size: var(--type-meta); color: var(--text-muted); margin-top: 1px; }
   .contact-role { font-size: var(--type-micro); font-weight: 500; padding: 2px 8px; border-radius: 8px; margin-left: auto; flex-shrink: 0; }
@@ -858,7 +861,7 @@
   .tl-dot.note { border-color: var(--text-muted); }
   .tl-dot.alert { border-color: var(--red); background: var(--red); }
   .tl-connector { width: 1px; flex: 1; min-height: 24px; background: var(--border); margin-top: 4px; }
-  .tl-card { flex: 1; background: white; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; transition: background 0.15s ease-out, border-color 0.15s ease-out; }
+  .tl-card { flex: 1; background: white; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; transition: background 0.15s ease-out, border-color 0.15s ease-out; }
   .tl-card[onclick]:hover { background: #FAFAF7; border-color: #C9C6BE; }
   /* Flash highlight on a Records row when jumped to from Timeline */
   @keyframes tlTargetFlash {
@@ -866,32 +869,58 @@
     100% { background: transparent; box-shadow: 0 0 0 0 rgba(75, 99, 65, 0); }
   }
   .tl-target-flash { animation: tlTargetFlash 2s ease-out; border-radius: 8px; }
-  .tl-card.amber-border { border-left: 3px solid var(--amber); }
-  .tl-card.blue-border { border-left: 3px solid var(--blue); }
-  .tl-card.moss-border { border-left: 3px solid var(--moss); }
-  .tl-card.red-border { border-left: 3px solid var(--red); }
+  /* Left-border accent variants kept as no-op for backwards compat — the new
+     design uses a colored icon tile on the left instead. */
+  .tl-card.amber-border,
+  .tl-card.blue-border,
+  .tl-card.moss-border,
+  .tl-card.red-border { border-left: 1px solid var(--border); }
+
+  /* ─── Icon-tile card layout ───────────────────────────────────────────────
+     Matches the BDB video timeline: 40×40 rounded square color tile on the
+     left, content column on the right, timestamp right-aligned in the eyebrow
+     row. Used by the standard event card render (appointments, refills,
+     labs, documents, notes, encounters). CareSignals cards keep their own
+     mint-tinted gradient treatment and don't use this layout. */
+  .tl-card.tl-card-with-icon { display: flex; gap: 12px; align-items: flex-start; }
+  .tl-icon-tile {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    background: #EEEBE2;
+    color: var(--text-muted);
+  }
+  .tl-icon-tile i, .tl-icon-tile svg { width: 20px; height: 20px; stroke-width: 1.75; }
+  .tl-icon-tile-appt { background: #DCE8DA; color: #4F7A68; }
+  .tl-icon-tile-med { background: #F5DAB9; color: #8A5A2B; }
+  .tl-icon-tile-lab { background: #E0DCEC; color: #6A5FA0; }
+  .tl-icon-tile-alert { background: #F0D7D7; color: #A05A6A; }
+  .tl-icon-tile-note { background: #EEEBE2; color: #7A7367; }
+  .tl-card-content { flex: 1; min-width: 0; }
+  .tl-card-content .tl-card-type-row { justify-content: flex-start; }
+  .tl-card-content .tl-card-time {
+    margin-left: auto;
+    font-size: var(--type-micro);
+    color: var(--text-muted);
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    text-transform: none;
+    flex-shrink: 0;
+    padding-left: 8px;
+  }
 
   /* ─── CareSignals card on the timeline ──────────────────────────────────
      Stands out from EHR + manual cards. Mint-tinted background, accent rail
      in moss-deep, sparkles eyebrow, optional measurement chip. */
   .tl-card.tl-card-caresignal {
-    position: relative;
     background: linear-gradient(180deg, #F2F6EE 0%, #E8F0E0 100%);
     border: 1px solid rgba(75, 99, 65, 0.22);
-    border-left: 0;            /* replaced by .tl-cs-accent for a thicker rail */
-    padding-left: 18px;        /* leave room for the rail */
     box-shadow: 0 1px 0 rgba(75, 99, 65, 0.04), 0 0 0 1px rgba(75, 99, 65, 0.02) inset;
   }
   .tl-card.tl-card-caresignal[onclick]:hover {
     background: linear-gradient(180deg, #EDF3E8 0%, #E1EBD8 100%);
     border-color: rgba(75, 99, 65, 0.32);
-  }
-  .tl-card .tl-cs-accent {
-    position: absolute;
-    left: 0; top: 0; bottom: 0;
-    width: 4px;
-    background: linear-gradient(180deg, var(--moss-deep, #2F4525) 0%, var(--moss, #4B6341) 100%);
-    border-radius: 10px 0 0 10px;
   }
   .tl-card .tl-cs-eyebrow { gap: 7px; margin-bottom: 5px; }
   .tl-card .tl-cs-label {
@@ -923,6 +952,34 @@
   }
   .tl-card .tl-cs-body { color: var(--ink-7, var(--text-secondary)); }
   .tl-card .tl-cs-meta { color: var(--ink-5, var(--text-muted)); }
+
+  /* Path B v1 — AI-surfaced CareSignals tiles. Same mint card as the legacy
+     fires by default; "attention" severity gets an amber tint so med/activity
+     drops and pre-visit RHR drift read as a softer alert. Source chips flow
+     left-to-right (margin-left:auto removed for v2) since rows can carry 2+. */
+  .tl-card.tl-card-caresignal.tl-card-caresignal-v2 .tl-cs-chip {
+    margin-left: 0;
+  }
+  .tl-card.tl-card-caresignal.tl-card-caresignal-v2 .tl-cs-eyebrow {
+    flex-wrap: wrap;
+    gap: 6px;
+    row-gap: 4px;
+  }
+  .tl-card.tl-card-caresignal-v2.tl-cs-attention {
+    background: linear-gradient(180deg, #FBF5E6 0%, #F4EBD2 100%);
+    border: 1px solid rgba(184, 134, 11, 0.28);
+    box-shadow: 0 1px 0 rgba(184, 134, 11, 0.05), 0 0 0 1px rgba(184, 134, 11, 0.03) inset;
+  }
+  .tl-card.tl-card-caresignal-v2.tl-cs-attention[onclick]:hover {
+    background: linear-gradient(180deg, #F8F0DC 0%, #EFE3C2 100%);
+    border-color: rgba(184, 134, 11, 0.40);
+  }
+  .tl-card.tl-card-caresignal-v2.tl-cs-attention .tl-cs-chip {
+    background: rgba(184, 134, 11, 0.12);
+    color: #8a6508;
+    border-color: rgba(184, 134, 11, 0.28);
+  }
+
   .tl-card-type-row { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
   .tl-card-type { font-size: var(--type-micro); letter-spacing: 0.08em; text-transform: uppercase; font-weight: 500; }
   .tl-card-type.appt { color: var(--moss); }
@@ -1055,6 +1112,13 @@
 
   /* bottom nav */
   .bottom-nav { position: fixed; bottom: 0; width: 100%; max-width: 768px; background: white; border-top: 1px solid var(--border); display: flex; padding: 10px 0 20px; z-index: 20; left: 50%; transform: translateX(-50%); }
+  /* D14: when the welcome overlay is up (z-index 100), the bottom nav was
+     getting buried and absorbing taps. Raise nav above the overlay only while
+     it's shown so the user can still tap Records/CareSignals/Ask. switchNavTo
+     auto-dismisses the overlay on first tap so this only matters for the very
+     first interaction. Scoped via :has() so other modals (z-index >100) still
+     get correct stacking. */
+  body:has(#welcome-overlay.show) .bottom-nav { z-index: 110; }
   .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; font-size: var(--type-micro); color: var(--text-muted); padding: 8px 0; min-height: 44px; background: none; border: none; font-family: 'DM Sans', sans-serif; transition: color 0.15s; }
   .nav-item.active { color: var(--moss); }
   .nav-icon { display: flex; align-items: center; }
@@ -1405,6 +1469,9 @@
   .update-summary-refresh:hover { opacity: 1; background: rgba(255,255,255,0.5); }
   .update-summary-sources-wrap { margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid rgba(75, 99, 65, 0.14); }
   .update-summary-sources-label { font-size: var(--type-micro); letter-spacing: 0.12em; text-transform: uppercase; color: var(--moss-dark); font-weight: 600; margin-bottom: 6px; }
+  .update-summary-sources-add { appearance: none; -webkit-appearance: none; background: rgba(75, 99, 65, 0.10); border: none; padding: 0; margin-left: 4px; width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--moss-dark); cursor: pointer; opacity: 0.75; transition: opacity 0.15s, background 0.15s; vertical-align: middle; }
+  .update-summary-sources-add:hover, .update-summary-sources-add:focus-visible { opacity: 1; background: rgba(75, 99, 65, 0.18); outline: none; }
+  .update-summary-sources-add i, .update-summary-sources-add svg { width: 11px; height: 11px; }
   .update-summary-sources { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: var(--type-micro); color: var(--moss-dark); opacity: 0.85; }
   .update-summary-source-chip { display: inline-flex; align-items: center; gap: 3px; padding: 2px 0; }
   .update-summary-source-chip i { width: 11px; height: 11px; }
@@ -1414,8 +1481,7 @@
   .update-summary-section { margin-bottom: 12px; }
   .update-summary-section:last-child { margin-bottom: 0; }
   .update-summary-subhead { font-size: var(--type-micro); letter-spacing: 0.12em; text-transform: uppercase; color: var(--moss-dark); font-weight: 600; margin-bottom: 6px; opacity: 0.9; }
-  .update-summary-section-body { font-size: var(--type-body); line-height: 1.6; color: var(--text-primary); }
-  .update-summary-section.snapshot .update-summary-section-body { font-family: var(--serif); font-size: var(--type-body); line-height: 1.5; letter-spacing: -0.005em; }
+  .update-summary-section-body { font-family: var(--serif); font-size: var(--type-body); line-height: 1.5; letter-spacing: -0.005em; color: var(--text-primary); }
   .update-summary-section.snapshot .update-summary-section-body .verdict { font-weight: 500; }
   .update-summary-byline { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(75, 99, 65, 0.12); font-size: 10.5px; color: var(--moss-dark); opacity: 0.75; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; letter-spacing: 0.01em; }
   .update-summary-byline i { width: 10px; height: 10px; }
@@ -1498,6 +1564,11 @@
   .ehr-demo-tooltip:hover::before { content:''; position:absolute; bottom:calc(100% + 2px); left:50%; transform:translateX(-50%); border:4px solid transparent; border-top-color:var(--text-primary); z-index:10; }
 
   /* ── HOSPITAL PICKER ── */
+  .hospital-picker-banner { margin:0 20px 12px; padding:12px 14px; background:var(--mint, #f1f5ef); border:1px solid var(--moss, #6b7d5a); border-radius:10px; }
+  .hospital-picker-banner-title { font-size:var(--type-meta); font-weight:600; color:var(--text-primary); line-height:1.4; margin-bottom:4px; }
+  .hospital-picker-banner-body { font-size:var(--type-meta); color:var(--text-primary); line-height:1.5; }
+  .hospital-picker-banner-body a { color:var(--moss); font-weight:500; text-decoration:underline; cursor:pointer; }
+  .hospital-picker-banner-body a:hover { text-decoration:none; }
   .hospital-picker-search { width:100%; padding:12px 14px 12px 40px; border:1.5px solid var(--border-medium); border-radius:12px; font-size:var(--type-body); font-family:'DM Sans',sans-serif; background:var(--warm-white); color:var(--text-primary); outline:none; transition:border-color 0.15s; box-sizing:border-box; }
   .hospital-picker-search:focus { border-color:var(--moss); }
   .hospital-picker-search-wrap { position:relative; padding:0 20px 12px; }
@@ -1516,6 +1587,23 @@
   .hospital-picker-missing { text-align:center; padding:6px 20px 4px; }
   .hospital-picker-missing a { font-size:var(--type-meta); color:var(--moss); cursor:pointer; font-weight:500; text-decoration:none; }
   .hospital-picker-missing a:hover { text-decoration:underline; }
+
+  /* 2026-05-21: Hospital pre-check vendor card (inline in picker + connect-request modal) */
+  .vendor-check-slot { list-style:none; padding:8px 0 0; }
+  #cr-vendor-check-slot:not(:empty) { margin:0 0 16px; }
+  .vendor-check-card { border-radius:12px; padding:14px 16px; margin:0 0 8px; border:1px solid var(--border-medium); background:var(--warm-white); }
+  .vendor-check-card--loading { background:var(--cream, #faf6f0); border-style:dashed; }
+  .vendor-check-card--good { background:var(--mint, #f1f5ef); border-color:var(--moss, #6b7d5a); }
+  .vendor-check-card--warn { background:#fef7ec; border-color:#d4a04a; }
+  .vendor-check-card--block { background:#fbecec; border-color:#c97c7c; }
+  .vendor-check-card--info { background:var(--warm-white); border-color:var(--border-medium); }
+  .vendor-check-title { font-size:var(--type-meta); font-weight:600; color:var(--text-primary); line-height:1.4; margin-bottom:4px; }
+  .vendor-check-body { font-size:var(--type-meta); color:var(--text-primary); line-height:1.5; }
+  .vendor-check-actions { margin-top:10px; }
+  .vendor-check-cta { background:var(--moss, #6b7d5a); color:#fff; border:none; border-radius:8px; padding:8px 14px; font-size:var(--type-meta); font-weight:500; cursor:pointer; font-family:'DM Sans',sans-serif; transition:opacity 0.15s; }
+  .vendor-check-cta:hover { opacity:0.88; }
+  .vendor-check-attribution { margin-top:10px; font-size:11px; color:var(--text-muted); line-height:1.3; }
+  .vendor-check-attribution em { font-style:italic; }
 
   /* Connect-request modal (inline form for "can't find my hospital") */
   .cr-overlay { display:none; position:fixed; inset:0; background:rgba(44,42,38,0.45); z-index:110; align-items:flex-end; justify-content:center; }
@@ -1542,6 +1630,13 @@
   .cr-success-icon { width:48px; height:48px; border-radius:50%; background:var(--mint); color:var(--moss); display:flex; align-items:center; justify-content:center; margin:0 auto 12px; }
   .cr-success-title { font-family: var(--serif); font-size:var(--type-h2); color:var(--text-primary); margin-bottom:6px; }
   .cr-success-body { font-size:var(--type-meta); color:var(--text-secondary); line-height:1.5; }
+
+  /* 2026-05-27: Henry Ford "Almost there" recovery modal. */
+  .at-sheet { max-width:480px; }
+  .at-lede { font-size:var(--type-body); color:var(--text-primary); line-height:1.55; margin:8px 0 14px; }
+  .at-filed { background:var(--mint); color:var(--moss-dark); font-size:var(--type-meta); line-height:1.5; padding:12px 14px; border-radius:12px; margin:0 0 16px; display:flex; gap:8px; align-items:flex-start; }
+  .at-check { display:inline-flex; width:18px; height:18px; border-radius:50%; background:var(--moss); color:white; align-items:center; justify-content:center; font-size:11px; line-height:1; font-weight:700; flex-shrink:0; margin-top:1px; }
+  .at-actions { margin-top:8px; }
 
   /* ── CARESIGNALS ──────────────────────────────────────────────────────────── */
   .signals-view { padding:20px 16px 100px 16px; }
@@ -1682,7 +1777,42 @@
   .terra-poweredby a { color:var(--text-muted); text-decoration:none; border-bottom:1px dotted var(--border); }
   .terra-poweredby a:hover { color:var(--moss); }
 
-  /* ── END-OF-CARE JOURNEY ──────────────────────────────────────────────────── */
+  /* ── SOURCES CARD (records-tab connections list) ─────────────────────────── */
+  .sources-card { margin-top:8px; margin-bottom:16px; border:1px solid var(--border); border-radius:14px; background:#FBFAF8; overflow:hidden; }
+  .sources-card-header { display:flex; align-items:center; justify-content:space-between; padding:14px 16px 10px; gap:12px; }
+  .sources-card-title { font-family:'DM Sans',sans-serif; font-size:var(--type-meta); font-weight:600; color:var(--text-primary); letter-spacing:0.2px; text-transform:uppercase; }
+  .sources-card-add { background:none; border:none; color:var(--moss); font-size:var(--type-meta); font-family:'DM Sans',sans-serif; font-weight:500; cursor:pointer; display:inline-flex; align-items:center; gap:4px; padding:4px 0; }
+  .sources-card-add:hover { color:var(--moss-dark); }
+  .sources-group { padding:0 16px; }
+  .sources-group:last-child { padding-bottom:12px; }
+  .sources-group-label { font-family:'DM Sans',sans-serif; font-size:var(--type-micro); font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.4px; padding:8px 0 6px; }
+  .sources-row { display:flex; align-items:flex-start; gap:12px; padding:10px 0; border-top:1px solid var(--border); }
+  .sources-group .sources-row:first-of-type { border-top:none; }
+  .sources-row-icon { width:32px; height:32px; border-radius:8px; background:var(--mint); color:var(--moss-dark); display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px; }
+  .sources-row-icon.amber { background:#FFF6E0; color:#9C7700; }
+  .sources-row-icon.red { background:#FEF0EE; color:#B23A2A; }
+  .sources-row-body { flex:1; min-width:0; }
+  .sources-row-title { font-family:'DM Sans',sans-serif; font-size:var(--type-body); font-weight:500; color:var(--text-primary); }
+  .sources-row-status { font-family:'DM Sans',sans-serif; font-size:var(--type-meta); color:var(--text-secondary); margin-top:2px; line-height:1.4; }
+  .sources-row-status.amber { color:#9C7700; }
+  .sources-row-status.red { color:#B23A2A; }
+  .sources-row-actions { display:flex; align-items:center; gap:6px; margin-top:8px; flex-wrap:wrap; }
+  .sources-action-primary { background:var(--mint); color:var(--moss-dark); border:none; border-radius:8px; padding:6px 12px; font-size:var(--type-meta); font-family:'DM Sans',sans-serif; font-weight:500; cursor:pointer; }
+  .sources-action-primary:hover { background:#D8E8DA; }
+  .sources-action-primary.amber { background:#FFF6E0; color:#7A5A00; }
+  .sources-action-primary.amber:hover { background:#FBEFC2; }
+  .sources-action-secondary { background:none; border:1px solid var(--border); color:var(--text-muted); border-radius:8px; padding:6px 10px; font-size:var(--type-meta); font-family:'DM Sans',sans-serif; cursor:pointer; }
+  .sources-action-secondary:hover { border-color:var(--text-secondary); color:var(--text-secondary); }
+  .sources-collapsed { display:flex; align-items:center; gap:10px; padding:12px 16px; font-size:var(--type-meta); color:var(--text-secondary); cursor:pointer; }
+  .sources-collapsed:hover { background:rgba(0,0,0,0.02); }
+  .sources-collapsed .terra-status-dot { width:8px; height:8px; }
+  .sources-collapsed .sources-collapsed-name { font-weight:500; color:var(--text-primary); }
+  .sources-collapsed .sources-collapsed-meta { color:var(--text-muted); }
+  .sources-collapsed .sources-collapsed-expand { margin-left:auto; color:var(--text-muted); }
+  .sources-reassure { margin:8px 16px 0; padding:12px 14px; background:var(--mint); color:var(--moss-dark); border-radius:10px; font-family:'DM Sans',sans-serif; font-size:var(--type-meta); line-height:1.5; display:flex; gap:10px; align-items:flex-start; }
+  .sources-reassure i { flex-shrink:0; margin-top:2px; color:var(--moss-dark); }
+
+  /* ── END-OF-CARE JOURNEY ───────────────────────────────────── */
   .eoc-overlay { display:none; position:fixed; inset:0; background:rgba(44,42,38,0.5); z-index:150; align-items:flex-end; justify-content:center; }
   .eoc-overlay.show { display:flex; }
   .eoc-sheet { background:white; border-radius:20px 20px 0 0; width:100%; max-width:768px; max-height:90vh; overflow-y:auto; padding:0 0 36px; }
@@ -2618,6 +2748,26 @@
     height: 16px;
   }
 
+  /* 2026-05-21: "which sources are connected" sublabel under connect-card.
+     Shows the actual hospital name(s) for EHR, the actual provider name(s)
+     for wearables. Single line, ellipsizes if too long, never wraps. */
+  .connect-card-sources {
+    display: block;
+    margin-top: 6px;
+    color: #4A7A66;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12.5px;
+    font-weight: 500;
+    line-height: 1.3;
+    letter-spacing: 0.005em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .connect-card.is-connected .connect-card-sources {
+    color: #2A3A33;
+  }
+
   /* Primary skip-btn variant: shows up as "Done" once at least one connection succeeded */
   .connect-skip-btn--primary {
     background: #2A3A33;
@@ -3116,7 +3266,7 @@ input.story-input[type="date"]::-webkit-calendar-picker-indicator {
   max-width: 540px;
   background: linear-gradient(180deg, #FCFAF5 0%, #FFFFFF 30%);
 }
-.manual-visit-step { padding-top: 4px; }
+.manual-visit-step { padding: 4px 20px 0; }
 
 /* Step 1: picklist */
 .manual-visit-group-label {
@@ -3316,3 +3466,93 @@ input.story-input[type="date"]::-webkit-calendar-picker-indicator {
   text-transform: uppercase;
   font-weight: 600;
 }
+
+  /* ── CareSignals hero strip ──────────────────────────────────────────
+     Quiet summary card that sits above the timeline in /me's Home pane.
+     Tells the caregiver how many patterns Wellet has noticed across the
+     loved one's records, with the most recent preview line and a tap
+     target into the CareSignals view. Voice rules: "noticed" only. */
+  .cs-hero-strip {
+    margin: 12px 20px 0;
+    background: linear-gradient(180deg, #1f3a2e 0%, #14302b 100%);
+    color: #f5f7f3;
+    border-radius: 14px;
+    padding: 14px 16px 12px;
+    cursor: pointer;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.04), 0 12px 24px -18px rgba(20,50,38,0.45);
+    border: 1px solid rgba(255,255,255,0.05);
+    transition: transform 120ms ease, box-shadow 120ms ease;
+  }
+  .cs-hero-strip:hover,
+  .cs-hero-strip:focus {
+    outline: none;
+    transform: translateY(-1px);
+    box-shadow: 0 1px 0 rgba(0,0,0,0.06), 0 16px 32px -18px rgba(20,50,38,0.55);
+  }
+  .cs-hero-strip-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+  }
+  .cs-hero-strip-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(245,247,243,0.62);
+  }
+  .cs-hero-strip-count {
+    font-family: var(--font-display, 'Fraunces', serif);
+    font-size: 22px;
+    font-weight: 500;
+    color: #f5f7f3;
+    line-height: 1;
+  }
+  .cs-hero-strip-title {
+    font-family: var(--font-display, 'Fraunces', serif);
+    font-size: 16px;
+    line-height: 1.35;
+    color: #f5f7f3;
+    margin-bottom: 2px;
+  }
+  .cs-hero-strip-sub {
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: rgba(245,247,243,0.72);
+    margin-bottom: 10px;
+  }
+  .cs-hero-strip-preview {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 10px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 10px;
+    margin-bottom: 10px;
+  }
+  .cs-hero-strip-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #9fd5b8;
+    margin-top: 6px;
+    flex-shrink: 0;
+  }
+  .cs-hero-strip-preview-text {
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: rgba(245,247,243,0.92);
+  }
+  .cs-hero-strip-when {
+    color: rgba(245,247,243,0.6);
+    white-space: nowrap;
+  }
+  .cs-hero-strip-cta {
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    color: #9fd5b8;
+    font-weight: 500;
+    text-align: right;
+  }

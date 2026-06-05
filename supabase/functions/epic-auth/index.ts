@@ -49,6 +49,15 @@ const SMART_SCOPES = [
   'patient/Appointment.read',
   'patient/CareTeam.read',
   'patient/DocumentReference.read',
+  // Binary.read is what actually unblocks AVS / Provider Summary fetches. The
+  // DocumentReference itself is just metadata + an attachment URL pointing at
+  // /Binary/{id}; fetching that URL needs a token with patient/Binary.read in
+  // its scope set. Without it Epic returns 401 even though everything else
+  // (encounters, meds, labs, document metadata) works fine. This is why the
+  // "After Visit Summary" buttons never opened — the app was correctly built
+  // around DocumentReference, but the token couldn't read the actual Binary
+  // body Epic linked us to.
+  'patient/Binary.read',
   'patient/Practitioner.read',
   'patient/PractitionerRole.read',
   'launch/patient',
@@ -757,6 +766,37 @@ Deno.serve(async (req) => {
           .update({ needs_reconnect: true, status: 'needs_reconnect' })
           .eq('person_id', person_id)
           .eq('user_id', user.id);
+
+        // Pattern 4 — same throttled ops_events insert for the no_refresh_token
+        // case. Treated as same root cause from the user\u2019s perspective: the
+        // connection silently stopped working and they need to sign in again.
+        try {
+          const { data: prior } = await admin.from('wellet_ops_events')
+            .select('id')
+            .eq('event_type', 'ehr_silent_failure')
+            .eq('source', 'epic-auth')
+            .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+            .filter('payload->>connection_id', 'eq', conn.id)
+            .limit(1);
+          if (!prior || prior.length === 0) {
+            await admin.from('wellet_ops_events').insert({
+              event_type: 'ehr_silent_failure',
+              severity: 'high',
+              summary: 'EHR connection lost for ' + (conn.hospital_name || 'a connected hospital') + ' \u2014 reconnect needed.',
+              source: 'epic-auth',
+              payload: {
+                vendor: 'epic',
+                reason: 'no_refresh_token',
+                connection_id: conn.id,
+                person_id,
+                user_id: user.id,
+                hospital_name: conn.hospital_name || null,
+                fhir_base_url: conn.fhir_base_url || null,
+              },
+            });
+          }
+        } catch (_) { /* best-effort logging */ }
+
         return jsonResponse({
           error: 'no_refresh_token',
           message: 'This connection has no refresh token. Reconnect required.',
@@ -827,7 +867,27 @@ Deno.serve(async (req) => {
 
       if (!tokenRes.ok) {
         const errText = await tokenRes.text();
-        console.error('[epic-auth] refresh failed', { status: tokenRes.status, body: errText.slice(0, 400) });
+        // Capture response headers (Epic sometimes returns the real reason in
+        // WWW-Authenticate, X-Epic-Error-Id, or a request id we can quote
+        // back to them). Stringify keys we care about — Headers isn't JSON.
+        const respHeaders: Record<string, string> = {};
+        for (const [k, v] of tokenRes.headers.entries()) {
+          if (/^(www-authenticate|x-epic|x-request-id|content-type|date)$/i.test(k)) {
+            respHeaders[k] = v;
+          }
+        }
+        console.error('[epic-auth] refresh failed', {
+          status: tokenRes.status,
+          body: errText.slice(0, 1000),
+          headers: respHeaders,
+          person_id,
+          conn_id: conn.id,
+          client_id_used: conn.client_id_used,
+          fhir_base_url: conn.fhir_base_url,
+          token_url: tokenUrl,
+          is_legacy_public: isLegacyPublic,
+          refresh_token_age_days: conn.created_at ? Math.floor((Date.now() - new Date(conn.created_at).getTime()) / 86400000) : null,
+        });
 
         // Refresh tokens expire too (Epic = 90 days rolling). On refresh
         // failure, flag the connection so the UI can prompt a reconnect
@@ -837,10 +897,57 @@ Deno.serve(async (req) => {
           .eq('person_id', person_id)
           .eq('user_id', user.id);
 
+        // Also write a sync_log row so the Duke watcher cron can see refresh
+        // failures without grepping edge function logs.
+        try {
+          await admin.from('ehr_sync_log').insert({
+            person_id,
+            patient_id: conn.patient_id,
+            status: tokenRes.status,
+            result_counts: { refresh_error: true, epic_body: errText.slice(0, 500), epic_headers: respHeaders },
+          });
+        } catch (_) { /* best-effort logging */ }
+
+        // Pattern 4 — proactive notification for silent failures. Insert into
+        // wellet_ops_events so the ehr-silent-failure notifier cron picks this
+        // up and notifies the user within ~30 min. Throttled to one event per
+        // connection per 24h to avoid spamming when the hourly background-ehr-
+        // sync cron keeps hitting the same invalid_grant.
+        try {
+          const { data: prior } = await admin.from('wellet_ops_events')
+            .select('id')
+            .eq('event_type', 'ehr_silent_failure')
+            .eq('source', 'epic-auth')
+            .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+            .filter('payload->>connection_id', 'eq', conn.id)
+            .limit(1);
+          if (!prior || prior.length === 0) {
+            await admin.from('wellet_ops_events').insert({
+              event_type: 'ehr_silent_failure',
+              severity: 'high',
+              summary: 'EHR refresh failed for ' + (conn.hospital_name || 'a connected hospital') + ' \u2014 reconnect needed.',
+              source: 'epic-auth',
+              payload: {
+                vendor: 'epic',
+                reason: 'refresh_failed',
+                epic_status: tokenRes.status,
+                connection_id: conn.id,
+                person_id,
+                user_id: user.id,
+                hospital_name: conn.hospital_name || null,
+                fhir_base_url: conn.fhir_base_url || null,
+                is_legacy_public: isLegacyPublic,
+                refresh_token_age_days: conn.created_at ? Math.floor((Date.now() - new Date(conn.created_at).getTime()) / 86400000) : null,
+              },
+            });
+          }
+        } catch (_) { /* best-effort logging */ }
+
         return jsonResponse({
           error: 'refresh_failed',
           epic_status: tokenRes.status,
-          epic_body: errText.slice(0, 400),
+          epic_body: errText.slice(0, 1000),
+          epic_headers: respHeaders,
         }, 502);
       }
 

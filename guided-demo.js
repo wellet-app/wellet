@@ -33,7 +33,7 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
         enterDemoMode();
         switchNavTo('home');
         document.querySelectorAll('.tab')[0].click();
-        gdScrollTo('#tab-update .update-card', 200);
+        gdScrollTo('#tab-update .update-summary-card', 200);
       }
     },
     // 2 — Summary highlight
@@ -44,8 +44,8 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
       action: function() {
         switchNavTo('home');
         document.querySelectorAll('.tab')[0].click();
-        gdHighlight('#tab-update .update-card');
-        gdScrollTo('#tab-update .update-card', 100);
+        gdHighlight('#tab-update .update-summary-card');
+        gdScrollTo('#tab-update .update-summary-card', 100);
       }
     },
     // 3 — Timeline
@@ -59,17 +59,7 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
         gdScrollTo('#tab-timeline', 100);
       }
     },
-    // 4 — Patterns
-    {
-      audio: '04-patterns.mp3',
-      caption: 'Wellet watches for patterns — like how a medication change affected blood pressure, or whether sleep is getting worse.',
-      duration: 7500,
-      action: function() {
-        document.querySelectorAll('.tab')[2].click();
-        gdScrollTo('#tab-patterns', 100);
-      }
-    },
-    // 5 — People
+    // 4 — People (Patterns tab was retired — its concept now lives inside CareSignals at step 6)
     {
       audio: '05-people.mp3',
       caption: 'Everyone involved in care, in one place. Doctors, specialists, family members — contact info and notes.',
@@ -80,7 +70,7 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
         gdScrollTo('#view-people', 100);
       }
     },
-    // 6 — Records
+    // 5 — Records
     {
       audio: '06-records.mp3',
       caption: 'Upload a photo of a prescription or discharge summary. Wellet reads it and files it automatically.',
@@ -90,7 +80,7 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
         gdScrollTo('#view-records', 100);
       }
     },
-    // 7 — CareSignals
+    // 6 — CareSignals
     {
       audio: '07-caresignals.mp3',
       caption: 'CareSignals brings in wearable data and home sensors. Dad\'s heart rate, steps, sleep — and the medicine cabinet opened at 8:12 this morning.',
@@ -100,7 +90,7 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
         gdScrollTo('#view-signals', 100);
       }
     },
-    // 8 — Ask Wellet intro
+    // 7 — Ask Wellet intro
     {
       audio: '08-ask-intro.mp3',
       caption: 'And then there\'s Ask Wellet. Ask anything about your family member\'s health — in plain language.',
@@ -118,7 +108,7 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
         if (chips) chips.style.display = 'flex';
       }
     },
-    // 9 — Type question
+    // 8 — Type question
     {
       audio: '09-ask-question.mp3',
       caption: '"Is Dad\'s blood pressure getting better since the medication change?"',
@@ -134,7 +124,7 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
         }
       }
     },
-    // 10 — Send + show AI response
+    // 9 — Send + show AI response
     {
       audio: '10-ask-response.mp3',
       caption: 'Wellet knows the full picture — medications, labs, wearable data, sensor patterns — and answers with real context.',
@@ -147,7 +137,18 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
         sendAskMessage();
       }
     },
-    // 10.5 — ER summary one-tap demo
+    // 10c — Resources (clinical trials, condition research, support groups)
+    {
+      audio: '10c-resources.mp3',
+      caption: 'Resources \u2014 clinical trials, condition research, support groups, and treatment options, all surfaced for your loved one\u2019s specific chart.',
+      duration: 10000,
+      action: function() {
+        gdClearHighlight();
+        try { switchNavTo('resources'); } catch (e) {}
+        gdScrollTo('#view-resources', 100);
+      }
+    },
+    // 10b — ER summary one-tap demo (final functional step before closing)
     {
       audio: '10b-emergency.mp3',
       caption: 'And if you ever need it \u2014 one tap gets you the ER summary. Everything a doctor needs to treat the person you care for, in seconds.',
@@ -266,8 +267,8 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
       + '<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-bottom:auto;">'
       + '  <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);">AI health summaries</span>'
       + '  <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);">EHR integration</span>'
-      + '  <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);">Wearable tracking</span>'
-      + '  <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);">Home sensors</span>'
+      + '  <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);">Wearable rhythm</span>'
+      + '  <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);">CareSignals</span>'
       + '  <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);">HIPAA compliant</span>'
       + '</div>';
     document.body.appendChild(ec);

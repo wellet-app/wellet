@@ -7,9 +7,10 @@
    editorial-caresignals.css and is left intact.
    ============================================================ */
 
-#view-signals[data-editorial="signals"] {
-  /* Override the global .app-view flex layout so the header
-     can flow as a normal block. */
+/* Only force block layout when this view is the active one — otherwise
+   leave the global .app-view { display: none } rule in charge so the
+   view doesn't bleed through underneath sibling views. */
+#view-signals[data-editorial="signals"].active {
   display: block;
 }
 

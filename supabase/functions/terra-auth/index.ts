@@ -2,10 +2,18 @@
  * terra-auth — manages Terra API user authentication.
  *
  * Actions:
- *   generate  — creates a Terra widget session URL for wearable connection
- *   store     — saves the connection after successful widget auth
- *   list      — returns active connections for a person
- *   disconnect — deactivates a connection
+ *   generate              — creates a Terra widget session URL for wearable connection (in-app, requires JWT)
+ *   generate_from_invite  — creates a Terra widget session URL from a dsinvite token (no JWT — loved one may have no account)
+ *   store                 — saves the connection after successful widget auth (in-app)
+ *   list                  — returns active connections for a person
+ *   disconnect            — deactivates a connection
+ *
+ * reference_id format:
+ *   in-app:        "{user_id}:{person_id}"
+ *   invite-driven: "invite:{token}"
+ *
+ * terra-webhook parses reference_id on user_auth events to route the new
+ * terra_connections row to the right caregiver_user_id + person_id.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -25,13 +33,104 @@ Deno.serve(async (req) => {
     });
 
   try {
-    // Authenticate the caller
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const db = createClient(supabaseUrl, serviceKey);
+
+    const body = await req.json();
+    const { action } = body;
+
+    if (!action) {
+      return json({ error: "action required" }, 400);
+    }
+
+    // ============================================================
+    // generate_from_invite — NO JWT required (loved one may have no account)
+    // ============================================================
+    if (action === "generate_from_invite") {
+      const { invite_token, provider } = body;
+      if (!invite_token) {
+        return json({ error: "invite_token required" }, 400);
+      }
+
+      // Look up the invite row via service role
+      const { data: invite, error: inviteErr } = await db
+        .from("data_source_invites")
+        .select("id, token, data_source, caregiver_user_id, person_id, expires_at, consumed_at, wearable_provider")
+        .eq("token", invite_token)
+        .single();
+
+      if (inviteErr || !invite) {
+        return json({ error: "Invite not found" }, 404);
+      }
+
+      if (invite.data_source !== "wearable") {
+        return json({ error: "Invite is not for a wearable" }, 400);
+      }
+
+      if (invite.consumed_at) {
+        return json({ error: "Invite already consumed" }, 410);
+      }
+
+      if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
+        return json({ error: "Invite expired" }, 410);
+      }
+
+      const terraApiKey = Deno.env.get("TERRA_API_KEY");
+      const terraDevId = Deno.env.get("TERRA_DEV_ID");
+      if (!terraApiKey || !terraDevId) {
+        return json({ error: "Terra API not configured" }, 500);
+      }
+
+      // If a specific provider was passed (or the invite was created with a
+      // pre-picked provider), include it to skip Terra's own picker.
+      const lockedProvider = provider || invite.wearable_provider || null;
+
+      const terraPayload: Record<string, unknown> = {
+        reference_id: "invite:" + invite.token,
+        auth_success_redirect_url:
+          "https://mywellet.com/dsinvite?token=" + encodeURIComponent(invite.token) + "&terra_auth=success",
+        auth_failure_redirect_url:
+          "https://mywellet.com/dsinvite?token=" + encodeURIComponent(invite.token) + "&terra_auth=failure",
+        language: "en",
+      };
+      if (lockedProvider) {
+        // Terra wants a comma-separated STRING, not an array.
+        // (Passing an array makes Terra's API return 500 instead of using it.)
+        terraPayload.providers = String(lockedProvider).toUpperCase();
+      }
+
+      const terraRes = await fetch("https://api.tryterra.co/v2/auth/generateWidgetSession", {
+        method: "POST",
+        headers: {
+          "dev-id": terraDevId,
+          "x-api-key": terraApiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(terraPayload),
+      });
+
+      if (!terraRes.ok) {
+        const errText = await terraRes.text();
+        console.error("Terra generateWidgetSession (invite) error:", terraRes.status, errText);
+        return json({ error: "Failed to create widget session" }, 502);
+      }
+
+      const terraData = await terraRes.json();
+      return json({
+        widget_url: terraData.url,
+        session_id: terraData.session_id,
+      });
+    }
+
+    // ============================================================
+    // All other actions require a JWT
+    // ============================================================
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return json({ error: "No authorization header" }, 401);
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const anonClient = createClient(
       supabaseUrl,
       Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -45,22 +144,13 @@ Deno.serve(async (req) => {
       return json({ error: "Unauthorized" }, 401);
     }
 
-    const db = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const { person_id, provider: requestedProvider } = body;
 
-    const body = await req.json();
-    const { action, person_id } = body;
-
-    if (!action) {
-      return json({ error: "action required" }, 400);
-    }
-
-    // ── Generate Widget Session ───────────────────────────────────────────
     if (action === "generate") {
       if (!person_id) {
         return json({ error: "person_id required" }, 400);
       }
 
-      // Verify the person belongs to this user
       const { data: person, error: personErr } = await db
         .from("people")
         .select("id")
@@ -78,7 +168,18 @@ Deno.serve(async (req) => {
         return json({ error: "Terra API not configured" }, 500);
       }
 
-      // Generate widget session via Terra API
+      const terraPayload: Record<string, unknown> = {
+        reference_id: user.id + ":" + person_id,
+        auth_success_redirect_url: "https://mywellet.com/?terra_auth=success",
+        auth_failure_redirect_url: "https://mywellet.com/?terra_auth=failure",
+        language: "en",
+      };
+      if (requestedProvider) {
+        // Terra wants a comma-separated STRING, not an array.
+        // (Passing an array makes Terra's API return 500 instead of using it.)
+        terraPayload.providers = String(requestedProvider).toUpperCase();
+      }
+
       const terraRes = await fetch("https://api.tryterra.co/v2/auth/generateWidgetSession", {
         method: "POST",
         headers: {
@@ -86,12 +187,7 @@ Deno.serve(async (req) => {
           "x-api-key": terraApiKey,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          reference_id: user.id + ":" + person_id,
-          auth_success_redirect_url: "https://mywellet.com/?terra_auth=success",
-          auth_failure_redirect_url: "https://mywellet.com/?terra_auth=failure",
-          language: "en",
-        }),
+        body: JSON.stringify(terraPayload),
       });
 
       if (!terraRes.ok) {
@@ -107,14 +203,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── Store Connection ──────────────────────────────────────────────────
     if (action === "store") {
       const { terra_user_id, provider } = body;
       if (!person_id || !terra_user_id) {
         return json({ error: "person_id and terra_user_id required" }, 400);
       }
 
-      // Verify the person belongs to this user
       const { data: person, error: personErr } = await db
         .from("people")
         .select("id")
@@ -126,23 +220,87 @@ Deno.serve(async (req) => {
         return json({ error: "Person not found" }, 404);
       }
 
-      // Upsert connection (in case of reconnection)
-      const { data: conn, error: connErr } = await db
+      const normalizedProvider = provider || "unknown";
+
+      // Look up any existing ACTIVE connection for this (user, person, provider).
+      // Terra mints a fresh terra_user_id for every widget session, so a user
+      // who taps "Connect Google Health" twice would otherwise create two
+      // active rows (the old code's onConflict='terra_user_id' never matched
+      // because the keys differed). We detect the existing row up-front so we
+      // can (a) deauthenticate the stale terra_user_id with Terra to free up
+      // the slot, and (b) reuse the row so downstream FKs (e.g.
+      // wearable_observations.terra_connection_id) stay stable.
+      const { data: existing } = await db
         .from("terra_connections")
-        .upsert(
-          {
-            user_id: user.id,
-            person_id: person_id,
+        .select("id, terra_user_id")
+        .eq("user_id", user.id)
+        .eq("person_id", person_id)
+        .eq("provider", normalizedProvider)
+        .eq("status", "active")
+        .maybeSingle();
+
+      // If we're replacing a different terra_user_id, deauth the old one with
+      // Terra so we don't keep paying for a zombie connection that will never
+      // be used again. Best-effort — don't block the store on network failure.
+      if (existing && existing.terra_user_id && existing.terra_user_id !== terra_user_id) {
+        const terraApiKey = Deno.env.get("TERRA_API_KEY");
+        const terraDevId = Deno.env.get("TERRA_DEV_ID");
+        if (terraApiKey && terraDevId) {
+          try {
+            await fetch("https://api.tryterra.co/v2/auth/deauthenticateUser", {
+              method: "DELETE",
+              headers: {
+                "dev-id": terraDevId,
+                "x-api-key": terraApiKey,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ user_id: existing.terra_user_id }),
+            });
+          } catch (e) {
+            console.error("Terra deauth (replace) error:", e);
+          }
+        }
+      }
+
+      // Explicit update-or-insert. We can't use PostgREST's onConflict here
+      // because the active-row uniqueness is enforced by a *partial* unique
+      // index (WHERE status='active'). Partial indexes can't back ON CONFLICT
+      // via PostgREST — it surfaces as a 500. So we branch on `existing`
+      // (looked up above) and either UPDATE in place or INSERT a fresh row.
+      let conn;
+      let connErr;
+      if (existing && existing.id) {
+        const upd = await db
+          .from("terra_connections")
+          .update({
             terra_user_id: terra_user_id,
-            provider: provider || "unknown",
+            provider: normalizedProvider,
             status: "active",
             connected_at: new Date().toISOString(),
             disconnected_at: null,
-          },
-          { onConflict: "terra_user_id" },
-        )
-        .select()
-        .single();
+          })
+          .eq("id", existing.id)
+          .select()
+          .single();
+        conn = upd.data;
+        connErr = upd.error;
+      } else {
+        const ins = await db
+          .from("terra_connections")
+          .insert({
+            user_id: user.id,
+            person_id: person_id,
+            terra_user_id: terra_user_id,
+            provider: normalizedProvider,
+            status: "active",
+            connected_at: new Date().toISOString(),
+            disconnected_at: null,
+          })
+          .select()
+          .single();
+        conn = ins.data;
+        connErr = ins.error;
+      }
 
       if (connErr) {
         console.error("Terra store connection error:", connErr.message);
@@ -152,15 +310,19 @@ Deno.serve(async (req) => {
       return json({ success: true, connection: conn });
     }
 
-    // ── List Connections ──────────────────────────────────────────────────
     if (action === "list") {
       if (!person_id) {
         return json({ error: "person_id required" }, 400);
       }
 
+      // NOTE: terra_user_id and person_id are required by the client-side
+      // refreshConnectScreenStatus check (assets/wellet.js ~line 2005-2010):
+      // a row without a terra_user_id, or where person_id !== currentPersonId,
+      // is treated as unconnected. Omitting these silently kept the Google
+      // Health / Other wearables cards grey even with an active DB row.
       const { data: connections, error: listErr } = await db
         .from("terra_connections")
-        .select("id, provider, status, last_data_at, connected_at")
+        .select("id, person_id, provider, status, terra_user_id, last_data_at, connected_at")
         .eq("user_id", user.id)
         .eq("person_id", person_id)
         .order("connected_at", { ascending: false });
@@ -172,14 +334,12 @@ Deno.serve(async (req) => {
       return json({ connections: connections || [] });
     }
 
-    // ── Disconnect ───────────────────────────────────────────────────────
     if (action === "disconnect") {
       const { connection_id } = body;
       if (!connection_id) {
         return json({ error: "connection_id required" }, 400);
       }
 
-      // Verify ownership
       const { data: conn } = await db
         .from("terra_connections")
         .select("id, terra_user_id")
@@ -191,7 +351,6 @@ Deno.serve(async (req) => {
         return json({ error: "Connection not found" }, 404);
       }
 
-      // Deauth via Terra API
       const terraApiKey = Deno.env.get("TERRA_API_KEY");
       const terraDevId = Deno.env.get("TERRA_DEV_ID");
       if (terraApiKey && terraDevId) {
@@ -206,7 +365,6 @@ Deno.serve(async (req) => {
         }).catch((e) => console.error("Terra deauth error:", e));
       }
 
-      // Update local status
       await db
         .from("terra_connections")
         .update({

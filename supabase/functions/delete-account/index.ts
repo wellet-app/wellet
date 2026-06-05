@@ -51,6 +51,7 @@ const USER_TABLES = [
   "shares",
   "care_archives",
   "visit_attachments",
+  "user_passkeys",
 ];
 
 // Tables scoped by person_id — deleted via (person_id IN user's people)

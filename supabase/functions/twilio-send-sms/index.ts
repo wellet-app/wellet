@@ -189,25 +189,52 @@ Deno.serve(async (req) => {
         })
         .eq('id', smsLogId)
 
-      await logSignupError({
-        source: 'twilio-send-sms',
-        severity: 'critical',
-        error: new Error(`Twilio API ${twilioRes.status}: ${twilioJson?.message ?? 'unknown'}`),
-        httpStatus: twilioRes.status,
-        request: req,
-        context: {
-          phase: 'twilio_api_call',
-          twilio_code: twilioJson?.code,
-          twilio_message: twilioJson?.message,
-          twilio_more_info: twilioJson?.more_info,
-          to_country_code: to.slice(0, 4),
-          sms_log_id: smsLogId,
-        },
-      })
+      // Classify the failure. Caller errors (bad recipient number, opt-out,
+      // unreachable handset, etc.) are NOT a Wellet outage — log them at
+      // 'warn' so they don't fire a critical-severity email. True outages
+      // (auth failure, 5xx, rate-limited brand) still escalate to critical.
+      // Also skip alerting entirely for reserved test numbers (555-01xx,
+      // the documented "reserved for fiction" range) and Twilio's magic
+      // test recipients so smoke-test runs never wake Betsy up.
+      const twilioCode = twilioJson?.code ?? null
+      const isCallerError =
+        twilioCode === 21211 || // Invalid 'To' phone number
+        twilioCode === 21214 || // 'To' phone number cannot be reached
+        twilioCode === 21408 || // Permission to send to this number not enabled
+        twilioCode === 21610 || // Attempt to send to unsubscribed (opt-out)
+        twilioCode === 21614 || // 'To' number is not a valid mobile number
+        twilioCode === 21612 || // Cannot route to this number
+        twilioCode === 30003 || // Unreachable destination handset
+        twilioCode === 30005 || // Unknown destination handset
+        twilioCode === 30006    // Landline or unreachable carrier
+      const isReservedTestNumber =
+        /^\+1555015\d{4}$/.test(to) || // North American 555-01XX reserved-for-fiction range
+        to === '+15005550001' ||       // Twilio magic test recipient
+        to === '+15005550006'
+
+      if (!isReservedTestNumber) {
+        await logSignupError({
+          source: 'twilio-send-sms',
+          severity: isCallerError ? 'warn' : 'critical',
+          error: new Error(`Twilio API ${twilioRes.status}: ${twilioJson?.message ?? 'unknown'}`),
+          httpStatus: twilioRes.status,
+          errorCode: twilioCode ? `twilio_${twilioCode}` : null,
+          request: req,
+          context: {
+            phase: 'twilio_api_call',
+            twilio_code: twilioCode,
+            twilio_message: twilioJson?.message,
+            twilio_more_info: twilioJson?.more_info,
+            to_country_code: to.slice(0, 4),
+            sms_log_id: smsLogId,
+            classified_as: isCallerError ? 'caller_error' : 'infrastructure',
+          },
+        })
+      }
 
       return new Response(JSON.stringify({
         error: 'twilio_send_failed',
-        twilio_code: twilioJson?.code ?? null,
+        twilio_code: twilioCode,
         twilio_message: twilioJson?.message ?? null,
         sms_log_id: smsLogId,
       }), {
