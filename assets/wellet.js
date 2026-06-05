@@ -25906,17 +25906,19 @@ function obUploadPhoto() { document.getElementById('ob-file-photo').click(); }
 function obUploadFile() { document.getElementById('ob-file-doc').click(); }
 
 function obConnectEhr() {
-  if (isDemoMode) {
-    showToast('In the real app, this connects to your provider\u2019s records');
-    return;
-  }
-  if (!currentUser) {
-    showToast('Please sign in first');
-    return;
-  }
-  if (!currentPersonId) {
-    showToast('Setting up your profile\u2026 please try again in a moment.');
-    return;
+  // fix/chat-onboarding-routing: demo mode now opens the real hospital picker
+  // so testers and judges see the search UX. Hospital row taps are intercepted
+  // by selectHospitalFromEl() -> _showDemoConnectDisclosure() so no real OAuth
+  // fires in demo. Mirrors startEhrConnect() (Judge-path Fix #2, June 2 2026).
+  if (!isDemoMode) {
+    if (!currentUser) {
+      showToast('Please sign in first');
+      return;
+    }
+    if (!currentPersonId) {
+      showToast('Setting up your profile\u2026 please try again in a moment.');
+      return;
+    }
   }
   _obFromEhr = true;
   try { localStorage.setItem('wellet_ob_ehr_return', 'true'); } catch(e) {}
@@ -27482,20 +27484,14 @@ function obShowAppCTA() {
 async function obFinishAndOpen() {
   obChat.phase = 'done';
   obSaveChatState();
-  // Unified Step 5a: route caregiver-mode users through the same multi-source
-  // connect screen Myself-mode users see (Hospital / Apple Health / Devices
-  // with \u2713 checkmarks). The caregiver-mode person was already created
-  // upstream so currentPersonId is set. If anything went wrong and we have
-  // no person yet, fall back to the legacy Home redirect.
-  try {
-    if (currentPeople && currentPeople.length > 0 && typeof showConnectScreen === 'function') {
-      currentPersonId = currentPeople[currentPeople.length - 1].id;
-      try { await loadPersonData(currentPersonId); } catch(_e) {}
-      showApp();
-      showConnectScreen();
-      return;
-    }
-  } catch(_e) { console.warn('connect-screen route from caregiver finish failed:', _e); }
+  // fix/chat-onboarding-routing: first-time users completing chat onboarding
+  // go straight to their Wellet home (showOwnWellet), not the button-grid
+  // connect screen. The connect-data-screen (showConnectScreen) is reserved
+  // for returning users who want to add another source from inside the app.
+  // showOwnWellet() correctly sets isDemoMode=false, picks currentPersonId,
+  // loads person data, and calls showAuthenticatedApp(). The previous path
+  // called showApp() which set isDemoMode=true for real users — causing every
+  // subsequent EHR/device action to hit the demo mode guard.
   showOwnWellet();
 }
 
