@@ -399,13 +399,13 @@ For minor, non-material changes (such as correcting typos or clarifying language
 
 ## 19. SMS Messaging Terms
 
-These SMS Messaging Terms apply to text messages sent by Wellet to phone numbers entered into the Service through the Wellet Connect invitation feature.
+These SMS Messaging Terms apply to text messages sent by Wellet to phone numbers entered into the Service through the Wellet care circle invitation feature.
 
-**Program name:** Wellet Connect
+**Program name:** Wellet
 
-**Program description:** Wellet Connect sends one-time invitation SMS messages to family members and loved ones whose phone numbers are manually entered into the Wellet app by an existing Wellet user. Recipients receive a short link to accept the invitation and create their own Wellet account. A reminder may be sent if the invitation is not accepted.
+**Program description:** Wellet sends one-time invitation SMS messages to family members and loved ones whose phone numbers are manually entered into the Wellet app by an existing Wellet user. Recipients receive a short link to accept the invitation and create their own Wellet account. A reminder may be sent if the invitation is not accepted.
 
-**Message frequency:** Variable. Most recipients receive 1–2 messages total (an initial invitation and an optional reminder). Wellet Connect is not a recurring marketing program.
+**Message frequency:** Variable. Most recipients receive 1–2 messages total (an initial invitation and an optional reminder). Wellet is not a recurring marketing program.
 
 **Message and data rates:** Message and data rates may apply. Standard carrier rates apply to all messages sent to or received from Wellet.
 
