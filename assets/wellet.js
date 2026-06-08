@@ -23552,10 +23552,113 @@ function renderCaregiverPaySection(person) {
   return html;
 }
 
+// Static fallback used in demo mode so the Resources slide renders instantly
+// during the guided tour even if the network round-trip is slow. Mirrors a subset
+// of the vetted rows in `caregiver_resources` so the UI looks identical to live.
+var DEMO_RESOURCES = [
+  {
+    id: 'e03fe595-9a32-4eb5-ba26-44645acc2e26',
+    name: "Parkinson's Foundation",
+    description: "National nonprofit dedicated to making life better for people with Parkinson's through research, education, and support. Free helpline staffed by nurses and social workers.",
+    url: 'https://www.parkinson.org',
+    phone: '800-473-4636',
+    is_free: true,
+    has_support_groups: true,
+    has_zip_search: true,
+    conditions: ['parkinsons'],
+    categories: ['education', 'support-group']
+  },
+  {
+    id: '09930c8e-27e2-4923-ae48-3f79a2ce01c5',
+    name: "Alzheimer's Association",
+    description: "24/7 helpline, local support groups, and free education for families navigating Alzheimer's and other dementias.",
+    url: 'https://www.alz.org',
+    phone: '800-272-3900',
+    is_free: true,
+    has_support_groups: true,
+    has_zip_search: true,
+    conditions: ['alzheimers', 'dementia'],
+    categories: ['support-group', 'education', 'helpline']
+  },
+  {
+    id: '28d26fdc-9eab-40bb-ae4c-9502f040df79',
+    name: 'AARP Caregiving',
+    description: 'Practical guides, financial planning tools, and a local resource directory for family caregivers.',
+    url: 'https://www.aarp.org/caregiving',
+    phone: '888-687-2277',
+    is_free: true,
+    has_support_groups: false,
+    has_zip_search: true,
+    conditions: ['general'],
+    categories: ['education', 'financial-aid']
+  },
+  {
+    id: '2afb34ff-0000-0000-0000-000000000001',
+    name: 'American Cancer Society',
+    description: '24/7 support line, lodging assistance, and patient navigation for cancer patients and their caregivers.',
+    url: 'https://www.cancer.org',
+    phone: '800-227-2345',
+    is_free: true,
+    has_support_groups: true,
+    has_zip_search: true,
+    conditions: ['cancer'],
+    categories: ['support-group', 'helpline']
+  },
+  {
+    id: 'f92cfbd5-0000-0000-0000-000000000001',
+    name: 'American Heart Association',
+    description: 'Caregiver resources, stroke support network, and education for heart disease and stroke recovery.',
+    url: 'https://www.heart.org',
+    phone: '800-242-8721',
+    is_free: true,
+    has_support_groups: true,
+    has_zip_search: false,
+    conditions: ['heart_disease'],
+    categories: ['education', 'support-group']
+  },
+  {
+    id: '61a73a5e-0000-0000-0000-000000000001',
+    name: 'American Lung Association',
+    description: 'Helpline and online community for COPD, lung cancer, and other lung conditions \u2014 plus caregiver guides.',
+    url: 'https://www.lung.org',
+    phone: '800-586-4872',
+    is_free: true,
+    has_support_groups: true,
+    has_zip_search: false,
+    conditions: ['lung'],
+    categories: ['education', 'helpline']
+  },
+  {
+    id: '67432f39-0000-0000-0000-000000000001',
+    name: 'ALS Association',
+    description: 'Care services, local chapter support, and equipment loan closets for people living with ALS and their caregivers.',
+    url: 'https://www.als.org',
+    phone: '800-782-4747',
+    is_free: true,
+    has_support_groups: true,
+    has_zip_search: true,
+    conditions: ['als'],
+    categories: ['support-group', 'education']
+  }
+];
+
 async function loadResources() {
   if (_resourcesLoaded && _resourcesCache.length > 0) return;
+  // Demo mode: seed cache synchronously so the Resources slide renders instantly
+  // when the guided tour reaches it. No network round-trip, no spinner.
+  if (isDemoMode) {
+    _resourcesCache = DEMO_RESOURCES.slice();
+    _resourcesLoaded = true;
+    return;
+  }
   var { data, error } = await db.from('caregiver_resources').select('*').eq('vetted', true).order('name');
-  if (error) { console.error('Error loading resources:', error); return; }
+  if (error) {
+    console.error('Error loading resources:', error);
+    // Fall back to the demo set so the user never sees an empty Resources view.
+    _resourcesCache = DEMO_RESOURCES.slice();
+    _resourcesLoaded = true;
+    return;
+  }
   _resourcesCache = data || [];
   _resourcesLoaded = true;
 }
