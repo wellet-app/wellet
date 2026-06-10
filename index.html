@@ -58,6 +58,7 @@
 <link rel="stylesheet" href="/assets/editorial-people-view.css?v=20260501-1610">
 <link rel="stylesheet" href="/assets/editorial-signals-view.css?v=20260514-1900">
 <link rel="stylesheet" href="/assets/editorial-resources-view.css?v=20260501-1505">
+<link rel="stylesheet" href="/assets/editorial-reimbursements.css?v=20260610-1200">
 <link rel="stylesheet" href="/assets/editorial-timeline.css?v=20260514-1620">
 <link rel="stylesheet" href="/assets/editorial-caresignals.css?v=20260531-dismiss">
 <link rel="stylesheet" href="/assets/editorial-upcoming.css">
@@ -691,6 +692,10 @@
         <button class="header-menu-item" onclick="closeHeaderMenu();switchNavTo('resources')">
           <span class="header-menu-icon"><i data-lucide="book-open" style="width:16px;height:16px;"></i></span>
           <span>Resources</span>
+        </button>
+        <button class="header-menu-item" onclick="closeHeaderMenu();switchNavTo('reimbursements')">
+          <span class="header-menu-icon"><i data-lucide="badge-dollar-sign" style="width:16px;height:16px;"></i></span>
+          <span>Reimbursements</span>
         </button>
         <button class="header-menu-item" onclick="closeHeaderMenu();showConnectScreen()">
           <span class="header-menu-icon"><i data-lucide="link" style="width:16px;height:16px;"></i></span>
@@ -1500,6 +1505,11 @@
     <!-- RESOURCES VIEW -->
     <div id="view-resources" class="app-view" data-editorial="resources">
       <!-- Content rendered by renderResourcesView() -->
+    </div>
+
+    <!-- REIMBURSEMENTS VIEW -->
+    <div id="view-reimbursements" class="app-view" data-editorial="reimbursements">
+      <!-- Content rendered by renderReimbursementsView() -->
     </div>
 
     <!-- ASK WELLET VIEW -->
