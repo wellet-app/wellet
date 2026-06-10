@@ -1464,9 +1464,14 @@ function _buildSignupAttribution() {
     else if (landing === '/' || landing === '/index.html') sig = 'caregiver_landing';
     else sig = 'unknown';
   }
+  // intended_mode: getwellet sets this explicitly from the /me vs / route so we
+  // can skip the self-vs-loved-one gate. Only persist a known value.
+  var intendedMode = (params.intended_mode === 'me' || params.intended_mode === 'caregiver')
+    ? params.intended_mode : null;
   return {
     signup_location: sig,
     landing_page: landing,
+    intended_mode: intendedMode,
     entry_path: landing + (window.location.search || ''),
     referrer: (document.referrer || '').slice(0, 500),
     utm_source: params.utm_source || null,
@@ -2247,11 +2252,24 @@ async function loadUserData() {
     appMode = profileMode;
 
     if (appMode === null) {
-      // First run. Before showing the mode question, check whether this user
-      // came from /me (or has signup_location starting with 'me_'). If so they
-      // already told us, so call chooseModeMe() directly. Otherwise show the
-      // mode question and let the user pick.
+      // First run. If getwellet told us which mode the user self-selected
+      // (intended_mode=me|caregiver), honor it and skip the gate. The URL param
+      // wins; if it was already consumed during signup we fall back to the value
+      // stored in user_metadata. An unknown/missing value falls through to the
+      // existing heuristic + gate, so old links see no regression.
       var _meta = (currentUser && currentUser.user_metadata) || {};
+      var _intended = null;
+      try { _intended = new URLSearchParams(window.location.search || '').get('intended_mode'); } catch (e) {}
+      if (_intended !== 'me' && _intended !== 'caregiver') { _intended = _meta.intended_mode || null; }
+      if (_intended === 'me') {
+        try { await chooseModeMe(); } catch (e) { console.warn('intended_mode=me bypass failed:', e); showModeQuestion(); }
+        return;
+      }
+      if (_intended === 'caregiver') {
+        try { await chooseModeCaregiver(); } catch (e) { console.warn('intended_mode=caregiver bypass failed:', e); showModeQuestion(); }
+        return;
+      }
+      // No explicit mode — fall back to the legacy /me signup heuristic.
       var _sig = _meta.signup_location || '';
       var _landing = _meta.landing_page || '';
       var _isMeSignup = (typeof _sig === 'string' && _sig.indexOf('me_') === 0) ||
