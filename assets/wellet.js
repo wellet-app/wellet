@@ -4555,7 +4555,7 @@ function renderUpdateMe() {
   var pane = document.getElementById('tab-update');
   if (!pane) return;
   var person = currentPeople.find(function(p){ return p.id === currentPersonId; });
-  var name = person ? person.name.split(' ')[0] : 'your loved one';
+  var name = person ? person.name.split(' ')[0] : loRefSubjectLower();
   var isSelf = !!(person && person.relationship === 'self');
   var subjectName = isSelf ? 'you' : name;
   var ehrConnected = !!getEhrData(currentPersonId);

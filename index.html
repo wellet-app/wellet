@@ -471,6 +471,16 @@
     <h1 class="connect-data-headline" id="connect-data-headline">Bring in <em>your data</em>.</h1>
     <p class="connect-data-sub">Connect one thing now to see Wellet light up. The others can come later.</p>
 
+    <!-- 2026-06-01 (D3): Upload card so reviewers without an activated hospital still have a path forward. -->
+    <button type="button" class="connect-card" id="connect-card-upload" onclick="_goUploadFromVendorCard()">
+      <span class="connect-card-icon"><i data-lucide="upload"></i></span>
+      <span class="connect-card-body">
+        <span class="connect-card-title">Upload a record</span>
+        <span class="connect-card-sub">Have a PDF or photo of a visit summary, lab result, or after-visit summary? Drop it in and Wellet will read it for you.</span>
+      </span>
+      <span class="connect-card-chevron"><i data-lucide="chevron-right"></i></span>
+    </button>
+
     <button type="button" class="connect-card" id="connect-card-ehr" onclick="connectFromMeOnboarding('ehr')">
       <span class="connect-card-icon"><i data-lucide="hospital"></i></span>
       <span class="connect-card-body">
@@ -517,18 +527,8 @@
       <span class="connect-card-chevron"><i data-lucide="chevron-right"></i></span>
     </button>
 
-    <!-- 2026-06-01 (D3): Upload card so reviewers without an activated hospital still have a path forward. -->
-    <button type="button" class="connect-card" id="connect-card-upload" onclick="_goUploadFromVendorCard()">
-      <span class="connect-card-icon"><i data-lucide="upload"></i></span>
-      <span class="connect-card-body">
-        <span class="connect-card-title">Upload a record</span>
-        <span class="connect-card-sub">Have a PDF or photo of a visit summary, lab result, or after-visit summary? Drop it in and Wellet will read it for you.</span>
-      </span>
-      <span class="connect-card-chevron"><i data-lucide="chevron-right"></i></span>
-    </button>
-
     <button type="button" class="connect-skip-btn" onclick="skipConnectScreen()">
-      Skip for now — you can connect anything from Settings
+      Just show me around first
     </button>
   </div>
 </div>
@@ -2876,7 +2876,7 @@
       <div style="width:56px;height:56px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;"><i data-lucide="heart-handshake" style="width:28px;height:28px;color:var(--moss);"></i></div>
       <div style="font-family: var(--serif);font-size:var(--type-h1);margin-bottom:8px;">Welcome to Wellet</div>
       <p style="font-size:var(--type-body);line-height:1.65;color:var(--text-secondary);margin-bottom:16px;">You're one of the very first people to use this. Wellet has been in my head for years, but the app you're looking at is less than a month old.</p>
-      <p style="font-size:var(--type-body);line-height:1.65;color:var(--text-secondary);margin-bottom:20px;"><strong style="color:var(--text-primary);">That means there will be bugs.</strong> I'm asking, begging you: if something breaks or feels off, tap the menu (<strong>•••</strong>) and choose <strong>Report a bug</strong>. Every report makes Wellet better for every caregiver who comes next.</p>
+      <p style="font-size:var(--type-body);line-height:1.65;color:var(--text-secondary);margin-bottom:20px;"><strong style="color:var(--text-primary);">That means there will be bugs.</strong> I'm asking, begging you: if something breaks or feels off, tap the menu (<strong>•••</strong>) and choose <strong>Report a bug</strong>. Every report makes Wellet better for everyone who comes next.</p>
       <div style="background:var(--cream);border-radius:12px;padding:16px;text-align:left;margin-bottom:20px;">
         <div style="font-size:var(--type-meta);font-weight:500;color:var(--text-primary);margin-bottom:10px;">Here's how to get started:</div>
         <div id="welcome-getting-started" style="font-size:var(--type-meta);color:var(--text-secondary);line-height:1.7;">
