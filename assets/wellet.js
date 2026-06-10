@@ -23859,6 +23859,394 @@ async function renderResourcesView() {
   initIcons();
 }
 
+// Question wording mirrors the public /scorecard2 form (already user-tested).
+var _REIMB_QUESTIONS = {
+  loved_one_age_band: {
+    label: 'About how old is your loved one?',
+    type: 'single',
+    options: [
+      ['under_60', 'Under 60'], ['60_69', '60–69'], ['70_79', '70–79'],
+      ['80_89', '80–89'], ['90_plus', '90 or older'], ['prefer_not_say', 'Prefer not to say'],
+    ],
+  },
+  conditions: {
+    label: 'What is your loved one living with? Add or remove as needed.',
+    type: 'multi',
+    options: [
+      ['diabetes', 'Diabetes'], ['heart', 'Heart condition'], ['cancer', 'Cancer'],
+      ['dementia', 'Dementia or memory loss'], ['kidney', 'Kidney condition'], ['lung', 'Lung condition'],
+      ['mental_health', 'Mental health'], ['mobility', 'Mobility or falls'], ['multiple', 'Several conditions'],
+      ['none_known', 'None known'], ['prefer_not_say', 'Prefer not to say'],
+    ],
+  },
+  current_tools: {
+    label: 'How do you keep track of their care today?',
+    type: 'multi',
+    options: [
+      ['mychart', 'MyChart'], ['another_portal', 'Another portal'], ['paper_notes', 'Paper notes'],
+      ['spreadsheet', 'A spreadsheet'], ['memory', 'Mostly memory'], ['shared_doc', 'A shared document'],
+    ],
+  },
+  biggest_worry: {
+    label: 'What worries you most right now?',
+    type: 'single',
+    options: [
+      ['missing_something', 'Missing something important'], ['medication_changes', 'Medication changes'],
+      ['appointment_chaos', 'Keeping appointments straight'], ['multiple_doctors', 'Coordinating many doctors'],
+      ['declining_changes', 'Noticing slow declines'], ['other', 'Something else'],
+    ],
+  },
+  coverage: {
+    label: 'What coverage does your loved one have? Confirm anything we inferred.',
+    type: 'multi',
+    options: [
+      ['medicare', 'Medicare'], ['medicaid', 'Medicaid'], ['veteran', 'Veteran (VA)'],
+      ['private', 'Private insurance'], ['marketplace', 'Marketplace plan'], ['none', 'None'], ['unsure', 'Not sure'],
+    ],
+  },
+  adl_level: {
+    label: 'How much help do they need with daily activities (bathing, dressing, eating)?',
+    type: 'single',
+    options: [
+      ['none', 'No help needed'], ['1_2', 'Help with 1–2'], ['3_plus', 'Help with 3 or more'],
+      ['supervision', 'Needs supervision'], ['unsure', 'Not sure'],
+    ],
+  },
+  hospital_system: {
+    label: 'Which hospital or health system do they use?',
+    type: 'text',
+  },
+  caregiver_role: {
+    label: 'What is your role in their care?',
+    type: 'single',
+    options: [
+      ['primary', 'Primary caregiver'], ['shared', 'Shared with others'], ['distance', 'Caring from a distance'],
+      ['professional', 'Professional caregiver'], ['other', 'Other'],
+    ],
+  },
+  state: {
+    label: 'Which state does your loved one live in? (2-letter, e.g. NC)',
+    type: 'text',
+  },
+};
+
+var _REIMB_PROVENANCE_LABEL = {
+  ehr: 'From the chart', user: 'You told us', inferred: 'Inferred', asked: 'You told us',
+};
+
+function _reimbFirstName() {
+  var person = (currentPeople || []).find(function(p){ return p.id === currentPersonId; });
+  return person && person.name ? person.name.split(' ')[0] : 'your loved one';
+}
+
+// Read the current assessment row for the active loved one (RLS-scoped).
+async function _loadReimbursements(personId) {
+  if (!personId || typeof db === 'undefined' || !db) return null;
+  try {
+    var r = await db.from('reimbursement_assessments')
+      .select('id, result_programs, result_signals, input_provenance, needs_refresh, assessed_at, stale_at, loved_one_age_band, conditions, current_tools, biggest_worry, coverage, adl_level, hospital_system, caregiver_role, state')
+      .eq('person_id', personId)
+      .maybeSingle();
+    if (r && r.data) {
+      // 90-day staleness is evaluated client-side (no cron); the triggers
+      // only cover chart/connection changes.
+      if (r.data.stale_at && new Date(r.data.stale_at) < new Date()) {
+        r.data.needs_refresh = true;
+      }
+    }
+    return r && r.data ? r.data : null;
+  } catch (e) {
+    console.warn('[Reimbursements] load error', e);
+    return null;
+  }
+}
+
+// Call the JWT-verified "reimbursements" edge function.
+async function _callReimbursementsFn(personId, partialInput, mode) {
+  var sessRes = await db.auth.getSession();
+  var session = sessRes && sessRes.data ? sessRes.data.session : null;
+  if (!session) throw new Error('Not signed in');
+  var res = await fetch(SUPABASE_URL + '/functions/v1/reimbursements', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + session.access_token,
+    },
+    body: JSON.stringify({ person_id: personId, partial_input: partialInput || {}, mode: mode || undefined }),
+  });
+  if (!res.ok) {
+    var msg = 'Request failed';
+    try { var j = await res.json(); msg = j.error || msg; } catch (_e) {}
+    throw new Error(msg);
+  }
+  return await res.json();
+}
+
+async function renderReimbursementsView() {
+  var el = document.getElementById('view-reimbursements');
+  if (!el) return;
+  if (isDemoMode) {
+    el.innerHTML = '<div class="reimb-view"><div class="reimb-empty"><div class="reimb-empty-body">Reimbursements are available once you connect a real account.</div></div></div>';
+    return;
+  }
+  el.innerHTML = '<div class="reimb-view" style="text-align:center;padding:60px 20px;"><div style="color:var(--text-muted);font-size:var(--type-meta);">Loading…</div></div>';
+
+  try { if (typeof _wa !== 'undefined' && _wa.track) _wa.track('feature', 'reimbursement_view_opened', { entry_point: 'header_menu' }); } catch (_e) {}
+
+  var assessment = await _loadReimbursements(currentPersonId);
+  if (!assessment) {
+    _renderReimbursementsEmpty(el);
+    return;
+  }
+  _renderReimbursementsPopulated(el, assessment);
+}
+
+function _renderReimbursementsEmpty(el) {
+  var name = _reimbFirstName();
+  var html = '<div class="reimb-view">'
+    + '<div class="view-header">'
+    +   '<div class="view-header__eyebrow">Reimbursements</div>'
+    +   '<h1 class="view-header__title">Programs that may pay for the care you’re giving</h1>'
+    +   '<p class="view-header__lede">We can show you programs that may apply for ' + escHtml(name) + '. About 3 quick questions — we’ll fill in what we already know.</p>'
+    + '</div>'
+    + '<div class="reimb-empty">'
+    +   '<button type="button" class="reimb-btn-primary" onclick="_startReimbursementsFlow()">See programs</button>'
+    + '</div>'
+    + '<p class="reimb-footer">Wellet does not pay caregivers. We aggregate your loved one’s health records and surface programs that may pay for the care you’re already giving.</p>'
+    + '</div>';
+  el.innerHTML = html;
+  initIcons();
+}
+
+// Server-first: resolve prefilled vs asked fields, then show the single-page form.
+async function _startReimbursementsFlow() {
+  var el = document.getElementById('view-reimbursements');
+  if (!el) return;
+  el.innerHTML = '<div class="reimb-view" style="text-align:center;padding:60px 20px;"><div style="color:var(--text-muted);font-size:var(--type-meta);">Pulling what we know…</div></div>';
+  try {
+    var pre = await _callReimbursementsFn(currentPersonId, {}, 'prefill');
+    _renderReimbursementsQuestionFlow(pre.prefilled_fields || [], pre.asked_fields || [], pre.input_provenance || {});
+  } catch (e) {
+    console.warn('[Reimbursements] prefill error', e);
+    showToast('Could not start — please try again');
+    renderReimbursementsView();
+  }
+}
+
+// Single-page form: prefilled chips on top, asked questions below.
+function _renderReimbursementsQuestionFlow(prefilledFields, askedFields, provenance) {
+  var el = document.getElementById('view-reimbursements');
+  if (!el) return;
+  var name = _reimbFirstName();
+
+  var html = '<div class="reimb-view reimb-flow">'
+    + '<div class="view-header">'
+    +   '<div class="view-header__eyebrow">Reimbursements</div>'
+    +   '<h1 class="view-header__title">A few quick questions</h1>'
+    +   '<p class="view-header__lede">Here’s what we pulled from ' + escHtml(name) + '’s record. Edit anything that’s off.</p>'
+    + '</div>';
+
+  // Prefilled (read-only) chips.
+  if (prefilledFields && prefilledFields.length) {
+    html += '<div class="reimb-section"><div class="reimb-section-head">What we already know</div><div class="reimb-prefill-chips">';
+    prefilledFields.forEach(function(f){
+      var q = _REIMB_QUESTIONS[f];
+      var prov = provenance && provenance[f] ? provenance[f] : 'ehr';
+      html += '<div class="reimb-chip" data-field="' + escHtml(f) + '">'
+        + '<span class="reimb-chip-label">' + escHtml(q ? q.label : f) + '</span>'
+        + '<span class="reimb-chip-prov">' + escHtml(_REIMB_PROVENANCE_LABEL[prov] || 'From the chart') + '</span>'
+        + '<button type="button" class="reimb-chip-edit" onclick="_reimbEditField(\'' + escHtml(f) + '\')">Edit</button>'
+        + '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  // Asked questions.
+  html += '<form id="reimb-form" class="reimb-section" onsubmit="return false;"><div class="reimb-section-head">A few quick questions</div>';
+  (askedFields || []).forEach(function(f){
+    html += _reimbQuestionFieldHtml(f);
+  });
+  html += '<div id="reimb-edit-fields"></div>';
+  html += '<button type="button" class="reimb-btn-primary" onclick="_submitReimbursementsAnswers()">See my programs</button>';
+  html += '</form>';
+  html += '</div>';
+
+  el.innerHTML = html;
+  initIcons();
+}
+
+function _reimbQuestionFieldHtml(field) {
+  var q = _REIMB_QUESTIONS[field];
+  if (!q) return '';
+  var out = '<div class="reimb-q" data-field="' + escHtml(field) + '"><div class="reimb-q-label">' + escHtml(q.label) + '</div>';
+  if (q.type === 'text') {
+    out += '<input type="text" class="reimb-input" data-field="' + escHtml(field) + '" />';
+  } else {
+    out += '<div class="reimb-options">';
+    q.options.forEach(function(opt){
+      var val = opt[0], lbl = opt[1];
+      out += '<label class="reimb-option"><input type="' + (q.type === 'multi' ? 'checkbox' : 'radio') + '" name="reimb_' + escHtml(field) + '" value="' + escHtml(val) + '" /> ' + escHtml(lbl) + '</label>';
+    });
+    out += '</div>';
+  }
+  out += '</div>';
+  return out;
+}
+
+// Convert a prefilled chip into an editable question appended to the form.
+function _reimbEditField(field) {
+  var container = document.getElementById('reimb-edit-fields');
+  if (!container) return;
+  if (container.querySelector('[data-field="' + field + '"]')) return; // already editing
+  var chip = document.querySelector('.reimb-chip[data-field="' + field + '"]');
+  if (chip) chip.style.display = 'none';
+  container.insertAdjacentHTML('beforeend', _reimbQuestionFieldHtml(field));
+  initIcons();
+}
+
+// Gather all answered fields (asked + edited) into a partial_input object.
+function _reimbCollectInput() {
+  var input = {};
+  var form = document.getElementById('reimb-form');
+  if (!form) return input;
+  form.querySelectorAll('.reimb-q').forEach(function(qEl){
+    var field = qEl.getAttribute('data-field');
+    var q = _REIMB_QUESTIONS[field];
+    if (!q) return;
+    if (q.type === 'text') {
+      var inp = qEl.querySelector('input[type="text"]');
+      if (inp && inp.value.trim()) input[field] = inp.value.trim();
+    } else if (q.type === 'multi') {
+      var vals = [];
+      qEl.querySelectorAll('input:checked').forEach(function(c){ vals.push(c.value); });
+      if (vals.length) input[field] = vals;
+    } else {
+      var sel = qEl.querySelector('input:checked');
+      if (sel) input[field] = sel.value;
+    }
+  });
+  return input;
+}
+
+async function _submitReimbursementsAnswers() {
+  var el = document.getElementById('view-reimbursements');
+  var input = _reimbCollectInput();
+  if (el) el.innerHTML = '<div class="reimb-view" style="text-align:center;padding:60px 20px;"><div style="color:var(--text-muted);font-size:var(--type-meta);">Finding programs…</div></div>';
+  try {
+    var result = await _callReimbursementsFn(currentPersonId, input, 'submit');
+    try {
+      if (typeof _wa !== 'undefined' && _wa.track) {
+        _wa.track('feature', 'reimbursement_assessment_completed', {
+          prefilled_count: (result.prefilled_fields || []).length,
+          asked_count: (result.asked_fields || []).length,
+        });
+      }
+    } catch (_e) {}
+    // Re-render from the freshly saved row.
+    renderReimbursementsView();
+  } catch (e) {
+    console.warn('[Reimbursements] submit error', e);
+    showToast('Could not save — please try again');
+    renderReimbursementsView();
+  }
+}
+
+function _renderReimbursementsPopulated(el, a) {
+  var name = _reimbFirstName();
+  var programs = Array.isArray(a.result_programs) ? a.result_programs : [];
+  var signals = Array.isArray(a.result_signals) ? a.result_signals : [];
+  var n = programs.length;
+
+  var html = '<div class="reimb-view">';
+
+  if (a.needs_refresh) {
+    html += '<div class="reimb-ribbon">'
+      + '<span>Your situation may have changed — update your answers.</span>'
+      + '<button type="button" class="reimb-ribbon-btn" onclick="_startReimbursementsFlow()">Update</button>'
+      + '</div>';
+  }
+
+  html += '<div class="view-header">'
+    +   '<div class="view-header__eyebrow">' + n + (n === 1 ? ' program may apply for ' : ' programs may apply for ') + escHtml(name) + '</div>'
+    +   '<h1 class="view-header__title">Reimbursements</h1>'
+    +   '<p class="view-header__lede">Programs that may pay for the care you’re already giving. Eligibility varies — these are starting points, not guarantees.</p>'
+    + '</div>';
+
+  // Your situation summary.
+  html += '<div class="reimb-situation"><div class="reimb-section-head">Your situation</div><div class="reimb-prefill-chips">';
+  var fieldOrder = ['loved_one_age_band','conditions','coverage','adl_level','caregiver_role','hospital_system','state','current_tools','biggest_worry'];
+  var prov = a.input_provenance || {};
+  fieldOrder.forEach(function(f){
+    var val = a[f];
+    if (val == null || (Array.isArray(val) && val.length === 0) || val === '') return;
+    var display = Array.isArray(val) ? val.join(', ') : String(val);
+    var pv = prov[f] || 'user';
+    html += '<div class="reimb-chip">'
+      + '<span class="reimb-chip-label">' + escHtml(display) + '</span>'
+      + '<span class="reimb-chip-prov">' + escHtml(_REIMB_PROVENANCE_LABEL[pv] || 'You told us') + '</span>'
+      + '</div>';
+  });
+  html += '</div>';
+  html += '<button type="button" class="reimb-btn-secondary" onclick="_startReimbursementsFlow()">Update my situation</button>';
+  if (a.assessed_at) {
+    html += '<div class="reimb-assessed">Last reviewed ' + escHtml(new Date(a.assessed_at).toLocaleDateString()) + '</div>';
+  }
+  html += '</div>';
+
+  // Program cards.
+  html += '<div class="reimb-programs">';
+  programs.forEach(function(p, i){
+    html += _reimbProgramCardHtml(p, i, a.id);
+  });
+  html += '</div>';
+
+  // Signals (lower priority).
+  if (signals.length) {
+    html += '<div class="reimb-signals"><div class="reimb-section-head">While you handle the paperwork</div>';
+    signals.forEach(function(s){
+      html += '<div class="reimb-signal-row"><div class="reimb-signal-title">' + escHtml(s.title) + '</div><div class="reimb-signal-why">' + escHtml(s.why) + '</div></div>';
+    });
+    html += '</div>';
+  }
+
+  html += '<p class="reimb-footer">Wellet does not pay caregivers. We aggregate your loved one’s health records and surface programs that may pay for the care you’re already giving.</p>';
+  html += '</div>';
+
+  el.innerHTML = html;
+  initIcons();
+}
+
+function _reimbProgramCardHtml(p, idx, assessmentId) {
+  var conf = (p.confidence || 'low');
+  var why = Array.isArray(p.why) ? p.why : [];
+  var caveats = Array.isArray(p.caveats) ? p.caveats : [];
+  var acc = 'reimb-acc-' + idx;
+  var html = '<div class="reimb-card">'
+    + '<div class="reimb-card-head">'
+    +   '<div class="reimb-card-name">' + escHtml(p.name || '') + '</div>'
+    +   '<div class="reimb-card-amount">' + escHtml(p.amount || '') + '</div>'
+    +   '<span class="reimb-pip reimb-pip--' + escHtml(conf) + '">' + escHtml(conf) + ' confidence</span>'
+    + '</div>';
+  if (why.length) {
+    html += '<div class="reimb-card-why"><div class="reimb-card-sub">Why this may apply</div><ul>';
+    why.forEach(function(w){ html += '<li>' + escHtml(w) + '</li>'; });
+    html += '</ul></div>';
+  }
+  if (caveats.length) {
+    html += '<details class="reimb-card-caveats"><summary>Things to know</summary><ul>';
+    caveats.forEach(function(c){ html += '<li>' + escHtml(c) + '</li>'; });
+    html += '</ul></details>';
+  }
+  if (p.link) {
+    html += '<a class="reimb-card-cta" href="' + escHtml(p.link) + '" target="_blank" rel="noopener" '
+      + 'onclick="try{if(typeof _wa!==\'undefined\'&&_wa.track)_wa.track(\'feature\',\'reimbursement_program_clicked\',{program_id:\'' + escHtml(p.id || '') + '\',confidence:\'' + escHtml(conf) + '\'});}catch(e){}">'
+      + escHtml(p.cta_label || 'Learn more') + '</a>';
+  }
+  html += '</div>';
+  return html;
+}
+
 async function toggleResourceBookmark(resourceId) {
   if (!currentUser) { showToast('Sign in to save resources'); return; }
 
@@ -25945,6 +26333,7 @@ function switchNavTo(view, skipPush) {
   document.getElementById('header-tab-bar').style.display = isHome ? 'flex' : 'none';
   if (view === 'signals') { renderSignalsView(); }
   if (view === 'resources') { renderResourcesView(); }
+  if (view === 'reimbursements') { try { renderReimbursementsView(); } catch(_e) {} }
   if (view === 'records') { try { renderRecordsView(); } catch(_e) {} }
   if (view === 'people' && !isDemoMode) { renderPeopleView(); }
   // 2026-06-01 (D5): call renderAskView in demo mode too so the demo branch
