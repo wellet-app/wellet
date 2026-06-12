@@ -276,7 +276,14 @@ Format rules:
 - Keep it under 300 words
 - Use clear section headers like ALLERGIES:, MEDICATIONS:, CONDITIONS:, RECENT PROCEDURES:, CONTACTS:
 - List medications with dosages on separate lines
-- Flag any critical drug interactions or allergy concerns prominently at the top`,
+- If a documented allergy in the data is relevant to a medication that is also in the data, restate the allergy in the ALLERGIES section verbatim. Do not infer new allergy/medication conflicts from training knowledge.
+
+Clinical-judgment guardrails (STRICT):
+- Do NOT flag drug interactions. Wellet does not perform pharmacovigilance — leave clinical judgment to the care team.
+- Do NOT flag dosing errors, contraindications, or medication mistakes.
+- Do NOT introduce any medication, condition, allergy, dose, date, or contact that is not present verbatim in the data provided. If a field is missing, omit the section or write "Not on file."
+- Never invent ICD-10, CPT, HCPCS, or NDC codes. Only include codes that appear in the data.
+- You are not a doctor. Frame everything as a transcription of what is recorded, not as medical advice.`,
             },
             {
               role: "user",
