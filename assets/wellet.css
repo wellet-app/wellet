@@ -444,7 +444,11 @@
   .add-person-btn:hover { border-color: var(--moss); color: var(--moss); background: var(--mint); }
 
   /* upload sheet */
-  .upload-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 100; align-items: flex-end; justify-content: center; }
+  /* z-index 9500: must sit above .connect-data-screen (z-index: 9000) so the
+     Upload-a-record card on the Connect screen opens visibly. Confirmed bug
+     2026-06-13: the overlay was opening (display:flex applied) but rendering
+     beneath the Connect screen and looked like a dead tap. */
+  .upload-overlay { display: none; position: fixed; inset: 0; background: rgba(44,42,38,0.45); z-index: 9500; align-items: flex-end; justify-content: center; }
   .upload-overlay.show { display: flex; }
   .upload-sheet { background: white; border-radius: 20px 20px 0 0; padding: 0 0 40px; width: 100%; max-width: 768px; max-height: 90vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .upload-handle-row { padding: 16px 20px 0; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: white; z-index: 2; border-radius: 20px 20px 0 0; }
