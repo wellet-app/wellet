@@ -1,0 +1,354 @@
+/* ============================================================================
+   wellet-v2-tokens.css — V2 brand tokens + rcard primitive layer
+   ----------------------------------------------------------------------------
+   ADDITIVE ONLY. Loaded LAST in the cascade. Nothing here overrides an
+   existing v1 token; surfaces opt in by adding new classes.
+
+   Section 1: Canonical token export (from dist/wellet.css, generated
+              Fri, 19 Jun 2026 16:34:27 GMT — the source of truth shipped
+              in the V2 reference bundle).
+   Section 2: Legacy aliases — short --c-* / --rc-* names used by existing
+              v2 surfaces (m.html pillars, rcard grammar). These map to
+              canonical core tokens; do not introduce new aliases.
+   Section 3: rcard primitives — the V2 Resources card grammar.
+
+   FONTS: add to <head>:
+     <link href="https://api.fontshare.com/v2/css?f[]=gambetta@300,400,500,400i&display=swap" rel="stylesheet">
+     <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+   ============================================================================ */
+
+/* ============================================================================
+   SECTION 1 — Canonical tokens (verbatim from dist/wellet.css)
+   ============================================================================ */
+:root {
+  --core-color-cream: #e7e7df;
+  --core-color-cream-warm: #dcdace;
+  --core-color-forest: #11443b;
+  --core-color-forest-deep: #0d3a32;
+  --core-color-forest-2: #114445;
+  --core-color-midnight: #183241;
+  --core-color-mint: #9ece90;
+  --core-color-mist: #b7c9cd;
+  --core-color-stone: #dcdace;
+  --core-color-forest-leaf: #2d4b40;
+  --core-color-forest-pine: #1b4d45;
+  --core-color-olive: #424833;
+  --core-color-clay: #a87251;
+  --core-color-walnut: #552d27;
+  --core-color-blue-soft: #81a3ee;
+  --core-color-blue-deep: #c2cce0;
+  --core-color-alert: #ec5747;
+  --core-color-alert-deep: #f46363;
+  --core-color-ink: #11443b;
+  --core-color-ink-2: #3a4a45;
+  --core-color-ink-3: #7a857f;
+  --core-color-white: #ffffff;
+  --core-color-black: #0a0a0a;
+  --core-font-family-display: Gambetta;
+  --core-font-family-body: Public Sans;
+  --core-font-family-mono: DM Mono;
+  --core-font-weight-light: 300;
+  --core-font-weight-regular: 400;
+  --core-font-weight-medium: 500;
+  --core-size-0: 0px;
+  --core-size-1: 4px;
+  --core-size-2: 8px;
+  --core-size-3: 12px;
+  --core-size-4: 16px;
+  --core-size-5: 24px;
+  --core-size-6: 32px;
+  --core-size-7: 48px;
+  --core-size-8: 64px;
+  --core-size-9: 96px;
+  --core-radius-xs: 6px;
+  --core-radius-sm: 10px;
+  --core-radius-md: 16px;
+  --core-radius-lg: 32px;
+  --core-radius-pill: 999px;
+  --core-shadow-card: 0 1px 2px 0 #11443b0f, 0 4px 12px 0 #11443b0a;
+  --core-shadow-raised: 0 4px 16px 0 #11443b14, 0 12px 36px 0 #11443b0f;
+  --core-shadow-modal: 0 8px 24px 0 #1832411a, 0 24px 64px 0 #1832411f;
+  --core-blur-glass: 33px;
+  --core-blur-glass-heavy: 52px;
+  --semantic-color-bg-default: #e7e7df;
+  --semantic-color-bg-raised: #dcdace;
+  --semantic-color-bg-inverse: #183241;
+  --semantic-color-fg-default: #11443b;
+  --semantic-color-fg-muted: #3a4a45;
+  --semantic-color-fg-subtle: #7a857f;
+  --semantic-color-fg-inverse: #ffffff;
+  --semantic-color-brand-primary: #11443b;
+  --semantic-color-brand-primary-hover: #0d3a32;
+  --semantic-color-brand-highlight: #9ece90;
+  --semantic-color-border-default: #dcdace;
+  --semantic-color-border-strong: #11443b;
+  --semantic-color-status-stable: #b7c9cd;
+  --semantic-color-status-watching: #9ece90;
+  --semantic-color-status-attention: #ec5747;
+  --type-display-font-family: Gambetta;
+  --type-display-font-weight: 500;
+  --type-display-font-size: 72px;
+  --type-display-line-height: 76px;
+  --type-display-letter-spacing: -2px;
+  --type-h1-font-family: Gambetta;
+  --type-h1-font-weight: 500;
+  --type-h1-font-size: 48px;
+  --type-h1-line-height: 54px;
+  --type-h1-letter-spacing: -1px;
+  --type-h2-font-family: Gambetta;
+  --type-h2-font-weight: 500;
+  --type-h2-font-size: 36px;
+  --type-h2-line-height: 42px;
+  --type-h2-letter-spacing: -0.5px;
+  --type-h3-font-family: Gambetta;
+  --type-h3-font-weight: 500;
+  --type-h3-font-size: 24px;
+  --type-h3-line-height: 30px;
+  --type-h3-letter-spacing: 0;
+  --type-lede-font-family: Public Sans;
+  --type-lede-font-weight: 300;
+  --type-lede-font-size: 22px;
+  --type-lede-line-height: 32px;
+  --type-lede-letter-spacing: 0;
+  --type-body-font-family: Public Sans;
+  --type-body-font-weight: 400;
+  --type-body-font-size: 17px;
+  --type-body-line-height: 27px;
+  --type-body-letter-spacing: 0;
+  --type-body-sm-font-family: Public Sans;
+  --type-body-sm-font-weight: 400;
+  --type-body-sm-font-size: 15px;
+  --type-body-sm-line-height: 24px;
+  --type-body-sm-letter-spacing: 0;
+  --type-caption-font-family: Public Sans;
+  --type-caption-font-weight: 500;
+  --type-caption-font-size: 13px;
+  --type-caption-line-height: 18px;
+  --type-caption-letter-spacing: 0.2px;
+  --type-micro-font-family: Public Sans;
+  --type-micro-font-weight: 500;
+  --type-micro-font-size: 12px;
+  --type-micro-line-height: 16px;
+  --type-micro-letter-spacing: 0.4px;
+}
+
+/* ============================================================================
+   SECTION 2 — Legacy aliases
+   ----------------------------------------------------------------------------
+   Short names referenced by v2 surfaces shipped before the canonical export
+   landed. All map to canonical core tokens; safe to remove once all call
+   sites use --core-* directly.
+   ============================================================================ */
+:root {
+  --c-cream:        var(--core-color-cream);
+  --c-cream-warm:   var(--core-color-cream-warm);
+  --c-dad-bg:       #efece2;
+  --c-mom-bg:       #e6ede7;
+
+  --c-forest:       var(--core-color-forest);
+  --c-forest-deep:  var(--core-color-forest-deep);
+  --c-forest-2:     var(--core-color-forest-2);
+  --c-forest-leaf:  var(--core-color-forest-leaf);
+  --c-forest-pine:  var(--core-color-forest-pine);
+
+  --c-mint:         var(--core-color-mint);
+  --c-mint-soft:    #d6e5cf;
+  --c-mint-deep:    #7eb572;
+
+  --c-mist:         var(--core-color-mist);
+  --c-mist-soft:    #d6dfe1;
+  --c-stone:        var(--core-color-stone);
+  --c-blue-soft:    var(--core-color-blue-soft);
+  --c-blue-deep:    var(--core-color-blue-deep);
+
+  --c-clay:         var(--core-color-clay);
+  --c-clay-soft:    #e3d2c2;
+  --c-walnut:       var(--core-color-walnut);
+
+  --c-midnight:     var(--core-color-midnight);
+  --c-midnight-2:   #1f3d4e;
+  --c-olive:        var(--core-color-olive);
+
+  --c-alert:        var(--core-color-alert);
+  --c-alert-deep:   var(--core-color-alert-deep);
+
+  --c-v2-ink:       var(--core-color-ink);
+  --c-v2-ink-2:     var(--core-color-ink-2);
+  --c-v2-ink-3:     var(--core-color-ink-3);
+
+  --font-v2-serif:  "Gambetta", Georgia, serif;
+  --font-v2-sans:   "Public Sans", system-ui, -apple-system, sans-serif;
+  --font-v2-mono:   "DM Mono", ui-monospace, monospace;
+
+  --rc-border-w:    3px;
+  --rc-radius:      14px;
+  --rc-pad-y:       14px;
+  --rc-pad-x:       16px;
+  --rc-eyebrow-size: 11px;
+  --rc-eyebrow-tracking: 0.08em;
+  --rc-pill-size:   10px;
+  --rc-pill-tracking: 0.03em;
+}
+
+/* ============================================================================
+   SECTION 3 — rcard primitives (V2 Resources card grammar)
+   ============================================================================ */
+.rcard {
+  position: relative;
+  background: #fff;
+  border-left: var(--rc-border-w) solid var(--c-forest);
+  border-radius: var(--rc-radius);
+  padding: var(--rc-pad-y) var(--rc-pad-x);
+  box-shadow: var(--core-shadow-card);
+}
+
+.rcard.is-change {
+  border-left-color: var(--c-clay);
+}
+
+.rcard.is-unavailable {
+  background: var(--c-stone);
+  border-left-color: var(--c-v2-ink-3);
+  opacity: 0.65;
+}
+
+.rc-eyebrow {
+  display: block;
+  font-family: var(--font-v2-sans);
+  font-size: var(--rc-eyebrow-size);
+  letter-spacing: var(--rc-eyebrow-tracking);
+  text-transform: uppercase;
+  color: var(--c-clay);
+  font-weight: 600;
+  margin: 0 150px 4px 0;
+}
+
+.rc-eyebrow.self-reported {
+  color: var(--c-walnut);
+}
+.rc-eyebrow.self-reported::after {
+  content: " · flag for next visit";
+  color: var(--c-walnut);
+  opacity: 0.7;
+  font-weight: 500;
+}
+
+.rc-pill {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px 3px 8px;
+  border-radius: var(--core-radius-pill);
+  font-family: var(--font-v2-sans);
+  font-size: var(--rc-pill-size);
+  letter-spacing: var(--rc-pill-tracking);
+  font-weight: 700;
+  background: var(--c-mint);
+  color: var(--c-forest-deep);
+  box-shadow: inset 0 0 0 1px rgba(13, 58, 50, 0.10);
+}
+.rc-pill::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: var(--core-radius-pill);
+  background: var(--c-forest-deep);
+  display: inline-block;
+}
+.rc-pill.is-change {
+  background: var(--c-clay-soft);
+  color: var(--c-walnut);
+}
+.rc-pill.is-change::before {
+  background: var(--c-walnut);
+}
+
+.rc-title {
+  font-family: var(--font-v2-serif);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 1.05rem;
+  line-height: 1.25;
+  color: var(--c-v2-ink);
+  margin: 0 0 4px;
+}
+
+.rcard.with-icon {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+.rcard.with-icon .rc-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--c-mint-soft);
+  display: grid;
+  place-items: center;
+  color: var(--c-forest-deep);
+}
+
+/* Timeline rail (used by mywellet timeline + pro labs) */
+.timeline-rail {
+  position: relative;
+  padding-left: 22px;
+}
+.timeline-rail::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--c-mist);
+}
+.timeline-rail .rcard {
+  border-left: 0;
+  margin-bottom: 14px;
+  position: relative;
+}
+.timeline-rail .rcard::before {
+  content: "";
+  position: absolute;
+  left: -22px;
+  top: 22px;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--core-radius-pill);
+  background: var(--c-forest);
+}
+
+/* Demoted CTA — outlined Forest */
+.btn-forest-outline {
+  background: transparent;
+  border: 1.5px solid var(--c-forest);
+  color: var(--c-forest);
+  font-family: var(--font-v2-sans);
+  font-weight: 600;
+  border-radius: var(--core-radius-pill);
+  padding: 10px 18px;
+  cursor: pointer;
+}
+.btn-forest-outline:hover {
+  background: rgba(17, 68, 59, 0.06);
+}
+
+/* Side-menu emergency tile (mywellet) */
+.menu-tile {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--c-mint-soft);
+  display: grid;
+  place-items: center;
+  color: var(--c-forest-deep);
+}
+.menu-tile.is-emergency {
+  background: var(--c-walnut);
+  color: #fff;
+}
