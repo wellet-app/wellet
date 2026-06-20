@@ -1,0 +1,71 @@
+/* ============================================================================
+   wellet-v2-bridge.css — V1 → V2 token remap
+   ----------------------------------------------------------------------------
+   Purpose: legacy CSS in wellet.css and editorial-*.css references --moss,
+   --cream, --serif, --mint, etc. (the V1 palette and Fraunces typography).
+   This file remaps those V1 token NAMES to V2 token VALUES so existing
+   selectors get the new brand without rewriting hundreds of rules.
+
+   Load LAST in <head>, AFTER wellet-v2-tokens.css.
+   ============================================================================ */
+
+:root {
+  /* === V1 brand color names → V2 values === */
+  --moss:           #11443b;  /* forest */
+  --moss-dark:      #0d3a32;  /* forest-deep */
+  --moss-deep:      #0d3a32;
+  --moss-quiet:     #2d4b40;  /* forest-leaf */
+  --moss-text:      #11443b;
+  --mint:           #d6e5cf;  /* mint-soft (the light fill V1 expected) */
+  --mint-deep:      #9ece90;
+  --cream:          #efece2;  /* warm V2 cream backgrounds */
+
+  /* === V1 typography aliases → V2 type stack === */
+  --serif:          "Gambetta", Georgia, serif;
+  --sans:           "Public Sans", system-ui, -apple-system, sans-serif;
+  --font-display:   "Gambetta", Georgia, serif;
+  --font-body:      "Public Sans", system-ui, -apple-system, sans-serif;
+  --font-mono:      "DM Mono", ui-monospace, monospace;
+
+  /* === V1 text + border neutrals → V2 ink === */
+  --text-primary:   #11443b;
+  --text-secondary: #3a4a45;
+  --text-muted:     #7a857f;
+  --text:           #11443b;
+  --ink-9:          #11443b;
+}
+
+/* === Body font swap — wellet.css line 37 explicitly hardcodes DM Sans === */
+body {
+  font-family: "Public Sans", system-ui, -apple-system, sans-serif;
+}
+
+/* === Any element using 'DM Sans' inline → Public Sans === */
+[style*="DM Sans"],
+[style*="'DM Sans'"] {
+  font-family: "Public Sans", system-ui, -apple-system, sans-serif !important;
+}
+
+/* === Auth header lede + italic accent (matches V2 getwellet) === */
+.auth-headline h1,
+.auth-title,
+.auth-sent-title,
+.auth-gate-title {
+  font-family: "Gambetta", Georgia, serif;
+  letter-spacing: -0.01em;
+}
+.auth-headline h1 em,
+.auth-title em {
+  font-style: italic;
+  color: #11443b;
+}
+
+/* === Auth wordmark sizing — keep image renders crisp === */
+.auth-header-wordmark,
+.loading-logo img,
+.try-header img {
+  height: auto;
+  max-width: 100%;
+}
+.loading-logo img { width: 96px; }
+.auth-header-wordmark { width: 96px; height: auto; }
