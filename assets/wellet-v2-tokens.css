@@ -1,0 +1,260 @@
+/* ============================================================================
+   wellet-v2-tokens.css — V2 brand token + UX primitive layer
+   ----------------------------------------------------------------------------
+   ADDITIVE ONLY. Nothing in this file overrides an existing variable or
+   touches a currently-rendered surface. Surfaces opt in by adding the new
+   classes (.rcard, .rc-eyebrow, .rc-pill, .rc-rail, etc.) — until then,
+   loading this file changes nothing visible.
+
+   Aligned to the v2 reference at /wellet_rebrand/reference_site/mockups.html
+   (see asset_id 2e9b6a0d-1277-4e03-b8b0-e6f2ade0e5b6) and to the v2 brand
+   guidelines document.
+
+   Naming convention: --c-* for color, --rc-* for resources-card primitives.
+
+   FONTS: V2 uses Gambetta (display, italic noun emphasis) and Public Sans
+   (body). The primitives below reference --font-v2-serif and --font-v2-sans
+   with sensible fallbacks. To activate v2 typography, also add to <head>:
+
+     <link href="https://api.fontshare.com/v2/css?f[]=gambetta@300,400,500,400i&display=swap" rel="stylesheet">
+     <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+   Fraunces / DM Sans remain loaded for v1 surfaces; no conflict.
+   ============================================================================ */
+
+:root {
+  /* ---- Surface neutrals ---- */
+  --c-cream:        #e7e7df;
+  --c-cream-warm:   #dcdace;
+  --c-dad-bg:       #efece2;
+  --c-mom-bg:       #e6ede7;
+
+  /* ---- Forest family (primary brand) ---- */
+  --c-forest:       #11443b;
+  --c-forest-deep:  #0d3a32;
+  --c-forest-2:     #114445;
+  --c-forest-leaf:  #2d4b40;
+  --c-forest-pine:  #1b4d45;
+
+  /* ---- Mint family (status / "fresh" signal) ---- */
+  --c-mint:         #9ece90;
+  --c-mint-soft:    #d6e5cf;
+  --c-mint-deep:    #7eb572;
+
+  /* ---- Mist / stone / blue (cool neutrals + plumbing) ---- */
+  --c-mist:         #b7c9cd;
+  --c-mist-soft:    #d6dfe1;
+  --c-stone:        #dcdace;
+  --c-blue-soft:    #81a3ee;
+  --c-blue-deep:    #c2cce0;
+
+  /* ---- Clay / walnut (change + caregiver-provenance) ---- */
+  --c-clay:         #a87251;
+  --c-clay-soft:    #e3d2c2;
+  --c-walnut:       #552d27;
+
+  /* ---- Depth / accent ---- */
+  --c-midnight:     #183241;
+  --c-midnight-2:   #1f3d4e;
+  --c-olive:        #424833;
+
+  /* ---- Alarm (used sparingly, ER only) ---- */
+  --c-alert:        #ec5747;
+
+  /* ---- Ink ladder (text) ---- */
+  --c-v2-ink:       #1c2826;
+  --c-v2-ink-2:     #3a4a45;
+  --c-v2-ink-3:     #6b7773;
+
+  /* ---- V2 typography family aliases ---- */
+  --font-v2-serif:  "Gambetta", Georgia, serif;
+  --font-v2-sans:   "Public Sans", system-ui, -apple-system, sans-serif;
+
+  /* ---- rcard primitive sizing ---- */
+  --rc-border-w:    3px;
+  --rc-radius:      14px;
+  --rc-pad-y:       14px;
+  --rc-pad-x:       16px;
+  --rc-eyebrow-size: 11px;
+  --rc-eyebrow-tracking: 0.08em;
+  --rc-pill-size:   10px;
+  --rc-pill-tracking: 0.03em;
+}
+
+/* ============================================================================
+   rcard — the v2 Resources card grammar.
+   Forest 3px left border, Clay uppercase eyebrow, optional Mint pill in the
+   top-right with a dot, italic Gambetta/Fraunces title.
+   ============================================================================ */
+.rcard {
+  position: relative;
+  background: #fff;
+  border-left: var(--rc-border-w) solid var(--c-forest);
+  border-radius: var(--rc-radius);
+  padding: var(--rc-pad-y) var(--rc-pad-x);
+  box-shadow: 0 1px 2px rgba(28, 40, 38, 0.04);
+}
+
+/* Change state — clay border + clay pill */
+.rcard.is-change {
+  border-left-color: var(--c-clay);
+}
+
+/* Stone / unavailable */
+.rcard.is-unavailable {
+  background: var(--c-stone);
+  border-left-color: var(--c-v2-ink-3);
+  opacity: 0.65;
+}
+
+/* ---- Eyebrow: source / identity ---- */
+.rc-eyebrow {
+  display: block;
+  font-size: var(--rc-eyebrow-size);
+  letter-spacing: var(--rc-eyebrow-tracking);
+  text-transform: uppercase;
+  color: var(--c-clay);
+  font-weight: 600;
+  margin: 0 150px 4px 0;  /* right margin reserves space for pill */
+}
+
+/* Self-reported provenance: walnut + "flag for next visit" reminder */
+.rc-eyebrow.self-reported {
+  color: var(--c-walnut);
+}
+.rc-eyebrow.self-reported::after {
+  content: " · flag for next visit";
+  color: var(--c-walnut);
+  opacity: 0.7;
+  font-weight: 500;
+}
+
+/* ---- Pill: status / "how many" / "when" ---- */
+.rc-pill {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px 3px 8px;
+  border-radius: 999px;
+  font-size: var(--rc-pill-size);
+  letter-spacing: var(--rc-pill-tracking);
+  font-weight: 700;
+  background: var(--c-mint);
+  color: var(--c-forest-deep);
+  box-shadow: inset 0 0 0 1px rgba(13, 58, 50, 0.10);
+}
+.rc-pill::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--c-forest-deep);
+  display: inline-block;
+}
+.rc-pill.is-change {
+  background: var(--c-clay-soft);
+  color: var(--c-walnut);
+}
+.rc-pill.is-change::before {
+  background: var(--c-walnut);
+}
+
+/* ---- Title: italic display face (Gambetta) ---- */
+.rc-title {
+  font-family: var(--font-v2-serif);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 1.05rem;
+  line-height: 1.25;
+  color: var(--c-v2-ink);
+  margin: 0 0 4px;
+}
+
+/* ---- Icon tile variant ---- */
+.rcard.with-icon {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+.rcard.with-icon .rc-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--c-mint-soft);
+  display: grid;
+  place-items: center;
+  color: var(--c-forest-deep);
+}
+
+/* ============================================================================
+   rail — timeline vertical with filled forest dots.
+   Use .rcard inside .timeline-rail to suppress the left border; the rail dot
+   does the framing instead.
+   ============================================================================ */
+.timeline-rail {
+  position: relative;
+  padding-left: 22px;
+}
+.timeline-rail::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--c-mist);
+}
+.timeline-rail .rcard {
+  border-left: 0;
+  margin-bottom: 14px;
+  position: relative;
+}
+.timeline-rail .rcard::before {
+  content: "";
+  position: absolute;
+  left: -22px;
+  top: 22px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--c-forest);
+}
+
+/* ============================================================================
+   Outlined Forest button — demoted CTA variant.
+   Use on secondary actions (e.g. "Open prep") so the primary Wellet Summary
+   stays the visual hero.
+   ============================================================================ */
+.btn-forest-outline {
+  background: transparent;
+  border: 1.5px solid var(--c-forest);
+  color: var(--c-forest);
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 10px 18px;
+  cursor: pointer;
+}
+.btn-forest-outline:hover {
+  background: rgba(17, 68, 59, 0.06);
+}
+
+/* ============================================================================
+   Side-menu emergency tile — Walnut filled (not pure red) for ER Summary.
+   ============================================================================ */
+.menu-tile {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--c-mint-soft);
+  display: grid;
+  place-items: center;
+  color: var(--c-forest-deep);
+}
+.menu-tile.is-emergency {
+  background: var(--c-walnut);
+  color: #fff;
+}
