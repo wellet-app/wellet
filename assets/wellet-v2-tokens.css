@@ -1,76 +1,186 @@
 /* ============================================================================
-   wellet-v2-tokens.css — V2 brand token + UX primitive layer
+   wellet-v2-tokens.css — V2 brand tokens + rcard primitive layer
    ----------------------------------------------------------------------------
-   ADDITIVE ONLY. Nothing in this file overrides an existing variable or
-   touches a currently-rendered surface. Surfaces opt in by adding the new
-   classes (.rcard, .rc-eyebrow, .rc-pill, .rc-rail, etc.) — until then,
-   loading this file changes nothing visible.
+   ADDITIVE ONLY. Loaded LAST in the cascade. Nothing here overrides an
+   existing v1 token; surfaces opt in by adding new classes.
 
-   Aligned to the v2 reference at /wellet_rebrand/reference_site/mockups.html
-   (see asset_id 2e9b6a0d-1277-4e03-b8b0-e6f2ade0e5b6) and to the v2 brand
-   guidelines document.
+   Section 1: Canonical token export (from dist/wellet.css, generated
+              Fri, 19 Jun 2026 16:34:27 GMT — the source of truth shipped
+              in the V2 reference bundle).
+   Section 2: Legacy aliases — short --c-* / --rc-* names used by existing
+              v2 surfaces (m.html pillars, rcard grammar). These map to
+              canonical core tokens; do not introduce new aliases.
+   Section 3: rcard primitives — the V2 Resources card grammar.
 
-   Naming convention: --c-* for color, --rc-* for resources-card primitives.
-
-   FONTS: V2 uses Gambetta (display, italic noun emphasis) and Public Sans
-   (body). The primitives below reference --font-v2-serif and --font-v2-sans
-   with sensible fallbacks. To activate v2 typography, also add to <head>:
-
+   FONTS: add to <head>:
      <link href="https://api.fontshare.com/v2/css?f[]=gambetta@300,400,500,400i&display=swap" rel="stylesheet">
      <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-   Fraunces / DM Sans remain loaded for v1 surfaces; no conflict.
+     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
    ============================================================================ */
 
+/* ============================================================================
+   SECTION 1 — Canonical tokens (verbatim from dist/wellet.css)
+   ============================================================================ */
 :root {
-  /* ---- Surface neutrals ---- */
-  --c-cream:        #e7e7df;
-  --c-cream-warm:   #dcdace;
+  --core-color-cream: #e7e7df;
+  --core-color-cream-warm: #dcdace;
+  --core-color-forest: #11443b;
+  --core-color-forest-deep: #0d3a32;
+  --core-color-forest-2: #114445;
+  --core-color-midnight: #183241;
+  --core-color-mint: #9ece90;
+  --core-color-mist: #b7c9cd;
+  --core-color-stone: #dcdace;
+  --core-color-forest-leaf: #2d4b40;
+  --core-color-forest-pine: #1b4d45;
+  --core-color-olive: #424833;
+  --core-color-clay: #a87251;
+  --core-color-walnut: #552d27;
+  --core-color-blue-soft: #81a3ee;
+  --core-color-blue-deep: #c2cce0;
+  --core-color-alert: #ec5747;
+  --core-color-alert-deep: #f46363;
+  --core-color-ink: #11443b;
+  --core-color-ink-2: #3a4a45;
+  --core-color-ink-3: #7a857f;
+  --core-color-white: #ffffff;
+  --core-color-black: #0a0a0a;
+  --core-font-family-display: Gambetta;
+  --core-font-family-body: Public Sans;
+  --core-font-family-mono: DM Mono;
+  --core-font-weight-light: 300;
+  --core-font-weight-regular: 400;
+  --core-font-weight-medium: 500;
+  --core-size-0: 0px;
+  --core-size-1: 4px;
+  --core-size-2: 8px;
+  --core-size-3: 12px;
+  --core-size-4: 16px;
+  --core-size-5: 24px;
+  --core-size-6: 32px;
+  --core-size-7: 48px;
+  --core-size-8: 64px;
+  --core-size-9: 96px;
+  --core-radius-xs: 6px;
+  --core-radius-sm: 10px;
+  --core-radius-md: 16px;
+  --core-radius-lg: 32px;
+  --core-radius-pill: 999px;
+  --core-shadow-card: 0 1px 2px 0 #11443b0f, 0 4px 12px 0 #11443b0a;
+  --core-shadow-raised: 0 4px 16px 0 #11443b14, 0 12px 36px 0 #11443b0f;
+  --core-shadow-modal: 0 8px 24px 0 #1832411a, 0 24px 64px 0 #1832411f;
+  --core-blur-glass: 33px;
+  --core-blur-glass-heavy: 52px;
+  --semantic-color-bg-default: #e7e7df;
+  --semantic-color-bg-raised: #dcdace;
+  --semantic-color-bg-inverse: #183241;
+  --semantic-color-fg-default: #11443b;
+  --semantic-color-fg-muted: #3a4a45;
+  --semantic-color-fg-subtle: #7a857f;
+  --semantic-color-fg-inverse: #ffffff;
+  --semantic-color-brand-primary: #11443b;
+  --semantic-color-brand-primary-hover: #0d3a32;
+  --semantic-color-brand-highlight: #9ece90;
+  --semantic-color-border-default: #dcdace;
+  --semantic-color-border-strong: #11443b;
+  --semantic-color-status-stable: #b7c9cd;
+  --semantic-color-status-watching: #9ece90;
+  --semantic-color-status-attention: #ec5747;
+  --type-display-font-family: Gambetta;
+  --type-display-font-weight: 500;
+  --type-display-font-size: 72px;
+  --type-display-line-height: 76px;
+  --type-display-letter-spacing: -2px;
+  --type-h1-font-family: Gambetta;
+  --type-h1-font-weight: 500;
+  --type-h1-font-size: 48px;
+  --type-h1-line-height: 54px;
+  --type-h1-letter-spacing: -1px;
+  --type-h2-font-family: Gambetta;
+  --type-h2-font-weight: 500;
+  --type-h2-font-size: 36px;
+  --type-h2-line-height: 42px;
+  --type-h2-letter-spacing: -0.5px;
+  --type-h3-font-family: Gambetta;
+  --type-h3-font-weight: 500;
+  --type-h3-font-size: 24px;
+  --type-h3-line-height: 30px;
+  --type-h3-letter-spacing: 0;
+  --type-lede-font-family: Public Sans;
+  --type-lede-font-weight: 300;
+  --type-lede-font-size: 22px;
+  --type-lede-line-height: 32px;
+  --type-lede-letter-spacing: 0;
+  --type-body-font-family: Public Sans;
+  --type-body-font-weight: 400;
+  --type-body-font-size: 17px;
+  --type-body-line-height: 27px;
+  --type-body-letter-spacing: 0;
+  --type-body-sm-font-family: Public Sans;
+  --type-body-sm-font-weight: 400;
+  --type-body-sm-font-size: 15px;
+  --type-body-sm-line-height: 24px;
+  --type-body-sm-letter-spacing: 0;
+  --type-caption-font-family: Public Sans;
+  --type-caption-font-weight: 500;
+  --type-caption-font-size: 13px;
+  --type-caption-line-height: 18px;
+  --type-caption-letter-spacing: 0.2px;
+  --type-micro-font-family: Public Sans;
+  --type-micro-font-weight: 500;
+  --type-micro-font-size: 12px;
+  --type-micro-line-height: 16px;
+  --type-micro-letter-spacing: 0.4px;
+}
+
+/* ============================================================================
+   SECTION 2 — Legacy aliases
+   ----------------------------------------------------------------------------
+   Short names referenced by v2 surfaces shipped before the canonical export
+   landed. All map to canonical core tokens; safe to remove once all call
+   sites use --core-* directly.
+   ============================================================================ */
+:root {
+  --c-cream:        var(--core-color-cream);
+  --c-cream-warm:   var(--core-color-cream-warm);
   --c-dad-bg:       #efece2;
   --c-mom-bg:       #e6ede7;
 
-  /* ---- Forest family (primary brand) ---- */
-  --c-forest:       #11443b;
-  --c-forest-deep:  #0d3a32;
-  --c-forest-2:     #114445;
-  --c-forest-leaf:  #2d4b40;
-  --c-forest-pine:  #1b4d45;
+  --c-forest:       var(--core-color-forest);
+  --c-forest-deep:  var(--core-color-forest-deep);
+  --c-forest-2:     var(--core-color-forest-2);
+  --c-forest-leaf:  var(--core-color-forest-leaf);
+  --c-forest-pine:  var(--core-color-forest-pine);
 
-  /* ---- Mint family (status / "fresh" signal) ---- */
-  --c-mint:         #9ece90;
+  --c-mint:         var(--core-color-mint);
   --c-mint-soft:    #d6e5cf;
   --c-mint-deep:    #7eb572;
 
-  /* ---- Mist / stone / blue (cool neutrals + plumbing) ---- */
-  --c-mist:         #b7c9cd;
+  --c-mist:         var(--core-color-mist);
   --c-mist-soft:    #d6dfe1;
-  --c-stone:        #dcdace;
-  --c-blue-soft:    #81a3ee;
-  --c-blue-deep:    #c2cce0;
+  --c-stone:        var(--core-color-stone);
+  --c-blue-soft:    var(--core-color-blue-soft);
+  --c-blue-deep:    var(--core-color-blue-deep);
 
-  /* ---- Clay / walnut (change + caregiver-provenance) ---- */
-  --c-clay:         #a87251;
+  --c-clay:         var(--core-color-clay);
   --c-clay-soft:    #e3d2c2;
-  --c-walnut:       #552d27;
+  --c-walnut:       var(--core-color-walnut);
 
-  /* ---- Depth / accent ---- */
-  --c-midnight:     #183241;
+  --c-midnight:     var(--core-color-midnight);
   --c-midnight-2:   #1f3d4e;
-  --c-olive:        #424833;
+  --c-olive:        var(--core-color-olive);
 
-  /* ---- Alarm (used sparingly, ER only) ---- */
-  --c-alert:        #ec5747;
+  --c-alert:        var(--core-color-alert);
+  --c-alert-deep:   var(--core-color-alert-deep);
 
-  /* ---- Ink ladder (text) ---- */
-  --c-v2-ink:       #1c2826;
-  --c-v2-ink-2:     #3a4a45;
-  --c-v2-ink-3:     #6b7773;
+  --c-v2-ink:       var(--core-color-ink);
+  --c-v2-ink-2:     var(--core-color-ink-2);
+  --c-v2-ink-3:     var(--core-color-ink-3);
 
-  /* ---- V2 typography family aliases ---- */
   --font-v2-serif:  "Gambetta", Georgia, serif;
   --font-v2-sans:   "Public Sans", system-ui, -apple-system, sans-serif;
+  --font-v2-mono:   "DM Mono", ui-monospace, monospace;
 
-  /* ---- rcard primitive sizing ---- */
   --rc-border-w:    3px;
   --rc-radius:      14px;
   --rc-pad-y:       14px;
@@ -82,9 +192,7 @@
 }
 
 /* ============================================================================
-   rcard — the v2 Resources card grammar.
-   Forest 3px left border, Clay uppercase eyebrow, optional Mint pill in the
-   top-right with a dot, italic Gambetta/Fraunces title.
+   SECTION 3 — rcard primitives (V2 Resources card grammar)
    ============================================================================ */
 .rcard {
   position: relative;
@@ -92,33 +200,30 @@
   border-left: var(--rc-border-w) solid var(--c-forest);
   border-radius: var(--rc-radius);
   padding: var(--rc-pad-y) var(--rc-pad-x);
-  box-shadow: 0 1px 2px rgba(28, 40, 38, 0.04);
+  box-shadow: var(--core-shadow-card);
 }
 
-/* Change state — clay border + clay pill */
 .rcard.is-change {
   border-left-color: var(--c-clay);
 }
 
-/* Stone / unavailable */
 .rcard.is-unavailable {
   background: var(--c-stone);
   border-left-color: var(--c-v2-ink-3);
   opacity: 0.65;
 }
 
-/* ---- Eyebrow: source / identity ---- */
 .rc-eyebrow {
   display: block;
+  font-family: var(--font-v2-sans);
   font-size: var(--rc-eyebrow-size);
   letter-spacing: var(--rc-eyebrow-tracking);
   text-transform: uppercase;
   color: var(--c-clay);
   font-weight: 600;
-  margin: 0 150px 4px 0;  /* right margin reserves space for pill */
+  margin: 0 150px 4px 0;
 }
 
-/* Self-reported provenance: walnut + "flag for next visit" reminder */
 .rc-eyebrow.self-reported {
   color: var(--c-walnut);
 }
@@ -129,7 +234,6 @@
   font-weight: 500;
 }
 
-/* ---- Pill: status / "how many" / "when" ---- */
 .rc-pill {
   position: absolute;
   top: 14px;
@@ -138,7 +242,8 @@
   align-items: center;
   gap: 6px;
   padding: 3px 9px 3px 8px;
-  border-radius: 999px;
+  border-radius: var(--core-radius-pill);
+  font-family: var(--font-v2-sans);
   font-size: var(--rc-pill-size);
   letter-spacing: var(--rc-pill-tracking);
   font-weight: 700;
@@ -150,7 +255,7 @@
   content: "";
   width: 5px;
   height: 5px;
-  border-radius: 999px;
+  border-radius: var(--core-radius-pill);
   background: var(--c-forest-deep);
   display: inline-block;
 }
@@ -162,7 +267,6 @@
   background: var(--c-walnut);
 }
 
-/* ---- Title: italic display face (Gambetta) ---- */
 .rc-title {
   font-family: var(--font-v2-serif);
   font-style: italic;
@@ -173,7 +277,6 @@
   margin: 0 0 4px;
 }
 
-/* ---- Icon tile variant ---- */
 .rcard.with-icon {
   display: grid;
   grid-template-columns: 34px 1fr;
@@ -190,11 +293,7 @@
   color: var(--c-forest-deep);
 }
 
-/* ============================================================================
-   rail — timeline vertical with filled forest dots.
-   Use .rcard inside .timeline-rail to suppress the left border; the rail dot
-   does the framing instead.
-   ============================================================================ */
+/* Timeline rail (used by mywellet timeline + pro labs) */
 .timeline-rail {
   position: relative;
   padding-left: 22px;
@@ -220,21 +319,18 @@
   top: 22px;
   width: 9px;
   height: 9px;
-  border-radius: 999px;
+  border-radius: var(--core-radius-pill);
   background: var(--c-forest);
 }
 
-/* ============================================================================
-   Outlined Forest button — demoted CTA variant.
-   Use on secondary actions (e.g. "Open prep") so the primary Wellet Summary
-   stays the visual hero.
-   ============================================================================ */
+/* Demoted CTA — outlined Forest */
 .btn-forest-outline {
   background: transparent;
   border: 1.5px solid var(--c-forest);
   color: var(--c-forest);
+  font-family: var(--font-v2-sans);
   font-weight: 600;
-  border-radius: 999px;
+  border-radius: var(--core-radius-pill);
   padding: 10px 18px;
   cursor: pointer;
 }
@@ -242,9 +338,7 @@
   background: rgba(17, 68, 59, 0.06);
 }
 
-/* ============================================================================
-   Side-menu emergency tile — Walnut filled (not pure red) for ER Summary.
-   ============================================================================ */
+/* Side-menu emergency tile (mywellet) */
 .menu-tile {
   width: 30px;
   height: 30px;
