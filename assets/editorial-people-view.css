@@ -6,7 +6,7 @@
    the data attribute reverts to the original card-based layout.
 
    Pattern: hairline-divided editorial entries instead of bordered
-   cards. Fraunces names carry identity; avatar discs retired.
+   cards. Gambetta names carry identity; avatar discs retired.
    Stats become typeset columns. Action chips become hairline-
    underlined verbs. Care Circle row becomes a borderless section.
 
@@ -49,7 +49,7 @@
    visual register as Records / Resources / Signals so the four list
    surfaces share a single editorial pattern. */
 #view-people[data-editorial="people"] .people-eyebrow {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-micro, 11px);
   font-weight: 500;
   letter-spacing: 0.1em;
@@ -107,7 +107,7 @@
   margin-bottom: 4px;
 }
 #view-people[data-editorial="people"] .person-card-avatar {
-  display: none !important;  /* the Fraunces name carries identity */
+  display: none !important;  /* the Gambetta name carries identity */
 }
 #view-people[data-editorial="people"] .person-card-top > div:not(.person-card-avatar):not(.person-card-status):not(.remove-btn) {
   flex: 1;
@@ -147,7 +147,7 @@
   margin-left: auto;
 }
 #view-people[data-editorial="people"] .person-card-status.watching {
-  color: var(--amber-text, #A0621F);
+  color: var(--amber-text, #11443B);
 }
 #view-people[data-editorial="people"] .person-card-status.stable {
   color: var(--moss-deep, #3F5F52);
@@ -245,7 +245,7 @@
   background: transparent;
 }
 
-/* ---- Add another person — Fraunces invitation, not dashed slot ---- */
+/* ---- Add another person — Gambetta invitation, not dashed slot ---- */
 #view-people[data-editorial="people"] .add-person-btn {
   display: flex;
   align-items: center;

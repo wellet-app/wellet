@@ -2,7 +2,7 @@
    Editorial pass · Resources view (PR 11)
    Scoped to #view-resources[data-editorial="resources"]
    Replaces utility-card directory styling with editorial
-   list rows: Fraunces masthead, section eyebrows, hairline
+   list rows: Gambetta masthead, section eyebrows, hairline
    row dividers, and hairline-underlined verb actions.
    ============================================================ */
 
@@ -16,7 +16,7 @@
   padding: 0 20px 100px;
 }
 
-/* ── View header (Fraunces masthead anchor) ───────────────── */
+/* ── View header (Gambetta masthead anchor) ───────────────── */
 #view-resources[data-editorial="resources"] .view-header {
   display: block;
   padding: 18px 0 14px;
@@ -24,7 +24,7 @@
   border-bottom: 1px solid var(--ink-2, rgba(20,33,28,0.08));
 }
 #view-resources[data-editorial="resources"] .view-header__eyebrow {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-micro, 11px);
   font-weight: 500;
   letter-spacing: 0.1em;
@@ -33,7 +33,7 @@
   margin: 0 0 6px;
 }
 #view-resources[data-editorial="resources"] .view-header__title {
-  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-family: var(--serif, "Gambetta", Georgia, serif);
   font-weight: 400;
   font-size: var(--type-display, 32px);
   line-height: 1.08;
@@ -43,7 +43,7 @@
   font-variation-settings: "opsz" 72, "SOFT" 60;
 }
 #view-resources[data-editorial="resources"] .view-header__lede {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-body, 14px);
   line-height: 1.4;
   color: var(--ink-5, #6b6b6b);
@@ -52,10 +52,10 @@
 }
 
 /* Tier 2: conditions-aware "Why these first" note above the
-   recommended section. Italic Fraunces, slightly smaller than
+   recommended section. Italic Gambetta, slightly smaller than
    the lede; reads as an editor's note. */
 #view-resources[data-editorial="resources"] .resources-why {
-  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-family: var(--serif, "Gambetta", Georgia, serif);
   font-style: italic;
   font-weight: 400;
   font-size: var(--type-body, 14px);
@@ -71,7 +71,7 @@
 }
 #view-resources[data-editorial="resources"] .resources-section-title,
 #view-resources[data-editorial="resources"] .resources-section-eyebrow {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-micro, 11px);
   font-weight: 500;
   letter-spacing: 0.1em;
@@ -108,7 +108,7 @@
   margin-bottom: 4px;
 }
 #view-resources[data-editorial="resources"] .resource-card-name {
-  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-family: var(--serif, "Gambetta", Georgia, serif);
   font-weight: 400;
   font-size: var(--type-h2, 17px);
   line-height: 1.2;
@@ -131,7 +131,7 @@
 }
 
 #view-resources[data-editorial="resources"] .resource-card-desc {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-body, 14px);
   line-height: 1.45;
   color: var(--ink-7, #3b4a44);
@@ -145,7 +145,7 @@
   flex-wrap: wrap;
   gap: 14px;
   margin-bottom: 10px;
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-micro, 11px);
   font-weight: 500;
   letter-spacing: 0.08em;
@@ -193,7 +193,7 @@
   border-bottom: 1px solid var(--moss-quieter, #8AA89A);
   border-radius: 0;
   padding: 0 0 1px;
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-meta, 12px);
   font-weight: 500;
   letter-spacing: 0.04em;
@@ -227,14 +227,14 @@
   display: none;
 }
 #view-resources[data-editorial="resources"] .resources-empty-title {
-  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-family: var(--serif, "Gambetta", Georgia, serif);
   font-weight: 400;
   font-size: var(--type-h1, 24px);
   line-height: 1.2;
   margin: 0 0 6px;
 }
 #view-resources[data-editorial="resources"] .resources-empty-body {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-body, 14px);
   line-height: 1.45;
   color: var(--ink-5, #6b6b6b);

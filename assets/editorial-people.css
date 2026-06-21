@@ -4,7 +4,7 @@
    (Gestures: long-press to swap person, swipe-left/right to cycle).
 
    Was: heavy moss-filled active pill with white text.
-   Now: typeset nameplate. Names sit in Fraunces, the active person
+   Now: typeset nameplate. Names sit in Gambetta, the active person
    carries a quiet 1px underline rule (--moss-deep) two pixels below
    the baseline. Inactive names recede to ink-5. The "pip" dot is
    retired — the underline is the affordance.
@@ -75,7 +75,7 @@
   color: var(--ink-9, #1F1B16) !important;
 }
 
-/* Active — Fraunces ink-9 with hairline moss-deep rule */
+/* Active — Gambetta ink-9 with hairline moss-deep rule */
 .person-switcher .person-pill.active {
   color: var(--ink-9, #1F1B16) !important;
   border-bottom: 1px solid var(--moss-deep, #3F5F52) !important;

@@ -58,13 +58,13 @@
   --frame-max: 420px;         /* phone editorial column */
   --gutter: 22px;
 
-  /* Font aliases — Fraunces is already loaded in index.html <head>.
+  /* Font aliases — Gambetta is already loaded in index.html <head>.
      --serif is the editorial display face (every headline, section title,
      person name, key surface). --sans is the body face (everything else).
      --font-display in wellet.css is the legacy alias and is kept in sync
      with --serif so older rules keep working. New work uses --serif. */
-  --serif: 'Fraunces', Georgia, serif;
-  --sans:  'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --serif: 'Gambetta', Georgia, serif;
+  --sans:  'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
 }
 
 @media (min-width: 768px) {
@@ -81,7 +81,7 @@
 }
 
 /* ---------------------------------------------------------------------------
-   Fraunces variation tuning — only applies when an element opts in via the
+   Gambetta variation tuning — only applies when an element opts in via the
    .serif class or one of the editorial wrappers. Existing DM Serif Display
    headlines in production are NOT affected.
    --------------------------------------------------------------------------- */
@@ -180,7 +180,7 @@ em.fr {
   left: max(var(--gutter), calc((100vw - var(--frame-max)) / 2 + var(--gutter)));
   max-width: 240px;
   background: var(--moss-deep);
-  color: #F7F5F0;
+  color: #E8E6E0;
   font-family: var(--sans);
   font-size: var(--type-meta);
   line-height: 1.5;

@@ -6,7 +6,7 @@
    the linen palette: the ER sheet is full-screen WHITE so a panicked
    spouse, an EMT under fluorescent light, or a triage nurse can
    read it at a glance. Everything else still follows the linen +
-   eight-gray ladder + Fraunces editorial DNA — no red, no clinical
+   eight-gray ladder + Gambetta editorial DNA — no red, no clinical
    crimson, no scary alert chrome.
 
    Trigger surfaces:
@@ -102,7 +102,7 @@
   font-variation-settings: "opsz" 36, "SOFT" 60 !important;
 }
 [data-editorial="er-sheet"] .er-patient-dob {
-  font-family: 'DM Sans', -apple-system, sans-serif !important;
+  font-family: 'Public Sans', -apple-system, sans-serif !important;
   font-weight: 300 !important;
   font-size: var(--type-body) !important;
   color: var(--ink-6) !important;
@@ -158,7 +158,7 @@
   border-bottom: none;
 }
 [data-editorial="er-sheet"] .er-body .emrg-label {
-  font-family: 'DM Sans', -apple-system, sans-serif !important;
+  font-family: 'Public Sans', -apple-system, sans-serif !important;
   font-weight: 300 !important;
   font-size: var(--type-body) !important;
   color: var(--ink-6) !important;
@@ -176,7 +176,7 @@
 /* ---- AI brief section ---- */
 [data-editorial="er-sheet"] #er-ai-section {
   padding: 22px 24px !important;
-  background: var(--linen, #F7F5F0) !important;   /* gentle linen island so the brief reads as
+  background: var(--linen, #E8E6E0) !important;   /* gentle linen island so the brief reads as
                                                        a separate voice, not chart data */
   border-top: 1px solid var(--ink-1, #E8E2D6);
   border-bottom: 1px solid var(--ink-1, #E8E2D6);
@@ -216,12 +216,12 @@
   font-variation-settings: "opsz" 24, "SOFT" 60 !important;
 }
 [data-editorial="er-sheet"] .er-ai-loading {
-  font-family: 'DM Sans', -apple-system, sans-serif !important;
+  font-family: 'Public Sans', -apple-system, sans-serif !important;
   font-weight: 300 !important;
   color: var(--ink-5) !important;
 }
 [data-editorial="er-sheet"] .er-ai-cached-note {
-  font-family: 'DM Sans', -apple-system, sans-serif !important;
+  font-family: 'Public Sans', -apple-system, sans-serif !important;
   font-weight: 300 !important;
   font-size: var(--type-meta) !important;
   color: var(--ink-5) !important;
@@ -241,7 +241,7 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
-  font-family: 'DM Sans', -apple-system, sans-serif !important;
+  font-family: 'Public Sans', -apple-system, sans-serif !important;
   font-weight: 500 !important;
   font-size: var(--type-body) !important;
   letter-spacing: 0.01em !important;
@@ -280,7 +280,7 @@
 
 [data-editorial="er-sheet"] .er-footer {
   background: #FFFFFF !important;
-  font-family: 'DM Sans', -apple-system, sans-serif !important;
+  font-family: 'Public Sans', -apple-system, sans-serif !important;
   font-weight: 300 !important;
   color: var(--ink-5) !important;
 }

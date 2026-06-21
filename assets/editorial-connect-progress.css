@@ -37,7 +37,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Public Sans', sans-serif;
   font-size: 14px;
   line-height: 1.4;
   color: var(--text-primary, #2a2f2c);
@@ -47,7 +47,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--moss, #608F7C);
+  background: var(--moss, #11443B);
   flex-shrink: 0;
   animation: welletConnectPulse 1.4s ease-in-out infinite;
 }
@@ -57,7 +57,7 @@
 }
 .connect-card-progress__count {
   font-variant-numeric: tabular-nums;
-  color: var(--moss, #608F7C);
+  color: var(--moss, #11443B);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -77,7 +77,7 @@
   width: calc(var(--p, 0) * 100%);
   background: linear-gradient(
     90deg,
-    var(--moss, #608F7C) 0%,
+    var(--moss, #11443B) 0%,
     var(--mint, #b5cdb7) 100%
   );
   border-radius: 99px;
@@ -86,7 +86,7 @@
 
 /* Honest-progress slow-path line ("Duke is taking a moment..."). */
 .connect-card-progress__hint {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Public Sans', sans-serif;
   font-size: 12px;
   line-height: 1.45;
   color: var(--text-secondary, #5e6963);
@@ -128,7 +128,7 @@
 }
 
 .connect-stage__eyebrow {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Public Sans', sans-serif;
   font-size: 12px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -137,7 +137,7 @@
 }
 
 .connect-stage__headline {
-  font-family: Fraunces, Georgia, serif;
+  font-family: Gambetta, Georgia, serif;
   font-size: 28px;
   line-height: 1.18;
   color: var(--text-primary, #2a2f2c);
@@ -146,7 +146,7 @@
 }
 .connect-stage__headline em {
   font-style: normal;
-  color: var(--moss, #608F7C);
+  color: var(--moss, #11443B);
 }
 
 .connect-stage__rings {
@@ -170,7 +170,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--moss, #608F7C);
+  color: var(--moss, #11443B);
 }
 .connect-stage__heart i,
 .connect-stage__heart svg {
@@ -192,7 +192,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Public Sans', sans-serif;
   font-size: 15px;
   line-height: 1.4;
   color: var(--text-secondary, #5e6963);
@@ -216,14 +216,14 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: var(--moss, #608F7C);
+  color: var(--moss, #11443B);
   transition: background 0.35s ease;
 }
 .connect-stage__row.is-active .connect-stage__icon {
   background: rgba(124, 140, 113, 0.22);
 }
 .connect-stage__row.is-done .connect-stage__icon {
-  background: var(--moss, #608F7C);
+  background: var(--moss, #11443B);
   color: white;
 }
 .connect-stage__row .connect-stage__icon i,
@@ -238,7 +238,7 @@
 }
 
 .connect-stage__hint {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Public Sans', sans-serif;
   font-size: 13px;
   line-height: 1.5;
   color: var(--text-secondary, #5e6963);
@@ -258,7 +258,7 @@
   background: transparent;
   border: 1px solid rgba(94, 105, 99, 0.4);
   border-radius: 999px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Public Sans', sans-serif;
   font-size: 13px;
   line-height: 1.2;
   color: var(--text-secondary, #5e6963);

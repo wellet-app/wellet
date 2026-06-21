@@ -22,15 +22,15 @@
    SECTION 1 — Canonical tokens (verbatim from dist/wellet.css)
    ============================================================================ */
 :root {
-  --core-color-cream: #e7e7df;
+  --core-color-cream: #E8E6E0;
   --core-color-cream-warm: #dcdace;
-  --core-color-forest: #11443b;
+  --core-color-forest: #11443B;
   --core-color-forest-deep: #0d3a32;
   --core-color-forest-2: #114445;
-  --core-color-midnight: #183241;
-  --core-color-mint: #9ece90;
-  --core-color-mist: #b7c9cd;
-  --core-color-stone: #dcdace;
+  --core-color-midnight: #193241;
+  --core-color-mint: #9ECF90;
+  --core-color-mist: #B8C9CE;
+  --core-color-stone: #E8E6E0;
   --core-color-forest-leaf: #2d4b40;
   --core-color-forest-pine: #1b4d45;
   --core-color-olive: #424833;
@@ -71,20 +71,20 @@
   --core-shadow-modal: 0 8px 24px 0 #1832411a, 0 24px 64px 0 #1832411f;
   --core-blur-glass: 33px;
   --core-blur-glass-heavy: 52px;
-  --semantic-color-bg-default: #e7e7df;
-  --semantic-color-bg-raised: #dcdace;
-  --semantic-color-bg-inverse: #183241;
-  --semantic-color-fg-default: #11443b;
+  --semantic-color-bg-default: #E8E6E0;
+  --semantic-color-bg-raised: #FFFFFF;
+  --semantic-color-bg-inverse: #193241;
+  --semantic-color-fg-default: #11443B;
   --semantic-color-fg-muted: #3a4a45;
   --semantic-color-fg-subtle: #7a857f;
   --semantic-color-fg-inverse: #ffffff;
-  --semantic-color-brand-primary: #11443b;
+  --semantic-color-brand-primary: #11443B;
   --semantic-color-brand-primary-hover: #0d3a32;
-  --semantic-color-brand-highlight: #9ece90;
-  --semantic-color-border-default: #dcdace;
-  --semantic-color-border-strong: #11443b;
-  --semantic-color-status-stable: #b7c9cd;
-  --semantic-color-status-watching: #9ece90;
+  --semantic-color-brand-highlight: #9ECF90;
+  --semantic-color-border-default: #B8C9CE;
+  --semantic-color-border-strong: #11443B;
+  --semantic-color-status-stable: #B8C9CE;
+  --semantic-color-status-watching: #9ECF90;
   --semantic-color-status-attention: #ec5747;
   --type-display-font-family: Gambetta;
   --type-display-font-weight: 500;

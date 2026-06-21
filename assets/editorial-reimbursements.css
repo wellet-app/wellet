@@ -2,10 +2,10 @@
    Editorial pass · Reimbursements view (PR 1)
    Scoped to #view-reimbursements[data-editorial="reimbursements"]
 
-   Matches the signals/resources editorial pattern (Fraunces
+   Matches the signals/resources editorial pattern (Gambetta
    masthead + DM Sans body). Brand colors only:
-     CREAM  background  → var(--cream)   (#F7F5F0 in tokens; spec #faf6f0)
-     MOSS   primary CTA → var(--moss)    (#608F7C in tokens; spec #2d6a4f)
+     CREAM  background  → var(--cream)   (#E8E6E0 in tokens; spec #faf6f0)
+     MOSS   primary CTA → var(--moss)    (#11443B in tokens; spec #2d6a4f)
      TERRA  stale ribbon→ #c07028        (spec; ribbon only)
      INK    text        → var(--ink-9) / var(--ink-7)
    The spec lists slightly different hexes; we use the existing
@@ -38,7 +38,7 @@
   border-bottom: 1px solid var(--ink-2, rgba(0,0,0,0.08));
 }
 #view-reimbursements[data-editorial="reimbursements"] .view-header__eyebrow {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-micro, 11px);
   font-weight: 500;
   letter-spacing: 0.1em;
@@ -47,7 +47,7 @@
   margin: 0 0 6px;
 }
 #view-reimbursements[data-editorial="reimbursements"] .view-header__title {
-  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-family: var(--serif, "Gambetta", Georgia, serif);
   font-weight: 400;
   font-size: var(--type-display, 32px);
   line-height: 1.08;
@@ -57,7 +57,7 @@
   font-variation-settings: "opsz" 72, "SOFT" 60;
 }
 #view-reimbursements[data-editorial="reimbursements"] .view-header__lede {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-body, 14px);
   line-height: 1.45;
   color: var(--ink-5, #6E665C);
@@ -66,7 +66,7 @@
 
 /* ── Section heads ───────────────────────────────────────────── */
 #view-reimbursements[data-editorial="reimbursements"] .reimb-section-head {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-micro, 11px);
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -86,7 +86,7 @@
   border: none;
   border-radius: 12px;
   padding: 15px;
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-body, 14px);
   font-weight: 500;
   cursor: pointer;
@@ -105,7 +105,7 @@
   border: 1.5px solid var(--moss);
   border-radius: 12px;
   padding: 11px 16px;
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-meta, 13px);
   font-weight: 500;
   cursor: pointer;
@@ -118,7 +118,7 @@
   padding: 24px 0 8px;
 }
 #view-reimbursements[data-editorial="reimbursements"] .reimb-empty-body {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-body, 14px);
   color: var(--ink-5, #6E665C);
   line-height: 1.5;
@@ -135,7 +135,7 @@
   border-radius: 12px;
   padding: 12px 14px;
   margin: 14px 0 6px;
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-meta, 13px);
   color: var(--reimb-terra, #c07028);
 }
@@ -146,7 +146,7 @@
   border: none;
   border-radius: 999px;
   padding: 7px 16px;
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-meta, 13px);
   font-weight: 500;
   cursor: pointer;
@@ -165,11 +165,11 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: var(--cream, #F7F5F0);
+  background: var(--cream, #E8E6E0);
   border: 1px solid var(--ink-2, #C8C0B5);
   border-radius: 999px;
   padding: 7px 12px;
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-meta, 13px);
   color: var(--ink-9, #1F1B16);
 }
@@ -181,14 +181,14 @@
   background: none;
   border: none;
   color: var(--moss);
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-micro, 11px);
   font-weight: 500;
   cursor: pointer;
   padding: 0;
 }
 #view-reimbursements[data-editorial="reimbursements"] .reimb-assessed {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-micro, 11px);
   color: var(--ink-4, #8A8278);
   margin-top: 8px;
@@ -199,7 +199,7 @@
   margin: 0 0 18px;
 }
 #view-reimbursements[data-editorial="reimbursements"] .reimb-q-label {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-body, 14px);
   font-weight: 500;
   color: var(--ink-9, #1F1B16);
@@ -214,11 +214,11 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  background: var(--cream, #F7F5F0);
+  background: var(--cream, #E8E6E0);
   border: 1.5px solid var(--ink-2, #C8C0B5);
   border-radius: 11px;
   padding: 11px 14px;
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-body, 14px);
   color: var(--ink-9, #1F1B16);
   cursor: pointer;
@@ -233,7 +233,7 @@
   border: 1.5px solid var(--ink-2, #C8C0B5);
   border-radius: 12px;
   padding: 13px 16px;
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-body, 14px);
   color: var(--ink-9, #1F1B16);
   background: #fff;
@@ -251,14 +251,14 @@
   margin-top: 20px;
 }
 #view-reimbursements[data-editorial="reimbursements"] .reimb-card {
-  background: var(--cream, #F7F5F0);
+  background: var(--cream, #E8E6E0);
   border: 1px solid var(--ink-2, #C8C0B5);
   border-left: 4px solid var(--moss);
   border-radius: 12px;
   padding: 18px 18px 16px;
 }
 #view-reimbursements[data-editorial="reimbursements"] .reimb-card-name {
-  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-family: var(--serif, "Gambetta", Georgia, serif);
   font-weight: 500;
   font-size: 20px;
   line-height: 1.2;
@@ -266,15 +266,15 @@
   margin: 0 0 4px;
 }
 #view-reimbursements[data-editorial="reimbursements"] .reimb-card-amount {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-body, 14px);
   font-weight: 600;
-  color: var(--moss-text, #4F7A68);
+  color: var(--moss-text, #0d3a32);
   margin: 0 0 10px;
 }
 #view-reimbursements[data-editorial="reimbursements"] .reimb-pip {
   display: inline-block;
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-micro, 11px);
   font-weight: 500;
   letter-spacing: 0.04em;
@@ -295,7 +295,7 @@
   background: rgba(138, 130, 120, 0.12);
 }
 #view-reimbursements[data-editorial="reimbursements"] .reimb-card-sub {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-micro, 11px);
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -310,7 +310,7 @@
 }
 #view-reimbursements[data-editorial="reimbursements"] .reimb-card-why li,
 #view-reimbursements[data-editorial="reimbursements"] .reimb-card-caveats li {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-meta, 13px);
   line-height: 1.5;
   color: var(--ink-7, #3C362F);
@@ -320,7 +320,7 @@
   margin-top: 12px;
 }
 #view-reimbursements[data-editorial="reimbursements"] .reimb-card-caveats summary {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-meta, 13px);
   font-weight: 500;
   color: var(--ink-5, #6E665C);
@@ -331,7 +331,7 @@
   display: inline-block;
   margin-top: 14px;
   color: var(--moss);
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-meta, 13px);
   font-weight: 600;
   text-decoration: none;
@@ -350,14 +350,14 @@
   margin: 0 0 12px;
 }
 #view-reimbursements[data-editorial="reimbursements"] .reimb-signal-title {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-body, 14px);
   font-weight: 600;
   color: var(--ink-9, #1F1B16);
   margin: 0 0 3px;
 }
 #view-reimbursements[data-editorial="reimbursements"] .reimb-signal-why {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-meta, 13px);
   line-height: 1.5;
   color: var(--ink-5, #6E665C);
@@ -365,7 +365,7 @@
 
 /* ── Footer disclaimer ───────────────────────────────────────── */
 #view-reimbursements[data-editorial="reimbursements"] .reimb-footer {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-micro, 11px);
   line-height: 1.6;
   color: var(--ink-4, #8A8278);

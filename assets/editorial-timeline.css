@@ -5,15 +5,15 @@
    - Hairline rows on the linen surface.
    - Type tag stays as small caps; ALL hue-coding moves to quiet
      status tones (no red, ever).
-   - Fraunces titles + DM Sans 300 body + Fraunces small-caps date.
+   - Gambetta titles + DM Sans 300 body + Gambetta small-caps date.
    ============================================================ */
 
 /* Scope to the Timeline tab pane only */
 #tab-timeline {
-  background: var(--linen, #F7F5F0);
+  background: var(--linen, #E8E6E0);
 }
 
-/* ----- Month label — Fraunces small caps, no hairline ----- */
+/* ----- Month label — Gambetta small caps, no hairline ----- */
 /* Indented past the rail (rail sits at x=16) so the line never crosses
    through "APRIL 2026" text. Matches .tl-item's 32px content gutter so
    the month label and card titles share the same left edge.            */
@@ -37,7 +37,7 @@
      left padding behind the text baseline.                            */
   position: relative;
   z-index: 2;
-  background: var(--linen, #F7F5F0);
+  background: var(--linen, #E8E6E0);
 }
 #tab-timeline .tl-month::after,
 #tab-timeline .tl-month::before {
@@ -154,7 +154,7 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: var(--linen, #F7F5F0);
+  background: var(--linen, #E8E6E0);
   border: 1.5px solid var(--ink-4, #8C857B);
   box-sizing: border-box;
   z-index: 2;                    /* sit above the rail so dot looks crisp */
@@ -242,7 +242,7 @@
   color: var(--signal-warm, #B8835A) !important;
 }
 
-/* ----- Title — Fraunces, the editorial voice ----- */
+/* ----- Title — Gambetta, the editorial voice ----- */
 #tab-timeline .tl-card-title {
   font-family: var(--serif);
   font-size: var(--type-h2);
@@ -258,7 +258,7 @@
 
 /* ----- Body — DM Sans 300, the calm read ----- */
 #tab-timeline .tl-card-body {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: 'Public Sans', system-ui, sans-serif;
   font-size: var(--type-body);
   font-weight: 300;
   line-height: 1.55;
@@ -266,7 +266,7 @@
   margin: 0;
 }
 
-/* ----- Date — Fraunces small caps, the byline register ----- */
+/* ----- Date — Gambetta small caps, the byline register ----- */
 #tab-timeline .tl-card-date {
   font-family: var(--serif);
   font-size: var(--type-micro);
@@ -284,7 +284,7 @@
 /* ----- EHR provenance pill (e.g. "From Duke Health (Epic)") ----- */
 #tab-timeline .tl-card .ehr-pill,
 #tab-timeline .tl-card-type-row .ehr-pill {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: 'Public Sans', system-ui, sans-serif;
   font-size: var(--type-micro);
   font-weight: 400;
   letter-spacing: 0.04em;
@@ -303,7 +303,7 @@
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: var(--moss, #608F7C);
+  background: var(--moss, #11443B);
   color: #fff;
   border: none;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);

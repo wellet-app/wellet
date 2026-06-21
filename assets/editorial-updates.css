@@ -89,7 +89,7 @@
   padding: 0;
 }
 
-/* The lede paragraph — Fraunces, ink-9. Sized smaller than the
+/* The lede paragraph — Gambetta, ink-9. Sized smaller than the
    prototype's single-sentence lede because production renders a
    multi-sentence paragraph and a hero size buries the rest of the page. */
 #view-home[data-editorial="updates"] .update-card .update-text {
@@ -471,7 +471,7 @@
   height: 11px;
 }
 
-/* The headline of each row — Fraunces */
+/* The headline of each row — Gambetta */
 #view-home[data-editorial="updates"] .tl-card-title {
   font-family: var(--serif);
   font-weight: 400;

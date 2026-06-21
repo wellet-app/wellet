@@ -159,7 +159,7 @@
   letter-spacing: 0.005em;
   align-self: stretch;
 }
-/* The first/lede greeting bubble — upright Fraunces, intimate. */
+/* The first/lede greeting bubble — upright Gambetta, intimate. */
 #view-ask[data-editorial="ask"] .chat-group.from-wellet:first-child .chat-bubble.wellet {
   font-family: var(--serif);
   font-weight: 400;
@@ -298,7 +298,7 @@
 #view-ask[data-editorial="ask"] .ask-input-bar {
   padding: 14px var(--gutter, 22px) 14px;
   border-top: 0;
-  background: var(--bg, #F7F5F0);
+  background: var(--bg, #E8E6E0);
   display: flex;
   gap: 10px;
   align-items: flex-end;
@@ -465,7 +465,7 @@
 }
 
 .watch-proposal-title {
-  font-family: var(--serif, 'Fraunces', Georgia, serif);
+  font-family: var(--serif, 'Gambetta', Georgia, serif);
   font-size: 15px;
   font-weight: 500;
   color: #4A360E;
@@ -619,7 +619,7 @@
 }
 
 .watch-row-title {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: 'Gambetta', Georgia, serif;
   font-size: 15px;
   font-weight: 500;
   color: #1F2A22;
@@ -720,7 +720,7 @@
 }
 .watches-empty-icon svg { width: 20px; height: 20px; }
 .watches-empty-title {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: 'Gambetta', Georgia, serif;
   font-size: 16px;
   color: #1F2A22;
   margin-bottom: 6px;

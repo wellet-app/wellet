@@ -2,7 +2,7 @@
    editorial-auth.css — PR 2 of 8 in the editorial UI rollout.
 
    Re-skins the auth/landing screen (#auth-screen) to the editorial direction:
-     - Fraunces serif lede with quiet italic accents
+     - Gambetta serif lede with quiet italic accents
      - Hairline-bordered editorial demo card (no white backgrounds, no shadow)
      - Underline-only serif email input
      - Moss-deep solid CTA, no gradient, no shadow
@@ -71,7 +71,7 @@
 }
 
 /* --------------------------------------------------------------------------
-   Headline — Fraunces serif lede, eight-gray --ink-9, italic in --moss-deep.
+   Headline — Gambetta serif lede, eight-gray --ink-9, italic in --moss-deep.
    Replaces the existing DM Serif Display 34px treatment with a tighter,
    warmer editorial lede tuned via opsz / SOFT axes.
    -------------------------------------------------------------------------- */
@@ -205,7 +205,7 @@
 #auth-screen[data-editorial="auth"] .auth-body .btn-primary {
   appearance: none;
   background: var(--moss-deep);
-  color: #F7F5F0;
+  color: #E8E6E0;
   border: 0;
   padding: 15px 18px;
   border-radius: 12px;

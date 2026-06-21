@@ -55,7 +55,7 @@
    pattern in editorial-resources-view.css and editorial-signals-view.css
    so the three list surfaces share a single visual register. */
 #view-records[data-editorial="records"] .records-eyebrow {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-micro, 11px);
   font-weight: 500;
   letter-spacing: 0.1em;
@@ -113,7 +113,7 @@
   scrollbar-width: none;
   padding: 12px 0;
   margin: 0 0 4px;
-  background: var(--bg, #F7F5F0);
+  background: var(--bg, #E8E6E0);
   border-top: 1px solid var(--ink-1);
   border-bottom: 1px solid var(--ink-1);
 }
@@ -232,7 +232,7 @@
   border: 0;
 }
 
-/* Group title — Fraunces serif headline */
+/* Group title — Gambetta serif headline */
 #view-records[data-editorial="records"] .record-group-title {
   font-family: var(--serif);
   font-weight: 400;
@@ -481,7 +481,7 @@
 
    Legacy `.records-tile-grid` is a 6-up white card grid.
    In editorial, we keep the 6 navigation entry points but
-   strip the card chrome: hairline rows on linen, Fraunces label,
+   strip the card chrome: hairline rows on linen, Gambetta label,
    DM Sans summary, moss attention dot.
 
    Inline `style` on `.records-tile-icon` (background + color)
@@ -542,7 +542,7 @@
   stroke-width: 1.5;
 }
 
-/* Label — Fraunces, ink-9. */
+/* Label — Gambetta, ink-9. */
 #view-records[data-editorial="records"] .records-tile-label {
   font-family: var(--serif);
   font-weight: 500;
@@ -611,7 +611,7 @@
 }
 
 .editorial-trials-eyebrow {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-micro, 11px);
   font-weight: 500;
   letter-spacing: 0.1em;
@@ -634,7 +634,7 @@
 }
 
 .editorial-trials-count {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-meta, 13px);
   font-weight: 500;
   color: var(--text-secondary, #5a6b63);
@@ -667,7 +667,7 @@
 }
 
 .editorial-trials-row-title {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-body, 14px);
   font-weight: 500;
   color: var(--text-primary, #14211c);
@@ -676,7 +676,7 @@
 }
 
 .editorial-trials-row-meta {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-meta, 13px);
   font-weight: 400;
   color: var(--text-secondary, #5a6b63);
@@ -684,14 +684,14 @@
 }
 
 .editorial-trials-disclaimer {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-micro, 11px);
   font-weight: 400;
   color: var(--text-muted, #8a9e95);
   line-height: 1.4;
   padding: 10px 14px 12px;
   border-top: 1px solid var(--border, rgba(20,33,28,0.06));
-  background: var(--bg, #F7F5F0);
+  background: var(--bg, #E8E6E0);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -713,7 +713,7 @@
 }
 
 .editorial-fda-eyebrow {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-micro, 11px);
   font-weight: 500;
   letter-spacing: 0.1em;
@@ -731,7 +731,7 @@
 }
 
 .editorial-fda-count {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-meta, 13px);
   font-weight: 500;
   color: var(--text-secondary, #5a6b63);
@@ -764,7 +764,7 @@
 }
 
 .editorial-fda-row-title {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-body, 14px);
   font-weight: 600;
   color: var(--text-primary, #14211c);
@@ -773,7 +773,7 @@
 }
 
 .editorial-fda-row-meta {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-meta, 13px);
   font-weight: 400;
   color: var(--text-secondary, #5a6b63);
@@ -781,14 +781,14 @@
 }
 
 .editorial-fda-disclaimer {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-micro, 11px);
   font-weight: 400;
   color: var(--text-muted, #8a9e95);
   line-height: 1.4;
   padding: 10px 14px 12px;
   border-top: 1px solid var(--border, rgba(20,33,28,0.06));
-  background: var(--bg, #F7F5F0);
+  background: var(--bg, #E8E6E0);
 }
 /* ============================================================================
    editorial-records.css — Centers of Excellence Tile additions
