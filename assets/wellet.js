@@ -165,7 +165,347 @@ function setCurrentPersonId(personId) {
     else localStorage.removeItem('wellet_last_person_id');
   } catch(e) {}
   try { evaluateReconnectBanner(); } catch(e) {}
+  // Phase 7: rewire realtime subscription to the new loved one's circle.
+  try { phase7RewireRealtime(personId); } catch(e) { console.warn('[phase7] rewire', e); }
 }
+
+// ── PHASE 7: CIRCLE REALTIME + ATTRIBUTION + READ AUDIT ─────────────────────
+// One Supabase Realtime channel per active personId. When any caregiver in the
+// circle inserts/updates/deletes a clinical row, every other caregiver's UI
+// receives the change immediately. Also writes read-audit rows on surface
+// mount (throttled to 1 per 5 minutes per surface+target).
+//
+// Hard rule (wellet-coo): the LLM never decides anything here. This is pure
+// data plumbing. UI strings come from product code, not from a model.
+
+var _phase7Channel = null;
+var _phase7ChannelPersonId = null;
+// Throttle table for read-audit writes: key = surface|target_id, value = ms timestamp.
+var _phase7ReadAuditThrottle = {};
+var PHASE7_READ_THROTTLE_MS = 5 * 60 * 1000;
+// Cache of recent action-audit rows so attribution UI can resolve "Logged by X"
+// without an extra round-trip on every render. Keyed by `${table}|${row_id}`.
+var _phase7ActionAuditCache = {};
+
+function phase7RewireRealtime(personId) {
+  if (_phase7ChannelPersonId === personId && _phase7Channel) return;
+  // Tear down any prior subscription.
+  if (_phase7Channel) {
+    try { db.removeChannel(_phase7Channel); } catch(e) {}
+    _phase7Channel = null;
+    _phase7ChannelPersonId = null;
+  }
+  if (!personId || !currentUser) return;
+
+  var tables = [
+    'medications', 'medication_logs', 'medication_reminders',
+    'health_events', 'documents', 'allergies', 'lab_results', 'vitals',
+    'care_signals', 'update_me_summaries', 'circle_action_audit',
+    'reminder_fired_events'
+  ];
+  var ch = db.channel('phase7:person:' + personId);
+  tables.forEach(function(t) {
+    ch.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: t, filter: 'person_id=eq.' + personId },
+      function(payload) {
+        try { phase7OnRealtimeChange(t, payload); } catch(e) { console.warn('[phase7] handler', t, e); }
+      }
+    );
+  });
+  ch.subscribe(function(status) {
+    if (status === 'SUBSCRIBED') {
+      console.log('[phase7] realtime subscribed for person', personId);
+    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+      console.warn('[phase7] realtime', status, '— will retry on next person switch');
+    }
+  });
+  _phase7Channel = ch;
+  _phase7ChannelPersonId = personId;
+}
+
+// Dispatcher: incoming realtime payloads route to per-table refresh hooks.
+// We deliberately do NOT mutate in-memory arrays inline — we re-fetch the
+// relevant slice so RLS and ordering are authoritative. Cheap because the
+// list endpoints are already indexed and Postgres-side filtered.
+function phase7OnRealtimeChange(table, payload) {
+  // Cache action-audit rows for attribution lookups.
+  if (table === 'circle_action_audit' && payload && payload.new) {
+    var key = (payload.new.table_name || '') + '|' + (payload.new.row_id || '');
+    if (key !== '|') _phase7ActionAuditCache[key] = payload.new;
+  }
+  // Fan out to whichever list-refresher the table feeds.
+  var refreshers = {
+    medications: typeof refreshMeds === 'function' ? refreshMeds : null,
+    medication_logs: typeof refreshMeds === 'function' ? refreshMeds : null,
+    medication_reminders: typeof refreshMeds === 'function' ? refreshMeds : null,
+    health_events: typeof refreshTimeline === 'function' ? refreshTimeline : null,
+    documents: typeof refreshDocuments === 'function' ? refreshDocuments : null,
+    allergies: typeof refreshAllergies === 'function' ? refreshAllergies : null,
+    lab_results: typeof refreshLabs === 'function' ? refreshLabs : null,
+    vitals: typeof refreshVitals === 'function' ? refreshVitals : null,
+    care_signals: typeof refreshCareSignals === 'function' ? refreshCareSignals : null,
+    update_me_summaries: typeof refreshUpdateMe === 'function' ? refreshUpdateMe : null,
+    circle_action_audit: typeof refreshActivityActions === 'function' ? refreshActivityActions : null,
+    reminder_fired_events: typeof refreshActivityActions === 'function' ? refreshActivityActions : null
+  };
+  var fn = refreshers[table];
+  if (typeof fn === 'function') {
+    // Best-effort, never block. If a refresher doesn't exist yet, skip silently.
+    try { fn(); } catch(e) { console.warn('[phase7] refresher', table, e); }
+  }
+}
+
+// Write an action-audit row right after a successful mutation. The summary
+// string MUST come from product code, never from an LLM. Caller passes the
+// fully-composed human-readable summary.
+async function phase7LogAction(opts) {
+  if (!currentUser || !opts || !opts.person_id || !opts.action || !opts.table_name) return;
+  try {
+    await db.from('circle_action_audit').insert({
+      person_id: opts.person_id,
+      actor_user_id: currentUser.id,
+      action: opts.action,                 // 'insert' | 'update' | 'delete'
+      table_name: opts.table_name,
+      row_id: opts.row_id || null,
+      summary: opts.summary || null,
+      payload: opts.payload || null
+    });
+  } catch (e) {
+    console.warn('[phase7] logAction', e);
+  }
+}
+
+// Write a read-audit row on surface mount or drill-in. Throttled.
+async function phase7LogRead(opts) {
+  if (!currentUser || !opts || !opts.person_id || !opts.surface) return;
+  var key = (opts.surface || '') + '|' + (opts.target_id || '');
+  var now = Date.now();
+  var last = _phase7ReadAuditThrottle[key] || 0;
+  if (now - last < PHASE7_READ_THROTTLE_MS) return;
+  _phase7ReadAuditThrottle[key] = now;
+  try {
+    await db.from('circle_read_audit').insert({
+      person_id: opts.person_id,
+      actor_user_id: currentUser.id,
+      surface: opts.surface,
+      target_id: opts.target_id || null,
+      target_table: opts.target_table || null,
+      context: opts.context || null
+    });
+  } catch (e) {
+    console.warn('[phase7] logRead', e);
+  }
+}
+
+// Resolve attribution for a clinical row. Returns { actor_user_id, summary,
+// created_at } from circle_action_audit when present, else null. Used by the
+// attribution UI on every clinical row render ("Logged by Sarah · 7:32 AM").
+// Read-through cache keyed by table|row_id. Pulls last 50 actions in one shot
+// then keeps the cache warm via realtime updates.
+async function phase7GetAttribution(table, rowId, personId) {
+  if (!table || !rowId || !personId) return null;
+  var key = table + '|' + rowId;
+  if (_phase7ActionAuditCache[key]) return _phase7ActionAuditCache[key];
+  try {
+    var resp = await db.from('circle_action_audit')
+      .select('actor_user_id, summary, created_at, action')
+      .eq('person_id', personId)
+      .eq('table_name', table)
+      .eq('row_id', rowId)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    var row = resp && resp.data && resp.data[0];
+    if (row) {
+      _phase7ActionAuditCache[key] = row;
+      return row;
+    }
+  } catch(e) {
+    console.warn('[phase7] getAttribution', e);
+  }
+  return null;
+}
+
+// Display name for a circle member, given their auth user id. Resolves through
+// care_circle_members rows we already loaded for the current loved one.
+function phase7DisplayNameForUser(userId) {
+  if (!userId) return 'Someone';
+  if (currentUser && userId === currentUser.id) return 'You';
+  var members = (typeof liveCareCircle !== 'undefined' && liveCareCircle) || [];
+  for (var i = 0; i < members.length; i++) {
+    if (members[i] && members[i].user_id === userId) {
+      return members[i].member_name || 'A caregiver';
+    }
+  }
+  return 'A caregiver';
+}
+
+// Format an attribution string for the UI. Voice rule: brief, no exclamation,
+// no "track"/"monitor". Example: "Logged by Sarah · 7:32 AM"
+function phase7FormatAttribution(auditRow) {
+  if (!auditRow) return '';
+  var who = phase7DisplayNameForUser(auditRow.actor_user_id);
+  var verb = auditRow.action === 'delete' ? 'Removed' :
+             auditRow.action === 'update' ? 'Edited' : 'Logged';
+  var ts = auditRow.created_at ? new Date(auditRow.created_at) : null;
+  var when = '';
+  if (ts) {
+    try {
+      when = ' · ' + ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    } catch(e) {}
+  }
+  return verb + ' by ' + who + when;
+}
+
+// Returns true if the current user authored this row (i.e. may edit or delete).
+// Caller passes the row object; we read created_by_user_id added by Migration 1.
+function phase7CanMutate(row) {
+  if (!row || !currentUser) return false;
+  return row.created_by_user_id === currentUser.id;
+}
+
+// ── PHASE 7: ACTIVITY TAB ───────────────────────────────────────────────────
+// Activity tab has two sub-tabs:
+//   1. Actions — every mutation by every circle member (from circle_action_audit)
+//                plus reminder firings (from reminder_fired_events).
+//   2. Reads   — who opened which surface (from circle_read_audit).
+//
+// Voice rule: never "track" or "monitor." UI copy uses "history" and "opens."
+
+var _activitySubTab = 'actions'; // 'actions' | 'reads'
+var _activityActionsRows = [];
+var _activityReadsRows = [];
+
+function renderActivityView() {
+  var root = document.getElementById('view-activity');
+  if (!root) return;
+  var personId = currentPersonId;
+  if (!personId) {
+    root.innerHTML = '<div class="empty-state" style="padding:24px;text-align:center;color:#666;">Pick a loved one to see activity.</div>';
+    return;
+  }
+  // Log that we opened the Activity surface (throttled).
+  phase7LogRead({ person_id: personId, surface: _activitySubTab === 'reads' ? 'activity_reads' : 'activity_actions' });
+
+  root.innerHTML = (
+    '<div class="activity-header" style="padding:16px 16px 8px;">' +
+      '<h2 style="font-family:Cormorant Garamond,serif;font-size:28px;font-weight:500;margin:0 0 4px;color:#261d1c;">Activity</h2>' +
+      '<p style="color:#666;font-size:13px;margin:0;">Everything your circle has done and seen.</p>' +
+    '</div>' +
+    '<div class="activity-subtabs" role="tablist" style="display:flex;gap:8px;padding:8px 16px 12px;border-bottom:1px solid #ece6dd;">' +
+      '<button id="activity-tab-actions" class="activity-subtab' + (_activitySubTab === 'actions' ? ' active' : '') + '" role="tab" onclick="switchActivitySubTab(\'actions\')" style="padding:8px 14px;border-radius:999px;border:1px solid ' + (_activitySubTab === 'actions' ? '#2d6a4f' : '#d6cfc3') + ';background:' + (_activitySubTab === 'actions' ? '#2d6a4f' : 'transparent') + ';color:' + (_activitySubTab === 'actions' ? '#faf6f0' : '#261d1c') + ';font-size:13px;cursor:pointer;">Actions</button>' +
+      '<button id="activity-tab-reads" class="activity-subtab' + (_activitySubTab === 'reads' ? ' active' : '') + '" role="tab" onclick="switchActivitySubTab(\'reads\')" style="padding:8px 14px;border-radius:999px;border:1px solid ' + (_activitySubTab === 'reads' ? '#2d6a4f' : '#d6cfc3') + ';background:' + (_activitySubTab === 'reads' ? '#2d6a4f' : 'transparent') + ';color:' + (_activitySubTab === 'reads' ? '#faf6f0' : '#261d1c') + ';font-size:13px;cursor:pointer;">Reads</button>' +
+    '</div>' +
+    '<div id="activity-body" style="padding:8px 16px 24px;"><div class="empty-state" style="text-align:center;color:#666;padding:24px;">Loading…</div></div>'
+  );
+  if (_activitySubTab === 'actions') refreshActivityActions();
+  else refreshActivityReads();
+}
+
+function switchActivitySubTab(which) {
+  if (which !== 'actions' && which !== 'reads') return;
+  _activitySubTab = which;
+  renderActivityView();
+}
+
+async function refreshActivityActions() {
+  var personId = currentPersonId;
+  var body = document.getElementById('activity-body');
+  if (!personId || !body) return;
+  try {
+    var resp = await db.from('circle_action_audit')
+      .select('id, actor_user_id, action, table_name, row_id, summary, created_at')
+      .eq('person_id', personId)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    _activityActionsRows = (resp && resp.data) || [];
+  } catch (e) {
+    console.warn('[phase7] refreshActivityActions', e);
+    _activityActionsRows = [];
+  }
+  if (_activitySubTab !== 'actions') return;
+  if (_activityActionsRows.length === 0) {
+    body.innerHTML = '<div class="empty-state" style="text-align:center;color:#666;padding:24px;">No actions logged yet. When someone in the circle logs a dose, uploads a record, or adds a note, it shows up here.</div>';
+    return;
+  }
+  var rows = _activityActionsRows.map(function(r) {
+    var who = phase7DisplayNameForUser(r.actor_user_id);
+    var when = '';
+    try { when = new Date(r.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch(e) {}
+    var verb = r.action === 'delete' ? 'removed' : r.action === 'update' ? 'edited' : 'logged';
+    var summary = r.summary || (verb + ' a ' + (r.table_name || 'record').replace(/_/g, ' ').replace(/s$/, ''));
+    return (
+      '<div class="activity-row" style="padding:12px 0;border-bottom:1px solid #ece6dd;">' +
+        '<div style="font-size:14px;color:#261d1c;">' + _escapeHtml(summary) + '</div>' +
+        '<div style="font-size:12px;color:#888;margin-top:2px;">' + _escapeHtml(who) + ' · ' + _escapeHtml(when) + '</div>' +
+      '</div>'
+    );
+  }).join('');
+  body.innerHTML = rows;
+}
+
+async function refreshActivityReads() {
+  var personId = currentPersonId;
+  var body = document.getElementById('activity-body');
+  if (!personId || !body) return;
+  try {
+    var resp = await db.from('circle_read_audit')
+      .select('id, actor_user_id, surface, target_id, target_table, created_at')
+      .eq('person_id', personId)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    _activityReadsRows = (resp && resp.data) || [];
+  } catch (e) {
+    console.warn('[phase7] refreshActivityReads', e);
+    _activityReadsRows = [];
+  }
+  if (_activitySubTab !== 'reads') return;
+  if (_activityReadsRows.length === 0) {
+    body.innerHTML = '<div class="empty-state" style="text-align:center;color:#666;padding:24px;">No reads logged yet. When someone in the circle opens a record, it shows up here.</div>';
+    return;
+  }
+  var surfaceLabels = {
+    timeline: 'opened the timeline',
+    medications: 'opened medications',
+    medication_detail: 'opened a medication',
+    health_events: 'opened health events',
+    documents: 'opened documents',
+    document_detail: 'opened a document',
+    ask_wellet: 'used Ask Wellet',
+    trends: 'opened Trends',
+    care_signals: 'opened CareSignals',
+    activity_actions: 'opened the Activity → Actions tab',
+    activity_reads: 'opened the Activity → Reads tab',
+    reimbursements: 'opened Reimbursements',
+    profile: 'opened the profile'
+  };
+  var rows = _activityReadsRows.map(function(r) {
+    var who = phase7DisplayNameForUser(r.actor_user_id);
+    var label = surfaceLabels[r.surface] || ('opened ' + (r.surface || 'a surface'));
+    var when = '';
+    try { when = new Date(r.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch(e) {}
+    return (
+      '<div class="activity-row" style="padding:12px 0;border-bottom:1px solid #ece6dd;">' +
+        '<div style="font-size:14px;color:#261d1c;">' + _escapeHtml(who) + ' ' + _escapeHtml(label) + '</div>' +
+        '<div style="font-size:12px;color:#888;margin-top:2px;">' + _escapeHtml(when) + '</div>' +
+      '</div>'
+    );
+  }).join('');
+  body.innerHTML = rows;
+}
+
+// Minimal HTML escaper for activity rows. (Wider helper may exist elsewhere;
+// this version is local to keep the Phase 7 block self-contained.)
+function _escapeHtml(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+// ── END PHASE 7 ─────────────────────────────────────────────────────────────
 function getSavedPersonId() {
   try { return localStorage.getItem('wellet_last_person_id') || null; } catch(e) { return null; }
 }
@@ -26353,6 +26693,7 @@ function switchNavTo(view, skipPush) {
   if (view === 'resources') { renderResourcesView(); }
   if (view === 'reimbursements') { try { renderReimbursementsView(); } catch(_e) {} }
   if (view === 'records') { try { renderRecordsView(); } catch(_e) {} }
+  if (view === 'activity') { try { renderActivityView(); } catch(_e) {} }
   if (view === 'people' && !isDemoMode) { renderPeopleView(); }
   // 2026-06-01 (D5): call renderAskView in demo mode too so the demo branch
   // inside it (starter chip seeding) runs and the "Some places to start"
