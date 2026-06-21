@@ -3,7 +3,7 @@
    Upcoming Appointments block on the Updates surface.
 
    Editorial language matches Patterns / Timeline / CareSignals:
-   hairline rows on linen, Fraunces titles, type-tag bylines,
+   hairline rows on linen, Gambetta titles, type-tag bylines,
    quiet status tones, no pills, no white cards.
    ============================================================ */
 
@@ -61,7 +61,7 @@
   /* Default — moss-deep already set above */
 }
 .upcoming-date {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: 'Public Sans', system-ui, sans-serif;
   font-size: var(--type-meta);
   font-weight: 300;
   letter-spacing: 0.04em;
@@ -70,7 +70,7 @@
   white-space: nowrap;
 }
 
-/* Title — Fraunces editorial */
+/* Title — Gambetta editorial */
 .upcoming-title {
   font-family: var(--serif);
   font-size: var(--type-h2);
@@ -84,7 +84,7 @@
 }
 
 .upcoming-notes {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: 'Public Sans', system-ui, sans-serif;
   font-size: var(--type-meta);
   font-weight: 300;
   line-height: 1.55;
@@ -113,8 +113,8 @@
   padding-bottom: 1px;
 }
 .upcoming-prep-link:hover {
-  color: var(--moss, #608F7C);
-  border-bottom-color: var(--moss, #608F7C);
+  color: var(--moss, #11443B);
+  border-bottom-color: var(--moss, #11443B);
 }
 .upcoming-prep-link::after {
   content: " \2192";
@@ -151,7 +151,7 @@
   font-size: var(--type-meta);
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: var(--moss, #608F7C);
+  color: var(--moss, #11443B);
   text-decoration: none;
   cursor: pointer;
 }

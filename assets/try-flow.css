@@ -7,7 +7,7 @@
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: var(--linen, #F7F5F0);
+  background: var(--linen, #E8E6E0);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -49,7 +49,7 @@
   min-height: 320px;
 }
 .try-drop-zone.dragover {
-  border-color: var(--moss, #608F7C);
+  border-color: var(--moss, #11443B);
   background: rgba(96, 143, 124, 0.06);
 }
 .try-drop-icon {
@@ -57,7 +57,7 @@
   opacity: 0.7;
 }
 .try-drop-title {
-  font-family: 'Fraunces', serif;
+  font-family: 'Gambetta', serif;
   font-size: clamp(22px, 5vw, 32px);
   font-weight: 500;
   font-variation-settings: "opsz" 24, "SOFT" 60;
@@ -66,7 +66,7 @@
   line-height: 1.2;
 }
 .try-drop-subtitle {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Public Sans', sans-serif;
   font-size: 15px;
   font-weight: 300;
   line-height: 1.55;
@@ -77,24 +77,24 @@
 .try-drop-note {
   font-size: 13px;
   font-weight: 500;
-  color: var(--moss, #608F7C);
+  color: var(--moss, #11443B);
   margin: 0 0 20px;
 }
 .try-drop-btn {
   display: inline-flex;
   align-items: center;
   padding: 12px 28px;
-  background: var(--moss, #608F7C);
+  background: var(--moss, #11443B);
   color: white;
   border-radius: 12px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Public Sans', sans-serif;
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s, transform 0.1s;
 }
 .try-drop-btn:hover {
-  background: #4F7A68;
+  background: #0d3a32;
   transform: translateY(-1px);
 }
 .try-drop-footer {
@@ -114,7 +114,7 @@
   width: 40px;
   height: 40px;
   border: 3px solid var(--ink-1, #E6E1D6);
-  border-top-color: var(--moss, #608F7C);
+  border-top-color: var(--moss, #11443B);
   border-radius: 50%;
   margin: 0 auto 20px;
   animation: trySpin 0.8s linear infinite;
@@ -123,7 +123,7 @@
   to { transform: rotate(360deg); }
 }
 .try-extracting h3 {
-  font-family: 'Fraunces', serif;
+  font-family: 'Gambetta', serif;
   font-size: 22px;
   font-weight: 500;
   color: var(--ink-9, #1F1B16);
@@ -139,7 +139,7 @@
   padding: 20px 0;
 }
 .try-results-heading {
-  font-family: 'Fraunces', serif;
+  font-family: 'Gambetta', serif;
   font-size: 24px;
   font-weight: 500;
   font-variation-settings: "opsz" 24, "SOFT" 60;
@@ -165,7 +165,7 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--moss, #608F7C);
+  color: var(--moss, #11443B);
   margin-bottom: 6px;
 }
 .try-result-value {
@@ -199,7 +199,7 @@
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--moss, #608F7C);
+  color: var(--moss, #11443B);
   margin-bottom: 4px;
 }
 .try-result-signal-text {
@@ -217,27 +217,27 @@
 .try-save-btn {
   width: 100%;
   padding: 14px 20px;
-  background: var(--moss, #608F7C);
+  background: var(--moss, #11443B);
   color: white;
   border: none;
   border-radius: 12px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Public Sans', sans-serif;
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s;
 }
 .try-save-btn:hover {
-  background: #4F7A68;
+  background: #0d3a32;
 }
 .try-another-btn {
   width: 100%;
   padding: 12px 20px;
   background: transparent;
-  color: var(--moss, #608F7C);
-  border: 1.5px solid var(--moss, #608F7C);
+  color: var(--moss, #11443B);
+  border: 1.5px solid var(--moss, #11443B);
   border-radius: 12px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Public Sans', sans-serif;
   font-size: 15px;
   font-weight: 500;
   cursor: pointer;
@@ -257,7 +257,7 @@
   margin: 40px 0 24px;
 }
 .try-email-card h3 {
-  font-family: 'Fraunces', serif;
+  font-family: 'Gambetta', serif;
   font-size: 22px;
   font-weight: 500;
   color: var(--ink-9, #1F1B16);
@@ -280,7 +280,7 @@
   padding: 12px 16px;
   border: 1.5px solid var(--ink-2, #D8D3CA);
   border-radius: 10px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Public Sans', sans-serif;
   font-size: 16px;
   outline: none;
   box-sizing: border-box;
@@ -288,7 +288,7 @@
 }
 #try-email-input:focus,
 #try-otp-input:focus {
-  border-color: var(--moss, #608F7C);
+  border-color: var(--moss, #11443B);
 }
 #try-otp-input {
   text-align: center;
@@ -299,18 +299,18 @@
 .try-email-btn {
   width: 100%;
   padding: 14px 20px;
-  background: var(--moss, #608F7C);
+  background: var(--moss, #11443B);
   color: white;
   border: none;
   border-radius: 10px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Public Sans', sans-serif;
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s;
 }
 .try-email-btn:hover {
-  background: #4F7A68;
+  background: #0d3a32;
 }
 .try-email-btn:disabled {
   opacity: 0.6;

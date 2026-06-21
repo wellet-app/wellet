@@ -4,7 +4,7 @@
    (share, export, feedback, delete-account, bug, contact, etc.)
 
    Scope: parent overlay carries data-editorial="sheet"
-   Goal:  warm linen surface + Fraunces titles + hairline rules,
+   Goal:  warm linen surface + Gambetta titles + hairline rules,
           dropping white backgrounds, heavy color tiles, and
           DM Serif Display.
    ============================================================ */
@@ -26,7 +26,7 @@
 [data-editorial="sheet"] .profile-sheet,
 [data-editorial="sheet"] .pricing-sheet,
 [data-editorial="sheet"] .upgrade-sheet {
-  background: var(--linen, #F7F5F0);
+  background: var(--linen, #E8E6E0);
   border-radius: 18px 18px 0 0;
   box-shadow: 0 -1px 0 rgba(31, 27, 22, 0.06);
   padding: 0 0 36px;

@@ -1,7 +1,7 @@
 /* ============================================================
    Editorial pass · CareSignals view header (PR 10)
    Scoped to #view-signals[data-editorial="signals"]
-   Adds the missing Fraunces masthead anchor above the existing
+   Adds the missing Gambetta masthead anchor above the existing
    editorial sections (Today's Medications, Wearable Data,
    Home Sensors, Patterns). Below-the-fold styling lives in
    editorial-caresignals.css and is left intact.
@@ -27,7 +27,7 @@
 }
 
 #view-signals[data-editorial="signals"] .view-header__eyebrow {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-micro, 11px);
   font-weight: 500;
   letter-spacing: 0.1em;
@@ -37,7 +37,7 @@
 }
 
 #view-signals[data-editorial="signals"] .view-header__title {
-  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-family: var(--serif, "Gambetta", Georgia, serif);
   font-weight: 400;
   font-size: var(--type-display, 32px);
   line-height: 1.08;
@@ -48,7 +48,7 @@
 }
 
 #view-signals[data-editorial="signals"] .view-header__lede {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-body, 14px);
   line-height: 1.4;
   color: var(--ink-5, #6b6b6b);
@@ -81,7 +81,7 @@
   padding: 0;
 }
 .cs-section-eyebrow {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-micro, 11px);
   font-weight: 600;
   letter-spacing: 0.1em;
@@ -106,7 +106,7 @@
   border: 1px solid var(--ink-3, #d5d0c4);
   background: #fff;
   color: var(--ink-7, #2B2A28);
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -117,7 +117,7 @@
 
 /* Right Now */
 .cs-rightnow-line {
-  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-family: var(--serif, "Gambetta", Georgia, serif);
   font-size: 19px;
   font-weight: 400;
   line-height: 1.4;
@@ -249,7 +249,7 @@
   color: var(--ink-5, #6B6356);
 }
 .cs-rhythm-metric {
-  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-family: var(--serif, "Gambetta", Georgia, serif);
   font-size: 22px;
   font-weight: 500;
   color: var(--ink-9, #1F2A22);
@@ -261,7 +261,7 @@
   text-transform: capitalize;
 }
 .cs-rhythm-unit {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: 12px;
   font-weight: 400;
   color: var(--text-secondary, #6B6356);
@@ -322,7 +322,7 @@
 }
 .cs-circle-row-notes {
   margin-top: 6px;
-  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-family: var(--serif, "Gambetta", Georgia, serif);
   font-size: 14px;
   font-style: italic;
   color: var(--ink-7, #2B2A28);
@@ -338,7 +338,7 @@
   text-align: center;
 }
 .cs-devices-empty-title {
-  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-family: var(--serif, "Gambetta", Georgia, serif);
   font-size: 15px;
   font-weight: 500;
   color: var(--ink-9, #1F2A22);
@@ -417,7 +417,7 @@
   border-radius: 8px;
   background: #FAF7F0;
   font-size: 13px;
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   color: #1F2A22;
 }
 .cs-aw-params input[type="text"] { width: 180px; }
@@ -521,7 +521,7 @@
   gap: 6px;
 }
 .cs-ehr-card-label {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -529,7 +529,7 @@
   color: var(--ink-5, #6B6356);
 }
 .cs-ehr-card-metric {
-  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-family: var(--serif, "Gambetta", Georgia, serif);
   font-size: 22px;
   font-weight: 500;
   color: var(--ink-9, #1F2A22);
@@ -537,7 +537,7 @@
   font-variation-settings: "opsz" 36;
 }
 .cs-ehr-card-unit {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: 12px;
   font-weight: 400;
   color: var(--text-secondary, #6B6356);
@@ -574,7 +574,7 @@
 }
 
 .cs-ehr-section-sub {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -614,7 +614,7 @@
   line-height: 1.25;
 }
 .cs-ehr-lab-value {
-  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-family: var(--serif, "Gambetta", Georgia, serif);
   font-size: 18px;
   font-weight: 500;
   color: var(--ink-9, #1F2A22);
@@ -622,7 +622,7 @@
   font-variation-settings: "opsz" 36;
 }
 .cs-ehr-lab-unit {
-  font-family: var(--sans, "DM Sans", system-ui, sans-serif);
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: 11px;
   font-weight: 400;
   color: var(--text-secondary, #6B6356);
