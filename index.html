@@ -122,7 +122,7 @@
   <!-- Skimmer pill: above the email card so visitors who don't want to give an email
        see the demo path on first glance. Judge-path Fix #1 (June 2 2026). -->
   <div class="auth-skimmer-row" style="display:flex;justify-content:center;margin:18px 0 22px;">
-    <button type="button" class="auth-skimmer-pill" onclick="enterDemoMode()" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 18px;min-height:44px;border-radius:999px;background:var(--bg-soft,#F5F2EC);border:1px solid var(--border,#E2DCD2);color:var(--text-primary);font-family:var(--font-body,inherit);font-size:14px;cursor:pointer;line-height:1;">
+    <button type="button" class="auth-skimmer-pill" onclick="enterDemoMode()" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 18px;min-height:44px;border-radius:999px;background:var(--bg-soft,#E8E6E0);border:1px solid var(--border,rgba(17,68,59,0.12));color:var(--text-primary);font-family:var(--font-body,inherit);font-size:14px;cursor:pointer;line-height:1;">
       <i data-lucide="compass" style="width:14px;height:14px;"></i>
       Just looking? Explore the demo
       <i data-lucide="arrow-right" style="width:14px;height:14px;"></i>
@@ -187,20 +187,20 @@
          "Copy link" plus a clear instruction for the ••• > Open in
          Safari / Chrome path.
          ============================================================ -->
-    <div id="iab-warning" style="display:none;margin:0 0 16px;padding:14px 16px;border:1px solid #C07028;background:#FFF6EC;border-radius:12px;line-height:1.5;" role="alert">
+    <div id="iab-warning" style="display:none;margin:0 0 16px;padding:14px 16px;border:1px solid #11443B;background:#DCE9E2;border-radius:12px;line-height:1.5;" role="alert">
       <div style="display:flex;gap:10px;align-items:flex-start;">
-        <i data-lucide="alert-triangle" style="width:18px;height:18px;color:#C07028;flex:0 0 auto;margin-top:2px;"></i>
+        <i data-lucide="alert-triangle" style="width:18px;height:18px;color:#11443B;flex:0 0 auto;margin-top:2px;"></i>
         <div style="flex:1;min-width:0;">
-          <div style="font-weight:600;color:#7A4116;margin-bottom:4px;">Open Wellet in your real browser first</div>
-          <p style="margin:0 0 10px;font-size:14px;color:#4a3320;">
+          <div style="font-weight:600;color:#11443B;margin-bottom:4px;">Open Wellet in your real browser first</div>
+          <p style="margin:0 0 10px;font-size:14px;color:#2a3a35;">
             You arrived here from <span id="iab-app-name">an app</span>. Signing in needs a 6-digit code from your email, and in-app browsers usually lose the code when you switch to Mail.
           </p>
-          <p style="margin:0 0 12px;font-size:14px;color:#4a3320;">
+          <p style="margin:0 0 12px;font-size:14px;color:#2a3a35;">
             Tap the <strong>•••</strong> menu (top right) and choose <strong>Open in Safari</strong> or <strong>Open in Chrome</strong>. Or copy the link below and paste it into your browser.
           </p>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button type="button" id="iab-copy-link" onclick="iabCopyLink()" style="flex:1;min-width:140px;padding:10px 14px;background:#11443B;color:#fff;border:none;border-radius:8px;font:inherit;font-weight:600;cursor:pointer;">Copy link</button>
-            <button type="button" onclick="iabDismiss()" style="padding:10px 14px;background:transparent;color:#7A4116;border:1px solid #C07028;border-radius:8px;font:inherit;cursor:pointer;">Continue anyway</button>
+            <button type="button" onclick="iabDismiss()" style="padding:10px 14px;background:transparent;color:#11443B;border:1px solid #11443B;border-radius:8px;font:inherit;cursor:pointer;">Continue anyway</button>
           </div>
           <div id="iab-copy-confirm" style="display:none;margin-top:8px;font-size:13px;color:#11443B;font-weight:500;">Link copied. Paste it into Safari or Chrome.</div>
         </div>
@@ -277,10 +277,10 @@
         <!-- Face ID / passkey sign-in. Shown only on devices with a platform
              authenticator (iOS Safari, macOS Safari/Chrome). Hidden by default;
              _wpMaybeShowSignInButton() reveals it. -->
-        <button type="button" id="auth-passkey-btn" onclick="signInWithPasskey()" style="display:none;width:100%;margin-top:8px;background:transparent;color:var(--text-primary);border:1px solid var(--border,#E2DCD2);border-radius:10px;padding:12px;font-size:15px;font-family:inherit;cursor:pointer;">
+        <button type="button" id="auth-passkey-btn" onclick="signInWithPasskey()" style="display:none;width:100%;margin-top:8px;background:transparent;color:var(--text-primary);border:1px solid var(--border,rgba(17,68,59,0.12));border-radius:10px;padding:12px;font-size:15px;font-family:inherit;cursor:pointer;">
           <i data-lucide="scan-face" style="width:16px;height:16px;vertical-align:-3px;margin-right:6px;"></i>Use Face ID
         </button>
-        <div style="font-size:var(--type-meta);color:var(--text-secondary);text-align:center;margin-top:8px;line-height:1.5;padding:10px 12px;background:var(--bg-soft,#F5F2EC);border-radius:8px;">Don&rsquo;t have your hospital login handy? Apple Health, photos of records, and PDF uploads all work too &mdash; you can set those up after signup.</div>
+        <div style="font-size:var(--type-meta);color:var(--text-secondary);text-align:center;margin-top:8px;line-height:1.5;padding:10px 12px;background:var(--bg-soft,#E8E6E0);border-radius:8px;">Don&rsquo;t have your hospital login handy? Apple Health, photos of records, and PDF uploads all work too &mdash; you can set those up after signup.</div>
       </div>
       <div style="display:flex;align-items:center;gap:12px;margin-top:20px;">
         <hr style="flex:1;border:none;border-top:1px solid var(--border);">
