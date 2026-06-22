@@ -1,0 +1,1016 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Wellet — Brand & UX Reference</title>
+  <meta name="description" content="Design system reference for Wellet v2 — colors, type, components, photography, and patterns." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://api.fontshare.com/v2/css?f[]=gambetta@300,400,500,400i&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="dist/wellet.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <a href="#overview" class="skip">Skip to content</a>
+
+  <aside class="nav" aria-label="Sections">
+    <div class="nav-brand">
+      <img class="wordmark-img" src="assets/wellet-wordmark.svg" alt="Wellet" />
+      <span class="nav-version">v2 · reference</span>
+    </div>
+    <nav>
+      <ol>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#voice">Voice</a></li>
+        <li><a href="#color">Color</a></li>
+        <li><a href="#backgrounds">Backgrounds</a></li>
+        <li><a href="#type">Typography</a></li>
+        <li><a href="#scale">Spacing &amp; Radii</a></li>
+        <li><a href="#shadow">Elevation</a></li>
+        <li><a href="#buttons">Buttons</a></li>
+        <li><a href="#forms">Forms</a></li>
+        <li><a href="#cards">Cards</a></li>
+        <li><a href="#caresignals">CareSignals</a></li>
+        <li><a href="#patterns">UX patterns</a></li>
+        <li><a href="mockups.html">v2 mockups &rarr;</a></li>
+        <li><a href="#surfaces">Three surfaces</a></li>
+        <li><a href="#donts">Don'ts</a></li>
+        <li><a href="#tokens">Tokens &amp; downloads</a></li>
+      </ol>
+    </nav>
+    <div class="nav-foot">
+      <small>Updated <time datetime="2026-06-19">Jun 19, 2026</time></small>
+    </div>
+  </aside>
+
+  <main class="content">
+
+    <header id="overview" class="hero">
+      <p class="eyebrow">Wellet brand &amp; UX system</p>
+      <h1 class="display">A calm field guide for the people doing the caring.</h1>
+      <p class="lede">This is the v2 reference library — colors, type, components, photography, and the patterns that hold them together across getwellet.com, mywellet.com, and pro.mywellet.com. Witness, don't monitor.</p>
+      <div class="hero-meta">
+        <span class="pill">Brand v2</span>
+        <span class="pill">Tokens · W3C DTCG</span>
+        <span class="pill">3 surfaces</span>
+      </div>
+    </header>
+
+    <!-- VOICE -->
+    <section id="voice" class="section">
+      <h2>Voice in one paragraph</h2>
+      <p class="body-lg">Plain, warm, evidence-based. We don't perform empathy and we don't perform tech. We notice patterns over time, hold context, and surface the right thing at the right moment — then let the caregiver decide. Sentences short enough to read on a phone at 11pm.</p>
+      <div class="two-col">
+        <div class="card-soft">
+          <h4 class="card-h">We say</h4>
+          <ul class="check">
+            <li>Witness, don't monitor</li>
+            <li>What changed · What's next · What to ask</li>
+            <li>Worth confirming</li>
+            <li>You decide</li>
+          </ul>
+        </div>
+        <div class="card-soft alert-soft">
+          <h4 class="card-h">We never say</h4>
+          <ul class="x">
+            <li>Track, monitor, surveillance, alerts</li>
+            <li>Earn, guaranteed, AI-powered, ML-driven</li>
+            <li>HIPAA-compliant (as a marketing line)</li>
+            <li>Always-on, real-time</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- COLOR -->
+    <section id="color" class="section">
+      <h2>Color</h2>
+      <p class="body-lg">Cream is the canvas. Forest carries weight. Mint is a highlight, never a fill. Alert is reserved for actual errors, never decoration. Terra is retired.</p>
+
+      <h3 class="subhead">Core neutrals &amp; brand</h3>
+      <div class="swatch-grid">
+        <article class="swatch" data-bg="#e7e7df">
+          <div class="swatch-chip" style="background:#e7e7df;color:#11443b;">Aa</div>
+          <div class="swatch-meta">
+            <strong>Cream</strong>
+            <code>--core-color-cream</code>
+            <span>#e7e7df</span>
+            <em>App + marketing canvas</em>
+          </div>
+        </article>
+        <article class="swatch" data-bg="#dcdace">
+          <div class="swatch-chip" style="background:#dcdace;color:#11443b;">Aa</div>
+          <div class="swatch-meta">
+            <strong>Stone</strong>
+            <code>--core-color-stone</code>
+            <span>#DCDACE</span>
+            <em>Raised surfaces, dividers</em>
+          </div>
+        </article>
+        <article class="swatch" data-bg="#11443b">
+          <div class="swatch-chip" style="background:#11443b;color:#e7e7df;">Aa</div>
+          <div class="swatch-meta">
+            <strong>Forest</strong>
+            <code>--core-color-forest</code>
+            <span>#11443b</span>
+            <em>Primary brand &amp; text</em>
+          </div>
+        </article>
+        <article class="swatch" data-bg="#0d3a32">
+          <div class="swatch-chip" style="background:#0d3a32;color:#e7e7df;">Aa</div>
+          <div class="swatch-meta">
+            <strong>Forest deep</strong>
+            <code>--core-color-forest-deep</code>
+            <span>#0d3a32</span>
+            <em>Hover, pressed</em>
+          </div>
+        </article>
+        <article class="swatch" data-bg="#183241">
+          <div class="swatch-chip" style="background:#183241;color:#e7e7df;">Aa</div>
+          <div class="swatch-meta">
+            <strong>Midnight</strong>
+            <code>--core-color-midnight</code>
+            <span>#183241</span>
+            <em>Inverse surface, Pro chrome</em>
+          </div>
+        </article>
+        <article class="swatch" data-bg="#9ece90">
+          <div class="swatch-chip" style="background:#9ece90;color:#11443b;">Aa</div>
+          <div class="swatch-meta">
+            <strong>Mint</strong>
+            <code>--core-color-mint</code>
+            <span>#9ece90</span>
+            <em>Highlight only — never fill</em>
+          </div>
+        </article>
+        <article class="swatch" data-bg="#b7c9cd">
+          <div class="swatch-chip" style="background:#b7c9cd;color:#11443b;">Aa</div>
+          <div class="swatch-meta">
+            <strong>Mist</strong>
+            <code>--core-color-mist</code>
+            <span>#b7c9cd</span>
+            <em>Stable status, quiet info</em>
+          </div>
+        </article>
+        <article class="swatch" data-bg="#ec5747">
+          <div class="swatch-chip" style="background:#ec5747;color:#fff;">Aa</div>
+          <div class="swatch-meta">
+            <strong>Alert</strong>
+            <code>--core-color-alert</code>
+            <span>#EC5747</span>
+            <em>Errors only, never decoration</em>
+          </div>
+        </article>
+      </div>
+
+      <h3 class="subhead">Semantic mapping</h3>
+      <div class="semantic-grid">
+        <div class="sem"><span class="sem-dot" style="background:#e7e7df;border-color:#dcdace"></span><code>--semantic-color-bg-default</code><em>Cream</em></div>
+        <div class="sem"><span class="sem-dot" style="background:#dcdace"></span><code>--semantic-color-bg-raised</code><em>Stone</em></div>
+        <div class="sem"><span class="sem-dot" style="background:#183241"></span><code>--semantic-color-bg-inverse</code><em>Midnight</em></div>
+        <div class="sem"><span class="sem-dot" style="background:#11443b"></span><code>--semantic-color-fg-default</code><em>Forest</em></div>
+        <div class="sem"><span class="sem-dot" style="background:#3a4a45"></span><code>--semantic-color-fg-muted</code><em>Ink-2</em></div>
+        <div class="sem"><span class="sem-dot" style="background:#7a857f"></span><code>--semantic-color-fg-subtle</code><em>Ink-3</em></div>
+        <div class="sem"><span class="sem-dot" style="background:#b7c9cd"></span><code>--semantic-color-status-stable</code><em>Mist</em></div>
+        <div class="sem"><span class="sem-dot" style="background:#9ece90"></span><code>--semantic-color-status-watching</code><em>Mint</em></div>
+        <div class="sem"><span class="sem-dot" style="background:#ec5747"></span><code>--semantic-color-status-attention</code><em>Alert</em></div>
+      </div>
+
+      <div class="callout">
+        <strong>Contrast.</strong> All body text uses Forest on Cream (WCAG AA at 14px+). Mint on Cream is highlight-only — never set body type in Mint. Alert is reserved for true error states.
+      </div>
+    </section>
+
+    <!-- BACKGROUNDS -->
+    <section id="backgrounds" class="section">
+      <h2>Backgrounds</h2>
+      <p class="body-lg">Wellet ships with four canonical full-bleed backgrounds. The wordmark inverts based on the surface — Forest on light, Cream on dark. Never combine wordmark and background outside these four pairings.</p>
+
+      <div class="bg-grid">
+        <article class="bg-tile" data-bg="#11443b" style="background:#11443b">
+          <img src="assets/wellet-wordmark-cream.svg" alt="Wellet wordmark on Forest" class="bg-mark bg-mark-light">
+          <div class="bg-meta">
+            <strong>Forest</strong>
+            <code>#11443B</code>
+            <em>Wordmark in Cream. Primary hero surface. Use for product moments, brand films, decisive headers.</em>
+          </div>
+        </article>
+
+        <article class="bg-tile" data-bg="#e7e7df" style="background:#e7e7df">
+          <img src="assets/wellet-wordmark.svg" alt="Wellet wordmark on Cream" class="bg-mark">
+          <div class="bg-meta">
+            <strong>Cream</strong>
+            <code>#E7E7DF</code>
+            <em>Wordmark in Forest. The default canvas. Use for editorial, body content, the calm middle.</em>
+          </div>
+        </article>
+
+        <article class="bg-tile" data-bg="#b7c9cd" style="background:#b7c9cd">
+          <img src="assets/wellet-wordmark.svg" alt="Wellet wordmark on Mist" class="bg-mark">
+          <div class="bg-meta">
+            <strong>Mist</strong>
+            <code>#B7C9CD</code>
+            <em>Wordmark in Forest. Use for how-it-works panels, explanatory sections, secondary surfaces.</em>
+          </div>
+        </article>
+
+        <article class="bg-tile" data-bg="#183241" style="background:#183241">
+          <img src="assets/wellet-wordmark-cream.svg" alt="Wellet wordmark on Midnight" class="bg-mark bg-mark-light">
+          <div class="bg-meta">
+            <strong>Midnight</strong>
+            <code>#183241</code>
+            <em>Wordmark in Cream. Reserve for serious moments — privacy, security, end-of-life content.</em>
+          </div>
+        </article>
+      </div>
+
+      <div class="callout">
+        <strong>Pairing rules.</strong> Forest and Midnight take the Cream wordmark. Cream and Mist take the Forest wordmark. No other combinations. Photography overlays live on top of Forest or Midnight only.
+      </div>
+    </section>
+
+    <!-- TYPE -->
+    <section id="type" class="section">
+      <h2>Typography</h2>
+      <p class="body-lg">Gambetta for display and named moments. Public Sans for everything you actually read. DM Mono for tokens, codes, and IDs only.</p>
+
+      <div class="type-row">
+        <div class="type-label">
+          <strong>Display</strong>
+          <code>type.display</code>
+          <span>Gambetta Medium · 72/76 · −2</span>
+        </div>
+        <div class="type-sample display">A calm field guide.</div>
+      </div>
+      <div class="type-row">
+        <div class="type-label">
+          <strong>H1</strong>
+          <code>type.h1</code>
+          <span>Gambetta Medium · 48/54 · −1</span>
+        </div>
+        <div class="type-sample h1">What changed this week</div>
+      </div>
+      <div class="type-row">
+        <div class="type-label">
+          <strong>H2</strong>
+          <code>type.h2</code>
+          <span>Gambetta Medium · 32/38 · −0.5</span>
+        </div>
+        <div class="type-sample h2">Don's care, in one view</div>
+      </div>
+      <div class="type-row">
+        <div class="type-label">
+          <strong>H3</strong>
+          <code>type.h3</code>
+          <span>Public Sans Medium · 22/28</span>
+        </div>
+        <div class="type-sample h3">Worth confirming</div>
+      </div>
+      <div class="type-row">
+        <div class="type-label">
+          <strong>Body large</strong>
+          <code>type.body-lg</code>
+          <span>Public Sans Regular · 18/28</span>
+        </div>
+        <div class="type-sample body-lg">Wellet quietly reads the records you already have a right to and gives you back the picture — what changed, what's next, what to ask.</div>
+      </div>
+      <div class="type-row">
+        <div class="type-label">
+          <strong>Body</strong>
+          <code>type.body</code>
+          <span>Public Sans Regular · 16/24</span>
+        </div>
+        <div class="type-sample body">A1c trended down 0.4 over the last two visits. Worth confirming with the care team at the next appointment.</div>
+      </div>
+      <div class="type-row">
+        <div class="type-label">
+          <strong>Caption</strong>
+          <code>type.caption</code>
+          <span>Public Sans Medium · 12/16 · +0.4</span>
+        </div>
+        <div class="type-sample caption">UPDATED 2 HOURS AGO</div>
+      </div>
+      <div class="type-row">
+        <div class="type-label">
+          <strong>Mono</strong>
+          <code>type.mono</code>
+          <span>DM Mono · 14/20</span>
+        </div>
+        <div class="type-sample mono">A1c · 6.8 · 2026-06-12</div>
+      </div>
+
+      <h3 class="subhead">The wordmark</h3>
+      <div class="wordmark-spec">
+        <img class="wordmark-big" src="assets/wellet-wordmark.svg" alt="Wellet wordmark" />
+        <ul class="spec-list">
+          <li>Custom-drawn vector — not type-set</li>
+          <li>Lowercase, single weight, one color</li>
+          <li>Color: Forest <code>#11443b</code> on Cream <code>#e7e7df</code></li>
+          <li>Source file: <code>assets/wellet-wordmark.svg</code></li>
+          <li>Minimum height: 20px digital, 8mm print</li>
+          <li>Clear space: at least the height of the wordmark on every side</li>
+          <li>No italic. No accent dot. No orange. No outline.</li>
+        </ul>
+      </div>
+
+      <h3 class="subhead">Pro mark</h3>
+      <div class="pro-spec">
+        <div class="pro-mark"><img src="assets/wellet-wordmark.svg" alt="Wellet" class="pro-wordmark" /><span class="pro-tag">PRO</span></div>
+        <ul class="spec-list">
+          <li>Wordmark unchanged</li>
+          <li>"PRO" in Public Sans Medium, all caps, letter-spacing +2</li>
+          <li>Forest on cream, or cream on Midnight in dark chrome</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- SCALE -->
+    <section id="scale" class="section">
+      <h2>Spacing &amp; radii</h2>
+
+      <h3 class="subhead">Spacing scale (4-px base)</h3>
+      <div class="scale-row">
+        <div class="scale-cell"><div class="scale-bar" style="width:4px"></div><code>size.1</code><span>4</span></div>
+        <div class="scale-cell"><div class="scale-bar" style="width:8px"></div><code>size.2</code><span>8</span></div>
+        <div class="scale-cell"><div class="scale-bar" style="width:12px"></div><code>size.3</code><span>12</span></div>
+        <div class="scale-cell"><div class="scale-bar" style="width:16px"></div><code>size.4</code><span>16</span></div>
+        <div class="scale-cell"><div class="scale-bar" style="width:24px"></div><code>size.5</code><span>24</span></div>
+        <div class="scale-cell"><div class="scale-bar" style="width:32px"></div><code>size.6</code><span>32</span></div>
+        <div class="scale-cell"><div class="scale-bar" style="width:48px"></div><code>size.7</code><span>48</span></div>
+        <div class="scale-cell"><div class="scale-bar" style="width:64px"></div><code>size.8</code><span>64</span></div>
+        <div class="scale-cell"><div class="scale-bar" style="width:96px"></div><code>size.9</code><span>96</span></div>
+      </div>
+
+      <h3 class="subhead">Radii</h3>
+      <div class="radii-row">
+        <div class="radii-cell"><div class="radii-box" style="border-radius:6px"></div><code>radius.xs</code><span>6</span></div>
+        <div class="radii-cell"><div class="radii-box" style="border-radius:10px"></div><code>radius.sm</code><span>10</span></div>
+        <div class="radii-cell"><div class="radii-box" style="border-radius:16px"></div><code>radius.md</code><span>16</span></div>
+        <div class="radii-cell"><div class="radii-box" style="border-radius:32px"></div><code>radius.lg</code><span>32</span></div>
+        <div class="radii-cell"><div class="radii-box pill" style="border-radius:999px"></div><code>radius.pill</code><span>999</span></div>
+      </div>
+    </section>
+
+    <!-- SHADOW -->
+    <section id="shadow" class="section">
+      <h2>Elevation</h2>
+      <div class="shadow-row">
+        <div class="shadow-cell">
+          <div class="shadow-box card-shadow"></div>
+          <code>shadow.card</code>
+          <em>Resting cards</em>
+        </div>
+        <div class="shadow-cell">
+          <div class="shadow-box raised-shadow"></div>
+          <code>shadow.raised</code>
+          <em>Hover, sticky toolbars</em>
+        </div>
+        <div class="shadow-cell">
+          <div class="shadow-box modal-shadow"></div>
+          <code>shadow.modal</code>
+          <em>Sheets, modals</em>
+        </div>
+      </div>
+    </section>
+
+    <!-- BUTTONS -->
+    <section id="buttons" class="section">
+      <h2>Buttons</h2>
+      <div class="button-grid">
+        <div class="button-cell">
+          <button class="btn btn-primary">Connect a record</button>
+          <div class="spec">
+            <code>Primary</code>
+            <span>Forest fill, cream text, radius.pill, 48px</span>
+          </div>
+        </div>
+        <div class="button-cell">
+          <button class="btn btn-secondary">See details</button>
+          <div class="spec">
+            <code>Secondary</code>
+            <span>Forest 1px border, cream fill, Forest text</span>
+          </div>
+        </div>
+        <div class="button-cell">
+          <button class="btn btn-quiet">Skip for now</button>
+          <div class="spec">
+            <code>Quiet</code>
+            <span>Forest text, no border, underline on hover</span>
+          </div>
+        </div>
+        <div class="button-cell">
+          <button class="btn btn-inverse">Open Pro</button>
+          <div class="spec">
+            <code>Inverse</code>
+            <span>Cream on Midnight — Pro chrome only</span>
+          </div>
+        </div>
+        <div class="button-cell">
+          <button class="btn btn-primary" disabled>Connect a record</button>
+          <div class="spec">
+            <code>Disabled</code>
+            <span>50% opacity, no pointer events</span>
+          </div>
+        </div>
+        <div class="button-cell">
+          <button class="btn btn-danger">Disconnect</button>
+          <div class="spec">
+            <code>Danger</code>
+            <span>Alert text on cream, only for destructive actions</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FORMS -->
+    <section id="forms" class="section">
+      <h2>Forms</h2>
+      <div class="form-grid">
+        <label class="field">
+          <span class="field-label">Email</span>
+          <input type="email" placeholder="you@example.com" value="lisa@example.com" />
+          <span class="field-help">We'll text you a 6-digit code to sign in.</span>
+        </label>
+
+        <label class="field">
+          <span class="field-label">Verification code</span>
+          <input type="text" inputmode="numeric" maxlength="6" placeholder="••••••" value="284913" class="mono-input" />
+          <span class="field-help">Expires in 10 minutes.</span>
+        </label>
+
+        <label class="field field-error">
+          <span class="field-label">Member ID</span>
+          <input type="text" value="A12 — invalid" />
+          <span class="field-error-msg">That ID doesn't match the format on the card.</span>
+        </label>
+
+        <label class="field">
+          <span class="field-label">State</span>
+          <select>
+            <option>North Carolina</option>
+            <option>Virginia</option>
+            <option>South Carolina</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <!-- CARDS -->
+    <section id="cards" class="section">
+      <h2>Cards</h2>
+      <p class="body-lg">Three card archetypes carry most of the app: the Summary, the CareSignal, and the Eligibility match.</p>
+
+      <div class="cards-grid">
+        <!-- Summary card -->
+        <article class="w-card summary-card">
+          <header>
+            <span class="eyebrow">This week, for Don</span>
+            <h3>What changed</h3>
+          </header>
+          <ul class="summary-list">
+            <li><strong>A1c</strong> trended down 0.4 over two visits.</li>
+            <li><strong>One new note</strong> from Dr. Reyes — read more.</li>
+            <li><strong>Sleep</strong> averaged 6h12m, down from last week.</li>
+          </ul>
+          <footer>
+            <button class="btn btn-quiet">Open weekly view</button>
+            <span class="meta">Updated 2 hours ago</span>
+          </footer>
+        </article>
+
+        <!-- CareSignal card -->
+        <article class="w-card signal-card">
+          <header>
+            <span class="signal-dot watching" aria-hidden="true"></span>
+            <span class="eyebrow">CareSignal · watching</span>
+            <h3>Possible billing duplicate</h3>
+          </header>
+          <p>A radiology charge on May 14 looks similar to one on May 19. Worth confirming with the billing office before paying.</p>
+          <footer>
+            <button class="btn btn-secondary">See both charges</button>
+            <button class="btn btn-quiet">Dismiss</button>
+          </footer>
+        </article>
+
+        <!-- Eligibility card -->
+        <article class="w-card eligibility-card">
+          <header>
+            <span class="eyebrow">Program match · NEEDS VERIFIED SOURCE</span>
+            <h3>VA PCAFC — likely worth applying</h3>
+          </header>
+          <p>Based on Don's service history and the care you've described, he <em>may</em> qualify for the Program of Comprehensive Assistance for Family Caregivers. Confirm directly with VA before relying on this estimate.</p>
+          <dl class="kv">
+            <div><dt>Tier estimate</dt><dd>2 of 2</dd></div>
+            <div><dt>Monthly stipend</dt><dd>Verify with VA</dd></div>
+            <div><dt>Next step</dt><dd>VA Form 10-10CG</dd></div>
+          </dl>
+          <footer>
+            <button class="btn btn-primary">Start application</button>
+            <button class="btn btn-quiet">Why this match</button>
+          </footer>
+        </article>
+      </div>
+    </section>
+
+    <!-- CARESIGNALS -->
+    <section id="caresignals" class="section">
+      <h2>CareSignal states</h2>
+      <p class="body-lg">Three states. Never more. Stable = nothing to do. Watching = a pattern worth holding. Attention = a real anomaly that needs the caregiver's eyes today.</p>
+      <div class="signals-grid">
+        <div class="signal-row stable">
+          <span class="signal-dot stable" aria-hidden="true"></span>
+          <div>
+            <strong>Stable</strong>
+            <p>Mist · <code>status.stable</code>. No banner, no count, no nudge.</p>
+          </div>
+        </div>
+        <div class="signal-row watching">
+          <span class="signal-dot watching" aria-hidden="true"></span>
+          <div>
+            <strong>Watching</strong>
+            <p>Mint · <code>status.watching</code>. Surfaces in weekly summary. No push notification.</p>
+          </div>
+        </div>
+        <div class="signal-row attention">
+          <span class="signal-dot attention" aria-hidden="true"></span>
+          <div>
+            <strong>Attention</strong>
+            <p>Alert · <code>status.attention</code>. One push at most. Always actionable.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- UX PATTERNS -->
+    <section id="patterns" class="section">
+      <h2>UX patterns</h2>
+      <p class="body-lg">Every pattern below is sourced from the live <a href="https://mywellet.com">mywellet.com</a> app. Captured on mobile viewport (414&times;896 @2x) from the demo family &mdash; Don &amp; Margaret Bell.</p>
+      <p class="body-lg" style="padding:14px 18px; background:#f1f7ec; border-left:3px solid #9ece90; border-radius:0 10px 10px 0; margin:8px 0 24px;"><strong>Reviewing the rebrand?</strong> See the <a href="mockups.html">v2 mockups &rarr;</a> for screen-by-screen <em>before / after</em> comparisons of every pattern below, rebuilt with Gambetta + Public Sans + the full v2 palette.</p>
+      <div class="callout">
+        <strong>Photography &amp; mood &mdash; paused.</strong> The previous photography direction (hands, medication still life, watercolor, landscape, textures) has been pulled from the brand system pending review. Marketing surfaces lead with type, the wordmark, and the four canonical backgrounds until imagery is rebuilt.
+      </div>
+
+      <h3 class="pattern-h3">Person-tinted background system</h3>
+      <p class="body-md">The full content surface tints to a per-person hue. Top bar and bottom tab bar stay white. Tints sit within 4&ndash;6% lightness of one another &mdash; a peripheral cue, not a billboard. Sampled directly from the live app via <code>getComputedStyle</code>.</p>
+      <div class="phones-grid">
+        <figure class="phone">
+          <img src="app_screens/01_home_dad.png" alt="Home Summary view when Dad is selected, warm cream background" loading="lazy">
+          <figcaption><strong>Dad selected</strong> &middot; background <code>#F7F5F0</code> (warm cream). Note the Before-your-appointment card, Wellet Summary with NEEDS ATTENTION pill, and bottom nav.</figcaption>
+        </figure>
+        <figure class="phone">
+          <img src="app_screens/02_home_mom.png" alt="Home Summary view when Mom is selected, cool sage-cream background" loading="lazy">
+          <figcaption><strong>Mom selected</strong> &middot; background <code>#F0F5F2</code> (cool sage-cream). Same chrome, same components &mdash; the tint is the only change.</figcaption>
+        </figure>
+      </div>
+
+      <h3 class="pattern-h3">Timeline &amp; records list</h3>
+      <p class="body-md">Vertical rail with circular nodes. Filter chips (All &middot; EHR &middot; Voice &middot; Documents &middot; Care circle) above. Each entry has an icon-tile eyebrow tag, Gambetta title, and provenance footer.</p>
+      <div class="phones-grid">
+        <figure class="phone">
+          <img src="app_screens/03_timeline_dad.png" alt="Timeline view showing MEDS LOGGED, WELLET NOTICED, and NOTE entries with filter chips" loading="lazy">
+          <figcaption>Timeline &middot; MEDS LOGGED, WELLET NOTICED, NOTE entry types. The <em>&ldquo;YOU ASKED WELLET TO WATCH THIS&rdquo;</em> audit footer on the inferred entry is non-negotiable.</figcaption>
+        </figure>
+        <figure class="phone">
+          <img src="app_screens/05_records.png" alt="Records list with category icons in mint tiles" loading="lazy">
+          <figcaption>Records list. 36px Mint-tile icon + Gambetta label + ink-3 count + chevron. Whole row is the tap target.</figcaption>
+        </figure>
+      </div>
+
+      <h3 class="pattern-h3">Detail screens &middot; sourced sections</h3>
+      <p class="body-md">Every medical fact appears under an eyebrow naming its source &mdash; <code>OPENFDA</code>, <code>MEDLINEPLUS</code>, <code>EHR</code>. This is a safety requirement, not a style preference.</p>
+      <div class="phones-grid">
+        <figure class="phone">
+          <img src="app_screens/13_medications_list.png" alt="Medications list with EHR pill and From your records provenance" loading="lazy">
+          <figcaption>Medications list. EHR pill + italic frequency + &ldquo;From your records&rdquo; provenance, always.</figcaption>
+        </figure>
+        <figure class="phone">
+          <img src="app_screens/14_medication_detail.png" alt="Medication detail Levodopa Carbidopa with Key facts, openFDA, and MedlinePlus sections" loading="lazy">
+          <figcaption>Medication detail. Key facts spec card, then sourced cards: <code>WHAT THIS PILL LOOKS LIKE &middot; OPENFDA</code> and <code>ABOUT THIS MEDICINE &middot; MEDLINEPLUS</code>.</figcaption>
+        </figure>
+      </div>
+
+      <h3 class="pattern-h3">Ask Wellet &amp; side menu</h3>
+      <p class="body-md">Mic always present (voice is a first-class input). Seed prompts populate but don&rsquo;t auto-send. The <strong>w-mark</strong> appears here as a chrome icon &mdash; the only place it does.</p>
+      <div class="phones-grid">
+        <figure class="phone">
+          <img src="app_screens/06_ask_wellet.png" alt="Ask Wellet conversational interface with seed prompts and composer" loading="lazy">
+          <figcaption>Ask Wellet. Seed prompts use natural family-member phrasing (&ldquo;How is Dad doing this week?&rdquo;) &mdash; never imperative tool language.</figcaption>
+        </figure>
+        <figure class="phone">
+          <img src="app_screens/07_side_menu.png" alt="Side menu with ER Summary in alert red as the top item" loading="lazy">
+          <figcaption>Side menu. ER Summary is the <strong>only red item in nav</strong> &mdash; it breaks the rule on purpose because it must read as urgent.</figcaption>
+        </figure>
+      </div>
+
+      <h3 class="pattern-h3">People &middot; Resources &middot; Connections</h3>
+      <p class="body-md">Three pattern-rich screens. Resources demonstrates the program card with sourced eyebrow, dollar-value pill, and paired source/explainer links. Connections shows the italic-noun-phrase headline (<em>Bring in your data.</em>) plus the recommended/default/unavailable card states.</p>
+      <div class="phones-grid">
+        <figure class="phone">
+          <img src="app_screens/08_people.png" alt="People list with Don Bell and Margaret Bell, quick-action text links" loading="lazy">
+          <figcaption>People. Quick actions render as <em>text links separated by &middot;</em>, not buttons. The &times; is &ldquo;stop caring for&rdquo;, never &ldquo;delete&rdquo;.</figcaption>
+        </figure>
+        <figure class="phone">
+          <img src="app_screens/09_resources.png" alt="Resources view with caregiver pay programs from Medicare and VA" loading="lazy">
+          <figcaption>Resources. 4px Forest left border marks a program. Dollar-value pill at top-right. Body uses hedging language &mdash; never &ldquo;you will get $X&rdquo;.</figcaption>
+        </figure>
+        <figure class="phone">
+          <img src="app_screens/10_connections.png" alt="Bring in your data screen with Upload, Health Records, Apple Health, Google Health, Other wearables cards" loading="lazy">
+          <figcaption>Connections. Recommended card uses Mint tint + Forest 2px border. Unavailable cards (Apple Health on Android) drop to 60% opacity and <em>explain why</em>.</figcaption>
+        </figure>
+      </div>
+
+      <p class="body-sm" style="margin-top: 24px;">Full pattern library &mdash; 16 sections, layout shell through open patterns &mdash; lives in the companion document.</p>
+    </section>
+
+    <!-- SURFACES -->
+    <section id="surfaces" class="section">
+      <h2>Three surfaces</h2>
+      <div class="surfaces-grid">
+        <div class="surface getwellet">
+          <span class="eyebrow">Marketing</span>
+          <h3>getwellet.com</h3>
+          <p>Narrative, founder-led, public. Cream + Forest, full-bleed photography, generous Gambetta. No app chrome.</p>
+        </div>
+        <div class="surface mywellet">
+          <span class="eyebrow">App · caregiver</span>
+          <h3>mywellet.com</h3>
+          <p>Passwordless 6-digit code. Calm, quiet, single-task per view. Demo family: Don &amp; Margaret Bell, daughter Lisa.</p>
+        </div>
+        <div class="surface pro">
+          <span class="eyebrow">Pro · self-tracker</span>
+          <h3>pro.mywellet.com</h3>
+          <p>Genomics, pedigree, hereditary scans. Pay-per-use. Midnight chrome. Always carries: "Data analysis tool. Not medical advice."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- DON'TS -->
+    <section id="donts" class="section">
+      <h2>Don'ts</h2>
+      <div class="donts-grid">
+        <div class="dont"><strong>No orange italic wordmark.</strong> Terra is retired. The wordmark is Forest, Gambetta Medium, lowercase, no italic, no dot.</div>
+        <div class="dont"><strong>No "AI-powered," "ML-driven," "real-time," or "always-on."</strong> If you'd put it on a billboard at CES, don't put it in Wellet.</div>
+        <div class="dont"><strong>No HIPAA-compliance as a marketing line.</strong> State practices instead — encryption at rest, you control the data, deletable on request.</div>
+        <div class="dont"><strong>No invented eligibility numbers.</strong> Every program rule must cite a source, or be marked <code>NEEDS VERIFIED SOURCE</code>.</div>
+        <div class="dont"><strong>No alarm-style red.</strong> Alert is for actual error states only. Not for highlights, not for accent rules, not for badges.</div>
+        <div class="dont"><strong>No stock smiles.</strong> Photography is hands, objects, and quiet rooms. Never a couple grinning at a tablet.</div>
+        <div class="dont"><strong>No more than one CareSignal push per day.</strong> Witness, don't monitor.</div>
+        <div class="dont"><strong>No Mint as a body fill.</strong> Mint is a highlight: one small shape, one underline, one dot.</div>
+      </div>
+    </section>
+
+    <!-- TOKENS -->
+    <section id="tokens" class="section">
+      <h2>Tokens &amp; downloads</h2>
+      <p class="body-lg">Source of truth lives in <code>tokens.json</code> (W3C DTCG). Style Dictionary compiles it to CSS, SCSS, JS, and flat JSON.</p>
+      <div class="downloads">
+        <a class="dl" href="dist/wellet.css">wellet.css <em>CSS custom properties</em></a>
+        <a class="dl" href="dist/_wellet.scss">_wellet.scss <em>SCSS variables</em></a>
+        <a class="dl" href="dist/wellet.js">wellet.js <em>ES module</em></a>
+        <a class="dl" href="dist/wellet.json">wellet.json <em>Flat JSON</em></a>
+      </div>
+      <div class="callout">
+        <strong>Figma sync.</strong> Drop <code>tokens.json</code> into the Tokens Studio plugin (Tools → Import → File). Push to Figma Variables to bind the system to actual styles. Full instructions ship inside the tokens bundle README.
+      </div>
+    </section>
+
+    <footer class="foot">
+      <p>Wellet brand &amp; UX reference — v2 · June 19, 2026</p>
+      <p class="muted">Witness, don't monitor.</p>
+    </footer>
+
+  </main>
+
+  <script src="app.js" defer></script>
+<script data-pplx-inline-edit>
+(function () {
+  if (window === window.top) return;
+
+  const allowedParentOrigins = ["https://www.perplexity.ai","https://perplexity.ai","https://testing.perplexity.ai","https://staging.perplexity.ai","https://*.preview.i.perplexity.ai","http://localhost:3000","http://127.0.0.1:3000","http://localhost:5173","http://127.0.0.1:5173"];
+  const MAX_FONT_BYTES = 500 * 1024;
+  const MAX_TOTAL_FONT_BYTES = 2 * 1024 * 1024;
+  let scrollForwarding = false;
+  let scrollRaf = 0;
+  let trustedTopOrigin = null;
+
+  // Allow entries like "https://*.preview.i.perplexity.ai" — the wildcard
+  // matches a single DNS label (no dots), so "https://*.foo" cannot stretch
+  // across multiple labels.
+  function matchesAllowedOrigin(origin) {
+    if (!origin) return false;
+    for (const entry of allowedParentOrigins) {
+      if (!entry.includes("*")) {
+        if (entry === origin) return true;
+        continue;
+      }
+      const pattern = new RegExp(
+        "^" +
+          entry.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^.]+") +
+          "$",
+      );
+      if (pattern.test(origin)) return true;
+    }
+    return false;
+  }
+
+  // Trust decision: when the sender is same-origin-visible (event.origin is a
+  // real origin like https://www.perplexity.ai) we trust event.origin directly.
+  // When event.origin is "null" (opaque broker srcdoc), we fall back to the
+  // broker's stamped `parentOrigin` to identify the top window. The fallback
+  // is claim-only — we rely on the browser's native `targetOrigin` enforcement
+  // on the response path (see postToTrustedTop) to ensure replies can't be
+  // delivered to anyone but the actual top window of that claimed origin.
+  function getTrustedParentOrigin(event) {
+    const forwardedParentOrigin =
+      typeof event.data.parentOrigin === "string" ? event.data.parentOrigin : null;
+    const parentOrigin = event.origin === "null" ? forwardedParentOrigin : event.origin;
+    return matchesAllowedOrigin(parentOrigin) ? parentOrigin : null;
+  }
+
+  // All responses go to window.top with targetOrigin = the allowlisted origin.
+  // An attacker that iframes us inside their own null-origin broker can claim
+  // any parentOrigin they like, but the browser will drop the reply whenever
+  // the real top's origin doesn't match — so the screenshot never leaves.
+  function postToTrustedTop(message) {
+    if (!trustedTopOrigin) return;
+    try {
+      window.top.postMessage(message, trustedTopOrigin);
+    } catch (_error) {}
+  }
+
+  function inlineAll(original, clone) {
+    if (original.nodeType !== 1 || clone.nodeType !== 1) return;
+
+    try {
+      const computedStyle = getComputedStyle(original);
+      // cssText on a computed style is the serialized declaration in modern
+      // Chromium/Safari — a single read beats enumerating ~400 longhand
+      // properties. Firefox returns "" here, so we fall back on empty.
+      const serialized = computedStyle.cssText;
+      if (serialized) {
+        clone.style.cssText = serialized;
+      } else {
+        const parts = new Array(computedStyle.length);
+        for (let index = 0; index < computedStyle.length; index += 1) {
+          const property = computedStyle[index];
+          parts[index] = `${property}:${computedStyle.getPropertyValue(property)};`;
+        }
+        clone.style.cssText = parts.join("");
+      }
+    } catch (_error) {}
+
+    const originalChildren = original.children;
+    const clonedChildren = clone.children;
+    for (
+      let index = 0;
+      index < originalChildren.length && index < clonedChildren.length;
+      index += 1
+    ) {
+      inlineAll(originalChildren[index], clonedChildren[index]);
+    }
+  }
+
+  function extractFontUrl(srcValue) {
+    const matches = [
+      ...srcValue.matchAll(
+        /url\(["']?([^"')]+)["']?\)(?:\s*format\(["']?([^"')]+)["']?\))?/gi,
+      ),
+    ];
+    if (matches.length === 0) return null;
+    const woff2 = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff2"));
+    if (woff2) return woff2[1];
+    const woff = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff"));
+    if (woff) return woff[1];
+    return matches[0][1];
+  }
+
+  // Cache resolved font URL -> data URI across captures. Fonts on a page
+  // essentially never change, and a batch run emits multiple captures back to
+  // back — without this we'd refetch + re-base64 every time.
+  const fontDataUriCache = new Map();
+  const SRC_DECLARATION_RE = /src\s*:\s*[^;}]+/i;
+
+  async function fetchAsDataUri(url) {
+    if (fontDataUriCache.has(url)) return fontDataUriCache.get(url);
+    let dataUri = null;
+    try {
+      const response = await fetch(url, { mode: "cors", credentials: "omit" });
+      if (response.ok) {
+        const blob = await response.blob();
+        if (blob.size <= MAX_FONT_BYTES) {
+          dataUri = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () =>
+              resolve(typeof reader.result === "string" ? reader.result : null);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        }
+      }
+    } catch (_error) {
+      dataUri = null;
+    }
+    fontDataUriCache.set(url, dataUri);
+    return dataUri;
+  }
+
+  function collectFontFaceRuleTexts() {
+    const rules = [];
+    for (const sheet of document.styleSheets) {
+      let cssRules;
+      try {
+        cssRules = sheet.cssRules;
+      } catch (_error) {
+        continue;
+      }
+      if (!cssRules) continue;
+      for (const rule of cssRules) {
+        const cssText = rule.cssText || "";
+        if (cssText.startsWith("@font-face")) rules.push(cssText);
+      }
+    }
+    return rules;
+  }
+
+  async function buildInlinedFontCss() {
+    const ruleTexts = collectFontFaceRuleTexts();
+    if (ruleTexts.length === 0) return null;
+
+    const resolved = ruleTexts.map((cssText) => {
+      if (!SRC_DECLARATION_RE.test(cssText)) return null;
+      const srcMatch = cssText.match(/src\s*:\s*([^;}]+)[;}]/i);
+      if (!srcMatch) return null;
+      const url = extractFontUrl(srcMatch[1]);
+      if (!url) return null;
+      try {
+        return { cssText, url: new URL(url, document.baseURI).href };
+      } catch (_error) {
+        return null;
+      }
+    });
+
+    const dataUris = await Promise.all(
+      resolved.map((entry) => (entry ? fetchAsDataUri(entry.url) : Promise.resolve(null))),
+    );
+
+    const inlined = [];
+    let totalBytes = 0;
+    for (let index = 0; index < resolved.length; index += 1) {
+      const entry = resolved[index];
+      const dataUri = dataUris[index];
+      if (!entry || !dataUri) continue;
+      const approxBytes = dataUri.length * 0.75;
+      if (totalBytes + approxBytes > MAX_TOTAL_FONT_BYTES) break;
+      totalBytes += approxBytes;
+      inlined.push(entry.cssText.replace(SRC_DECLARATION_RE, `src: url("${dataUri}")`));
+    }
+    return inlined.length > 0 ? inlined.join("\n") : null;
+  }
+
+  function stripExternal(clone) {
+    const images = clone.querySelectorAll("img");
+    for (let index = 0; index < images.length; index += 1) {
+      const src = images[index].getAttribute("src");
+      if (src && !src.startsWith("data:")) images[index].removeAttribute("src");
+    }
+
+    const elements = clone.querySelectorAll("*");
+    for (let index = 0; index < elements.length; index += 1) {
+      const style = elements[index].style.cssText;
+      if (style && style.includes("url(")) {
+        elements[index].style.cssText = style.replace(
+          /url\(["']?(?!data:)[^)"']*["']?\)/gi,
+          "none",
+        );
+      }
+    }
+  }
+
+  function emitScroll() {
+    scrollRaf = 0;
+    if (!scrollForwarding) return;
+    postToTrustedTop({
+      type: "INLINE_EDIT_SCROLL",
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+    });
+  }
+
+  window.addEventListener(
+    "scroll",
+    function () {
+      if (!scrollForwarding || scrollRaf) return;
+      scrollRaf = requestAnimationFrame(emitScroll);
+    },
+    { passive: true, capture: true },
+  );
+
+  async function handleCaptureRequest(event) {
+    const requestId = event.data.requestId;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    function postResult(dataUrl) {
+      postToTrustedTop({
+        type: "INLINE_EDIT_SCREENSHOT_RESULT",
+        requestId,
+        dataUrl,
+        scrollX,
+        scrollY,
+      });
+    }
+
+    try {
+      // Wait for any pending web fonts to resolve so both inline metrics and
+      // the @font-face inlining below see the same loaded faces.
+      if (document.fonts && document.fonts.ready) {
+        try {
+          await document.fonts.ready;
+        } catch (_error) {}
+      }
+
+      const clone = document.documentElement.cloneNode(true);
+      inlineAll(document.documentElement, clone);
+
+      const removedNodes = clone.querySelectorAll("script,link[rel=\"stylesheet\"],style");
+      for (let index = 0; index < removedNodes.length; index += 1) {
+        removedNodes[index].remove();
+      }
+
+      stripExternal(clone);
+
+      // Re-embed web fonts as data-URI @font-face rules so the SVG rasterizer
+      // can resolve them — external font URLs aren't fetched during
+      // foreignObject rendering, which would otherwise force a fallback face
+      // and change text metrics.
+      const inlinedFontCss = await buildInlinedFontCss();
+      if (inlinedFontCss) {
+        const styleEl = document.createElement("style");
+        styleEl.textContent = inlinedFontCss;
+        const head = clone.querySelector("head");
+        if (head) head.appendChild(styleEl);
+        else clone.insertBefore(styleEl, clone.firstChild);
+      }
+
+      const html = new XMLSerializer().serializeToString(clone);
+      const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+        '<foreignObject width="100%" height="100%">' +
+        `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;overflow:hidden">` +
+        `<div style="position:relative;left:-${scrollX}px;top:-${scrollY}px">` +
+        html +
+        "</div></div></foreignObject></svg>";
+      const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      const image = new Image();
+      image.onload = function () {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(image, 0, 0);
+        postResult(canvas.toDataURL("image/png"));
+      };
+      image.onerror = function () {
+        postResult(null);
+      };
+      image.src = svgUrl;
+    } catch (_error) {
+      postResult(null);
+    }
+  }
+
+  window.addEventListener("message", function (event) {
+    if (!event.data) return;
+    // Only accept messages from the direct parent frame. Blocks sibling /
+    // unrelated-window postMessage senders that could otherwise reach us.
+    if (event.source !== window.parent) return;
+
+    const trustedParentOrigin = getTrustedParentOrigin(event);
+    if (!trustedParentOrigin) return;
+    trustedTopOrigin = trustedParentOrigin;
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_START") {
+      scrollForwarding = true;
+      emitScroll();
+      return;
+    }
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_STOP") {
+      scrollForwarding = false;
+      if (scrollRaf) cancelAnimationFrame(scrollRaf);
+      scrollRaf = 0;
+      return;
+    }
+
+    if (event.data.type !== "INLINE_EDIT_CAPTURE_REQUEST") return;
+
+    handleCaptureRequest(event);
+  });
+})();
+
+
+</script></body>
+</html>

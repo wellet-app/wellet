@@ -1548,7 +1548,7 @@
   @media (max-width:768px) { #explainer-stage { max-width:95vw; } }
 
   /* ── EHR INTEGRATION ── */
-  .ehr-badge { display:inline-flex; align-items:center; gap:3px; font-size:var(--type-micro); font-weight:600; letter-spacing:0.04em; color:white; background:#2d6a4f; border-radius:6px; padding:2px 7px; line-height:1.4; vertical-align:middle; white-space:nowrap; }
+  .ehr-badge { display:inline-flex; align-items:center; gap:3px; font-size:var(--type-micro); font-weight:600; letter-spacing:0.04em; color:white; background:#11443B; border-radius:6px; padding:2px 7px; line-height:1.4; vertical-align:middle; white-space:nowrap; }
   .ehr-badge i { width:10px; height:10px; }
   .ehr-provider-badge { display:inline-flex; align-items:center; gap:3px; font-size:var(--type-micro); font-weight:500; color:var(--moss-dark); background:var(--mint); border-radius:6px; padding:2px 7px; line-height:1.4; white-space:nowrap; }
   .ehr-connect-card { background:white; border:1.5px dashed var(--moss); border-radius:14px; padding:16px; text-align:center; cursor:pointer; transition:background 0.15s, border-color 0.15s; }
