@@ -52,7 +52,7 @@
   font-family: 'Public Sans', system-ui, sans-serif !important;
   font-size: var(--type-meta) !important;
   font-weight: 300 !important;
-  color: var(--ink-6, #57534C) !important;
+  color: var(--ink-6, #4A463F) !important;
   margin: 0 0 18px !important;
 }
 
@@ -105,7 +105,7 @@
   font-family: 'Public Sans', system-ui, sans-serif !important;
   font-size: var(--type-meta) !important;
   font-weight: 300 !important;
-  color: var(--ink-6, #57534C) !important;
+  color: var(--ink-6, #4A463F) !important;
   margin: 0 0 8px !important;
 }
 #view-signals .med-times {
@@ -384,7 +384,7 @@
   font-family: 'Public Sans', system-ui, sans-serif !important;
   font-size: var(--type-meta) !important;
   font-weight: 300 !important;
-  color: var(--ink-6, #57534C) !important;
+  color: var(--ink-6, #4A463F) !important;
 }
 #view-signals .sensor-status {
   width: 6px;
@@ -622,7 +622,7 @@
   font-family: 'Public Sans', system-ui, sans-serif !important;
   font-size: var(--type-body) !important;
   line-height: 1.55 !important;
-  color: var(--ink-6, #57534C) !important;
+  color: var(--ink-6, #4A463F) !important;
   font-weight: 300 !important;
   margin: 0 0 14px !important;
 }
@@ -874,7 +874,7 @@
   border-color: #C8DDD0 !important;
 }
 #view-signals .cs-attention__statusbadge--dismissed {
-  color: var(--ink-6, #57534C) !important;
+  color: var(--ink-6, #4A463F) !important;
   background: var(--ink-1, #F2EFE9) !important;
   border-color: var(--ink-2, #C9C2B5) !important;
 }

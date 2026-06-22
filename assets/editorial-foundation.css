@@ -30,28 +30,33 @@
    --------------------------------------------------------------------------- */
 :root {
   /* Eight-gray ladder — no black, no flat #000.
-     Used for editorial body copy, dividers, and quiet metadata.
-     Range goes from --ink-0 (lightest, near-cream) to --ink-9 (deepest ink). */
-  --ink-0: #ECE7DC;
-  --ink-1: #E2DDD3;
-  --ink-2: #C8C0B5;
-  --ink-3: #A8A097;
-  --ink-4: #8A8278;
-  --ink-5: #6E665C;
-  --ink-7: #3C362F;
-  --ink-9: #1F1B16;
+     v2.01: cool-neutral Stone family (NOT warm-tan). Aligned to Stone #E8E6E0
+     so ink ladder visually descends from Stone canvas, not from a warm cream.
+     Range goes from --ink-0 (lightest) to --ink-9 (deepest ink, neutral). */
+  --ink-0: #EEEDE8;
+  --ink-1: #DAD6CB;
+  --ink-2: #BFB9AC;
+  --ink-3: #9F9A8E;
+  --ink-4: #7E796F;
+  --ink-5: #5F5A52;
+  --ink-6: #4A463F;
+  --ink-7: #2D2A24;
+  --ink-9: #161312;
 
-  /* Quiet status tones — no red, ever.
-     Used for editorial signals. The signal palette deliberately stays
-     warm/neutral so the app never feels alarming. */
-  --signal-warm:    #B8835A;  /* the only "urgent" tone, used sparingly */
-  --signal-stale:   #B5A582;  /* unanswered / aging */
-  --signal-fresh:   #8AA89A;  /* recent / healthy */
-  --signal-missing: #C8C0B5;  /* absent data */
+  /* Quiet status tones — no terra, no orange, no italic color accent.
+     v2.01: routes urgent through Walnut (canonical soft-alert from timeline
+     tiles), fresh through Mint, missing through ink-2. Stale is a cool
+     desaturated stone, not amber. */
+  --signal-warm:    #B8392B;  /* Walnut — the only "urgent" tone, used sparingly */
+  --signal-stale:   #8A847A;  /* unanswered / aging — cool, not amber */
+  --signal-fresh:   #9ECF90;  /* Mint — recent / healthy */
+  --signal-missing: #BFB9AC;  /* absent data, harmonizes with --ink-2 */
 
-  /* Editorial moss palette — supplements the existing --moss. */
-  --moss-deep: #3F5F52;       /* deeper editorial accent */
-  --moss-quiet: #8AA89A;      /* quieter moss for serif marks */
+  /* Editorial moss palette — supplements the existing --moss.
+     v2.01: --moss-deep is now canonical Forest #11443B (was sage-leaning
+     #3F5F52). --moss-quiet sits between Mist and Forest. */
+  --moss-deep: #11443B;       /* canonical Forest */
+  --moss-quiet: #6B8A7E;      /* quieter moss for serif marks */
 
   /* Editorial frame & gutter — sits alongside the existing 768px page-wrap.
      These power the editorial reading column when surfaces opt in. */
@@ -186,7 +191,7 @@ em.fr {
   line-height: 1.5;
   padding: 10px 14px 12px;
   border-radius: 8px;
-  box-shadow: 0 6px 20px rgba(63, 95, 82, 0.22);
+  box-shadow: 0 6px 20px rgba(17, 68, 59, 0.22);
   z-index: 65;
   opacity: 0;
   transform: translateY(-6px);
@@ -213,11 +218,11 @@ em.fr {
   font-size: var(--type-micro);
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: rgba(247, 245, 240, 0.8);
+  color: rgba(232, 230, 224, 0.8);
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 3px;
-  text-decoration-color: rgba(247, 245, 240, 0.4);
+  text-decoration-color: rgba(232, 230, 224, 0.4);
 }
 @media (min-width: 768px) {
   .lp-hint { top: 78px; }
@@ -229,7 +234,7 @@ em.fr {
    --------------------------------------------------------------------------- */
 .shell-scrim {
   position: fixed; inset: 0;
-  background: rgba(31, 27, 22, 0.18);
+  background: rgba(25, 50, 65, 0.18);
   opacity: 0; pointer-events: none;
   transition: opacity 0.22s ease;
   z-index: 60;
@@ -356,7 +361,7 @@ em.fr {
 .er-sheet .er-bar {
   position: sticky; top: 0;
   background: #FFFFFF;
-  border-bottom: 1px solid #E5E2DC;
+  border-bottom: 1px solid var(--ink-1);
   padding: 14px 22px;
   display: flex;
   align-items: center;
@@ -396,24 +401,24 @@ em.fr {
   line-height: 1.15;
   letter-spacing: -0.01em;
   margin: 8px 0 2px;
-  color: #0F0D0A;
+  color: var(--ink-9);
 }
 .er-sheet p.er-sub {
   font-family: var(--sans);
   font-size: var(--type-body);
-  color: #5C5650;
+  color: var(--ink-5);
   margin: 0 0 6px;
   line-height: 1.5;
 }
 .er-sheet p.er-stamp {
   font-family: var(--sans);
   font-size: var(--type-meta);
-  color: #8A847C;
+  color: var(--ink-4);
   margin: 0 0 24px;
   letter-spacing: 0.02em;
 }
 .er-sheet section.er-block {
-  border-top: 1px solid #E5E2DC;
+  border-top: 1px solid var(--ink-1);
   padding: 18px 0 6px;
 }
 .er-sheet section.er-block .er-label {
@@ -421,7 +426,7 @@ em.fr {
   font-size: var(--type-micro);
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #5C5650;
+  color: var(--ink-5);
   font-weight: 500;
   margin: 0 0 10px;
 }
@@ -438,16 +443,16 @@ em.fr {
   padding: 9px 0;
   font-family: var(--sans);
   font-size: var(--type-body);
-  color: #0F0D0A;
+  color: var(--ink-9);
   line-height: 1.4;
-  border-bottom: 1px solid #F0EDE7;
+  border-bottom: 1px solid var(--ink-1);
 }
 .er-sheet section.er-block li:last-child { border-bottom: 0; }
 .er-sheet section.er-block li .er-key {
   font-family: var(--serif);
   font-weight: 400;
   font-size: var(--type-h2);
-  color: #0F0D0A;
+  color: var(--ink-9);
   letter-spacing: -0.002em;
 }
 .er-sheet section.er-block li .er-val {
@@ -473,7 +478,7 @@ em.fr {
   font-weight: 500;
   letter-spacing: 0.01em;
   cursor: pointer;
-  box-shadow: 0 8px 28px rgba(15, 13, 10, 0.18);
+  box-shadow: 0 8px 28px rgba(22, 19, 18, 0.18);
   z-index: 2;
   text-align: center;
   display: flex; align-items: center; justify-content: center;
@@ -499,7 +504,7 @@ em.fr {
 .er-sheet.doctor .er-hand {
   background: var(--cream);
   color: var(--ink-9);
-  border: 1px solid #E5E2DC;
+  border: 1px solid var(--ink-1);
   box-shadow: none;
 }
 .er-sheet.doctor .er-doctor-strip {
@@ -523,7 +528,7 @@ em.fr {
   bottom: 0;
   left: 0;
   right: 0;
-  background: rgba(247, 245, 240, 0.96);
+  background: rgba(232, 230, 224, 0.96);
   backdrop-filter: saturate(180%) blur(14px);
   -webkit-backdrop-filter: saturate(180%) blur(14px);
   border-top: 1px solid var(--ink-1);
