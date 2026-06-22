@@ -36,14 +36,17 @@
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/wellet-v2-tokens.css">
 <style>
+  /* Brand v2.01 locals — canonical hexes live in /assets/wellet-v2-tokens.css */
   :root {
-    --moss: #11443B;
-    --moss-dark: #3D6B58;
-    --mint: #E8F0EB;
-    --cream: #FAF9F7;
-    --text-primary: #1a1a1a;
-    --text-secondary: #555;
-    --text-muted: #888;
+    --moss: #11443B;          /* Forest — primary */
+    --moss-dark: #0d3530;     /* darker Forest hover */
+    --mint: #9ECF90;          /* canon Mint accent */
+    --mint-soft: #DCE9E2;     /* tinted Mint, low-contrast block */
+    --cream: #E8E6E0;         /* Stone — surface */
+    --hairline: #d4cfc3;      /* Stone hairline */
+    --text-primary: #11443B;  /* body on Stone is Forest */
+    --text-secondary: #2a3a35;/* ink-soft */
+    --text-muted: #5b6a64;    /* desaturated Forest */
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -55,7 +58,7 @@
   }
   .page-header {
     background: white;
-    border-bottom: 1px solid #e8e5e0;
+    border-bottom: 1px solid var(--hairline);
     padding: 16px 24px;
     position: sticky;
     top: 0;
@@ -81,9 +84,11 @@
     padding: 48px 24px 80px;
   }
   h1 {
-    font-family: 'DM Serif Display', serif;
-    font-size: 32px;
+    font-family: 'Gambetta', 'Charter', Georgia, serif;
+    font-size: 36px;
     font-weight: 400;
+    line-height: 1.15;
+    letter-spacing: -0.015em;
     margin-bottom: 12px;
     color: var(--text-primary);
   }
@@ -119,20 +124,23 @@
     width: 56px;
     height: 56px;
     background: var(--moss);
-    color: white;
+    color: #E8E6E0;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Gambetta', 'Charter', Georgia, serif;
+    font-weight: 500;
     font-size: 22px;
     flex-shrink: 0;
   }
   .step-content { padding-top: 4px; }
   .step-content h2 {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Gambetta', 'Charter', Georgia, serif;
     font-size: 22px;
-    font-weight: 400;
+    font-weight: 500;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
     margin-bottom: 8px;
   }
   .step-content p {
@@ -142,7 +150,7 @@
   }
   .step-detail {
     background: white;
-    border: 1px solid #e8e5e0;
+    border: 1px solid var(--hairline);
     border-radius: 12px;
     padding: 16px 20px;
     margin-top: 12px;
@@ -167,16 +175,18 @@
   }
   .cta-section {
     background: white;
-    border: 1px solid #e8e5e0;
+    border: 1px solid var(--hairline);
     border-radius: 16px;
     padding: 32px;
     text-align: center;
     margin-top: 48px;
   }
   .cta-section h2 {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Gambetta', 'Charter', Georgia, serif;
     font-size: 22px;
-    font-weight: 400;
+    font-weight: 500;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
     margin-bottom: 8px;
   }
   .cta-section p {
@@ -187,9 +197,9 @@
   .cta-btn {
     display: inline-block;
     background: var(--moss);
-    color: white;
+    color: #E8E6E0;
     padding: 12px 32px;
-    border-radius: 8px;
+    border-radius: 999px;
     text-decoration: none;
     font-weight: 500;
     font-size: 15px;
