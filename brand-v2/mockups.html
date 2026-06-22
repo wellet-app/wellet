@@ -1,0 +1,2087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wellet · v2 UX mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://api.fontshare.com">
+<link href="https://api.fontshare.com/v2/css?f[]=gambetta@300,400,500,400i&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+/* ============================================================
+   v2 mockup tokens
+   ============================================================ */
+:root {
+  --c-cream:        #e7e7df;
+  --c-cream-warm:   #dcdace;
+  --c-dad-bg:       #efece2;   /* warm cream tint when Dad is selected */
+  --c-mom-bg:       #e6ede7;   /* cool sage cream tint when Mom is selected */
+  --c-forest:       #11443b;
+  --c-forest-deep:  #0d3a32;
+  --c-forest-2:     #114445;
+  --c-forest-leaf:  #2d4b40;
+  --c-forest-pine:  #1b4d45;
+  --c-midnight:     #183241;
+  --c-midnight-2:   #1f3d4e;
+  --c-mint:         #9ece90;
+  --c-mint-soft:    #d6e5cf;
+  --c-mint-deep:    #7eb572;
+  --c-mist:         #b7c9cd;
+  --c-mist-soft:    #d6dfe1;
+  --c-stone:        #dcdace;
+  --c-olive:        #424833;
+  --c-clay:         #a87251;
+  --c-clay-soft:    #e3d2c2;
+  --c-walnut:       #552d27;
+  --c-blue-soft:    #81a3ee;
+  --c-blue-deep:    #c2cce0;
+  --c-alert:        #ec5747;
+
+  --c-ink:          #1c2826;
+  --c-ink-2:        #3a4a45;
+  --c-ink-3:        #6b7773;
+
+  --r-pill: 999px;
+  --r-lg:   32px;
+  --r-md:   16px;
+  --r-sm:   10px;
+  --r-xs:   6px;
+
+  --e-card:   0 1px 2px rgba(17,69,59,0.06), 0 4px 12px rgba(17,69,59,0.04);
+  --e-raised: 0 4px 16px rgba(17,69,59,0.08), 0 12px 36px rgba(17,69,59,0.06);
+}
+
+/* ============================================================
+   mockups page chrome
+   ============================================================ */
+.mockups-shell {
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: 56px 32px 96px;
+  font-family: "Public Sans", system-ui, sans-serif;
+  color: var(--c-ink);
+}
+.mockups-shell h1.page-title {
+  font-family: "Gambetta", Georgia, serif;
+  font-weight: 500;
+  font-size: 52px;
+  line-height: 1.08;
+  letter-spacing: -1.5px;
+  color: var(--c-forest);
+  margin: 0 0 12px;
+}
+.mockups-shell .page-lede {
+  font-size: 19px;
+  line-height: 1.55;
+  color: var(--c-ink-2);
+  max-width: 60ch;
+  margin: 0 0 28px;
+}
+.mockups-shell .back-link {
+  display: inline-block;
+  font-size: 14px;
+  color: var(--c-forest);
+  text-decoration: none;
+  margin-bottom: 28px;
+  border-bottom: 1px solid currentColor;
+}
+.mockups-shell .legend {
+  display: flex; gap: 28px; flex-wrap: wrap;
+  padding: 16px 20px;
+  background: #fff;
+  border: 1px solid #e2e0d6;
+  border-radius: var(--r-md);
+  margin: 0 0 56px;
+  font-size: 13px;
+  color: var(--c-ink-2);
+}
+.mockups-shell .legend strong { color: var(--c-forest); font-weight: 600; }
+
+.screen-block {
+  margin: 0 0 96px;
+  padding-top: 24px;
+  border-top: 1px solid #d8d5c8;
+}
+.screen-block h2 {
+  font-family: "Gambetta", Georgia, serif;
+  font-weight: 500;
+  font-size: 34px;
+  line-height: 1.15;
+  letter-spacing: -0.5px;
+  color: var(--c-forest);
+  margin: 0 0 6px;
+}
+.screen-block .screen-sub {
+  font-size: 15px; color: var(--c-ink-3); margin: 0 0 24px;
+}
+.screen-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  align-items: start;
+}
+.screen-col h3 {
+  font-family: "Public Sans", sans-serif;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--c-ink-3);
+  margin: 0 0 12px;
+}
+.screen-col.today h3::before { content: "Today · "; color: var(--c-ink-3); }
+.screen-col.v2 h3::before    { content: "v2 proposal · "; color: var(--c-forest); }
+.screen-col img.live-shot {
+  display: block;
+  width: 100%;
+  max-width: 380px;
+  margin: 0 auto;
+  border-radius: 28px;
+  box-shadow: var(--e-raised);
+  border: 1px solid #e0ddd0;
+}
+.changes {
+  margin-top: 18px;
+  padding: 16px 18px;
+  background: #fff;
+  border-left: 3px solid var(--c-mint);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--c-ink-2);
+}
+.changes strong { color: var(--c-forest); font-weight: 600; }
+.changes ul { margin: 6px 0 0; padding-left: 18px; }
+.changes li { margin: 4px 0; }
+.changes li::marker { color: var(--c-mint); }
+
+@media (max-width: 960px) {
+  .screen-pair { grid-template-columns: 1fr; gap: 32px; }
+}
+
+/* ============================================================
+   PHONE FRAME (v2 mock)
+   ============================================================ */
+.phone-frame {
+  width: 380px;
+  max-width: 100%;
+  margin: 0 auto;
+  background: var(--c-cream);
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow: var(--e-raised);
+  border: 1px solid #e0ddd0;
+  font-family: "Public Sans", system-ui, sans-serif;
+  color: var(--c-ink);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 822px; /* ~414×896 / 414 * 380 ≈ 822 */
+}
+.phone-frame.dad   { --surface: var(--c-dad-bg); }
+.phone-frame.mom   { --surface: var(--c-mom-bg); }
+.phone-frame.plain { --surface: var(--c-cream); }
+
+.pf-topbar {
+  background: #fff;
+  padding: 14px 18px 0;
+  border-bottom: 1px solid #ece9dd;
+  flex: 0 0 auto;
+}
+.pf-topbar-row1 {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.pf-wordmark {
+  display: inline-block;
+  height: 22px;
+  width: auto;
+  vertical-align: middle;
+}
+.pf-top-icons { display: flex; gap: 12px; align-items: center; color: var(--c-ink); }
+.pf-bell { position: relative; }
+.pf-bell .dot {
+  position: absolute; top: -4px; right: -6px;
+  background: var(--c-alert); color: #fff;
+  font-size: 10px; font-weight: 600;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.pf-people-switch {
+  display: flex; gap: 18px;
+  padding: 12px 0 0;
+  font-family: "Gambetta", Georgia, serif;
+  font-size: 22px;
+  font-weight: 500;
+}
+.pf-people-switch span {
+  color: var(--c-ink-3);
+  padding-bottom: 6px;
+  cursor: default;
+}
+.pf-people-switch span.active {
+  color: var(--c-ink);
+  border-bottom: 2px solid var(--c-forest);
+}
+.pf-tabs {
+  background: #fff;
+  display: grid; grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid #ece9dd;
+  flex: 0 0 auto;
+}
+.pf-tabs span {
+  text-align: center;
+  padding: 12px 0;
+  font-size: 14px;
+  color: var(--c-ink-3);
+  font-weight: 500;
+}
+.pf-tabs span.active {
+  color: var(--c-forest);
+  border-bottom: 2px solid var(--c-forest);
+}
+
+.pf-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  background: var(--surface);
+  padding: 16px;
+}
+.pf-body::-webkit-scrollbar { width: 0; }
+
+.pf-bottom-nav {
+  background: #fff;
+  border-top: 1px solid #ece9dd;
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  padding: 8px 0 10px;
+  flex: 0 0 auto;
+}
+.pf-bottom-nav > div {
+  text-align: center;
+  font-size: 11px;
+  color: var(--c-ink-3);
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+}
+.pf-bottom-nav .icon {
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+}
+.pf-bottom-nav .active { color: var(--c-forest); }
+
+/* shared card primitives */
+.v2-card {
+  background: #fff;
+  border-radius: var(--r-md);
+  padding: 16px;
+  box-shadow: var(--e-card);
+  margin-bottom: 14px;
+}
+.v2-card.mint     { background: #f1f7ec; border: 1px solid #dde9d4; box-shadow: none; }
+.v2-card.midnight { background: var(--c-midnight); color: #e3e8ec; border: none; }
+.v2-card.midnight .eyebrow { color: var(--c-mint); }
+.v2-card.midnight h3, .v2-card.midnight .h-title { color: #fff; }
+.v2-card.glass {
+  background: rgba(255,255,255,0.55);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(255,255,255,0.6);
+  box-shadow: 0 4px 24px rgba(17,68,59,0.10);
+}
+
+.eyebrow {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.4px;
+  color: var(--c-forest);
+  margin: 0 0 8px;
+}
+.eyebrow.muted { color: var(--c-ink-3); }
+.eyebrow .pill {
+  display: inline-block;
+  background: var(--c-mint);
+  color: var(--c-forest-deep);
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  margin-left: 6px;
+  letter-spacing: 0.6px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.eyebrow .pill.alert {
+  background: #fde2dd; color: #b8392b;
+}
+
+.h-title {
+  font-family: "Gambetta", Georgia, serif;
+  font-weight: 500;
+  font-size: 21px;
+  line-height: 1.2;
+  letter-spacing: -0.3px;
+  color: var(--c-ink);
+  margin: 0 0 8px;
+}
+.h-title i, .h-title em { font-style: italic; font-weight: 400; color: var(--c-forest); }
+
+.h-sub-italic {
+  font-family: "Gambetta", Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--c-ink-2);
+  margin: 0 0 14px;
+}
+
+.btn-primary {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%;
+  background: var(--c-forest);
+  color: #fff;
+  font-weight: 500;
+  font-size: 15px;
+  padding: 13px;
+  border-radius: var(--r-md);
+  border: none;
+}
+.btn-secondary {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--c-mint-soft);
+  color: var(--c-forest);
+  font-weight: 500;
+  font-size: 14px;
+  padding: 8px 14px;
+  border-radius: var(--r-pill);
+  border: none;
+}
+.btn-primary.outline {
+  background: transparent;
+  color: var(--c-forest);
+  border: 1.5px solid var(--c-forest);
+  font-weight: 500;
+  padding: 11.5px;
+}
+.btn-primary.outline svg { stroke: var(--c-forest); }
+
+.stat-row {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  margin: 12px 0 14px;
+}
+.stat-cell {
+  background: #fdfcf6;
+  border: 1px solid #ece9dd;
+  border-radius: var(--r-sm);
+  padding: 10px 8px;
+  text-align: left;
+}
+.stat-cell .n {
+  font-family: "Gambetta", Georgia, serif;
+  font-weight: 500;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--c-forest);
+  display: block;
+}
+.stat-cell .l {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--c-ink-2);
+  line-height: 1.25;
+  font-weight: 500;
+}
+
+.attn-row {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 10.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 1.2px;
+  color: #b8392b;
+}
+.attn-row .dot {
+  width: 6px; height: 6px;
+  background: var(--c-alert);
+  border-radius: 50%;
+}
+.calm-row { color: var(--c-forest); }
+.calm-row .dot { background: var(--c-mint); }
+
+.body-copy {
+  font-size: 14.5px; line-height: 1.55; color: var(--c-ink); margin: 0;
+}
+.body-copy b, .body-copy strong { font-weight: 600; color: var(--c-ink); }
+.body-copy.smaller { font-size: 13.5px; color: var(--c-ink-2); }
+
+.row-meta {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 12px; padding-top: 10px;
+  border-top: 1px solid #ece9dd;
+  font-size: 11px; color: var(--c-ink-3);
+}
+.row-meta .w { font-family: "Gambetta", Georgia, serif; font-weight: 500; color: var(--c-forest); }
+
+.chip-row {
+  display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0 14px;
+}
+.chip {
+  font-size: 12px; padding: 5px 12px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--c-forest);
+  color: var(--c-forest);
+  background: transparent;
+}
+.chip.active { background: var(--c-forest); color: #fff; }
+
+.timeline-rail { position: relative; padding-left: 22px; }
+.timeline-rail::before {
+  content: ""; position: absolute;
+  left: 6px; top: 14px; bottom: 14px; width: 1px;
+  background: #cdc8b8;
+}
+.timeline-rail .rcard {
+  position: relative;
+  border-left: 0;
+  border-radius: var(--r-md);
+  margin-left: 4px;
+}
+.timeline-rail .rcard::before {
+  content: ""; position: absolute;
+  left: -22px; top: 16px;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--c-forest);
+  z-index: 1;
+}
+.tl-entry { position: relative; margin-bottom: 18px; }
+.tl-entry::before {
+  content: ""; position: absolute;
+  left: -19px; top: 8px;
+  width: 11px; height: 11px;
+  border-radius: 50%; background: #fff;
+  border: 2px solid var(--c-forest);
+}
+.tl-icon-tile {
+  width: 30px; height: 30px;
+  border-radius: var(--r-sm);
+  background: var(--c-mint-soft);
+  color: var(--c-forest);
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-bottom: 6px;
+}
+.tl-icon-tile.amber  { background: #f6e6cf; color: #8a5a1f; }
+.tl-icon-tile.sparkle { background: var(--c-mint-soft); color: var(--c-forest); }
+.tl-icon-tile.note   { background: #ece9dd; color: var(--c-ink-2); }
+
+.month-divider {
+  font-size: 10.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 1.4px;
+  color: var(--c-ink-3);
+  margin: 0 0 12px;
+}
+.audit-footer {
+  font-size: 10.5px; font-style: italic;
+  color: var(--c-forest); margin-top: 6px;
+  font-family: "Gambetta", Georgia, serif;
+  letter-spacing: 0.4px;
+}
+
+.list-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid #ece9dd;
+}
+.list-row:last-child { border-bottom: none; }
+.list-row .icon-tile {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: var(--c-mint-soft);
+  color: var(--c-forest);
+  display: flex; align-items: center; justify-content: center;
+  flex: 0 0 auto;
+}
+.list-row .lbl {
+  flex: 1 1 auto;
+  font-family: "Gambetta", Georgia, serif;
+  font-size: 18px;
+  color: var(--c-ink);
+}
+.list-row .cnt { font-size: 13px; color: var(--c-ink-3); }
+.list-row .chev { color: var(--c-ink-3); margin-left: 6px; }
+
+/* records-style hairline list inside a white card */
+.list-card {
+  background: #fff;
+  border-radius: var(--r-md);
+  padding: 4px 16px;
+  box-shadow: var(--e-card);
+}
+
+/* generic icon */
+.ico {
+  width: 18px; height: 18px;
+  fill: none; stroke: currentColor;
+  stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* med detail bits */
+.spec-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 10px 16px;
+  font-size: 14px;
+  padding: 4px 0;
+}
+.spec-grid dt { color: var(--c-ink-2); font-weight: 500; }
+.spec-grid dd { margin: 0; text-align: right; color: var(--c-ink); font-weight: 500; }
+
+/* connections cards */
+.conn-card {
+  background: #fff;
+  border: 1px solid #ece9dd;
+  border-radius: var(--r-md);
+  padding: 14px;
+  display: flex; gap: 14px; align-items: center;
+  margin-bottom: 10px;
+}
+.conn-card.rec    { background: #f1f7ec; border-color: var(--c-forest); }
+.conn-card.disabled { opacity: 0.55; }
+.conn-card .ic-tile {
+  width: 44px; height: 44px;
+  background: var(--c-mint-soft);
+  border-radius: var(--r-sm);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--c-forest);
+  flex: 0 0 auto;
+}
+.conn-card .text strong {
+  font-family: "Gambetta", Georgia, serif;
+  font-weight: 500; font-size: 17px; color: var(--c-ink);
+  display: block; margin-bottom: 2px;
+}
+.conn-card .text span { font-size: 13px; line-height: 1.45; color: var(--c-ink-2); }
+.conn-card .chev { margin-left: auto; color: var(--c-ink-3); }
+
+/* rcard — the Resources card pattern, generalized.
+   Forest 3px left border + Clay eyebrow + Mint answer pill.
+   Used by Resources, Records, Timeline entries, and People. */
+.rcard {
+  background: #fff;
+  border-left: 3px solid var(--c-forest);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+  box-shadow: var(--e-card);
+  position: relative;
+}
+.rcard.with-icon {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  column-gap: 12px;
+  align-items: start;
+}
+.rcard .rc-icon {
+  width: 34px; height: 34px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--c-mint-soft); color: var(--c-forest);
+  margin-top: 2px;
+}
+.rcard .rc-icon .ico { width: 18px; height: 18px; }
+.rcard .rc-eyebrow {
+  font-size: 10.5px; font-weight: 600;
+  letter-spacing: 1.4px; text-transform: uppercase;
+  color: var(--c-clay);
+  margin: 0 150px 4px 0;
+  line-height: 1.4;
+}
+.rcard .rc-eyebrow.self-reported {
+  color: var(--c-walnut);
+}
+.rcard .rc-eyebrow.self-reported::after {
+  content: " \2022  flag for next visit";
+  font-weight: 500; opacity: 0.75; letter-spacing: 0.6px;
+}
+.rcard .rc-pill {
+  position: absolute;
+  top: 12px; right: 12px;
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--c-mint);
+  color: var(--c-forest-deep);
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 4px 11px;
+  border-radius: var(--r-pill);
+  white-space: nowrap;
+  box-shadow: inset 0 0 0 1px rgba(13,58,50,0.10);
+}
+.rcard .rc-pill .pill-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--c-forest-deep);
+}
+.rcard .rc-title {
+  font-family: "Gambetta", Georgia, serif;
+  font-weight: 500; font-size: 17px;
+  line-height: 1.25; color: var(--c-ink);
+  margin: 2px 0 4px;
+  max-width: 78%;
+}
+.rcard .rc-title i { font-style: italic; }
+.rcard .rc-sub { font-size: 13px; line-height: 1.5; color: var(--c-ink-2); margin: 0 0 6px; }
+.rcard .rc-actions { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px; }
+.rcard .rc-actions a { font-size: 12.5px; color: var(--c-forest); text-decoration: none; border-bottom: 1px solid currentColor; padding-bottom: 1px; }
+.rcard .rc-footer { font-family: "Gambetta", Georgia, serif; font-style: italic; font-size: 12px; color: var(--c-forest-leaf); margin-top: 6px; }
+
+/* legacy res-card kept for Resources screen, but styled identical to rcard */
+.res-card {
+  background: #fff;
+  border-left: 3px solid var(--c-forest);
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+  box-shadow: var(--e-card);
+}
+.res-card .eyebrow { color: var(--c-clay); }
+.res-card .pill-amt {
+  display: inline-block;
+  background: var(--c-mint);
+  color: var(--c-forest-deep);
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.2px;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  float: right;
+}
+.res-card h4 {
+  font-family: "Gambetta", Georgia, serif;
+  font-weight: 500; font-size: 17px;
+  line-height: 1.25; color: var(--c-ink);
+  margin: 4px 0 4px;
+  max-width: 80%;
+}
+.res-card p { font-size: 13.5px; line-height: 1.5; color: var(--c-ink-2); margin: 0 0 10px; }
+.res-card a { font-size: 12.5px; color: var(--c-forest); text-decoration: none; border-bottom: 1px solid currentColor; margin-right: 14px; }
+
+/* people row */
+.person-row {
+  background: #fff;
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  box-shadow: var(--e-card);
+}
+.person-row .top { display: flex; align-items: center; justify-content: space-between; }
+.person-row .name {
+  font-family: "Gambetta", Georgia, serif;
+  font-weight: 500; font-size: 22px; color: var(--c-ink);
+}
+.person-row .sub { font-size: 13px; color: var(--c-ink-3); margin-top: 2px; }
+.person-row .actions {
+  display: flex; gap: 16px; margin-top: 10px;
+  font-size: 13.5px; color: var(--c-forest);
+}
+.person-row .actions a { color: var(--c-forest); text-decoration: none; border-bottom: 1px solid currentColor; }
+.person-row .status { font-size: 10.5px; font-weight: 600; color: var(--c-forest); letter-spacing: 1.2px; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
+.person-row .status .dot { width: 7px; height: 7px; background: var(--c-mint); border-radius: 50%; }
+
+/* ask wellet */
+.ask-greet {
+  font-family: "Gambetta", Georgia, serif;
+  font-size: 22px; line-height: 1.3;
+  color: var(--c-ink);
+  font-weight: 500;
+}
+.ask-greet i { font-style: italic; font-weight: 400; color: var(--c-forest); }
+.seed-list { list-style: none; padding: 0; margin: 14px 0 18px; }
+.seed-list li {
+  font-size: 14.5px; color: var(--c-ink);
+  padding: 8px 0;
+  border-bottom: 1px solid #ece9dd;
+  display: flex; align-items: center; gap: 8px;
+}
+.seed-list li::before { content: ""; width: 12px; height: 1px; background: var(--c-forest); display: inline-block; }
+.composer {
+  display: flex; gap: 10px; align-items: center;
+  background: #fff;
+  border: 1px solid #ece9dd;
+  border-radius: var(--r-pill);
+  padding: 6px 6px 6px 16px;
+}
+.composer .mic {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  background: var(--c-cream-warm);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--c-forest);
+  flex: 0 0 auto;
+}
+.composer input {
+  flex: 1; border: none; outline: none; background: transparent;
+  font-size: 14.5px; color: var(--c-ink-3);
+  font-family: "Public Sans", sans-serif;
+}
+.composer .send {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--c-forest);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* side menu popover */
+.side-menu-wrap { position: relative; }
+.side-menu-wrap .scrim {
+  position: absolute; inset: 0;
+  background: rgba(17,32,28,0.18);
+  pointer-events: none;
+}
+.side-menu {
+  position: absolute; top: 8px; right: 8px;
+  width: 235px;
+  background: #fff;
+  border-radius: var(--r-md);
+  box-shadow: var(--e-raised);
+  padding: 6px 0;
+  z-index: 2;
+}
+.side-menu .item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 16px;
+  font-size: 14px;
+  color: var(--c-ink);
+}
+.side-menu .item .ic {
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  background: var(--c-mint-soft);
+  color: var(--c-forest);
+  display: flex; align-items: center; justify-content: center;
+}
+.side-menu .item.alert     { color: var(--c-walnut); font-weight: 600; }
+.side-menu .item.alert .ic { background: var(--c-walnut); color: #fff; }
+.side-menu .divider { height: 1px; background: #ece9dd; margin: 4px 16px; }
+</style>
+</head>
+<body class="reference-body">
+<main class="mockups-shell">
+
+<a class="back-link" href="index.html">← back to the reference library</a>
+
+<h1 class="page-title">v2 UX mockups, screen by screen.</h1>
+<p class="page-lede">Side-by-side: the live mywellet.com today (left) versus the proposed v2 build (right). Same information architecture. New type stack (Gambetta + Public Sans replacing Fraunces + DM Sans), Mint micro-accents, one Midnight depth surface, italic-noun headlines, and glass on the visit-prep card.</p>
+
+<div class="legend">
+  <div><strong>Type:</strong> Fraunces + DM Sans → Gambetta + Public Sans</div>
+  <div><strong>Accent:</strong> Forest only → Forest + Mint highlights</div>
+  <div><strong>Depth:</strong> Cream-only → Midnight depth + glass on key moments</div>
+  <div><strong>Voice:</strong> Italic-noun headlines, sourced eyebrows preserved</div>
+</div>
+
+<aside class="how-to-read" style="margin:24px 0 32px; padding:18px 22px; background:#fff; border-left:3px solid var(--c-forest); border-radius:0 var(--r-md) var(--r-md) 0; box-shadow:var(--e-card);">
+  <p style="font-family:Gambetta,serif; font-style:italic; font-weight:500; font-size:20px; line-height:1.3; color:var(--c-ink); margin:0 0 8px;">How to read this page.</p>
+  <p style="font-size:14px; line-height:1.6; color:var(--c-ink-2); margin:0;">Six screens, <i>one language</i>. The same card shape repeats wherever a unit of data has <b>source + identity + status</b>: a <b style="color:var(--c-forest);">Forest 3px left border</b>, a <b style="color:var(--c-clay);">Clay eyebrow</b> naming where it came from, and a <b style="background:var(--c-mint); color:var(--c-forest-deep); padding:1px 8px; border-radius:999px; font-weight:700;">Mint pill</b> carrying the most useful fact. When something changes — a dose, a flag for next visit — the border and pill go <b style="color:var(--c-walnut);">Clay or Walnut</b>, not Mint. That's the whole grammar.</p>
+</aside>
+
+<!-- =========================================================
+     1. HOME / SUMMARY — Dad
+     ========================================================= -->
+<section class="screen-block" id="m-home-dad">
+  <h2>1 · Home / Summary <i style="font-family:Gambetta,serif;color:#5d6b67;">— Dad selected</i></h2>
+  <p class="screen-sub">The default screen for the primary person. The visit-prep card becomes the calmest, most-important moment of the week.</p>
+  <div class="screen-pair">
+    <div class="screen-col today"><h3>screenshot</h3>
+      <img class="live-shot" src="app_screens/01_home_dad.png" alt="Home Summary today, Dad selected">
+    </div>
+    <div class="screen-col v2"><h3>v2</h3>
+      <div class="phone-frame dad">
+        <div class="pf-topbar">
+          <div class="pf-topbar-row1">
+            <img class="pf-wordmark" src="assets/wellet-wordmark.svg" alt="Wellet">
+            <div class="pf-top-icons">
+              <div class="pf-bell"><svg class="ico" viewBox="0 0 24 24"><path d="M6 16V10a6 6 0 0 1 12 0v6l1.5 2H4.5L6 16Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span class="dot">4</span></div>
+              <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="19" r="1.3"/></svg>
+            </div>
+          </div>
+          <div class="pf-people-switch"><span class="active">Dad</span><span>Mom</span></div>
+        </div>
+        <div class="pf-tabs"><span class="active">Summary</span><span>Timeline</span></div>
+        <div class="pf-body">
+          <!-- visit prep, GLASS -->
+          <div class="v2-card glass">
+            <p class="eyebrow">Before your appointment</p>
+            <p class="h-title">Tomorrow at <i>9:00 AM</i> with Dr. Johnson.</p>
+            <p class="h-sub-italic">A quiet pre-flight for the visit. Open it when you have a minute.</p>
+            <div class="stat-row">
+              <div class="stat-cell"><span class="n">5</span><span class="l">Questions ready</span></div>
+              <div class="stat-cell"><span class="n">2</span><span class="l">New on chart</span></div>
+              <div class="stat-cell"><span class="n">2</span><span class="l">Wishes captured</span></div>
+            </div>
+            <button class="btn-primary outline">
+              <svg class="ico" viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="2"/><path d="M9 7h6M9 11h6M9 15h4"/></svg>
+              Open prep for this visit
+            </button>
+            <p class="h-sub-italic" style="margin:10px 0 0; text-align:center;">Review Don's wishes first</p>
+          </div>
+
+          <!-- wellet summary, MINT card -->
+          <div class="v2-card mint">
+            <p class="eyebrow">Wellet summary <span class="pill alert">Needs attention</span></p>
+            <p class="body-copy">Dad is <b>2 months post-op</b> from his second peroneal knee release and attending PT twice weekly. His oncology CML test came back <b>&lt;0.001</b> — continued improvement. Blood pressure has been <b>running higher this week</b> (avg 142/89) since his Hydrochlorothiazide dose adjusted in February.</p>
+            <div class="row-meta">
+              <span class="w">w</span>
+              <span>Wellet · written from 4 sources · 12 min ago · Viewed 9:14 AM</span>
+            </div>
+          </div>
+        </div>
+        <div class="pf-bottom-nav">
+          <div class="active"><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg></div>Home</div>
+          <div><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h10l2 3h4v11H4z"/><path d="M10 14a2 2 0 0 1 4 0v3l-2-1-2 1z"/></svg></div>Records</div>
+          <div><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12h4l2 6 4-12 2 6h4"/></svg></div>CareSignals</div>
+          <div><div class="icon"><span style="font-family:Gambetta,serif;font-weight:500;color:currentColor;">w</span></div>Ask Wellet</div>
+        </div>
+      </div>
+      <div class="changes">
+        <strong>What changed</strong>
+        <ul>
+          <li>Headlines move Fraunces → <b>Gambetta Medium</b>; body DM Sans → <b>Public Sans</b>.</li>
+          <li>Visit-prep card uses <b>glass / 20px blur</b> over the cream surface — calm, important, not loud.</li>
+          <li>Headline adopts italic-noun pattern (<em>9:00 AM</em>), the v2 voice signature.</li>
+          <li>Wellet Summary card tints to <b>Mint soft</b> — pulls focus without alarm; "Needs attention" pill stays alert-red.</li>
+          <li><b>Visit-prep CTA is outlined</b>, not filled. The Wellet Summary becomes the visual hero — what's actually going on beats the to-do.</li>
+          <li>w-mark in summary footer is the new Gambetta-derived glyph.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================
+     2. HOME / SUMMARY — Mom
+     ========================================================= -->
+<section class="screen-block" id="m-home-mom">
+  <h2>2 · Home / Summary <i style="font-family:Gambetta,serif;color:#5d6b67;">— Mom selected</i></h2>
+  <p class="screen-sub">Identical chrome and components — only the surface tint shifts. Same v2 rules apply.</p>
+  <div class="screen-pair">
+    <div class="screen-col today"><h3>screenshot</h3>
+      <img class="live-shot" src="app_screens/02_home_mom.png" alt="Home Summary today, Mom selected">
+    </div>
+    <div class="screen-col v2"><h3>v2</h3>
+      <div class="phone-frame mom">
+        <div class="pf-topbar">
+          <div class="pf-topbar-row1">
+            <img class="pf-wordmark" src="assets/wellet-wordmark.svg" alt="Wellet">
+            <div class="pf-top-icons">
+              <div class="pf-bell"><svg class="ico" viewBox="0 0 24 24"><path d="M6 16V10a6 6 0 0 1 12 0v6l1.5 2H4.5L6 16Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span class="dot">4</span></div>
+              <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="19" r="1.3"/></svg>
+            </div>
+          </div>
+          <div class="pf-people-switch"><span>Dad</span><span class="active">Mom</span></div>
+        </div>
+        <div class="pf-tabs"><span class="active">Summary</span><span>Timeline</span></div>
+        <div class="pf-body">
+          <div class="v2-card glass">
+            <p class="eyebrow">Before your appointment</p>
+            <p class="h-title">Tomorrow at <i>10:30 AM</i> with Dr. Patel.</p>
+            <p class="h-sub-italic">A quiet pre-flight for the visit. Open it when you have a minute.</p>
+            <div class="stat-row">
+              <div class="stat-cell"><span class="n">4</span><span class="l">Questions ready</span></div>
+              <div class="stat-cell"><span class="n">1</span><span class="l">New on chart</span></div>
+              <div class="stat-cell"><span class="n">3</span><span class="l">Wishes captured</span></div>
+            </div>
+            <button class="btn-primary outline">
+              <svg class="ico" viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="2"/><path d="M9 7h6M9 11h6M9 15h4"/></svg>
+              Open prep for this visit
+            </button>
+            <p class="h-sub-italic" style="margin:10px 0 0; text-align:center;">Review Margaret's wishes first</p>
+          </div>
+
+          <div class="v2-card mint">
+            <p class="eyebrow">Wellet summary <span class="pill">A1C trending down</span></p>
+            <p class="body-copy">Mom has been managing her <b>Type 2 diabetes</b> well — her last A1C was <b>6.8%</b>, down from 7.1% in October. She started a <b>new walking routine</b> three weeks ago and has been consistent. Her rheumatologist adjusted her <b>Methotrexate</b> last month for her RA.</p>
+            <div class="row-meta">
+              <span class="w">w</span>
+              <span>Wellet · written from 2 sources · 5 min ago · Viewed 10:22 AM</span>
+            </div>
+          </div>
+        </div>
+        <div class="pf-bottom-nav">
+          <div class="active"><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg></div>Home</div>
+          <div><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h10l2 3h4v11H4z"/><path d="M10 14a2 2 0 0 1 4 0v3l-2-1-2 1z"/></svg></div>Records</div>
+          <div><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12h4l2 6 4-12 2 6h4"/></svg></div>CareSignals</div>
+          <div><div class="icon"><span style="font-family:Gambetta,serif;font-weight:500;">w</span></div>Ask Wellet</div>
+        </div>
+      </div>
+      <div class="changes">
+        <strong>What changed</strong>
+        <ul>
+          <li>Surface tints to the cool-cream Mom hue (<code>#E6EDE7</code>); chrome stays neutral.</li>
+          <li>Status pill now carries <b>specific information</b>: <em>"A1C trending down"</em> instead of the generic <em>"Active week"</em>. The pill should say what the body copy doesn't already say — the answer to <em>so what do I do</em>, not the mood.</li>
+          <li>Headline italic-noun: <em>10:30 AM</em>. Pattern is consistent across both people.</li>
+          <li><b>Visit-prep CTA demoted</b> to outlined Forest. The Wellet Summary card becomes the visual hero — "witness, don't monitor" means the narrative beats the to-do.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================
+     3. TIMELINE
+     ========================================================= -->
+<section class="screen-block" id="m-timeline">
+  <h2>3 · Timeline</h2>
+  <p class="screen-sub">The chronological narrative of one person's care. Read-only here; tap an entry to view it focused.</p>
+  <div class="screen-pair">
+    <div class="screen-col today"><h3>screenshot</h3>
+      <img class="live-shot" src="app_screens/03_timeline_dad.png" alt="Timeline today">
+    </div>
+    <div class="screen-col v2"><h3>v2</h3>
+      <div class="phone-frame dad">
+        <div class="pf-topbar">
+          <div class="pf-topbar-row1">
+            <img class="pf-wordmark" src="assets/wellet-wordmark.svg" alt="Wellet">
+            <div class="pf-top-icons">
+              <div class="pf-bell"><svg class="ico" viewBox="0 0 24 24"><path d="M6 16V10a6 6 0 0 1 12 0v6l1.5 2H4.5L6 16Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span class="dot">4</span></div>
+              <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="19" r="1.3"/></svg>
+            </div>
+          </div>
+          <div class="pf-people-switch"><span class="active">Dad</span><span>Mom</span></div>
+        </div>
+        <div class="pf-tabs"><span>Summary</span><span class="active">Timeline</span></div>
+        <div class="pf-body">
+          <!-- chart source row, Mist depth -->
+          <div class="v2-card" style="background:var(--c-mist-soft); box-shadow:none; display:flex; align-items:center; justify-content:space-between; padding:12px 14px; margin-bottom:14px;">
+            <div style="display:flex; align-items:center; gap:8px; font-size:13.5px; color:var(--c-ink);">
+              <svg class="ico" style="color:var(--c-forest)" viewBox="0 0 24 24"><path d="M4 5h10l2 3h4v11H4z"/><path d="M9 14h6"/></svg>
+              <span>Chart: <b>Duke Health</b> · Epic</span>
+            </div>
+            <div style="display:flex; gap:10px; color:var(--c-forest);">
+              <svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              <svg class="ico" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 1 3 6.7M3 21v-5h5"/></svg>
+              <svg class="ico" style="color:var(--c-alert)" viewBox="0 0 24 24"><path d="M8 12h8M10 8l-2 4 2 4M14 8l2 4-2 4"/></svg>
+            </div>
+          </div>
+
+          <!-- two CTA pills -->
+          <div style="display:flex; gap:10px; margin-bottom:12px;">
+            <button class="btn-secondary" style="flex:1; justify-content:center;">
+              <svg class="ico" viewBox="0 0 24 24"><path d="M4 4h12v16H4z"/><path d="M4 9h12"/></svg>
+              Build health story
+            </button>
+            <button class="btn-secondary" style="flex:1; justify-content:center; background:transparent; border:1px dashed var(--c-forest);">
+              <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+              Add outside visit
+            </button>
+          </div>
+          <p class="h-sub-italic" style="margin-bottom:14px;">A narrative you can read aloud at the next appointment.</p>
+
+          <div class="chip-row">
+            <span class="chip active">All</span>
+            <span class="chip">EHR</span>
+            <span class="chip">Voice</span>
+            <span class="chip">Documents</span>
+            <span class="chip">Care circle</span>
+          </div>
+
+          <p class="month-divider">June 2026</p>
+
+          <div class="timeline-rail">
+            <div class="rcard with-icon">
+              <div class="rc-icon" style="background:#f6e6cf;color:#8a5a1f;">
+                <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="6" rx="3" transform="rotate(-25 12 12)"/></svg>
+              </div>
+              <div>
+                <p class="rc-eyebrow">Meds logged · By you</p>
+                <span class="rc-pill" style="background:#f6e6cf; color:#8a5a1f;">2 days ago</span>
+                <h4 class="rc-title">Took 4 medications on <i>Wednesday</i></h4>
+                <p class="rc-sub">All evening doses checked in by 9pm.</p>
+              </div>
+            </div>
+
+            <div class="rcard with-icon">
+              <div class="rc-icon">
+                <svg class="ico" viewBox="0 0 24 24"><path d="M12 4l1.5 4.5L18 10l-4.5 1.5L12 16l-1.5-4.5L6 10l4.5-1.5z"/></svg>
+              </div>
+              <div>
+                <p class="rc-eyebrow" style="color:var(--c-forest);">Wellet noticed</p>
+                <span class="rc-pill">2 days ago</span>
+                <h4 class="rc-title">2+ missed <i>Levodopa</i> doses in a row</h4>
+                <p class="rc-sub">2 evening doses skipped this week.</p>
+                <p class="rc-footer">you asked Wellet to watch this</p>
+              </div>
+            </div>
+
+            <div class="rcard with-icon">
+              <div class="rc-icon" style="background:#ece9dd;color:var(--c-ink-2);">
+                <svg class="ico" viewBox="0 0 24 24"><path d="M16 4l4 4-12 12H4v-4z"/></svg>
+              </div>
+              <div>
+                <p class="rc-eyebrow">Note · Saturday morning</p>
+                <span class="rc-pill" style="background:#ece9dd; color:var(--c-ink-2);">5 days ago</span>
+                <h4 class="rc-title">Voice note</h4>
+                <p class="rc-sub"><i>Don seemed a little more tired this morning…</i></p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="pf-bottom-nav">
+          <div class="active"><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg></div>Home</div>
+          <div><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h10l2 3h4v11H4z"/></svg></div>Records</div>
+          <div><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12h4l2 6 4-12 2 6h4"/></svg></div>CareSignals</div>
+          <div><div class="icon"><span style="font-family:Gambetta,serif;font-weight:500;">w</span></div>Ask Wellet</div>
+        </div>
+      </div>
+      <div class="changes">
+        <strong>What changed</strong>
+        <ul>
+          <li>Chart-source banner now uses <b>Mist</b> (cool neutral), not generic green — distinguishes "data plumbing" from content.</li>
+          <li>Filter chips: rounded pill, Forest outline → filled Forest when active (was an unstyled gray pill).</li>
+          <li>Each timeline entry uses the <b>rcard pattern</b>, but on this screen the Forest left border is dropped — the <b>filled Forest rail dot</b> does the framing work. One vertical line per column instead of two competing for the eye.</li>
+          <li>Italic-Gambetta in the entry title pulls focus to the noun that matters: <em>Wednesday</em>, <em>Levodopa</em>.</li>
+          <li>Audit footer ("you asked Wellet to watch this") stays italic-Forest — non-negotiable, untouched.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================
+     4. RECORDS LIST
+     ========================================================= -->
+<section class="screen-block" id="m-records">
+  <h2>4 · Records</h2>
+  <p class="screen-sub">A directory of data categories — the entry point into the chart.</p>
+  <div class="screen-pair">
+    <div class="screen-col today"><h3>screenshot</h3>
+      <img class="live-shot" src="app_screens/05_records.png" alt="Records today">
+    </div>
+    <div class="screen-col v2"><h3>v2</h3>
+      <div class="phone-frame dad">
+        <div class="pf-topbar">
+          <div class="pf-topbar-row1">
+            <img class="pf-wordmark" src="assets/wellet-wordmark.svg" alt="Wellet">
+            <div class="pf-top-icons">
+              <div class="pf-bell"><svg class="ico" viewBox="0 0 24 24"><path d="M6 16V10a6 6 0 0 1 12 0v6l1.5 2H4.5L6 16Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span class="dot">4</span></div>
+              <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="19" r="1.3"/></svg>
+            </div>
+          </div>
+          <div class="pf-people-switch"><span class="active">Dad</span><span>Mom</span></div>
+        </div>
+        <div class="pf-body" style="padding-top:18px;">
+          <p class="eyebrow" style="color:var(--c-ink-3);">Synced from Duke Health · Epic · Just now</p>
+          <h2 style="font-family:Gambetta,serif; font-weight:500; font-size:38px; line-height:1.1; letter-spacing:-1px; margin:6px 0 18px; color:var(--c-ink);">Records</h2>
+
+          <div class="v2-card" style="background:var(--c-mist-soft); box-shadow:none; display:flex; align-items:center; justify-content:space-between; padding:12px 14px; margin-bottom:14px;">
+            <span style="font-size:13.5px; color:var(--c-ink);">Chart: <b>Duke Health</b> · Epic</span>
+            <div style="display:flex; gap:10px; color:var(--c-forest);">
+              <svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              <svg class="ico" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 1 3 6.7M3 21v-5h5"/></svg>
+              <svg class="ico" style="color:var(--c-alert)" viewBox="0 0 24 24"><path d="M8 12h8M10 8l-2 4 2 4M14 8l2 4-2 4"/></svg>
+            </div>
+          </div>
+
+          <div class="rcard with-icon">
+            <div class="rc-icon" style="background:#f6e6cf;color:#8a5a1f;"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="6" rx="3" transform="rotate(-25 12 12)"/></svg></div>
+            <div>
+              <p class="rc-eyebrow">Medications · From chart</p>
+              <span class="rc-pill">5 active</span>
+              <h4 class="rc-title"><i>Levodopa</i> + 4 others</h4>
+              <p class="rc-sub">Last refilled <i>May 14</i>. Tap to see the full list with doses.</p>
+            </div>
+          </div>
+
+          <div class="rcard with-icon">
+            <div class="rc-icon"><svg class="ico" viewBox="0 0 24 24"><path d="M12 21s-7-4.5-7-11a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 6.5-7 11-7 11z"/></svg></div>
+            <div>
+              <p class="rc-eyebrow">Conditions · From EHR</p>
+              <span class="rc-pill">2 active</span>
+              <h4 class="rc-title"><i>Parkinson's</i>, Hypertension</h4>
+              <p class="rc-sub">Source: Duke Health, Epic.</p>
+            </div>
+          </div>
+
+          <div class="rcard with-icon">
+            <div class="rc-icon" style="background:#fde2dd;color:#b8392b;"><svg class="ico" viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17v.5"/></svg></div>
+            <div>
+              <p class="rc-eyebrow self-reported">Allergies · Self-reported</p>
+              <span class="rc-pill" style="background:#fde2dd; color:var(--c-walnut);">1 entry</span>
+              <h4 class="rc-title">Penicillin</h4>
+              <p class="rc-sub">Reaction: <i>hives</i>. Reported by you, March 2024. <b>Not in the EHR</b> — worth confirming at the next visit.</p>
+            </div>
+          </div>
+
+          <div class="rcard with-icon">
+            <div class="rc-icon" style="background:var(--c-blue-deep);color:var(--c-midnight);"><svg class="ico" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9h16M8 3v4M16 3v4"/></svg></div>
+            <div>
+              <p class="rc-eyebrow">Visits · From EHR</p>
+              <span class="rc-pill">2 visits</span>
+              <h4 class="rc-title">Most recent <i>May 14</i></h4>
+              <p class="rc-sub">Dr. Johnson, neurology. 2-month follow-up.</p>
+            </div>
+          </div>
+
+          <div class="rcard with-icon">
+            <div class="rc-icon" style="background:var(--c-mist);color:var(--c-midnight);"><svg class="ico" viewBox="0 0 24 24"><path d="M9 3h6v6l3 3v9H6v-9l3-3z"/></svg></div>
+            <div>
+              <p class="rc-eyebrow">Labs · From EHR</p>
+              <span class="rc-pill">36 results</span>
+              <h4 class="rc-title">CML test <i>came back &lt;0.001</i></h4>
+              <p class="rc-sub">Continued improvement. Last drawn June 8.</p>
+            </div>
+          </div>
+
+          <div class="rcard with-icon">
+            <div class="rc-icon" style="background:var(--c-stone);color:var(--c-ink-2);"><svg class="ico" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/><path d="M9 11h6M9 15h6"/></svg></div>
+            <div>
+              <p class="rc-eyebrow">Documents · Uploaded by you</p>
+              <span class="rc-pill">3 files</span>
+              <h4 class="rc-title">Visit summaries &amp; <i>after-visit notes</i></h4>
+              <p class="rc-sub">PDFs Wellet has read and summarized.</p>
+            </div>
+          </div>
+
+          <div style="display:flex; align-items:center; gap:8px; margin-top:20px; font-size:13px; color:var(--c-ink-3);">
+            <h3 style="font-family:Gambetta,serif; font-weight:500; font-size:22px; color:var(--c-ink); margin:0; flex:1;">Procedures</h3>
+            <span class="chip" style="font-size:10.5px; padding:2px 8px;">EHR</span>
+            <svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M15 15l5 5"/></svg>
+            <span style="text-transform:uppercase; letter-spacing:1px; font-size:10.5px;">1 from EHR</span>
+          </div>
+        </div>
+        <div class="pf-bottom-nav">
+          <div><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg></div>Home</div>
+          <div class="active"><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h10l2 3h4v11H4z"/></svg></div>Records</div>
+          <div><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12h4l2 6 4-12 2 6h4"/></svg></div>CareSignals</div>
+          <div><div class="icon"><span style="font-family:Gambetta,serif;font-weight:500;">w</span></div>Ask Wellet</div>
+        </div>
+      </div>
+      <div class="changes">
+        <strong>What changed</strong>
+        <ul>
+          <li>The screen now opens with a <b>provenance eyebrow</b> ("Synced from Duke Health · Just now") above the title — moves the source <em>up</em> instead of stranding it as a banner.</li>
+          <li>Each category becomes a <b>Resources-style card</b>: Forest 3px left border, Clay eyebrow naming the data type and its source, Mint pill answering "how many" in the top-right.</li>
+          <li>Titles now <em>say something</em> instead of just labeling — italic-Gambetta on the name the eye is hunting for (<i>Levodopa</i>, <i>Parkinson's</i>, <i>May 14</i>).</li>
+          <li>Category tile colors keep their meaning from the palette: Clay for meds, Mint for conditions, soft alert for allergies, Blue-deep for visits, Mist for labs, Stone for documents.</li>
+          <li><b>Self-reported provenance reads differently</b> than chart-sourced: Walnut eyebrow + "flag for next visit" caption. Accuracy-as-safety — a missing penicillin allergy in the EHR is the kind of thing v2 has to make unmistakable.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================
+     5. MEDICATIONS LIST
+     ========================================================= -->
+<section class="screen-block" id="m-meds-list">
+  <h2>5 · Medications list</h2>
+  <p class="screen-sub">Drill-in from Records. Provenance ("from your records") sits on every row.</p>
+  <div class="screen-pair">
+    <div class="screen-col today"><h3>screenshot</h3>
+      <img class="live-shot" src="app_screens/13_medications_list.png" alt="Medications list today">
+    </div>
+    <div class="screen-col v2"><h3>v2</h3>
+      <div class="phone-frame dad">
+        <div class="pf-topbar">
+          <div class="pf-topbar-row1">
+            <img class="pf-wordmark" src="assets/wellet-wordmark.svg" alt="Wellet">
+            <div class="pf-top-icons">
+              <div class="pf-bell"><svg class="ico" viewBox="0 0 24 24"><path d="M6 16V10a6 6 0 0 1 12 0v6l1.5 2H4.5L6 16Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span class="dot">4</span></div>
+              <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="19" r="1.3"/></svg>
+            </div>
+          </div>
+          <div class="pf-people-switch"><span class="active">Dad</span><span>Mom</span></div>
+        </div>
+        <div class="pf-body" style="padding-top:14px;">
+          <a style="display:inline-flex; align-items:center; gap:6px; font-size:13.5px; color:var(--c-forest); text-decoration:none; border-bottom:1px solid currentColor; padding-bottom:1px;">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M14 6l-6 6 6 6"/></svg>
+            Records
+          </a>
+          <h2 style="font-family:Gambetta,serif; font-weight:500; font-size:36px; line-height:1.1; letter-spacing:-0.8px; margin:14px 0 6px; color:var(--c-ink);">Medications</h2>
+          <p class="h-sub-italic" style="margin-bottom:18px;">All 5 active prescriptions, from your records.</p>
+
+          <div class="rcard with-icon">
+            <div class="rc-icon" style="background:#f6e6cf; color:#8a5a1f;">
+              <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="6" rx="3" transform="rotate(-30 12 12)"/><line x1="9" y1="6" x2="15" y2="18" transform="rotate(-30 12 12)"/></svg>
+            </div>
+            <div>
+              <p class="rc-eyebrow">From chart · Duke Health</p>
+              <p class="rc-title"><i>Levodopa</i>/Carbidopa 25-100mg</p>
+              <p class="rc-sub" style="margin-top:4px;">1 tablet, <i>morning · noon · evening</i></p>
+              <span class="rc-pill"><span class="pill-dot"></span> 3× daily</span>
+            </div>
+          </div>
+
+          <div class="rcard with-icon">
+            <div class="rc-icon" style="background:#f6e6cf; color:#8a5a1f;">
+              <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="6" rx="3" transform="rotate(-30 12 12)"/><line x1="9" y1="6" x2="15" y2="18" transform="rotate(-30 12 12)"/></svg>
+            </div>
+            <div>
+              <p class="rc-eyebrow">From chart · Duke Health</p>
+              <p class="rc-title">Lisinopril 20mg</p>
+              <p class="rc-sub" style="margin-top:4px;">1 tablet with <i>breakfast</i></p>
+              <span class="rc-pill"><span class="pill-dot"></span> 1× daily</span>
+            </div>
+          </div>
+
+          <div class="rcard with-icon">
+            <div class="rc-icon" style="background:#f6e6cf; color:#8a5a1f;">
+              <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="6" rx="3" transform="rotate(-30 12 12)"/><line x1="9" y1="6" x2="15" y2="18" transform="rotate(-30 12 12)"/></svg>
+            </div>
+            <div>
+              <p class="rc-eyebrow">From chart · Duke Oncology</p>
+              <p class="rc-title">Gleevec (<i>Imatinib</i>) 400mg</p>
+              <p class="rc-sub" style="margin-top:4px;">1 capsule with <i>evening meal</i></p>
+              <span class="rc-pill"><span class="pill-dot"></span> 1× daily</span>
+            </div>
+          </div>
+
+          <div class="rcard with-icon" style="border-left-color:var(--c-clay);">
+            <div class="rc-icon" style="background:#f6e6cf; color:#8a5a1f;">
+              <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="6" rx="3" transform="rotate(-30 12 12)"/><line x1="9" y1="6" x2="15" y2="18" transform="rotate(-30 12 12)"/></svg>
+            </div>
+            <div>
+              <p class="rc-eyebrow">From chart · Duke Health</p>
+              <p class="rc-title">Hydrochlorothiazide 25mg</p>
+              <p class="rc-sub" style="margin-top:4px;">Reduced from <i>50mg</i> on <i>May 14</i> · 1 tablet daily</p>
+              <span class="rc-pill" style="background:#f6e6cf; color:var(--c-walnut);"><span class="pill-dot" style="background:var(--c-walnut);"></span> Dose changed</span>
+            </div>
+          </div>
+
+        </div>
+        <div class="pf-bottom-nav">
+          <div><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg></div>Home</div>
+          <div class="active"><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h10l2 3h4v11H4z"/></svg></div>Records</div>
+          <div><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12h4l2 6 4-12 2 6h4"/></svg></div>CareSignals</div>
+          <div><div class="icon"><span style="font-family:Gambetta,serif;font-weight:500;">w</span></div>Ask Wellet</div>
+        </div>
+      </div>
+      <div class="changes">
+        <strong>What changed</strong>
+        <ul>
+          <li><b>Resources card pattern</b> applied: Forest left border, Clay eyebrow naming the source chart, Mint pill carrying the frequency.</li>
+          <li>Italic Gambetta on the active ingredient (<em>Levodopa</em>, <em>Imatinib</em>) and on time references in the subtitle — same italic-noun voice as elsewhere.</li>
+          <li>Each row gets a Clay-amber pill-tile icon — matches the Records "Medications" category, so the visual breadcrumb holds.</li>
+          <li>When something <b>changed</b> — like Hydrochlorothiazide dropping from 50mg — the border and pill go Clay, not Mint. Status is legible at a glance.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================
+     6. MEDICATION DETAIL
+     ========================================================= -->
+<section class="screen-block" id="m-med-detail">
+  <h2>6 · Medication detail</h2>
+  <p class="screen-sub">The drill-in pattern that every clinical detail screen follows.</p>
+  <div class="screen-pair">
+    <div class="screen-col today"><h3>screenshot</h3>
+      <img class="live-shot" src="app_screens/14_medication_detail.png" alt="Medication detail today">
+    </div>
+    <div class="screen-col v2"><h3>v2</h3>
+      <div class="phone-frame dad">
+        <div class="pf-topbar">
+          <div class="pf-topbar-row1">
+            <img class="pf-wordmark" src="assets/wellet-wordmark.svg" alt="Wellet">
+            <div class="pf-top-icons">
+              <div class="pf-bell"><svg class="ico" viewBox="0 0 24 24"><path d="M6 16V10a6 6 0 0 1 12 0v6l1.5 2H4.5L6 16Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span class="dot">4</span></div>
+              <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="19" r="1.3"/></svg>
+            </div>
+          </div>
+          <div class="pf-people-switch"><span class="active">Dad</span><span>Mom</span></div>
+        </div>
+        <div class="pf-body" style="padding-top:14px;">
+          <a style="display:inline-flex; align-items:center; gap:6px; font-size:13.5px; color:var(--c-forest); text-decoration:none; border-bottom:1px solid currentColor; padding-bottom:1px;">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M14 6l-6 6 6 6"/></svg> Medications
+          </a>
+          <h2 style="font-family:Gambetta,serif; font-weight:500; font-size:30px; line-height:1.15; letter-spacing:-0.6px; margin:14px 0 4px; color:var(--c-ink);"><i>Levodopa</i>/Carbidopa<br>25-100mg</h2>
+          <p class="h-sub-italic" style="margin-bottom:16px;">1 tablet three times daily · 3× daily</p>
+
+          <!-- key facts card -->
+          <div class="v2-card" style="padding:14px 16px;">
+            <dl class="spec-grid">
+              <dt>Dose</dt><dd>1 tablet three times daily</dd>
+              <dt>Frequency</dt><dd>3× daily</dd>
+              <dt>Status</dt><dd><span class="calm-row" style="display:inline-flex; align-items:center; gap:4px;"><span class="dot" style="width:6px;height:6px;background:var(--c-mint);border-radius:50%;"></span> Active</span></dd>
+              <dt>Prescribed</dt><dd>Jul 1, 2023</dd>
+            </dl>
+          </div>
+
+          <!-- pill description, openFDA — calm Mint tint, the pill you hold in your hand -->
+          <p class="eyebrow" style="margin-top:18px;">What this pill looks like <span class="pill" style="background:var(--c-blue-deep);color:var(--c-midnight);">openFDA</span></p>
+          <div class="v2-card" style="padding:14px 16px; background:var(--c-mint-soft); box-shadow:none; border-left:3px solid var(--c-forest); border-radius:0 var(--r-md) var(--r-md) 0;">
+            <dl class="spec-grid">
+              <dt>Color</dt><dd>White</dd>
+              <dt>NDC</dt><dd>10135-789</dd>
+            </dl>
+            <p class="h-sub-italic" style="margin:8px 0 0; font-size:12px;">Pill description from openFDA. RxImage retired May 2026.</p>
+          </div>
+
+          <!-- about, MedlinePlus — same rcard pattern, no Midnight here -->
+          <p class="eyebrow" style="margin-top:18px;">About this medicine <span class="pill" style="background:var(--c-mint);color:var(--c-forest-deep);font-weight:700;">MedlinePlus, U.S. National Library of Medicine</span></p>
+          <div class="v2-card" style="padding:16px; background:#fff; box-shadow:none; border-left:3px solid var(--c-forest-leaf); border-radius:0 var(--r-md) var(--r-md) 0;">
+            <p style="font-size:14px; line-height:1.55; color:var(--c-ink); margin:0;">Carbidopa-levodopa is used to treat the symptoms of Parkinson's disease. It works by increasing dopamine in the brain. Take exactly as prescribed; do not skip doses suddenly.</p>
+            <p style="font-size:12px; color:var(--c-forest-leaf); margin:10px 0 0; font-style:italic; font-family:Gambetta,serif;">Read the full entry on MedlinePlus →</p>
+          </div>
+        </div>
+        <div class="pf-bottom-nav">
+          <div><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg></div>Home</div>
+          <div class="active"><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h10l2 3h4v11H4z"/></svg></div>Records</div>
+          <div><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12h4l2 6 4-12 2 6h4"/></svg></div>CareSignals</div>
+          <div><div class="icon"><span style="font-family:Gambetta,serif;font-weight:500;">w</span></div>Ask Wellet</div>
+        </div>
+      </div>
+      <div class="changes">
+        <strong>What changed</strong>
+        <ul>
+          <li>Title splits the brand and dose: italic <em>Levodopa</em> + Roman /Carbidopa 25-100mg. Easier to read at a glance.</li>
+          <li>Source pills are now <b>chips with color meaning</b>: Blue-deep for openFDA (federal data), Mint-soft for MedlinePlus (educational). Source is the eyebrow, color tells you what kind of source.</li>
+          <li><b>Both info cards now share the rcard pattern</b>: Forest left border on openFDA (the pill in your hand — Mint tint, calm and certain), Forest-leaf left border on MedlinePlus (the explainer — white, quiet). Midnight was overkill here — saved for the Vault and future Voice mode.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================
+     7. ASK WELLET
+     ========================================================= -->
+<section class="screen-block" id="m-ask">
+  <h2>7 · Ask Wellet</h2>
+  <p class="screen-sub">The conversational layer. Voice-first, seeded with the questions caregivers most often ask.</p>
+  <div class="screen-pair">
+    <div class="screen-col today"><h3>screenshot</h3>
+      <img class="live-shot" src="app_screens/06_ask_wellet.png" alt="Ask Wellet today">
+    </div>
+    <div class="screen-col v2"><h3>v2</h3>
+      <div class="phone-frame dad">
+        <div class="pf-topbar">
+          <div class="pf-topbar-row1">
+            <img class="pf-wordmark" src="assets/wellet-wordmark.svg" alt="Wellet">
+            <div class="pf-top-icons">
+              <div class="pf-bell"><svg class="ico" viewBox="0 0 24 24"><path d="M6 16V10a6 6 0 0 1 12 0v6l1.5 2H4.5L6 16Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span class="dot">4</span></div>
+              <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="19" r="1.3"/></svg>
+            </div>
+          </div>
+          <div class="pf-people-switch"><span class="active">Dad</span><span>Mom</span></div>
+        </div>
+        <div class="pf-body" style="padding-top:18px; display:flex; flex-direction:column;">
+          <p class="eyebrow" style="display:inline-flex; align-items:center; gap:6px; color:var(--c-forest);">
+            <span style="font-family:Gambetta,serif;font-weight:500;font-size:14px; color:var(--c-forest); letter-spacing:0;">w</span>
+            Wellet
+          </p>
+          <p class="ask-greet" style="margin:6px 0 18px;">Ask me <i>anything</i> about your loved one's health. I'll answer from what's in their records.</p>
+
+          <p class="eyebrow" style="color:var(--c-ink-3);">Some places to start</p>
+          <ul class="seed-list">
+            <li>How is Dad doing this week?</li>
+            <li><i>Show me what changed</i> this week</li>
+            <li>When is Dad's next appointment?</li>
+            <li><i>Read me</i> Dad's last visit</li>
+          </ul>
+
+          <div style="flex:1;"></div>
+
+          <div class="composer">
+            <div class="mic">
+              <svg class="ico" viewBox="0 0 24 24"><rect x="9" y="4" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+            </div>
+            <input placeholder="Ask Wellet…" readonly>
+            <div class="send">
+              <svg class="ico" style="stroke:#fff" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+            </div>
+          </div>
+        </div>
+        <div class="pf-bottom-nav">
+          <div><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg></div>Home</div>
+          <div><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h10l2 3h4v11H4z"/></svg></div>Records</div>
+          <div><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12h4l2 6 4-12 2 6h4"/></svg></div>CareSignals</div>
+          <div class="active"><div class="icon"><span style="font-family:Gambetta,serif;font-weight:500;color:var(--c-forest);">w</span></div>Ask Wellet</div>
+        </div>
+      </div>
+      <div class="changes">
+        <strong>What changed</strong>
+        <ul>
+          <li>Greeting moves to Gambetta with italic-noun emphasis: "Ask me <em>anything</em>" — same voice signature as headlines elsewhere.</li>
+          <li>w-mark next to the "Wellet" label is the actual <b>Gambetta-derived glyph</b>, not a sans-serif w.</li>
+          <li>Mic button gets a <b>Cream-warm circle</b>, distinguished from the Forest send button — voice and send are clearly separate affordances.</li>
+          <li>Seed prompts get a 12px Forest hairline before each, marking them as tappable suggestions rather than running text.</li>
+          <li><b>Mix of question + declarative</b> seeds: <em>"Show me what changed"</em> and <em>"Read me Dad's last visit"</em> signal voice/conversational input is welcome, not just queries. Caregivers at 11pm don't think in interrogatives.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================
+     8. SIDE MENU (kebab)
+     ========================================================= -->
+<section class="screen-block" id="m-sidemenu">
+  <h2>8 · Side menu</h2>
+  <p class="screen-sub">The kebab popover. The only place ER Summary appears in nav.</p>
+  <div class="screen-pair">
+    <div class="screen-col today"><h3>screenshot</h3>
+      <img class="live-shot" src="app_screens/07_side_menu.png" alt="Side menu today">
+    </div>
+    <div class="screen-col v2"><h3>v2</h3>
+      <div class="phone-frame dad side-menu-wrap">
+        <div class="pf-topbar">
+          <div class="pf-topbar-row1">
+            <img class="pf-wordmark" src="assets/wellet-wordmark.svg" alt="Wellet">
+            <div class="pf-top-icons">
+              <div class="pf-bell"><svg class="ico" viewBox="0 0 24 24"><path d="M6 16V10a6 6 0 0 1 12 0v6l1.5 2H4.5L6 16Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span class="dot">4</span></div>
+              <svg class="ico" style="color:var(--c-forest);" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="19" r="1.3"/></svg>
+            </div>
+          </div>
+          <div class="pf-people-switch"><span class="active">Dad</span><span>Mom</span></div>
+        </div>
+        <div class="pf-tabs"><span class="active">Summary</span><span>Timeline</span></div>
+        <div class="pf-body" style="position:relative;">
+          <!-- dim, simulated background -->
+          <div style="opacity:.4;">
+            <div class="v2-card glass">
+              <p class="eyebrow">Before your appointment</p>
+              <p class="h-title">Tomorrow at <i>9:00 AM</i> with Dr. Johnson.</p>
+              <div class="stat-row">
+                <div class="stat-cell"><span class="n">5</span><span class="l">Questions ready</span></div>
+                <div class="stat-cell"><span class="n">2</span><span class="l">New on chart</span></div>
+                <div class="stat-cell"><span class="n">2</span><span class="l">Wishes</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="side-menu" style="top:30px; right:-4px;">
+            <div class="item alert">
+              <div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12h4l2 6 4-12 2 6h4"/></svg></div>
+              ER Summary
+            </div>
+            <div class="divider"></div>
+            <div class="item">
+              <div class="ic"><svg class="ico" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2"/><path d="M3 18a6 6 0 0 1 12 0M14 18a4 4 0 0 1 7 0"/></svg></div>
+              People
+            </div>
+            <div class="item">
+              <div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M4 4h12v16H4z"/><path d="M4 9h12"/></svg></div>
+              Resources
+            </div>
+            <div class="item">
+              <div class="ic"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+              Reimbursements
+            </div>
+            <div class="item">
+              <div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M9 12a3 3 0 0 1 6 0M5 16l4-4M19 8l-4 4"/></svg></div>
+              Set up connections
+            </div>
+            <div class="item">
+              <div class="ic"><svg class="ico" viewBox="0 0 24 24"><rect x="5" y="9" width="14" height="11" rx="2"/><path d="M8 9V7a4 4 0 0 1 8 0v2"/></svg></div>
+              Vault
+            </div>
+            <div class="item">
+              <div class="ic"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 12l3-3M12 12l-3 3"/></svg></div>
+              Take a tour
+            </div>
+            <div class="divider"></div>
+            <div class="item">
+              <div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M5 5h14v10H7l-2 3z"/><path d="M12 9v3M12 14v.5"/></svg></div>
+              Send feedback
+            </div>
+            <div class="item">
+              <div class="ic"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="13" r="6"/><path d="M9 7l-2-2M15 7l2-2M6 13H3M21 13h-3"/></svg></div>
+              Report a bug
+            </div>
+            <div class="item">
+              <div class="ic"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3"/></svg></div>
+              Settings
+            </div>
+          </div>
+        </div>
+        <div class="pf-bottom-nav">
+          <div class="active"><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg></div>Home</div>
+          <div><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h10l2 3h4v11H4z"/></svg></div>Records</div>
+          <div><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12h4l2 6 4-12 2 6h4"/></svg></div>CareSignals</div>
+          <div><div class="icon"><span style="font-family:Gambetta,serif;font-weight:500;">w</span></div>Ask Wellet</div>
+        </div>
+      </div>
+      <div class="changes">
+        <strong>What changed</strong>
+        <ul>
+          <li>Each item gets a 30px <b>Mint-soft tile</b> behind its icon — adds rhythm. ER Summary takes a <b>Walnut-filled tile with white icon</b> — architecturally the same shape as the others, just colored to mean emergency. Walnut instead of pure red because alarm-red as an everyday menu color is fatiguing.</li>
+          <li>Two thin <b>Stone dividers</b> group items: emergency (1), navigation (5), help (3), settings (1). Today it's a flat list.</li>
+          <li>Type swap: Gambetta isn't used here (it's UI chrome). Public Sans 14px 400 throughout — calm, sans, never shouting.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================
+     9. PEOPLE
+     ========================================================= -->
+<section class="screen-block" id="m-people">
+  <h2>9 · People</h2>
+  <p class="screen-sub">The caregivees in the household. Quick-actions stay text links — never buttons.</p>
+  <div class="screen-pair">
+    <div class="screen-col today"><h3>screenshot</h3>
+      <img class="live-shot" src="app_screens/08_people.png" alt="People today">
+    </div>
+    <div class="screen-col v2"><h3>v2</h3>
+      <div class="phone-frame plain">
+        <div class="pf-topbar">
+          <div class="pf-topbar-row1">
+            <img class="pf-wordmark" src="assets/wellet-wordmark.svg" alt="Wellet">
+            <div class="pf-top-icons">
+              <div class="pf-bell"><svg class="ico" viewBox="0 0 24 24"><path d="M6 16V10a6 6 0 0 1 12 0v6l1.5 2H4.5L6 16Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span class="dot">4</span></div>
+              <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="19" r="1.3"/></svg>
+            </div>
+          </div>
+          <div class="pf-people-switch"><span class="active">Dad</span><span>Mom</span></div>
+        </div>
+        <div class="pf-body" style="padding-top:18px;">
+          <p class="eyebrow" style="color:var(--c-ink-3);">Caring for 2 people · 1 with chart</p>
+          <h2 style="font-family:Gambetta,serif; font-weight:500; font-size:36px; line-height:1.1; letter-spacing:-0.8px; margin:6px 0 4px; color:var(--c-ink);">People</h2>
+          <p class="h-sub-italic" style="margin-bottom:18px;">Everyone you're caring for.</p>
+
+          <div class="rcard">
+            <p class="rc-eyebrow">Dad · Age 71</p>
+            <span class="rc-pill"><span class="pill-dot"></span>Active</span>
+            <h4 class="rc-title"><i>Don</i> Bell</h4>
+            <p class="rc-sub">Caring since <i>March 2024</i> · Duke Health chart connected.</p>
+            <div class="rc-actions">
+              <a>Update</a>
+              <a>Add event</a>
+              <a><svg class="ico" style="width:13px;height:13px;display:inline;vertical-align:-2px;" viewBox="0 0 24 24"><path d="M12 21s-7-4.5-7-11a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 6.5-7 11-7 11z"/></svg> Wishes</a>
+              <a><svg class="ico" style="width:13px;height:13px;display:inline;vertical-align:-2px;" viewBox="0 0 24 24"><path d="M16 4l4 4-12 12H4v-4z"/></svg> Edit profile</a>
+            </div>
+          </div>
+
+          <div class="rcard">
+            <p class="rc-eyebrow">Mom · Age 68</p>
+            <span class="rc-pill"><span class="pill-dot"></span>Active</span>
+            <h4 class="rc-title"><i>Margaret</i> Bell</h4>
+            <p class="rc-sub">Caring since <i>January 2025</i> · chart not yet connected.</p>
+            <div class="rc-actions">
+              <a>Update</a>
+              <a>Add event</a>
+              <a><svg class="ico" style="width:13px;height:13px;display:inline;vertical-align:-2px;" viewBox="0 0 24 24"><path d="M12 21s-7-4.5-7-11a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 6.5-7 11-7 11z"/></svg> Wishes</a>
+              <a><svg class="ico" style="width:13px;height:13px;display:inline;vertical-align:-2px;" viewBox="0 0 24 24"><path d="M16 4l4 4-12 12H4v-4z"/></svg> Edit profile</a>
+            </div>
+          </div>
+
+          <button class="btn-secondary" style="margin-top:6px; background:transparent; border:1px dashed var(--c-forest);">
+            <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+            Add another person
+          </button>
+        </div>
+        <div class="pf-bottom-nav">
+          <div class="active"><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg></div>Home</div>
+          <div><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h10l2 3h4v11H4z"/></svg></div>Records</div>
+          <div><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12h4l2 6 4-12 2 6h4"/></svg></div>CareSignals</div>
+          <div><div class="icon"><span style="font-family:Gambetta,serif;font-weight:500;">w</span></div>Ask Wellet</div>
+        </div>
+      </div>
+      <div class="changes">
+        <strong>What changed</strong>
+        <ul>
+          <li>Each person inherits the <b>Resources card pattern</b>: Forest 3px left border, Clay eyebrow naming the relationship ("Dad · Age 71"), Mint pill with dot for status ("Active"). One language across the app.</li>
+          <li>The name moves into a Gambetta title with the <b>first name italic</b> — the warm, human emphasis. "<i>Don</i> Bell" reads like you mean it.</li>
+          <li>Subtitle does real work now: <em>caring since</em> + chart status, instead of an empty white space.</li>
+          <li>"Add another person" stays a <b>dashed-border secondary button</b> — additive action, doesn't compete with the card content.</li>
+          <li>Quick-action text links keep underlines and Forest color — still text, not buttons, per the voice rule.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================
+     10. RESOURCES
+     ========================================================= -->
+<section class="screen-block" id="m-resources">
+  <h2>10 · Resources</h2>
+  <p class="screen-sub">The vetted-programs library. Where accuracy-as-safety matters most.</p>
+  <div class="screen-pair">
+    <div class="screen-col today"><h3>screenshot</h3>
+      <img class="live-shot" src="app_screens/09_resources.png" alt="Resources today">
+    </div>
+    <div class="screen-col v2"><h3>v2</h3>
+      <div class="phone-frame plain">
+        <div class="pf-topbar">
+          <div class="pf-topbar-row1">
+            <img class="pf-wordmark" src="assets/wellet-wordmark.svg" alt="Wellet">
+            <div class="pf-top-icons">
+              <div class="pf-bell"><svg class="ico" viewBox="0 0 24 24"><path d="M6 16V10a6 6 0 0 1 12 0v6l1.5 2H4.5L6 16Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span class="dot">4</span></div>
+              <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="19" r="1.3"/></svg>
+            </div>
+          </div>
+          <div class="pf-people-switch"><span class="active">Dad</span><span>Mom</span></div>
+        </div>
+        <div class="pf-body" style="padding-top:18px;">
+          <p class="eyebrow" style="color:var(--c-ink-3);">Curated · 1 organization</p>
+          <h2 style="font-family:Gambetta,serif; font-weight:500; font-size:36px; line-height:1.1; letter-spacing:-0.8px; margin:6px 0 4px; color:var(--c-ink);">Resources</h2>
+          <p class="h-sub-italic" style="margin-bottom:18px;">Vetted help for the people doing the caring — bookmark any to save for later.</p>
+
+          <p class="eyebrow" style="color:var(--c-clay);">Caregiver pay programs</p>
+          <p class="body-copy smaller" style="margin-bottom:14px;">Programs that <i style="font-family:Gambetta,serif">may</i> pay you, your family, or your loved one's clinic — based on their diagnosis and coverage.</p>
+
+          <div class="res-card">
+            <span class="pill-amt">· Per session</span>
+            <p class="eyebrow">Medicare · any care plan</p>
+            <h4>Ask your loved one's clinic to <i>bill</i> caregiver training</h4>
+            <p>Medicare pays physicians and therapists to train family caregivers — codes 96202, 97550, and G0541. There is no diagnosis restriction. Most clinics do not bill it because no one asks.</p>
+            <div>
+              <a>↗ Open the CMS FAQ</a>
+              <a>How Wellet helps →</a>
+            </div>
+          </div>
+
+          <div class="res-card">
+            <span class="pill-amt">· Up to $2,500/mo</span>
+            <p class="eyebrow">VA · service-connected veterans</p>
+            <h4>VA <i>may</i> pay you up to $2,500/month tax-free to care for your veteran</h4>
+            <p>The VA Program of Comprehensive Assistance for Family Caregivers pays primary family caregivers directly. Your veteran needs a serious service-connected condition and a documented care need.</p>
+            <div>
+              <a>↗ PCAFC overview</a>
+              <a>How Wellet helps →</a>
+            </div>
+          </div>
+        </div>
+        <div class="pf-bottom-nav">
+          <div><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg></div>Home</div>
+          <div><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h10l2 3h4v11H4z"/></svg></div>Records</div>
+          <div><div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12h4l2 6 4-12 2 6h4"/></svg></div>CareSignals</div>
+          <div><div class="icon"><span style="font-family:Gambetta,serif;font-weight:500;">w</span></div>Ask Wellet</div>
+        </div>
+      </div>
+      <div class="changes">
+        <strong>What changed</strong>
+        <ul>
+          <li>Category eyebrow uses <b>Clay</b> (the only allowed warm neutral) — distinguishes program type without inventing a new color.</li>
+          <li>Each program card gets a 3px <b>Forest left border</b> + a Mint-soft <b>dollar-value pill</b> at top-right. The pill is the answer the caregiver scans for.</li>
+          <li>Hedging language baked in: title says <em>"VA <i>may</i> pay you"</em> with italic-Gambetta on "may" — the safety rule has a typographic home.</li>
+          <li>Paired action links: source ↗ on the left, "How Wellet helps →" on the right. Always paired, always in this order.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================
+     11. CONNECTIONS
+     ========================================================= -->
+<section class="screen-block" id="m-connections">
+  <h2>11 · Connections</h2>
+  <p class="screen-sub">The data-source picker. Already partly on v2 — pushes the rest of the way.</p>
+  <div class="screen-pair">
+    <div class="screen-col today"><h3>screenshot</h3>
+      <img class="live-shot" src="app_screens/10_connections.png" alt="Connections today">
+    </div>
+    <div class="screen-col v2"><h3>v2</h3>
+      <div class="phone-frame plain">
+        <div class="pf-body" style="padding-top:36px;">
+          <div style="text-align:center; margin-bottom:18px;">
+            <img class="pf-wordmark" src="assets/wellet-wordmark.svg" alt="Wellet" style="height:34px;">
+          </div>
+          <h2 style="font-family:Gambetta,serif; font-weight:500; font-size:34px; line-height:1.12; letter-spacing:-0.8px; margin:0 0 8px; color:var(--c-ink); text-align:center;">Bring in <i>your data</i>.</h2>
+          <p class="h-sub-italic" style="text-align:center; margin-bottom:24px;">Connect one thing now to see Wellet light up. The others can come later.</p>
+
+          <div class="rcard with-icon">
+            <div class="rc-icon" style="background:var(--c-mint-soft); color:var(--c-forest);">
+              <svg class="ico" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+            </div>
+            <div>
+              <p class="rc-eyebrow">Easiest start · PDF or photo</p>
+              <p class="rc-title"><i>Upload</i> a record</p>
+              <p class="rc-sub" style="margin-top:4px;">Visit summary, lab result, after-visit notes — drop it in and Wellet reads it for you.</p>
+              <span class="rc-pill"><span class="pill-dot"></span> RECOMMENDED</span>
+            </div>
+          </div>
+
+          <div class="rcard with-icon">
+            <div class="rc-icon" style="background:var(--c-mint-soft); color:var(--c-forest);">
+              <svg class="ico" viewBox="0 0 24 24"><path d="M5 7h14v12H5z"/><path d="M11 9v8M7 13h8"/></svg>
+            </div>
+            <div>
+              <p class="rc-eyebrow">EHR · Epic, Cerner, VA</p>
+              <p class="rc-title">Your <i>health records</i></p>
+              <p class="rc-sub" style="margin-top:4px;">Visits, labs, conditions, and medications from your hospital. Usually ready in under a minute.</p>
+              <span class="rc-pill"><span class="pill-dot"></span> Popular</span>
+            </div>
+          </div>
+
+          <div class="rcard with-icon" style="border-left-color:var(--c-ink-3);opacity:0.65;">
+            <div class="rc-icon" style="background:var(--c-stone); color:var(--c-ink-2);">
+              <svg class="ico" viewBox="0 0 24 24"><path d="M12 21s-7-4.5-7-11a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 6.5-7 11-7 11z"/></svg>
+            </div>
+            <div>
+              <p class="rc-eyebrow">Wearables · Apple</p>
+              <p class="rc-title">Apple Health</p>
+              <p class="rc-sub" style="margin-top:4px;">Apple Health lives on iPhone — open Wellet on your iPhone to connect this one.</p>
+              <span class="rc-pill" style="background:var(--c-stone); color:var(--c-ink-2);"><span class="pill-dot" style="background:var(--c-ink-2);"></span> iPhone only</span>
+            </div>
+          </div>
+
+          <div class="rcard with-icon">
+            <div class="rc-icon" style="background:var(--c-mint-soft); color:var(--c-forest);">
+              <svg class="ico" viewBox="0 0 24 24"><path d="M4 12h4l2 6 4-12 2 6h4"/></svg>
+            </div>
+            <div>
+              <p class="rc-eyebrow">Wearables · Phone & Fitbit</p>
+              <p class="rc-title">Google Health</p>
+              <p class="rc-sub" style="margin-top:4px;">Steps, sleep, heart rate, and anything else on your Android phone or Fitbit. Imports the last <i>30 days</i> first.</p>
+            </div>
+          </div>
+
+          <div class="rcard with-icon">
+            <div class="rc-icon" style="background:var(--c-mint-soft); color:var(--c-forest);">
+              <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="13" r="6"/><path d="M9 7l-2-2M15 7l2-2"/></svg>
+            </div>
+            <div>
+              <p class="rc-eyebrow">Wearables · Garmin, Oura, Whoop, Withings</p>
+              <p class="rc-title">Other wearables</p>
+              <p class="rc-sub" style="margin-top:4px;">Sign in once and Wellet keeps reading from them. Same italic-quiet treatment as the rest of your data.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="changes">
+        <strong>What changed</strong>
+        <ul>
+          <li>Every source becomes a <b>Resources-style rcard</b>: Forest left border, Clay eyebrow naming the source type (EHR, Wearables), Mint pill carrying the recommendation.</li>
+          <li>The top card is the <b>recommended start</b> — "Upload a record" earns the Mint <em>RECOMMENDED</em> pill because it's the easiest first win.</li>
+          <li>Apple Health uses the <b>Stone unavailable treatment</b>: muted icon tile, Stone pill, dimmed border. Unavailable states read as quiet, not broken.</li>
+          <li>Italic-noun voice carries through to <em>"Upload a record"</em> and <em>"Your health records"</em> — same poetic weight as the rest of the app.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+<script data-pplx-inline-edit>
+(function () {
+  if (window === window.top) return;
+
+  const allowedParentOrigins = ["https://www.perplexity.ai","https://perplexity.ai","https://testing.perplexity.ai","https://staging.perplexity.ai","https://*.preview.i.perplexity.ai","http://localhost:3000","http://127.0.0.1:3000","http://localhost:5173","http://127.0.0.1:5173"];
+  const MAX_FONT_BYTES = 500 * 1024;
+  const MAX_TOTAL_FONT_BYTES = 2 * 1024 * 1024;
+  let scrollForwarding = false;
+  let scrollRaf = 0;
+  let trustedTopOrigin = null;
+
+  // Allow entries like "https://*.preview.i.perplexity.ai" — the wildcard
+  // matches a single DNS label (no dots), so "https://*.foo" cannot stretch
+  // across multiple labels.
+  function matchesAllowedOrigin(origin) {
+    if (!origin) return false;
+    for (const entry of allowedParentOrigins) {
+      if (!entry.includes("*")) {
+        if (entry === origin) return true;
+        continue;
+      }
+      const pattern = new RegExp(
+        "^" +
+          entry.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^.]+") +
+          "$",
+      );
+      if (pattern.test(origin)) return true;
+    }
+    return false;
+  }
+
+  // Trust decision: when the sender is same-origin-visible (event.origin is a
+  // real origin like https://www.perplexity.ai) we trust event.origin directly.
+  // When event.origin is "null" (opaque broker srcdoc), we fall back to the
+  // broker's stamped `parentOrigin` to identify the top window. The fallback
+  // is claim-only — we rely on the browser's native `targetOrigin` enforcement
+  // on the response path (see postToTrustedTop) to ensure replies can't be
+  // delivered to anyone but the actual top window of that claimed origin.
+  function getTrustedParentOrigin(event) {
+    const forwardedParentOrigin =
+      typeof event.data.parentOrigin === "string" ? event.data.parentOrigin : null;
+    const parentOrigin = event.origin === "null" ? forwardedParentOrigin : event.origin;
+    return matchesAllowedOrigin(parentOrigin) ? parentOrigin : null;
+  }
+
+  // All responses go to window.top with targetOrigin = the allowlisted origin.
+  // An attacker that iframes us inside their own null-origin broker can claim
+  // any parentOrigin they like, but the browser will drop the reply whenever
+  // the real top's origin doesn't match — so the screenshot never leaves.
+  function postToTrustedTop(message) {
+    if (!trustedTopOrigin) return;
+    try {
+      window.top.postMessage(message, trustedTopOrigin);
+    } catch (_error) {}
+  }
+
+  function inlineAll(original, clone) {
+    if (original.nodeType !== 1 || clone.nodeType !== 1) return;
+
+    try {
+      const computedStyle = getComputedStyle(original);
+      // cssText on a computed style is the serialized declaration in modern
+      // Chromium/Safari — a single read beats enumerating ~400 longhand
+      // properties. Firefox returns "" here, so we fall back on empty.
+      const serialized = computedStyle.cssText;
+      if (serialized) {
+        clone.style.cssText = serialized;
+      } else {
+        const parts = new Array(computedStyle.length);
+        for (let index = 0; index < computedStyle.length; index += 1) {
+          const property = computedStyle[index];
+          parts[index] = `${property}:${computedStyle.getPropertyValue(property)};`;
+        }
+        clone.style.cssText = parts.join("");
+      }
+    } catch (_error) {}
+
+    const originalChildren = original.children;
+    const clonedChildren = clone.children;
+    for (
+      let index = 0;
+      index < originalChildren.length && index < clonedChildren.length;
+      index += 1
+    ) {
+      inlineAll(originalChildren[index], clonedChildren[index]);
+    }
+  }
+
+  function extractFontUrl(srcValue) {
+    const matches = [
+      ...srcValue.matchAll(
+        /url\(["']?([^"')]+)["']?\)(?:\s*format\(["']?([^"')]+)["']?\))?/gi,
+      ),
+    ];
+    if (matches.length === 0) return null;
+    const woff2 = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff2"));
+    if (woff2) return woff2[1];
+    const woff = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff"));
+    if (woff) return woff[1];
+    return matches[0][1];
+  }
+
+  // Cache resolved font URL -> data URI across captures. Fonts on a page
+  // essentially never change, and a batch run emits multiple captures back to
+  // back — without this we'd refetch + re-base64 every time.
+  const fontDataUriCache = new Map();
+  const SRC_DECLARATION_RE = /src\s*:\s*[^;}]+/i;
+
+  async function fetchAsDataUri(url) {
+    if (fontDataUriCache.has(url)) return fontDataUriCache.get(url);
+    let dataUri = null;
+    try {
+      const response = await fetch(url, { mode: "cors", credentials: "omit" });
+      if (response.ok) {
+        const blob = await response.blob();
+        if (blob.size <= MAX_FONT_BYTES) {
+          dataUri = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () =>
+              resolve(typeof reader.result === "string" ? reader.result : null);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        }
+      }
+    } catch (_error) {
+      dataUri = null;
+    }
+    fontDataUriCache.set(url, dataUri);
+    return dataUri;
+  }
+
+  function collectFontFaceRuleTexts() {
+    const rules = [];
+    for (const sheet of document.styleSheets) {
+      let cssRules;
+      try {
+        cssRules = sheet.cssRules;
+      } catch (_error) {
+        continue;
+      }
+      if (!cssRules) continue;
+      for (const rule of cssRules) {
+        const cssText = rule.cssText || "";
+        if (cssText.startsWith("@font-face")) rules.push(cssText);
+      }
+    }
+    return rules;
+  }
+
+  async function buildInlinedFontCss() {
+    const ruleTexts = collectFontFaceRuleTexts();
+    if (ruleTexts.length === 0) return null;
+
+    const resolved = ruleTexts.map((cssText) => {
+      if (!SRC_DECLARATION_RE.test(cssText)) return null;
+      const srcMatch = cssText.match(/src\s*:\s*([^;}]+)[;}]/i);
+      if (!srcMatch) return null;
+      const url = extractFontUrl(srcMatch[1]);
+      if (!url) return null;
+      try {
+        return { cssText, url: new URL(url, document.baseURI).href };
+      } catch (_error) {
+        return null;
+      }
+    });
+
+    const dataUris = await Promise.all(
+      resolved.map((entry) => (entry ? fetchAsDataUri(entry.url) : Promise.resolve(null))),
+    );
+
+    const inlined = [];
+    let totalBytes = 0;
+    for (let index = 0; index < resolved.length; index += 1) {
+      const entry = resolved[index];
+      const dataUri = dataUris[index];
+      if (!entry || !dataUri) continue;
+      const approxBytes = dataUri.length * 0.75;
+      if (totalBytes + approxBytes > MAX_TOTAL_FONT_BYTES) break;
+      totalBytes += approxBytes;
+      inlined.push(entry.cssText.replace(SRC_DECLARATION_RE, `src: url("${dataUri}")`));
+    }
+    return inlined.length > 0 ? inlined.join("\n") : null;
+  }
+
+  function stripExternal(clone) {
+    const images = clone.querySelectorAll("img");
+    for (let index = 0; index < images.length; index += 1) {
+      const src = images[index].getAttribute("src");
+      if (src && !src.startsWith("data:")) images[index].removeAttribute("src");
+    }
+
+    const elements = clone.querySelectorAll("*");
+    for (let index = 0; index < elements.length; index += 1) {
+      const style = elements[index].style.cssText;
+      if (style && style.includes("url(")) {
+        elements[index].style.cssText = style.replace(
+          /url\(["']?(?!data:)[^)"']*["']?\)/gi,
+          "none",
+        );
+      }
+    }
+  }
+
+  function emitScroll() {
+    scrollRaf = 0;
+    if (!scrollForwarding) return;
+    postToTrustedTop({
+      type: "INLINE_EDIT_SCROLL",
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+    });
+  }
+
+  window.addEventListener(
+    "scroll",
+    function () {
+      if (!scrollForwarding || scrollRaf) return;
+      scrollRaf = requestAnimationFrame(emitScroll);
+    },
+    { passive: true, capture: true },
+  );
+
+  async function handleCaptureRequest(event) {
+    const requestId = event.data.requestId;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    function postResult(dataUrl) {
+      postToTrustedTop({
+        type: "INLINE_EDIT_SCREENSHOT_RESULT",
+        requestId,
+        dataUrl,
+        scrollX,
+        scrollY,
+      });
+    }
+
+    try {
+      // Wait for any pending web fonts to resolve so both inline metrics and
+      // the @font-face inlining below see the same loaded faces.
+      if (document.fonts && document.fonts.ready) {
+        try {
+          await document.fonts.ready;
+        } catch (_error) {}
+      }
+
+      const clone = document.documentElement.cloneNode(true);
+      inlineAll(document.documentElement, clone);
+
+      const removedNodes = clone.querySelectorAll("script,link[rel=\"stylesheet\"],style");
+      for (let index = 0; index < removedNodes.length; index += 1) {
+        removedNodes[index].remove();
+      }
+
+      stripExternal(clone);
+
+      // Re-embed web fonts as data-URI @font-face rules so the SVG rasterizer
+      // can resolve them — external font URLs aren't fetched during
+      // foreignObject rendering, which would otherwise force a fallback face
+      // and change text metrics.
+      const inlinedFontCss = await buildInlinedFontCss();
+      if (inlinedFontCss) {
+        const styleEl = document.createElement("style");
+        styleEl.textContent = inlinedFontCss;
+        const head = clone.querySelector("head");
+        if (head) head.appendChild(styleEl);
+        else clone.insertBefore(styleEl, clone.firstChild);
+      }
+
+      const html = new XMLSerializer().serializeToString(clone);
+      const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+        '<foreignObject width="100%" height="100%">' +
+        `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;overflow:hidden">` +
+        `<div style="position:relative;left:-${scrollX}px;top:-${scrollY}px">` +
+        html +
+        "</div></div></foreignObject></svg>";
+      const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      const image = new Image();
+      image.onload = function () {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(image, 0, 0);
+        postResult(canvas.toDataURL("image/png"));
+      };
+      image.onerror = function () {
+        postResult(null);
+      };
+      image.src = svgUrl;
+    } catch (_error) {
+      postResult(null);
+    }
+  }
+
+  window.addEventListener("message", function (event) {
+    if (!event.data) return;
+    // Only accept messages from the direct parent frame. Blocks sibling /
+    // unrelated-window postMessage senders that could otherwise reach us.
+    if (event.source !== window.parent) return;
+
+    const trustedParentOrigin = getTrustedParentOrigin(event);
+    if (!trustedParentOrigin) return;
+    trustedTopOrigin = trustedParentOrigin;
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_START") {
+      scrollForwarding = true;
+      emitScroll();
+      return;
+    }
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_STOP") {
+      scrollForwarding = false;
+      if (scrollRaf) cancelAnimationFrame(scrollRaf);
+      scrollRaf = 0;
+      return;
+    }
+
+    if (event.data.type !== "INLINE_EDIT_CAPTURE_REQUEST") return;
+
+    handleCaptureRequest(event);
+  });
+})();
+
+
+</script></body>
+</html>

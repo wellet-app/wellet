@@ -5,7 +5,7 @@
    Matches the signals/resources editorial pattern (Gambetta
    masthead + DM Sans body). Brand colors only:
      CREAM  background  → var(--cream)   (#E8E6E0 in tokens; spec #faf6f0)
-     MOSS   primary CTA → var(--moss)    (#11443B in tokens; spec #2d6a4f)
+     MOSS   primary CTA → var(--moss)    (#11443B in tokens; spec #11443B)
      TERRA  stale ribbon→ #c07028        (spec; ribbon only)
      INK    text        → var(--ink-9) / var(--ink-7)
    The spec lists slightly different hexes; we use the existing
