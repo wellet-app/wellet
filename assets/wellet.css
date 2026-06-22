@@ -901,11 +901,14 @@
     color: var(--text-muted);
   }
   .tl-icon-tile i, .tl-icon-tile svg { width: 20px; height: 20px; stroke-width: 1.75; }
-  .tl-icon-tile-appt { background: #DCE8DA; color: #0d3a32; }
-  .tl-icon-tile-med { background: #F5DAB9; color: #8A5A2B; }
-  .tl-icon-tile-lab { background: #E0DCEC; color: #6A5FA0; }
-  .tl-icon-tile-alert { background: #F0D7D7; color: #A05A6A; }
-  .tl-icon-tile-note { background: #EEEBE2; color: #7A7367; }
+  /* Brand v2.01 tile palette — keeps category meaning from the mockup spec:
+     Mint for appts/care, Clay for meds, Mist for labs, soft-alert for alerts,
+     Stone-warm for notes. Hexes mirror mockups.html section 3 (Timeline). */
+  .tl-icon-tile-appt  { background: #DCE9E2; color: #11443B; } /* Mint-soft on Forest */
+  .tl-icon-tile-med   { background: #F6E6CF; color: #8A5A1F; } /* Clay on warm-brown */
+  .tl-icon-tile-lab   { background: #B8C9CE; color: #193241; } /* Mist on Midnight */
+  .tl-icon-tile-alert { background: #FDE2DD; color: #B8392B; } /* soft-alert on Walnut */
+  .tl-icon-tile-note  { background: #ECE9DD; color: #5b6a64; } /* Stone-warm on ink-2 */
   .tl-card-content { flex: 1; min-width: 0; }
   .tl-card-content .tl-card-type-row { justify-content: flex-start; }
   .tl-card-content .tl-card-time {
