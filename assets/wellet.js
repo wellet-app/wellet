@@ -4582,8 +4582,9 @@ function renderUpdateMe() {
         + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span>'
         + '<span class="tl-card-time">' + escHtml(dateStr) + '</span>'
         + '</div>'
-        + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
+        + '<div class="tl-card-title">' + _tlEmphasizeTitle(ev.title, ev) + '</div>'
         + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
+        + _tlAttributionMeta(ev)
         + '</div>'
         + '</div></div>';
     });
@@ -6561,7 +6562,7 @@ function renderTimeline() {
           +   '<span class="tl-card-type tl-cs-label" style="color:' + csv2SevColor + ';">Noticed</span>'
           +   csv2SourceChipsHtml
           + '</div>'
-          + '<div class="tl-card-title tl-cs-title">' + escHtml(csv2Title) + '</div>'
+          + '<div class="tl-card-title tl-cs-title">' + _tlEmphasizeTitle(csv2Title, ev) + '</div>'
           + (ev.notes ? '<div class="tl-card-body tl-cs-body">' + escHtml(ev.notes) + '</div>' : '')
           + '<div class="tl-card-date tl-cs-meta">' + dateStr + csv2OccHtml + '</div>'
           + '</div></div>';
@@ -6577,11 +6578,10 @@ function renderTimeline() {
           +   '<span class="tl-card-type tl-cs-label">Wellet noticed</span>'
           +   (chip ? '<span class="tl-cs-chip">' + escHtml(chip) + '</span>' : '')
           + '</div>'
-          + '<div class="tl-card-title tl-cs-title">' + escHtml(csTitle) + '</div>'
+          + '<div class="tl-card-title tl-cs-title">' + _tlEmphasizeTitle(csTitle, ev) + '</div>'
           + (ev.notes ? '<div class="tl-card-body tl-cs-body">' + escHtml(ev.notes) + '</div>' : '')
-          + '<div class="tl-card-date tl-cs-meta">' + dateStr
-          +   ' \u00B7 <span style="color:var(--moss);font-weight:500;font-style:italic;">You asked Wellet to watch this</span>'
-          + '</div>'
+          + '<div class="tl-meta-italic">you asked Wellet to watch this</div>'
+          + '<div class="tl-card-date tl-cs-meta">' + dateStr + '</div>'
           + '</div></div>';
       } else {
         // Encounter rollup: visits (manual or EHR) with a known encounter class
@@ -6606,8 +6606,9 @@ function renderTimeline() {
             +   '<span class="tl-card-type tl-enc-label" style="color:' + encInfo.hex + ';">' + escHtml(encInfo.label) + '</span>'
             +   '<span class="tl-card-time">' + escHtml(dateStr) + '</span>'
             + '</div>'
-            + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
+            + '<div class="tl-card-title">' + _tlEmphasizeTitle(ev.title, ev) + '</div>'
             + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
+            + _tlAttributionMeta(ev)
             + '<div class="tl-card-date"><span style="color:' + pillColor + ';' + pillStyle + '">' + escHtml(pillLabel) + '</span></div>'
             + '</div>'
             + '</div></div>';
@@ -6620,9 +6621,10 @@ function renderTimeline() {
             + '<span class="tl-card-type ' + typeInfo.dot + '">' + typeInfo.label + '</span>'
             + '<span class="tl-card-time">' + escHtml(dateStr) + '</span>'
             + '</div>'
-            + '<div class="tl-card-title">' + escHtml(ev.title) + '</div>'
+            + '<div class="tl-card-title">' + _tlEmphasizeTitle(ev.title, ev) + '</div>'
             + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
             + (ev.event_type === 'ask_wellet_conversation' && ev.transcript_url ? '<div class="tl-card-body" style="margin-top:4px;"><a href="' + escHtml(ev.transcript_url) + '" target="_blank" rel="noopener" style="color:var(--moss-deep,var(--moss));font-size:13px;font-weight:500;text-decoration:none;">View transcript →</a></div>' : '')
+            + _tlAttributionMeta(ev)
             + '<div class="tl-card-date"><span style="color:' + pillColor + ';' + pillStyle + '">' + escHtml(pillLabel) + '</span></div>'
             + '</div>'
             + '</div></div>';
@@ -13835,6 +13837,90 @@ function formatEventDate(dateStr) {
 function escHtml(t) {
   if (!t) return '';
   return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ── TIMELINE v2 · EDITORIAL TITLE EMPHASIS ───────────────────────────
+// Renders a Timeline card title with a single Gambetta-italic emphasis token
+// wrapped in <em class="tl-em">. The CSS hook lives in editorial-timeline.css.
+//
+// Truth rule: NEVER invent emphasis where the source string doesn't already
+// contain the token. We only italicize substrings that already exist in the
+// title verbatim. If nothing matches, the title returns roman.
+//
+// Input: raw title string + optional event object for type/source hints.
+// Output: HTML-escaped string with at most ONE <em class="tl-em"> wrapper.
+//
+// Strategy (deterministic, conservative):
+//   1. If ev.emphasis_token is set by the producer, prefer that.
+//   2. Otherwise, italicize the first day-of-week token in the title
+//      ("Wednesday", "Saturday morning"). Days are unambiguous and align
+//      with the v2 mock.
+//   3. No drug-name regex — too easy to mis-italicize a vital or condition.
+//      That stays opt-in via emphasis_token.
+function _tlEmphasizeTitle(title, ev) {
+  if (!title) return '';
+  var raw = String(title);
+  var token = null;
+
+  // 1) Producer-supplied hint wins. Must be a verbatim substring of title.
+  if (ev && ev.emphasis_token) {
+    var hint = String(ev.emphasis_token);
+    if (hint && raw.indexOf(hint) !== -1) token = hint;
+  }
+
+  // 2) Day-of-week fallback. Case-insensitive, whole-word.
+  if (!token) {
+    var dowMatch = raw.match(/\b(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\b/i);
+    if (dowMatch) token = dowMatch[0];
+  }
+
+  if (!token) return escHtml(raw);
+
+  // Replace only the first occurrence; escape everything around it.
+  var idx = raw.indexOf(token);
+  if (idx === -1) return escHtml(raw);
+  var before = raw.slice(0, idx);
+  var after = raw.slice(idx + token.length);
+  return escHtml(before)
+    + '<em class="tl-em">' + escHtml(token) + '</em>'
+    + escHtml(after);
+}
+
+// ── TIMELINE v2 · ATTRIBUTION META LINE ──────────────────────────
+// Returns a small italic moss-quiet line that sits under the card body when
+// the event has a clear attribution context. Empty string when no anchor.
+// Voice rule: "loved one" not "parent"; no exclamation points.
+function _tlAttributionMeta(ev) {
+  if (!ev) return '';
+  var t = String(ev.event_type || '').toLowerCase();
+  var src = String(ev.source || '').toLowerCase();
+  var entered = String(ev.entered_by || '').toLowerCase();
+
+  // Care signals already get a richer attribution line at their own site;
+  // skip here to avoid double-meta.
+  if (src === 'care_signal' || src === 'care_signal_v2') return '';
+
+  // Voice transcripts — quiet attribution if produced from Ask Wellet.
+  if (t === 'ask_wellet_conversation') return '';
+
+  // Meds logged by the user (vs. EHR-imported med history) — the v2 mock
+  // shows "by you" in the eyebrow already, but the meta line gives a
+  // second beat for the human moment.
+  if ((t === 'medication' || t === 'med_log') && (src === 'manual' || src === 'user' || entered === 'user')) {
+    return '<div class="tl-meta-italic">logged by you</div>';
+  }
+
+  // Manual visits / outside visits added by the caregiver.
+  if (t === 'visit' && (src === 'manual' || src === 'user')) {
+    return '<div class="tl-meta-italic">added by you</div>';
+  }
+
+  // Personal notes the caregiver wrote.
+  if (t === 'note' && (src === 'manual' || src === 'user' || entered === 'user')) {
+    return '<div class="tl-meta-italic">your note</div>';
+  }
+
+  return '';
 }
 
 // ── LIGHT MARKDOWN RENDERER ────────────────────────────────────────────────
