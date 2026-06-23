@@ -183,7 +183,7 @@
   letter-spacing: 0.02em;
 }
 .watch-row-status-active {
-  color: #2F4A3A;
+  color: var(--moss-deep, #11443B);
   background: #EDF3EE;
   border: 1px solid #C9D5CD;
 }
@@ -376,7 +376,7 @@
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 .cs-aw-card:has(input[type="radio"]:checked) {
-  border-color: #2F4A3A;
+  border-color: var(--moss-deep, #11443B);
   background: #F5FAF6;
 }
 .cs-aw-card-title {
@@ -423,7 +423,7 @@
 .cs-aw-params input[type="text"] { width: 180px; }
 .cs-aw-params input:focus {
   outline: none;
-  border-color: #2F4A3A;
+  border-color: var(--moss-deep, #11443B);
   background: #fff;
 }
 

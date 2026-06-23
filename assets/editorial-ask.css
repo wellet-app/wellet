@@ -601,7 +601,7 @@
   height: 32px;
   border-radius: 10px;
   background: #EDF3EE;
-  color: #2F4A3A;
+  color: var(--moss-deep, #11443B);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -650,7 +650,7 @@
 }
 .watch-row-status.watch-row-status-active {
   background: #EDF3EE;
-  color: #2F4A3A;
+  color: var(--moss-deep, #11443B);
 }
 .watch-row-status.watch-row-status-paused {
   background: #F0EDE5;

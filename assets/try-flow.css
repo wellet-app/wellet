@@ -40,7 +40,7 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  border: 2px dashed var(--ink-2, #D8D3CA);
+  border: 2px dashed var(--ink-2, #BFB9AC);
   border-radius: 20px;
   padding: 48px 24px;
   margin: 16px 0;
@@ -61,7 +61,7 @@
   font-size: clamp(22px, 5vw, 32px);
   font-weight: 500;
   font-variation-settings: "opsz" 24, "SOFT" 60;
-  color: var(--ink-9, #1F1B16);
+  color: var(--ink-9, #161312);
   margin: 0 0 12px;
   line-height: 1.2;
 }
@@ -70,7 +70,7 @@
   font-size: 15px;
   font-weight: 300;
   line-height: 1.55;
-  color: var(--ink-6, #57534C);
+  color: var(--ink-6, #4A463F);
   max-width: 380px;
   margin: 0 0 16px;
 }
@@ -100,7 +100,7 @@
 .try-drop-footer {
   text-align: center;
   font-size: 12px;
-  color: var(--ink-5, #6E6962);
+  color: var(--ink-5, #5F5A52);
   line-height: 1.5;
   padding: 8px 0 24px;
 }
@@ -113,7 +113,7 @@
 .try-spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid var(--ink-1, #E6E1D6);
+  border: 3px solid var(--ink-1, #DAD6CB);
   border-top-color: var(--moss, #11443B);
   border-radius: 50%;
   margin: 0 auto 20px;
@@ -126,12 +126,12 @@
   font-family: 'Gambetta', serif;
   font-size: 22px;
   font-weight: 500;
-  color: var(--ink-9, #1F1B16);
+  color: var(--ink-9, #161312);
   margin: 0 0 8px;
 }
 .try-file-label {
   font-size: 14px;
-  color: var(--ink-5, #6E6962);
+  color: var(--ink-5, #5F5A52);
   margin: 0;
 }
 
@@ -143,13 +143,13 @@
   font-size: 24px;
   font-weight: 500;
   font-variation-settings: "opsz" 24, "SOFT" 60;
-  color: var(--ink-9, #1F1B16);
+  color: var(--ink-9, #161312);
   margin: 0 0 16px;
   text-align: center;
 }
 .try-results-body {
   background: white;
-  border: 1px solid var(--ink-1, #E6E1D6);
+  border: 1px solid var(--ink-1, #DAD6CB);
   border-radius: 14px;
   padding: 20px;
   margin-bottom: 20px;
@@ -171,7 +171,7 @@
 .try-result-value {
   font-size: 15px;
   line-height: 1.5;
-  color: var(--ink-7, #443F38);
+  color: var(--ink-7, #2D2A24);
 }
 .try-result-list {
   list-style: none;
@@ -181,8 +181,8 @@
 .try-result-list li {
   padding: 4px 0;
   font-size: 14px;
-  color: var(--ink-7, #443F38);
-  border-bottom: 1px solid var(--ink-0, #F0ECE4);
+  color: var(--ink-7, #2D2A24);
+  border-bottom: 1px solid var(--ink-0, #EEEDE8);
 }
 .try-result-list li:last-child {
   border-bottom: 0;
@@ -205,7 +205,7 @@
 .try-result-signal-text {
   font-size: 14px;
   line-height: 1.5;
-  color: var(--ink-7, #443F38);
+  color: var(--ink-7, #2D2A24);
 }
 
 .try-results-actions {
@@ -250,7 +250,7 @@
 /* ── Email gate ── */
 .try-email-card {
   background: white;
-  border: 1px solid var(--ink-1, #E6E1D6);
+  border: 1px solid var(--ink-1, #DAD6CB);
   border-radius: 16px;
   padding: 32px 24px;
   text-align: center;
@@ -260,13 +260,13 @@
   font-family: 'Gambetta', serif;
   font-size: 22px;
   font-weight: 500;
-  color: var(--ink-9, #1F1B16);
+  color: var(--ink-9, #161312);
   margin: 0 0 10px;
 }
 .try-email-card p {
   font-size: 14px;
   line-height: 1.55;
-  color: var(--ink-6, #57534C);
+  color: var(--ink-6, #4A463F);
   margin: 0 0 20px;
 }
 #try-email-form {
@@ -278,7 +278,7 @@
 #try-otp-input {
   width: 100%;
   padding: 12px 16px;
-  border: 1.5px solid var(--ink-2, #D8D3CA);
+  border: 1.5px solid var(--ink-2, #BFB9AC);
   border-radius: 10px;
   font-family: 'Public Sans', sans-serif;
   font-size: 16px;
@@ -318,11 +318,11 @@
 }
 .try-otp-label {
   font-size: 14px;
-  color: var(--ink-6, #57534C);
+  color: var(--ink-6, #4A463F);
   margin: 0 0 12px;
 }
 .try-email-note {
   font-size: 12px;
-  color: var(--ink-5, #6E6962);
+  color: var(--ink-5, #5F5A52);
   margin: 16px 0 0;
 }
