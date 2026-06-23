@@ -61,7 +61,7 @@
 
   .auth-headline { padding: 12px 28px 0; }
   .auth-headline h1 { font-family: var(--serif); font-size: var(--type-display); line-height: 1.15; font-weight: 400; color: #2C2A26; margin: 0; }
-  .auth-headline h1 em { font-family: var(--serif); font-style: italic; color: #11443B; }
+  .auth-headline h1 em { font-family: var(--serif); font-style: italic; }
   .auth-description { padding: 10px 28px 0; font-size: var(--type-body); line-height: 1.5; color: #5A5A5A; font-weight: 300; }
   .auth-signals { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 14px 28px 0; }
   .auth-signal-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
@@ -288,7 +288,6 @@
   }
   .manifesto-statement em {
     font-style: italic;
-    color: var(--moss-dark, #3D6B58);
   }
   @media (min-width: 720px) {
     .manifesto-band { padding: 36px 32px 38px; }
@@ -1331,7 +1330,7 @@
   /* ── P7: FRAUNCES TYPOGRAPHY CARRY-THROUGH ── */
   /* Note: getwellet.com marketing site Gambetta update assumed shipped per brief instructions */
   .auth-headline h1       { font-family: var(--font-display); font-variation-settings: 'opsz' 72; }
-  .auth-headline h1 em    { font-family: var(--font-display); font-style: italic; color: var(--moss); font-variation-settings: 'opsz' 72; }
+  .auth-headline h1 em    { font-family: var(--font-display); font-style: italic; font-variation-settings: 'opsz' 72; }
   .view-title             { font-family: var(--font-display); font-variation-settings: 'opsz' 36; }
   .notif-panel-title      { font-family: var(--font-display); font-variation-settings: 'opsz' 36; }
   .settings-title         { font-family: var(--font-display); font-variation-settings: 'opsz' 36; }
@@ -1932,7 +1931,6 @@
     font-family: var(--serif), 'Gambetta', serif;
     font-style: italic;
     font-size: var(--type-meta, 13px);
-    color: var(--moss-dark, #3F6356);
     margin: 0 0 14px;
     line-height: 1.5;
   }
@@ -1994,7 +1992,6 @@
     padding: 4px;
     background: transparent;
     border: none;
-    color: var(--moss-dark, #3F6356);
     font-family: 'Public Sans', sans-serif;
     font-size: var(--type-meta, 13px);
     font-style: italic;
@@ -2628,7 +2625,6 @@
   }
   .connect-data-headline em {
     font-style: italic;
-    color: #11443B;
     font-weight: 400;
   }
   .connect-data-sub {
@@ -3112,7 +3108,6 @@ input.story-input[type="date"]::-webkit-calendar-picker-indicator {
   font-family: var(--serif, 'Lora'), serif;
   font-style: italic;
   font-size: var(--type-meta);
-  color: var(--moss-dark, #3F6A52);
   line-height: 1.5;
   margin-bottom: 4px;
   text-align: center;
@@ -3207,7 +3202,6 @@ input.story-input[type="date"]::-webkit-calendar-picker-indicator {
   font-family: var(--serif, 'Lora'), serif;
   font-style: italic;
   font-size: var(--type-micro);
-  color: var(--moss-dark, #3F6A52);
 }
 
 .story-output-actions {

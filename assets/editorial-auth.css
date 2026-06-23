@@ -92,7 +92,6 @@
 #auth-screen[data-editorial="auth"] .auth-headline h1 em {
   font-family: var(--serif);
   font-style: italic;
-  color: var(--moss-deep);
   font-variation-settings: "opsz" 36, "SOFT" 75, "WONK" 0;
 }
 @media (min-width: 768px) {
