@@ -871,7 +871,7 @@
   .tl-dot.alert { border-color: var(--red); background: var(--red); }
   .tl-connector { width: 1px; flex: 1; min-height: 24px; background: var(--border); margin-top: 4px; }
   .tl-card { flex: 1; background: white; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; transition: background 0.15s ease-out, border-color 0.15s ease-out; }
-  .tl-card[onclick]:hover { background: #FAFAF7; border-color: #C9C6BE; }
+  .tl-card[onclick]:hover { background: var(--cream); border-color: #C9C6BE; }
   /* Flash highlight on a Records row when jumped to from Timeline */
   @keyframes tlTargetFlash {
     0% { background: #F2EFE6; box-shadow: 0 0 0 2px rgba(75, 99, 65, 0.35); }
@@ -2531,9 +2531,15 @@
     margin: 0 8px;
   }
   .mode-question-headline em {
-    font-family: var(--serif, 'Gambetta', Georgia, serif);
+    /* Wordmark is never typeset; italic emphasis is unstyled. */
     font-style: italic;
-    color: #11443B;
+  }
+  .mode-question-headline-mark {
+    display: inline-block;
+    height: 0.78em;
+    width: auto;
+    vertical-align: -0.08em;
+    margin: 0 0.04em;
   }
   .mode-question-sub {
     font-size: var(--type-body, 16px);
@@ -3317,7 +3323,7 @@ input.story-input[type="date"]::-webkit-calendar-picker-indicator {
 }
 .manual-visit-option:hover {
   border-color: var(--moss);
-  background: #FAFAF7;
+  background: var(--cream);
 }
 .manual-visit-option:active { transform: scale(0.99); }
 .manual-visit-option-icon {

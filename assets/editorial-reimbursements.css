@@ -3,14 +3,12 @@
    Scoped to #view-reimbursements[data-editorial="reimbursements"]
 
    Matches the signals/resources editorial pattern (Gambetta
-   masthead + DM Sans body). Brand colors only:
-     CREAM  background  → var(--cream)   (#E8E6E0 in tokens; spec #faf6f0)
-     MOSS   primary CTA → var(--moss)    (#11443B in tokens; spec #11443B)
-     TERRA  stale ribbon→ #c07028        (spec; ribbon only)
+   masthead + Public Sans body). Brand v2.01 colors only:
+     STONE  background  → var(--cream)   (#E8E6E0)
+     FOREST primary CTA → var(--moss)    (#11443B)
+     WALNUT stale ribbon→ var(--walnut)  (#B8392B — soft alert)
      INK    text        → var(--ink-9) / var(--ink-7)
-   The spec lists slightly different hexes; we use the existing
-   design tokens so the surface stays consistent with the rest of
-   the app, and reserve TERRA strictly for the stale ribbon.
+   Stale ribbon is the only Walnut surface in this view.
    ============================================================ */
 
 /* Confidence pip tokens (spec checklist). */
@@ -18,7 +16,7 @@
   --reimb-confidence-high: var(--moss);
   --reimb-confidence-medium: var(--ink-7, #2D2A24);
   --reimb-confidence-low: var(--ink-4, #7E796F);
-  --reimb-terra: #c07028;
+  --reimb-terra: var(--walnut, #B8392B);
 }
 
 /* Only force block layout when this view is active — otherwise leave the
@@ -124,24 +122,24 @@
   line-height: 1.5;
 }
 
-/* ── Stale ribbon (TERRA — soft, the only TERRA in this surface) ─ */
+/* ── Stale ribbon (Walnut — soft alert, the only Walnut surface here) ─ */
 #view-reimbursements[data-editorial="reimbursements"] .reimb-ribbon {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: rgba(192, 112, 40, 0.10);
-  border: 1px solid rgba(192, 112, 40, 0.30);
+  background: rgba(184, 57, 43, 0.10);
+  border: 1px solid rgba(184, 57, 43, 0.30);
   border-radius: 12px;
   padding: 12px 14px;
   margin: 14px 0 6px;
   font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-meta, 13px);
-  color: var(--reimb-terra, #c07028);
+  color: var(--reimb-terra, #B8392B);
 }
 #view-reimbursements[data-editorial="reimbursements"] .reimb-ribbon-btn {
   flex-shrink: 0;
-  background: var(--reimb-terra, #c07028);
+  background: var(--reimb-terra, #B8392B);
   color: #fff;
   border: none;
   border-radius: 999px;
