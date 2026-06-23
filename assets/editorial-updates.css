@@ -548,3 +548,253 @@
     font-size: var(--type-h2);
   }
 }
+
+/* ============================================================
+   HOME / SUMMARY editorial pass — June 2026
+   Brings the Home surface into the same editorial language as
+   CareSignals (editorial-signals-view.css). Two changes:
+
+   1. Summary / History tab bar — restyled from PSans+underline-rail
+      to a typeset Gambetta pair (no underline rail, hairline
+      indicator only on the active tab). Echoes the Betsy/Mom
+      person-pill rhythm without competing chrome.
+
+   2. .update-summary-card — moves off the full mint-fill
+      callout and into a white card with a Mint hairline left
+      rule (Option B). Eyebrow labels (WELLET SUMMARY, SNAPSHOT,
+      WHAT'S NEW) preserved. The lede paragraph and emphasized
+      <strong> phrases adopt the Gambetta + moss-deep italic
+      vocabulary already used on .update-card (see THE LEDE block
+      above), so the surface reads as a single editorial voice.
+
+   Scoped to #view-home[data-editorial="updates"] so removing the
+   attribute reverts instantly. No JS, no markup, no copy edits.
+   ============================================================ */
+
+/* ---- 1. Tab bar: typeset Gambetta pair ----
+   The tab-bar is global header chrome that wellet.js shows/hides per view
+   (assets/wellet.js:26351 — display:flex when home, display:none otherwise).
+   We hook the editorial restyle via :has() on the body, but we DO NOT touch
+   `display` so JS continues to control visibility. */
+body:has(#view-home[data-editorial="updates"]) #header-tab-bar.tab-bar {
+  gap: 24px;
+  margin: 4px var(--gutter, 22px) 14px;
+  padding: 0;
+  border-top: 0;
+}
+
+body:has(#view-home[data-editorial="updates"]) #header-tab-bar.tab-bar .tab {
+  flex: 0 0 auto;
+  padding: 0 0 4px;
+  font-family: var(--serif, "Gambetta", Georgia, serif);
+  font-size: 17px;
+  font-weight: 400;
+  color: var(--ink-4, #7E796F);
+  letter-spacing: -0.005em;
+  text-align: left;
+  border: 0;
+  border-bottom: 1.5px solid transparent;
+  background: none;
+  transition: color 0.15s, border-color 0.15s;
+  font-variation-settings: "opsz" 24, "SOFT" 50;
+}
+
+body:has(#view-home[data-editorial="updates"]) #header-tab-bar.tab-bar .tab.active {
+  color: var(--ink-9, #161312);
+  border-bottom-color: var(--moss-deep, #11443B);
+  font-weight: 500;
+}
+
+/* ---- 2. Update summary card: Option B (white + Mint hairline) ---- */
+#view-home[data-editorial="updates"] .update-summary-card {
+  background: #FFFFFF;
+  border: 1px solid var(--ink-1, #DAD6CB);
+  border-left: 3px solid var(--signal-fresh, #9ECF90);
+  border-radius: 14px;
+  padding: 18px 20px 14px;
+  margin: 4px 0 18px;
+  position: relative;
+  overflow: visible;
+}
+#view-home[data-editorial="updates"] .update-summary-card::before {
+  /* Kill the legacy moss left rule — replaced by border-left above */
+  display: none;
+  content: none;
+}
+
+#view-home[data-editorial="updates"] .update-summary-header {
+  margin-bottom: 12px;
+}
+
+#view-home[data-editorial="updates"] .update-summary-label {
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
+  font-size: var(--type-micro, 11px);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-5, #5F5A52);
+}
+
+/* Verdict pill — quieter background, walnut text only when attention */
+#view-home[data-editorial="updates"] .update-summary-verdict-pill {
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
+  font-weight: 600;
+  background: var(--ink-0, #EEEDE8);
+  color: var(--ink-7, #2D2A24);
+}
+#view-home[data-editorial="updates"] .update-summary-verdict-pill .dot {
+  background: var(--ink-4, #7E796F);
+}
+#view-home[data-editorial="updates"] .update-summary-verdict-pill.attention {
+  background: rgba(184, 57, 43, 0.10);
+  color: var(--signal-warm, #B8392B);
+}
+#view-home[data-editorial="updates"] .update-summary-verdict-pill.attention .dot {
+  background: var(--signal-warm, #B8392B);
+}
+#view-home[data-editorial="updates"] .update-summary-verdict-pill.active {
+  background: var(--ink-0, #EEEDE8);
+  color: var(--moss-deep, #11443B);
+}
+#view-home[data-editorial="updates"] .update-summary-verdict-pill.active .dot {
+  background: var(--moss-deep, #11443B);
+}
+
+/* Sources strip — keep the layout, quiet the palette */
+#view-home[data-editorial="updates"] .update-summary-sources-wrap {
+  border-bottom-color: var(--ink-1, #DAD6CB);
+}
+#view-home[data-editorial="updates"] .update-summary-sources-label,
+#view-home[data-editorial="updates"] .update-summary-subhead {
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
+  color: var(--ink-5, #5F5A52);
+  font-weight: 600;
+  opacity: 1;
+}
+#view-home[data-editorial="updates"] .update-summary-sources {
+  color: var(--ink-5, #5F5A52);
+  opacity: 1;
+}
+#view-home[data-editorial="updates"] .update-summary-sources-add {
+  background: var(--ink-0, #EEEDE8);
+  color: var(--moss-deep, #11443B);
+}
+#view-home[data-editorial="updates"] .update-summary-sources-add:hover,
+#view-home[data-editorial="updates"] .update-summary-sources-add:focus-visible {
+  background: var(--ink-1, #DAD6CB);
+}
+
+/* The lede paragraph — adopt the Gambetta + moss-deep italic vocabulary
+   from .update-card so the two surfaces speak the same language. */
+#view-home[data-editorial="updates"] .update-summary-text {
+  font-family: var(--serif, "Gambetta", Georgia, serif);
+  font-weight: 400;
+  font-size: 19px;
+  line-height: 1.42;
+  letter-spacing: 0;
+  color: var(--ink-9, #161312);
+  font-variation-settings: "opsz" 24, "SOFT" 50;
+}
+#view-home[data-editorial="updates"] .update-summary-text strong {
+  font-family: var(--serif, "Gambetta", Georgia, serif);
+  font-weight: 400;
+  font-style: italic;
+  color: var(--moss-deep, #11443B);
+  font-variation-settings: "opsz" 14, "SOFT" 75;
+}
+
+/* Section-style body (used in the SNAPSHOT / WHAT'S NEW two-pane layout) */
+#view-home[data-editorial="updates"] .update-summary-section-body {
+  font-family: var(--serif, "Gambetta", Georgia, serif);
+  font-weight: 400;
+  font-size: 19px;
+  line-height: 1.42;
+  letter-spacing: 0;
+  color: var(--ink-9, #161312);
+  font-variation-settings: "opsz" 24, "SOFT" 50;
+}
+#view-home[data-editorial="updates"] .update-summary-section-body strong,
+#view-home[data-editorial="updates"] .update-summary-section.snapshot .update-summary-section-body .verdict {
+  font-family: var(--serif, "Gambetta", Georgia, serif);
+  font-weight: 400;
+  font-style: italic;
+  color: var(--moss-deep, #11443B);
+  font-variation-settings: "opsz" 14, "SOFT" 75;
+}
+
+/* Byline — quiet caption inside the card */
+#view-home[data-editorial="updates"] .update-summary-byline {
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif);
+  font-size: var(--type-micro, 11px);
+  color: var(--ink-4, #7E796F);
+  opacity: 1;
+  border-top-color: var(--ink-1, #DAD6CB);
+  letter-spacing: 0.01em;
+}
+
+/* Loading state */
+#view-home[data-editorial="updates"] .update-summary-loading {
+  color: var(--ink-4, #7E796F);
+}
+
+/* Refresh affordance — match the editorial palette */
+#view-home[data-editorial="updates"] .update-summary-refresh {
+  color: var(--ink-5, #5F5A52);
+}
+#view-home[data-editorial="updates"] .update-summary-refresh:hover {
+  background: var(--ink-0, #EEEDE8);
+}
+
+/* ---- 3. Share-this-update button: demote to editorial link ----
+   The button is rendered inline in index.html (line 805) with hard-coded
+   inline styles. Use a high-specificity override so the editorial home
+   reads as one quiet surface instead of a stack of competing CTAs.
+   The selector matches the share button that sits inside
+   .update-me-section (the share button is a sibling of
+   .update-summary-card). */
+#view-home[data-editorial="updates"] .update-me-section > button[onclick*="openShareFamily"] {
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--ink-2, #BFB9AC) !important;
+  border-radius: 0 !important;
+  width: auto !important;
+  padding: 6px 0 4px !important;
+  margin: 8px 0 0 auto !important;
+  color: var(--moss-deep, #11443B) !important;
+  font-family: var(--sans, "Public Sans", system-ui, sans-serif) !important;
+  font-size: var(--type-micro, 11px) !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  display: inline-flex !important;
+  gap: 6px !important;
+}
+#view-home[data-editorial="updates"] .update-me-section > button[onclick*="openShareFamily"]:hover {
+  border-bottom-color: var(--moss-deep, #11443B) !important;
+}
+#view-home[data-editorial="updates"] .update-me-section > button[onclick*="openShareFamily"] svg,
+#view-home[data-editorial="updates"] .update-me-section > button[onclick*="openShareFamily"] i {
+  width: 12px !important;
+  height: 12px !important;
+}
+
+/* ---- 4. update-me-section spacing ---- */
+#view-home[data-editorial="updates"] .update-me-section {
+  /* Tightened — the section sits between the appointment block and
+     the upcoming/timeline rows; let the white card breathe but not
+     dominate. The 26px top padding from THE LEDE block above is for
+     .update-card; this rule wins because it's later in the file. */
+  padding: 18px 0 8px;
+}
+
+/* ---- 5. Tablet/desktop bump ---- */
+@media (min-width: 768px) {
+  #view-home[data-editorial="updates"] .update-summary-text,
+  #view-home[data-editorial="updates"] .update-summary-section-body {
+    font-size: 22px;
+    line-height: 1.4;
+  }
+  body:has(#view-home[data-editorial="updates"]) #header-tab-bar.tab-bar .tab {
+    font-size: 19px;
+  }
+}
