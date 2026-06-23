@@ -109,7 +109,6 @@
   font-family: var(--serif);
   font-weight: 400;
   font-style: italic;
-  color: var(--moss-deep);
   font-variation-settings: "opsz" 14, "SOFT" 75;
 }
 
@@ -503,9 +502,8 @@
   font-variant-numeric: tabular-nums;
   margin: 0;
 }
-/* Inner span "From Duke Health (Epic)" — keep moss-deep italic */
+/* Inner span "From Duke Health (Epic)" — italic emphasis, inherits color */
 #view-home[data-editorial="updates"] .tl-card-date span {
-  color: var(--moss-deep) !important;
   font-style: italic;
   font-family: var(--serif);
   font-weight: 400 !important;
@@ -702,7 +700,6 @@ body:has(#view-home[data-editorial="updates"]) #header-tab-bar.tab-bar .tab.acti
   font-family: var(--serif, "Gambetta", Georgia, serif);
   font-weight: 400;
   font-style: italic;
-  color: var(--moss-deep, #11443B);
   font-variation-settings: "opsz" 14, "SOFT" 75;
 }
 
@@ -721,7 +718,6 @@ body:has(#view-home[data-editorial="updates"]) #header-tab-bar.tab-bar .tab.acti
   font-family: var(--serif, "Gambetta", Georgia, serif);
   font-weight: 400;
   font-style: italic;
-  color: var(--moss-deep, #11443B);
   font-variation-settings: "opsz" 14, "SOFT" 75;
 }
 

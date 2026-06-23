@@ -396,12 +396,11 @@
   background: var(--signal-warm);
 }
 
-/* EHR provenance — small caption */
+/* EHR provenance — small caption (italic, inherits color) */
 #view-records[data-editorial="records"] .ehr-provider-badge {
   background: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
-  color: var(--moss-deep) !important;
   font-family: var(--serif) !important;
   font-style: italic !important;
   font-weight: 400 !important;
