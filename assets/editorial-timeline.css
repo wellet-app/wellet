@@ -57,26 +57,59 @@
 /* ----- Section + cards — v2 white-island treatment ----- */
 /* v2.01 Timeline cards return as soft white islands on the person-tint
    ground. Per-type color carries through the icon tile + eyebrow + time
-   chip, never as full-card tints or colored left borders. */
+   chip, never as full-card tints or colored left borders.
+   IMPORTANT: card display rules are split below — cards WITH an icon tile
+   get flex (tile + content side-by-side), CareSignal/stacked cards stay
+   block so their eyebrow/title/body/meta flow vertically. The earlier
+   blanket `display: flex !important` broke CareSignal layout into a
+   four-column grid. */
 #tab-timeline .timeline-section {
   margin-top: 0;
 }
 #tab-timeline .tl-card {
-  background: var(--white, #FFFFFF) !important;
   border: 1px solid var(--ink-1, #DAD6CB) !important;
   border-radius: 16px !important;
   padding: 14px !important;
   box-shadow: 0 1px 2px rgba(22,19,18,0.04), 0 6px 18px rgba(22,19,18,0.04) !important;
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out, opacity 0.15s ease-out;
+}
+
+/* Tile-bearing cards — flex row, white background. */
+#tab-timeline .tl-card.tl-card-with-icon {
+  background: var(--white, #FFFFFF) !important;
   display: flex !important;
   gap: 12px;
   align-items: flex-start;
-  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out, opacity 0.15s ease-out;
+}
+
+/* Stacked cards (no icon tile) — single column. Default white background,
+   but CareSignal cards keep their own mint/amber gradient (set in
+   wellet.css). */
+#tab-timeline .tl-card:not(.tl-card-with-icon) {
+  display: block !important;
+  background: var(--white, #FFFFFF) !important;
+}
+#tab-timeline .tl-card.tl-card-caresignal,
+#tab-timeline .tl-card.tl-card-caresignal-v2 {
+  background: none !important;          /* let wellet.css gradient win */
+  border-color: rgba(75, 99, 65, 0.22) !important;
+}
+#tab-timeline .tl-card.tl-card-caresignal-v2.tl-cs-attention {
+  border-color: rgba(184, 134, 11, 0.28) !important;
+}
+
+#tab-timeline .tl-card[onclick] {
+  cursor: pointer;
 }
 #tab-timeline .tl-card[onclick]:hover {
-  background: var(--white, #FFFFFF) !important;
   border-color: var(--ink-2, #BFB9AC) !important;
   box-shadow: 0 2px 4px rgba(22,19,18,0.06), 0 10px 24px rgba(22,19,18,0.06) !important;
   transform: translateY(-1px);
+}
+#tab-timeline .tl-card.tl-card-caresignal[onclick]:hover,
+#tab-timeline .tl-card.tl-card-caresignal-v2[onclick]:hover {
+  /* Don't fight wellet.css CareSignal hover gradient — just lift slightly. */
+  border-color: rgba(75, 99, 65, 0.32) !important;
 }
 
 /* ----- Timeline rail — continuous vertical line + place markers -----
@@ -520,9 +553,17 @@
   font-size: var(--type-micro);
 }
 
-/* When a card has no .tl-icon-tile (rare — caresignal cards have their
-   own treatment, see wellet.css), gracefully fall back to content-only
-   layout instead of an awkward gap. */
-#tab-timeline .tl-card:not(.tl-card-with-icon) {
-  padding: 14px !important;
+/* CareSignal eyebrow row: pull the date to the right of the eyebrow on
+   wider stretches, but allow wrapping on narrow viewports. The earlier
+   layout pushed the date into the next column because the card was flex. */
+#tab-timeline .tl-card.tl-card-caresignal .tl-card-date,
+#tab-timeline .tl-card.tl-card-caresignal-v2 .tl-card-date {
+  margin-top: 6px;
+  font-family: var(--serif);
+  font-size: var(--type-micro);
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--ink-5, #5F5A52);
+  /* Was being squeezed into a 1fr column — force inline-flow now. */
+  display: block;
 }
