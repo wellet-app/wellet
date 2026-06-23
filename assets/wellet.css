@@ -709,7 +709,7 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: var(--amber, #E8A020);
+    background: var(--amber);
     border: 1.5px solid white;
   }
   /* Detail view back bar + content */
@@ -815,13 +815,13 @@
   .update-meta { font-size: var(--type-micro); color: var(--text-muted); margin-top: 10px; display: flex; align-items: center; gap: 6px; }
   .update-meta a { color: var(--moss); font-weight: 500; text-decoration: none; cursor: pointer; }
 
-  .visit-prep-card { display:flex; align-items:center; gap:12px; margin:12px 20px 0; padding:13px 14px; background:var(--amber-bg); border:1px solid rgba(201,123,44,0.2); border-radius:12px; }
-  .visit-prep-icon { width:32px; height:32px; border-radius:8px; background:rgba(201,123,44,0.15); display:flex; align-items:center; justify-content:center; color:var(--amber); flex-shrink:0; }
+  .visit-prep-card { display:flex; align-items:center; gap:12px; margin:12px 20px 0; padding:13px 14px; background:var(--amber-bg); border:1px solid var(--border-medium); border-radius:12px; }
+  .visit-prep-icon { width:32px; height:32px; border-radius:8px; background:rgba(17,68,59,0.10); display:flex; align-items:center; justify-content:center; color:var(--amber); flex-shrink:0; }
   .visit-prep-title { font-size:var(--type-meta); font-weight:600; color:var(--text-primary); }
   .visit-prep-sub { font-size:var(--type-micro); color:var(--amber-text); margin-top:2px; line-height:1.4; }
   .visit-prep-btn { margin-left:auto; flex-shrink:0; background:var(--amber); color:white; border:none; border-radius:8px; padding:7px 12px; font-size:var(--type-meta); font-weight:600; font-family:'Public Sans',sans-serif; cursor:pointer; }
 
-  .alert-banner { margin: 12px 20px 0; background: var(--amber-bg); border: 1px solid rgba(201,123,44,0.25); border-radius: 10px; padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start; }
+  .alert-banner { margin: 12px 20px 0; background: var(--amber-bg); border: 1px solid var(--border-medium); border-radius: 10px; padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start; }
   .alert-icon { color: var(--amber); flex-shrink: 0; margin-top: 1px; display: flex; }
   .alert-title { font-size: var(--type-meta); font-weight: 500; color: var(--amber-text); margin-bottom: 2px; }
   .alert-body { font-size: var(--type-meta); color: var(--text-secondary); line-height: 1.5; }
@@ -1412,7 +1412,7 @@
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* ── DEMO BADGE ── */
-  .demo-badge { background: var(--amber-bg); border: 1px solid rgba(201,123,44,0.3); color: var(--amber-text); font-size: var(--type-micro); font-weight: 500; padding: 2px 8px; border-radius: 10px; }
+  .demo-badge { background: var(--amber-bg); border: 1px solid var(--border-medium); color: var(--amber-text); font-size: var(--type-micro); font-weight: 500; padding: 2px 8px; border-radius: 10px; }
 
   /* ── DOCUMENT LIST ── */
   .doc-row { display: flex; align-items: center; gap: 12px; padding: 11px 14px; background: white; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 6px; cursor: pointer; transition: border-color 0.15s; }
@@ -2193,13 +2193,15 @@
   .plan-card-meta { font-size: var(--type-meta); color: var(--text-secondary); line-height: 1.5; margin-bottom: 10px; }
   .plan-card-action { display: inline-flex; align-items: center; gap: 5px; font-size: var(--type-meta); font-weight: 500; color: var(--moss-text); background: none; border: none; font-family: 'Public Sans', sans-serif; cursor: pointer; padding: 0; }
   .plan-card-action:hover { text-decoration: underline; }
-  /* Founding Member plan card — amber-tinted, more celebratory */
+  /* Founding Member plan card — Stone→Mint gradient, Forest accents.
+     v2.01 has no Terra; celebratory tone comes from the Mint-soft tint
+     and the Forest icon, not from a warm-orange palette. */
   .plan-card--founding {
-    background: linear-gradient(135deg, var(--color-amber-light, #f5e6d8) 0%, var(--mint) 100%);
-    border: 1px solid rgba(192, 112, 40, 0.25);
+    background: linear-gradient(135deg, var(--stone) 0%, var(--mint) 100%);
+    border: 1px solid var(--border-medium);
   }
   .plan-card-icon--founding {
-    background: var(--color-amber, #C07028);
+    background: var(--forest);
     color: white;
   }
   .founding-pill {
@@ -2210,22 +2212,22 @@
     padding: 3px 9px;
     border-radius: 11px;
     background: white;
-    color: var(--color-amber, #C07028);
+    color: var(--forest);
     font-size: var(--type-micro);
     font-weight: 600;
     line-height: 1.2;
-    border: 1px solid rgba(192, 112, 40, 0.25);
+    border: 1px solid var(--border-medium);
     font-family: 'Public Sans', sans-serif;
   }
   [data-theme="dark"] .plan-card--founding,
   body.dark .plan-card--founding {
-    background: linear-gradient(135deg, rgba(192, 112, 40, 0.2) 0%, rgba(61, 107, 94, 0.25) 100%);
-    border-color: rgba(192, 112, 40, 0.4);
+    background: linear-gradient(135deg, rgba(17,68,59,0.20) 0%, rgba(158,207,144,0.25) 100%);
+    border-color: rgba(17,68,59,0.40);
   }
   [data-theme="dark"] .founding-pill,
   body.dark .founding-pill {
     background: rgba(0,0,0,0.25);
-    border-color: rgba(192, 112, 40, 0.5);
+    border-color: rgba(17,68,59,0.50);
   }
 
   /* ── OFFLINE BANNER ── */
