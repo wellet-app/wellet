@@ -8,9 +8,11 @@
    - Gambetta titles + DM Sans 300 body + Gambetta small-caps date.
    ============================================================ */
 
-/* Scope to the Timeline tab pane only */
+/* Scope to the Timeline tab pane only.
+   v2: drop the hardcoded linen background so --person-bg cascades through
+   from body/.page-wrap. Dad ↔ Mom switches now actually re-tint Timeline. */
 #tab-timeline {
-  background: var(--linen, #E8E6E0);
+  background: transparent;
 }
 
 /* ----- Month label — Gambetta small caps, no hairline ----- */
@@ -32,12 +34,12 @@
   padding-left: 32px !important;            /* clear the rail at x=16 + gutter */
   display: block;                           /* was flex+::after — drop the trailing hairline */
   border-top: 0 !important;
-  /* Belt-and-suspenders: also sit above the rail in z-order, with a
-     linen background that masks any 1px line peeking through the
-     left padding behind the text baseline.                            */
+  /* v2: stay above the rail in z-order. Background inherits --person-bg
+     from the view-home root so the month label sits on the tint, not on
+     a hardcoded linen island. */
   position: relative;
   z-index: 2;
-  background: var(--linen, #E8E6E0);
+  background: transparent;
 }
 #tab-timeline .tl-month::after,
 #tab-timeline .tl-month::before {
@@ -52,30 +54,29 @@
   border-top: 0 !important;
 }
 
-/* ----- Section + group: remove all card chrome ----- */
+/* ----- Section + cards — v2 white-island treatment ----- */
+/* v2.01 Timeline cards return as soft white islands on the person-tint
+   ground. Per-type color carries through the icon tile + eyebrow + time
+   chip, never as full-card tints or colored left borders. */
 #tab-timeline .timeline-section {
   margin-top: 0;
 }
 #tab-timeline .tl-card {
-  background: transparent !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  /* Padding lives on .tl-item now (it owns the absolute-positioned dot).
-     Keep the card itself flush so its content starts at the item's
-     padding-top and stays visually aligned with the dot. */
-  padding: 0 !important;
-  border-bottom: 1px solid var(--ink-1, #DAD6CB) !important;
-  box-shadow: none !important;
-  transition: opacity 0.15s ease-out;
-}
-#tab-timeline .tl-card:last-child {
-  border-bottom: 0 !important;
+  background: var(--white, #FFFFFF) !important;
+  border: 1px solid var(--ink-1, #DAD6CB) !important;
+  border-radius: 16px !important;
+  padding: 14px !important;
+  box-shadow: 0 1px 2px rgba(22,19,18,0.04), 0 6px 18px rgba(22,19,18,0.04) !important;
+  display: flex !important;
+  gap: 12px;
+  align-items: flex-start;
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out, opacity 0.15s ease-out;
 }
 #tab-timeline .tl-card[onclick]:hover {
-  background: transparent !important;
-  border-color: var(--ink-1, #DAD6CB) !important;
-  box-shadow: none !important;
-  opacity: 0.78;
+  background: var(--white, #FFFFFF) !important;
+  border-color: var(--ink-2, #BFB9AC) !important;
+  box-shadow: 0 2px 4px rgba(22,19,18,0.06), 0 10px 24px rgba(22,19,18,0.06) !important;
+  transform: translateY(-1px);
 }
 
 /* ----- Timeline rail — continuous vertical line + place markers -----
@@ -151,23 +152,49 @@
      half a pixel of the type-tag center. This is what gets the dot
      touching the eyebrow line in the screenshot. */
   top: 13px;
+  /* v2: dot becomes a small filled punctuation mark in moss-deep, ringed by
+     the person-tint background so it reads as a marker on the rail rather
+     than a hollow circle that fights the new card chrome. */
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: var(--linen, #E8E6E0);
-  border: 1.5px solid var(--ink-4, #7E796F);
+  background: var(--moss-deep, #11443B);
+  border: 2px solid var(--person-bg, #F7F5F0);
   box-sizing: border-box;
   z-index: 2;                    /* sit above the rail so dot looks crisp */
 }
 
-/* The card was previously a flex child (`flex: 1` from wellet.css) and
-   collapsed to content-width when we changed .tl-item to display:block.
-   Force it back to a normal block that fills the row. */
+/* v2: card is now a flex row (tile + content). The earlier display:block
+   override is retired — we want the icon tile to sit beside the content.
+   Keep flex:none so the card itself doesn't inherit a flex:1 from any
+   ancestor and width:auto so it fills the .tl-item row.                  */
 #tab-timeline .tl-card {
-  display: block !important;
   flex: none !important;
   width: auto !important;
   max-width: 100%;
+  min-width: 0;
+}
+
+/* Icon tile — v2 bumps from 40 to 44 to read more confidently next to
+   the larger Gambetta title. Palette is inherited from wellet.css
+   (Mint-soft / Clay / Mist / soft-alert / Stone-warm) so tile color stays
+   the per-type signal in the new design. */
+#tab-timeline .tl-card .tl-icon-tile {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+#tab-timeline .tl-card .tl-icon-tile i,
+#tab-timeline .tl-card .tl-icon-tile svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.75;
+}
+
+/* Content column fills the rest of the card and clips long titles cleanly. */
+#tab-timeline .tl-card .tl-card-content {
+  flex: 1;
   min-width: 0;
 }
 
@@ -422,4 +449,80 @@
     padding: 8px 18px;
     font-size: var(--type-body);
   }
+}
+
+/* ─── v2 EDITORIAL · TIME CHIP + EMPHASIS ────────────────────────────────
+   The v2 mock turns the per-card "2 days ago" timestamp into a small
+   rounded pill on the right of the type row, tinted to match the icon
+   tile. Keeps category visible at a glance even when the eyebrow text
+   is short. Falls back gracefully if a card has no tile class.            */
+#tab-timeline .tl-card .tl-card-type-row .tl-card-time {
+  margin-left: auto;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: 'Public Sans', system-ui, sans-serif;
+  font-size: var(--type-micro);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-7, #2D2A24);
+  background: #ECE9DD;             /* stone-warm fallback (matches note tile) */
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1.3;
+}
+
+/* Per-type chip color — pairs with the tile in wellet.css so the eye reads
+   tile + chip as one accent. Use :has() to grab the card's category from
+   the existing .tl-card-type.{appt|med|lab|alert|note} child marker. */
+#tab-timeline .tl-card:has(.tl-card-type.appt) .tl-card-time {
+  background: #DCE9E2;  color: #11443B;   /* Mint-soft on Forest */
+}
+#tab-timeline .tl-card:has(.tl-card-type.med) .tl-card-time {
+  background: #F6E6CF;  color: #8A5A1F;   /* Clay on warm-brown */
+}
+#tab-timeline .tl-card:has(.tl-card-type.lab) .tl-card-time {
+  background: #B8C9CE;  color: #193241;   /* Mist on Midnight */
+}
+#tab-timeline .tl-card:has(.tl-card-type.alert) .tl-card-time {
+  background: #FDE2DD;  color: #B8392B;   /* soft-alert on Walnut */
+}
+#tab-timeline .tl-card:has(.tl-card-type.note) .tl-card-time {
+  background: #ECE9DD;  color: #5b6a64;   /* Stone-warm on ink-2 */
+}
+
+/* Gambetta italic emphasis token inside titles. JS opts in by wrapping a
+   single word in <em class="tl-em">…</em> — e.g. the day-of-week in a
+   meds-logged title, the drug name in a Wellet-noticed title. Safe to
+   leave un-used on cards that don't need emphasis. */
+#tab-timeline .tl-card .tl-card-title em,
+#tab-timeline .tl-card .tl-card-title .tl-em {
+  font-style: italic;
+  font-weight: 500;
+  font-variation-settings: "opsz" 24, "SOFT" 60;
+}
+
+/* Quiet italic meta line for attribution like "you asked Wellet to watch
+   this". Sits under the body in moss-quiet. JS opts in by appending
+   <div class="tl-meta-italic">…</div> to the card content. */
+#tab-timeline .tl-card .tl-meta-italic {
+  margin-top: 8px;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: var(--type-meta);
+  color: var(--moss-quiet, #6B8A7E);
+  line-height: 1.4;
+}
+
+/* Bring back the eyebrow type tag at slightly larger size now that it
+   sits inside a white card with more breathing room. */
+#tab-timeline .tl-card .tl-card-type-row .tl-card-type {
+  font-size: var(--type-micro);
+}
+
+/* When a card has no .tl-icon-tile (rare — caresignal cards have their
+   own treatment, see wellet.css), gracefully fall back to content-only
+   layout instead of an awkward gap. */
+#tab-timeline .tl-card:not(.tl-card-with-icon) {
+  padding: 14px !important;
 }
