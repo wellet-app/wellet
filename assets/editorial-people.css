@@ -51,7 +51,7 @@
   font-variation-settings: "opsz" 24, "SOFT" 60 !important;
   letter-spacing: -0.005em !important;
   line-height: 1.05 !important;
-  color: var(--ink-5, #6E665C) !important;
+  color: var(--ink-5, #5F5A52) !important;
   transition: color 0.18s ease, border-color 0.18s ease;
   position: relative;
   white-space: nowrap;
@@ -68,17 +68,17 @@
 
 /* Inactive */
 .person-switcher .person-pill {
-  color: var(--ink-5, #6E665C) !important;
+  color: var(--ink-5, #5F5A52) !important;
   border-bottom: 1px solid transparent !important;
 }
 .person-switcher .person-pill:hover {
-  color: var(--ink-9, #1F1B16) !important;
+  color: var(--ink-9, #161312) !important;
 }
 
 /* Active — Gambetta ink-9 with hairline moss-deep rule */
 .person-switcher .person-pill.active {
-  color: var(--ink-9, #1F1B16) !important;
-  border-bottom: 1px solid var(--moss-deep, #3F5F52) !important;
+  color: var(--ink-9, #161312) !important;
+  border-bottom: 1px solid var(--moss-deep, #11443B) !important;
 }
 
 /* Pressing state — gesture feedback (used by long-press handler) */
@@ -90,12 +90,12 @@
 /* Bereaved person treatment — eoc-heart sits next to the name in moss-quieter,
    never colored, never red. */
 .person-switcher .person-pill.bereaved {
-  color: var(--ink-4, #8A8278) !important;
+  color: var(--ink-4, #7E796F) !important;
   opacity: 1 !important;
   border-bottom-color: transparent !important;
 }
 .person-switcher .person-pill.bereaved .eoc-heart {
-  color: var(--moss-quieter, #8AA89A) !important;
+  color: var(--moss-quiet, #6B8A7E) !important;
   opacity: 0.75 !important;
   margin-left: 4px !important;
 }
@@ -103,7 +103,7 @@
 /* Focus */
 .person-switcher .person-pill:focus { outline: none; }
 .person-switcher .person-pill:focus-visible {
-  outline: 1px solid var(--ink-3, #C8C0B5);
+  outline: 1px solid var(--ink-3, #9F9A8E);
   outline-offset: 4px;
   border-radius: 2px;
 }
@@ -133,7 +133,7 @@
   font-variation-settings: "opsz" 24, "SOFT" 60 !important;
   letter-spacing: -0.005em !important;
   line-height: 1.05 !important;
-  color: var(--ink-5, #6E665C) !important;
+  color: var(--ink-5, #5F5A52) !important;
   transition: color 0.18s ease, border-color 0.18s ease;
   white-space: nowrap;
   -webkit-tap-highlight-color: transparent;
@@ -145,18 +145,18 @@
   border-bottom: 1px solid transparent !important;
 }
 .ask-person-bar .ask-person-pill:hover {
-  color: var(--ink-9, #1F1B16) !important;
+  color: var(--ink-9, #161312) !important;
 }
 .ask-person-bar .ask-person-pill.active {
-  color: var(--ink-9, #1F1B16) !important;
-  border-bottom: 1px solid var(--moss-deep, #3F5F52) !important;
+  color: var(--ink-9, #161312) !important;
+  border-bottom: 1px solid var(--moss-deep, #11443B) !important;
 }
 .ask-person-bar .ask-person-pill.is-pressing {
   opacity: 0.55 !important;
 }
 .ask-person-bar .ask-person-pill:focus { outline: none; }
 .ask-person-bar .ask-person-pill:focus-visible {
-  outline: 1px solid var(--ink-3, #C8C0B5);
+  outline: 1px solid var(--ink-3, #9F9A8E);
   outline-offset: 4px;
   border-radius: 2px;
 }
@@ -183,7 +183,7 @@
   font-weight: 400;
   font-variation-settings: "opsz" 14, "SOFT" 60;
   letter-spacing: 0.04em;
-  color: var(--ink-4, #8A8278);
+  color: var(--ink-4, #7E796F);
   margin: -8px 0 12px;
   padding: 0 4px;
   display: none;
@@ -216,7 +216,7 @@
 #header-menu-btn,
 #notif-bell-btn {
   background: transparent !important;
-  color: var(--ink-5, #6E6962) !important;
+  color: var(--ink-5, #5F5A52) !important;
   min-width: 32px !important;
   min-height: 32px !important;
   border-radius: 0 !important;
@@ -224,7 +224,7 @@
 #header-menu-btn:hover,
 #notif-bell-btn:hover {
   background: transparent !important;
-  color: var(--ink-9, #1F1B16) !important;
+  color: var(--ink-9, #161312) !important;
 }
 
 /* Demo back button is hidden via inline style; double-belt to be safe */

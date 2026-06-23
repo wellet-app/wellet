@@ -20,17 +20,17 @@
   font-style: normal;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--ink-5, #6E6962);
+  color: var(--ink-5, #5F5A52);
   margin: 0 0 14px;
   padding-bottom: 0;
-  border-top: 1px solid var(--ink-1, #E6E1D6);
+  border-top: 1px solid var(--ink-1, #DAD6CB);
   padding-top: 22px;
 }
 
 /* ----- Row ----- */
 .upcoming-row {
   padding: 18px 0;
-  border-bottom: 1px solid var(--ink-1, #E6E1D6);
+  border-bottom: 1px solid var(--ink-1, #DAD6CB);
 }
 .upcoming-row:last-child {
   border-bottom: 0;
@@ -53,7 +53,7 @@
   font-style: normal;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--moss-deep, #3F5F52);
+  color: var(--moss-deep, #11443B);
 }
 /* "Today" reads with a touch more emphasis; "Later" reads quieter */
 .upcoming-row:has(.upcoming-tag:is([data-tag="Today"])) .upcoming-tag,
@@ -65,7 +65,7 @@
   font-size: var(--type-meta);
   font-weight: 300;
   letter-spacing: 0.04em;
-  color: var(--ink-5, #6E6962);
+  color: var(--ink-5, #5F5A52);
   text-align: right;
   white-space: nowrap;
 }
@@ -78,7 +78,7 @@
   font-variation-settings: "opsz" 24, "SOFT" 60;
   font-style: normal;
   line-height: 1.3;
-  color: var(--ink-9, #1F1B16);
+  color: var(--ink-9, #161312);
   margin: 0 0 4px;
   max-width: 60ch;
 }
@@ -88,7 +88,7 @@
   font-size: var(--type-meta);
   font-weight: 300;
   line-height: 1.55;
-  color: var(--ink-7, #443F38);
+  color: var(--ink-7, #2D2A24);
   margin: 0 0 10px;
   max-width: 60ch;
 }
@@ -107,9 +107,9 @@
   font-variation-settings: "opsz" 14, "SOFT" 60;
   font-style: normal;
   letter-spacing: 0.04em;
-  color: var(--moss-deep, #3F5F52);
+  color: var(--moss-deep, #11443B);
   cursor: pointer;
-  border-bottom: 1px solid var(--moss-quieter, #8AA89A);
+  border-bottom: 1px solid var(--moss-quiet, #6B8A7E);
   padding-bottom: 1px;
 }
 .upcoming-prep-link:hover {
@@ -140,7 +140,7 @@
   font-family: var(--sans);
   font-size: var(--type-body);
   line-height: 1.55;
-  color: var(--ink-7, #3F3A33);
+  color: var(--ink-7, #2D2A24);
   margin: 0 0 10px;
 }
 .upcoming-explainer-actions {
@@ -157,7 +157,7 @@
 }
 .upcoming-explainer-link:hover,
 .upcoming-explainer-link:focus {
-  color: var(--moss-deep, #3F5F52);
+  color: var(--moss-deep, #11443B);
   text-decoration: underline;
   text-underline-offset: 3px;
 }

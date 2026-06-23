@@ -54,7 +54,7 @@
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--ink-5, #6b6b6b);
+  color: var(--ink-5, #5F5A52);
   margin: 0 0 6px;
   font-variant-numeric: tabular-nums;
 }
@@ -82,7 +82,7 @@
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--ink-5, #6E665C);
+  color: var(--ink-5, #5F5A52);
   margin: 18px 0 6px;
 }
 
@@ -90,7 +90,7 @@
 #view-people[data-editorial="people"] .person-card {
   background: transparent;
   border: 0;
-  border-bottom: 1px solid var(--ink-2, #C8C0B5);
+  border-bottom: 1px solid var(--ink-2, #BFB9AC);
   border-radius: 0;
   padding: 10px 0 14px;
   margin-bottom: 0;
@@ -150,10 +150,10 @@
   color: var(--amber-text, #11443B);
 }
 #view-people[data-editorial="people"] .person-card-status.stable {
-  color: var(--moss-deep, #3F5F52);
+  color: var(--moss-deep, #11443B);
 }
 #view-people[data-editorial="people"] .person-card-status.bereaved {
-  color: var(--ink-4, #8A8278);
+  color: var(--ink-4, #7E796F);
   background: transparent !important;
 }
 /* Replace the inline lucide icon with a quiet dot. The icon stays in
@@ -171,7 +171,7 @@
   display: inline-block;
 }
 #view-people[data-editorial="people"] .person-card-status.stable::before {
-  background: #8AA89A;  /* moss-quieter — softer than text color */
+  background: var(--moss-quiet, #6B8A7E);  /* softer than text color */
 }
 
 /* ---- Remove (×) button — quieter ---- */
@@ -229,7 +229,7 @@
   flex: 0 0 auto;
   background: transparent;
   border: 0;
-  border-bottom: 1px solid #8AA89A;  /* moss-quieter */
+  border-bottom: 1px solid var(--moss-quiet, #6B8A7E);
   border-radius: 0;
   padding: 0 0 2px;
   font-family: var(--sans);
@@ -255,7 +255,7 @@
   margin: 4px 0 8px;
   background: transparent;
   border: 0;
-  border-top: 1px solid var(--ink-2, #C8C0B5);
+  border-top: 1px solid var(--ink-2, #BFB9AC);
   border-radius: 0;
   padding: 14px 0 12px;
   font-family: var(--serif);
@@ -270,7 +270,7 @@
 #view-people[data-editorial="people"] .add-person-btn:hover {
   color: var(--ink-9);
   background: transparent;
-  border-top-color: var(--ink-3, #A8A097);
+  border-top-color: var(--ink-3, #9F9A8E);
 }
 /* Replace the inline lucide plus icon with a quiet circular disc. */
 #view-people[data-editorial="people"] .add-person-btn > i,
@@ -282,7 +282,7 @@
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: 1px solid var(--ink-3, #A8A097);
+  border: 1px solid var(--ink-3, #9F9A8E);
   display: inline-flex;
   align-items: center;
   justify-content: center;

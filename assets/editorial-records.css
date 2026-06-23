@@ -60,7 +60,7 @@
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--ink-5, #6b6b6b);
+  color: var(--ink-5, #5F5A52);
   margin: 0 0 6px;
   font-variant-numeric: tabular-nums;
 }
@@ -616,7 +616,7 @@
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--ink-5, #6b6b6b);
+  color: var(--ink-5, #5F5A52);
   margin: 0 0 8px;
 }
 
@@ -718,7 +718,7 @@
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--ink-5, #6b6b6b);
+  color: var(--ink-5, #5F5A52);
   margin: 0 0 8px;
 }
 

@@ -396,7 +396,7 @@
   gap: 6px;
   margin-top: 10px;
   padding-top: 8px;
-  border-top: 1px solid var(--ink-1, #ECEAE4);
+  border-top: 1px solid var(--ink-1, #DAD6CB);
   flex-wrap: wrap;
 }
 
@@ -410,7 +410,7 @@
   font-size: 11px;
   font-weight: 500;
   line-height: 1;
-  color: var(--ink-7, #2B2A28);
+  color: var(--ink-7, #2D2A24);
   background: #F5F3EE;
   border: 1px solid #E2DDD2;
   cursor: pointer;
@@ -440,7 +440,7 @@
 .wearable-pill-share {
   background: #EDF3EE;
   border-color: #CDE0D2;
-  color: var(--moss-deep, #2F4A3A);
+  color: var(--moss-deep, #11443B);
 }
 .wearable-pill-share:hover {
   background: #DCE9E0;
@@ -519,20 +519,20 @@
 }
 
 .watch-btn-primary {
-  background: var(--moss-deep, #2F4A3A);
+  background: var(--moss-deep, #11443B);
   color: #fff;
-  border-color: var(--moss-deep, #2F4A3A);
+  border-color: var(--moss-deep, #11443B);
 }
 .watch-btn-primary:hover { background: var(--moss, #3D5C49); border-color: var(--moss, #3D5C49); }
 .watch-btn-primary:disabled {
-  background: var(--ink-2, #BFB9AE);
-  border-color: var(--ink-2, #BFB9AE);
+  background: var(--ink-2, #BFB9AC);
+  border-color: var(--ink-2, #BFB9AC);
   cursor: default;
 }
 
 .watch-btn-secondary {
   background: transparent;
-  color: var(--moss-deep, #2F4A3A);
+  color: var(--moss-deep, #11443B);
   border-color: #C9D5CD;
 }
 .watch-btn-secondary:hover {
