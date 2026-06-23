@@ -605,11 +605,14 @@ body:has(#view-home[data-editorial="updates"]) #header-tab-bar.tab-bar .tab.acti
   font-weight: 500;
 }
 
-/* ---- 2. Update summary card: Option B (white + Mint hairline) ---- */
+/* ---- 2. Update summary card: white + Forest structural hairline ----
+   Mint is an accent, never structural. Switched 3px left rule from Mint
+   (--signal-fresh) to Forest (--moss-deep) so the card reads calm against
+   Stone instead of candy-bright. */
 #view-home[data-editorial="updates"] .update-summary-card {
   background: #FFFFFF;
   border: 1px solid var(--ink-1, #DAD6CB);
-  border-left: 3px solid var(--signal-fresh, #9ECF90);
+  border-left: 3px solid var(--moss-deep, #11443B);
   border-radius: 14px;
   padding: 18px 20px 14px;
   margin: 4px 0 18px;
