@@ -185,7 +185,7 @@ em.fr {
   left: max(var(--gutter), calc((100vw - var(--frame-max)) / 2 + var(--gutter)));
   max-width: 240px;
   background: var(--moss-deep);
-  color: #E8E6E0;
+  color: var(--stone, #E8E6E0);
   font-family: var(--sans);
   font-size: var(--type-meta);
   line-height: 1.5;

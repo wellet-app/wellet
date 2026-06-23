@@ -509,16 +509,16 @@
    tile + chip as one accent. Use :has() to grab the card's category from
    the existing .tl-card-type.{appt|med|lab|alert|note} child marker. */
 #tab-timeline .tl-card:has(.tl-card-type.appt) .tl-card-time {
-  background: #DCE9E2;  color: #11443B;   /* Mint-soft on Forest */
+  background: #DCE9E2;  color: var(--moss, #11443B);   /* Mint-soft on Forest */
 }
 #tab-timeline .tl-card:has(.tl-card-type.med) .tl-card-time {
   background: #F6E6CF;  color: #8A5A1F;   /* Clay on warm-brown */
 }
 #tab-timeline .tl-card:has(.tl-card-type.lab) .tl-card-time {
-  background: #B8C9CE;  color: #193241;   /* Mist on Midnight */
+  background: var(--mist, #B8C9CE);  color: var(--midnight, #193241);   /* Mist on Midnight */
 }
 #tab-timeline .tl-card:has(.tl-card-type.alert) .tl-card-time {
-  background: #FDE2DD;  color: #B8392B;   /* soft-alert on Walnut */
+  background: #FDE2DD;  color: var(--walnut, #B8392B);   /* soft-alert on Walnut */
 }
 #tab-timeline .tl-card:has(.tl-card-type.note) .tl-card-time {
   background: #ECE9DD;  color: #5b6a64;   /* Stone-warm on ink-2 */
