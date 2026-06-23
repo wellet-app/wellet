@@ -4574,8 +4574,13 @@ function renderUpdateMe() {
       var dateStr = formatEventDate(ev.event_date);
       // Rail and dot are drawn via CSS ::before on .timeline-section and
       // .tl-item — no per-item line-col / connector divs.
+      // Click-routing and source-pill come from the shared Timeline helpers
+      // so Summary recent events open the same destination and show the
+      // same "From [source]" attribution as the full Timeline tab.
+      var clickAttrSum = _tlClickAttrForEvent(ev);
+      var pillSum = _tlSourcePillForEvent(ev);
       timelineHTML += '<div class="tl-item">'
-        + '<div class="tl-card tl-card-with-icon ' + typeInfo.border + '">'
+        + '<div class="tl-card tl-card-with-icon ' + typeInfo.border + '"' + clickAttrSum + '>'
         + '<div class="tl-icon-tile tl-icon-tile-' + typeInfo.dot + '"><i data-lucide="' + typeInfo.icon + '"></i></div>'
         + '<div class="tl-card-content">'
         + '<div class="tl-card-type-row">'
@@ -4585,6 +4590,7 @@ function renderUpdateMe() {
         + '<div class="tl-card-title">' + _tlEmphasizeTitle(ev.title, ev) + '</div>'
         + (ev.notes ? '<div class="tl-card-body">' + escHtml(ev.notes) + '</div>' : '')
         + _tlAttributionMeta(ev)
+        + (pillSum.label ? '<div class="tl-card-date"><span style="color:' + pillSum.color + ';' + pillSum.style + '">' + escHtml(pillSum.label) + '</span></div>' : '')
         + '</div>'
         + '</div></div>';
     });
@@ -6378,80 +6384,12 @@ function renderTimeline() {
       var typeInfo = getEventTypeInfo(ev.event_type);
       var dateStr = formatEventDate(ev.event_date);
       var isEhr = ev.source === 'ehr';
-      // Every card is clickable. User-created events open the edit modal;
-      // EHR items route to the matching Records detail pane (labs / visits /
-      // conditions / documents), with the specific item id as a deep-link hint.
-      // New v1 sources route to their best section (or are non-clickable
-      // when there's nothing useful to drill into).
-      var clickAttr;
-      var refIdSafe = ev._refId ? String(ev._refId).replace(/[^a-zA-Z0-9_.\-]/g, '') : '';
-      if (ev.source === 'voice' && ev._refId) {
-        clickAttr = ' onclick="showExtractionResults(\'' + refIdSafe + '\')" style="cursor:pointer;"';
-      } else if (ev.source === 'document' && ev._refId) {
-        // Documents pane in Records, deep-linked via openTimelineItem.
-        clickAttr = ' onclick="openTimelineItem(\'documents\',\'' + refIdSafe + '\')" style="cursor:pointer;"';
-      } else if (ev.source === 'care_circle') {
-        // Open the People view where care circle lives.
-        clickAttr = ' onclick="switchView(\'people\')" style="cursor:pointer;"';
-      } else if (ev.source === 'share') {
-        // No deep-link target for shares yet; tap shows a no-op.
-        clickAttr = '';
-      } else if (ev.source === 'care_signal') {
-        // CareSignals view.
-        clickAttr = ' onclick="switchView(\'caresignals\')" style="cursor:pointer;"';
-      } else if (ev.source === 'med_log') {
-        // Meds tab in Records.
-        clickAttr = ' onclick="openTimelineItem(\'meds\',\'\')" style="cursor:pointer;"';
-      } else if (ev.source === 'check_in') {
-        // CareSignals also surfaces check-ins, route there.
-        clickAttr = ' onclick="switchView(\'caresignals\')" style="cursor:pointer;"';
-      } else if (!isEhr) {
-        clickAttr = ' onclick="openEditEvent(\'' + (ev.id || '') + '\')"';
-      } else {
-        // Map event_type → best Records tab. Prior fallback dumped everything
-        // not-lab/not-visit into 'conditions', which was wrong for immunizations,
-        // allergies, vitals, meds, etc.
-        var section = ev._section;
-        if (!section) {
-          switch (ev.event_type) {
-            case 'lab_result':
-            case 'observation':
-            case 'diagnostic_report':
-              section = 'labs'; break;
-            case 'appointment':
-            case 'visit':
-            case 'encounter':
-            case 'procedure':
-              section = 'visits'; break;
-            case 'medication':
-            case 'med':
-              section = 'meds'; break;
-            case 'allergy':
-            case 'allergies':
-              section = 'allergies'; break;
-            case 'immunization':
-            case 'immunizations':
-            case 'vaccine':
-              section = 'immunizations'; break;
-            case 'vital':
-            case 'vitals':
-              section = 'vitals'; break;
-            case 'care_team':
-            case 'practitioner':
-              section = 'care_team'; break;
-            case 'document':
-              section = 'documents'; break;
-            case 'condition':
-            case 'diagnosis':
-              section = 'conditions'; break;
-            default:
-              // Unknown EHR type — don't fake a destination, just drop the user
-              // on the Records hub.
-              section = 'records';
-          }
-        }
-        clickAttr = ' onclick="openTimelineItem(\'' + section + '\',\'' + refIdSafe + '\')" style="cursor:pointer;"';
-      }
+      // Every card is clickable. Resolution moved into _tlClickAttrForEvent
+      // so the Summary tab and any other Timeline render can share it.
+      // User-created → edit modal; EHR → Records pane by event_type;
+      // voice/document → their refId destination; care_circle/care_signal/
+      // med_log/check_in → their dedicated views.
+      var clickAttr = _tlClickAttrForEvent(ev);
       // Register share context for this timeline item
       var shareKey = registerShareItem({
         kind: 'event',
@@ -6488,59 +6426,14 @@ function renderTimeline() {
       //   CareSignals → "Wellet noticed" moss italic
       //   Med log → "Logged by you" muted
       //   Check-in → "Daily check-in" muted
-      var pillLabel = '';
-      var pillColor = 'var(--text-muted)';
-      var pillStyle = '';
-      switch (ev.source) {
-        case 'ehr':
-          // Per-row provenance: prefer the hospital tied to THIS event's
-          // connection_id, then the row's stamped _hospital_name (from
-          // getMergedEhr's v2 cache), then the merged-string fallback,
-          // then a generic 'your records' for true orphans (connection_id
-          // is NULL and no provider info attached). This is what stops
-          // Duke visits showing up labeled with the only active hospital's
-          // name when the user is connected to a single other EHR.
-          var _connMap = (typeof window !== 'undefined' && window._connHospitalById) ? window._connHospitalById : null;
-          var _connHosp = (ev && ev.connection_id && _connMap) ? _connMap[ev.connection_id] : '';
-          var _pillName = _connHosp || ev._hospital_name || ev._ehrProvider || '';
-          if (!_pillName && !ev.connection_id) {
-            pillLabel = 'From your records';
-          } else {
-            pillLabel = 'From ' + (_pillName || 'EHR');
-          }
-          pillColor = 'var(--moss)'; pillStyle = 'font-weight:500;'; break;
-        case 'voice':
-          pillLabel = 'Voice note'; pillStyle = 'font-style:italic;'; break;
-        case 'document':
-          pillLabel = 'From your uploads'; break;
-        case 'care_circle':
-          pillLabel = 'Care circle activity';
-          pillColor = 'var(--moss)'; pillStyle = 'font-weight:500;'; break;
-        case 'share':
-          pillLabel = 'Shared';
-          pillColor = 'var(--moss)'; pillStyle = 'font-weight:500;'; break;
-        case 'care_signal':
-          pillLabel = 'Wellet noticed';
-          pillColor = 'var(--moss)'; pillStyle = 'font-weight:500;font-style:italic;'; break;
-        case 'med_log':
-          pillLabel = 'Logged by you'; break;
-        case 'check_in':
-          pillLabel = 'Daily check-in'; break;
-        case 'manual_visit':
-        case 'manual':
-          pillLabel = 'Added manually';
-          pillColor = 'var(--moss)'; pillStyle = 'font-weight:500;'; break;
-        default:
-          // Visits the user typed in by hand still get the "Added manually"
-          // pill when manual_service_type is present \u2014 keeps EHR-vs-user
-          // provenance honest even on older rows without an explicit source.
-          if (ev.manual_service_type) {
-            pillLabel = 'Added manually';
-            pillColor = 'var(--moss)'; pillStyle = 'font-weight:500;';
-          } else {
-            pillLabel = 'Added by you';
-          }
-      }
+      // Visible source pill, resolved by shared helper so Summary,
+      // Timeline, and any future render share one source of truth.
+      // Includes per-row EHR provenance (Duke vs. VA vs. orphan) and
+      // the manual_visit fallback.
+      var _pill = _tlSourcePillForEvent(ev);
+      var pillLabel = _pill.label;
+      var pillColor = _pill.color;
+      var pillStyle = _pill.style;
       // CareSignals fires get a distinct, standout card: amber-mint accent rail,
       // sparkles icon, bigger eyebrow, optional measurement chip.
       if (ev.source === 'care_signal' && ev._caresignal_v2) {
@@ -13922,6 +13815,122 @@ function _tlAttributionMeta(ev) {
 
   return '';
 }
+
+// ── TIMELINE v2 · SHARED CLICK-ROUTING + SOURCE-PILL HELPERS ───────────
+// Every Timeline-style card in the app should route to its real source
+// when tapped, and show a visible "From [source]" attribution. Both
+// resolutions were inlined inside the main Timeline render. Extracted so
+// the Summary tab's recent-events block and any future render path can
+// share the same logic. Keep behavior identical to the inlined version.
+
+function _tlClickAttrForEvent(ev) {
+  if (!ev) return '';
+  var refIdSafe = ev._refId ? String(ev._refId).replace(/[^a-zA-Z0-9_.\-]/g, '') : '';
+  var isEhr = ev.source === 'ehr';
+  if (ev.source === 'voice' && ev._refId) {
+    return ' onclick="showExtractionResults(\'' + refIdSafe + '\')" style="cursor:pointer;"';
+  }
+  if (ev.source === 'document' && ev._refId) {
+    return ' onclick="openTimelineItem(\'documents\',\'' + refIdSafe + '\')" style="cursor:pointer;"';
+  }
+  if (ev.source === 'care_circle') {
+    return ' onclick="switchView(\'people\')" style="cursor:pointer;"';
+  }
+  if (ev.source === 'share') {
+    return '';
+  }
+  if (ev.source === 'care_signal') {
+    return ' onclick="switchView(\'caresignals\')" style="cursor:pointer;"';
+  }
+  if (ev.source === 'med_log') {
+    return ' onclick="openTimelineItem(\'meds\',\'\')" style="cursor:pointer;"';
+  }
+  if (ev.source === 'check_in') {
+    return ' onclick="switchView(\'caresignals\')" style="cursor:pointer;"';
+  }
+  if (!isEhr) {
+    return ' onclick="openEditEvent(\'' + (ev.id || '') + '\')"';
+  }
+  // EHR: map event_type → best Records tab.
+  var section = ev._section;
+  if (!section) {
+    switch (ev.event_type) {
+      case 'lab_result': case 'observation': case 'diagnostic_report':
+        section = 'labs'; break;
+      case 'appointment': case 'visit': case 'encounter': case 'procedure':
+        section = 'visits'; break;
+      case 'medication': case 'med':
+        section = 'meds'; break;
+      case 'allergy': case 'allergies':
+        section = 'allergies'; break;
+      case 'immunization': case 'immunizations': case 'vaccine':
+        section = 'immunizations'; break;
+      case 'vital': case 'vitals':
+        section = 'vitals'; break;
+      case 'care_team': case 'practitioner':
+        section = 'care_team'; break;
+      case 'document':
+        section = 'documents'; break;
+      case 'condition': case 'diagnosis':
+        section = 'conditions'; break;
+      default:
+        section = 'records';
+    }
+  }
+  return ' onclick="openTimelineItem(\'' + section + '\',\'' + refIdSafe + '\')" style="cursor:pointer;"';
+}
+
+// Returns {label, color, style} for the visible source pill that sits on
+// the bottom-right of every timeline card. Mirrors the inlined switch in
+// the main Timeline render so Summary-tab cards get identical attribution.
+function _tlSourcePillForEvent(ev) {
+  if (!ev) return { label: '', color: 'var(--text-muted)', style: '' };
+  var label = '';
+  var color = 'var(--text-muted)';
+  var style = '';
+  switch (ev.source) {
+    case 'ehr':
+      var _connMap = (typeof window !== 'undefined' && window._connHospitalById) ? window._connHospitalById : null;
+      var _connHosp = (ev && ev.connection_id && _connMap) ? _connMap[ev.connection_id] : '';
+      var _pillName = _connHosp || ev._hospital_name || ev._ehrProvider || '';
+      if (!_pillName && !ev.connection_id) {
+        label = 'From your records';
+      } else {
+        label = 'From ' + (_pillName || 'EHR');
+      }
+      color = 'var(--moss)'; style = 'font-weight:500;'; break;
+    case 'voice':
+      label = 'Voice note'; style = 'font-style:italic;'; break;
+    case 'document':
+      label = 'From your uploads'; break;
+    case 'care_circle':
+      label = 'Care circle activity';
+      color = 'var(--moss)'; style = 'font-weight:500;'; break;
+    case 'share':
+      label = 'Shared';
+      color = 'var(--moss)'; style = 'font-weight:500;'; break;
+    case 'care_signal':
+      label = 'Wellet noticed';
+      color = 'var(--moss)'; style = 'font-weight:500;font-style:italic;'; break;
+    case 'med_log':
+      label = 'Logged by you'; break;
+    case 'check_in':
+      label = 'Daily check-in'; break;
+    case 'manual_visit':
+    case 'manual':
+      label = 'Added manually';
+      color = 'var(--moss)'; style = 'font-weight:500;'; break;
+    default:
+      if (ev.manual_service_type) {
+        label = 'Added manually';
+        color = 'var(--moss)'; style = 'font-weight:500;';
+      } else {
+        label = 'Added by you';
+      }
+  }
+  return { label: label, color: color, style: style };
+}
+
 
 // ── LIGHT MARKDOWN RENDERER ────────────────────────────────────────────────
 // Safe subset: escapes HTML first, then re-introduces a limited set of inline
