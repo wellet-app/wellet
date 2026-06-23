@@ -204,7 +204,7 @@
 #auth-screen[data-editorial="auth"] .auth-body .btn-primary {
   appearance: none;
   background: var(--moss-deep);
-  color: #E8E6E0;
+  color: var(--stone, #E8E6E0);
   border: 0;
   padding: 15px 18px;
   border-radius: 12px;

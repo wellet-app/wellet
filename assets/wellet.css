@@ -25,6 +25,7 @@
     --stone: #E8E6E0;
     --mist: #B8C9CE;
     --midnight: #193241;
+    --walnut: #B8392B;           /* Brand v2.01 soft-alert / Walnut */
     --font-display: 'Gambetta', Georgia, serif;
     --serif: 'Gambetta', Georgia, serif;
 
@@ -903,10 +904,10 @@
   /* Brand v2.01 tile palette — keeps category meaning from the mockup spec:
      Mint for appts/care, Clay for meds, Mist for labs, soft-alert for alerts,
      Stone-warm for notes. Hexes mirror mockups.html section 3 (Timeline). */
-  .tl-icon-tile-appt  { background: #DCE9E2; color: #11443B; } /* Mint-soft on Forest */
+  .tl-icon-tile-appt  { background: #DCE9E2; color: var(--moss, #11443B); } /* Mint-soft on Forest */
   .tl-icon-tile-med   { background: #F6E6CF; color: #8A5A1F; } /* Clay on warm-brown */
-  .tl-icon-tile-lab   { background: #B8C9CE; color: #193241; } /* Mist on Midnight */
-  .tl-icon-tile-alert { background: #FDE2DD; color: #B8392B; } /* soft-alert on Walnut */
+  .tl-icon-tile-lab   { background: var(--mist, #B8C9CE); color: var(--midnight, #193241); } /* Mist on Midnight */
+  .tl-icon-tile-alert { background: #FDE2DD; color: var(--walnut, #B8392B); } /* soft-alert on Walnut */
   .tl-icon-tile-note  { background: #ECE9DD; color: #5b6a64; } /* Stone-warm on ink-2 */
   .tl-card-content { flex: 1; min-width: 0; }
   .tl-card-content .tl-card-type-row { justify-content: flex-start; }
@@ -1550,7 +1551,7 @@
   @media (max-width:768px) { #explainer-stage { max-width:95vw; } }
 
   /* ── EHR INTEGRATION ── */
-  .ehr-badge { display:inline-flex; align-items:center; gap:3px; font-size:var(--type-micro); font-weight:600; letter-spacing:0.04em; color:white; background:#11443B; border-radius:6px; padding:2px 7px; line-height:1.4; vertical-align:middle; white-space:nowrap; }
+  .ehr-badge { display:inline-flex; align-items:center; gap:3px; font-size:var(--type-micro); font-weight:600; letter-spacing:0.04em; color:white; background:var(--moss, #11443B); border-radius:6px; padding:2px 7px; line-height:1.4; vertical-align:middle; white-space:nowrap; }
   .ehr-badge i { width:10px; height:10px; }
   .ehr-provider-badge { display:inline-flex; align-items:center; gap:3px; font-size:var(--type-micro); font-weight:500; color:var(--moss-dark); background:var(--mint); border-radius:6px; padding:2px 7px; line-height:1.4; white-space:nowrap; }
   .ehr-connect-card { background:white; border:1.5px dashed var(--moss); border-radius:14px; padding:16px; text-align:center; cursor:pointer; transition:background 0.15s, border-color 0.15s; }
@@ -2230,7 +2231,7 @@
   /* ── OFFLINE BANNER ── */
   .offline-banner {
     position: fixed; top: 0; left: 0; right: 0; z-index: 500;
-    background: #9ECF90; color: white; text-align: center;
+    background: var(--mint-deep, #9ECF90); color: white; text-align: center;
     font-size: var(--type-meta); font-weight: 500; font-family: 'Public Sans', sans-serif;
     padding: 6px 16px; display: none; align-items: center; justify-content: center; gap: 8px;
     transition: transform 0.3s ease;
@@ -2244,7 +2245,7 @@
      masthead so the user sees it the moment they return to the app. */
   .expired-banner {
     position: fixed; top: 0; left: 0; right: 0; z-index: 510;
-    background: #9ECF90; color: white;
+    background: var(--mint-deep, #9ECF90); color: white;
     font-size: var(--type-meta); font-weight: 500; font-family: 'Public Sans', sans-serif;
     padding: 8px 16px; display: none; align-items: center; justify-content: center;
     gap: 10px; flex-wrap: wrap;
@@ -2563,7 +2564,7 @@
     -webkit-tap-highlight-color: transparent;
   }
   .mode-btn:hover, .mode-btn:focus-visible {
-    border-color: #11443B;
+    border-color: var(--moss, #11443B);
     background: #FCFBF8;
     outline: none;
   }
@@ -2589,7 +2590,7 @@
     position: fixed;
     inset: 0;
     z-index: 9000;
-    background: #E8E6E0;
+    background: var(--stone, #E8E6E0);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     padding: 56px 20px 40px;
@@ -2653,7 +2654,7 @@
     font-family: inherit;
   }
   .connect-card:hover, .connect-card:focus-visible {
-    border-color: #11443B;
+    border-color: var(--moss, #11443B);
     background: #F4F8F4;
     outline: none;
   }
@@ -2674,7 +2675,7 @@
     height: 40px;
     border-radius: 10px;
     background: #EEF3EE;
-    color: #11443B;
+    color: var(--moss, #11443B);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2770,7 +2771,7 @@
   .connect-card-sources {
     display: block;
     margin-top: 6px;
-    color: #11443B;
+    color: var(--moss, #11443B);
     font-family: 'Public Sans', sans-serif;
     font-size: 12.5px;
     font-weight: 500;
@@ -2846,7 +2847,7 @@
   .wc-install-sheet {
     width: 100%;
     max-width: 460px;
-    background: #E8E6E0;
+    background: var(--stone, #E8E6E0);
     border-radius: 18px 18px 0 0;
     padding: 28px 24px 32px;
     display: flex;
@@ -2876,7 +2877,7 @@
   .wc-install-primary {
     appearance: none;
     -webkit-appearance: none;
-    background: #11443B;
+    background: var(--moss, #11443B);
     color: #FFFFFF;
     border: none;
     border-radius: 12px;
