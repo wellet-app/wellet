@@ -287,12 +287,12 @@
   background: var(--reimb-confidence-high, var(--moss));
 }
 #view-reimbursements[data-editorial="reimbursements"] .reimb-pip--medium {
-  color: var(--reimb-confidence-medium, #3C362F);
-  background: rgba(60, 54, 47, 0.10);
+  color: var(--reimb-confidence-medium, #2D2A24);
+  background: rgba(45, 42, 36, 0.10);
 }
 #view-reimbursements[data-editorial="reimbursements"] .reimb-pip--low {
-  color: var(--reimb-confidence-low, #8A8278);
-  background: rgba(138, 130, 120, 0.12);
+  color: var(--reimb-confidence-low, #7E796F);
+  background: rgba(126, 121, 111, 0.12);
 }
 #view-reimbursements[data-editorial="reimbursements"] .reimb-card-sub {
   font-family: var(--sans, "Public Sans", system-ui, sans-serif);

@@ -15817,7 +15817,7 @@ async function openAddWatchModal() {
 
   sheet.innerHTML = ''
     + '<div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;">'
-    +   '<div style="width:38px;height:38px;border-radius:12px;background:#EDF3EE;color:#2F4A3A;display:flex;align-items:center;justify-content:center;flex-shrink:0;">'
+    +   '<div style="width:38px;height:38px;border-radius:12px;background:#EDF3EE;color:#11443B;display:flex;align-items:center;justify-content:center;flex-shrink:0;">'
     +     '<i data-lucide="bell" style="width:18px;height:18px;"></i>'
     +   '</div>'
     +   '<div style="flex:1;min-width:0;">'
@@ -15827,8 +15827,8 @@ async function openAddWatchModal() {
     + '</div>'
     + '<div class="cs-aw-cards">' + cardsHtml + '</div>'
     + '<div style="display:flex;gap:10px;margin-top:14px;">'
-    +   '<button type="button" id="cs-aw-cancel" style="flex:1;padding:12px 14px;border-radius:11px;border:1px solid #C9D5CD;background:transparent;color:#2F4A3A;font-size:14px;font-weight:500;cursor:pointer;">Cancel</button>'
-    +   '<button type="button" id="cs-aw-save" style="flex:1;padding:12px 14px;border-radius:11px;border:1px solid #2F4A3A;background:#2F4A3A;color:#fff;font-size:14px;font-weight:500;cursor:pointer;">Start watching</button>'
+    +   '<button type="button" id="cs-aw-cancel" style="flex:1;padding:12px 14px;border-radius:11px;border:1px solid #C9D5CD;background:transparent;color:#11443B;font-size:14px;font-weight:500;cursor:pointer;">Cancel</button>'
+    +   '<button type="button" id="cs-aw-save" style="flex:1;padding:12px 14px;border-radius:11px;border:1px solid #11443B;background:#11443B;color:#fff;font-size:14px;font-weight:500;cursor:pointer;">Start watching</button>'
     + '</div>'
     + '<div style="font-size:11px;color:#8A8170;text-align:center;margin-top:12px;">You can pause or stop any watch anytime in Settings.</div>';
 
@@ -20979,7 +20979,7 @@ function promptNewRecordsWatchOptIn(personId, hospitalName) {
 
   sheet.innerHTML = ''
     + '<div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;">'
-    +   '<div style="width:38px;height:38px;border-radius:12px;background:#EDF3EE;color:#2F4A3A;display:flex;align-items:center;justify-content:center;flex-shrink:0;">'
+    +   '<div style="width:38px;height:38px;border-radius:12px;background:#EDF3EE;color:#11443B;display:flex;align-items:center;justify-content:center;flex-shrink:0;">'
     +     '<i data-lucide="bell" style="width:18px;height:18px;"></i>'
     +   '</div>'
     +   '<div style="flex:1;min-width:0;">'
@@ -20988,12 +20988,12 @@ function promptNewRecordsWatchOptIn(personId, hospitalName) {
     +   '</div>'
     + '</div>'
     + '<label style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:#fff;border:1px solid #E5DFD2;border-radius:12px;margin-bottom:16px;cursor:pointer;-webkit-tap-highlight-color:transparent;">'
-    +   '<input type="checkbox" id="nr-watch-cb" checked style="width:18px;height:18px;accent-color:#2F4A3A;flex-shrink:0;">'
+    +   '<input type="checkbox" id="nr-watch-cb" checked style="width:18px;height:18px;accent-color:#11443B;flex-shrink:0;">'
     +   '<span style="font-size:14px;color:#1F2A22;">Notify me when new records arrive</span>'
     + '</label>'
     + '<div style="display:flex;gap:10px;">'
-    +   '<button type="button" id="nr-watch-skip" style="flex:1;padding:12px 14px;border-radius:11px;border:1px solid #C9D5CD;background:transparent;color:#2F4A3A;font-size:14px;font-weight:500;cursor:pointer;-webkit-tap-highlight-color:transparent;">Not now</button>'
-    +   '<button type="button" id="nr-watch-ok" style="flex:1;padding:12px 14px;border-radius:11px;border:1px solid #2F4A3A;background:#2F4A3A;color:#fff;font-size:14px;font-weight:500;cursor:pointer;-webkit-tap-highlight-color:transparent;">Got it</button>'
+    +   '<button type="button" id="nr-watch-skip" style="flex:1;padding:12px 14px;border-radius:11px;border:1px solid #C9D5CD;background:transparent;color:#11443B;font-size:14px;font-weight:500;cursor:pointer;-webkit-tap-highlight-color:transparent;">Not now</button>'
+    +   '<button type="button" id="nr-watch-ok" style="flex:1;padding:12px 14px;border-radius:11px;border:1px solid #11443B;background:#11443B;color:#fff;font-size:14px;font-weight:500;cursor:pointer;-webkit-tap-highlight-color:transparent;">Got it</button>'
     + '</div>'
     + '<div style="font-size:11px;color:#8A8170;text-align:center;margin-top:12px;">You can change this anytime under Settings \u203A What I\u2019m watching.</div>';
 
