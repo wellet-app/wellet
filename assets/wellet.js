@@ -142,10 +142,15 @@ function possSegment(personName, lower) {
   return lower ? 'your loved one\u2019s' : 'Your loved one\u2019s';
 }
 
-// Subtle per-person background tints (barely perceptible, subliminal context)
-var _personBgPalette = ['#F7F5F0', '#F0F5F2', '#F3F0F6', '#F0F3F7', '#F7F2F0'];
-// VA-enrolled people get a subtle olive/sage palette that nods to military without shouting
-var _vaPersonBgPalette = ['#F2F3EC', '#EEF0E6', '#F4F4E9', '#EDF1E8', '#F1F2EA'];
+// Subtle per-person background tints — Brand v2.01 anchored to Stone #E8E6E0.
+// Each entry is within ~2-3% HSL of Stone so the tint reads as subliminal
+// context for which loved one is selected without drifting away from the
+// locked Stone canvas. The first slot IS exactly Stone, so a single-person
+// household always reads as the canonical brand canvas.
+var _personBgPalette = ['#E8E6E0', '#E4E8E3', '#E7E5E9', '#E4E7EA', '#EAE6E2'];
+// VA-enrolled people get a Stone-anchored olive shift that nods to military
+// without shouting. Same ~2-3% HSL range, biased slightly olive.
+var _vaPersonBgPalette = ['#E6E8DD', '#E4E7DA', '#E8E8DD', '#E2E6DC', '#E5E7DC'];
 function applyPersonBg(personId) {
   var idx = 0;
   var person = null;
@@ -13419,7 +13424,8 @@ function updateSettingsAccount() {
 
 // ── SCREEN TRANSITIONS ────────────────────────────────────────────────────────
 function showAuthScreen() {
-  document.documentElement.style.setProperty('--person-bg', '#F7F5F0');
+  // v2.01: auth screen resets to Stone, not pre-v2.01 cream.
+  document.documentElement.style.setProperty('--person-bg', '#E8E6E0');
   document.getElementById('loading-screen').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'flex';
   document.getElementById('landing').style.display = 'none';

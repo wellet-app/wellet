@@ -192,7 +192,7 @@
   height: 10px;
   border-radius: 50%;
   background: var(--moss-deep, #11443B);
-  border: 2px solid var(--person-bg, #F7F5F0);
+  border: 2px solid var(--person-bg, #E8E6E0);
   box-sizing: border-box;
   z-index: 2;                    /* sit above the rail so dot looks crisp */
 }
