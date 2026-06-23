@@ -29,7 +29,7 @@
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--ink-5, #6b6b6b);
+  color: var(--ink-5, #5F5A52);
   margin: 0 0 6px;
 }
 #view-resources[data-editorial="resources"] .view-header__title {
@@ -38,7 +38,7 @@
   font-size: var(--type-display, 32px);
   line-height: 1.08;
   letter-spacing: -0.01em;
-  color: var(--ink-9, #14211c);
+  color: var(--ink-9, #161312);
   margin: 0 0 6px;
   font-variation-settings: "opsz" 72, "SOFT" 60;
 }
@@ -46,7 +46,7 @@
   font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-body, 14px);
   line-height: 1.4;
-  color: var(--ink-5, #6b6b6b);
+  color: var(--ink-5, #5F5A52);
   margin: 0;
   max-width: 36ch;
 }
@@ -60,7 +60,7 @@
   font-weight: 400;
   font-size: var(--type-body, 14px);
   line-height: 1.45;
-  color: var(--ink-7, #3b4a44);
+  color: var(--ink-7, #2D2A24);
   margin: 22px 0 6px;
   max-width: 38ch;
 }
@@ -76,7 +76,7 @@
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--ink-5, #6b6b6b);
+  color: var(--ink-5, #5F5A52);
   margin: 22px 0 4px;
   display: block;
   background: none;
@@ -112,14 +112,14 @@
   font-weight: 400;
   font-size: var(--type-h2, 17px);
   line-height: 1.2;
-  color: var(--ink-9, #14211c);
+  color: var(--ink-9, #161312);
   flex: 1;
 }
 #view-resources[data-editorial="resources"] .resource-card-bookmark {
   background: none;
   border: 0;
   padding: 2px;
-  color: var(--ink-3, #b7bfba);
+  color: var(--ink-3, #9F9A8E);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -127,14 +127,14 @@
   transition: color 0.15s;
 }
 #view-resources[data-editorial="resources"] .resource-card-bookmark.saved {
-  color: var(--moss-deep, #2f4a3a);
+  color: var(--moss-deep, #11443B);
 }
 
 #view-resources[data-editorial="resources"] .resource-card-desc {
   font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-body, 14px);
   line-height: 1.45;
-  color: var(--ink-7, #3b4a44);
+  color: var(--ink-7, #2D2A24);
   margin: 0 0 10px;
   max-width: 42ch;
 }
@@ -150,7 +150,7 @@
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ink-5, #6b6b6b);
+  color: var(--ink-5, #5F5A52);
 }
 #view-resources[data-editorial="resources"] .resource-tag {
   background: transparent;
@@ -171,7 +171,7 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--moss-quieter, #8AA89A);
+  background: var(--moss-quiet, #6B8A7E);
 }
 #view-resources[data-editorial="resources"] .resource-tag.helpline::before {
   background: #9F7AEA;
@@ -190,14 +190,14 @@
 #view-resources[data-editorial="resources"] .resource-btn {
   background: transparent;
   border: 0;
-  border-bottom: 1px solid var(--moss-quieter, #8AA89A);
+  border-bottom: 1px solid var(--moss-quiet, #6B8A7E);
   border-radius: 0;
   padding: 0 0 1px;
   font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-meta, 12px);
   font-weight: 500;
   letter-spacing: 0.04em;
-  color: var(--moss-deep, #2f4a3a);
+  color: var(--moss-deep, #11443B);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -205,12 +205,12 @@
   transition: border-color 0.15s, color 0.15s;
 }
 #view-resources[data-editorial="resources"] .resource-btn:hover {
-  color: var(--ink-9, #14211c);
-  border-bottom-color: var(--moss-deep, #2f4a3a);
+  color: var(--ink-9, #161312);
+  border-bottom-color: var(--moss-deep, #11443B);
 }
 #view-resources[data-editorial="resources"] .resource-btn-call {
-  color: var(--ink-7, #3b4a44);
-  border-bottom-color: var(--ink-3, #b7bfba);
+  color: var(--ink-7, #2D2A24);
+  border-bottom-color: var(--ink-3, #9F9A8E);
 }
 #view-resources[data-editorial="resources"] .resource-btn svg,
 #view-resources[data-editorial="resources"] .resource-btn i[data-lucide] {
@@ -237,7 +237,7 @@
   font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-body, 14px);
   line-height: 1.45;
-  color: var(--ink-5, #6b6b6b);
+  color: var(--ink-5, #5F5A52);
   max-width: 36ch;
   margin: 0;
 }

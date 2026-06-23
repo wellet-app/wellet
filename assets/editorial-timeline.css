@@ -25,7 +25,7 @@
   font-style: normal;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--ink-5, #6E6962);
+  color: var(--ink-5, #5F5A52);
   /* Tightened from 28px 0 14px so the first item rides closer to the month
      label without losing the section break. */
   margin: 20px 0 8px;
@@ -64,7 +64,7 @@
      Keep the card itself flush so its content starts at the item's
      padding-top and stays visually aligned with the dot. */
   padding: 0 !important;
-  border-bottom: 1px solid var(--ink-1, #E6E1D6) !important;
+  border-bottom: 1px solid var(--ink-1, #DAD6CB) !important;
   box-shadow: none !important;
   transition: opacity 0.15s ease-out;
 }
@@ -73,7 +73,7 @@
 }
 #tab-timeline .tl-card[onclick]:hover {
   background: transparent !important;
-  border-color: var(--ink-1, #E6E1D6) !important;
+  border-color: var(--ink-1, #DAD6CB) !important;
   box-shadow: none !important;
   opacity: 0.78;
 }
@@ -114,7 +114,7 @@
   top: 36px;
   bottom: 0;
   width: 1px;
-  background: var(--ink-2, #D8D3CA);
+  background: var(--ink-2, #BFB9AC);
   pointer-events: none;
 }
 
@@ -155,7 +155,7 @@
   height: 10px;
   border-radius: 50%;
   background: var(--linen, #E8E6E0);
-  border: 1.5px solid var(--ink-4, #8C857B);
+  border: 1.5px solid var(--ink-4, #7E796F);
   box-sizing: border-box;
   z-index: 2;                    /* sit above the rail so dot looks crisp */
 }
@@ -207,11 +207,11 @@
 
 /* Type-tag colors — all derived from quiet status tones, NEVER red */
 #tab-timeline .tl-card-type.appt {
-  color: var(--moss-quieter, #8AA89A) !important;
+  color: var(--moss-quiet, #6B8A7E) !important;
 }
 #tab-timeline .tl-card-type-row:has(.tl-card-type.appt) i,
 #tab-timeline .tl-card-type-row:has(.tl-card-type.appt) svg {
-  color: var(--moss-quieter, #8AA89A) !important;
+  color: var(--moss-quiet, #6B8A7E) !important;
 }
 #tab-timeline .tl-card-type.med {
   color: var(--signal-stale, #B5A582) !important;
@@ -221,18 +221,18 @@
   color: var(--signal-stale, #B5A582) !important;
 }
 #tab-timeline .tl-card-type.lab {
-  color: var(--ink-6, #57534C) !important;
+  color: var(--ink-6, #4A463F) !important;
 }
 #tab-timeline .tl-card-type-row:has(.tl-card-type.lab) i,
 #tab-timeline .tl-card-type-row:has(.tl-card-type.lab) svg {
-  color: var(--ink-6, #57534C) !important;
+  color: var(--ink-6, #4A463F) !important;
 }
 #tab-timeline .tl-card-type.note {
-  color: var(--ink-5, #6E6962) !important;
+  color: var(--ink-5, #5F5A52) !important;
 }
 #tab-timeline .tl-card-type-row:has(.tl-card-type.note) i,
 #tab-timeline .tl-card-type-row:has(.tl-card-type.note) svg {
-  color: var(--ink-5, #6E6962) !important;
+  color: var(--ink-5, #5F5A52) !important;
 }
 #tab-timeline .tl-card-type.alert {
   color: var(--signal-warm, #B8835A) !important;   /* was red — now warm bronze */
@@ -252,7 +252,7 @@
   /* Tightened from 1.32 → 1.25 so long titles wrap more compactly. */
   line-height: 1.25;
   letter-spacing: -0.005em;
-  color: var(--ink-9, #1F1B16);
+  color: var(--ink-9, #161312);
   margin: 0 0 4px 0;
 }
 
@@ -262,7 +262,7 @@
   font-size: var(--type-body);
   font-weight: 300;
   line-height: 1.55;
-  color: var(--ink-7, #443F38);
+  color: var(--ink-7, #2D2A24);
   margin: 0;
 }
 
@@ -275,7 +275,7 @@
   font-style: normal;
   letter-spacing: 0.10em;
   text-transform: uppercase;
-  color: var(--ink-5, #6E6962);
+  color: var(--ink-5, #5F5A52);
   /* Tightened from 10 → 6 — the date pill should feel like a byline
      tucked under the entry, not a separate stanza. */
   margin-top: 6px;
@@ -288,9 +288,9 @@
   font-size: var(--type-micro);
   font-weight: 400;
   letter-spacing: 0.04em;
-  color: var(--ink-5, #6E6962);
+  color: var(--ink-5, #5F5A52);
   background: transparent;
-  border: 1px solid var(--ink-2, #D8D3CA);
+  border: 1px solid var(--ink-2, #BFB9AC);
   border-radius: 999px;
   padding: 2px 8px;
 }

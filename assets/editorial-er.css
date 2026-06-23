@@ -31,7 +31,7 @@
   background: #FFFFFF !important;
   color: var(--ink-9) !important;
   padding: 22px 24px 16px !important;
-  border-bottom: 1px solid var(--ink-1, #E8E2D6);
+  border-bottom: 1px solid var(--ink-1, #DAD6CB);
   align-items: flex-start !important;
 }
 [data-editorial="er-sheet"] .er-header-left {
@@ -88,7 +88,7 @@
 /* ---- Patient banner (was pink with crimson rule) ---- */
 [data-editorial="er-sheet"] .er-patient-banner {
   background: #FFFFFF !important;
-  border-bottom: 1px solid var(--ink-1, #E8E2D6) !important;
+  border-bottom: 1px solid var(--ink-1, #DAD6CB) !important;
   padding: 24px !important;
 }
 [data-editorial="er-sheet"] .er-patient-name {
@@ -117,7 +117,7 @@
 [data-editorial="er-sheet"] .er-body .emrg-section {
   margin: 0 !important;
   padding: 22px 24px !important;
-  border-bottom: 1px solid var(--ink-1, #E8E2D6) !important;
+  border-bottom: 1px solid var(--ink-1, #DAD6CB) !important;
 }
 [data-editorial="er-sheet"] .er-body .emrg-section:last-child {
   border-bottom: none !important;
@@ -140,7 +140,7 @@
 [data-editorial="er-sheet"] .er-body .emrg-section-title [data-lucide] {
   width: 13px !important;
   height: 13px !important;
-  color: var(--moss-deep, #3F5F52) !important;
+  color: var(--moss-deep, #11443B) !important;
   stroke-width: 1.6;
 }
 
@@ -151,7 +151,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 9px 0 !important;
-  border-bottom: 1px solid var(--ink-0, #F2EDE2);
+  border-bottom: 1px solid var(--ink-0, #EEEDE8);
   font-size: var(--type-body) !important;
 }
 [data-editorial="er-sheet"] .er-body .emrg-row:last-child {
@@ -178,8 +178,8 @@
   padding: 22px 24px !important;
   background: var(--linen, #E8E6E0) !important;   /* gentle linen island so the brief reads as
                                                        a separate voice, not chart data */
-  border-top: 1px solid var(--ink-1, #E8E2D6);
-  border-bottom: 1px solid var(--ink-1, #E8E2D6);
+  border-top: 1px solid var(--ink-1, #DAD6CB);
+  border-bottom: 1px solid var(--ink-1, #DAD6CB);
 }
 [data-editorial="er-sheet"] .er-ai-header {
   margin-bottom: 12px !important;
@@ -195,7 +195,7 @@
 }
 [data-editorial="er-sheet"] .er-ai-label i,
 [data-editorial="er-sheet"] .er-ai-label [data-lucide] {
-  color: var(--moss-deep, #3F5F52) !important;
+  color: var(--moss-deep, #11443B) !important;
   stroke-width: 1.6;
 }
 [data-editorial="er-sheet"] .er-ai-refresh {
@@ -225,13 +225,13 @@
   font-weight: 300 !important;
   font-size: var(--type-meta) !important;
   color: var(--ink-5) !important;
-  border-top: 1px solid var(--ink-1, #E8E2D6) !important;
+  border-top: 1px solid var(--ink-1, #DAD6CB) !important;
 }
 
 /* ---- Actions footer ---- */
 [data-editorial="er-sheet"] .er-actions {
   background: #FFFFFF !important;
-  border-top: 1px solid var(--ink-1, #E8E2D6) !important;
+  border-top: 1px solid var(--ink-1, #DAD6CB) !important;
   padding: 16px 20px !important;
   gap: 10px !important;
 }
@@ -253,23 +253,23 @@
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 [data-editorial="er-sheet"] .er-action-share {
-  background: var(--moss-deep, #3F5F52) !important;
+  background: var(--moss-deep, #11443B) !important;
   color: #FFFFFF !important;
-  border: 1px solid var(--moss-deep, #3F5F52) !important;
+  border: 1px solid var(--moss-deep, #11443B) !important;
 }
 [data-editorial="er-sheet"] .er-action-share:hover {
-  background: var(--ink-9, #1F1B16) !important;
-  border-color: var(--ink-9, #1F1B16) !important;
+  background: var(--ink-9, #161312) !important;
+  border-color: var(--ink-9, #161312) !important;
 }
 [data-editorial="er-sheet"] .er-action-pdf {
   background: transparent !important;
-  color: var(--ink-9, #1F1B16) !important;
-  border: 1px solid var(--ink-3, #C8C0B5) !important;
+  color: var(--ink-9, #161312) !important;
+  border: 1px solid var(--ink-3, #9F9A8E) !important;
 }
 [data-editorial="er-sheet"] .er-action-pdf:hover {
   background: transparent !important;
-  border-color: var(--ink-9, #1F1B16) !important;
-  color: var(--ink-9, #1F1B16) !important;
+  border-color: var(--ink-9, #161312) !important;
+  color: var(--ink-9, #161312) !important;
 }
 [data-editorial="er-sheet"] .er-action-btn i,
 [data-editorial="er-sheet"] .er-action-btn [data-lucide] {

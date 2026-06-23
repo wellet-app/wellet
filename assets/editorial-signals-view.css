@@ -32,7 +32,7 @@
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--ink-5, #6b6b6b);
+  color: var(--ink-5, #5F5A52);
   margin: 0 0 6px;
 }
 
@@ -42,7 +42,7 @@
   font-size: var(--type-display, 32px);
   line-height: 1.08;
   letter-spacing: -0.01em;
-  color: var(--ink-9, #111);
+  color: var(--ink-9, #161312);
   margin: 0 0 6px;
   font-variation-settings: "opsz" 72, "SOFT" 60;
 }
@@ -51,7 +51,7 @@
   font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: var(--type-body, 14px);
   line-height: 1.4;
-  color: var(--ink-5, #6b6b6b);
+  color: var(--ink-5, #5F5A52);
   margin: 0;
   /* Let the lede stretch the full content width so it doesn't break into
      three lines and push the rest of the view below the fold on mobile. */
@@ -86,7 +86,7 @@
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--ink-5, #6b6b6b);
+  color: var(--ink-5, #5F5A52);
   margin: 0 0 10px;
 }
 .cs-section-head {
@@ -103,9 +103,9 @@
   gap: 6px;
   padding: 7px 12px;
   border-radius: 999px;
-  border: 1px solid var(--ink-3, #d5d0c4);
+  border: 1px solid var(--ink-3, #9F9A8E);
   background: #fff;
-  color: var(--ink-7, #2B2A28);
+  color: var(--ink-7, #2D2A24);
   font-family: var(--sans, "Public Sans", system-ui, sans-serif);
   font-size: 12px;
   font-weight: 500;
@@ -121,7 +121,7 @@
   font-size: 19px;
   font-weight: 400;
   line-height: 1.4;
-  color: var(--ink-9, #1F2A22);
+  color: var(--ink-9, #161312);
   margin: 0;
   font-variation-settings: "opsz" 36, "SOFT" 40;
 }
@@ -129,14 +129,14 @@
 /* Watches */
 .cs-watches-empty {
   padding: 14px 16px;
-  border: 1px dashed var(--ink-2, #D7D2C5);
+  border: 1px dashed var(--ink-2, #BFB9AC);
   border-radius: 12px;
   background: #FBF9F2;
   font-size: 13px;
   color: var(--text-secondary, #6B6356);
   line-height: 1.5;
 }
-.cs-watches-empty em { font-style: italic; color: var(--ink-7, #2B2A28); }
+.cs-watches-empty em { font-style: italic; color: var(--ink-7, #2D2A24); }
 .cs-watches-list {
   display: flex;
   flex-direction: column;
@@ -144,7 +144,7 @@
 }
 .watch-row {
   background: #fff;
-  border: 1px solid var(--ink-2, #E5DFD2);
+  border: 1px solid var(--ink-2, #BFB9AC);
   border-radius: 12px;
   padding: 12px 14px;
   display: flex;
@@ -166,7 +166,7 @@
 .watch-row-title {
   font-size: 14px;
   font-weight: 500;
-  color: var(--ink-9, #1F2A22);
+  color: var(--ink-9, #161312);
   line-height: 1.35;
 }
 .watch-row-sub {
@@ -202,9 +202,9 @@
   gap: 5px;
   padding: 6px 11px;
   border-radius: 8px;
-  border: 1px solid var(--ink-2, #D7D2C5);
+  border: 1px solid var(--ink-2, #BFB9AC);
   background: #FAF7F0;
-  color: var(--ink-7, #2B2A28);
+  color: var(--ink-7, #2D2A24);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -234,7 +234,7 @@
 }
 .cs-rhythm-card {
   background: #fff;
-  border: 1px solid var(--ink-2, #E5DFD2);
+  border: 1px solid var(--ink-2, #BFB9AC);
   border-radius: 12px;
   padding: 14px 16px;
   display: flex;
@@ -246,13 +246,13 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ink-5, #6B6356);
+  color: var(--ink-5, #5F5A52);
 }
 .cs-rhythm-metric {
   font-family: var(--serif, "Gambetta", Georgia, serif);
   font-size: 22px;
   font-weight: 500;
-  color: var(--ink-9, #1F2A22);
+  color: var(--ink-9, #161312);
   line-height: 1.1;
   font-variation-settings: "opsz" 36;
 }
@@ -285,7 +285,7 @@
 /* Care Circle */
 .cs-circle-empty {
   padding: 14px 16px;
-  border: 1px dashed var(--ink-2, #D7D2C5);
+  border: 1px dashed var(--ink-2, #BFB9AC);
   border-radius: 12px;
   background: #FBF9F2;
   font-size: 13px;
@@ -299,7 +299,7 @@
 }
 .cs-circle-row {
   background: #fff;
-  border: 1px solid var(--ink-2, #E5DFD2);
+  border: 1px solid var(--ink-2, #BFB9AC);
   border-radius: 12px;
   padding: 12px 14px;
 }
@@ -317,7 +317,7 @@
 }
 .cs-circle-row-pieces {
   font-size: 13px;
-  color: var(--ink-9, #1F2A22);
+  color: var(--ink-9, #161312);
   line-height: 1.5;
 }
 .cs-circle-row-notes {
@@ -325,14 +325,14 @@
   font-family: var(--serif, "Gambetta", Georgia, serif);
   font-size: 14px;
   font-style: italic;
-  color: var(--ink-7, #2B2A28);
+  color: var(--ink-7, #2D2A24);
   line-height: 1.5;
 }
 
 /* Wearables empty state */
 .cs-devices-empty {
   padding: 18px 16px;
-  border: 1px dashed var(--ink-2, #D7D2C5);
+  border: 1px dashed var(--ink-2, #BFB9AC);
   border-radius: 12px;
   background: #FBF9F2;
   text-align: center;
@@ -341,7 +341,7 @@
   font-family: var(--serif, "Gambetta", Georgia, serif);
   font-size: 15px;
   font-weight: 500;
-  color: var(--ink-9, #1F2A22);
+  color: var(--ink-9, #161312);
   margin-bottom: 4px;
 }
 .cs-devices-empty-sub {
@@ -513,7 +513,7 @@
 }
 .cs-ehr-card {
   background: #fff;
-  border: 1px solid var(--ink-2, #E5DFD2);
+  border: 1px solid var(--ink-2, #BFB9AC);
   border-radius: 12px;
   padding: 14px 16px;
   display: flex;
@@ -526,13 +526,13 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ink-5, #6B6356);
+  color: var(--ink-5, #5F5A52);
 }
 .cs-ehr-card-metric {
   font-family: var(--serif, "Gambetta", Georgia, serif);
   font-size: 22px;
   font-weight: 500;
-  color: var(--ink-9, #1F2A22);
+  color: var(--ink-9, #161312);
   line-height: 1.1;
   font-variation-settings: "opsz" 36;
 }
@@ -579,7 +579,7 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ink-5, #6B6356);
+  color: var(--ink-5, #5F5A52);
   margin: 14px 0 8px;
 }
 
@@ -594,7 +594,7 @@
 }
 .cs-ehr-lab-card {
   background: #fff;
-  border: 1px solid var(--ink-2, #E5DFD2);
+  border: 1px solid var(--ink-2, #BFB9AC);
   border-radius: 10px;
   padding: 10px 12px;
   display: flex;
@@ -610,14 +610,14 @@
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
-  color: var(--ink-7, #2B2A28);
+  color: var(--ink-7, #2D2A24);
   line-height: 1.25;
 }
 .cs-ehr-lab-value {
   font-family: var(--serif, "Gambetta", Georgia, serif);
   font-size: 18px;
   font-weight: 500;
-  color: var(--ink-9, #1F2A22);
+  color: var(--ink-9, #161312);
   line-height: 1.1;
   font-variation-settings: "opsz" 36;
 }
@@ -654,7 +654,7 @@
   gap: 10px;
   padding: 10px 12px;
   background: #fff;
-  border: 1px solid var(--ink-2, #E5DFD2);
+  border: 1px solid var(--ink-2, #BFB9AC);
   border-radius: 10px;
 }
 .cs-ehr-med-icon {
@@ -675,7 +675,7 @@
 .cs-ehr-med-name {
   font-size: 13px;
   font-weight: 500;
-  color: var(--ink-9, #1F2A22);
+  color: var(--ink-9, #161312);
   line-height: 1.35;
 }
 .cs-ehr-med-sub {
