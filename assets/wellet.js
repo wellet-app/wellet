@@ -16015,9 +16015,19 @@ function _buildCareSignalCardHtml(signal, sigFirstName, primaryCtaLabel, seconda
     html += '<button type="button" class="cs-attention__kebab" aria-label="More actions" onclick="_onCareSignalKebab(event, \'' + sid + '\')">';
     html += '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="3.5" r="1.3" fill="currentColor"/><circle cx="8" cy="8" r="1.3" fill="currentColor"/><circle cx="8" cy="12.5" r="1.3" fill="currentColor"/></svg>';
     html += '</button>';
+    // Kebab menu items — surface the OTHER category's primary action plus the
+    // less-frequent options. _csPrimaryActionForSignal returns the per-card
+    // primary, so we add its complement here.
+    var primaryAction = _csPrimaryActionForSignal(signal);
     html += '<div class="cs-kebab-menu" role="menu" hidden>';
-    html += '<button type="button" role="menuitem" onclick="_onCareSignalSavePrecall(\'' + sid + '\')">Save to Before you call</button>';
-    html += '<button type="button" role="menuitem" onclick="_onCareSignalShare(\'' + sid + '\', \'' + escHtml(sigFirstName || '') + '\')">Share with ' + escHtml(sigFirstName || 'family') + '</button>';
+    if (primaryAction === 'tell_more') {
+      html += '<button type="button" role="menuitem" onclick="_onCareSignalAddToBrief(\'' + sid + '\')">Add to appointment brief</button>';
+    } else {
+      html += '<button type="button" role="menuitem" onclick="_onCareSignalTellMore(\'' + sid + '\')">Tell me more</button>';
+    }
+    html += '<button type="button" role="menuitem" onclick="_onCareSignalShare(\'' + sid + '\', \'' + escHtml(sigFirstName || '') + '\')">Share with CareCircle</button>';
+    html += '<hr aria-hidden="true">';
+    html += '<button type="button" role="menuitem" class="cs-kebab-menu__quiet" onclick="_onCareSignalSavePrecall(\'' + sid + '\')">Save to Before you call</button>';
     html += '</div>';
   } else {
     html += '<button type="button" class="cs-attention__restore" onclick="_onCareSignalRestore(\'' + sid + '\')" aria-label="Restore">Restore</button>';
@@ -16039,14 +16049,59 @@ function _buildCareSignalCardHtml(signal, sigFirstName, primaryCtaLabel, seconda
     for (var k = tiles.length; k < 3; k++) html += '<div class="cs-tile" aria-hidden="true"></div>';
     html += '</div>';
   }
+  // ─────────────────────────────────────────────────────────────────────
+  // Pattern B action layout (2026-06-23):
+  //   - Per-category PRIMARY CTA (engagement: Tell me more / Add to brief)
+  //   - Quiet RESOLUTION ROW below a hairline rule (I handled this / Not worth noticing)
+  // The legacy two-button row (cs-cta-primary + cs-cta-secondary with
+  // I handled / Not worth noticing) is replaced. Production CSS for
+  // cs-cta-primary / cs-cta-secondary is preserved — we just no longer
+  // emit those nodes here. New classes live in editorial-caresignals.css.
+  // ─────────────────────────────────────────────────────────────────────
   if (!isHandled) {
-    html += '<div class="cs-attention__actions">';
-    html += '<button type="button" class="cs-cta-primary" onclick="_onCareSignalHandled(\'' + sid + '\')">I handled this</button>';
-    html += '<button type="button" class="cs-cta-secondary" onclick="_onCareSignalDismiss(\'' + sid + '\')">Not worth noticing</button>';
+    var primary = _csPrimaryActionForSignal(signal);
+    var primaryLabel = primary === 'tell_more' ? 'Tell me more' : 'Add to appointment brief';
+    var primaryHandler = primary === 'tell_more' ? '_onCareSignalTellMore' : '_onCareSignalAddToBrief';
+    html += '<div class="cs-attention__actions cs-attention__actions--v2">';
+    html += '<button type="button" class="cs-cta-primary cs-cta-primary--v2" data-cs-primary="' + escHtml(primary) + '" onclick="' + primaryHandler + '(\'' + sid + '\')">' + escHtml(primaryLabel) + '</button>';
+    html += '<div class="cs-resolution-row">';
+    html += '<button type="button" class="cs-resolution-btn" onclick="_onCareSignalHandled(\'' + sid + '\')">I handled this</button>';
+    html += '<span class="cs-resolution-sep" aria-hidden="true">\u00b7</span>';
+    html += '<button type="button" class="cs-resolution-btn" onclick="_onCareSignalDismiss(\'' + sid + '\')">Not worth noticing</button>';
+    html += '</div>';
     html += '</div>';
   }
   html += '</article>';
   return html;
+}
+
+// ── CareSignal: primary action routing ────────────────────────────────────
+// Per-card primary CTA varies by signal source. The mapping:
+//   - Clinical events (lab results, med changes, imaging, conditions)
+//     → 'add_to_brief' — the most useful next step is bringing it to a doctor
+//   - AI patterns (cross-source correlations, multi-day trends, anomalies)
+//   - Wearable-only trends (sleep, HR, steps)
+//     → 'tell_more' — the most useful next step is asking Wellet to explain it
+// Returns 'tell_more' or 'add_to_brief'. Defaults to 'tell_more' when
+// ambiguous (safer — routes to Ask Wellet, which never writes data).
+function _csPrimaryActionForSignal(signal) {
+  if (!signal) return 'tell_more';
+  // 1. Explicit override from server payload wins (forward-compat hook).
+  if (signal.primary_action === 'add_to_brief' || signal.primary_action === 'tell_more') {
+    return signal.primary_action;
+  }
+  // 2. Source kind heuristic.
+  var sourceKind = String(signal.source_kind || signal.signal_source || '').toLowerCase();
+  var signalType = String(signal.signal_type || '').toLowerCase();
+  var clinicalKinds = ['lab_result', 'lab', 'medication', 'med_change', 'imaging', 'condition', 'diagnosis', 'procedure', 'ehr', 'fhir'];
+  for (var i = 0; i < clinicalKinds.length; i++) {
+    if (sourceKind.indexOf(clinicalKinds[i]) !== -1 || signalType.indexOf(clinicalKinds[i]) !== -1) {
+      return 'add_to_brief';
+    }
+  }
+  // 3. Default: Tell me more (covers AI patterns + wearable trends + anything
+  // we don't have a source signal for).
+  return 'tell_more';
 }
 
 // ── CareSignal action handlers ───────────────────────────────────────────
@@ -16126,6 +16181,206 @@ function _onCareSignalShare(signalId, firstName) {
 // Legacy entry points (kept for any external callers)
 function _onCareSignalPrimary(signalId) { return _onCareSignalHandled(signalId); }
 function _onCareSignalSecondary(signalId) { return _onCareSignalDismiss(signalId); }
+
+// ── Pattern B engagement actions (2026-06-23) ─────────────────────────────
+// Tell me more  → register a CareSignal context in the existing Ask Wellet
+//                 context registry, then call openAskWithContext(). The Ask
+//                 input opens with the signal as a chip; the user can ask
+//                 follow-ups grounded in the signal text.
+// Add to brief  → open a doctor/appointment picker bottom sheet listing
+//                 future events of type appointment|visit. On pick, append
+//                 the signal text to events.notes via Supabase update.
+//                 No new tables — reuses the existing events schema.
+async function _onCareSignalTellMore(signalId) {
+  if (!signalId) return;
+  // Close any open kebab
+  try {
+    var card = document.querySelector('.cs-attention[data-care-signal-id="' + signalId + '"]');
+    if (card) { var m = card.querySelector('.cs-kebab-menu'); if (m) m.hidden = true; }
+  } catch(_e){}
+  // Find the signal in the most recent render. The signals view stores its
+  // last computed payload on window._lastCareSignals (set by
+  // renderSignalsView). Fall back to looking up by DOM if missing.
+  var signal = null;
+  try {
+    var pool = (window._lastCareSignals && window._lastCareSignals.list) || [];
+    for (var i = 0; i < pool.length; i++) {
+      if (pool[i] && String(pool[i].id) === String(signalId)) { signal = pool[i]; break; }
+    }
+  } catch(_e){}
+  // Build the Ask context. _askCtxRegistry uses opaque keys, so we mint one.
+  var headline = signal && signal.headline ? signal.headline : 'this signal';
+  var body = signal && signal.body ? signal.body : '';
+  var sourceKind = signal && (signal.source_kind || signal.signal_source) || '';
+  var registryKey = 'cs_' + signalId;
+  try {
+    window._askCtxRegistry = window._askCtxRegistry || {};
+    window._askCtxRegistry[registryKey] = {
+      intent: 'caresignal',
+      name: headline,
+      value: body,
+      date: signal && (signal.noticed_at || signal.created_at) || null,
+      _meta: { signal_id: signalId, source_kind: sourceKind }
+    };
+  } catch(_e){}
+  // Best-effort analytics ping.
+  try { if (typeof _wa !== 'undefined' && _wa.track) _wa.track('caresignal', 'tell_me_more', { signal_id: signalId, source_kind: sourceKind }); } catch(_e){}
+  // Route into Ask Wellet with the prepopulated chip.
+  try {
+    if (typeof openAskWithContext === 'function') {
+      openAskWithContext(registryKey);
+    } else if (typeof switchNavTo === 'function') {
+      switchNavTo('ask');
+    }
+  } catch(_e){}
+}
+
+async function _onCareSignalAddToBrief(signalId) {
+  if (!signalId) return;
+  // Close kebab if open
+  try {
+    var card = document.querySelector('.cs-attention[data-care-signal-id="' + signalId + '"]');
+    if (card) { var m = card.querySelector('.cs-kebab-menu'); if (m) m.hidden = true; }
+  } catch(_e){}
+  // Load future appointments for the current person from live events.
+  var futures = [];
+  try {
+    var pool = (typeof liveEvents !== 'undefined' && liveEvents) ? liveEvents : [];
+    var now = new Date();
+    var personId = (typeof currentPersonId !== 'undefined') ? currentPersonId : null;
+    futures = pool.filter(function(e) {
+      if (!e || !e.event_date) return false;
+      if (e.event_type !== 'appointment' && e.event_type !== 'visit') return false;
+      if (personId && e.person_id && e.person_id !== personId) return false;
+      var d = new Date(e.event_date);
+      if (isNaN(d)) return false;
+      // include today + future
+      return d.getTime() >= (now.getTime() - 86400000);
+    }).sort(function(a, b) { return new Date(a.event_date) - new Date(b.event_date); }).slice(0, 8);
+  } catch(_e){}
+  // Open the picker sheet.
+  _openAppointmentBriefPicker(signalId, futures);
+}
+
+// ── Appointment brief picker (Pattern B helper) ──────────────────────────
+// Bottom-sheet listing future appointments. On pick, calls Supabase to
+// append the signal body to events.notes (preserving existing notes).
+// Falls back to a graceful empty state if no future appointments exist.
+function _openAppointmentBriefPicker(signalId, futures) {
+  // Lazily build the sheet host
+  var host = document.getElementById('cs-brief-picker-host');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'cs-brief-picker-host';
+    document.body.appendChild(host);
+  }
+  var monthsShort = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function fmtDate(iso) {
+    try {
+      var d = new Date(iso);
+      if (isNaN(d)) return '';
+      var now = new Date();
+      var startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      var apptDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      var diff = Math.round((apptDay - startOfToday) / 86400000);
+      var hr = d.getHours(); var mn = d.getMinutes();
+      var ampm = hr >= 12 ? 'PM' : 'AM';
+      hr = hr % 12; if (hr === 0) hr = 12;
+      var time = hr + ':' + (mn < 10 ? '0' + mn : mn) + ' ' + ampm;
+      var dayPart;
+      if (diff === 0) dayPart = 'Today';
+      else if (diff === 1) dayPart = 'Tomorrow';
+      else dayPart = monthsShort[d.getMonth()] + ' ' + d.getDate();
+      return dayPart + ' \u00B7 ' + time;
+    } catch(_e) { return ''; }
+  }
+  var rowsHtml = '';
+  if (futures && futures.length) {
+    for (var i = 0; i < futures.length; i++) {
+      var f = futures[i];
+      var when = fmtDate(f.event_date);
+      var title = f.title || 'Appointment';
+      var existingNote = f.notes ? ' \u2022 ' + (f.notes.length > 32 ? f.notes.slice(0, 32) + '\u2026' : f.notes) : '';
+      rowsHtml += '<button type="button" class="cs-brief-picker__row" onclick="_csConfirmAddToBrief(\'' + signalId + '\', \'' + escHtml(f.id || '') + '\')">';
+      rowsHtml += '<div class="cs-brief-picker__row-when">' + escHtml(when) + '</div>';
+      rowsHtml += '<div class="cs-brief-picker__row-title">' + escHtml(title) + '</div>';
+      if (existingNote) rowsHtml += '<div class="cs-brief-picker__row-meta">Has notes' + escHtml(existingNote) + '</div>';
+      rowsHtml += '</button>';
+    }
+  } else {
+    rowsHtml += '<div class="cs-brief-picker__empty">No upcoming appointments on file. Once you add one to the timeline, signals can be attached to it.</div>';
+  }
+  host.innerHTML =
+    '<div class="cs-brief-picker__backdrop" onclick="_closeAppointmentBriefPicker()"></div>' +
+    '<div class="cs-brief-picker__sheet" role="dialog" aria-label="Pick an appointment">' +
+    '  <div class="cs-brief-picker__handle" aria-hidden="true"></div>' +
+    '  <h3 class="cs-brief-picker__title">Add to which appointment?</h3>' +
+    '  <p class="cs-brief-picker__sub">The signal will be saved as a note on the appointment.</p>' +
+    '  <div class="cs-brief-picker__rows">' + rowsHtml + '</div>' +
+    '  <button type="button" class="cs-brief-picker__cancel" onclick="_closeAppointmentBriefPicker()">Cancel</button>' +
+    '</div>';
+  host.style.display = 'block';
+  // Add Escape handler
+  function escHandler(ev) {
+    if (ev.key === 'Escape') { _closeAppointmentBriefPicker(); document.removeEventListener('keydown', escHandler, true); }
+  }
+  document.addEventListener('keydown', escHandler, true);
+}
+
+function _closeAppointmentBriefPicker() {
+  var host = document.getElementById('cs-brief-picker-host');
+  if (host) { host.style.display = 'none'; host.innerHTML = ''; }
+}
+
+async function _csConfirmAddToBrief(signalId, eventId) {
+  if (!signalId || !eventId) { _closeAppointmentBriefPicker(); return; }
+  _closeAppointmentBriefPicker();
+  // Pull the signal text
+  var signal = null;
+  try {
+    var pool = (window._lastCareSignals && window._lastCareSignals.list) || [];
+    for (var i = 0; i < pool.length; i++) {
+      if (pool[i] && String(pool[i].id) === String(signalId)) { signal = pool[i]; break; }
+    }
+  } catch(_e){}
+  var signalText = '';
+  if (signal) {
+    if (signal.headline) signalText += signal.headline;
+    if (signal.body) signalText += (signalText ? ' \u2014 ' : '') + signal.body;
+  }
+  if (!signalText) signalText = 'CareSignal (id ' + signalId + ')';
+  // Fetch existing notes so we append rather than overwrite.
+  try {
+    var sess = (await db.auth.getSession()).data.session;
+    if (!sess || !sess.access_token) {
+      try { if (typeof showToast === 'function') showToast('Sign in to save to a brief.'); } catch(_e){}
+      return;
+    }
+    var existingNotes = '';
+    try {
+      var fetchRes = await db.from('events').select('notes').eq('id', eventId).maybeSingle();
+      if (fetchRes && fetchRes.data && fetchRes.data.notes) existingNotes = String(fetchRes.data.notes);
+    } catch(_e){}
+    var ts = new Date().toISOString().slice(0, 10);
+    var line = '\u2022 [Wellet \u00b7 ' + ts + '] ' + signalText;
+    var nextNotes = existingNotes ? (existingNotes.replace(/\s+$/, '') + '\n' + line) : line;
+    var updRes = await db.from('events').update({ notes: nextNotes }).eq('id', eventId);
+    if (updRes && updRes.error) throw updRes.error;
+    // Best-effort: also mark the CareSignal as acted_on via the existing edge
+    // function so it moves to Recently noticed. Non-fatal on failure.
+    try {
+      if (typeof _csCallAction === 'function') {
+        await _csCallAction(signalId, 'acted_on', { note: 'Added to appointment brief: event ' + eventId });
+      }
+    } catch(_e){}
+    try { if (typeof _wa !== 'undefined' && _wa.track) _wa.track('caresignal', 'add_to_brief', { signal_id: signalId, event_id: eventId }); } catch(_e){}
+    try { if (typeof showToast === 'function') showToast('Added to your appointment notes.'); } catch(_e){}
+    if (typeof renderSignalsView === 'function') { try { renderSignalsView(); } catch(_e){} }
+  } catch (err) {
+    console.error('[CareSignal] add_to_brief error', err);
+    try { if (typeof showToast === 'function') showToast('Could not save \u2014 try again.'); } catch(_e){}
+  }
+}
 
 // ── CareSignals v2: 5-section editorial shell ─────────────────────────────
 // Sections (top to bottom):
@@ -16242,6 +16497,12 @@ async function _paintSignals(el, sigFirstName, activeConns, terraData) {
     });
     if (_csRecent.length > 10) _csRecent = _csRecent.slice(0, 10);
   }
+  // Pattern B handlers (Tell me more, Add to appointment brief) look the
+  // signal up by id from this stash. Includes both active and recent so
+  // Restore-then-engage flows work too.
+  try {
+    window._lastCareSignals = { list: _csActive.concat(_csRecent), at: Date.now() };
+  } catch(_e){}
   if (_csActive.length) {
     ch += '<section class="cs-section cs-section--rightnow">';
     ch += '<div class="cs-section-head">';
