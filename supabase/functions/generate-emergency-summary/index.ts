@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { aiChat } from "../_shared/azureOpenAI.ts";
 
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -11,7 +12,10 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const openaiKey = Deno.env.get("OPENAI_API_KEY")!;
+    // AI vendor + keys are now owned by ../_shared/azureOpenAI.ts. This
+    // function no longer reads OPENAI_API_KEY directly — Azure OpenAI
+    // (BAA-covered) is the default vendor and the adapter enforces it for
+    // phi:true calls.
 
     // Authenticate the caller
     const authHeader = req.headers.get("Authorization");
@@ -244,26 +248,23 @@ serve(async (req) => {
       });
     }
 
-    // Call OpenAI to generate the emergency brief
-    const aiResponse = await fetch(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${openaiKey}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          temperature: 0.3,
-          // Bumped from 800 — the brief now folds in EHR-sourced allergies,
-          // conditions, diagnostic reports, visits, and a short lab list, and
-          // 800 was truncating mid-RECENT PROCEDURES once we had real data.
-          max_tokens: 1200,
-          messages: [
-            {
-              role: "system",
-              content: `You are a medical summary assistant for an emergency room context. Generate a concise, highly readable emergency brief from the patient data provided. This will be shown on a phone screen to ER staff.
+    // Call the Azure OpenAI adapter. phi:true forces BAA-covered routing —
+    // the adapter's assertVendorAllowedForPhi guardrail will throw if
+    // anything but azure (or another BAA-eligible vendor) is configured.
+    let summary: string;
+    try {
+      const result = await aiChat({
+        model: "gpt-4o-mini",
+        temperature: 0.3,
+        // Bumped from 800 — the brief now folds in EHR-sourced allergies,
+        // conditions, diagnostic reports, visits, and a short lab list, and
+        // 800 was truncating mid-RECENT PROCEDURES once we had real data.
+        max_tokens: 1200,
+        phi: true,
+        messages: [
+          {
+            role: "system",
+            content: `You are a medical summary assistant for an emergency room context. Generate a concise, highly readable emergency brief from the patient data provided. This will be shown on a phone screen to ER staff.
 
 Format rules:
 - Use plain text only, no markdown formatting
@@ -284,18 +285,16 @@ Clinical-judgment guardrails (STRICT):
 - Do NOT introduce any medication, condition, allergy, dose, date, or contact that is not present verbatim in the data provided. If a field is missing, omit the section or write "Not on file."
 - Never invent ICD-10, CPT, HCPCS, or NDC codes. Only include codes that appear in the data.
 - You are not a doctor. Frame everything as a transcription of what is recorded, not as medical advice.`,
-            },
-            {
-              role: "user",
-              content: `Generate an emergency brief for this patient:\n\n${context}`,
-            },
-          ],
-        }),
-      }
-    );
-
-    if (!aiResponse.ok) {
-      console.error("OpenAI error:", await aiResponse.text());
+          },
+          {
+            role: "user",
+            content: `Generate an emergency brief for this patient:\n\n${context}`,
+          },
+        ],
+      });
+      summary = result.content || "Unable to generate summary.";
+    } catch (aiErr) {
+      console.error("Azure OpenAI error:", aiErr);
       return new Response(
         JSON.stringify({ error: "AI generation failed" }),
         {
@@ -304,10 +303,6 @@ Clinical-judgment guardrails (STRICT):
         }
       );
     }
-
-    const aiData = await aiResponse.json();
-    const summary =
-      aiData.choices?.[0]?.message?.content || "Unable to generate summary.";
 
     return new Response(JSON.stringify({ summary }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
