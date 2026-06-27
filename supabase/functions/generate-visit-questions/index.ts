@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { aiChat } from "../_shared/azureOpenAI.ts";
 
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -11,7 +12,8 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const openaiKey = Deno.env.get("OPENAI_API_KEY")!;
+    // AI vendor + keys are owned by ../_shared/azureOpenAI.ts. PHI-touching
+    // calls route through Azure OpenAI (BAA-covered) with phi:true.
 
     // Authenticate the caller
     const authHeader = req.headers.get("Authorization");
@@ -119,23 +121,20 @@ serve(async (req) => {
       });
     }
 
-    // Call OpenAI to generate visit questions
-    const aiResponse = await fetch(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${openaiKey}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          temperature: 0.4,
-          max_tokens: 500,
-          messages: [
-            {
-              role: "system",
-              content: `You are a helpful health assistant for family caregivers. Based on the patient data provided, generate 3-5 thoughtful questions that a caregiver should ask the doctor at the next appointment.
+    // PHI: caregiver-side question generation from the loved one's meds,
+    // conditions, and recent events. phi:true engages the adapter's
+    // assertVendorAllowedForPhi guardrail — Azure OpenAI under BAA only.
+    let raw: string;
+    try {
+      const result = await aiChat({
+        model: "gpt-4o-mini",
+        temperature: 0.4,
+        max_tokens: 500,
+        phi: true,
+        messages: [
+          {
+            role: "system",
+            content: `You are a helpful health assistant for family caregivers. Based on the patient data provided, generate 3-5 thoughtful questions that a caregiver should ask the doctor at the next appointment.
 
 Rules:
 - Questions should be specific and relevant to the patient's current health data
@@ -145,18 +144,16 @@ Rules:
 - Do NOT diagnose or suggest treatments
 - Return ONLY a JSON array of strings, no other text
 - Example format: ["Question one?", "Question two?", "Question three?"]`,
-            },
-            {
-              role: "user",
-              content: `Generate doctor visit questions for this patient:\n\n${context}`,
-            },
-          ],
-        }),
-      }
-    );
-
-    if (!aiResponse.ok) {
-      console.error("OpenAI error:", await aiResponse.text());
+          },
+          {
+            role: "user",
+            content: `Generate doctor visit questions for this patient:\n\n${context}`,
+          },
+        ],
+      });
+      raw = result.content || "[]";
+    } catch (aiErr) {
+      console.error("Azure OpenAI error:", aiErr);
       return new Response(
         JSON.stringify({ error: "AI generation failed" }),
         {
@@ -165,9 +162,6 @@ Rules:
         }
       );
     }
-
-    const aiData = await aiResponse.json();
-    const raw = aiData.choices?.[0]?.message?.content || "[]";
 
     // Parse the JSON array from the response
     let questions: string[];
