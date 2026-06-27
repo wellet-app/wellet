@@ -21,11 +21,15 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { aiChat } from "../_shared/azureOpenAI.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
-const OPENAI_KEY = Deno.env.get("OPENAI_API_KEY") || "";
+// AI vendor + keys are now owned by ../_shared/azureOpenAI.ts.
+// PHI-touching summaries route through Azure OpenAI (BAA-covered) with
+// phi:true. The deterministic buildFallbackSummary path below stays as the
+// safety net if the adapter call fails for any reason.
 const SMTP_HOST = Deno.env.get("BREVO_SMTP_HOST") || "smtp-relay.brevo.com";
 // Hardcoded to 465 (implicit TLS / SMTPS). denomailer 1.6 + tls:true on 587
 // produces InvalidContentType (587 expects STARTTLS, not implicit TLS).
@@ -245,15 +249,16 @@ async function runForUser(
     return { status: "skipped_empty", reason: "no_activity_this_week" };
   }
 
-  // Summarize via OpenAI (falls back to deterministic copy if key not set).
+  // Summarize via Azure OpenAI (falls back to deterministic copy on any
+  // adapter error — network, vendor guardrail trip, deployment misconfig).
+  // The fallback path is what keeps the Sunday digest sending even if AI is
+  // briefly unavailable, so do not remove it.
   let summaryText = "";
-  if (OPENAI_KEY) {
-    try {
-      summaryText = await generateAISummary(ctx);
-    } catch (e) {
-      console.error("AI summary failed, falling back:", e);
-      summaryText = "";
-    }
+  try {
+    summaryText = await generateAISummary(ctx);
+  } catch (e) {
+    console.error("AI summary failed, falling back to deterministic:", e);
+    summaryText = "";
   }
   if (!summaryText) {
     summaryText = buildFallbackSummary(ctx);
@@ -413,28 +418,21 @@ Rules:
 - Close with one concrete next step (e.g., "Might be worth asking about X at the next visit") — frame as a question for the care team, never instructions.
 - Never recommend specific medications, dosages, or clinical actions.`;
 
-  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENAI_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: context },
-      ],
-      temperature: 0.3,
-      max_tokens: 500,
-    }),
+  // PHI: weekly digest summarizes a loved one's health events, labs, meds,
+  // and vitals. phi:true engages the adapter's assertVendorAllowedForPhi
+  // guardrail — if WELLET_AI_VENDOR is ever flipped away from azure, this
+  // call throws and the caller falls back to buildFallbackSummary.
+  const result = await aiChat({
+    model: "gpt-4o-mini",
+    temperature: 0.3,
+    max_tokens: 500,
+    phi: true,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: context },
+    ],
   });
-
-  if (!resp.ok) {
-    throw new Error(`OpenAI ${resp.status}: ${await resp.text()}`);
-  }
-  const data = await resp.json();
-  return (data.choices?.[0]?.message?.content || "").trim();
+  return (result.content || "").trim();
 }
 
 function esc(s: string): string {
