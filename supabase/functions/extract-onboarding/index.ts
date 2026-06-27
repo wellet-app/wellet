@@ -6,6 +6,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { unzipSync } from 'https://esm.sh/fflate@0.8.2';
 import { getCorsHeaders } from '../_shared/cors.ts';
+import { aiVision } from '../_shared/azureOpenAI.ts';
 
 Deno.serve(async (req) => {
   const corsHeaders = {
@@ -24,7 +25,10 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const openaiKey = Deno.env.get('OPENAI_API_KEY') ?? '';
+  // AI vendor + keys are owned by ../_shared/azureOpenAI.ts. Image-based
+  // health-document extraction routes through Azure OpenAI vision (BAA-
+  // covered) with phi:true. We no longer gate on OPENAI_API_KEY presence —
+  // the adapter is always available and throws on missing Azure config.
 
   // Authenticate the caller
   // Note: verify_jwt is true, so the gateway requires an HS256 JWT (the anon key).
@@ -89,19 +93,18 @@ Deno.serve(async (req) => {
           allAllergies.push(...result.allergies);
           docCount += result.docCount;
         } else if (['jpg', 'jpeg', 'png', 'heic', 'webp'].includes(ext)) {
-          // IMAGE: Use AI vision to extract health data
-          if (openaiKey) {
-            const imageBytes = new Uint8Array(await fileData.arrayBuffer());
-            const base64 = btoa(String.fromCharCode(...imageBytes));
-            const mimeType = ext === 'png' ? 'image/png' : ext === 'heic' ? 'image/heic' : 'image/jpeg';
-            const aiResult = await extractWithVision(openaiKey, base64, mimeType);
-            if (aiResult.patientName && !patientName) patientName = aiResult.patientName;
-            allConditions.push(...aiResult.conditions);
-            allMedications.push(...aiResult.medications);
-            docCount += 1;
-          } else {
-            docCount += 1;
-          }
+          // IMAGE: Use Azure OpenAI vision to extract health data. Per-file
+          // failures are swallowed inside extractWithVision and recorded as
+          // an empty result — the user uploaded multiple files and we don't
+          // want one bad image to fail the whole onboarding.
+          const imageBytes = new Uint8Array(await fileData.arrayBuffer());
+          const base64 = btoa(String.fromCharCode(...imageBytes));
+          const mimeType = ext === 'png' ? 'image/png' : ext === 'heic' ? 'image/heic' : 'image/jpeg';
+          const aiResult = await extractWithVision(base64, mimeType);
+          if (aiResult.patientName && !patientName) patientName = aiResult.patientName;
+          allConditions.push(...aiResult.conditions);
+          allMedications.push(...aiResult.medications);
+          docCount += 1;
         } else if (ext === 'pdf') {
           // PDF: count for now, full text extraction later
           docCount += 1;
@@ -438,7 +441,6 @@ interface VisionResult {
 }
 
 async function extractWithVision(
-  apiKey: string,
   base64Image: string,
   mimeType: string
 ): Promise<VisionResult> {
@@ -462,36 +464,18 @@ async function extractWithVision(
       '- Be precise: only include what you can clearly read'
     ].join('\n');
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + apiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        max_tokens: 1000,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: 'Extract the patient name, conditions, and medications from this health document.' },
-              { type: 'image_url', image_url: { url: 'data:' + mimeType + ';base64,' + base64Image } }
-            ]
-          }
-        ],
-        response_format: { type: 'json_object' },
-      }),
+    // PHI: a photographed pill bottle or discharge summary is medical data.
+    // phi:true engages the adapter's assertVendorAllowedForPhi guardrail.
+    const visionResult = await aiVision({
+      model: 'gpt-4o-mini',
+      max_tokens: 1000,
+      phi: true,
+      systemPrompt,
+      prompt: 'Extract the patient name, conditions, and medications from this health document.',
+      imageDataUrl: 'data:' + mimeType + ';base64,' + base64Image,
     });
 
-    if (!response.ok) {
-      console.error('OpenAI API error:', response.status, await response.text());
-      return result;
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
+    const content = visionResult.content;
     if (!content) return result;
 
     const parsed = JSON.parse(content);
@@ -499,7 +483,7 @@ async function extractWithVision(
     result.conditions = Array.isArray(parsed.conditions) ? parsed.conditions : [];
     result.medications = Array.isArray(parsed.medications) ? parsed.medications : [];
   } catch (e) {
-    console.error('Vision extraction error:', e);
+    console.error('Azure vision extraction error:', e);
   }
 
   return result;
