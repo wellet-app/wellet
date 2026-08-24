@@ -13451,15 +13451,33 @@ function showAuthScreen() {
   // Pre-fill email from ?email= URL param (from getwellet.com inline signup).
   // Falls back to localStorage if no URL param. Does not overwrite a value
   // the user has already typed in the field.
+  var _autoSendFromHero = false;
   try {
     var emailInput = document.getElementById('auth-email');
     if (emailInput && !emailInput.value) {
-      var urlEmail = null;
-      try {
-        urlEmail = new URLSearchParams(window.location.search).get('email');
-      } catch (_e) {}
+      var _params = null;
+      try { _params = new URLSearchParams(window.location.search); } catch (_e) {}
+      var urlEmail = _params ? _params.get('email') : null;
       if (urlEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(urlEmail)) {
         emailInput.value = urlEmail.trim().toLowerCase();
+        // Auto-send bridge: when the caregiver committed on getwellet.com
+        // (hero, hero bottom, /me hero, or pricing CTA) and the email is
+        // already valid, skip the extra "Send 6-digit code" click and go
+        // straight to the code-entry screen. Other signup_locations (or a
+        // bare ?email= link) still require the manual click, so a random
+        // paste of an email URL never auto-sends.
+        var _sloc = _params ? (_params.get('signup_location') || '').toLowerCase() : '';
+        // signup_location values getwellet.com emits today:
+        //   'hero'     — top hero form on any page
+        //   'bottom'   — bottom-of-page CTA form
+        //   'me_hero'  — top hero form on /me (self-use landing)
+        // Any of these are explicit caregiver commit signals from our own
+        // site, safe to auto-send. A bare ?email= link with no signup_location
+        // (or any other value) falls through to the manual click flow.
+        var _autoSendLocations = ['hero','bottom','me_hero'];
+        if (_autoSendLocations.indexOf(_sloc) !== -1) {
+          _autoSendFromHero = true;
+        }
       } else {
         var stored = null;
         try { stored = localStorage.getItem('wellet_last_signin_email'); } catch (_e) {}
@@ -13469,6 +13487,37 @@ function showAuthScreen() {
   } catch (_e) {}
   window.scrollTo(0, 0);
   initIcons();
+  // If we detected an auto-send bridge from getwellet.com, hide the form
+  // state during send so the user goes straight from getwellet.com to the
+  // "Check your email" screen with no flicker of the intermediate form.
+  // On send success, sendMagicLink() itself reveals #auth-sent-state. On
+  // failure, we restore #auth-form-state so the user can retry manually.
+  if (_autoSendFromHero && typeof sendMagicLink === 'function') {
+    try {
+      var _formState = document.getElementById('auth-form-state');
+      var _sentState = document.getElementById('auth-sent-state');
+      var _sentEmailEl = document.getElementById('auth-sent-email');
+      if (_formState) _formState.style.display = 'none';
+      if (_sentEmailEl) _sentEmailEl.textContent = (document.getElementById('auth-email') || {}).value || '';
+      if (_sentState) _sentState.style.display = 'block';
+      // Kick sendMagicLink after paint so the sent-state renders first.
+      setTimeout(function () {
+        try {
+          var _r = sendMagicLink();
+          if (_r && typeof _r.catch === 'function') {
+            _r.catch(function () {
+              // Restore form state on error; sendMagicLink already toasted.
+              if (_formState) _formState.style.display = 'block';
+              if (_sentState) _sentState.style.display = 'none';
+            });
+          }
+        } catch (_e) {
+          if (_formState) _formState.style.display = 'block';
+          if (_sentState) _sentState.style.display = 'none';
+        }
+      }, 0);
+    } catch (_e) {}
+  }
 }
 
 function enterDemoMode() {
