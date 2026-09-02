@@ -24416,7 +24416,7 @@ async function renderReimbursementsView() {
   var el = document.getElementById('view-reimbursements');
   if (!el) return;
   if (isDemoMode) {
-    el.innerHTML = '<div class="reimb-view"><div class="reimb-empty"><div class="reimb-empty-body">Reimbursements are available once you connect a real account.</div></div></div>';
+    _renderReimbursementsDemo(el);
     return;
   }
   el.innerHTML = '<div class="reimb-view" style="text-align:center;padding:60px 20px;"><div style="color:var(--text-muted);font-size:var(--type-meta);">Loading…</div></div>';
@@ -24429,6 +24429,92 @@ async function renderReimbursementsView() {
     return;
   }
   _renderReimbursementsPopulated(el, assessment);
+}
+
+// Static demo-mode mock. Shows PCAFC as the hero, plus a few supporting
+// programs, so the guided demo has real content on screen while the caption
+// narrates. No data is loaded; nothing is sent to the server. Amounts and
+// eligibility criteria mirror what the reimbursement-engine produces for a
+// veteran with heavy ADL needs (see supabase/functions/_shared/reimbursement-engine.ts).
+function _renderReimbursementsDemo(el) {
+  var html = '<div class="reimb-view">'
+    + '<div class="view-header">'
+    +   '<div class="view-header__eyebrow">4 programs may apply for Dad</div>'
+    +   '<h1 class="view-header__title">Reimbursements</h1>'
+    +   '<p class="view-header__lede">Programs that may pay for the care you\u2019re already giving. Eligibility varies. These are starting points, not guarantees.</p>'
+    + '</div>'
+    // Situation chips — mirrors the shape of the real populated view.
+    + '<div class="reimb-situation"><div class="reimb-section-head">Your situation</div><div class="reimb-prefill-chips">'
+    +   '<div class="reimb-chip"><span class="reimb-chip-label">Veteran</span><span class="reimb-chip-prov">From records</span></div>'
+    +   '<div class="reimb-chip"><span class="reimb-chip-label">Needs help with 3+ activities of daily living</span><span class="reimb-chip-prov">From records</span></div>'
+    +   '<div class="reimb-chip"><span class="reimb-chip-label">Primary caregiver</span><span class="reimb-chip-prov">You told us</span></div>'
+    +   '<div class="reimb-chip"><span class="reimb-chip-label">North Carolina</span><span class="reimb-chip-prov">You told us</span></div>'
+    + '</div></div>'
+    // Program cards.
+    + '<div class="reimb-programs">'
+    // PCAFC — hero card.
+    +   '<div class="reimb-card">'
+    +     '<div class="reimb-card-head">'
+    +       '<div class="reimb-card-name">VA PCAFC (Program of Comprehensive Assistance for Family Caregivers)</div>'
+    +       '<div class="reimb-card-amount">Up to ~$3,034\u2013$3,500/mo (Level 2)</div>'
+    +       '<span class="reimb-pip reimb-pip--high">high confidence</span>'
+    +     '</div>'
+    +     '<div class="reimb-card-why"><div class="reimb-card-sub">Why this may apply</div><ul>'
+    +       '<li>Your loved one is a veteran with VA-enrolled health care</li>'
+    +       '<li>They need supervision or help with 3+ activities of daily living, this typically triggers Level 2</li>'
+    +       '<li>You\u2019re the primary caregiver, PCAFC requires a designated Primary Family Caregiver</li>'
+    +     '</ul></div>'
+    +     '<div class="reimb-card-caveats"><div class="reimb-card-sub">Good to know</div><ul>'
+    +       '<li>Veteran must have a 70%+ service-connected disability rating</li>'
+    +       '<li>Stipend is tax-free; amount varies by tier and your zip\u2019s OPM GS-4 locality rate</li>'
+    +       '<li>Includes CHAMPVA health insurance and mental-health support for the caregiver</li>'
+    +       '<li>Application: 6\u201316 weeks to first payment (retroactive to eligibility date)</li>'
+    +     '</ul></div>'
+    +     '<a class="reimb-card-cta" href="https://www.va.gov/family-and-caregiver-benefits/health-and-disability/comprehensive-assistance-for-family-caregivers/" target="_blank" rel="noopener">See if you qualify for PCAFC</a>'
+    +   '</div>'
+    // NC Medicaid Community Alternatives Program.
+    +   '<div class="reimb-card">'
+    +     '<div class="reimb-card-head">'
+    +       '<div class="reimb-card-name">NC Medicaid CAP/DA (Community Alternatives Program for Disabled Adults)</div>'
+    +       '<div class="reimb-card-amount">Varies by care plan</div>'
+    +       '<span class="reimb-pip reimb-pip--medium">medium confidence</span>'
+    +     '</div>'
+    +     '<div class="reimb-card-why"><div class="reimb-card-sub">Why this may apply</div><ul>'
+    +       '<li>Waiver programs may pay a family caregiver directly in some states</li>'
+    +       '<li>Your loved one needs help with 3+ activities of daily living, which meets the nursing-home level-of-care standard most waivers require</li>'
+    +     '</ul></div>'
+    +     '<a class="reimb-card-cta" href="https://medicaid.ncdhhs.gov/cap-da" target="_blank" rel="noopener">See NC CAP/DA details</a>'
+    +   '</div>'
+    // Federal caregiver tax credit.
+    +   '<div class="reimb-card">'
+    +     '<div class="reimb-card-head">'
+    +       '<div class="reimb-card-name">Credit for Other Dependents (federal tax credit)</div>'
+    +       '<div class="reimb-card-amount">Up to $500/year</div>'
+    +       '<span class="reimb-pip reimb-pip--medium">medium confidence</span>'
+    +     '</div>'
+    +     '<div class="reimb-card-why"><div class="reimb-card-sub">Why this may apply</div><ul>'
+    +       '<li>If you claim your loved one as a dependent on your tax return</li>'
+    +       '<li>Available even when the dependent is not a qualifying child</li>'
+    +     '</ul></div>'
+    +     '<a class="reimb-card-cta" href="https://www.irs.gov/credits-deductions/individuals/child-tax-credit" target="_blank" rel="noopener">See IRS guidance</a>'
+    +   '</div>'
+    // Life Insurance Accelerated Death Benefit.
+    +   '<div class="reimb-card">'
+    +     '<div class="reimb-card-head">'
+    +       '<div class="reimb-card-name">Life Insurance Accelerated Death Benefit</div>'
+    +       '<div class="reimb-card-amount">Depends on policy face value</div>'
+    +       '<span class="reimb-pip reimb-pip--low">low confidence</span>'
+    +     '</div>'
+    +     '<div class="reimb-card-why"><div class="reimb-card-sub">Why this may apply</div><ul>'
+    +       '<li>Many life insurance policies let a chronically-ill or terminally-ill policyholder access a portion of the death benefit while living</li>'
+    +       '<li>Check with your loved one\u2019s insurer to confirm the rider is on their policy</li>'
+    +     '</ul></div>'
+    +   '</div>'
+    + '</div>'
+    + '<p class="reimb-footer">Wellet does not pay caregivers. We aggregate your loved one\u2019s health records and surface programs that may pay for the care you\u2019re already giving.</p>'
+    + '</div>';
+  el.innerHTML = html;
+  try { if (typeof initIcons === 'function') initIcons(); } catch (_e) {}
 }
 
 function _renderReimbursementsEmpty(el) {
