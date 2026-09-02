@@ -91,6 +91,17 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
         gdScrollTo('#view-signals', 100);
       }
     },
+    // 6b — Reimbursements (PCAFC surfaced when veteran connection exists)
+    {
+      audio: '07b-reimbursements.mp3',
+      caption: 'Wellet also finds programs that may pay for the care you\'re already giving. If your loved one is a veteran, that includes PCAFC, the VA\'s caregiver stipend, up to about $3,500 a month, tax-free. Medicaid waivers, tax credits, and more, all in one place.',
+      duration: 22000,
+      action: function() {
+        gdClearHighlight();
+        switchNavTo('reimbursements');
+        gdScrollTo('#view-reimbursements', 100);
+      }
+    },
     // 7 — Ask Wellet intro
     {
       audio: '08-ask-intro.mp3',
