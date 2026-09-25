@@ -3,9 +3,16 @@
 // Wellet AI vendor adapter.
 //
 // Single choke point for every PHI-touching AI call in the project.
+//
+// Compliance posture (see wellet-privacy-policy.md §1 and §4): Wellet is not
+// a HIPAA covered entity, and we have not signed a BAA with any AI vendor.
+// We route PHI-marked calls only to vendors that offer a BAA we could sign
+// in the future, so this code stays compatible with a later compliance shift
+// without rewiring call sites. The guardrails below enforce that posture.
+//
 // Vendor is selected by the WELLET_AI_VENDOR env var:
-//   - "azure"         → Azure OpenAI Service (BAA-covered, default for PHI)
-//   - "openai_direct" → OpenAI direct API (legacy, no-BAA — emergency escape hatch only)
+//   - "azure"         → Azure OpenAI Service (BAA-eligible, default for PHI)
+//   - "openai_direct" → OpenAI direct API (legacy — emergency escape hatch only)
 //   - "sonar"         → Perplexity Sonar (NON-PHI ONLY — adapter will throw if called for PHI paths)
 //   - "bedrock"       → AWS Bedrock Claude (Phase 2, not yet implemented)
 //
@@ -87,13 +94,15 @@ function vendor(): Vendor {
   throw new Error(`[azureOpenAI] Unknown WELLET_AI_VENDOR: ${v}`);
 }
 
-// Hard guardrail: if the caller marked the request phi:true, only BAA-covered
-// vendors are allowed. Sonar is always blocked. openai_direct is blocked unless
-// WELLET_ALLOW_OPENAI_DIRECT_PHI=true is set (emergency override only).
+// Hard guardrail: if the caller marked the request phi:true, only BAA-eligible
+// vendors are allowed (Azure OpenAI, Bedrock). Sonar is always blocked.
+// openai_direct is blocked unless WELLET_ALLOW_OPENAI_DIRECT_PHI=true is set
+// (emergency override only). Wellet does not currently hold a signed BAA with
+// any of these vendors — see file header for compliance posture.
 function assertVendorAllowedForPhi(v: Vendor, phi: boolean) {
   if (!phi) return;
   if (v === "sonar") {
-    throw new Error("[azureOpenAI] PHI call routed to Sonar — blocked. Sonar has no BAA.");
+    throw new Error("[azureOpenAI] PHI call routed to Sonar — blocked. Sonar is not a BAA-eligible vendor.");
   }
   if (v === "openai_direct" && Deno.env.get("WELLET_ALLOW_OPENAI_DIRECT_PHI") !== "true") {
     throw new Error(
@@ -101,7 +110,7 @@ function assertVendorAllowedForPhi(v: Vendor, phi: boolean) {
     );
   }
   if (v === "bedrock") {
-    // Bedrock is BAA-covered but the implementation isn't done.
+    // Bedrock is BAA-eligible but the implementation isn't done.
     throw new Error("[azureOpenAI] Bedrock vendor not yet implemented (Phase 2).");
   }
 }

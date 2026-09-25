@@ -287,7 +287,7 @@ if (new URLSearchParams(window.location.search).get('demo') === 'guided') {
       + '  <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);">EHR integration</span>'
       + '  <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);">Wearable rhythm</span>'
       + '  <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);">CareSignals</span>'
-      + '  <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);">HIPAA compliant</span>'
+      + '  <span style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,0.7);">Personal Health Record</span>'
       + '</div>';
     document.body.appendChild(ec);
   }
