@@ -20,23 +20,45 @@ function countSignature(rc: Record<string, unknown> | null | undefined): string 
   const keys = ['visits','allergies','care_team','conditions','medications','observations','immunizations','diagnostic_reports'];
   return keys.map((k) => `${k}:${(rc[k] as number | undefined) ?? 0}`).join('|');
 }
-function isAuthorized(req: Request): boolean {
+// Auth (2026-10-08 fix): never trust a token's claims without verifying it.
+// The previous version accepted any three-part token whose payload said
+// role=service_role, with no signature check. Now a token must either equal
+// the function's own service key exactly, or be accepted by Supabase Auth's
+// admin endpoint, which only succeeds for a genuine service-role key.
+// A verified token is cached for this instance so the hourly batch makes one
+// verification call, not one per schedule.
+const verifiedTokens = new Set<string>();
+
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+async function isAuthorized(req: Request): Promise<boolean> {
   const auth = req.headers.get('Authorization');
   if (!auth?.startsWith('Bearer ')) return false;
-  const token = auth.slice(7);
+  const token = auth.slice(7).trim();
+  if (!token) return false;
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  if (serviceKey && token === serviceKey) return true;
-  const parts = token.split('.');
-  if (parts.length !== 3) return false;
+  if (serviceKey && timingSafeEqual(token, serviceKey)) return true;
+  if (verifiedTokens.has(token)) return true;
+  const supabaseUrl = (Deno.env.get('SUPABASE_URL') ?? '').replace(/\/$/, '');
+  if (!supabaseUrl) return false;
   try {
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
-    return payload.role === 'service_role';
+    const res = await fetch(`${supabaseUrl}/auth/v1/admin/users?page=1&per_page=1`, {
+      headers: { apikey: token, Authorization: `Bearer ${token}` },
+    });
+    await res.body?.cancel();
+    if (res.status === 200) { verifiedTokens.add(token); return true; }
+    return false;
   } catch { return false; }
 }
 
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return jsonResponse({ ok: false, detail: 'method_not_allowed' }, 405);
-  if (!isAuthorized(req)) return jsonResponse({ ok: false, detail: 'unauthorized' }, 401);
+  if (!(await isAuthorized(req))) return jsonResponse({ ok: false, detail: 'unauthorized' }, 401);
 
   const t0 = Date.now();
   let body: { schedule_id?: string; person_id?: string; ehr_connection_id?: string };
@@ -51,13 +73,20 @@ Deno.serve(async (req) => {
   const admin = createClient(supabaseUrl, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
   const { data: sched, error: schedErr } = await admin.from('ehr_sync_schedule')
-    .select('id, cadence_minutes, consecutive_no_change, paused_until_app_open')
+    .select('id, person_id, ehr_connection_id, cadence_minutes, consecutive_no_change, paused_until_app_open')
     .eq('id', schedule_id).maybeSingle();
   if (schedErr || !sched) { console.warn('[bg] schedule_not_found', { schedule_id, schedErr }); return jsonResponse({ ok: false, detail: 'schedule_not_found' }, 404); }
+  // Binding check (2026-10-08 fix): the schedule row is the source of truth.
+  // Refuse a request whose person or connection does not match it, so a caller
+  // cannot point one connection's records at a different person.
+  if (sched.person_id !== person_id || sched.ehr_connection_id !== ehr_connection_id) {
+    console.warn('[bg] binding_mismatch', { schedule_id });
+    return jsonResponse({ ok: false, detail: 'binding_mismatch' }, 409);
+  }
   if (sched.paused_until_app_open) return jsonResponse({ ok: true, outcome: 'paused_inactive', cadence_minutes: sched.cadence_minutes });
 
   const { data: conn, error: connErr } = await admin.from('ehr_connections')
-    .select('id, user_id, status, needs_reconnect, hospital_name, fhir_base_url')
+    .select('id, user_id, person_id, status, needs_reconnect, hospital_name, fhir_base_url')
     .eq('id', ehr_connection_id).maybeSingle();
   if (connErr || !conn) return jsonResponse({ ok: false, detail: 'connection_not_found' }, 404);
   if (conn.status !== 'connected' || conn.needs_reconnect) {
@@ -66,6 +95,10 @@ Deno.serve(async (req) => {
     return jsonResponse({ ok: true, outcome: 'error', cadence_minutes: sched.cadence_minutes, next_run_at: next, detail: 'needs_reconnect' });
   }
   if (!conn.user_id) return jsonResponse({ ok: false, detail: 'connection_missing_user_id' }, 500);
+  if (conn.person_id !== person_id) {
+    console.warn('[bg] connection_person_mismatch', { schedule_id, ehr_connection_id });
+    return jsonResponse({ ok: false, detail: 'binding_mismatch' }, 409);
+  }
 
   const { data: baselineRow } = await admin.from('ehr_sync_log')
     .select('result_counts').eq('person_id', person_id).eq('status', 200)
