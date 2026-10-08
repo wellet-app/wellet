@@ -1,3 +1,4 @@
+-- cron job 3 command (applied via cron.alter_job on 2026-10-08)
 
   WITH claimed AS (
     SELECT s.id, s.person_id, s.ehr_connection_id
