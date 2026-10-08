@@ -407,6 +407,11 @@
   }
 
   function renderWearable(invite) {
+    // Terra wearables paused 2026-10-08.
+    var paused = document.getElementById('next-card');
+    if (paused) { paused.innerHTML = '<p>Sharing from other wearables is paused for now. Nothing was shared. You can close this page.</p>'; }
+    var pb = document.getElementById('primary-btn'); if (pb) pb.style.display = 'none';
+    return;
     var caregiver = (invite.caregiver_name || 'them');
     var pinnedProvider = (invite.wearable_provider || '').toLowerCase();
 

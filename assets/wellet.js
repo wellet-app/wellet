@@ -1,3 +1,5 @@
+// Terra wearables paused 2026-10-08. Flip to true (and add .terra-on to <html>) to restore.
+var WELLET_TERRA_ENABLED = false;
 // ── SUPABASE SETUP ──────────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://nrpdhxygzyfmyljzfexv.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycGRoeHlnenlmbXlsanpmZXh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NTQ3MjUsImV4cCI6MjA5MTMzMDcyNX0.6gdj1hlW2UAc3gJOyjPJBeBJWth_Fcc5C5LH9zWyDXU';
@@ -530,6 +532,7 @@ function openSendConnectLinkModal(opts) {
   opts = opts || {};
   var personId = opts.personId || currentPersonId;
   var dataSource = opts.dataSource || 'apple_health';
+  if (dataSource === 'wearable' && !WELLET_TERRA_ENABLED) { try { showToast('Other wearables are paused for now. Apple Health still works.'); } catch(_e) {} return; }
   if (!personId) { showToast('Pick a loved one first'); return; }
   var person = (currentPeople || []).find(function (p) { return p && p.id === personId; });
   if (!person) { showToast('Loved one not found'); return; }
@@ -3653,6 +3656,7 @@ function connectFromMeOnboarding(source) {
     return;
   }
   if (source === 'google') {
+    if (!WELLET_TERRA_ENABLED) { try { showToast('Other wearables are paused for now. Apple Health still works.'); } catch(_e) {} return; }
     // Google Health = Terra widget pre-locked to provider=GOOGLE so the user
     // skips the full provider picker and lands straight on Google's OAuth.
     // Mark that the user launched this from the Connect screen so the Terra
@@ -3668,6 +3672,7 @@ function connectFromMeOnboarding(source) {
     return;
   }
   if (source === 'terra') {
+    if (!WELLET_TERRA_ENABLED) { try { showToast('Other wearables are paused for now. Apple Health still works.'); } catch(_e) {} return; }
     try { sessionStorage.setItem('wellet_terra_return_to_connect', '1'); } catch(_e) {}
     var screen2 = document.getElementById('connect-data-screen');
     if (screen2) screen2.style.display = 'none';
@@ -32969,6 +32974,7 @@ window.addEventListener('storage', function(event) {
 });
 
 async function openTerraConnect(provider, _skipPreflight) {
+  if (!WELLET_TERRA_ENABLED) { try { showToast('Other wearables are paused for now. Apple Health still works.'); } catch(_e) {} return; }
   if (!currentPersonId) { showToast('Select a person first', 'error'); return; }
 
   // Pattern 1 — pre-launch expectation modal for wearables. Suppression is
