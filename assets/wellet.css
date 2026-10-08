@@ -3575,3 +3575,11 @@ input.story-input[type="date"]::-webkit-calendar-picker-indicator {
     font-weight: 500;
     text-align: right;
   }
+
+/* Terra wearables paused 2026-10-08. Entry points hidden unless <html> gets .terra-on. */
+html:not(.terra-on) #connect-card-google,
+html:not(.terra-on) #connect-card-terra,
+html:not(.terra-on) .terra-add-btn,
+html:not(.terra-on) .ds-invite-wearable-btn,
+html:not(.terra-on) [onclick*="openTerraConnect"],
+html:not(.terra-on) [onclick*="addMoreWearable"] { display: none !important; }
