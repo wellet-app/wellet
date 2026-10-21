@@ -224,6 +224,11 @@ type ConnectionResult = {
 // The optional `tele` array accumulates per-call diagnostic records for this
 // connection; pass a connection-local array so parallel fan-out calls never
 // share a telemetry bucket (race condition in the old module-level approach).
+// Per-resource-type ceiling. Was 200, which silently cut long histories
+// (Duke returned exactly 200 conditions, labs, visits, and reports for one
+// person). 1000 keeps a single sync bounded while covering most charts.
+const MAX_ENTRIES_PER_TYPE = 1000;
+
 async function fetchFhirResource(
   fhirBaseUrl: string,
   resourceType: string,
@@ -246,7 +251,7 @@ async function fetchFhirResource(
     error_body_snippet: null,
   };
 
-  while (url && entries.length < 200) {
+  while (url && entries.length < MAX_ENTRIES_PER_TYPE) {
     const res = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -316,6 +321,9 @@ async function fetchFhirResource(
   }
 
   callTele.entries_returned = entries.length;
+  if (url && entries.length >= MAX_ENTRIES_PER_TYPE) {
+    console.warn(`FHIR ${resourceType} hit MAX_ENTRIES_PER_TYPE (${MAX_ENTRIES_PER_TYPE}); more pages remain`);
+  }
   tele.push(callTele);
   return entries;
 }
@@ -1603,6 +1611,86 @@ async function fetchAndPersistOneConnection(
     // Sort care team alphabetically by name
     careTeam.sort((a, b) => (a!.name || '').localeCompare(b!.name || ''));
 
+
+    // ── Persist care_team into person_care_team ───────────────────────────
+    // v87: writes the mapped care_team[] to person_care_team so iOS
+    // has a stable table to read. Errors here MUST NOT fail the whole EHR
+    // fetch. Spec: architecture/person_care_team_server_spec_2026-09-05.md
+    try {
+      const nowIso = new Date().toISOString();
+      const providerLabel = (conn.hospital_name as string | null)
+        || (conn.connected_provider as string | null)
+        || 'Epic MyChart';
+
+      const rows = careTeam.map((p: any) => {
+        const ref = p.id
+          ? `Practitioner/${p.id}`
+          : `name:${(p.name || '').toLowerCase().trim().replace(/\s+/g, '-')}`;
+        return {
+          person_id: personId,
+          practitioner_ref: ref,
+          name: p.name || 'Unknown provider',
+          credential: null,
+          specialty: p.specialty || null,
+          role: p.role || null,
+          provider: providerLabel,
+          phones: p.phones || [],
+          emails: p.emails || [],
+          fax: p.fax || null,
+          addresses: p.address
+            ? [{ street: p.address, city: null, state: null, zip: null, label: null }]
+            : [],
+          photo_url: null,
+          source: 'ehr',
+          enrichment_source_name: null,
+          enrichment_source_url: null,
+          last_ehr_sync_at: nowIso,
+        };
+      });
+
+      if (rows.length > 0) {
+        const { error: upsertErr } = await admin
+          .from('person_care_team')
+          .upsert(rows, { onConflict: 'person_id,practitioner_ref' });
+        if (upsertErr) {
+          console.error('[fetch-ehr-data] person_care_team upsert failed', {
+            conn_id: conn.id, person_id: personId, count: rows.length, error: upsertErr.message,
+          });
+        }
+      }
+
+      const freshRefs = rows.map((r) => r.practitioner_ref);
+      if (freshRefs.length > 0) {
+        const { error: delErr } = await admin
+          .from('person_care_team')
+          .delete()
+          .eq('person_id', personId)
+          .eq('provider', providerLabel)
+          .not('practitioner_ref', 'in', `(${freshRefs.map((r) => `"${r}"`).join(',')})`);
+        if (delErr) {
+          console.error('[fetch-ehr-data] drop-departed failed', {
+            conn_id: conn.id, person_id: personId, provider: providerLabel, error: delErr.message,
+          });
+        }
+      } else {
+        const { error: delErr } = await admin
+          .from('person_care_team')
+          .delete()
+          .eq('person_id', personId)
+          .eq('provider', providerLabel);
+        if (delErr) {
+          console.error('[fetch-ehr-data] empty-set delete failed', {
+            conn_id: conn.id, person_id: personId, provider: providerLabel, error: delErr.message,
+          });
+        }
+      }
+    } catch (persistErr) {
+      console.error('[fetch-ehr-data] person_care_team persist block threw', {
+        conn_id: conn.id, person_id: personId, error: (persistErr as Error).message,
+      });
+    }
+    // ── /Persist care_team ────────────────────────────────────────────────
+
     const synced_at = new Date().toISOString();
 
     // Build per-resource counts
@@ -2021,11 +2109,6 @@ Deno.serve(async (req) => {
         _phase2: true,
       }, 401);
     }
-
-    // Note: CareSignals refresh after a successful sync is handled by the
-    // trg_compute_care_signals AFTER INSERT trigger on ehr_sync_log, which
-    // fires compute-care-signals via pg_net.http_post. See migration
-    // compute_care_signals_trigger_on_sync_log (2026-06-01).
 
     return jsonResponse(responseData);
 
