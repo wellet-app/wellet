@@ -20492,6 +20492,16 @@ function handleVaCallback() {
     }).then(function(data) {
       if (!data) return;
       try { console.log('[va] callback body', data); } catch(e) {}
+      // 2026-10-21: patient-match guard (va-auth). Nothing was saved.
+      if (data.error === 'patient_mismatch') {
+        try { localStorage.removeItem('wellet_va_pending_person'); } catch(e) {}
+        if (typeof openPatientMismatchModal === 'function') {
+          openPatientMismatchModal({ hospital_name: 'VA', person_id: personId });
+        } else {
+          showToast('That sign-in was for someone else, so nothing was saved.');
+        }
+        return;
+      }
       if (data.error) {
         showToast('VA connection failed: ' + (data.message || data.error));
         try { localStorage.removeItem('wellet_va_pending_person'); } catch(e) {}

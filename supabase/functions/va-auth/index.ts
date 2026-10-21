@@ -172,20 +172,6 @@ const VA_SANDBOX_USER_TO_PATIENT: Record<string, string> = {
 };
 
 // Discover the patient FHIR id for a newly issued VA access token.
-//
-// VA Lighthouse advertises context-standalone-patient in its SMART config but
-// does NOT include a `patient` claim in the token response without the
-// launch/patient scope - and launch/patient is not in VA's scopes_supported
-// allow-list, so we cannot request it.
-//
-// Resolution order:
-//   1. JWT payload `patient` / `fhirUser` claim (future-proof for prod
-//      once VA enables launch/patient)
-//   2. tokenData.patient field (handled at call site)
-//   3. GET /Patient probe (works ONLY if VA bound a patient to the token -
-//      sandbox bypass path does NOT bind one, but real ID-proofed prod
-//      users will)
-//   4. Sandbox-only fallback: known uid -> patient_id mapping table
 async function discoverVaPatientId(
   fhirBase: string,
   accessToken: string,
@@ -201,7 +187,6 @@ async function discoverVaPatientId(
     }
     const fhirUser = typeof claims.fhirUser === 'string' ? claims.fhirUser as string : null;
     if (fhirUser) {
-      // fhirUser is a relative or absolute URL like "Patient/12345"
       const m = fhirUser.match(/Patient\/([^\/?#]+)/);
       if (m) {
         console.log('[va-auth] patient resolved from jwt fhirUser claim', { fhirUser, patientId: m[1] });
@@ -210,9 +195,7 @@ async function discoverVaPatientId(
     }
   }
 
-  // 2. Try /Patient probe. In prod with a properly bound token this returns
-  // a bundle with the veteran's Patient resource. In sandbox bypass mode it
-  // returns 400 because no patient is bound.
+  // 2. Try /Patient probe.
   let probeDiag = 'patient_search_skipped';
   try {
     const url = fhirBase.replace(/\/$/, '') + '/Patient';
@@ -258,8 +241,7 @@ async function discoverVaPatientId(
 }
 
 // Resolve (client_id, fhirBase, authorizeUrl, tokenUrl) for the current
-// environment. Production secrets aren't issued yet - sandbox is the only
-// live path until Lighthouse production-access approval lands.
+// environment.
 function resolveEndpoints(isSandbox: boolean): {
   clientId: string;
   fhirBase: string;
@@ -274,8 +256,6 @@ function resolveEndpoints(isSandbox: boolean): {
       tokenUrl: VA_SANDBOX_TOKEN,
     };
   }
-  // Production. VA_PROD_CLIENT_ID is read from env so we can flip without
-  // a code redeploy once the prod client is issued.
   const prodClientId = Deno.env.get('VA_PROD_CLIENT_ID') ?? '';
   return {
     clientId: prodClientId,
@@ -330,20 +310,22 @@ Deno.serve(async (req) => {
 
       const admin = getAdminClient();
 
+      // 2026-10-21 ownership check: only the person's owner can start a connect.
+      {
+        const { data: owned } = await admin.from('people')
+          .select('id').eq('id', person_id).eq('user_id', user.id).maybeSingle();
+        if (!owned) return jsonResponse({ error: 'Person not found' }, 404);
+      }
+
       const codeVerifier = generateCodeVerifier();
       const codeChallenge = await computeCodeChallenge(codeVerifier);
       const state = generateState();
 
-      // Mirror epic-auth's "reuse an existing pending/needs_reconnect/superseded
-      // row if one exists" pattern so dead rows don't accumulate across
-      // reconnect attempts. The partial unique index
-      // idx_ehr_connections_person_fhir_connected only enforces uniqueness
-      // among CONNECTED rows, so multiple pending rows for the same
-      // (person_id, fhir_base_url) are tolerated but messy.
       const { data: existingRows, error: existingErr } = await admin
         .from('ehr_connections')
         .select('id, status')
         .eq('person_id', person_id)
+        .eq('user_id', user.id)
         .eq('fhir_base_url', ep.fhirBase)
         .in('status', ['pending', 'needs_reconnect', 'superseded'])
         .order('created_at', { ascending: false })
@@ -433,8 +415,6 @@ Deno.serve(async (req) => {
 
       const admin = getAdminClient();
 
-      // Look up the pending connection by `state` (globally unique per OAuth
-      // attempt) and verify both user_id and person_id match.
       const { data: conn, error: connError } = await admin.from('ehr_connections')
         .select('*')
         .eq('state', callbackState)
@@ -539,9 +519,86 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Supersede any prior CONNECTED row for the same (person_id, fhir_base_url)
-      // before flipping this row to connected - same pattern as epic-auth to
-      // keep the partial unique index from rejecting the UPDATE.
+      let resolvedPatientId: string | null = (typeof tokenData.patient === 'string' && tokenData.patient) ? tokenData.patient : null;
+      let patientDiscoveryDiag = 'token_claim_present';
+      if (!resolvedPatientId) {
+        const probeIsSandbox = conn.fhir_base_url === VA_SANDBOX_FHIR_BASE;
+        const probe = await discoverVaPatientId(conn.fhir_base_url as string, tokenData.access_token, probeIsSandbox);
+        resolvedPatientId = probe.patientId;
+        patientDiscoveryDiag = probe.diag;
+      }
+      console.log('[va-auth] patient_id resolution', {
+        from_token_claim: !!tokenData.patient,
+        resolved_patient_id: resolvedPatientId,
+        diag: patientDiscoveryDiag,
+      });
+
+      // ── PATIENT-MATCH GUARD (2026-10-21, same rules as epic-auth v64) ──
+      // Before any token is stored or any prior row is superseded:
+      //   1. same_patient_other_person: this account already has a connected row
+      //      for the same base URL and patient on a DIFFERENT person.
+      //   2. birth_date_mismatch: the person has a birth date in Wellet and the
+      //      Patient resource has a full birthDate that differs.
+      // A failed Patient read does not block; it is logged.
+      let mismatchReason: string | null = null;
+      const guardDebug: Record<string, unknown> = { guard: 'patient_match_v1' };
+      if (resolvedPatientId) {
+        const { data: dupRows } = await admin.from('ehr_connections')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('fhir_base_url', conn.fhir_base_url)
+          .eq('patient_id', resolvedPatientId)
+          .eq('status', 'connected')
+          .neq('person_id', person_id)
+          .limit(1);
+        if (dupRows && dupRows.length) mismatchReason = 'same_patient_other_person';
+      }
+      // Vendor test patients are synthetic and never match a real profile's
+      // birth date, so the birth-date check is skipped on sandbox bases.
+      const isSandboxBase = String(conn.fhir_base_url || '').startsWith(VA_SANDBOX_FHIR_BASE);
+      guardDebug.sandbox_base = isSandboxBase;
+      if (!mismatchReason && !isSandboxBase && resolvedPatientId) {
+        const { data: personRow } = await admin.from('people')
+          .select('date_of_birth, manual_date_of_birth')
+          .eq('id', person_id)
+          .eq('user_id', user.id)
+          .maybeSingle();
+        const weHave: string | null = (personRow?.manual_date_of_birth || personRow?.date_of_birth || null);
+        guardDebug.person_has_birth_date = !!weHave;
+        if (weHave) {
+          try {
+            const base = String(conn.fhir_base_url || '').replace(/\/+$/, '');
+            const pRes = await fetch(`${base}/Patient/${encodeURIComponent(resolvedPatientId)}`, {
+              headers: { Authorization: `Bearer ${tokenData.access_token}`, Accept: 'application/fhir+json' },
+            });
+            guardDebug.patient_read_status = pRes.status;
+            if (pRes.ok) {
+              const pj = await pRes.json();
+              const theirs = typeof pj?.birthDate === 'string' ? pj.birthDate : '';
+              guardDebug.hospital_has_birth_date = /^\d{4}-\d{2}-\d{2}$/.test(theirs);
+              if (/^\d{4}-\d{2}-\d{2}$/.test(theirs) && theirs !== String(weHave).slice(0, 10)) {
+                mismatchReason = 'birth_date_mismatch';
+              }
+            }
+          } catch (e) {
+            guardDebug.patient_read_error = String((e as Error)?.message || e).slice(0, 200);
+          }
+        }
+      }
+      if (mismatchReason) {
+        await admin.from('ehr_connections').update({
+          status: 'patient_mismatch',
+          code_verifier: null,
+          state: null,
+          last_error: mismatchReason,
+          last_error_step: 'patient_match',
+          last_error_at: new Date().toISOString(),
+          last_error_debug: guardDebug,
+        }).eq('id', conn.id).eq('user_id', user.id);
+        console.warn('[va-auth] patient-match guard blocked connect', { conn_id: conn.id, reason: mismatchReason });
+        return jsonResponse({ error: 'patient_mismatch', reason: mismatchReason, hospital_name: 'VA' }, 409);
+      }
+
       try {
         const { error: supersedeErr } = await admin.from('ehr_connections')
           .update({
@@ -562,24 +619,6 @@ Deno.serve(async (req) => {
         console.error('[va-auth] supersede prior connected row threw', { err: (e as Error).message });
       }
 
-      // VA does not return a `patient` claim in the token response without
-      // launch/patient scope (and launch/patient is not in VA's supported
-      // scope list). Fall back to a GET /Patient probe with the new access
-      // token - the standalone-patient SMART context guarantees this bundle
-      // contains only the authenticated veteran's Patient resource.
-      let resolvedPatientId: string | null = (typeof tokenData.patient === 'string' && tokenData.patient) ? tokenData.patient : null;
-      let patientDiscoveryDiag = 'token_claim_present';
-      if (!resolvedPatientId) {
-        const probeIsSandbox = conn.fhir_base_url === VA_SANDBOX_FHIR_BASE;
-        const probe = await discoverVaPatientId(conn.fhir_base_url as string, tokenData.access_token, probeIsSandbox);
-        resolvedPatientId = probe.patientId;
-        patientDiscoveryDiag = probe.diag;
-      }
-      console.log('[va-auth] patient_id resolution', {
-        from_token_claim: !!tokenData.patient,
-        resolved_patient_id: resolvedPatientId,
-        diag: patientDiscoveryDiag,
-      });
 
       const { error: updateError } = await admin.from('ehr_connections')
         .update({
@@ -629,9 +668,6 @@ Deno.serve(async (req) => {
 
       const admin = getAdminClient();
 
-      // VA connections can coexist with Epic/Cerner/etc for the same person.
-      // Scope this lookup to provider='va' so we don't accidentally refresh
-      // an Epic row with VA's token endpoint.
       const { data: conn, error: connError } = await admin.from('ehr_connections')
         .select('*')
         .eq('person_id', person_id)
@@ -670,7 +706,6 @@ Deno.serve(async (req) => {
       const connIsSandbox = conn.fhir_base_url === VA_SANDBOX_FHIR_BASE;
       const connEp = resolveEndpoints(connIsSandbox);
 
-      // Public client refresh: client_id in body, refresh_token, that's it.
       const refreshBody = new URLSearchParams({
         grant_type: 'refresh_token',
         refresh_token: plainRefresh,
@@ -715,9 +750,6 @@ Deno.serve(async (req) => {
           });
         } catch (_) { /* best-effort logging */ }
 
-        // Pattern 4 — proactive notification for silent failures. Throttled
-        // to one ehr_silent_failure event per connection per 24h. The ehr-
-        // silent-failure notifier cron picks this up and notifies the user.
         try {
           const { data: prior } = await admin.from('wellet_ops_events')
             .select('id')
@@ -730,7 +762,7 @@ Deno.serve(async (req) => {
             await admin.from('wellet_ops_events').insert({
               event_type: 'ehr_silent_failure',
               severity: 'high',
-              summary: 'VA connection refresh failed \u2014 reconnect needed.',
+              summary: 'VA connection refresh failed — reconnect needed.',
               source: 'va-auth',
               payload: {
                 vendor: 'va',
@@ -767,7 +799,6 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'encryption_failed', detail: encAccessErr?.message }, 500);
       }
 
-      // VA rotates refresh tokens per spec (same pattern as Epic). Persist if present.
       let encRefreshToken: string | null = null;
       if (tokenData.refresh_token) {
         const { data: encR, error: encRErr } = await admin.rpc('encrypt_ehr_token', {
@@ -834,9 +865,6 @@ Deno.serve(async (req) => {
     }
 
     // ── DISCONNECT ──
-    // Best-effort: revoke the token at VA (https://sandbox-api.va.gov/oauth2/revoke
-    // in sandbox), then delete the local row. Revocation failures don't block
-    // local cleanup - we still want the row gone from our side.
     if (action === 'disconnect') {
       const { person_id } = body;
       if (!person_id) {
@@ -845,7 +873,6 @@ Deno.serve(async (req) => {
 
       const admin = getAdminClient();
 
-      // Try to load the VA connection first so we can revoke at VA.
       const { data: conn } = await admin.from('ehr_connections')
         .select('id, refresh_token, fhir_base_url, token_url')
         .eq('person_id', person_id)
