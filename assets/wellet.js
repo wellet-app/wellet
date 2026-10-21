@@ -18273,6 +18273,45 @@ function openAlmostThereModal(opts) {
   requestAnimationFrame(function() { overlay.classList.add('show'); });
 }
 
+// 2026-10-21: shown when epic-auth's patient-match guard blocks a connect.
+function openPatientMismatchModal(opts) {
+  opts = opts || {};
+  var esc = function(v) { return String(v).replace(/[<>&"']/g, function(c) { return ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'})[c]; }); };
+  var hospital = esc(opts.hospital_name || 'the hospital');
+  var person = null;
+  try { person = (currentPeople || []).find(function(p) { return p.id === opts.person_id; }); } catch (e) {}
+  var who = esc((person && person.name) || 'this person');
+  var existing = document.getElementById('patient-mismatch-overlay');
+  if (existing) { try { existing.remove(); } catch (e) {} }
+  var overlay = document.createElement('div');
+  overlay.id = 'patient-mismatch-overlay';
+  overlay.className = 'cr-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-labelledby', 'pm-title');
+  overlay.innerHTML = '' +
+    '<div class="cr-sheet at-sheet">' +
+      '<div class="cr-handle"></div>' +
+      '<div class="cr-title" id="pm-title">That sign-in was for someone else</div>' +
+      '<p class="at-lede">The ' + hospital + ' account you signed in with does not match ' + who + ' in Wellet, so nothing was saved.</p>' +
+      '<p class="at-filed">If you have proxy access, connect again and choose ' + who + ' when the hospital asks whose record to open.</p>' +
+      '<div class="cr-actions at-actions">' +
+        '<button type="button" class="cr-btn secondary" onclick="closePatientMismatchModal()">Not now</button>' +
+        '<button type="button" class="cr-btn primary" onclick="closePatientMismatchModal(); if (typeof showConnectScreen===\'function\') { try { showConnectScreen(); } catch(e) {} }">Try again</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+  requestAnimationFrame(function() { overlay.classList.add('show'); });
+}
+
+function closePatientMismatchModal() {
+  var overlay = document.getElementById('patient-mismatch-overlay');
+  if (overlay) {
+    overlay.classList.remove('show');
+    setTimeout(function() { try { overlay.remove(); } catch (e) {} }, 300);
+  }
+}
+
 function closeAlmostThereModal() {
   var overlay = document.getElementById('almost-there-overlay');
   if (overlay) {
@@ -18873,6 +18912,13 @@ function handleEhrCallback() {
             request_filed: data.request_filed === true,
             person_id: personId
           });
+          return;
+        }
+
+        // 2026-10-21: patient-match guard. The hospital sign-in belongs to a
+        // different person than the one chosen in Wellet. Nothing was saved.
+        if (data.error === 'patient_mismatch') {
+          openPatientMismatchModal({ hospital_name: data.hospital_name || 'the hospital', person_id: personId });
           return;
         }
 

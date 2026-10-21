@@ -113,6 +113,33 @@ function getAdminClient() {
   return createClient(supabaseUrl, supabaseServiceKey);
 }
 
+// Mark an ehr_connections row with the reason it failed mid-OAuth so the next
+// debug session has a real trail instead of a silent 'pending'/'abandoned' row.
+// Best-effort: never throws, never blocks the caller's error return.
+async function markConnError(
+  admin: ReturnType<typeof createClient>,
+  connId: string | null | undefined,
+  step: string,
+  detail: string,
+  debug?: Record<string, unknown>,
+) {
+  if (!connId) return;
+  try {
+    const msg = (detail || '').slice(0, 500);
+    const update: Record<string, unknown> = {
+      status: 'abandoned',
+      last_error: msg,
+      last_error_step: step,
+      last_error_at: new Date().toISOString(),
+    };
+    if (debug) update.last_error_debug = debug;
+    await admin.from('ehr_connections').update(update).eq('id', connId);
+    console.error('[epic-auth] marked conn error', { conn_id: connId, step, detail: msg, debug: debug || null });
+  } catch (e) {
+    console.error('[epic-auth] markConnError failed', { conn_id: connId, step, err: String(e) });
+  }
+}
+
 function generateCodeVerifier(): string {
   const array = new Uint8Array(64);
   crypto.getRandomValues(array);
@@ -386,41 +413,10 @@ Deno.serve(async (req) => {
         tokenUrl = endpoints.token_endpoint;
       }
 
-      // 2026-04-27: The 2026-04-26 hotfix guard that returned
-      // `multi_hospital_not_yet_supported` (409) for a SECOND hospital is
-      // removed now that the rest of the N-connections refactor is in
-      // place: the DB partial unique index
-      // `idx_ehr_connections_person_fhir_connected` enforces at most one
-      // CONNECTED row per (person_id, fhir_base_url), `fetch-ehr-data` fans
-      // out across all connections, and the frontend cache + render path
-      // merge them. Same-hospital reconnect (e.g. expired refresh) is still
-      // handled correctly: the new pending row carries a unique `state` and
-      // the partial unique index ignores rows whose status is not
-      // 'connected', so concurrent OAuth attempts don't collide.
-
       const codeVerifier = generateCodeVerifier();
       const codeChallenge = await computeCodeChallenge(codeVerifier);
       const state = generateState();
 
-      // 2026-05-01: previously every `start` call did a plain insert,
-      // which created a NEW ehr_connections row per OAuth attempt. The
-      // partial unique index keeps us from ending up with two CONNECTED
-      // rows for the same hospital, but it does not stop dead 'pending' /
-      // 'needs_reconnect' / 'superseded' rows from accumulating across
-      // reconnects, which made the duplicate-row bug real (multiple
-      // pendings would race on the same hospital and the cache could
-      // pick a stale one).
-      //
-      // Behavior now: if there's already a reusable row for this
-      // (person_id, fhir_base_url) — i.e. status in
-      // ('pending','needs_reconnect','superseded') — UPDATE it in place
-      // with the fresh PKCE+state and flip status='pending'. If the only
-      // existing row is status='connected', leave it alone (the live
-      // token must stay valid until the new OAuth dance finishes — the
-      // partial unique index will be respected because we're inserting a
-      // 'pending', not another 'connected') and insert a new pending row
-      // alongside it. The `state` column is globally unique per attempt,
-      // so `callback` still resolves the right row.
       const { data: existingRows, error: existingErr } = await admin
         .from('ehr_connections')
         .select('id, status')
@@ -431,8 +427,6 @@ Deno.serve(async (req) => {
         .limit(1);
       if (existingErr) {
         console.error('[epic-auth] start existing-row lookup failed', { err: existingErr });
-        // Fail soft: fall through to the insert path so a transient lookup
-        // error doesn't block reconnect entirely.
       }
       const reusable = existingRows && existingRows[0];
 
@@ -447,8 +441,6 @@ Deno.serve(async (req) => {
             token_url: tokenUrl,
             hospital_name: hospitalName || (isSandbox ? 'Epic Sandbox' : null),
             status: 'pending',
-            // Clear out any stale OAuth artifacts from a previous failed
-            // attempt — the new dance will repopulate these on success.
             access_token: null,
             refresh_token: null,
             token_expires_at: null,
@@ -518,13 +510,6 @@ Deno.serve(async (req) => {
 
       const admin = getAdminClient();
 
-      // HOTFIX 2026-04-26: callback now looks up the pending connection by
-      // `state` (which is globally unique per OAuth attempt) instead of by
-      // person_id. Under N-connections-per-person a single person can have
-      // multiple pending rows in flight, so person_id is no longer
-      // sufficient to identify the right row. We still verify person_id and
-      // user_id match the row we found to defend against state forgery from
-      // a different account.
       const { data: conn, error: connError } = await admin.from('ehr_connections')
         .select('*')
         .eq('state', callbackState)
@@ -536,12 +521,14 @@ Deno.serve(async (req) => {
       }
 
       if (conn.person_id !== person_id) {
-        // The state matched a row but for a different person on this account.
-        // Treat as a CSRF / cross-person leak and refuse.
+        await markConnError(admin, conn.id, 'state_person_mismatch',
+          `callback person_id=${person_id} did not match row person_id=${conn.person_id}`);
         return jsonResponse({ error: 'State mismatch — possible CSRF attack' }, 400);
       }
 
       if (!conn.code_verifier) {
+        await markConnError(admin, conn.id, 'missing_code_verifier',
+          'Row had no code_verifier — likely a stale row or double-submitted callback');
         return jsonResponse({ error: 'No PKCE code_verifier found — restart the connection flow' }, 400);
       }
 
@@ -549,7 +536,6 @@ Deno.serve(async (req) => {
       const connIsSandbox = conn.fhir_base_url === EPIC_SANDBOX_FHIR_BASE;
       const connCreds = resolveClientCreds(connIsSandbox);
 
-      // Build client_assertion JWT signed with our RS384 private key.
       let clientAssertion: string;
       try {
         const privateKey = await loadPrivateKey(connCreds.pemEnv);
@@ -561,6 +547,8 @@ Deno.serve(async (req) => {
         );
       } catch (e) {
         console.error('[epic-auth] client_assertion build failed', { err: (e as Error).message });
+        await markConnError(admin, conn.id, 'client_assertion_build',
+          `Failed to build client_assertion JWT (kid=${connCreds.kid}): ${(e as Error).message}`);
         return jsonResponse({
           error: 'client_assertion_failed',
           message: 'Server could not sign the JWT assertion — check EPIC_JWT_PRIVATE_KEY_* secrets.',
@@ -568,28 +556,186 @@ Deno.serve(async (req) => {
         }, 500);
       }
 
+      // Decode the JWT we just built so we can capture the EXACT claims we sent
+      // if Epic rejects us. This is the difference between guessing and knowing.
+      let jwtHeaderSent: unknown = null;
+      let jwtClaimsSent: unknown = null;
+      try {
+        const parts = clientAssertion.split('.');
+        if (parts.length === 3) {
+          jwtHeaderSent = JSON.parse(
+            new TextDecoder().decode(
+              Uint8Array.from(
+                atob(parts[0].replace(/-/g, '+').replace(/_/g, '/').padEnd(parts[0].length + (4 - parts[0].length % 4) % 4, '=')),
+                (c) => c.charCodeAt(0),
+              ),
+            ),
+          );
+          jwtClaimsSent = JSON.parse(
+            new TextDecoder().decode(
+              Uint8Array.from(
+                atob(parts[1].replace(/-/g, '+').replace(/_/g, '/').padEnd(parts[1].length + (4 - parts[1].length % 4) % 4, '=')),
+                (c) => c.charCodeAt(0),
+              ),
+            ),
+          );
+        }
+      } catch (_) { /* best-effort, keep going */ }
+
+      const postBody = new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: code,
+        redirect_uri: EPIC_REDIRECT_URI,
+        code_verifier: conn.code_verifier,
+        client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+        client_assertion: clientAssertion,
+      });
+
       const tokenRes = await fetch(tokenUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          grant_type: 'authorization_code',
-          code: code,
-          redirect_uri: EPIC_REDIRECT_URI,
-          code_verifier: conn.code_verifier,
-          // Confidential client auth: no client_id in body, no client_secret.
-          // client_id is embedded in the assertion's iss/sub claims.
-          client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-          client_assertion: clientAssertion,
-        }),
+        body: postBody,
       });
 
       if (!tokenRes.ok) {
         const errText = await tokenRes.text();
-        console.error('Epic token exchange failed:', tokenRes.status, errText);
+        const respHeaders: Record<string, string> = {};
+        try { tokenRes.headers.forEach((v, k) => { respHeaders[k] = v; }); } catch (_) {}
+        console.error('Epic token exchange failed:', tokenRes.status, errText, respHeaders);
+
+        // Capture EVERYTHING needed to compare what we sent vs what works at other
+        // hospitals: exact aud, exact client_id, exact JWT claims, exact response
+        // headers (Epic sometimes puts useful detail in WWW-Authenticate), exact
+        // form-encoded body keys (NOT the assertion itself — too large + sensitive),
+        // and the FHIR base we authorized against.
+        const debug = {
+          fhir_base_url: conn.fhir_base_url,
+          token_url: tokenUrl,
+          client_id_used: connCreds.clientId,
+          kid_used: connCreds.kid,
+          is_sandbox: connIsSandbox,
+          jwt_header_sent: jwtHeaderSent,
+          jwt_claims_sent: jwtClaimsSent,
+          post_body_keys: Array.from(postBody.keys()),
+          redirect_uri_sent: EPIC_REDIRECT_URI,
+          epic_status: tokenRes.status,
+          epic_response_headers: respHeaders,
+          epic_response_body: errText.slice(0, 2000),
+          captured_at: new Date().toISOString(),
+        };
+        await markConnError(admin, conn.id, 'token_exchange_http',
+          `Epic token endpoint returned ${tokenRes.status}: ${errText.slice(0, 400)}`,
+          debug);
+
+        // 2026-05-27: Henry Ford pattern — patient completed OAuth at the
+        // hospital (sometimes even gets a confirmation text from the hospital),
+        // but the token exchange fails with invalid_client / unauthorized_client
+        // because the hospital hasn't approved Wellet's confidential client on
+        // their production allow-list. Convert that silent dead-end into a real
+        // hospital_connect_requests row so:
+        //   1. The every-2h Linear cron auto-files a ticket with the
+        //      `hospital-connect` label, giving us a queue of hospitals to chase.
+        //   2. The frontend can show an "almost there" recovery screen instead
+        //      of a generic toast + ask-the-user-to-retype-everything modal.
+        // We parse Epic's JSON body to detect the well-known error codes.
+        // Anything else falls through to the legacy `oauth_error` path.
+        let parsedEpicErr: string | null = null;
+        let parsedEpicErrDesc: string | null = null;
+        try {
+          const parsed = JSON.parse(errText);
+          if (parsed && typeof parsed === 'object') {
+            if (typeof parsed.error === 'string') parsedEpicErr = parsed.error;
+            if (typeof parsed.error_description === 'string') parsedEpicErrDesc = parsed.error_description;
+          }
+        } catch (_) { /* not JSON, leave parsed* null */ }
+
+        const isHospitalNotApproved = parsedEpicErr === 'invalid_client'
+          || parsedEpicErr === 'unauthorized_client';
+        const isPatientDeclined = parsedEpicErr === 'access_denied';
+
+        if (isHospitalNotApproved) {
+          // Best-effort: file the hospital_connect_requests row so the Linear
+          // cron picks it up. Never block the user response on this insert.
+          try {
+            // Dedup: don't file a second row for the same user+hospital within
+            // 24h. The cron's linear_issue_id IS NULL filter handles its own
+            // dedup, but we don't want N rows per retry attempt.
+            const { data: existing } = await admin.from('hospital_connect_requests')
+              .select('id')
+              .eq('user_id', user.id)
+              .eq('hospital_name', conn.hospital_name || 'Unknown hospital')
+              .eq('issue_type', 'hospital_not_approved')
+              .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+              .limit(1)
+              .maybeSingle();
+
+            if (!existing) {
+              const triageNotes = 'Patient completed OAuth at hospital (Epic authorize step succeeded), ' +
+                'but token exchange failed with ' + parsedEpicErr + '. ' +
+                'This means the hospital has not approved Wellet\u2019s confidential client ' +
+                'on their production allow-list. client_id=' + (connCreds.clientId || 'unknown') + '. ' +
+                'Follow up with the hospital\u2019s Epic team referencing this client_id and the ' +
+                'token endpoint URL ' + tokenUrl + '. Captured at ' + new Date().toISOString() + '.';
+
+              await admin.from('hospital_connect_requests').insert({
+                user_id: user.id,
+                person_id: conn.person_id,
+                hospital_name: conn.hospital_name || 'Unknown hospital',
+                issue_type: 'hospital_not_approved',
+                contact_email: user.email || null,
+                fhir_base_url: conn.fhir_base_url || null,
+                error_code: parsedEpicErr,
+                error_message: (parsedEpicErrDesc || errText || '').slice(0, 2000),
+                triage_notes: triageNotes,
+              });
+              console.log('[epic-auth] filed hospital_connect_requests for hospital_not_approved', {
+                hospital_name: conn.hospital_name, user_id: user.id, error_code: parsedEpicErr,
+              });
+            } else {
+              console.log('[epic-auth] hospital_connect_requests already filed in last 24h, skipping', {
+                hospital_name: conn.hospital_name, existing_id: existing.id,
+              });
+            }
+          } catch (filingErr) {
+            // Filing failed — log but keep going so the user still gets a clean
+            // recovery screen instead of a 500.
+            console.error('[epic-auth] hospital_connect_requests insert failed', {
+              hospital_name: conn.hospital_name, err: String(filingErr),
+            });
+          }
+
+          return jsonResponse({
+            error: 'hospital_not_approved',
+            hospital_name: conn.hospital_name || null,
+            fhir_base_url: conn.fhir_base_url || null,
+            epic_error_code: parsedEpicErr,
+            request_filed: true,
+            message: 'Almost there \u2014 ' + (conn.hospital_name || 'this hospital') +
+              ' hasn\u2019t fully approved Wellet on their developer side yet. ' +
+              'We\u2019ve flagged you for the moment they do.',
+          }, 200);
+        }
+
+        if (isPatientDeclined) {
+          // Patient hit Cancel / Deny in the Epic UI. Not a Wellet bug.
+          // Gentler UX, no DB row, no Linear ticket.
+          return jsonResponse({
+            error: 'patient_declined',
+            hospital_name: conn.hospital_name || null,
+            epic_error_code: parsedEpicErr,
+            message: 'No problem \u2014 you can connect a different hospital, or come back to ' +
+              (conn.hospital_name || 'this hospital') + ' anytime.',
+          }, 200);
+        }
+
+        // Fallback: unrecognized Epic error. Legacy behavior — surface to the
+        // existing oauth_error modal so the user can request access manually.
         return jsonResponse({
           error: 'Token exchange failed',
           epic_status: tokenRes.status,
           epic_body: errText.slice(0, 400),
+          hospital_name: conn.hospital_name || null,
+          fhir_base_url: conn.fhir_base_url || null,
         }, 502);
       }
 
@@ -598,11 +744,97 @@ Deno.serve(async (req) => {
 
       if (!tokenData.access_token) {
         console.error('Epic returned no access_token:', JSON.stringify(tokenData));
+        await markConnError(admin, conn.id, 'no_access_token',
+          `Token endpoint 2xx but body had no access_token: ${JSON.stringify(tokenData).slice(0, 400)}`);
         return jsonResponse({ error: 'No access token returned from provider' }, 502);
+      }
+
+      // ── PATIENT-MATCH GUARD (2026-10-21) ──
+      // Epic returns whichever patient was chosen in MyChart. With proxy access,
+      // a caregiver can sign in as themselves while connecting a loved one (the
+      // Aug 2026 Duke incident). Check the returned patient against the person
+      // chosen in Wellet BEFORE any token is stored, so a mismatch never syncs.
+      // Deterministic checks only:
+      //   1. same_patient_other_person: this account already has a connected
+      //      row for the same hospital and patient on a DIFFERENT person.
+      //      (Scoped to this account. Two siblings connecting the same parent
+      //      from their own accounts is legitimate.)
+      //   2. birth_date_mismatch: the person has a birth date in Wellet and the
+      //      hospital's Patient.birthDate is a full date that differs.
+      // If the Patient read fails, check 1 still runs and the connect proceeds;
+      // the failure is logged in last_error_debug.
+      {
+        const returnedPatient: string | null = tokenData.patient || null;
+        let mismatchReason: string | null = null;
+        const guardDebug: Record<string, unknown> = { guard: 'patient_match_v1' };
+
+        if (returnedPatient) {
+          const { data: dupRows } = await admin.from('ehr_connections')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('fhir_base_url', conn.fhir_base_url)
+            .eq('patient_id', returnedPatient)
+            .eq('status', 'connected')
+            .neq('person_id', person_id)
+            .limit(1);
+          if (dupRows && dupRows.length) mismatchReason = 'same_patient_other_person';
+        }
+
+        if (!mismatchReason && returnedPatient) {
+          const { data: personRow } = await admin.from('people')
+            .select('date_of_birth, manual_date_of_birth')
+            .eq('id', person_id)
+            .eq('user_id', user.id)
+            .maybeSingle();
+          const weHave: string | null = (personRow?.manual_date_of_birth || personRow?.date_of_birth || null);
+          guardDebug.person_has_birth_date = !!weHave;
+          if (weHave) {
+            try {
+              const base = String(conn.fhir_base_url || '').replace(/\/+$/, '');
+              const pRes = await fetch(`${base}/Patient/${encodeURIComponent(returnedPatient)}`, {
+                headers: { Authorization: `Bearer ${tokenData.access_token}`, Accept: 'application/fhir+json' },
+              });
+              guardDebug.patient_read_status = pRes.status;
+              if (pRes.ok) {
+                const pj = await pRes.json();
+                const theirs = typeof pj?.birthDate === 'string' ? pj.birthDate : '';
+                guardDebug.hospital_has_birth_date = /^\d{4}-\d{2}-\d{2}$/.test(theirs);
+                if (/^\d{4}-\d{2}-\d{2}$/.test(theirs) && theirs !== String(weHave).slice(0, 10)) {
+                  mismatchReason = 'birth_date_mismatch';
+                }
+              }
+            } catch (e) {
+              guardDebug.patient_read_error = String((e as Error)?.message || e).slice(0, 200);
+            }
+          }
+        }
+
+        if (mismatchReason) {
+          // No tokens stored. The row is closed so nothing can sync from it.
+          // No names or dates are written here, only the reason.
+          await admin.from('ehr_connections').update({
+            status: 'patient_mismatch',
+            code_verifier: null,
+            state: null,
+            last_error: mismatchReason,
+            last_error_step: 'patient_match',
+            last_error_at: new Date().toISOString(),
+            last_error_debug: guardDebug,
+          }).eq('id', conn.id).eq('user_id', user.id);
+          console.warn('[epic-auth] patient-match guard blocked connect', { conn_id: conn.id, reason: mismatchReason });
+          return jsonResponse({
+            error: 'patient_mismatch',
+            reason: mismatchReason,
+            hospital_name: conn.hospital_name || null,
+          }, 409);
+        }
+        if (Object.keys(guardDebug).length > 1) console.log('[epic-auth] patient-match guard passed', { conn_id: conn.id, ...guardDebug });
       }
 
       const encKey = Deno.env.get('EHR_ENCRYPTION_KEY') || '';
       if (!encKey) {
+        await markConnError(admin, conn.id, 'missing_enc_key',
+          'EHR_ENCRYPTION_KEY env var not set on edge function');
         return jsonResponse({
           error: 'server_misconfigured',
           message: 'Server encryption key is not configured. Please contact support.',
@@ -613,6 +845,8 @@ Deno.serve(async (req) => {
         plain_token: tokenData.access_token, enc_key: encKey,
       });
       if (encAccessErr || !encAccessToken) {
+        await markConnError(admin, conn.id, 'encrypt_access_token',
+          `encrypt_ehr_token RPC failed for access_token: ${encAccessErr?.message || 'no token returned'}`);
         return jsonResponse({
           error: 'encryption_failed',
           message: 'Failed to encrypt access token',
@@ -626,6 +860,8 @@ Deno.serve(async (req) => {
           plain_token: tokenData.refresh_token, enc_key: encKey,
         });
         if (encRErr || !encR) {
+          await markConnError(admin, conn.id, 'encrypt_refresh_token',
+            `encrypt_ehr_token RPC failed for refresh_token: ${encRErr?.message || 'no token returned'}`);
           return jsonResponse({
             error: 'encryption_failed',
             message: 'Failed to encrypt refresh token',
@@ -651,30 +887,10 @@ Deno.serve(async (req) => {
         });
       }
 
-      // HOTFIX 2026-04-26: scope this update to the specific connection row
-      // we resolved by `state` above. Previously it filtered by person_id
-      // which would clobber sibling rows once a person had multiple
-      // connections (e.g. wipe Mom's Duke code_verifier when finishing UNC).
-      //
-      // HOTFIX 2026-05-14: same-hospital reconnect was failing with
-      // "Failed to store tokens" because the partial unique index
-      // `idx_ehr_connections_person_fhir_connected` (one CONNECTED row per
-      // (person_id, fhir_base_url)) rejected the UPDATE that flipped the
-      // NEW pending row to status='connected' while the PRIOR connected
-      // row was still occupying the slot. The start path comment claimed
-      // this case was handled — it wasn't. Fix: in a SINGLE step, mark any
-      // OTHER 'connected' row for the same (person_id, fhir_base_url) as
-      // 'superseded' immediately before flipping this row, so the partial
-      // unique index never sees two CONNECTED rows at once. This is
-      // idempotent: if no prior row exists (first-time connect), the
-      // supersede affects 0 rows and we proceed normally.
       try {
         const { error: supersedeErr } = await admin.from('ehr_connections')
           .update({
             status: 'superseded',
-            // Wipe tokens on the old row so a stray refresh can't accidentally
-            // hit Duke with a stale token bound to a no-longer-current
-            // access grant.
             access_token: null,
             refresh_token: null,
             token_expires_at: null,
@@ -686,10 +902,6 @@ Deno.serve(async (req) => {
           .neq('id', conn.id);
         if (supersedeErr) {
           console.error('[epic-auth] supersede prior connected row failed', { err: supersedeErr });
-          // Continue anyway — if there's no prior connected row this is a
-          // no-op. If there IS one and we couldn't supersede it, the
-          // following UPDATE will hit the unique index and surface a
-          // clearer error downstream.
         }
       } catch (e) {
         console.error('[epic-auth] supersede prior connected row threw', { err: (e as Error).message });
@@ -714,14 +926,11 @@ Deno.serve(async (req) => {
 
       if (updateError) {
         console.error('Token store error:', updateError);
-        // Surface a more actionable error to the client. The most common
-        // cause here is the partial unique index rejecting the flip-to-
-        // connected because a sibling 'connected' row still exists — which
-        // should now be impossible thanks to the supersede above, but if
-        // it does happen the message tells Betsy exactly what to look for.
         const isUniq = /idx_ehr_connections_person_fhir_connected|duplicate key/i.test(
           (updateError as { message?: string })?.message || ''
         );
+        await markConnError(admin, conn.id, isUniq ? 'token_store_unique_conflict' : 'token_store_update_failed',
+          `Final UPDATE to status=connected failed: ${(updateError as { message?: string })?.message || 'unknown'}`);
         return jsonResponse({
           error: 'Failed to store tokens',
           detail: (updateError as { message?: string })?.message,
@@ -739,10 +948,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── REFRESH: Exchange refresh_token for a new access_token ──
-    // Called by fetch-ehr-data (or any caller) right before the existing
-    // access_token expires, or transparently on a 401 from Epic.
-    // Uses private_key_jwt — same client_assertion pattern as callback.
+    // ── REFRESH ──
     if (action === 'refresh') {
       const { person_id } = body;
       if (!person_id) {
@@ -761,15 +967,11 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'No connection found' }, 404);
       }
       if (!conn.refresh_token) {
-        // No refresh token on file — only a fresh connect can fix this.
         await admin.from('ehr_connections')
           .update({ needs_reconnect: true, status: 'needs_reconnect' })
           .eq('person_id', person_id)
           .eq('user_id', user.id);
 
-        // Pattern 4 — same throttled ops_events insert for the no_refresh_token
-        // case. Treated as same root cause from the user\u2019s perspective: the
-        // connection silently stopped working and they need to sign in again.
         try {
           const { data: prior } = await admin.from('wellet_ops_events')
             .select('id')
@@ -782,7 +984,7 @@ Deno.serve(async (req) => {
             await admin.from('wellet_ops_events').insert({
               event_type: 'ehr_silent_failure',
               severity: 'high',
-              summary: 'EHR connection lost for ' + (conn.hospital_name || 'a connected hospital') + ' \u2014 reconnect needed.',
+              summary: 'EHR connection lost for ' + (conn.hospital_name || 'a connected hospital') + ' — reconnect needed.',
               source: 'epic-auth',
               payload: {
                 vendor: 'epic',
@@ -808,7 +1010,6 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'server_misconfigured' }, 500);
       }
 
-      // Decrypt the stored refresh token.
       const { data: plainRefresh, error: decErr } = await admin.rpc('decrypt_ehr_token', {
         encrypted_token: conn.refresh_token, enc_key: encKey,
       });
@@ -820,9 +1021,6 @@ Deno.serve(async (req) => {
       const tokenUrl = conn.token_url || EPIC_SANDBOX_TOKEN;
       const connIsSandbox = conn.fhir_base_url === EPIC_SANDBOX_FHIR_BASE;
 
-      // Figure out which credentials to use. If the connection was minted by
-      // the legacy public client, refresh using the legacy client_id with NO
-      // client_assertion. Everything new uses confidential client_assertion.
       const isLegacyPublic = conn.client_id_used === EPIC_LEGACY_PUBLIC_CLIENT_ID;
       const connCreds = resolveClientCreds(connIsSandbox);
 
@@ -867,9 +1065,6 @@ Deno.serve(async (req) => {
 
       if (!tokenRes.ok) {
         const errText = await tokenRes.text();
-        // Capture response headers (Epic sometimes returns the real reason in
-        // WWW-Authenticate, X-Epic-Error-Id, or a request id we can quote
-        // back to them). Stringify keys we care about — Headers isn't JSON.
         const respHeaders: Record<string, string> = {};
         for (const [k, v] of tokenRes.headers.entries()) {
           if (/^(www-authenticate|x-epic|x-request-id|content-type|date)$/i.test(k)) {
@@ -889,16 +1084,11 @@ Deno.serve(async (req) => {
           refresh_token_age_days: conn.created_at ? Math.floor((Date.now() - new Date(conn.created_at).getTime()) / 86400000) : null,
         });
 
-        // Refresh tokens expire too (Epic = 90 days rolling). On refresh
-        // failure, flag the connection so the UI can prompt a reconnect
-        // banner instead of silently failing forever.
         await admin.from('ehr_connections')
           .update({ needs_reconnect: true, status: 'needs_reconnect' })
           .eq('person_id', person_id)
           .eq('user_id', user.id);
 
-        // Also write a sync_log row so the Duke watcher cron can see refresh
-        // failures without grepping edge function logs.
         try {
           await admin.from('ehr_sync_log').insert({
             person_id,
@@ -908,11 +1098,6 @@ Deno.serve(async (req) => {
           });
         } catch (_) { /* best-effort logging */ }
 
-        // Pattern 4 — proactive notification for silent failures. Insert into
-        // wellet_ops_events so the ehr-silent-failure notifier cron picks this
-        // up and notifies the user within ~30 min. Throttled to one event per
-        // connection per 24h to avoid spamming when the hourly background-ehr-
-        // sync cron keeps hitting the same invalid_grant.
         try {
           const { data: prior } = await admin.from('wellet_ops_events')
             .select('id')
@@ -925,7 +1110,7 @@ Deno.serve(async (req) => {
             await admin.from('wellet_ops_events').insert({
               event_type: 'ehr_silent_failure',
               severity: 'high',
-              summary: 'EHR refresh failed for ' + (conn.hospital_name || 'a connected hospital') + ' \u2014 reconnect needed.',
+              summary: 'EHR refresh failed for ' + (conn.hospital_name || 'a connected hospital') + ' — reconnect needed.',
               source: 'epic-auth',
               payload: {
                 vendor: 'epic',
@@ -965,8 +1150,6 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'encryption_failed', detail: encAccessErr?.message }, 500);
       }
 
-      // Epic uses rolling refresh tokens — every refresh MAY return a new
-      // refresh_token which invalidates the old one. Persist if present.
       let encRefreshToken: string | null = null;
       if (tokenData.refresh_token) {
         const { data: encR, error: encRErr } = await admin.rpc('encrypt_ehr_token', {
