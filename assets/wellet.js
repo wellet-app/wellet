@@ -26800,10 +26800,10 @@ async function submitFeedback() {
   }
 
   btn.disabled = false;
-  btn.innerHTML = '<i data-lucide="send" style="width:15px;height:15px;"></i> Send to Betsy';
+  btn.innerHTML = '<i data-lucide="send" style="width:15px;height:15px;"></i> Send feedback';
   initIcons();
   closeSheet('feedback-overlay');
-  showToast('Thank you \u2014 your feedback means everything');
+  showToast('Thank you. Your feedback means everything.');
 }
 
 // ── ALPHA WELCOME ─────────────────────────────────────────────────────────────
