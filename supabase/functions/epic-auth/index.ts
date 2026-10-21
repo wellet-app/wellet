@@ -381,6 +381,15 @@ Deno.serve(async (req) => {
 
       const admin = getAdminClient();
 
+      // 2026-10-21 ownership check: only the person's owner can start a
+      // connect. Without this, any signed-in user could pass another family's
+      // person_id and attach a hospital record to it.
+      {
+        const { data: owned } = await admin.from('people')
+          .select('id').eq('id', person_id).eq('user_id', user.id).maybeSingle();
+        if (!owned) return jsonResponse({ error: 'Person not found' }, 404);
+      }
+
       let fhirBase: string;
       let authorizeUrl: string;
       let tokenUrl: string;
@@ -421,6 +430,7 @@ Deno.serve(async (req) => {
         .from('ehr_connections')
         .select('id, status')
         .eq('person_id', person_id)
+        .eq('user_id', user.id)
         .eq('fhir_base_url', fhirBase)
         .in('status', ['pending', 'needs_reconnect', 'superseded'])
         .order('created_at', { ascending: false })
