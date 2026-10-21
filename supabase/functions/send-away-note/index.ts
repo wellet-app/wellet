@@ -1,4 +1,4 @@
-// send-away-note: monthly "what happened in the records" email (quiet mode, 2026-10-08; v4 2026-10-21 counts by clinical date).
+// send-away-note: monthly "what happened in the records" email (quiet mode, 2026-10-08; v4 2026-10-21 counts by clinical date; one-click stop via away-note-stop).
 //
 // Deterministic counts only. No AI, no lab values, no clinician names.
 // Opt-in via notification_preferences.away_note = true.
@@ -17,6 +17,18 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 // 535 auth failures on 2026-10-08.
 const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY") || "";
 const APP_URL = "https://mywellet.com";
+const STOP_FN = `${SUPABASE_URL}/functions/v1/away-note-stop`;
+const STOP_PAGE = "https://getwellet.com/stop";
+
+// Signed stop token, verified by away-note-stop with the same key and message.
+function b64url(bytes: Uint8Array): string {
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+async function stopToken(userId: string): Promise<string> {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(SERVICE_ROLE), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode("away_note_stop:v1:" + userId)));
+  return `${b64url(new TextEncoder().encode(userId))}.${b64url(sig)}`;
+}
 
 // Same verification as background-ehr-sync: exact match with this function's
 // service key, or a token Supabase Auth's admin endpoint accepts.
@@ -164,7 +176,7 @@ function noteLabel(kind: string, count: number): string {
 
 function hasNews(n: PersonNote) { return n.visits.length + n.meds + n.labs + n.notes > 0; }
 
-function buildHtml(firstName: string, label: string, people: PersonNote[]): string {
+function buildHtml(firstName: string, label: string, people: PersonNote[], stopUrl: string): string {
   const names = people.map((p) => p.name);
   const who = names.length === 1 ? `${esc(names[0])}'s records` : "your loved ones' records";
   return `<!doctype html><html><body style="margin:0;background:#E7E7DF;padding:24px 12px">
@@ -174,7 +186,7 @@ function buildHtml(firstName: string, label: string, people: PersonNote[]): stri
 <p style="font:15px/1.55 Inter,Arial,sans-serif;color:#3A4A45;margin:14px 0 0">Hi ${esc(firstName)}. Here's what happened in ${who} in ${esc(label)}, so you have the context if you need it.</p>
 ${people.map(personBlock).join("")}
 <div style="margin-top:22px"><a href="${APP_URL}" style="display:block;text-align:center;background:#11443B;color:#ffffff;text-decoration:none;border-radius:12px;padding:13px;font:500 15px Inter,Arial,sans-serif">See it in Wellet</a></div>
-<p style="font:12px/1.5 Inter,Arial,sans-serif;color:#6B7773;margin:16px 0 0">You get this note once a month when something new happens in these records. To stop it, email hello@getwellet.com.</p>
+<p style="font:12px/1.5 Inter,Arial,sans-serif;color:#6B7773;margin:16px 0 0">You get this note once a month when something new happens in these records. <a href="${stopUrl}" style="color:#11443B;text-decoration:underline">Stop these notes</a></p>
 </td></tr></table></td></tr></table></body></html>`;
 }
 
@@ -199,6 +211,8 @@ async function runForUser(svc: Svc, userId: string, email: string, kind: string,
     nameSource = (selfRow as { name?: string } | null)?.name || "";
   }
   const firstName = nameSource.trim().split(/\s+/)[0] || "there";
+  const token = await stopToken(userId);
+  const stopUrl = `${STOP_PAGE}?t=${encodeURIComponent(token)}`;
   const subject = notes.length === 1 ? `What happened in ${notes[0].name}'s records in ${label}` : `What happened in your loved ones' records in ${label}`;
 
   const res = await fetch("https://api.brevo.com/v3/smtp/email", {
@@ -208,7 +222,12 @@ async function runForUser(svc: Svc, userId: string, email: string, kind: string,
       sender: { name: "Wellet", email: "hello@getwellet.com" },
       to: [{ email }],
       subject,
-      htmlContent: buildHtml(firstName, label, notes),
+      htmlContent: buildHtml(firstName, label, notes, stopUrl),
+      // RFC 8058 one-click: mail apps POST here directly from their own Unsubscribe button.
+      headers: {
+        "List-Unsubscribe": `<${STOP_FN}?t=${encodeURIComponent(token)}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
       tags: ["away-note"],
     }),
   });
