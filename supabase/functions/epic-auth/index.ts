@@ -390,7 +390,10 @@ Deno.serve(async (req) => {
 
     // ── START: Generate PKCE challenge and return Epic authorize URL ──
     if (action === 'start') {
-      const { person_id, fhirBaseUrl, hospitalName } = body;
+      const { person_id } = body;
+      // The iOS client encodes keys in snake_case; web sends camelCase.
+      const fhirBaseUrl = body.fhirBaseUrl ?? body.fhir_base_url;
+      const hospitalName = body.hospitalName ?? body.hospital_name;
       if (!person_id) {
         return jsonResponse({ error: 'person_id is required' }, 400);
       }

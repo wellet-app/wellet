@@ -271,3 +271,13 @@ Deno.test('iOS callback with the tagged state connects like web', async () => {
   assertEquals(r.body.success, true);
   assertEquals(db.ehr_connections.find((x) => x.person_id === MOM)!.status, 'connected');
 });
+
+Deno.test('iOS start accepts snake_case keys (fhir_base_url, hospital_name)', async () => {
+  reset(null);
+  const r = await call({ action: 'start', person_id: MOM, fhir_base_url: FHIR, hospital_name: 'Sample Health', client: 'ios' });
+  assertEquals(r.status, 200);
+  const st = new URL(r.body.authorize_url).searchParams.get('state')!;
+  const row = db.ehr_connections.find((x) => x.state === st)!;
+  assertEquals(row.fhir_base_url, FHIR);
+  assertEquals(row.hospital_name, 'Sample Health');
+});
