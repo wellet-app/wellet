@@ -18312,6 +18312,106 @@ function closePatientMismatchModal() {
   }
 }
 
+// 2026-10-21: confirm step. When Wellet has no birth date for the person, the
+// hospital sign-in pauses on the server (status awaiting_confirm) and nothing
+// syncs until the caregiver says this is the right record. opts: fn (edge
+// function slug), connection_id, person_id, hospital_name, patient { name,
+// birth_month 'YYYY-MM' }, onConfirmed(data) to resume the normal success path.
+function openPatientConfirmModal(opts) {
+  opts = opts || {};
+  var esc = function(v) { return String(v).replace(/[<>&"']/g, function(c) { return ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'})[c]; }); };
+  var hospital = esc(opts.hospital_name || 'The hospital');
+  var person = null;
+  try { person = (currentPeople || []).find(function(p) { return p.id === opts.person_id; }); } catch (e) {}
+  var isSelf = !!(person && person.is_self);
+  var who = esc((person && person.name) || 'this person');
+  var pt = opts.patient || {};
+  var bornLine = '';
+  if (pt.birth_month && /^\d{4}-\d{2}$/.test(pt.birth_month)) {
+    var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    var mi = parseInt(pt.birth_month.slice(5, 7), 10) - 1;
+    if (mi >= 0 && mi < 12) bornLine = 'Born ' + months[mi] + ' ' + pt.birth_month.slice(0, 4);
+  }
+  var nameLine = pt.name ? esc(pt.name) : 'The hospital did not send a name';
+  var existing = document.getElementById('patient-confirm-overlay');
+  if (existing) { try { existing.remove(); } catch (e) {} }
+  var overlay = document.createElement('div');
+  overlay.id = 'patient-confirm-overlay';
+  overlay.className = 'cr-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-labelledby', 'pc-title');
+  overlay.innerHTML = '' +
+    '<div class="cr-sheet at-sheet">' +
+      '<div class="cr-handle"></div>' +
+      '<div class="cr-title" id="pc-title">' + (isSelf ? 'Is this your record?' : 'Is this ' + who + '\u2019s record?') + '</div>' +
+      '<p class="at-lede">' + hospital + ' sent back this record. Check it before anything is saved.</p>' +
+      '<div style="border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:4px 0 14px;background:#fff;">' +
+        '<div style="font-weight:600;color:var(--ink);">' + nameLine + '</div>' +
+        (bornLine ? '<div style="color:var(--ink-3, #6b6b6b);margin-top:2px;">' + bornLine + '</div>' : '') +
+      '</div>' +
+      '<div class="cr-actions at-actions">' +
+        '<button type="button" class="cr-btn secondary" id="pc-no">No, start over</button>' +
+        '<button type="button" class="cr-btn primary" id="pc-yes">' + (isSelf ? 'Yes, this is me' : 'Yes, this is ' + who) + '</button>' +
+      '</div>' +
+      '<p class="at-filed" style="margin-top:12px;">If you say yes, Wellet saves ' + (isSelf ? 'your' : who + '\u2019s') + ' birth date so future sign-ins are checked automatically.</p>' +
+    '</div>';
+  document.body.appendChild(overlay);
+  requestAnimationFrame(function() { overlay.classList.add('show'); });
+
+  var busy = false;
+  var send = function(answer) {
+    if (busy) return;
+    busy = true;
+    var yesBtn = document.getElementById('pc-yes');
+    var noBtn = document.getElementById('pc-no');
+    if (yesBtn) yesBtn.disabled = true;
+    if (noBtn) noBtn.disabled = true;
+    db.auth.getSession().then(function(sessionRes) {
+      var session = sessionRes && sessionRes.data && sessionRes.data.session;
+      if (!session) throw new Error('no_session');
+      return fetch(SUPABASE_URL + '/functions/v1/' + (opts.fn || 'epic-auth'), {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + session.access_token,
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({ action: 'confirm_patient', connection_id: opts.connection_id, person_id: opts.person_id, answer: answer })
+      });
+    }).then(function(res) { return res.json(); }).then(function(data) {
+      closePatientConfirmModal();
+      if (answer === 'no' || (data && data.declined)) {
+        try { localStorage.removeItem('wellet_ehr_pending_person'); } catch (e) {}
+        showToast('Nothing was saved. You can connect again any time.');
+        return;
+      }
+      if (data && data.error === 'confirm_expired') {
+        try { localStorage.removeItem('wellet_ehr_pending_person'); } catch (e) {}
+        showToast('That sign-in timed out, so nothing was saved. Please connect again.');
+        return;
+      }
+      if (typeof opts.onConfirmed === 'function') opts.onConfirmed(data || {});
+    }).catch(function(err) {
+      console.error('[confirm_patient] failed:', err);
+      busy = false;
+      if (yesBtn) yesBtn.disabled = false;
+      if (noBtn) noBtn.disabled = false;
+      showToast('Could not reach Wellet. Please try again.');
+    });
+  };
+  document.getElementById('pc-yes').onclick = function() { send('yes'); };
+  document.getElementById('pc-no').onclick = function() { send('no'); };
+}
+
+function closePatientConfirmModal() {
+  var overlay = document.getElementById('patient-confirm-overlay');
+  if (overlay) {
+    overlay.classList.remove('show');
+    setTimeout(function() { try { overlay.remove(); } catch (e) {} }, 300);
+  }
+}
+
 function closeAlmostThereModal() {
   var overlay = document.getElementById('almost-there-overlay');
   if (overlay) {
@@ -18894,8 +18994,21 @@ function handleEhrCallback() {
     }).then(function(res) {
       if (!res) return;
       return res.json();
-    }).then(function(data) {
+    }).then(function _epicHandleCallbackData(data) {
       if (!data) return;
+      // 2026-10-21: confirm step. The server paused because Wellet has no
+      // birth date for this person. Ask first; resume this same handler on yes.
+      if (data.needs_confirm && data.connection_id) {
+        openPatientConfirmModal({
+          fn: 'epic-auth',
+          connection_id: data.connection_id,
+          person_id: personId,
+          hospital_name: data.hospital_name,
+          patient: data.patient,
+          onConfirmed: function(confirmed) { _epicHandleCallbackData(confirmed); }
+        });
+        return;
+      }
       if (data.error) {
         try { localStorage.removeItem('wellet_ehr_pending_person'); } catch(e) {}
 
