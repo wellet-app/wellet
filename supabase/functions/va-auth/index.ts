@@ -265,6 +265,21 @@ function resolveEndpoints(isSandbox: boolean): {
   };
 }
 
+// Name and birth month from a FHIR Patient, for the confirm screen only.
+// Birth month is YYYY-MM so the screen can say "Born March 1948".
+function patientDisplay(p: Record<string, any>): { name: string | null; birth_month: string | null } {
+  const names: Record<string, any>[] = Array.isArray(p?.name) ? p.name : [];
+  const pick = names.find((n) => n?.use === 'official') || names.find((n) => n?.use === 'usual') || names[0] || null;
+  let name: string | null = null;
+  if (pick) {
+    const given = Array.isArray(pick.given) ? pick.given.join(' ') : '';
+    name = (typeof pick.text === 'string' && pick.text.trim()) || [given, pick.family || ''].join(' ').trim() || null;
+  }
+  const bd = typeof p?.birthDate === 'string' ? p.birthDate : '';
+  const birth_month = /^\d{4}-\d{2}/.test(bd) ? bd.slice(0, 7) : null;
+  return { name: name ? name.slice(0, 120) : null, birth_month };
+}
+
 // ── Main Handler ─────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -542,6 +557,12 @@ Deno.serve(async (req) => {
       // A failed Patient read does not block; it is logged.
       let mismatchReason: string | null = null;
       const guardDebug: Record<string, unknown> = { guard: 'patient_match_v1' };
+      // Confirm step (2026-10-21, same as epic-auth v66): with no birth date
+      // in Wellet on a production base, pause at awaiting_confirm and show the
+      // caregiver the name and birth month from VA. Sandbox bases skip it so
+      // synthetic test birth dates are never saved to a real profile.
+      let needsConfirm = false;
+      let confirmDisplay: { name: string | null; birth_month: string | null } = { name: null, birth_month: null };
       if (resolvedPatientId) {
         const { data: dupRows } = await admin.from('ehr_connections')
           .select('id')
@@ -583,8 +604,21 @@ Deno.serve(async (req) => {
           } catch (e) {
             guardDebug.patient_read_error = String((e as Error)?.message || e).slice(0, 200);
           }
+        } else {
+          needsConfirm = true;
+          try {
+            const base = String(conn.fhir_base_url || '').replace(/\/+$/, '');
+            const pRes = await fetch(`${base}/Patient/${encodeURIComponent(resolvedPatientId)}`, {
+              headers: { Authorization: `Bearer ${tokenData.access_token}`, Accept: 'application/fhir+json' },
+            });
+            guardDebug.patient_read_status = pRes.status;
+            if (pRes.ok) confirmDisplay = patientDisplay(await pRes.json());
+          } catch (e) {
+            guardDebug.patient_read_error = String((e as Error)?.message || e).slice(0, 200);
+          }
         }
       }
+      if (!mismatchReason && !isSandboxBase && !resolvedPatientId) needsConfirm = true;
       if (mismatchReason) {
         await admin.from('ehr_connections').update({
           status: 'patient_mismatch',
@@ -597,6 +631,39 @@ Deno.serve(async (req) => {
         }).eq('id', conn.id).eq('user_id', user.id);
         console.warn('[va-auth] patient-match guard blocked connect', { conn_id: conn.id, reason: mismatchReason });
         return jsonResponse({ error: 'patient_mismatch', reason: mismatchReason, hospital_name: 'VA' }, 409);
+      }
+
+      if (needsConfirm) {
+        // See epic-auth v66. Not 'connected': no sync schedule, sync skips it,
+        // nothing superseded. confirm_patient finishes it; the
+        // ehr-confirm-expire cron clears it once the access token expires.
+        const { error: pauseErr } = await admin.from('ehr_connections')
+          .update({
+            access_token: encAccessToken,
+            refresh_token: encRefreshToken,
+            token_expires_at: expiresAt,
+            patient_id: resolvedPatientId,
+            connected_provider: hospitalLabel,
+            client_id_used: connEp.clientId,
+            needs_reconnect: false,
+            status: 'awaiting_confirm',
+            code_verifier: null,
+            state: null,
+          })
+          .eq('id', conn.id)
+          .eq('user_id', user.id);
+        if (pauseErr) {
+          console.error('[va-auth] pause for confirm failed', { err: (pauseErr as { message?: string })?.message });
+          return jsonResponse({ error: 'Failed to store tokens' }, 500);
+        }
+        console.log('[va-auth] paused for patient confirm', { conn_id: conn.id, has_name: !!confirmDisplay.name, has_birth_month: !!confirmDisplay.birth_month });
+        return jsonResponse({
+          needs_confirm: true,
+          connection_id: conn.id,
+          hospital_name: 'VA',
+          patient: confirmDisplay,
+          expires_at: expiresAt,
+        });
       }
 
       try {
@@ -656,6 +723,126 @@ Deno.serve(async (req) => {
         expires_at: expiresAt,
         has_refresh_token: !!tokenData.refresh_token,
         offline_access_granted: offlineGranted,
+      });
+    }
+
+    // ── CONFIRM_PATIENT (2026-10-21) ──
+    // Finishes or cancels a connect paused at awaiting_confirm.
+    //   answer 'yes': re-checks the account-level duplicate rule, saves the
+    //     hospital's full birth date on the person if Wellet still has none,
+    //     supersedes any prior connected row, and marks the row connected.
+    //   answer 'no': clears the tokens and closes the row as patient_mismatch.
+    if (action === 'confirm_patient') {
+      const { connection_id, person_id, answer } = body;
+      if (!connection_id || !person_id || (answer !== 'yes' && answer !== 'no')) {
+        return jsonResponse({ error: 'connection_id, person_id and answer (yes or no) are required' }, 400);
+      }
+      const admin = getAdminClient();
+      const { data: conn } = await admin.from('ehr_connections')
+        .select('*')
+        .eq('id', connection_id)
+        .eq('user_id', user.id)
+        .eq('person_id', person_id)
+        .eq('status', 'awaiting_confirm')
+        .eq('provider', 'va')
+        .maybeSingle();
+      if (!conn) return jsonResponse({ error: 'not_found' }, 404);
+
+      const closeRow = async (status: string, reason: string) => {
+        await admin.from('ehr_connections').update({
+          status,
+          access_token: null,
+          refresh_token: null,
+          token_expires_at: null,
+          last_error: reason,
+          last_error_step: 'patient_confirm',
+          last_error_at: new Date().toISOString(),
+        }).eq('id', conn.id).eq('user_id', user.id);
+      };
+
+      if (answer === 'no') {
+        await closeRow('patient_mismatch', 'user_declined');
+        return jsonResponse({ declined: true, hospital_name: 'VA' });
+      }
+
+      const expiresMs = conn.token_expires_at ? new Date(conn.token_expires_at).getTime() : 0;
+      if (!expiresMs || expiresMs <= Date.now()) {
+        await closeRow('abandoned', 'confirm_expired');
+        return jsonResponse({ error: 'confirm_expired', hospital_name: 'VA' }, 410);
+      }
+
+      if (conn.patient_id) {
+        const { data: dupRows } = await admin.from('ehr_connections')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('fhir_base_url', conn.fhir_base_url)
+          .eq('patient_id', conn.patient_id)
+          .eq('status', 'connected')
+          .neq('person_id', person_id)
+          .limit(1);
+        if (dupRows && dupRows.length) {
+          await closeRow('patient_mismatch', 'same_patient_other_person');
+          return jsonResponse({ error: 'patient_mismatch', reason: 'same_patient_other_person', hospital_name: 'VA' }, 409);
+        }
+      }
+
+      // Save the hospital's birth date so later sign-ins are checked
+      // automatically. Only a full YYYY-MM-DD from the Patient resource, and
+      // only when the person still has no birth date (never overwrites).
+      let birthDateSaved = false;
+      const encKey = Deno.env.get('EHR_ENCRYPTION_KEY') || '';
+      if (encKey && conn.patient_id && conn.access_token) {
+        try {
+          const { data: plain } = await admin.rpc('decrypt_ehr_token', { encrypted_token: conn.access_token, enc_key: encKey });
+          if (plain) {
+            const base = String(conn.fhir_base_url || '').replace(/\/+$/, '');
+            const pRes = await fetch(`${base}/Patient/${encodeURIComponent(conn.patient_id)}`, {
+              headers: { Authorization: `Bearer ${plain}`, Accept: 'application/fhir+json' },
+            });
+            if (pRes.ok) {
+              const pj = await pRes.json();
+              const bd = typeof pj?.birthDate === 'string' ? pj.birthDate : '';
+              if (/^\d{4}-\d{2}-\d{2}$/.test(bd)) {
+                const { data: upd } = await admin.from('people')
+                  .update({ date_of_birth: bd, date_of_birth_source: `ehr_confirm:${conn.id}` })
+                  .eq('id', person_id)
+                  .eq('user_id', user.id)
+                  .is('date_of_birth', null)
+                  .is('manual_date_of_birth', null)
+                  .select('id');
+                birthDateSaved = !!(upd && upd.length);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[va-auth] confirm birth-date save skipped', { conn_id: conn.id, err: String((e as Error)?.message || e).slice(0, 200) });
+        }
+      }
+
+      await admin.from('ehr_connections')
+        .update({ status: 'superseded', access_token: null, refresh_token: null, token_expires_at: null, needs_reconnect: false })
+        .eq('person_id', person_id)
+        .eq('fhir_base_url', conn.fhir_base_url)
+        .eq('status', 'connected')
+        .neq('id', conn.id);
+
+      const { error: connErr } = await admin.from('ehr_connections')
+        .update({ status: 'connected', connected_at: new Date().toISOString() })
+        .eq('id', conn.id)
+        .eq('user_id', user.id)
+        .eq('status', 'awaiting_confirm');
+      if (connErr) {
+        console.error('[va-auth] confirm final update failed', { conn_id: conn.id, err: (connErr as { message?: string })?.message });
+        return jsonResponse({ error: 'Failed to store tokens' }, 500);
+      }
+      console.log('[va-auth] patient confirmed by caregiver', { conn_id: conn.id, birth_date_saved: birthDateSaved });
+      return jsonResponse({
+        success: true,
+        confirmed: true,
+        hospital_name: 'VA',
+        expires_at: conn.token_expires_at,
+        has_refresh_token: !!conn.refresh_token,
+        birth_date_saved: birthDateSaved,
       });
     }
 

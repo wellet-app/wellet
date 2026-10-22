@@ -18382,12 +18382,12 @@ function openPatientConfirmModal(opts) {
     }).then(function(res) { return res.json(); }).then(function(data) {
       closePatientConfirmModal();
       if (answer === 'no' || (data && data.declined)) {
-        try { localStorage.removeItem('wellet_ehr_pending_person'); } catch (e) {}
+        try { localStorage.removeItem(opts.pending_key || 'wellet_ehr_pending_person'); } catch (e) {}
         showToast('Nothing was saved. You can connect again any time.');
         return;
       }
       if (data && data.error === 'confirm_expired') {
-        try { localStorage.removeItem('wellet_ehr_pending_person'); } catch (e) {}
+        try { localStorage.removeItem(opts.pending_key || 'wellet_ehr_pending_person'); } catch (e) {}
         showToast('That sign-in timed out, so nothing was saved. Please connect again.');
         return;
       }
@@ -20602,8 +20602,22 @@ function handleVaCallback() {
     }).then(function(res) {
       if (!res) return;
       return res.json();
-    }).then(function(data) {
+    }).then(function _vaHandleCallbackData(data) {
       if (!data) return;
+      // 2026-10-21: confirm step (va-auth). Wellet has no birth date for this
+      // person, so ask before saving; resume this same handler on yes.
+      if (data.needs_confirm && data.connection_id) {
+        openPatientConfirmModal({
+          fn: 'va-auth',
+          pending_key: 'wellet_va_pending_person',
+          connection_id: data.connection_id,
+          person_id: personId,
+          hospital_name: 'VA',
+          patient: data.patient,
+          onConfirmed: function(confirmed) { _vaHandleCallbackData(confirmed); }
+        });
+        return;
+      }
       try { console.log('[va] callback body', data); } catch(e) {}
       // 2026-10-21: patient-match guard (va-auth). Nothing was saved.
       if (data.error === 'patient_mismatch') {
