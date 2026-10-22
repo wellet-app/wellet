@@ -88,6 +88,7 @@ globalThis.fetch = async (input: any, init?: any) => {
     if (req.method === 'POST') { const b = await req.json(); (Array.isArray(b) ? b : [b]).forEach((x) => db[table].push(x)); return new Response(null, { status: 201 }); }
     if (req.method === 'DELETE') { db[table] = db[table].filter((r) => !rows.includes(r)); return new Response(null, { status: 204 }); }
   }
+  if (url.href === FHIR + '/.well-known/smart-configuration') return json({ authorization_endpoint: 'https://fhir.hospital.test/oauth2/authorize', token_endpoint: TOKEN_URL });
   if (req.url === TOKEN_URL) return json({ access_token: 'AT', refresh_token: 'RT', expires_in: 3600, scope: 'offline_access patient/Patient.read', patient: tokenPatient });
   if (url.href.startsWith(FHIR + '/Patient/')) {
     assertEquals(req.headers.get('Authorization'), 'Bearer AT');
@@ -228,4 +229,45 @@ Deno.test('no patient in token response: pauses', async () => {
   const r = await call({ action: 'callback', code: 'x', state: 'st-c1', person_id: MOM });
   assertEquals(r.body.needs_confirm, true);
   assertEquals(conn('c1').status, 'awaiting_confirm');
+});
+
+// iOS sign-in start (2026-10-21)
+Deno.test('iOS start: state is tagged ios. and stored, authorize URL returns to /epic-callback', async () => {
+  reset(null);
+  const r = await call({ action: 'start', person_id: MOM, fhirBaseUrl: FHIR, hospitalName: 'Sample Health', client: 'ios' });
+  assertEquals(r.status, 200);
+  const u = new URL(r.body.authorize_url);
+  const st = u.searchParams.get('state')!;
+  assert(st.startsWith('ios.'));
+  assertEquals(u.searchParams.get('redirect_uri'), 'https://mywellet.com/epic-callback');
+  assertEquals(u.searchParams.get('aud'), FHIR);
+  const row = db.ehr_connections.find((x) => x.state === st)!;
+  assertEquals(row.person_id, MOM);
+  assertEquals(row.status, 'pending');
+});
+
+Deno.test('iOS start never falls back to the sandbox', async () => {
+  reset(null);
+  const a = await call({ action: 'start', person_id: MOM, client: 'ios' });
+  assertEquals(a.status, 400);
+  const b = await call({ action: 'start', person_id: MOM, fhirBaseUrl: FHIR, sandbox: true, client: 'ios' });
+  assertEquals(b.status, 400);
+  assertEquals(db.ehr_connections.length, 0);
+});
+
+Deno.test('web start is unchanged: state has no ios. tag', async () => {
+  reset(null);
+  const r = await call({ action: 'start', person_id: MOM, fhirBaseUrl: FHIR, hospitalName: 'Sample Health' });
+  assertEquals(r.status, 200);
+  assert(!new URL(r.body.authorize_url).searchParams.get('state')!.startsWith('ios.'));
+});
+
+Deno.test('iOS callback with the tagged state connects like web', async () => {
+  reset('1948-03-14');
+  const s = await call({ action: 'start', person_id: MOM, fhirBaseUrl: FHIR, hospitalName: 'Sample Health', client: 'ios' });
+  const st = new URL(s.body.authorize_url).searchParams.get('state')!;
+  const r = await call({ action: 'callback', code: 'c1', state: st, person_id: MOM });
+  assertEquals(r.status, 200);
+  assertEquals(r.body.success, true);
+  assertEquals(db.ehr_connections.find((x) => x.person_id === MOM)!.status, 'connected');
 });

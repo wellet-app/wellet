@@ -394,6 +394,14 @@ Deno.serve(async (req) => {
       if (!person_id) {
         return jsonResponse({ error: 'person_id is required' }, 400);
       }
+      // 2026-10-21 iOS sign-in. client 'ios' tags the state with "ios." so
+      // the /epic-callback page hands the return to the app (wellet://).
+      // iOS never uses the sandbox, so a missing hospital is an error, not
+      // a silent fallback to Epic's test system.
+      const fromIos = body.client === 'ios';
+      if (fromIos && (isSandbox || !fhirBaseUrl)) {
+        return jsonResponse({ error: 'fhirBaseUrl is required' }, 400);
+      }
 
       const admin = getAdminClient();
 
@@ -440,7 +448,7 @@ Deno.serve(async (req) => {
 
       const codeVerifier = generateCodeVerifier();
       const codeChallenge = await computeCodeChallenge(codeVerifier);
-      const state = generateState();
+      const state = (fromIos ? 'ios.' : '') + generateState();
 
       const { data: existingRows, error: existingErr } = await admin
         .from('ehr_connections')

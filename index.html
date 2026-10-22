@@ -1,6 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script>
+  // iOS hospital sign-in hand-off (2026-10-21). Epic returns every sign-in
+  // to /epic-callback. Sign-ins started in the iPhone app carry state
+  // "ios.<random>"; send those to the app first thing, and keep the web
+  // app from also trying to use the one-time code (__welletIosHandoff).
+  (function () {
+    try {
+      if (location.pathname !== '/epic-callback') return;
+      var st = new URLSearchParams(location.search).get('state') || '';
+      if (st.indexOf('ios.') !== 0) return;
+      window.__welletIosHandoff = true;
+      location.replace('wellet://epic-callback' + location.search);
+    } catch (e) {}
+  })();
+  </script>
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=AW-985109408"></script>
   <script>
