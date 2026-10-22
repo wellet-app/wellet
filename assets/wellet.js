@@ -19149,6 +19149,7 @@ function handleEhrCallback() {
 
 // Handle the /epic-callback route specifically
 function handleEpicCallback() {
+  if (window.__welletIosHandoff) return;
   var path = window.location.pathname;
   if (path === '/epic-callback') {
     handleEhrCallback();
@@ -20471,6 +20472,8 @@ function syncNowFromRecords() {
 
 // Check for auth callback code on page load (supports both /epic-callback route and ?code= param)
 function checkEhrCallbackOnLoad() {
+  // iPhone sign-in: index.html already handed this return to the app.
+  if (window.__welletIosHandoff) return;
   var params = new URLSearchParams(window.location.search);
   if (window.location.pathname === '/epic-callback' || params.get('code')) {
     handleEhrCallback();
