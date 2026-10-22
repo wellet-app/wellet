@@ -18354,7 +18354,7 @@ function openPatientConfirmModal(opts) {
         '<button type="button" class="cr-btn secondary" id="pc-no">No, start over</button>' +
         '<button type="button" class="cr-btn primary" id="pc-yes">' + (isSelf ? 'Yes, this is me' : 'Yes, this is ' + who) + '</button>' +
       '</div>' +
-      '<p class="at-filed" style="margin-top:12px;">If you say yes, Wellet saves ' + (isSelf ? 'your' : who + '\u2019s') + ' birth date so future sign-ins are checked automatically.</p>' +
+      (bornLine ? '<p class="at-filed" style="margin-top:12px;">If you say yes, Wellet saves ' + (isSelf ? 'your' : who + '\u2019s') + ' birth date so future sign-ins are checked automatically.</p>' : '') +
     '</div>';
   document.body.appendChild(overlay);
   requestAnimationFrame(function() { overlay.classList.add('show'); });
