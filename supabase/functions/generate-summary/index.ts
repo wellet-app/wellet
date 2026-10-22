@@ -552,9 +552,9 @@ Deno.serve(async (req: Request) => {
       const named: string[] = [];
       let unnamed = false;
       for (const r of rows) {
-        const rawDose = String(r.dose || "").match(/\d+\s*(mg|mcg|g|ml|iu|units?)/i)?.[0];
+        const rawDose = String(r.dose || "").match(/\d[\d,]*(?:\.\d+)?\s*(mg|mcg|g|ml|iu|units?)\b/i)?.[0];
         const dose = rawDose
-          ? rawDose.replace(/(\d)\s*/, "$1 ").toLowerCase().replace(/\biu\b/, "IU").replace(/\bml\b/, "mL")
+          ? rawDose.replace(/(\d)\s*(?=[a-z])/i, "$1 ").toLowerCase().replace(/\biu\b/, "IU").replace(/\bml\b/, "mL")
           : undefined;
         if (dose) { if (!doses.includes(dose)) doses.push(dose); } else missingDose = true;
         const who = String(r.prescriber || "").trim();
