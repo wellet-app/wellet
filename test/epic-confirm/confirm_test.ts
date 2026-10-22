@@ -137,6 +137,7 @@ Deno.test('yes: connects, saves the hospital birth date, supersedes the prior ro
   assertEquals(conn('old').status, 'superseded');
   assertEquals(conn('old').access_token, null);
   assertEquals(db.people.find((p) => p.id === MOM)!.date_of_birth, '1948-03-14');
+  assertEquals(db.people.find((p) => p.id === MOM)!.date_of_birth_source, 'ehr_confirm:c1');
 });
 
 Deno.test('no: tokens cleared, row closed, birth date not saved', async () => {

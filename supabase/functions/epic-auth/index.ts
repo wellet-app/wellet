@@ -1380,7 +1380,7 @@ Deno.serve(async (req) => {
               const bd = typeof pj?.birthDate === 'string' ? pj.birthDate : '';
               if (/^\d{4}-\d{2}-\d{2}$/.test(bd)) {
                 const { data: upd } = await admin.from('people')
-                  .update({ date_of_birth: bd })
+                  .update({ date_of_birth: bd, date_of_birth_source: `ehr_confirm:${conn.id}` })
                   .eq('id', person_id)
                   .eq('user_id', user.id)
                   .is('date_of_birth', null)
