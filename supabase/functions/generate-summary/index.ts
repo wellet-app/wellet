@@ -30,7 +30,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChat } from "../_shared/azureOpenAI.ts";
 
-const VERSION = "29";
+const VERSION = "30";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -92,7 +92,7 @@ function computeLabTrends(labs: any[]): Array<{
       const priorDate = formatShortDate(prior!.effective_date);
       const unit = latest.unit ? " " + latest.unit : "";
       delta_desc = priorDate
-        ? `${direction === "down" ? "down" : direction === "up" ? "up" : "steady"} from ${prior!.value}${unit} in ${priorDate}`
+        ? `${direction === "down" ? "down" : direction === "up" ? "up" : "steady"} from ${prior!.value}${unit} on ${priorDate}`
         : null;
     }
     const latestTime = new Date(latest.effective_date).getTime();
@@ -109,13 +109,63 @@ function computeLabTrends(labs: any[]): Array<{
   return result;
 }
 
+// ── Headline helpers (v30) ─────────────────────────────────────────────────
+// Every What's-new bullet is "**Headline.** Detail". Both parts are built
+// here from source fields with fixed templates. The model never writes or
+// edits a headline. Clients render the bold run as the item headline and
+// the rest as detail; older rows without the bold run render as detail only.
+
+/** "PAT EXAMPLE, MD" becomes "Pat Example, MD". Mixed-case input is left as-is. */
+function displayName(raw: string): string {
+  const s = String(raw || "").trim();
+  if (!s || s !== s.toUpperCase()) return s;
+  const keepUpper = new Set(["MD", "DO", "NP", "PA", "RN", "PHD", "DNP", "FNP", "APRN", "CNM", "DDS", "II", "III", "IV", "PA-C"]);
+  return s.split(/(\s+|,)/).map((w) => {
+    const bare = w.replace(/\./g, "");
+    if (!/[A-Z]/.test(w) || keepUpper.has(bare)) return w;
+    return w.split("-").map((p) => p.charAt(0) + p.slice(1).toLowerCase()).join("-");
+  }).join("");
+}
+
+function capFirst(s: string): string {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
+
+/** "a", "a and b", "a, b, and c". */
+function joinList(items: string[]): string {
+  if (items.length <= 1) return items.join("");
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
+/** "Oct 9" from an ISO date, no year. */
+function formatMonthDay(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function headlined(headline: string, detail: string | null): string {
+  const h = headline.trim().replace(/[.\s]+$/, "");
+  const d = (detail || "").trim();
+  return d ? `**${h}.** ${d}` : `**${h}.**`;
+}
+
+/** Bold markers removed, for comparing model output to the allowed list. */
+function stripBold(s: string): string {
+  return s.replace(/\*\*/g, "").replace(/\s+/g, " ").trim();
+}
+
 // ── Verbatim-bullet guardrail ─────────────────────────────────────────────────
 // Splits the model output on the "What's new" heading, keeps the Snapshot
 // verbatim, and rewrites the bullet list so it contains only bullets that
 // appear verbatim in the allowed list. Drops paraphrases, additions, and
 // bullets with clinical adjectives the model may have leaked in.
 function enforceVerbatimBullets(raw: string, allowed: string[]): string {
-  const allowedSet = new Set(allowed.map((b) => b.trim()));
+  // Keyed on the bold-stripped text so a model that drops the ** markers
+  // still matches; the server's original string (with markers) is emitted.
+  const allowedByPlain = new Map(allowed.map((b) => [stripBold(b), b.trim()] as [string, string]));
   const lower = raw.toLowerCase();
   const newsRegex = /what[\u2019']s\s+new[^:]*:/i;
   const match = lower.match(newsRegex);
@@ -138,7 +188,8 @@ function enforceVerbatimBullets(raw: string, allowed: string[]): string {
     if (!trimmed) continue;
     // Strip a leading "- " bullet marker if present.
     const bulletText = trimmed.replace(/^[-*\u2022]\s+/, "").trim();
-    if (allowedSet.has(bulletText)) kept.push(`- ${bulletText}`);
+    const original = allowedByPlain.get(stripBold(bulletText));
+    if (original && !kept.includes(`- ${original}`)) kept.push(`- ${original}`);
   }
 
   if (kept.length === 0 && allowed.length > 0) {
@@ -339,6 +390,7 @@ Deno.serve(async (req: Request) => {
     });
 
     const gaps: string[] = [];
+    const gapBullets: string[] = [];
     if (ehrVisits.length) {
       const lastVisit = ehrVisits
         .map((v: any) => v.start_date)
@@ -349,6 +401,7 @@ Deno.serve(async (req: Request) => {
         const days = daysBetween(new Date().toISOString(), lastVisit);
         if (days > 180) {
           gaps.push(`It has been about ${Math.round(days / 30)} months since the last recorded visit (${formatShortDate(lastVisit)}).`);
+          gapBullets.push(headlined(`Last recorded visit ${formatShortDate(lastVisit)}`, `About ${Math.round(days / 30)} months ago.`));
         }
       }
     }
@@ -452,31 +505,32 @@ Deno.serve(async (req: Request) => {
           : t.direction === "flat"
             ? "steady"
             : null;
+      const head = `${t.name}: ${t.latest}`;
       if (dir && t.delta_desc) {
-        derivedBullets.push(`${t.name} ${t.latest} on ${t.latest_date || "recent date"}, ${t.delta_desc}.`);
+        derivedBullets.push(headlined(head, `${t.latest_date || "Recent date"}. ${capFirst(t.delta_desc)}.`));
       } else if (t.latest_date) {
-        derivedBullets.push(`${t.name} ${t.latest} on ${t.latest_date}.`);
+        derivedBullets.push(headlined(head, `${t.latest_date}.`));
       } else {
-        derivedBullets.push(`${t.name} ${t.latest}.`);
+        derivedBullets.push(headlined(head, null));
       }
     }
 
     // Visits: only source-authored fields (name, reason, provider, date).
     for (const v of ehrVisits.filter((v: any) => v.is_recent).slice(0, 4)) {
+      const md = formatMonthDay(v.start_date);
+      const head = md ? `${capFirst(v.name || "Visit")}, ${md}` : capFirst(v.name || "Visit");
       const bits: string[] = [];
-      bits.push(v.name || "Visit");
-      if (v.start_date) bits.push(`on ${formatShortDate(v.start_date) || "recent date"}`);
-      if (v.provider) bits.push(`with ${v.provider}`);
-      if (v.reason) bits.push(`for ${v.reason}`);
-      derivedBullets.push(`${bits.join(" ")}.`);
+      if (v.provider) bits.push(`With ${displayName(v.provider)}`);
+      if (v.reason) bits.push(bits.length ? `for ${v.reason}` : `For ${v.reason}`);
+      derivedBullets.push(headlined(head, bits.length ? `${bits.join(", ")}.` : null));
     }
 
     // Medications: NEW rows from EHR flagged is_recent, source-honest.
     for (const m of ehrMeds.filter((m: any) => m.is_recent).slice(0, 6)) {
-      const parts = [m.name];
+      const parts: string[] = [];
       if (m.dose) parts.push(m.dose);
       if (m.frequency) parts.push(m.frequency);
-      derivedBullets.push(`New medication on file: ${parts.join(", ")}.`);
+      derivedBullets.push(headlined(`New medication: ${m.name}`, parts.length ? `${capFirst(parts.join(", "))}.` : null));
     }
 
     // Medication conflict surface: when two or more active rows share a
@@ -492,14 +546,28 @@ Deno.serve(async (req: Request) => {
     }
     for (const [generic, rows] of activeByGeneric) {
       if (rows.length < 2) continue;
-      const summarized = rows.map((r: any) => {
-        const dose = String(r.dose || "").match(/\d+\s*(mg|mcg|g|ml|iu|units?)/i)?.[0] || "unspecified dose";
-        const who = r.prescriber ? ` from ${r.prescriber}` : "";
-        return `${dose}${who}`;
-      }).join(" and ");
-      derivedBullets.push(
-        `Two or more active ${generic} rows on file (${summarized}). Worth confirming which one is current.`,
-      );
+      // Distinct doses and prescribers, each named once.
+      const doses: string[] = [];
+      let missingDose = false;
+      const named: string[] = [];
+      let unnamed = false;
+      for (const r of rows) {
+        const rawDose = String(r.dose || "").match(/\d+\s*(mg|mcg|g|ml|iu|units?)/i)?.[0];
+        const dose = rawDose
+          ? rawDose.replace(/(\d)\s*/, "$1 ").toLowerCase().replace(/\biu\b/, "IU").replace(/\bml\b/, "mL")
+          : undefined;
+        if (dose) { if (!doses.includes(dose)) doses.push(dose); } else missingDose = true;
+        const who = String(r.prescriber || "").trim();
+        if (!who || who.toLowerCase() === "unknown") unnamed = true;
+        else { const n = displayName(who); if (!named.includes(n)) named.push(n); }
+      }
+      const doseParts = missingDose ? [...doses, "no dose listed"] : doses;
+      const whoParts = unnamed ? [...named, "an unnamed prescriber"] : named;
+      const detail: string[] = [];
+      if (doseParts.length) detail.push(`${capFirst(joinList(doseParts))}.`);
+      detail.push(named.length ? `From ${joinList(whoParts)}.` : "No prescriber listed.");
+      detail.push("Worth confirming which one is current.");
+      derivedBullets.push(headlined(`${capFirst(generic)} is listed ${rows.length} times`, detail.join(" ")));
     }
 
     // Check-in facts: source values only, no adjectives beyond the ones
@@ -513,13 +581,13 @@ Deno.serve(async (req: Request) => {
       if (typeof last.pain_level === "number") bits.push(`pain ${last.pain_level}/10`);
       if (bits.length) {
         derivedBullets.push(
-          `Caregiver check-in on ${formatShortDate(last.checked_in_at) || "recent date"}: ${bits.join(", ")}.`,
+          headlined(`Check-in, ${formatMonthDay(last.checked_in_at) || "recent"}`, `${capFirst(bits.join(", "))}.`),
         );
       }
     }
 
     // Care-gap flag: already a deterministic string, safe verbatim.
-    for (const g of gaps) derivedBullets.push(g);
+    for (const g of gapBullets) derivedBullets.push(g);
 
     // ── Verbatim-selection prompt ──────────────────────────────────────
     // The model is a selector and orderer of derivedBullets plus the
@@ -558,7 +626,7 @@ What's new (last 30 days):
 
 RULES:
 - Under 160 words total.
-- No markdown bold, no headers other than the two labels shown.
+- Do not add markdown bold of your own and no headers other than the two labels shown. Numbered bullets start with a **bold headline**; copy those ** markers exactly as given.
 - End "What's new" without a concluding sentence. No sign-off.
 - If a numbered bullet contains language you were told is forbidden, still emit it verbatim; the server generated it and takes responsibility for its language.`;
 

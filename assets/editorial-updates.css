@@ -797,3 +797,18 @@ body:has(#view-home[data-editorial="updates"]) #header-tab-bar.tab-bar .tab.acti
     font-size: 19px;
   }
 }
+
+/* What's-new items (generate-summary v30): bold sans headline over detail. */
+#view-home[data-editorial="updates"] .update-summary-item-head {
+  font-family: var(--sans, "Inter", system-ui, sans-serif);
+  font-weight: 650;
+  font-size: 17px;
+  line-height: 1.3;
+  color: var(--ink-9, #161312);
+}
+#view-home[data-editorial="updates"] .update-summary-item-detail {
+  font-family: var(--sans, "Inter", system-ui, sans-serif);
+  font-size: 15.5px;
+  line-height: 1.45;
+  color: var(--ink-7, #3A4A45);
+}

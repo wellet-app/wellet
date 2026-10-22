@@ -4256,8 +4256,11 @@ async function switchToRealPerson(personId, el) {
 function getSummaryText(pid) {
   var v = summaryCache[pid];
   if (!v || v === 'empty') return '';
-  if (typeof v === 'string') return v; // legacy fallback
-  return v.text || '';
+  // Plain text for sharing, email and Ask Wellet: drop the **headline**
+  // markers from generate-summary v30. The card renders them via
+  // formatWelletSummary, which reads summaryCache directly.
+  var t = typeof v === 'string' ? v : (v.text || ''); // string is legacy fallback
+  return String(t).replace(/\*\*/g, '');
 }
 function getSummaryMeta(pid) {
   var v = summaryCache[pid];
@@ -4537,6 +4540,27 @@ function formatWelletSummary(txt) {
       .replace(/\s*[\u2014\u2013]\s*/g, ', ');
     return escHtml(clean).replace(/\n\n+/g, '<br><br>').replace(/\n/g, '<br>');
   }
+  // What's new: one item per "- " line. generate-summary v30 starts each
+  // line with a "**Headline.**" run built by fixed server templates; the
+  // headline renders bold above the detail. Lines without that run (older
+  // rows) render as detail only. No headline is ever invented here.
+  function formatNewsItems(s) {
+    var lines = String(s).split(/\n+/).map(function(l) { return l.trim(); }).filter(Boolean);
+    var bulleted = lines.filter(function(l) { return /^[-*\u2022]\s+/.test(l); });
+    if (!bulleted.length) return '<div class="update-summary-section-body">' + formatBody(s) + '</div>';
+    var out = '<div class="update-summary-items">';
+    bulleted.forEach(function(l) {
+      var text = l.replace(/^[-*\u2022]\s+/, '').replace(/\s*[\u2014\u2013]\s*/g, ', ');
+      var m = text.match(/^\*\*(.+?)\*\*\s*(.*)$/);
+      var head = m ? m[1].replace(/[.\s]+$/, '') : '';
+      var detail = (m ? m[2] : text).replace(/\*\*/g, '');
+      out += '<div class="update-summary-item">'
+        + (head ? '<div class="update-summary-item-head">' + escHtml(head) + '</div>' : '')
+        + (detail ? '<div class="update-summary-item-detail">' + escHtml(detail) + '</div>' : '')
+        + '</div>';
+    });
+    return out + '</div>';
+  }
   var html = '';
   if (snapshotBody) {
     // Wrap the opening verdict sentence in a .verdict span so typography highlights it.
@@ -4554,7 +4578,7 @@ function formatWelletSummary(txt) {
   if (newsBody) {
     html += '<div class="update-summary-section">'
       + '<div class="update-summary-subhead">What\u2019s new (last 30 days)</div>'
-      + '<div class="update-summary-section-body">' + formatBody(newsBody) + '</div>'
+      + formatNewsItems(newsBody)
       + '</div>';
   }
   return html;
