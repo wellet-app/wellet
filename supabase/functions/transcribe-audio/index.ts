@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { aiChat, aiTranscribe } from "../_shared/azureOpenAI.ts";
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -16,7 +17,9 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const openaiKey = Deno.env.get("OPENAI_API_KEY")!;
+    // AI vendor + keys are owned by ../_shared/azureOpenAI.ts. Both the
+    // Whisper transcription call AND the GPT-4o extraction call route
+    // through Azure OpenAI (BAA-covered) with phi:true.
 
     // Authenticate the caller
     const authHeader = req.headers.get("Authorization");
@@ -89,32 +92,27 @@ Deno.serve(async (req) => {
     const mimeType = mimeMap[ext] || "audio/mp4";
     const fileName = doc.file_name || `recording.${ext}`;
 
-    // Send to OpenAI Whisper for transcription
-    const formData = new FormData();
-    formData.append("file", new File([fileData], fileName, { type: mimeType }));
-    formData.append("model", "whisper-1");
-    formData.append("response_format", "text");
-
-    const whisperRes = await fetch(
-      "https://api.openai.com/v1/audio/transcriptions",
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${openaiKey}` },
-        body: formData,
-      },
-    );
-
-    if (!whisperRes.ok) {
-      const errText = await whisperRes.text();
-      console.error("Whisper API error:", whisperRes.status, errText);
+    // Send to Azure Whisper for transcription. Whisper runs on the secondary
+    // East US 2 Azure resource (Foundry auto-provisioned there). The adapter
+    // handles endpoint/key selection — see _shared/azureOpenAI.ts azureEnv().
+    let transcript: string;
+    try {
+      const audioFile = new File([fileData], fileName, { type: mimeType });
+      const tResult = await aiTranscribe({
+        audio: audioFile,
+        filename: fileName,
+        response_format: "text",
+        phi: true,
+      });
+      transcript = (tResult.text || "").trim();
+    } catch (whisperErr) {
+      console.error("Azure Whisper error:", whisperErr);
       await db
         .from("documents")
         .update({ extraction_status: "failed" })
         .eq("id", document_id);
       return json({ error: "Transcription failed" }, 500);
     }
-
-    const transcript = await whisperRes.text();
 
     // Pass transcript through GPT-4o to extract structured health data
     const systemPrompt = [
@@ -144,15 +142,20 @@ Deno.serve(async (req) => {
       "- Be precise: only include information clearly stated in the transcript",
     ].join("\n");
 
-    const gptRes = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${openaiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    // Extract structured health items from the transcript via GPT-4o.
+    // phi:true engages the BAA guardrail. On any failure (network, parse,
+    // vendor block) we still save the raw transcript — the user has captured
+    // the recording and we don't want to lose that signal.
+    let extracted: { summary?: string; items?: unknown[]; transcript?: string } = {
+      transcript,
+      summary: "",
+      items: [],
+    };
+    try {
+      const gptResult = await aiChat({
         model: "gpt-4o",
         max_tokens: 2000,
+        phi: true,
         messages: [
           { role: "system", content: systemPrompt },
           {
@@ -163,18 +166,8 @@ Deno.serve(async (req) => {
           },
         ],
         response_format: { type: "json_object" },
-      }),
-    });
-
-    let extracted: { summary?: string; items?: unknown[]; transcript?: string } = {
-      transcript,
-      summary: "",
-      items: [],
-    };
-
-    if (gptRes.ok) {
-      const gptData = await gptRes.json();
-      const content = gptData.choices?.[0]?.message?.content;
+      });
+      const content = gptResult.content;
       if (content) {
         try {
           const parsed = JSON.parse(content);
@@ -188,8 +181,8 @@ Deno.serve(async (req) => {
           extracted = { transcript, summary: "", items: [] };
         }
       }
-    } else {
-      console.error("GPT extraction error:", gptRes.status, await gptRes.text());
+    } catch (gptErr) {
+      console.error("Azure GPT extraction error:", gptErr);
       // Still save the transcript even if extraction fails
     }
 
