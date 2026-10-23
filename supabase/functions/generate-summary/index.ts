@@ -218,6 +218,80 @@ function classifyWindow(sig: {
   return "quiet";
 }
 
+// Build the visits and conditions parts of ehr_context from stored
+// health_events rows, in the same shape the web app sends. Only
+// source-authored fields are copied; nothing is inferred. Medications
+// and labs are left empty because the main query already reads the
+// medications and lab_results tables, and repeating them would double
+// count.
+async function buildStoredEhrContext(supabase: any, personId: string) {
+  const thirtyDaysAgo = Date.now() - 30 * 86400000;
+  const inWindow = (d: string | null) => {
+    const t = d ? new Date(d).getTime() : 0;
+    return !!t && t >= thirtyDaysAgo;
+  };
+  const [{ data: visitRows }, { data: conditionRows }, { data: conns }] = await Promise.all([
+    supabase.from("health_events")
+      .select("event_date, title, notes, encounter_fhir_id, encounter_reason_text, encounter_service_provider")
+      .eq("person_id", personId)
+      .eq("event_type", "visit")
+      .eq("source", "ehr")
+      .neq("accepted", false)
+      .order("event_date", { ascending: false })
+      .limit(40),
+    supabase.from("health_events")
+      .select("event_date, title")
+      .eq("person_id", personId)
+      .eq("event_type", "condition")
+      .eq("source", "ehr")
+      .neq("accepted", false)
+      .order("event_date", { ascending: false })
+      .limit(80),
+    supabase.from("ehr_connections")
+      .select("hospital_name, provider, status")
+      .eq("person_id", personId),
+  ]);
+  if (!visitRows?.length && !conditionRows?.length) return null;
+
+  const seenVisits = new Set<string>();
+  const visits: any[] = [];
+  for (const v of visitRows || []) {
+    const day = String(v.event_date || "").split("T")[0];
+    const key = v.encounter_fhir_id || `${day}|${v.title || ""}|${v.notes || ""}`;
+    if (seenVisits.has(key)) continue;
+    seenVisits.add(key);
+    visits.push({
+      start_date: v.event_date || "",
+      name: v.title || "",
+      reason: v.encounter_reason_text || "",
+      location: v.encounter_service_provider || v.notes || "",
+      provider: "",
+      is_recent: inWindow(v.event_date),
+    });
+    if (visits.length >= 10) break;
+  }
+
+  const seenConditions = new Set<string>();
+  const conditions: any[] = [];
+  for (const c of conditionRows || []) {
+    const name = String(c.title || "").trim();
+    if (!name || seenConditions.has(name.toLowerCase())) continue;
+    seenConditions.add(name.toLowerCase());
+    conditions.push({ name, status: "", recorded_date: c.event_date || "", is_recent: inWindow(c.event_date) });
+    if (conditions.length >= 20) break;
+  }
+
+  const conn = (conns || []).find((c: any) => c.status === "connected") || (conns || [])[0];
+  return {
+    provider: conn?.hospital_name || conn?.provider || "EHR",
+    visits,
+    medications: [],
+    conditions,
+    recent_labs: [],
+    from_stored_rows: true,
+  };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -329,10 +403,14 @@ Deno.serve(async (req: Request) => {
     const totalLabs = labs180d?.length || 0;
     const totalCheckIns = checkIns?.length || 0;
 
-    const ehrConditions = (ehr_context?.conditions || []) as any[];
-    const ehrMeds = (ehr_context?.medications || []) as any[];
-    const ehrVisits = (ehr_context?.visits || []) as any[];
-    const ehrRecentLabs = (ehr_context?.recent_labs || []) as any[];
+    // The web app sends ehr_context built from hospital data in browser
+    // memory. The iPhone app does not hold that data, so when it is absent
+    // the server builds the same visits and conditions from stored rows.
+    const ehr = ehr_context || await buildStoredEhrContext(supabase, person_id);
+    const ehrConditions = (ehr?.conditions || []) as any[];
+    const ehrMeds = (ehr?.medications || []) as any[];
+    const ehrVisits = (ehr?.visits || []) as any[];
+    const ehrRecentLabs = (ehr?.recent_labs || []) as any[];
 
     const hasEhr = !!(
       ehrVisits.length || ehrMeds.length || ehrConditions.length || ehrRecentLabs.length
@@ -420,7 +498,7 @@ Deno.serve(async (req: Request) => {
     context += `\n(quiet = nothing material changed; active = multiple new events; attention = abnormal labs or cluster of changes)`;
 
     if (ehrConditions.length) {
-      context += `\n\nActive problems (from ${ehr_context?.provider || "EHR"}):\n` + ehrConditions.slice(0, 10).map((c: any) =>
+      context += `\n\nActive problems (from ${ehr?.provider || "EHR"}):\n` + ehrConditions.slice(0, 10).map((c: any) =>
         `- ${c.name}${c.recorded_date ? " (since " + String(c.recorded_date).split("T")[0] + ")" : ""}`,
       ).join("\n");
     }
@@ -431,7 +509,7 @@ Deno.serve(async (req: Request) => {
       ).join("\n");
     }
     if (ehrMeds.length) {
-      context += `\n\nActive medications (${ehr_context?.provider || "EHR"}):\n` + ehrMeds.slice(0, 12).map((m: any) =>
+      context += `\n\nActive medications (${ehr?.provider || "EHR"}):\n` + ehrMeds.slice(0, 12).map((m: any) =>
         `- ${m.name}${m.dose ? " " + m.dose : ""}${m.frequency ? ", " + m.frequency : ""}${m.is_recent ? "  [NEW in last 30d]" : ""}`,
       ).join("\n");
     }
@@ -690,7 +768,7 @@ RULES:
 
     const sources = {
       ehr: hasEhr,
-      ehr_provider: ehr_context?.provider || null,
+      ehr_provider: ehr?.provider || null,
       wearable: activeWearables.length > 0,
       wearable_provider: activeWearables[0]?.provider || null,
       check_ins: totalCheckIns > 0,
