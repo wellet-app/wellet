@@ -536,7 +536,7 @@ function openSendConnectLinkModal(opts) {
   if (!personId) { showToast('Pick a loved one first'); return; }
   var person = (currentPeople || []).find(function (p) { return p && p.id === personId; });
   if (!person) { showToast('Loved one not found'); return; }
-  if (person.is_self) { showToast('That\u2019s your own row \u2014 use Connect instead'); return; }
+  if (person.is_self) { showToast('That\u2019s your own row, use Connect instead'); return; }
 
   var firstName = (person.name || 'your loved one').split(' ')[0] || 'your loved one';
   var phone = (person.phone || '').trim();
@@ -617,13 +617,13 @@ function openSendConnectLinkModal(opts) {
         return;
       }
       overlay.remove();
-      showToast('Sent to ' + firstName + ' \u2014 we\u2019ll let you know when they connect.');
+      showToast('Sent to ' + firstName + ', we\u2019ll let you know when they connect.');
       // Re-render the per-person area so the "Waiting for [name]" state
       // appears immediately rather than after a route change.
       try { renderDsInvitePending(personId); } catch (e) {}
     } catch (e) {
       console.error('[dsinvite] create failed:', e);
-      showToast('Network error \u2014 try again');
+      showToast('Network error, try again');
       if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = 1; sendBtn.innerHTML = '<i data-lucide="send" style="width:16px;height:16px;"></i> Send text'; initIcons(); }
     }
   };
@@ -704,7 +704,7 @@ async function resendDsInvite(inviteToken) {
     showToast('Sent again.');
     try { renderDsInvitePending(currentPersonId); } catch (e) {}
   } catch (e) {
-    showToast('Network error \u2014 try again');
+    showToast('Network error, try again');
   }
 }
 
@@ -857,7 +857,7 @@ async function initApp() {
     } catch (authErr) {
       console.error('onAuthStateChange error:', authErr);
       showAuthScreen();
-      showToast('Something went wrong — please sign in again');
+      showToast('Something went wrong, please sign in again');
     }
   });
   // Check for EHR OAuth callback code in URL
@@ -946,7 +946,7 @@ function showMeBetaPanel(feature) {
     emergency_pdf: 'emergency summary PDF'
   };
   var label = featureLabels[feature] || feature || 'this feature';
-  showToast('Wellet for You is in beta \u2014 ' + label + ' is included free while we test. Billing turns on later at $9.99/year.');
+  showToast('Wellet for You is in beta, ' + label + ' is included free while we test. Billing turns on later at $9.99/year.');
 }
 
 function showUpgradePrompt(feature) {
@@ -1559,7 +1559,7 @@ async function verifyAuthCode() {
   var email = '';
   try { email = localStorage.getItem('wellet_last_signin_email') || ''; } catch (e) {}
   if (!email) {
-    showToast('Session expired — please enter your email again');
+    showToast('Session expired, please enter your email again');
     showAuthFormState();
     return;
   }
@@ -1805,7 +1805,7 @@ function _wpShowSetupModal(session) {
         // NotAllowedError = user cancelled the OS prompt — stay silent.
         if (!e || e.name !== 'NotAllowedError') {
           console.warn('passkey register failed:', e);
-          if (typeof showToast === 'function') showToast('Could not set up ' + label + ' — you can try again from Settings');
+          if (typeof showToast === 'function') showToast('Could not set up ' + label + ', you can try again from Settings');
         }
       }
       try { localStorage.setItem('wellet_passkey_offered', '1'); } catch(_){}
@@ -1900,7 +1900,7 @@ async function signInWithPasskey() {
     if (btn) { btn.disabled = false; btn.textContent = btn.dataset.label || 'Use Face ID'; }
     if (!e || e.name !== 'NotAllowedError') {
       console.warn('signInWithPasskey failed:', e);
-      if (typeof showToast === 'function') showToast('Face ID sign-in failed — use the email code instead');
+      if (typeof showToast === 'function') showToast('Face ID sign-in failed, use the email code instead');
     }
   }
 }
@@ -2128,7 +2128,7 @@ async function handleLogout() {
 // magic-link back in and start fresh from the mode question.
 async function resetOnboarding() {
   if (!currentUser) {
-    showToast('Not signed in \u2014 use Sign out instead');
+    showToast('Not signed in, use Sign out instead');
     return;
   }
   var ok = window.confirm(
@@ -2157,7 +2157,7 @@ async function resetOnboarding() {
     if (mErr) console.warn('reset: profile app_mode error', mErr);
   } catch (e) {
     console.error('resetOnboarding failed:', e);
-    showToast('Reset failed \u2014 please try again');
+    showToast('Reset failed, please try again');
     return;
   }
 
@@ -2203,7 +2203,7 @@ async function resetOnboarding() {
   if (_audioPlayer) { _audioPlayer.pause(); _audioPlayer = null; }
   closeSettings();
   showAuthScreen();
-  showToast('Reset complete \u2014 sign in to start fresh');
+  showToast('Reset complete, sign in to start fresh');
 }
 
 // ── PHI STORAGE CLEANUP ───────────────────────────────────────────────────────
@@ -2324,7 +2324,7 @@ async function loadUserData() {
     console.error('loadUserData error:', loadErr);
     // Don't leave a blank screen — show auth as fallback
     showAuthScreen();
-    showToast('Could not load your data \u2014 please try again');
+    showToast('Could not load your data, please try again');
   }
 }
 
@@ -2394,7 +2394,7 @@ async function chooseModeMe() {
       .eq('id', currentUser.id);
     if (profileErr) {
       console.error('Failed to write app_mode=me:', profileErr);
-      showToast('Could not save your choice \u2014 please try again');
+      showToast('Could not save your choice, please try again');
       appMode = null;
       if (btnEl) btnEl.disabled = false;
       return;
@@ -2417,7 +2417,7 @@ async function chooseModeMe() {
     }).select().single();
     if (insertErr || !selfPerson) {
       console.error('Failed to create self-person row:', insertErr);
-      showToast('Could not finish setup \u2014 please try again');
+      showToast('Could not finish setup, please try again');
       // Roll back the mode write so the user can retry cleanly.
       try { await db.from('profiles').update({ app_mode: null }).eq('id', currentUser.id); } catch(e) {}
       appMode = null;
@@ -2444,7 +2444,7 @@ async function chooseModeMe() {
     }
   } catch (e) {
     console.error('chooseModeMe failed:', e);
-    showToast('Something went wrong \u2014 please try again');
+    showToast('Something went wrong, please try again');
     if (btnEl) btnEl.disabled = false;
   }
 }
@@ -2470,7 +2470,7 @@ async function chooseModeBoth() {
       .eq('id', currentUser.id);
     if (profileErr) {
       console.error('Failed to write app_mode=caregiver (Both):', profileErr);
-      showToast('Could not save your choice \u2014 please try again');
+      showToast('Could not save your choice, please try again');
       appMode = null;
       if (btnEl) btnEl.disabled = false;
       return;
@@ -2489,7 +2489,7 @@ async function chooseModeBoth() {
     }).select().single();
     if (insertErr || !selfPerson) {
       console.error('Failed to create self-person row in Both:', insertErr);
-      showToast('Could not finish setup \u2014 please try again');
+      showToast('Could not finish setup, please try again');
       try { await db.from('profiles').update({ app_mode: null }).eq('id', currentUser.id); } catch(e) {}
       appMode = null;
       if (btnEl) btnEl.disabled = false;
@@ -2506,7 +2506,7 @@ async function chooseModeBoth() {
     showOnboarding();
   } catch (e) {
     console.error('chooseModeBoth failed:', e);
-    showToast('Something went wrong \u2014 please try again');
+    showToast('Something went wrong, please try again');
     if (btnEl) btnEl.disabled = false;
   }
 }
@@ -2527,7 +2527,7 @@ async function chooseModeCaregiver() {
       .eq('id', currentUser.id);
     if (profileErr) {
       console.error('Failed to write app_mode=caregiver:', profileErr);
-      showToast('Could not save your choice \u2014 please try again');
+      showToast('Could not save your choice, please try again');
       appMode = null;
       if (btnEl) btnEl.disabled = false;
       return;
@@ -2536,7 +2536,7 @@ async function chooseModeCaregiver() {
     showOnboarding();
   } catch (e) {
     console.error('chooseModeCaregiver failed:', e);
-    showToast('Something went wrong \u2014 please try again');
+    showToast('Something went wrong, please try again');
     if (btnEl) btnEl.disabled = false;
   }
 }
@@ -3721,7 +3721,7 @@ function connectAppleHealth() {
   }
   if (!currentPersonId) {
     console.warn('connectAppleHealth: no currentPersonId yet');
-    showToast('Setting things up \u2014 try again in a moment');
+    showToast('Setting things up, try again in a moment');
     return;
   }
   // mode=apple tells the /connect-callback handler this round-trip was Apple
@@ -3752,7 +3752,7 @@ function connectAppleHealth() {
 }
 
 function showAppleHealthWebNotice() {
-  showToast('Apple Health lives on iPhone \u2014 open Wellet on your iPhone to connect.');
+  showToast('Apple Health lives on iPhone, open Wellet on your iPhone to connect.');
 }
 
 // Tapped from the yellow "last synced 3 days ago" banner. Bounces into Wellet
@@ -3765,7 +3765,7 @@ function refreshAppleHealthFromBanner() {
     return;
   }
   if (!currentPersonId) {
-    showToast('Setting things up \u2014 try again in a moment');
+    showToast('Setting things up, try again in a moment');
     return;
   }
   var deepLink = 'wellet://connect?type=health&refresh=1'
@@ -3826,7 +3826,7 @@ async function _copyPairingCodeForInstall() {
       console.warn('[install-nudge] clipboard write failed:', e);
       // Non-fatal — continue to open TestFlight regardless
     }
-    showToast('Pairing code copied \u2014 paste in Wellet Connect after install');
+    showToast('Pairing code copied, paste in Wellet Connect after install');
   }
   window.open('https://testflight.apple.com/join/fNsm9zyd', '_blank', 'noopener');
 }
@@ -11226,18 +11226,18 @@ function toggleSourcesCard(personId) {
 // v1 simply triggers the existing person-wide fetchEhrData; per-connection
 // background-sync is a v2 follow-up.
 function refreshSourceConnection(connectionId, fhirBaseUrl, hospitalName) {
-  if (isDemoMode) { showToast('Demo mode \u2014 refresh not available'); return; }
+  if (isDemoMode) { showToast('Demo mode, refresh not available'); return; }
   if (!currentPersonId) { showToast('No loved one selected'); return; }
   try { showToast('Reading your chart\u2026 usually under a minute'); } catch(e) {}
   try { fetchEhrData(currentPersonId); } catch(e) {
     console.warn('[Sources] refresh failed:', e);
-    showToast('Sync didn\u2019t finish \u2014 try again');
+    showToast('Sync didn\u2019t finish, try again');
   }
 }
 
 // Action: retry / sign-in-again for a pending or needs_reconnect row.
 function retrySourceConnection(connectionId, fhirBaseUrl, hospitalName) {
-  if (isDemoMode) { showToast('Demo mode \u2014 not available'); return; }
+  if (isDemoMode) { showToast('Demo mode, not available'); return; }
   if (!currentPersonId) { showToast('No loved one selected'); return; }
   if (!fhirBaseUrl || !hospitalName) {
     // Fallback: open the picker so the user can re-find the hospital.
@@ -11248,7 +11248,7 @@ function retrySourceConnection(connectionId, fhirBaseUrl, hospitalName) {
     beginEhrOAuth(fhirBaseUrl, hospitalName, false);
   } catch(e) {
     console.warn('[Sources] retry failed:', e);
-    showToast('Couldn\u2019t reopen \u2014 try again from the hospital picker');
+    showToast('Couldn\u2019t reopen, try again from the hospital picker');
   }
 }
 
@@ -11257,7 +11257,7 @@ function retrySourceConnection(connectionId, fhirBaseUrl, hospitalName) {
 // Spec note: per-row disconnect is a v2 follow-up; for now the button copy is
 // honest about scope when the user has multiple connections.
 function disconnectSourceConnection(connectionId, hospitalName) {
-  if (isDemoMode) { showToast('Demo mode \u2014 not available'); return; }
+  if (isDemoMode) { showToast('Demo mode, not available'); return; }
   if (!currentPersonId) { showToast('No loved one selected'); return; }
   // For a pending row, we can safely delete the stub locally.
   // For a connected row, we go through the full disconnect flow.
@@ -11278,7 +11278,7 @@ function disconnectSourceConnection(connectionId, hospitalName) {
       // Connected or needs_reconnect: defer to the existing person-wide disconnect.
       try { disconnectEhr(); } catch(e) {
         console.warn('[Sources] disconnect failed:', e);
-        showToast('Disconnect failed \u2014 try from Settings');
+        showToast('Disconnect failed, try from Settings');
       }
     })
     .catch(function(err){
@@ -11842,7 +11842,7 @@ async function retryTranscription(docId, storagePath) {
       pollAttempts++;
       // After 2 minutes, reassure user
       if (pollAttempts === 40) {
-        showToast('Still working \u2014 longer recordings take more time');
+        showToast('Still working, longer recordings take more time');
       }
       if (pollAttempts > pollMax) {
         clearInterval(retryPollTimer);
@@ -12931,7 +12931,7 @@ async function submitHealthEvent() {
 
   closeSheet('add-event-overlay');
   if (dedup.action === 'skip') {
-    showToast('Already in records — no duplicate added');
+    showToast('Already in records, no duplicate added');
   } else if (dedup.action === 'update') {
     showToast('Existing record updated');
   } else {
@@ -13051,7 +13051,7 @@ async function submitMedication() {
 
   closeSheet('add-med-overlay');
   if (medDedup.action === 'skip') {
-    showToast('Already in records — no duplicate added');
+    showToast('Already in records, no duplicate added');
   } else if (medDedup.action === 'update') {
     showToast('Existing medication updated');
   } else {
@@ -16090,7 +16090,7 @@ async function openAddWatchModal() {
         }
       );
       if (res.ok) {
-        if (typeof showToast === 'function') showToast('All set \u2014 I\u2019m watching for this now.');
+        if (typeof showToast === 'function') showToast('All set, I\u2019m watching for this now.');
         close();
         // Refresh the CareSignals view so the new watch appears in the list
         try { setTimeout(renderSignalsView, 150); } catch (_e) {}
@@ -16314,17 +16314,17 @@ async function _csCallAction(signalId, action, opts) {
 }
 async function _onCareSignalHandled(signalId) {
   var r = await _csCallAction(signalId, 'acted_on');
-  try { if (typeof showToast === 'function') showToast(r.ok ? 'Marked as handled.' : 'Could not save — try again.'); } catch(_e){}
+  try { if (typeof showToast === 'function') showToast(r.ok ? 'Marked as handled.' : 'Could not save, try again.'); } catch(_e){}
   if (r.ok && typeof renderSignalsView === 'function') { try { renderSignalsView(); } catch(_e){} }
 }
 async function _onCareSignalDismiss(signalId) {
   var r = await _csCallAction(signalId, 'dismissed');
-  try { if (typeof showToast === 'function') showToast(r.ok ? 'Dismissed.' : 'Could not dismiss — try again.'); } catch(_e){}
+  try { if (typeof showToast === 'function') showToast(r.ok ? 'Dismissed.' : 'Could not dismiss, try again.'); } catch(_e){}
   if (r.ok && typeof renderSignalsView === 'function') { try { renderSignalsView(); } catch(_e){} }
 }
 async function _onCareSignalRestore(signalId) {
   var r = await _csCallAction(signalId, 'restore');
-  try { if (typeof showToast === 'function') showToast(r.ok ? 'Restored.' : 'Could not restore — try again.'); } catch(_e){}
+  try { if (typeof showToast === 'function') showToast(r.ok ? 'Restored.' : 'Could not restore, try again.'); } catch(_e){}
   if (r.ok && typeof renderSignalsView === 'function') { try { renderSignalsView(); } catch(_e){} }
 }
 function _onCareSignalKebab(ev, signalId) {
@@ -16557,7 +16557,7 @@ async function _csConfirmAddToBrief(signalId, eventId) {
     if (typeof renderSignalsView === 'function') { try { renderSignalsView(); } catch(_e){} }
   } catch (err) {
     console.error('[CareSignal] add_to_brief error', err);
-    try { if (typeof showToast === 'function') showToast('Could not save \u2014 try again.'); } catch(_e){}
+    try { if (typeof showToast === 'function') showToast('Could not save, try again.'); } catch(_e){}
   }
 }
 
@@ -18528,7 +18528,7 @@ function submitConnectRequest() {
 
   // Basic email shape check — server will do the authoritative validation
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
-    showToast('That email doesn’t look quite right — please double-check');
+    showToast('That email doesn’t look quite right, please double-check');
     if (emailEl) emailEl.focus();
     return;
   }
@@ -18785,7 +18785,7 @@ function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox, _skipPreflight) {
     if (_ehrConnecting) {
       console.warn('[ehr] connecting lock watchdog fired \u2014 clearing stuck lock');
       _clearEhrConnectingLock();
-      try { showToast('Connection attempt timed out \u2014 try again'); } catch(e) {}
+      try { showToast('Connection attempt timed out, try again'); } catch(e) {}
     }
   }, 90000);
 
@@ -18836,7 +18836,7 @@ function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox, _skipPreflight) {
     try { console.log('[ehr] epic-auth body', data); } catch(e) {}
     if (data.error) {
       if (data.error === 'unsupported_fhir_version') {
-        showToast('This hospital isn’t supported yet — let us know and we’ll get to work on it.');
+        showToast('This hospital isn’t supported yet, let us know and we’ll get to work on it.');
         setTimeout(function() {
           openConnectRequestModal({
             source: 'unsupported_version',
@@ -18933,7 +18933,7 @@ function beginEhrOAuth(fhirBaseUrl, hospitalName, isSandbox, _skipPreflight) {
       // 2026-05-21: 200 OK but no authorize_url AND no error. Should be
       // unreachable, but never leave the user staring at a faded toast.
       try { console.warn('[ehr] epic-auth returned 200 with no authorize_url and no error', data); } catch(_e) {}
-      showToast('Could not start the connection — try again');
+      showToast('Could not start the connection, try again');
     }
   }).catch(function(err) {
     _clearEhrConnectingLock();
@@ -19062,7 +19062,7 @@ function handleEhrCallback() {
         // Patient hit Cancel/Deny inside Epic. Not a bug — gentler copy, no row.
         if (data.error === 'patient_declined') {
           var hospitalLabelPd = data.hospital_name || 'this hospital';
-          showToast('No problem \u2014 you can connect a different hospital, or come back to ' + hospitalLabelPd + ' anytime.');
+          showToast('No problem, you can connect a different hospital, or come back to ' + hospitalLabelPd + ' anytime.');
           return;
         }
 
@@ -19184,7 +19184,7 @@ function handleEpicCallback() {
 function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
   // Surface silent bails — these have historically caused "Refresh doesn't do anything" reports.
   if (isDemoMode) { console.warn('[EHR] fetchEhrData bail: demo mode'); return; }
-  if (!currentUser) { console.warn('[EHR] fetchEhrData bail: no currentUser'); try { showToast('Not signed in \u2014 please reload'); } catch(e){} return; }
+  if (!currentUser) { console.warn('[EHR] fetchEhrData bail: no currentUser'); try { showToast('Not signed in, please reload'); } catch(e){} return; }
   if (!personId) { console.warn('[EHR] fetchEhrData bail: no personId'); try { showToast('No person selected'); } catch(e){} return; }
   console.log('[EHR] fetchEhrData START person=' + personId);
   var retryAttempt = _retryAttempt || 0;
@@ -19199,7 +19199,7 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
     var session = sessionRes.data.session;
     if (!session) {
       console.warn('[EHR] fetchEhrData bail: no session');
-      try { showToast('Session expired \u2014 please reload to sign in'); } catch(e){}
+      try { showToast('Session expired, please reload to sign in'); } catch(e){}
       try { restoreRecordsEhrStatus(); } catch(e){}
       return BAILED;
     }
@@ -19250,7 +19250,7 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
           if (hasConn) {
             // Row exists but fetch still 404s after retries. Leave cache alone,
             // surface a reconnect suggestion.
-            showToast('Records are taking a moment — try again in a few seconds');
+            showToast('Records are taking a moment, try again in a few seconds');
             return;
           }
           // No connection row really exists. Only now is it safe to clear cache.
@@ -19272,7 +19272,7 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
     if (!data || data.error) {
       // PHI log removed
       console.warn('[EHR] fetchEhrData bail: no data or data.error');
-      try { showToast("Couldn\u2019t reach health records \u2014 try again"); } catch(e){}
+      try { showToast("Couldn\u2019t reach health records, try again"); } catch(e){}
       try { restoreRecordsEhrStatus(); } catch(e){}
       return;
     }
@@ -19287,7 +19287,7 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
         expected: data.expected_patient_id,
         returned: data.patient.id,
       });
-      showToast('Identity mismatch — please reconnect this person’s record');
+      showToast('Identity mismatch, please reconnect this person’s record');
       // Do NOT cache — this would overwrite the wrong person
       try { restoreRecordsEhrStatus(); } catch(e){}
       return;
@@ -19359,7 +19359,7 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
     }
   }).catch(function(err) {
     console.error('EHR fetch error:', err);
-    try { showToast("Couldn\u2019t reach health records \u2014 try again"); } catch(e){}
+    try { showToast("Couldn\u2019t reach health records, try again"); } catch(e){}
     try { restoreRecordsEhrStatus(); } catch(e){}
     // BDB onboarding animation: clear strip + cinematic stage on EHR/VA
     // fetch failure so the user isn't left staring at a spinner.
@@ -19380,8 +19380,8 @@ function refreshEhrData() {
     return;
   }
   var personId = currentPersonId;
-  if (!personId) { showToast('No person selected \u2014 tap a person pill first'); return; }
-  if (!currentUser) { showToast('Not signed in \u2014 please reload'); return; }
+  if (!personId) { showToast('No person selected, tap a person pill first'); return; }
+  if (!currentUser) { showToast('Not signed in, please reload'); return; }
   showToast('Refreshing health records\u2026');
   fetchEhrData(personId);
 }
@@ -19395,7 +19395,7 @@ function refreshEhrData() {
 // "Disconnected" when nothing was deleted server-side.
 function disconnectEhr() {
   console.log('[EHR] disconnectEhr called, isDemoMode:', isDemoMode, 'currentPersonId:', currentPersonId);
-  if (isDemoMode) { showToast('Demo mode — disconnect not available'); return; }
+  if (isDemoMode) { showToast('Demo mode, disconnect not available'); return; }
   var personId = currentPersonId;
   if (!personId) { showToast('No person selected'); return; }
 
@@ -19425,7 +19425,7 @@ function disconnectEhr() {
     if (!resp) return; // no session path
     console.log('[EHR] disconnect response:', resp.status);
     if (!resp.ok) {
-      showToast('Disconnect failed (' + resp.status + ') — still connected');
+      showToast('Disconnect failed (' + resp.status + '), still connected');
       return;
     }
     showToast('Health records disconnected');
@@ -19440,7 +19440,7 @@ function disconnectEhr() {
     initIcons();
   }).catch(function(err) {
     console.error('EHR disconnect error:', err);
-    showToast('Disconnect failed — ' + (err && err.message ? err.message : 'network error'));
+    showToast('Disconnect failed, ' + (err && err.message ? err.message : 'network error'));
   });
 }
 
@@ -20298,7 +20298,7 @@ async function handleAttachmentPick(inputEl, scope, key) {
       if (ext === 'heic' || ext === 'heif') kind = 'photo';
       else if (ext === 'm4a') kind = 'audio';
       else {
-        showToast(escHtml(f.name) + ' \u2014 only audio, photo, or PDF files are allowed.');
+        showToast(escHtml(f.name) + ', only audio, photo, or PDF files are allowed.');
         continue;
       }
     }
@@ -20482,7 +20482,7 @@ function syncNowFromRecords() {
     var el = document.getElementById('records-ehr-status');
     if (el && el.innerHTML.indexOf('Reading your chart') !== -1) {
       try { restoreRecordsEhrStatus(); } catch(e){}
-      try { showToast("Your chart didn\u2019t finish reading \u2014 tap to try again"); } catch(e){}
+      try { showToast("Your chart didn\u2019t finish reading, tap to try again"); } catch(e){}
     }
   }, 25000);
   try {
@@ -20490,7 +20490,7 @@ function syncNowFromRecords() {
   } catch(e) {
     console.warn('syncNowFromRecords:', e);
     try { restoreRecordsEhrStatus(); } catch(e2){}
-    try { showToast("Sync didn\u2019t finish \u2014 try again"); } catch(e2){}
+    try { showToast("Sync didn\u2019t finish, try again"); } catch(e2){}
   }
 }
 
@@ -20832,9 +20832,9 @@ function handleConnectCallback() {
   try {
     if (status === 'ok') {
       if (mode === 'ehr') {
-        showToast('Health records connected \u2014 catching up');
+        showToast('Health records connected, catching up');
       } else if (mode === 'terra') {
-        showToast('Wearable connected \u2014 catching up');
+        showToast('Wearable connected, catching up');
       } else {
         // apple (and legacy missing-mode). We deliberately do NOT set the
         // wellet_apple_health_connected_<person_id> flag here \u2014 a status=ok
@@ -20844,15 +20844,15 @@ function handleConnectCallback() {
         // Postgres (people.apple_health_last_sync_at or wearable_observations
         // rows). Until Build 5 ships the explicit HealthKit-success webhook,
         // a slightly softer "finishing up" toast is honest.
-        showToast('Finishing Apple Health setup \u2014 give it a moment');
+        showToast('Finishing Apple Health setup, give it a moment');
       }
     } else {
       if (mode === 'ehr') {
-        showToast('Health records didn\u2019t finish connecting \u2014 try again');
+        showToast('Health records didn\u2019t finish connecting, try again');
       } else if (mode === 'terra') {
-        showToast('Wearable didn\u2019t finish connecting \u2014 try again');
+        showToast('Wearable didn\u2019t finish connecting, try again');
       } else {
-        showToast('Apple Health didn\u2019t finish connecting \u2014 try again');
+        showToast('Apple Health didn\u2019t finish connecting, try again');
       }
     }
   } catch(e) {}
@@ -21350,7 +21350,7 @@ function renderWatchProposalCard(key, data) {
 
 async function confirmWatchProposal(key, btnEl) {
   var prop = window._watchProposalRegistry && window._watchProposalRegistry[key];
-  if (!prop) { showToast && showToast('That option expired \u2014 ask again.'); return; }
+  if (!prop) { showToast && showToast('That option expired, ask again.'); return; }
   if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Saving\u2026'; }
   try {
     var result = await callEdgeFn('create-care-signal-watch', {
@@ -21682,7 +21682,7 @@ function promptNewRecordsWatchOptIn(personId, hospitalName) {
         }
       );
       if (res.ok) {
-        showToast && showToast('All set \u2014 I\u2019ll notice new records.');
+        showToast && showToast('All set, I\u2019ll notice new records.');
       } else {
         var errText = '';
         try { errText = await res.text(); } catch (_e) {}
@@ -23067,7 +23067,7 @@ function onManualVisitFilePicked(input) {
     return;
   }
   if (f.size > 25 * 1024 * 1024) {
-    showToast('File is over 25MB \u2014 try a smaller one.');
+    showToast('File is over 25MB, try a smaller one.');
     input.value = '';
     _manualVisitState.file = null;
     return;
@@ -23369,14 +23369,14 @@ function _uploadGuardOk(file) {
   var ext = dot >= 0 ? name.slice(dot + 1).toLowerCase() : '';
   if (!ext || _UPLOAD_ALLOWED_EXT.indexOf(ext) === -1) {
     if (typeof showToast === 'function') {
-      showToast('That file type isn\u2019t supported yet \u2014 try a PDF, image, or audio file.');
+      showToast('That file type isn\u2019t supported yet, try a PDF, image, or audio file.');
     }
     return false;
   }
   if (typeof file.size === 'number' && file.size > _UPLOAD_MAX_BYTES) {
     var maxMb = Math.round(_UPLOAD_MAX_BYTES / (1024 * 1024));
     if (typeof showToast === 'function') {
-      showToast('That file is over ' + maxMb + ' MB \u2014 please pick a smaller one.');
+      showToast('That file is over ' + maxMb + ' MB, please pick a smaller one.');
     }
     return false;
   }
@@ -23727,7 +23727,7 @@ async function confirmUpload() {
     setTimeout(function() {
       document.getElementById('upload-step3').style.display = 'none';
       document.getElementById('upload-step1').style.display = 'block';
-      showToast('Upload failed — please try again');
+      showToast('Upload failed, please try again');
     }, 2000);
   }
 }
@@ -24759,7 +24759,7 @@ async function _startReimbursementsFlow() {
     _renderReimbursementsQuestionFlow(pre.prefilled_fields || [], pre.asked_fields || [], pre.input_provenance || {});
   } catch (e) {
     console.warn('[Reimbursements] prefill error', e);
-    showToast('Could not start — please try again');
+    showToast('Could not start, please try again');
     renderReimbursementsView();
   }
 }
@@ -24877,7 +24877,7 @@ async function _submitReimbursementsAnswers() {
     renderReimbursementsView();
   } catch (e) {
     console.warn('[Reimbursements] submit error', e);
-    showToast('Could not save — please try again');
+    showToast('Could not save, please try again');
     renderReimbursementsView();
   }
 }
@@ -26326,7 +26326,7 @@ async function confirmAppModeSwitch(target) {
       .eq('id', currentUser.id);
     if (error) {
       console.error('confirmAppModeSwitch update failed:', error);
-      showToast('Could not switch mode \u2014 please try again');
+      showToast('Could not switch mode, please try again');
       if (btn) btn.disabled = false;
       return;
     }
@@ -26357,7 +26357,7 @@ async function confirmAppModeSwitch(target) {
             // Roll back
             await db.from('profiles').update({ app_mode: prevMode }).eq('id', currentUser.id);
             appMode = prevMode;
-            showToast('Could not switch mode \u2014 please try again');
+            showToast('Could not switch mode, please try again');
             if (btn) btn.disabled = false;
             return;
           }
@@ -26371,7 +26371,7 @@ async function confirmAppModeSwitch(target) {
           console.error('Self-person create threw:', insertCatch);
           await db.from('profiles').update({ app_mode: prevMode }).eq('id', currentUser.id);
           appMode = prevMode;
-          showToast('Could not switch mode \u2014 please try again');
+          showToast('Could not switch mode, please try again');
           if (btn) btn.disabled = false;
           return;
         }
@@ -26395,7 +26395,7 @@ async function confirmAppModeSwitch(target) {
     if (btn) btn.disabled = false;
   } catch (e) {
     console.error('confirmAppModeSwitch threw:', e);
-    showToast('Something went wrong \u2014 please try again');
+    showToast('Something went wrong, please try again');
     if (btn) btn.disabled = false;
   }
 }
@@ -26409,7 +26409,7 @@ function generateVisitQuestions() {
     showToast('In the real app, Wellet generates targeted questions based on recent changes');
     return;
   }
-  showToast('Visit questions coming soon — generating from your recent health changes');
+  showToast('Visit questions coming soon, generating from your recent health changes');
 }
 
 // ── VOICE RECORDING (P1C) ─────────────────────────────────────────────────────
@@ -26618,7 +26618,7 @@ function finishVoiceRecording() {
     var pl = document.getElementById('voice-processing-label');
     if (pl) pl.textContent = 'Recording didn\u2019t complete. Tap the X and try again. If it keeps failing, force-quit Safari and reload mywellet.com.';
     if (pe) pe.style.display = 'block';
-    try { showToast('Voice recording stuck \u2014 see error below.'); } catch (e) {}
+    try { showToast('Voice recording stuck, see error below.'); } catch (e) {}
   }, 10000);
 
   if (_vrMediaRecorder && _vrMediaRecorder.state !== 'inactive') {
@@ -26733,7 +26733,7 @@ async function _uploadVoiceRecording() {
       if (processingEl) processingEl.style.display = 'none';
       closeSheet('voice-record-overlay');
       if (typeof renderRecordsView === 'function') renderRecordsView();
-      showToast('Recording saved. Transcription is still processing \u2014 check Records in a moment.');
+      showToast('Recording saved. Transcription is still processing, check Records in a moment.');
       return;
     }
     clearTimeout(timeoutId);
@@ -26745,7 +26745,7 @@ async function _uploadVoiceRecording() {
       showToast('Recording saved and transcribed');
     } else {
       // Edge function already marked the doc as failed; user can retry from Records.
-      showToast('Recording saved. Transcription failed \u2014 you can retry from Records.');
+      showToast('Recording saved. Transcription failed, you can retry from Records.');
     }
 
     // Refresh the views that show the new note. We MUST re-fetch documents
@@ -26822,7 +26822,7 @@ function onBugScreenshotPick(event) {
 
 async function submitBugReport() {
   var text = document.getElementById('bug-report-text').value.trim();
-  if (!text) { showToast('Tell me what happened \u2014 even one sentence helps'); return; }
+  if (!text) { showToast('Tell me what happened, even one sentence helps'); return; }
 
   var btn = document.getElementById('bug-report-submit');
   btn.disabled = true;
@@ -26895,7 +26895,7 @@ async function submitBugReport() {
     }
 
     closeSheet('bug-report-overlay');
-    showToast('Report sent \u2014 thank you. Betsy will see this.');
+    showToast('Report sent, thank you. Betsy will see this.');
   } catch (err) {
     console.error('Bug report error:', err);
     showToast('Could not send: ' + err.message);
@@ -28177,8 +28177,8 @@ async function obSaveDob() {
   }
   // Sanity check: not in the future, not before 1900.
   var today = _obTodayISO();
-  if (iso > today) { showToast('That date is in the future — please double-check.'); return; }
-  if (iso < '1900-01-01') { showToast('That date looks too far back — please double-check.'); return; }
+  if (iso > today) { showToast('That date is in the future, please double-check.'); return; }
+  if (iso < '1900-01-01') { showToast('That date looks too far back, please double-check.'); return; }
 
   _obDisableDobGroup();
   obChat.dateOfBirth = iso;
@@ -29676,7 +29676,7 @@ function _storyFallbackCopy(text) {
     document.body.removeChild(ta);
     if (typeof showToast === 'function') showToast('Story copied');
   } catch(_e) {
-    if (typeof showToast === 'function') showToast('Copy failed \u2014 try selecting the text');
+    if (typeof showToast === 'function') showToast('Copy failed, try selecting the text');
   }
 }
 
@@ -30882,7 +30882,7 @@ async function generateVisitExport() {
     closeSheet('export-overlay');
   } catch (e) {
     console.error('Export error:', e);
-    showToast('Export generated \u2014 check your downloads folder');
+    showToast('Export generated, check your downloads folder');
     closeSheet('export-overlay');
   } finally {
     // Reset loading state
@@ -31977,7 +31977,7 @@ function checkRemindersNow() {
             try { new Notification(title, { body: body, icon: '/favicon.svg' }); } catch(e) {}
           }
           // In-app toast
-          showToast('\ud83d\udc8a ' + title + ' \u2014 time to take');
+          showToast('\ud83d\udc8a ' + title + ', time to take');
         }
 
         // Add to notif list (always, even during quiet hours)
@@ -32244,12 +32244,12 @@ function openLifeChanges() {
     + '<div style="flex:1;"><div class="eoc-lc-label">' + escHtml(name) + ' has passed away</div><div class="eoc-lc-sub">Begin the end-of-care journey</div></div>'
     + '<div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>'
     + '</div>'
-    + '<div class="eoc-lc-row" onclick="showToast(\'Coming soon — this feature is being built\')">'
+    + '<div class="eoc-lc-row" onclick="showToast(\'Coming soon, this feature is being built\')">'
     + '<div class="eoc-lc-icon" style="background:var(--amber-bg);color:var(--amber);"><i data-lucide="building-2" style="width:18px;height:18px;"></i></div>'
     + '<div style="flex:1;"><div class="eoc-lc-label">' + escHtml(name) + ' moved to a care facility</div><div class="eoc-lc-sub">Update care arrangements</div></div>'
     + '<div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>'
     + '</div>'
-    + '<div class="eoc-lc-row" onclick="showToast(\'Coming soon — this feature is being built\')">'
+    + '<div class="eoc-lc-row" onclick="showToast(\'Coming soon, this feature is being built\')">'
     + '<div class="eoc-lc-icon" style="background:var(--mint);color:var(--moss);"><i data-lucide="arrow-right-left" style="width:18px;height:18px;"></i></div>'
     + '<div style="flex:1;"><div class="eoc-lc-label">' + escHtml(name) + '\u2019s care has been transferred</div><div class="eoc-lc-sub">Hand off to another caregiver</div></div>'
     + '<div class="settings-chevron"><i data-lucide="chevron-right" style="width:16px;height:16px;"></i></div>'
@@ -32583,13 +32583,13 @@ function eocSubmitFund() {
             donor_note: message || null,
             is_anonymous: false
           });
-          showToast('Thank you \u2014 your donation will help another caregiver');
+          showToast('Thank you, your donation will help another caregiver');
         } catch(e) {
-          showToast('Donation recorded \u2014 thank you');
+          showToast('Donation recorded, thank you');
         }
       })();
     } else {
-      showToast('Thank you \u2014 your donation will help another caregiver');
+      showToast('Thank you, your donation will help another caregiver');
     }
   } else if (_eocFundChoice === 'refund') {
     showToast('We\u2019ll process your refund within 5\u20137 business days');
@@ -33312,7 +33312,7 @@ async function openTerraConnect(provider, _skipPreflight) {
 
       _terraPopup = window.open(data.widget_url, 'terra_connect', 'width=500,height=700,scrollbars=yes');
       if (!_terraPopup || _terraPopup.closed) {
-        showToast('Popup blocked \u2014 please allow popups for mywellet.com', 'error');
+        showToast('Popup blocked, please allow popups for mywellet.com', 'error');
         return;
       }
       showToast('Complete the connection in the popup window', 'info');
@@ -33333,7 +33333,7 @@ async function openTerraConnect(provider, _skipPreflight) {
         }
       }, 500);
     } else {
-      showToast('No widget URL returned \u2014 check Terra config', 'error');
+      showToast('No widget URL returned, check Terra config', 'error');
     }
   } catch (e) {
     console.error('[Terra] connect error:', e);
@@ -33342,12 +33342,12 @@ async function openTerraConnect(provider, _skipPreflight) {
 }
 
 function showSensorSetup() {
-  showToast('Home sensors are coming soon \u2014 we\u2019ll notify you when ready.');
+  showToast('Home sensors are coming soon, we\u2019ll notify you when ready.');
 }
 
 function showAppleHealthConnect() {
   if (!currentPersonId) { showToast('Select a person first', 'error'); return; }
-  showToast('Apple Health sync requires the Wellet iOS app \u2014 coming soon.');
+  showToast('Apple Health sync requires the Wellet iOS app, coming soon.');
 }
 
 function handleTerraCallback() {
@@ -34173,7 +34173,7 @@ async function sendShareNow() {
   } catch(e) {
     console.error('share failed', e);
     if (btn) { btn.disabled = false; btn.textContent = 'Try again'; }
-    showToast && showToast('Couldn\u2019t send share \u2014 please try again');
+    showToast && showToast('Couldn\u2019t send share, please try again');
   }
 }
 
@@ -34345,7 +34345,7 @@ async function sendShareReply(shareId) {
     ta.value = '';
   } catch(e) {
     console.error('sendShareReply', e);
-    showToast && showToast('Couldn\u2019t send reply \u2014 try again');
+    showToast && showToast('Couldn\u2019t send reply, try again');
   } finally {
     btn.disabled = false;
   }
@@ -35204,7 +35204,7 @@ async function vpDownloadPDF() {
     showToast('Visit Summary downloaded');
   } catch (err) {
     console.error('Visit prep PDF error:', err);
-    showToast('Could not generate PDF — please try again');
+    showToast('Could not generate PDF, please try again');
   }
 }
 
@@ -35248,7 +35248,7 @@ function vpSaveForLater() {
     saveBtn.innerHTML = '<i data-lucide="bookmark-check" style="width:16px;height:16px;"></i> Saved';
     initIcons();
   }
-  showToast('Visit prep saved — find it on Summary');
+  showToast('Visit prep saved, find it on Summary');
   // Refresh Summary card in the background
   renderUpdateMe();
 }
@@ -35926,14 +35926,14 @@ async function editAiWish(wishId) {
 // remaining wait time when throttled.
 async function surfaceWishesFromRecords() {
   if (!_wishPersonId) { showToast('Open a profile first'); return; }
-  if (isDemoMode) { showToast('Demo mode \u2014 not available'); return; }
+  if (isDemoMode) { showToast('Demo mode, not available'); return; }
   var throttleKey = 'wellet:surface-wishes:' + _wishPersonId;
   var last = 0;
   try { last = parseInt(localStorage.getItem(throttleKey) || '0', 10) || 0; } catch (e) {}
   var hoursSince = (Date.now() - last) / (3600 * 1000);
   if (hoursSince < 24) {
     var hoursLeft = Math.ceil(24 - hoursSince);
-    showToast('Already checked today \u2014 try again in ' + hoursLeft + 'h');
+    showToast('Already checked today, try again in ' + hoursLeft + 'h');
     return;
   }
 
