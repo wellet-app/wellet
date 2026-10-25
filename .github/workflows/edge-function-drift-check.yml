@@ -1,0 +1,96 @@
+# Edge function drift check
+#
+# Weekly, non-blocking. Lists edge functions deployed to Supabase project
+# nrpdhxygzyfmyljzfexv and compares them to folders under supabase/functions/.
+# If any deployed slug has no folder in git, the job fails visibly and leaves a
+# comment on the most recently updated open PR so the next review sees it.
+#
+# Not a required check. It does not block merges.
+# Requires repo secret SUPABASE_ACCESS_TOKEN (read access to the project).
+# Plan: plans/edge_function_backfill_plan_2026-09-23.md
+
+name: edge-function-drift-check
+
+on:
+  schedule:
+    - cron: "0 13 * * 1" # Mondays 13:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_REF: nrpdhxygzyfmyljzfexv
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: List deployed functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN secret is not set"
+            exit 1
+          fi
+          curl -sSf \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            "https://api.supabase.com/v1/projects/${PROJECT_REF}/functions" \
+            | jq -r '.[].slug' | sort -u > deployed.txt
+          echo "Deployed: $(wc -l < deployed.txt)"
+
+      - name: List folders in git
+        run: |
+          set -euo pipefail
+          find supabase/functions -mindepth 1 -maxdepth 1 -type d \
+            ! -name '_shared' -printf '%f\n' | sort -u > in_git.txt
+          echo "In git: $(wc -l < in_git.txt)"
+
+      - name: Compare
+        id: compare
+        run: |
+          set -euo pipefail
+          comm -23 deployed.txt in_git.txt > missing.txt || true
+          comm -13 deployed.txt in_git.txt > repo_only.txt || true
+          echo "missing_count=$(wc -l < missing.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Edge function drift"
+            echo
+            echo "Deployed but not in git: $(wc -l < missing.txt | tr -d ' ')"
+            sed 's/^/- /' missing.txt
+            echo
+            echo "In git but not deployed (informational): $(wc -l < repo_only.txt | tr -d ' ')"
+            sed 's/^/- /' repo_only.txt
+          } > report.md
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment on the most recent open PR
+        if: steps.compare.outputs.missing_count != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          pr=$(gh pr list --state open --limit 1 --json number --jq '.[0].number // empty')
+          if [ -n "$pr" ]; then
+            {
+              echo "Weekly edge function drift check found deployed functions with no folder in \`supabase/functions/\`."
+              echo
+              cat report.md
+              echo
+              echo "Backfill per plans/edge_function_backfill_plan_2026-09-23.md. This check is informational and does not block merge."
+            } > comment.md
+            gh pr comment "$pr" --body-file comment.md
+          else
+            echo "No open PR to comment on."
+          fi
+
+      - name: Fail visibly on drift
+        if: steps.compare.outputs.missing_count != '0'
+        run: |
+          echo "::error::$(cat missing.txt | wc -l) deployed edge function(s) have no folder in git"
+          exit 1
