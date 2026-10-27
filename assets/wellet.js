@@ -19235,11 +19235,11 @@ function fetchEhrData(personId, navigateToRecords, _retryAttempt) {
       console.warn('[EHR] fetch-ehr-data returned 404 for', personId, 'attempt', retryAttempt);
       // Look directly at ehr_connections to know whether a connection row exists.
       db.from('ehr_connections')
-        .select('id, access_token, connected_at')
+        .select('id, has_token, connected_at')
         .eq('person_id', personId)
         .maybeSingle()
         .then(function(connRes) {
-          var hasConn = connRes && connRes.data && connRes.data.access_token;
+          var hasConn = connRes && connRes.data && connRes.data.has_token;
           if (hasConn && retryAttempt < 2) {
             // Row exists — this was a transient read-after-write race. Retry after a delay.
             var delay = 1500 + retryAttempt * 1500;
@@ -20882,12 +20882,12 @@ function autoRefreshEhrIfNeeded(personId) {
   }
   // No cache — check if there is a connection row in the database.
   db.from('ehr_connections')
-    .select('id, provider, access_token, needs_reconnect')
+    .select('id, provider, has_token, needs_reconnect')
     .eq('person_id', personId)
     .maybeSingle()
     .then(function(res) {
       if (!res || !res.data) return;
-      if (res.data.access_token && !res.data.needs_reconnect) {
+      if (res.data.has_token && !res.data.needs_reconnect) {
         console.log('[EHR] orphan connection detected for', personId, '— fetching data');
         fetchEhrData(personId);
       }
