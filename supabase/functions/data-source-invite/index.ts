@@ -1,4 +1,12 @@
-// Wellet · data-source-invite edge function v12 — adds create_from_approval
+// Wellet · data-source-invite edge function v15: Messages channel and sharing links
+//
+// v15 changes vs v14 (2026-11-09):
+//   - create accepts channel 'messages' (Apple Health only): returns a
+//     mywellet.com/share/<token> link with a 7-day expiry and sends nothing.
+//   - consume_self refuses expired links and the caregiver's own invite, and
+//     for Apple Health creates a person_data_links row (the sharing link).
+//
+// Earlier header: Wellet · data-source-invite edge function v12 — adds create_from_approval
 //
 // One edge function, seven actions.
 //
@@ -286,8 +294,14 @@ Deno.serve(async (req) => {
       const wearableProvider = payload.wearable_provider ? String(payload.wearable_provider).toLowerCase().slice(0, 32) : null
       if (!personId) return jsonResponse({ error: 'person_id required' }, 400, corsHeaders)
       if (!['apple_health', 'ehr', 'wearable'].includes(dataSource)) return jsonResponse({ error: 'data_source must be apple_health, ehr, or wearable' }, 400, corsHeaders)
-      if (channel !== 'sms') return jsonResponse({ error: 'only sms supported in v1' }, 400, corsHeaders)
-      const to = normalizeE164(targetContact)
+      // 'messages' (v15): the caregiver's iPhone sends the link from their own
+      // Messages app. No SMS from Wellet, no phone number stored. Apple
+      // Health only, since sharing mode lives in the iOS app.
+      if (channel !== 'sms' && channel !== 'messages') return jsonResponse({ error: 'channel must be sms or messages' }, 400, corsHeaders)
+      if (channel === 'messages' && dataSource !== 'apple_health') return jsonResponse({ error: 'messages channel is apple_health only' }, 400, corsHeaders)
+      // Messages rows store a placeholder contact (like approval rows) so the
+      // NOT NULL column holds and auto_resend_due skips them.
+      const to = channel === 'sms' ? normalizeE164(targetContact) : 'via-messages'
       if (!to) return jsonResponse({ error: 'target_contact must be E.164 (+1xxxxxxxxxx)' }, 400, corsHeaders)
       const { data: person, error: personErr } = await supabase.from('people').select('id, name, user_id, is_self, phone').eq('id', personId).maybeSingle()
       if (personErr || !person) return jsonResponse({ error: 'person not found' }, 404, corsHeaders)
@@ -298,8 +312,13 @@ Deno.serve(async (req) => {
       if ((recentCount ?? 0) >= 5) return jsonResponse({ error: 'rate_limited' }, 429, corsHeaders)
       const insertRow: Record<string, unknown> = { person_id: personId, caregiver_user_id: user.id, data_source: dataSource, hospital_name: hospitalName, fhir_base_url: fhirBaseUrl, channel, target_contact: to }
       if (dataSource === 'wearable') insertRow.wearable_provider = wearableProvider
+      // Messages links get 7 days so the loved one has time to install the app.
+      if (channel === 'messages') insertRow.expires_at = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
       const { data: invite, error: insertErr } = await supabase.from('data_source_invites').insert(insertRow).select('id, token, expires_at').single()
       if (insertErr || !invite) return jsonResponse({ error: 'insert_failed: ' + (insertErr?.message ?? 'unknown') }, 500, corsHeaders)
+      if (channel === 'messages') {
+        return jsonResponse({ invite_id: invite.id, invite_link: `https://mywellet.com/share/${invite.token}`, invite_token: invite.token, expires_at: invite.expires_at, person_name: person.name, sms: null }, 200, corsHeaders)
+      }
       if (!person.phone) await supabase.from('people').update({ phone: to }).eq('id', personId)
       const link = `https://mywellet.com/?dsinvite=${invite.token}`
       const cname = await caregiverName(supabase, user.id)
@@ -379,8 +398,9 @@ Deno.serve(async (req) => {
     if (action === 'resend') {
       const token = String(payload.token || '')
       if (!token) return jsonResponse({ error: 'token required' }, 400, corsHeaders)
-      const { data: invite, error } = await supabase.from('data_source_invites').select('id, token, caregiver_user_id, target_contact, data_source, hospital_name, wearable_provider, expires_at, consumed_at, resend_count, last_resent_at').eq('token', token).maybeSingle()
+      const { data: invite, error } = await supabase.from('data_source_invites').select('id, token, caregiver_user_id, target_contact, data_source, hospital_name, wearable_provider, expires_at, consumed_at, resend_count, last_resent_at, channel').eq('token', token).maybeSingle()
       if (error || !invite) return jsonResponse({ error: 'invalid' }, 404, corsHeaders)
+      if (invite.channel !== 'sms') return jsonResponse({ error: 'not_an_sms_invite' }, 400, corsHeaders)
       if (invite.consumed_at) return jsonResponse({ error: 'already_used' }, 410, corsHeaders)
       if (new Date(invite.expires_at).getTime() < Date.now()) return jsonResponse({ error: 'expired' }, 410, corsHeaders)
       if ((invite.resend_count ?? 0) >= 3) return jsonResponse({ error: 'resend_limit' }, 429, corsHeaders)
@@ -432,10 +452,28 @@ Deno.serve(async (req) => {
       if (authErr || !user) return jsonResponse({ error: 'Invalid auth' }, 401, corsHeaders)
       const token = String(payload.token || '')
       if (!token) return jsonResponse({ error: 'token required' }, 400, corsHeaders)
-      const { data: invite, error } = await supabase.from('data_source_invites').update({ consumed_at: new Date().toISOString(), consumed_by_user_id: user.id }).eq('token', token).is('consumed_at', null).select('id, person_id, caregiver_user_id, data_source, hospital_name, wearable_provider').maybeSingle()
+      // v15: the caregiver cannot accept their own invite, and expired links
+      // are refused here too (lookup already refused them).
+      const { data: pending } = await supabase.from('data_source_invites').select('caregiver_user_id').eq('token', token).maybeSingle()
+      if (pending && pending.caregiver_user_id === user.id) return jsonResponse({ error: 'own_invite' }, 400, corsHeaders)
+      const { data: invite, error } = await supabase.from('data_source_invites').update({ consumed_at: new Date().toISOString(), consumed_by_user_id: user.id }).eq('token', token).is('consumed_at', null).gt('expires_at', new Date().toISOString()).select('id, person_id, caregiver_user_id, data_source, hospital_name, wearable_provider').maybeSingle()
       if (error || !invite) return jsonResponse({ error: 'invalid_or_already_consumed' }, 404, corsHeaders)
+      // v15: Apple Health invites create a sharing link. Uploads from this
+      // user then land on the caregiver's record for the loved one until
+      // either side ends the share (revoke_person_data_link).
+      let linkId: string | null = null
+      if (invite.data_source === 'apple_health') {
+        const { data: existing } = await supabase.from('person_data_links').select('id').eq('person_id', invite.person_id).eq('sharer_user_id', user.id).eq('source', 'apple_health').is('revoked_at', null).maybeSingle()
+        if (existing) {
+          linkId = existing.id
+        } else {
+          const { data: link, error: linkErr } = await supabase.from('person_data_links').insert({ person_id: invite.person_id, sharer_user_id: user.id, source: 'apple_health', invite_id: invite.id }).select('id').single()
+          if (linkErr || !link) return jsonResponse({ error: 'link_failed: ' + (linkErr?.message ?? 'unknown') }, 500, corsHeaders)
+          linkId = link.id
+        }
+      }
       const notify = await notifyCaregiverOfConsume(supabase, { caregiverUserId: invite.caregiver_user_id, personId: invite.person_id, dataSource: invite.data_source as DataSource, hospitalName: invite.hospital_name, wearableProvider: invite.wearable_provider })
-      return jsonResponse({ ok: true, invite_id: invite.id, person_id: invite.person_id, notify }, 200, corsHeaders)
+      return jsonResponse({ ok: true, invite_id: invite.id, person_id: invite.person_id, link_id: linkId, notify }, 200, corsHeaders)
     }
 
     if (action === 'consume') {

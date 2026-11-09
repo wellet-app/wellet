@@ -1,5 +1,8 @@
 // supabase/functions/wellet-health-ingest/index.ts
 //
+// v13 (2026-11-09): optional person_id for loved-one sharing mode. Requires
+// an active person_data_links row; rows carry link_id.
+//
 // Receives a batch of HealthKit samples from the Wellet Connect iOS app and
 // writes them into Wellet's records pipeline.
 //
@@ -74,6 +77,7 @@ interface IngestPayload {
   source: string;            // "ios-healthkit"
   client_version: string;
   batches: Record<string, SampleIn[]>;
+  person_id?: string;        // v13: sharing mode, see below
 }
 
 // v3 (2026-05-12) — CORS allowlist. iOS doesn't send Origin so it's unaffected.
@@ -137,17 +141,6 @@ Deno.serve(async (req) => {
   if (userErr || !userData.user) return json({ error: "auth failed" }, 401, corsHeaders);
   const userId = userData.user.id;
 
-  // Resolve the self-person row
-  const { data: selfPerson, error: pErr } = await admin
-    .from("people")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("is_self", true)
-    .maybeSingle();
-  if (pErr) return json({ error: pErr.message }, 500, corsHeaders);
-  if (!selfPerson) return json({ error: "no self-person row; finish onboarding first" }, 412, corsHeaders);
-  const personId = selfPerson.id;
-
   // Parse payload
   let payload: IngestPayload;
   try {
@@ -157,6 +150,41 @@ Deno.serve(async (req) => {
   }
   if (!payload || !payload.batches || typeof payload.batches !== "object") {
     return json({ error: "missing batches" }, 400, corsHeaders);
+  }
+
+  // v13: sharing mode. When the payload names a person_id, the caller is a
+  // loved one sharing their Apple Health with a caregiver. That only works
+  // with an active, unrevoked sharing link for this caller and this person
+  // (person_data_links, created when they accept the invite). Rows carry
+  // link_id so ending the share can archive exactly these rows.
+  // Without person_id, behavior is unchanged: rows go to the caller's own
+  // self-person.
+  let personId: string;
+  let linkId: string | null = null;
+  const requested = typeof payload.person_id === "string" ? payload.person_id.trim() : "";
+  if (requested) {
+    const { data: link, error: lErr } = await admin
+      .from("person_data_links")
+      .select("id")
+      .eq("person_id", requested)
+      .eq("sharer_user_id", userId)
+      .eq("source", "apple_health")
+      .is("revoked_at", null)
+      .maybeSingle();
+    if (lErr) return json({ error: lErr.message }, 500, corsHeaders);
+    if (!link) return json({ error: "no active sharing link for this person" }, 403, corsHeaders);
+    personId = requested;
+    linkId = link.id;
+  } else {
+    const { data: selfPerson, error: pErr } = await admin
+      .from("people")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("is_self", true)
+      .maybeSingle();
+    if (pErr) return json({ error: pErr.message }, 500, corsHeaders);
+    if (!selfPerson) return json({ error: "no self-person row; finish onboarding first" }, 412, corsHeaders);
+    personId = selfPerson.id;
   }
 
   // Flatten. Rows are keyed by sample_key; a repeat of the same key in one
@@ -179,6 +207,9 @@ Deno.serve(async (req) => {
         unit: s.unit,
         device_source: s.source ?? null,
         sample_key: key,
+        // A re-share brings back rows archived by an earlier stop.
+        link_id: linkId,
+        archived_at: null,
       });
     }
   }

@@ -321,6 +321,7 @@ async function evalRestingHrSustained(w: Watch): Promise<FireDecision> {
     .from("wearable_observations")
     .select("value, start_at")
     .eq("person_id", w.person_id)
+    .is("archived_at", null)
     .eq("hk_type", HK_RESTING_HR)
     .gte("start_at", since)
     .order("start_at", { ascending: true });
@@ -361,6 +362,7 @@ async function evalRestingHrBaseline(w: Watch): Promise<FireDecision> {
     .from("wearable_observations")
     .select("value, start_at")
     .eq("person_id", w.person_id)
+    .is("archived_at", null)
     .eq("hk_type", HK_RESTING_HR)
     .gte("start_at", since)
     .order("start_at", { ascending: true });
@@ -402,6 +404,7 @@ async function evalDailyStepsBelow(w: Watch): Promise<FireDecision> {
     .from("wearable_observations")
     .select("value, start_at")
     .eq("person_id", w.person_id)
+    .is("archived_at", null)
     .eq("hk_type", HK_STEPS)
     .gte("start_at", since)
     .order("start_at", { ascending: true });
@@ -440,6 +443,7 @@ async function evalSleepBelow(w: Watch): Promise<FireDecision> {
     .from("wearable_observations")
     .select("value, start_at, end_at, unit")
     .eq("person_id", w.person_id)
+    .is("archived_at", null)
     .eq("hk_type", HK_SLEEP_HOURS)
     .gte("start_at", since)
     .order("start_at", { ascending: true });
