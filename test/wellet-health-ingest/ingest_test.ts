@@ -1,4 +1,5 @@
-// Local test for wellet-health-ingest v12 sample keys. In-memory Supabase.
+// Local test for wellet-health-ingest v12 sample keys and v13 sharing mode.
+// In-memory Supabase. All ids are fictional.
 import { assertEquals } from 'jsr:@std/assert@1';
 
 const SB = 'http://sb.local';
@@ -9,6 +10,11 @@ const SELF = '44444444-4444-4444-4444-444444444444';
 type Row = Record<string, any>;
 let obs: Row[] = [];
 let upserts = 0;
+// Fictional caregiver record ("Ann Sample") that USER may share into.
+const ANN = '55555555-5555-5555-5555-555555555555';
+const LINK = '66666666-6666-6666-6666-666666666666';
+let links: Row[] = [];
+const stamped: string[] = [];
 
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (input: any, init?: any) => {
@@ -19,7 +25,14 @@ globalThis.fetch = async (input: any, init?: any) => {
   if (url.pathname === '/auth/v1/user') return json({ id: USER, aud: 'authenticated' });
   if (url.pathname === '/rest/v1/people') {
     if (req.method === 'GET') return json({ id: SELF });
+    stamped.push((url.searchParams.get('id') || '').replace('eq.', ''));
     return new Response(null, { status: 204 });
+  }
+  if (url.pathname === '/rest/v1/person_data_links' && req.method === 'GET') {
+    const v = (k: string) => (url.searchParams.get(k) || '').replace(/^eq\./, '');
+    assertEquals(url.searchParams.get('revoked_at'), 'is.null');
+    const hit = links.find((l) => l.person_id === v('person_id') && l.sharer_user_id === v('sharer_user_id') && l.source === v('source') && !l.revoked_at);
+    return json(hit ? { id: hit.id } : null);
   }
   if (url.pathname === '/rest/v1/wearable_observations' && req.method === 'POST') {
     upserts++;
@@ -45,8 +58,8 @@ let handler: (r: Request) => Promise<Response>;
 (Deno as any).serve = (h: any) => { handler = h; return {} as any; };
 const mod = await import('../../supabase/functions/wellet-health-ingest/index.ts');
 
-async function send(batches: Row) {
-  const res = await handler(new Request('https://fn.local/wellet-health-ingest', { method: 'POST', headers: { Authorization: 'Bearer t', 'Content-Type': 'application/json' }, body: JSON.stringify({ source: 'ios-healthkit', client_version: 't', batches }) }));
+async function send(batches: Row, extra: Row = {}) {
+  const res = await handler(new Request('https://fn.local/wellet-health-ingest', { method: 'POST', headers: { Authorization: 'Bearer t', 'Content-Type': 'application/json' }, body: JSON.stringify({ source: 'ios-healthkit', client_version: 't', batches, ...extra }) }));
   return { status: res.status, body: await res.json() };
 }
 const STEPS = 'HKQuantityTypeIdentifierStepCount';
@@ -110,4 +123,49 @@ Deno.test('more than one chunk of 500', async () => {
   assertEquals(r.body.ingested, 1203);
   assertEquals(upserts, 3);
   assertEquals(obs.length, 1203);
+});
+
+// v13 sharing mode -----------------------------------------------------------
+
+Deno.test('sharing: without a link, person_id is refused and nothing is written', async () => {
+  obs = []; links = [];
+  const r = await send({ [STEPS]: [at('2026-11-09T14:00:00Z', '', 10, 'iPhone')] }, { person_id: ANN });
+  assertEquals(r.status, 403);
+  assertEquals(obs.length, 0);
+});
+
+Deno.test('sharing: a revoked link is refused', async () => {
+  obs = []; links = [{ id: LINK, person_id: ANN, sharer_user_id: USER, source: 'apple_health', revoked_at: '2026-11-09T00:00:00Z' }];
+  const r = await send({ [STEPS]: [at('2026-11-09T14:00:00Z', '', 10, 'iPhone')] }, { person_id: ANN });
+  assertEquals(r.status, 403);
+  assertEquals(obs.length, 0);
+});
+
+Deno.test('sharing: an active link writes to that person with link_id and stamps that person', async () => {
+  obs = []; stamped.length = 0;
+  links = [{ id: LINK, person_id: ANN, sharer_user_id: USER, source: 'apple_health', revoked_at: null }];
+  const r = await send({ [STEPS]: [at('2026-11-09T14:00:00Z', '', 10, 'iPhone')] }, { person_id: ANN });
+  assertEquals(r.status, 200);
+  assertEquals(obs.length, 1);
+  assertEquals(obs[0].person_id, ANN);
+  assertEquals(obs[0].link_id, LINK);
+  assertEquals(obs[0].archived_at, null);
+  assertEquals(stamped.every((id) => id === ANN), true);
+});
+
+Deno.test('sharing: re-sharing un-archives a row with the same sample key', async () => {
+  links = [{ id: LINK, person_id: ANN, sharer_user_id: USER, source: 'apple_health', revoked_at: null }];
+  obs = [{ person_id: ANN, source: 'apple-health', sample_key: mod.sampleKey(STEPS, at('2026-11-09T14:00:00Z', '', 10, 'iPhone')), link_id: null, archived_at: '2026-11-09T01:00:00Z' }];
+  await send({ [STEPS]: [at('2026-11-09T14:00:00Z', '', 10, 'iPhone')] }, { person_id: ANN });
+  assertEquals(obs.length, 1);
+  assertEquals(obs[0].archived_at, null);
+  assertEquals(obs[0].link_id, LINK);
+});
+
+Deno.test('no person_id keeps the self-person path', async () => {
+  obs = []; links = [];
+  const r = await send({ [STEPS]: [at('2026-11-09T15:00:00Z', '', 5, 'iPhone')] });
+  assertEquals(r.status, 200);
+  assertEquals(obs[0].person_id, SELF);
+  assertEquals(obs[0].link_id, null);
 });
