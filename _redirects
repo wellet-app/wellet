@@ -24,6 +24,9 @@
 /dsinvite/        /dsinvite.html     200
 # Loved-one app-handoff page — deep-links wellet://connect?dsinvite=<token>
 # and falls back to a TestFlight install card if the app isn't installed.
+# Loved-one Apple Health sharing (iOS app). Caregivers send
+# /share/<token> from Messages; this page opens wellet://share/<token>.
+/share/*          /connect/share.html 200
 /connect/loved-one  /connect/loved-one.html 200
 /connect/loved-one/ /connect/loved-one.html 200
 # NOTE: /?dsinvite=<token> is NOT redirected. wellet.js handles dsinvite +
