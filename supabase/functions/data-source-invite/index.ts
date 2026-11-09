@@ -1,4 +1,11 @@
-// Wellet · data-source-invite edge function v15: Messages channel and sharing links
+// Wellet · data-source-invite edge function v16: sharing list and stop sharing
+//
+// v16 changes vs v15 (2026-11-09):
+//   - lookup also returns expires_at and caregiver_first_name.
+//   - links_for_person: the owner's view of active shares for one person,
+//     with the sharer's email, shared types and last upload.
+//   - revoke_link: forwards the caller to revoke_person_data_link.
+//   - my_shares: the sharer's own active shares.
 //
 // v15 changes vs v14 (2026-11-09):
 //   - create accepts channel 'messages' (Apple Health only): returns a
@@ -254,6 +261,13 @@ async function notifyCaregiverOfConsume(supabase: any, opts: { caregiverUserId: 
   return { inAppOk, emailOk, error: errorMsg }
 }
 
+// The person's last Apple Health upload, counted only when it came after
+// the share began. Uploads to a loved one's record come only from shares.
+function sharedSince(lastSyncAt: string | null, linkCreatedAt: string): string | null {
+  if (!lastSyncAt) return null
+  return new Date(lastSyncAt).getTime() >= new Date(linkCreatedAt).getTime() ? lastSyncAt : null
+}
+
 // ---------- main -----------------------------------------------------------
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req)
@@ -276,7 +290,7 @@ Deno.serve(async (req) => {
       const cname = await caregiverName(supabase, invite.caregiver_user_id)
       // @ts-ignore
       const lovedOne = invite.people?.name ?? null
-      return jsonResponse({ token: invite.token, data_source: invite.data_source, hospital_name: invite.hospital_name, wearable_provider: invite.wearable_provider, caregiver_name: cname, loved_one_name: lovedOne, consumed_at: invite.consumed_at }, 200, corsHeaders)
+      return jsonResponse({ token: invite.token, data_source: invite.data_source, hospital_name: invite.hospital_name, wearable_provider: invite.wearable_provider, caregiver_name: cname, caregiver_first_name: cname.split(/\s+/)[0], loved_one_name: lovedOne, consumed_at: invite.consumed_at, expires_at: invite.expires_at }, 200, corsHeaders)
     }
 
     if (action === 'create') {
@@ -442,6 +456,67 @@ Deno.serve(async (req) => {
         await supabase.from('data_source_invites').update({ resend_count: (inv.resend_count ?? 0) + 1, last_resent_at: new Date().toISOString(), ...(sms.sms_log_id ? { sms_log_id: sms.sms_log_id } : {}) }).eq('id', inv.id)
       }
       return jsonResponse({ ok: true, nudged, candidates: due.length, errors }, 200, corsHeaders)
+    }
+
+    // v16: active Apple Health shares for one of the caller's people, for
+    // the "Shared by" row on the caregiver's phone. The sharer's email lives
+    // in auth.users, which clients cannot read, so this runs here. Only the
+    // person's owner gets an answer.
+    if (action === 'links_for_person') {
+      const authHeader = req.headers.get('Authorization') ?? ''
+      if (!authHeader.startsWith('Bearer ')) return jsonResponse({ error: 'Auth required' }, 401, corsHeaders)
+      const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } })
+      const { data: { user }, error: authErr } = await userClient.auth.getUser()
+      if (authErr || !user) return jsonResponse({ error: 'Invalid auth' }, 401, corsHeaders)
+      const personId = String(payload.person_id || '')
+      if (!personId) return jsonResponse({ error: 'person_id required' }, 400, corsHeaders)
+      const { data: person } = await supabase.from('people').select('id, user_id, apple_health_last_sync_at').eq('id', personId).maybeSingle()
+      if (!person || person.user_id !== user.id) return jsonResponse({ error: 'Not authorized' }, 403, corsHeaders)
+      const { data: links, error: lErr } = await supabase.from('person_data_links').select('id, sharer_user_id, source, created_at').eq('person_id', personId).is('revoked_at', null).order('created_at', { ascending: true })
+      if (lErr) return jsonResponse({ error: lErr.message }, 500, corsHeaders)
+      const out = []
+      for (const link of links ?? []) {
+        const { data: u } = await supabase.auth.admin.getUserById(link.sharer_user_id)
+        const { data: typeRows } = await supabase.from('wearable_observations').select('hk_type').eq('link_id', link.id).is('archived_at', null).limit(5000)
+        const hkTypes = [...new Set((typeRows ?? []).map((r: { hk_type: string }) => r.hk_type))]
+        out.push({ link_id: link.id, source: link.source, sharer_email: u?.user?.email ?? null, created_at: link.created_at, last_shared_at: sharedSince(person.apple_health_last_sync_at, link.created_at), hk_types: hkTypes })
+      }
+      return jsonResponse({ links: out }, 200, corsHeaders)
+    }
+
+    // v16: end a share from either phone. The SQL function decides who may
+    // revoke and archives the shared rows; this only forwards the caller.
+    if (action === 'revoke_link') {
+      const authHeader = req.headers.get('Authorization') ?? ''
+      if (!authHeader.startsWith('Bearer ')) return jsonResponse({ error: 'Auth required' }, 401, corsHeaders)
+      const linkId = String(payload.link_id || '')
+      if (!linkId) return jsonResponse({ error: 'link_id required' }, 400, corsHeaders)
+      const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } })
+      const { data, error } = await userClient.rpc('revoke_person_data_link', { p_link_id: linkId })
+      if (error) return jsonResponse({ error: error.message }, error.code === '42501' ? 403 : 400, corsHeaders)
+      return jsonResponse({ ok: true, result: data }, 200, corsHeaders)
+    }
+
+    // v16: the sharer's own active shares, so a reinstall or a second
+    // phone can show where sharing stands.
+    if (action === 'my_shares') {
+      const authHeader = req.headers.get('Authorization') ?? ''
+      if (!authHeader.startsWith('Bearer ')) return jsonResponse({ error: 'Auth required' }, 401, corsHeaders)
+      const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } })
+      const { data: { user }, error: authErr } = await userClient.auth.getUser()
+      if (authErr || !user) return jsonResponse({ error: 'Invalid auth' }, 401, corsHeaders)
+      const { data: links, error: lErr } = await supabase.from('person_data_links').select('id, person_id, created_at, people:person_id(user_id, apple_health_last_sync_at)').eq('sharer_user_id', user.id).is('revoked_at', null)
+      if (lErr) return jsonResponse({ error: lErr.message }, 500, corsHeaders)
+      const out = []
+      for (const link of links ?? []) {
+        // @ts-ignore
+        const owner = link.people?.user_id as string | undefined
+        const cname = owner ? await caregiverName(supabase, owner) : 'A family member'
+        // @ts-ignore
+        const lastSync = link.people?.apple_health_last_sync_at as string | null | undefined
+        out.push({ link_id: link.id, person_id: link.person_id, caregiver_first_name: cname.split(/\s+/)[0], created_at: link.created_at, last_shared_at: sharedSince(lastSync ?? null, link.created_at) })
+      }
+      return jsonResponse({ shares: out }, 200, corsHeaders)
     }
 
     if (action === 'consume_self') {
