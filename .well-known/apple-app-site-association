@@ -1,0 +1,12 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["3C77F637MD.com.getwellet.ios"],
+        "components": [
+          { "/": "/share/*", "comment": "Loved-one Apple Health sharing links" }
+        ]
+      }
+    ]
+  }
+}
