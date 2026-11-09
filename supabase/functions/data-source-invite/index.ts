@@ -1,8 +1,16 @@
-// Wellet · data-source-invite edge function v8 — consume accepts optional wearable_provider
+// Wellet · data-source-invite edge function v12 — adds create_from_approval
 //
-// One edge function, six actions.
+// One edge function, seven actions.
 //
-// v6 changes vs v5:
+// v12 changes vs v11:
+//   - Adds action 'create_from_approval': service-role only. Mints a
+//     data_source_invites row from an already-approved connection_requests
+//     row. Does NOT send SMS (loved one is already on the approve page).
+//     Returns { token, id, link, expires_at } for the caller (approve-
+//     connection-request) to redirect the browser into the existing
+//     mywellet.com/?dsinvite={token} OAuth handoff.
+//
+// v11 changes vs v10:
 //   - Adds 'wearable' as a third data_source alongside apple_health + ehr.
 //     create accepts wearable_provider (optional; null = let loved one pick
 //     from Terra's full provider list on the landing page).
@@ -10,7 +18,7 @@
 //     "your wearable device" when no provider is specified yet.
 //   - notifyCaregiverOfConsume + lookup carry wearable_provider through.
 //
-// v5 changes vs v4:
+// v10 changes vs v9:
 //   - Service-role check now accepts BOTH the new sb_secret_... key AND the
 //     legacy HS256 service_role JWT.
 //   - notifyCaregiverOfConsume falls back to type='care_circle' if the
@@ -300,6 +308,74 @@ Deno.serve(async (req) => {
       return jsonResponse({ invite_id: invite.id, invite_link: link, invite_token: invite.token, expires_at: invite.expires_at, person_name: person.name, sms }, 200, corsHeaders)
     }
 
+    // v12: create a dsinvite from an already-approved connection_request.
+    // Service-role only (called by approve-connection-request). No SMS step
+    // — loved one is already on the /approve page and will be redirected
+    // to mywellet.com/?dsinvite={token} where the existing OAuth handoff
+    // runs. We still need to pass a placeholder target_contact because the
+    // column is NOT NULL on data_source_invites; we reuse the recipient
+    // from the connection_request when present, else a synthetic value.
+    if (action === 'create_from_approval') {
+      const authHeader = req.headers.get('Authorization') ?? ''
+      if (!isServiceRoleAuth(authHeader)) return jsonResponse({ error: 'service_role_only' }, 403, corsHeaders)
+      const personId = String(payload.person_id || '')
+      const caregiverUserId = String(payload.caregiver_user_id || '')
+      const dataSource = String(payload.data_source || '').toLowerCase()
+      const hospitalName = payload.hospital_name ? String(payload.hospital_name) : null
+      const fhirBaseUrl = payload.fhir_base_url ? String(payload.fhir_base_url) : null
+      const wearableProvider = payload.wearable_provider ? String(payload.wearable_provider).toLowerCase().slice(0, 32) : null
+      const targetContactRaw = payload.target_contact ? String(payload.target_contact).trim() : ''
+      const channelHint = payload.channel ? String(payload.channel).toLowerCase() : 'approval'
+      const originConnReqId = payload.origin_connection_request_id ? String(payload.origin_connection_request_id) : null
+
+      if (!personId) return jsonResponse({ error: 'person_id required' }, 400, corsHeaders)
+      if (!caregiverUserId) return jsonResponse({ error: 'caregiver_user_id required' }, 400, corsHeaders)
+      if (!['apple_health', 'ehr', 'wearable'].includes(dataSource)) {
+        return jsonResponse({ error: 'data_source must be apple_health, ehr, or wearable' }, 400, corsHeaders)
+      }
+
+      // target_contact NOT NULL fallback. Prefer the original recipient if
+      // it's already a valid phone or email. Otherwise synthesize a stable
+      // placeholder tied to the origin connection_request so DB joins still
+      // work later. data_source_invites doesn't actually parse this for
+      // create_from_approval, since no SMS gets sent.
+      let targetContact = targetContactRaw || ''
+      if (!targetContact) {
+        targetContact = originConnReqId ? `approval:${originConnReqId}` : `approval:${crypto.randomUUID()}`
+      }
+
+      const insertRow: Record<string, unknown> = {
+        person_id: personId,
+        caregiver_user_id: caregiverUserId,
+        data_source: dataSource,
+        hospital_name: hospitalName,
+        fhir_base_url: fhirBaseUrl,
+        // 'approval' channel makes it obvious in queries which dsinvite rows
+        // came via the Ask Mom approval path vs the direct SMS path.
+        channel: channelHint || 'approval',
+        target_contact: targetContact,
+      }
+      if (dataSource === 'wearable') insertRow.wearable_provider = wearableProvider
+
+      const { data: invite, error: insertErr } = await supabase
+        .from('data_source_invites')
+        .insert(insertRow)
+        .select('id, token, expires_at')
+        .single()
+      if (insertErr || !invite) {
+        return jsonResponse({ error: 'insert_failed: ' + (insertErr?.message ?? 'unknown') }, 500, corsHeaders)
+      }
+
+      const link = `https://mywellet.com/?dsinvite=${invite.token}`
+      return jsonResponse({
+        ok: true,
+        invite_id: invite.id,
+        invite_token: invite.token,
+        invite_link: link,
+        expires_at: invite.expires_at,
+      }, 200, corsHeaders)
+    }
+
     if (action === 'resend') {
       const token = String(payload.token || '')
       if (!token) return jsonResponse({ error: 'token required' }, 400, corsHeaders)
@@ -322,12 +398,17 @@ Deno.serve(async (req) => {
     if (action === 'auto_resend_due') {
       const authHeader = req.headers.get('Authorization') ?? ''
       if (!isServiceRoleAuth(authHeader)) return jsonResponse({ error: 'service_role_only' }, 403, corsHeaders)
-      const { data: due, error: dueErr } = await supabase.from('data_source_invites').select('id, token, caregiver_user_id, target_contact, data_source, hospital_name, wearable_provider, expires_at, resend_count, last_resent_at').is('consumed_at', null).gt('expires_at', new Date().toISOString()).lt('expires_at', new Date(Date.now() + 60 * 60 * 1000).toISOString()).order('expires_at', { ascending: true }).limit(20)
+      const { data: due, error: dueErr } = await supabase.from('data_source_invites').select('id, token, caregiver_user_id, target_contact, data_source, hospital_name, wearable_provider, expires_at, resend_count, last_resent_at, channel').is('consumed_at', null).gt('expires_at', new Date().toISOString()).lt('expires_at', new Date(Date.now() + 60 * 60 * 1000).toISOString()).order('expires_at', { ascending: true }).limit(20)
       if (dueErr) return jsonResponse({ error: dueErr.message }, 500, corsHeaders)
       if (!due || due.length === 0) return jsonResponse({ ok: true, nudged: 0 }, 200, corsHeaders)
       let nudged = 0
       const errors: string[] = []
       for (const inv of due) {
+        // Skip approval-channel rows — no point in SMS'ing a synthetic
+        // target_contact placeholder. They expire naturally if unused.
+        if (inv.channel === 'approval') continue
+        // Also skip if target_contact doesn't look like a phone.
+        if (!inv.target_contact || !inv.target_contact.startsWith('+')) continue
         if (inv.last_resent_at) {
           const sinceLast = Date.now() - new Date(inv.last_resent_at).getTime()
           if (sinceLast < 90 * 60 * 1000) continue

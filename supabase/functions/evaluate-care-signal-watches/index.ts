@@ -9,7 +9,7 @@
 // On fire:
 //   1. Insert into care_signal_watch_fires with notification_status = 'queued'
 //   2. Check user's quiet_hours_enabled / quiet_hours_start / quiet_hours_end
-//      \u2014 if inside quiet hours, mark fire as 'suppressed_quiet_hours' and
+//      — if inside quiet hours, mark fire as 'suppressed_quiet_hours' and
 //      do NOT send. Next run will pick it up if still relevant.
 //   3. Otherwise send email via Brevo (port 465, hello@getwellet.com FROM,
 //      same pattern as the rest of the email stack).
@@ -513,7 +513,7 @@ async function evalRefillGap(w: Watch): Promise<FireDecision> {
       last_seen: last.created_at,
       days_since: daysSince,
     },
-    factualBody: `It's been ${daysSince} days since ${last.name} was last seen in their chart. You asked Wellet to notice refill gaps. (Wellet doesn't know whether they actually took it \u2014 only what's on file.)`,
+    factualBody: `It's been ${daysSince} days since ${last.name} was last seen in their chart. You asked Wellet to notice refill gaps. (Wellet doesn't know whether they actually took it — only what's on file.)`,
   };
 }
 
