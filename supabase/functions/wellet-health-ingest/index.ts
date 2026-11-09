@@ -35,8 +35,16 @@
 // header. We resolve the user from the token, then look up their self-person
 // row to know which person_id to attach the records to.
 //
-// Idempotency: each sample has a (person_id, hk_type, start_at, source)
-// tuple. We upsert on those so re-running a snapshot doesn't create dupes.
+// Idempotency (v12, 2026-10-21): each sample gets a sample_key and we upsert
+// on (person_id, source, sample_key).
+//   - When the app sends HealthKit's sample UUID: "hk|<UUID>".
+//   - Otherwise (Wellet Connect builds up to 16): "v1|<hk_type>|<start ms>|
+//     <end ms>|<device>". The same formula backfilled existing rows in
+//     migration 20261022010000_wearable_sample_key, so re-sending an old
+//     sample updates its row instead of adding a copy.
+// The old key (person_id, hk_type, start_at, source) let an iPhone and an
+// Apple Watch sample with the same start overwrite each other, and two such
+// samples in one chunk failed the whole chunk.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -46,6 +54,20 @@ interface SampleIn {
   value: number;
   unit: string;
   source?: string | null;
+  /** HealthKit sample UUID (HKObject.uuid). Optional; newer clients send it. */
+  uuid?: string | null;
+}
+
+const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+/** Must stay in step with the backfill in 20261022010000_wearable_sample_key.sql. */
+export function sampleKey(hkType: string, s: SampleIn): string | null {
+  if (typeof s.uuid === "string" && UUID_RE.test(s.uuid)) return `hk|${s.uuid.toUpperCase()}`;
+  const startMs = Date.parse(s.start);
+  if (!Number.isFinite(startMs)) return null;
+  const endMs = s.end ? Date.parse(s.end) : NaN;
+  const endPart = Number.isFinite(endMs) ? String(Math.floor(endMs)) : "";
+  return `v1|${hkType}|${Math.floor(startMs)}|${endPart}|${s.source ?? ""}`;
 }
 
 interface IngestPayload {
@@ -137,11 +159,17 @@ Deno.serve(async (req) => {
     return json({ error: "missing batches" }, 400, corsHeaders);
   }
 
-  // Flatten
-  const rows: any[] = [];
+  // Flatten. Rows are keyed by sample_key; a repeat of the same key in one
+  // payload keeps the last one (Postgres rejects a chunk that touches the
+  // same row twice). Samples with an unreadable start time are skipped.
+  const byKey = new Map<string, any>();
+  let skipped = 0;
   for (const [hkType, samples] of Object.entries(payload.batches)) {
+    if (!Array.isArray(samples)) continue;
     for (const s of samples) {
-      rows.push({
+      const key = s ? sampleKey(hkType, s) : null;
+      if (!key) { skipped++; continue; }
+      byKey.set(key, {
         person_id: personId,
         source: "apple-health",
         hk_type: hkType,
@@ -150,16 +178,18 @@ Deno.serve(async (req) => {
         value: s.value,
         unit: s.unit,
         device_source: s.source ?? null,
+        sample_key: key,
       });
     }
   }
+  const rows: any[] = [...byKey.values()];
   if (rows.length === 0) {
     // Stamp anyway — the user did connect, even if Health is empty.
     await admin
       .from("people")
       .update({ apple_health_last_sync_at: new Date().toISOString() })
       .eq("id", personId);
-    return json({ ingested: 0 }, 200, corsHeaders);
+    return json({ ingested: 0, skipped }, 200, corsHeaders);
   }
 
   // Early stamp: shows movement in the UI even if a later chunk fails.
@@ -169,8 +199,8 @@ Deno.serve(async (req) => {
     .update({ apple_health_last_sync_at: new Date().toISOString() })
     .eq("id", personId);
 
-  // Chunked upsert. wearable_observations has a UNIQUE INDEX on
-  // (person_id, hk_type, start_at, source) -- see the migration.
+  // Chunked upsert on the wearable_observations_sample_key unique index
+  // (person_id, source, sample_key).
   // We deliberately do NOT pass `count: "exact"` here — that forces a
   // post-write COUNT scan which is what was blowing the CPU budget and
   // producing HTTP 546. We tally ingested rows ourselves from the input.
@@ -180,7 +210,7 @@ Deno.serve(async (req) => {
     const { error: insertErr } = await admin
       .from("wearable_observations")
       .upsert(chunk, {
-        onConflict: "person_id,hk_type,start_at,source",
+        onConflict: "person_id,source,sample_key",
         ignoreDuplicates: false,
       });
     if (insertErr) {
@@ -204,7 +234,7 @@ Deno.serve(async (req) => {
     .update({ apple_health_last_sync_at: new Date().toISOString() })
     .eq("id", personId);
 
-  return json({ ingested }, 200, corsHeaders);
+  return json({ ingested, skipped }, 200, corsHeaders);
 });
 
 function json(body: unknown, status = 200, corsHeaders: Record<string, string> = {}) {
