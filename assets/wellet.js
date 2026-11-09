@@ -17692,8 +17692,8 @@ function _relationshipLabel(rel) {
 function loadEpicEndpoints(cb) {
   // Bump v whenever the loader logic, ACTIVATED_FHIR_URLS, or the cache
   // shape changes so existing users with stale data refresh.
-  var CACHE_KEY = 'wellet_epic_endpoints_v7';
-  var CACHE_TS_KEY = 'wellet_epic_endpoints_v7_ts';
+  var CACHE_KEY = 'wellet_epic_endpoints_v8';
+  var CACHE_TS_KEY = 'wellet_epic_endpoints_v8_ts';
   var CACHE_TTL = 24 * 60 * 60 * 1000;
 
   // Also wipe legacy cache keys on first run so users on v2/v3/v4 don't keep
@@ -17709,6 +17709,8 @@ function loadEpicEndpoints(cb) {
     localStorage.removeItem('wellet_epic_endpoints_v5_ts');
     localStorage.removeItem('wellet_epic_endpoints_v6');
     localStorage.removeItem('wellet_epic_endpoints_v6_ts');
+    localStorage.removeItem('wellet_epic_endpoints_v7');
+    localStorage.removeItem('wellet_epic_endpoints_v7_ts');
   } catch(e) {}
 
   // Check in-memory cache first — but only if it's non-empty. An empty array
@@ -17743,9 +17745,14 @@ function loadEpicEndpoints(cb) {
   // of this edge function. Seen in prod 2026-04-27: a user's tab kept
   // receiving DSTU2 URLs from disk cache for 24h after we shipped R4.
   var bust = 'v5_' + Date.now();
-  fetch('https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/epic-endpoints?cb=' + bust, { cache: 'no-store' })
+  // activated=1 asks the server for its activated-hospital list, the same
+  // one the iOS app reads, so both apps offer the same hospitals. If an
+  // older server ignores the flag (no Activated: true in the response), the
+  // local ACTIVATED_FHIR_URLS copy below still filters the full directory.
+  fetch('https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/epic-endpoints?activated=1&cb=' + bust, { cache: 'no-store' })
     .then(function(res) { return res.json(); })
     .then(function(data) {
+      var serverFiltered = !!(data && data.Activated === true);
       var endpoints = (data.Entries || data).map(function(e) {
         return {
           name: _normalizeHospitalName(e.OrganizationName || e.Name || ''),
@@ -17756,7 +17763,8 @@ function loadEpicEndpoints(cb) {
       }).filter(function(e) {
         // Drop entries missing required fields, then gate by activation allow-list
         // so users only see hospitals where our confidential client is enabled.
-        return e.name && e.fhirBaseUrl && isActivatedHospital(e.fhirBaseUrl);
+        if (!e.name || !e.fhirBaseUrl) return false;
+        return serverFiltered || isActivatedHospital(e.fhirBaseUrl);
       });
 
       _epicEndpoints = endpoints;
