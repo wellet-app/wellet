@@ -62,7 +62,7 @@ import { aiChat } from "../_shared/azureOpenAI.ts";
 // (../_shared/azureOpenAI.ts) instead of calling Perplexity directly. This
 // closes a real posture gap: the main "answer" path ships the loved one's
 // full clinical record into the prompt, which is PHI and must run on a
-// BAA-covered vendor (Azure OpenAI). The watch-mode path stays on Sonar by
+// BAA-eligible vendor (Azure OpenAI). The watch-mode path stays on Sonar by
 // setting phi:false — it only sees the loved one's first name, a UI chip,
 // and the caregiver's own free-text request. The adapter's phi guardrail
 // will throw if Sonar is ever attempted with phi:true.
@@ -1004,8 +1004,8 @@ ${context}${emptyContextGuard}`;
 
     // PHI path. The grounded systemPrompt above contains the loved one's full
     // clinical record. We mark phi:true so the adapter's assertVendorAllowedForPhi
-    // guardrail refuses to route this to Sonar or any non-BAA vendor — Azure
-    // OpenAI (BAA-covered) is the only allowed destination today.
+    // guardrail refuses to route this to Sonar or any non-BAA-eligible vendor —
+    // Azure OpenAI is the only allowed destination today.
     let answer = 'I could not generate an answer. Please try again.';
     let modelUsed: string | undefined = undefined;
     try {

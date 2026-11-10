@@ -1,8 +1,8 @@
 // extract-wishes v1 — AI-surfaced directives & preferences from a loved one's record
 //
 // Reads everything available for one person (documents, visit notes, health_events,
-// Ask Wellet sessions, check_ins) and asks Azure OpenAI gpt-4o (PHI: true, BAA-covered)
-// to identify directives, preferences, and wishes that already live in the data.
+// Ask Wellet sessions, check_ins) and asks Azure OpenAI gpt-4o (PHI: true) to
+// identify directives, preferences, and wishes that already live in the data.
 // Writes each finding to public.wishes with status='suggested', a verbatim source
 // quote, and provenance. Caregiver confirms in the UI.
 //
@@ -295,7 +295,7 @@ Deno.serve(async (req: Request) => {
       ? contextBlock.slice(0, MAX_CONTEXT) + '\n[…truncated]'
       : contextBlock;
 
-    // Call Azure gpt-4o (BAA-covered).
+    // Call Azure gpt-4o.
     let raw = '';
     try {
       const result = await aiChat({
