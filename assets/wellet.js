@@ -1586,25 +1586,7 @@ async function verifyAuthCode() {
   // the session was written to localStorage. window.location.reload() forces a fresh
   // document load that re-runs Supabase's session bootstrap.
   if (btn) btn.textContent = 'Signed in';
-  // Google Ads conversion: fire 'Sign-up' event ONLY for brand new signups.
-  // Detect new vs returning by comparing created_at to last_sign_in_at.
-  // If the user was created in the last 60 seconds, treat as a fresh signup.
-  try {
-    var u = data && data.user;
-    if (u && u.created_at) {
-      var createdMs = new Date(u.created_at).getTime();
-      var lastSignInMs = u.last_sign_in_at ? new Date(u.last_sign_in_at).getTime() : createdMs;
-      var isNewSignup = (lastSignInMs - createdMs) < 60000; // within 1min of account creation
-      if (isNewSignup && typeof gtag === 'function') {
-        gtag('event', 'conversion', {
-          'send_to': 'AW-985109408/vEERCMbi2bMcEKCn3tUD'
-        });
-      }
-      if (isNewSignup && typeof fbq === 'function') {
-        fbq('track', 'CompleteRegistration', { content_name: 'mywellet_signup', value: 0, currency: 'USD' });
-      }
-    }
-  } catch (e) { /* never block sign-in on attribution */ }
+  // No ad conversion events from the app (2026-11-11). See index.html.
 
   // Wait for the Supabase session to actually be written to localStorage before
   // reloading. On slow iOS Safari networks, supabase-js writes the session
