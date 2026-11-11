@@ -31357,6 +31357,7 @@ function formatNotifTime(dateStr) {
 
 // ── MEDICATION REMINDER SHEET ─────────────────────────────────────────────
 function openMedReminder(medId, medName, personName) {
+  if (!MED_REMINDERS_ENABLED) return;
   _reminderMedId = medId;
   _reminderMedName = medName;
   _reminderPersonName = personName;
@@ -32088,7 +32089,12 @@ renderRecordsView = function() {
   addReminderBtnsToRecords();
 };
 
+// Medication reminders are off: Wellet is not a medication reminder, and
+// nothing ever sent these. The table and saved rows are left in place.
+var MED_REMINDERS_ENABLED = false;
+
 function addReminderBtnsToRecords() {
+  if (!MED_REMINDERS_ENABLED) return;
   var view = document.getElementById('view-records');
   if (!view) return;
 
@@ -32130,6 +32136,7 @@ function addReminderBtnsToRecords() {
 }
 
 function refreshDemoRecordBadges() {
+  if (!MED_REMINDERS_ENABLED) return;
   // Demo mode: add reminder buttons to static medication rows in Dad's records
   var dadRecords = document.getElementById('records-dad');
   if (!dadRecords) return;
