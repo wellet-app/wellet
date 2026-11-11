@@ -1,6 +1,6 @@
 # Wellet Privacy Policy
 
-**Effective Date: April 30, 2026**
+**Effective Date: November 12, 2026**
 
 ---
 
@@ -17,6 +17,7 @@ If you have questions, you can reach us at any time at **privacy@getwellet.com**
 This policy covers information collected through:
 
 - The Wellet web application at [getwellet.com](https://getwellet.com) and [mywellet.com](https://mywellet.com)
+- The Wellet app for iPhone
 - Any emails, forms, or communications you send to us
 
 **What Wellet is — and is not.** Wellet is a standalone Personal Health Record tool designed to help family caregivers organize and stay on top of the health information of the people they care for. Wellet is *not* a healthcare provider, health plan, or health insurance company. Wellet is *not* a "covered entity" under the Health Insurance Portability and Accountability Act (HIPAA).
@@ -32,7 +33,7 @@ This also means we won't make misleading claims about being "HIPAA-compliant" wh
 We only collect information that helps Wellet work for you. Here's exactly what that includes:
 
 ### Account Information
-- **Email address** — used to sign you in via a magic link (a one-time login link sent to your inbox). We do not store passwords.
+- **Email address** — used to sign you in with a one-time code or magic link sent to your inbox. Wellet does not ask you to create a password.
 
 ### Care Recipient Profiles
 When you create a profile for the person you care for, you may enter:
@@ -51,12 +52,20 @@ This information is entirely optional and controlled by you. You decide what to 
 - Appointments, medications, lab results, vitals, and notes you enter manually
 - Health record data you import from EHR exports (such as MyChart ZIP files or PDF summaries)
 - Discharge summaries, medication photos, and other documents you upload
+- Records from hospital patient portals you connect. You sign in on the hospital's own page, and Wellet reads the records the hospital makes available to you, such as conditions, medications, allergies, labs, vitals, visits and care team. We do not see or store your patient portal password.
+
+### Apple Health (iPhone app)
+If you choose to share Apple Health with Wellet, the app reads only the types you turn on, such as steps, heart rate, resting heart rate, heart rate variability, sleep, blood oxygen, breathing rate, walking steadiness and other walking measures, and falls. Those readings are sent to Wellet's servers and stored with the profile you shared them to, so you and your care circle can see them.
+
+- Wellet only reads from Apple Health. It never writes to the Health app.
+- Apple Health readings are never used for advertising or marketing, never sold, and never sent to an AI service.
+- You can stop sharing at any time in the Wellet app or in the iPhone Settings app. Deleting your account removes the Apple Health readings Wellet received.
 
 ### AI Conversation Data
 - Questions and prompts you submit to **Ask Wellet** (our AI health Q&A feature)
-- AI-generated health summaries produced by **Update Me**
+- Health summaries written by **Update Me** (called the Wellet summary in the iPhone app)
 
-See [Section 4](#4-ai-powered-features-and-data-processing) for important details on how AI features work and where this data goes.
+See [Section 4](#4-ai-features-and-data-processing) for important details on how AI features work and where this data goes.
 
 ### Care Circle Information
 When you invite other caregivers to share access to a care recipient's record, we collect:
@@ -97,28 +106,35 @@ Some health information is inherently about more than one person. Family medical
 
 ---
 
-## 4. AI-Powered Features and Data Processing
+## 4. AI Features and Data Processing
 
-Wellet includes two AI-powered features:
+Some Wellet features use AI to write text for you:
 
 - **Ask Wellet** — a conversational assistant where you can ask health-related questions in context of your loved one's records
-- **Update Me** — an AI-generated health summary based on the care recipient's profile and recent health events
+- **Update Me** (the Wellet summary in the iPhone app) — a short summary of what's new, written from the care recipient's profile and recent health events
+- **Document reading** — pulling dates, medications and results out of documents you upload
+- **Visit notes and questions** — summaries of visit notes and suggested questions for an upcoming appointment
+- **Other summaries** — the emergency summary, the weekly digest, and care wishes pulled from what you write
 
-### How AI Processing Works
+### Who Processes the Data
 
-When you use Ask Wellet or Update Me, Wellet sends relevant health information — which may include names, conditions, medications, and health events from the care recipient's profile — to [OpenAI's API](https://openai.com) for processing. OpenAI returns a response, which Wellet displays to you. We store the questions you ask and the AI-generated responses in your Wellet account.
+These features run on the **Azure OpenAI Service, operated by Microsoft**. When you use one, Wellet sends the health information the feature needs to Microsoft, Microsoft returns a response, and Wellet shows it to you. For the Wellet summary, that information is the care recipient's first name, age and relationship to you; conditions, allergies and medications; labs, visits and caregiver check-ins; and notes Wellet read from documents you added. Apple Health readings are never sent.
 
-### Important Disclosure: No BAA with OpenAI
+Under [Microsoft's terms for Azure OpenAI](https://learn.microsoft.com/en-us/legal/cognitive-services/openai/data-privacy), the data Wellet sends is not used to train Microsoft's or OpenAI's models and is not shared with OpenAI. Microsoft may keep it for a limited time to watch for abuse of the service, as those terms describe.
 
-We want to be transparent with you: **Wellet does not currently have a Business Associate Agreement (BAA) with OpenAI.** A BAA is a contract used under HIPAA to govern how a service provider handles protected health information. Because Wellet is not a HIPAA-covered entity, we are not required to maintain a BAA. However, we recognize this is meaningful information for many caregivers.
+Voice notes recorded on the web app are turned into text by **OpenAI**, under [OpenAI's API terms and privacy policy](https://openai.com/policies/privacy-policy).
 
-What this means in practice: health data you submit through Ask Wellet or Update Me is processed by OpenAI under [OpenAI's standard API terms and privacy policy](https://openai.com/policies/privacy-policy), not under a healthcare-specific BAA. We encourage you to review OpenAI's privacy practices if this is important to your decision about using these features.
+We store the questions you ask and the responses in your Wellet account.
 
-You can use Wellet's core record-keeping features — entering health events, managing profiles, uploading documents — without using Ask Wellet or Update Me.
+### Your Permission Comes First
 
-### Future Integrations
+In the iPhone app, Wellet asks before it sends anything for a Wellet summary. Nothing goes to Microsoft until you tap **Allow summaries**, and you can turn summaries off at any time in Settings. Summaries already written stay in your account until you delete them or your account.
 
-We plan to offer direct EHR connections through **1upHealth** (a FHIR API service), which would allow you to import records directly from healthcare providers. We will update this policy before enabling that integration.
+### Important Disclosure: No BAA
+
+A Business Associate Agreement (BAA) is a contract used under HIPAA to govern how a service provider handles protected health information. Wellet is not a HIPAA-covered entity or business associate, so we are not required to have one, and **Wellet does not have a BAA with Microsoft or OpenAI**. Your data is handled under each company's standard terms and the commitments in this policy.
+
+You can use Wellet's core record-keeping features — entering health events, managing profiles, uploading documents — without using the AI features.
 
 ---
 
@@ -136,11 +152,11 @@ Wellet's database is hosted on [Supabase](https://supabase.com), which runs on A
 ### Access Controls
 - We use **Row-Level Security (RLS)** on all 18 database tables, which means the database enforces that each user can only access their own data — even at the infrastructure level
 - Documents (uploaded files, PDFs, images) are stored in private Supabase Storage buckets with user-scoped access policies, so only you (and caregivers you've explicitly invited) can access them
-- Authentication is handled through **Supabase Auth** using magic links — no passwords are stored
+- Authentication is handled through **Supabase Auth** using one-time codes and magic links
 
 ### Session Security
-- A **15-minute inactivity timeout** automatically clears your session
-- **No health data is stored on your device** beyond your active browser session
+- On the web, a **15-minute inactivity timeout** automatically clears your session, and **no health data is stored on your device** beyond your active browser session
+- The iPhone app keeps your sign-in in the iPhone Keychain, protected by your device passcode
 
 ### Our Website
 The Wellet marketing website is hosted on [Netlify](https://netlify.com). No personal health information is stored on or processed by Netlify.
@@ -157,9 +173,12 @@ We share your information only as necessary to operate Wellet. Here's the comple
 | Service | What They Receive | Why |
 |---|---|---|
 | **Supabase** | All account and health data | Database and file storage infrastructure |
-| **OpenAI** | Health data submitted via Ask Wellet / Update Me | AI feature processing |
+| **Microsoft (Azure OpenAI Service)** | Health information needed for Ask Wellet, the Wellet summary, document reading, and visit notes (never Apple Health readings) | AI feature processing |
+| **OpenAI** | Voice notes recorded on the web app | Turns speech into text |
+| **Perplexity** | The name and city of a hospital you look up (no personal or health data) | Finds which records system a hospital uses |
 | **Netlify** | No personal health information | Hosts our marketing website only |
 | **Mailchimp** | Email address only (no health data) | Marketing emails to people who opt in |
+| **Brevo** | Email address and the message being sent | Delivers sign-in, invitation, and notice emails |
 | **Twilio** | Phone numbers entered into Wellet Connect (no health data) | Sends invitation and reminder SMS to family members and loved ones |
 
 **We do not:**
@@ -182,6 +201,8 @@ You are in control of your data. Here's what you can do at any time:
 - **Export your data** — download a complete archive of your health records (PDF + structured data) from your account settings
 - **Delete records** — remove individual health events, documents, or entire care recipient profiles
 - **Revoke Care Circle access** — remove any caregiver's access to a care recipient's record instantly from your settings
+- **Turn off Wellet summaries** — in the iPhone app, Settings > Wellet summaries stops new summaries from being written
+- **Stop sharing Apple Health** — in the Wellet app, or in the iPhone Settings app under Health
 - **Unsubscribe from marketing** — every marketing email includes an unsubscribe link, and you can opt out at any time
 - **Delete your account** — see Section 8 for full details
 
@@ -195,12 +216,14 @@ To exercise any of these rights, or if you have questions, contact us at **priva
 We retain your data for as long as your account is active, so Wellet can function as your ongoing health record.
 
 ### Deleting Your Account
-You can request permanent deletion of your data at any time from your account settings, or by emailing **privacy@getwellet.com** with "Delete my account" in the subject line. When you request account deletion:
+You can delete your account at any time:
 
-1. Your account enters a **30-day grace period** — your data remains intact but inaccessible during this window, in case you change your mind
-2. After the grace period, **100% of your data is permanently and irreversibly deleted within 45 days of your original request** — this includes your account information, all care recipient profiles, health events, uploaded documents, AI conversation history, Care Circle records, **and any data imported from non-VA sources** (such as MyChart exports, PDFs, or other EHR imports)
+- **In the iPhone app:** Settings > Delete account. Your account and its data are deleted right away, and this cannot be undone.
+- **By email:** write to **privacy@getwellet.com** with "Delete my account" in the subject line. We will confirm the request came from you and delete the account within 30 days.
 
-There is no partial deletion. When you go, everything goes with you — VA and non-VA data alike.
+Deleting your account removes your account information, all care recipient profiles, health events, uploaded documents, summaries and AI conversation history, hospital and wearable connections, Apple Health readings Wellet received, Care Circle records, and your settings, feedback and bug reports. Nothing changes in the Health app on your iPhone.
+
+There is no partial deletion. When you go, everything goes with you.
 
 ### Inactive Accounts
 We do not currently have an automated policy for deleting inactive accounts, but we may implement one with advance notice.
@@ -288,4 +311,4 @@ We aim to respond to all inquiries within 5 business days.
 
 ---
 
-*This Privacy Policy was last updated on April 30, 2026.*
+*This Privacy Policy was last updated on November 12, 2026.*
