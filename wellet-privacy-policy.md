@@ -81,7 +81,8 @@ When you invite a family member or loved one through **Wellet Connect**, the pho
 - Email address and interest level submitted through our waitlist or marketing forms
 
 ### Usage Data
-- Standard web analytics (pages visited, features used, general usage patterns) to help us improve the product. We do not use third-party tracking pixels or advertising networks.
+- Basic usage information (pages visited, features used) that Wellet records itself to improve the product
+- Our public web pages, such as getwellet.com and the How it works, Support and policy pages, use the Google Ads tag and Meta Pixel to measure whether our ads work. These tools see which public page you visited. They are not loaded in the signed-in Wellet web app or the iPhone app, and they never receive health information.
 
 ---
 
@@ -177,6 +178,7 @@ We share your information only as necessary to operate Wellet. Here's the comple
 | **OpenAI** | Voice notes recorded on the web app | Turns speech into text |
 | **Perplexity** | The name and city of a hospital you look up (no personal or health data) | Finds which records system a hospital uses |
 | **Netlify** | No personal health information | Hosts our marketing website only |
+| **Google and Meta** | Visits to our public web pages (no health data, nothing from the signed-in app) | Measuring our ads |
 | **Mailchimp** | Email address only (no health data) | Marketing emails to people who opt in |
 | **Brevo** | Email address and the message being sent | Delivers sign-in, invitation, and notice emails |
 | **Twilio** | Phone numbers entered into Wellet Connect (no health data) | Sends invitation and reminder SMS to family members and loved ones |
@@ -184,7 +186,7 @@ We share your information only as necessary to operate Wellet. Here's the comple
 **We do not:**
 - Sell your personal information to anyone, ever
 - Share your health data with advertisers
-- Use tracking pixels or ad networks
+- Use ad or tracking tools inside the signed-in web app or the iPhone app
 - Share data with data brokers
 
 **No third-party use without your explicit consent.** Third-party use or disclosure of your information — including any de-identified, anonymized, or pseudonymized versions of it — is prohibited without your explicit consent. The only exceptions are the vendors listed above that are necessary to operate Wellet on your behalf, and disclosures required by law.
