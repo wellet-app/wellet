@@ -1,5 +1,11 @@
 // Wellet · data-source-invite edge function v16: sharing list and stop sharing
 //
+// v17 changes vs v16 (2026-11-11):
+//   - Service-role check no longer trusts JWT claims. A token that is not an
+//     exact key match must pass an admin-only Auth call. Before, an unsigned
+//     JWT with role=service_role passed create_from_approval, consume and
+//     auto_resend_due.
+//
 // v16 changes vs v15 (2026-11-09):
 //   - lookup also returns expires_at and caregiver_first_name.
 //   - links_for_person: the owner's view of active shares for one person,
@@ -70,30 +76,25 @@ function getCorsHeaders(req: Request): Record<string, string> {
   }
 }
 
-function decodeJwtPayload(token: string): Record<string, unknown> | null {
-  try {
-    const parts = token.split('.')
-    if (parts.length !== 3) return null
-    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/').padEnd(parts[1].length + (4 - (parts[1].length % 4)) % 4, '=')
-    return JSON.parse(atob(b64))
-  } catch { return null }
-}
 
-function isServiceRoleAuth(authHeader: string): boolean {
+// True only for a real service role key. Exact matches with the configured
+// keys pass. Any other token must succeed at an admin-only Auth call, so a
+// forged JWT fails. Token claims alone are never trusted (before v17, an
+// unsigned JWT with role=service_role passed).
+async function isServiceRoleAuth(authHeader: string): Promise<boolean> {
   if (!authHeader.startsWith('Bearer ')) return false
   const token = authHeader.slice(7).trim()
   if (!token) return false
   if (token === serviceKey) return true
   if (legacyServiceKey && token === legacyServiceKey) return true
-  if (token.includes('.')) {
-    const payload = decodeJwtPayload(token)
-    const projectRef = supabaseUrl.match(/\/\/([^.]+)\.supabase\.co/)?.[1] || ''
-    if (payload && payload.role === 'service_role' && payload.ref === projectRef) {
-      const exp = typeof payload.exp === 'number' ? payload.exp : 0
-      if (exp > Math.floor(Date.now() / 1000)) return true
-    }
+  if (!token.includes('.')) return false
+  try {
+    const probe = createClient(supabaseUrl, token, { auth: { persistSession: false } })
+    const { error } = await probe.auth.admin.listUsers({ page: 1, perPage: 1 })
+    return !error
+  } catch {
+    return false
   }
-  return false
 }
 
 type SignupErrorSeverity = 'critical' | 'warn' | 'info'
@@ -350,7 +351,7 @@ Deno.serve(async (req) => {
     // from the connection_request when present, else a synthetic value.
     if (action === 'create_from_approval') {
       const authHeader = req.headers.get('Authorization') ?? ''
-      if (!isServiceRoleAuth(authHeader)) return jsonResponse({ error: 'service_role_only' }, 403, corsHeaders)
+      if (!(await isServiceRoleAuth(authHeader))) return jsonResponse({ error: 'service_role_only' }, 403, corsHeaders)
       const personId = String(payload.person_id || '')
       const caregiverUserId = String(payload.caregiver_user_id || '')
       const dataSource = String(payload.data_source || '').toLowerCase()
@@ -431,7 +432,7 @@ Deno.serve(async (req) => {
 
     if (action === 'auto_resend_due') {
       const authHeader = req.headers.get('Authorization') ?? ''
-      if (!isServiceRoleAuth(authHeader)) return jsonResponse({ error: 'service_role_only' }, 403, corsHeaders)
+      if (!(await isServiceRoleAuth(authHeader))) return jsonResponse({ error: 'service_role_only' }, 403, corsHeaders)
       const { data: due, error: dueErr } = await supabase.from('data_source_invites').select('id, token, caregiver_user_id, target_contact, data_source, hospital_name, wearable_provider, expires_at, resend_count, last_resent_at, channel').is('consumed_at', null).gt('expires_at', new Date().toISOString()).lt('expires_at', new Date(Date.now() + 60 * 60 * 1000).toISOString()).order('expires_at', { ascending: true }).limit(20)
       if (dueErr) return jsonResponse({ error: dueErr.message }, 500, corsHeaders)
       if (!due || due.length === 0) return jsonResponse({ ok: true, nudged: 0 }, 200, corsHeaders)
@@ -553,7 +554,7 @@ Deno.serve(async (req) => {
 
     if (action === 'consume') {
       const authHeader = req.headers.get('Authorization') ?? ''
-      if (!isServiceRoleAuth(authHeader)) return jsonResponse({ error: 'service_role_only' }, 403, corsHeaders)
+      if (!(await isServiceRoleAuth(authHeader))) return jsonResponse({ error: 'service_role_only' }, 403, corsHeaders)
       const token = String(payload.token || '')
       const consumedByUserId = payload.consumed_by_user_id ? String(payload.consumed_by_user_id) : null
       // Optional: caller (e.g. terra-webhook) can pass wearable_provider to set
