@@ -17,46 +17,10 @@
     } catch (e) {}
   })();
   </script>
-  <!-- Analytics (Google tag and Meta Pixel), 2026-10-22.
-       Both tools record the full page address. Hospital and email
-       sign-in returns carry a one-time code (and invites carry a token)
-       in that address, so analytics is skipped on any load whose URL
-       holds one. Later gtag/fbq calls in wellet.js check typeof first,
-       so leaving them undefined is safe. -->
-  <script>
-  (function () {
-    try {
-      var q = new URLSearchParams(location.search);
-      var h = location.hash || '';
-      var keys = ['code', 'state', 'token', 'token_hash', 'access_token', 'refresh_token', 'dsinvite', 'error_description'];
-      for (var i = 0; i < keys.length; i++) { if (q.has(keys[i])) { window.__welletSensitiveUrl = true; break; } }
-      if (/access_token=|refresh_token=|[#&]code=/.test(h)) window.__welletSensitiveUrl = true;
-    } catch (e) { window.__welletSensitiveUrl = true; }
-    if (window.__welletSensitiveUrl) return;
-
-    // Google tag (gtag.js)
-    var g = document.createElement('script');
-    g.async = true;
-    g.src = 'https://www.googletagmanager.com/gtag/js?id=AW-985109408';
-    document.head.appendChild(g);
-    window.dataLayer = window.dataLayer || [];
-    window.gtag = function () { dataLayer.push(arguments); };
-    gtag('js', new Date());
-    gtag('config', 'AW-985109408');
-
-    // Meta Pixel Code
-    !function(f,b,e,v,n,t,s)
-    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-    n.queue=[];t=b.createElement(e);t.async=!0;
-    t.src=v;s=b.getElementsByTagName(e)[0];
-    s.parentNode.insertBefore(t,s)}(window, document,'script',
-    'https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '1491844009404209');
-    fbq('track', 'PageView');
-  })();
-  </script>
+  <!-- No ad or analytics tags in the app (2026-11-11). Google Ads and
+       Meta Pixel stay on the getwellet.com marketing site only, so
+       nothing about a signed-in caregiver or a loved one's record
+       reaches an ad network. -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Wellet — A place to remember what matters</title>
@@ -258,11 +222,6 @@
           if (nameEl) nameEl.textContent = 'the ' + iab + ' app';
           var box = document.getElementById('iab-warning');
           if (box) box.style.display = 'block';
-          // Best-effort analytics — non-blocking.
-          try {
-            if (window.fbq) window.fbq('trackCustom', 'IABDetected', { app: iab });
-            if (window.gtag) window.gtag('event', 'iab_detected', { app: iab });
-          } catch (e) {}
         } catch (e) {}
       })();
       function iabCopyLink(){
