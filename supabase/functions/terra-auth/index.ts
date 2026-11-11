@@ -7,6 +7,8 @@
  *   store                 — saves the connection after successful widget auth (in-app)
  *   list                  — returns active connections for a person
  *   disconnect            — deactivates a connection
+ *   admin_deauth          - server only (service role key): disconnects a Terra
+ *                           user by terra_user_id, for accounts no longer in use
  *
  * reference_id format:
  *   in-app:        "{user_id}:{person_id}"
@@ -19,6 +21,53 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { logSignupError } from "../_shared/log-signup-error.ts";
+
+// Terra takes user_id as a query parameter on DELETE /auth/deauthenticateUser.
+// Earlier code sent it in a JSON body and ignored the reply, so those calls
+// likely never disconnected anyone. Returns the HTTP status for logging.
+async function terraDeauth(terraUserId: string): Promise<{ ok: boolean; status: number }> {
+  const terraApiKey = Deno.env.get("TERRA_API_KEY");
+  const terraDevId = Deno.env.get("TERRA_DEV_ID");
+  if (!terraApiKey || !terraDevId) return { ok: false, status: 0 };
+  try {
+    const res = await fetch(
+      "https://api.tryterra.co/v2/auth/deauthenticateUser?user_id=" + encodeURIComponent(terraUserId),
+      { method: "DELETE", headers: { "dev-id": terraDevId, "x-api-key": terraApiKey } },
+    );
+    await res.text().catch(() => "");
+    if (!res.ok) console.error("Terra deauth failed:", res.status);
+    return { ok: res.ok, status: res.status };
+  } catch (e) {
+    console.error("Terra deauth error:", e);
+    return { ok: false, status: 0 };
+  }
+}
+
+function sameSecret(a: string, b: string): boolean {
+  if (!a || !b || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+// True only for a real service role key. An exact match with the configured
+// key (new or legacy) passes. Otherwise the token must work for an admin-only
+// Auth call, so a forged or anon token fails. Token claims are never trusted.
+async function isServiceKey(token: string, url: string, serviceKey: string): Promise<boolean> {
+  if (!token) return false;
+  if (sameSecret(token, serviceKey)) return true;
+  const legacy = Deno.env.get("LEGACY_SERVICE_ROLE_KEY") || "";
+  if (legacy && sameSecret(token, legacy)) return true;
+  try {
+    const probe = createClient(url, token, { auth: { persistSession: false } });
+    const { error } = await probe.auth.admin.listUsers({ page: 1, perPage: 1 });
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -121,6 +170,29 @@ Deno.serve(async (req) => {
         widget_url: terraData.url,
         session_id: terraData.session_id,
       });
+    }
+
+    // ============================================================
+    // admin_deauth — server only. Requires the service role key as the
+    // bearer token, so it cannot be called from the app or the web.
+    // ============================================================
+    if (action === "admin_deauth") {
+      const bearer = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
+      if (!(await isServiceKey(bearer, supabaseUrl, serviceKey))) {
+        return json({ error: "Forbidden" }, 403);
+      }
+      const terraUserId = String(body.terra_user_id || "");
+      if (!UUID_RE.test(terraUserId)) {
+        return json({ error: "terra_user_id required" }, 400);
+      }
+      const result = await terraDeauth(terraUserId);
+      if (result.ok) {
+        await db
+          .from("terra_connections")
+          .update({ status: "disconnected", disconnected_at: new Date().toISOString() })
+          .eq("terra_user_id", terraUserId);
+      }
+      return json({ success: result.ok, terra_status: result.status });
     }
 
     // ============================================================
@@ -243,23 +315,7 @@ Deno.serve(async (req) => {
       // Terra so we don't keep paying for a zombie connection that will never
       // be used again. Best-effort — don't block the store on network failure.
       if (existing && existing.terra_user_id && existing.terra_user_id !== terra_user_id) {
-        const terraApiKey = Deno.env.get("TERRA_API_KEY");
-        const terraDevId = Deno.env.get("TERRA_DEV_ID");
-        if (terraApiKey && terraDevId) {
-          try {
-            await fetch("https://api.tryterra.co/v2/auth/deauthenticateUser", {
-              method: "DELETE",
-              headers: {
-                "dev-id": terraDevId,
-                "x-api-key": terraApiKey,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ user_id: existing.terra_user_id }),
-            });
-          } catch (e) {
-            console.error("Terra deauth (replace) error:", e);
-          }
-        }
+        await terraDeauth(existing.terra_user_id);
       }
 
       // Explicit update-or-insert. We can't use PostgREST's onConflict here
@@ -351,19 +407,7 @@ Deno.serve(async (req) => {
         return json({ error: "Connection not found" }, 404);
       }
 
-      const terraApiKey = Deno.env.get("TERRA_API_KEY");
-      const terraDevId = Deno.env.get("TERRA_DEV_ID");
-      if (terraApiKey && terraDevId) {
-        await fetch("https://api.tryterra.co/v2/auth/deauthenticateUser", {
-          method: "DELETE",
-          headers: {
-            "dev-id": terraDevId,
-            "x-api-key": terraApiKey,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ user_id: conn.terra_user_id }),
-        }).catch((e) => console.error("Terra deauth error:", e));
-      }
+      await terraDeauth(conn.terra_user_id);
 
       await db
         .from("terra_connections")
