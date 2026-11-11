@@ -46,7 +46,6 @@ const PERSON_ID_TABLES = [
   "wearable_observations",
   "vitals",
   "update_me_summaries",
-  "observation_series",
   "medications",
   "lab_results",
   "health_events",
