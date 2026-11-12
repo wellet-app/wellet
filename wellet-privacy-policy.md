@@ -1,6 +1,6 @@
 # Wellet Privacy Policy
 
-**Effective Date: November 12, 2026**
+**Version 1.0 · Effective Date: November 12, 2026**
 
 ---
 
@@ -200,7 +200,8 @@ We may disclose information if required by law (such as a valid court order or g
 You are in control of your data. Here's what you can do at any time:
 
 - **View your data** — all health records, profiles, and AI conversations are accessible in your Wellet account
-- **Export your data** — download a complete archive of your health records (PDF + structured data) from your account settings
+- **Export your data** — download your profiles, health events, medications, Care Circle and document list from Settings on mywellet.com. For a full copy that includes hospital records and documents, email **privacy@getwellet.com** and we will send it within 30 days
+- **Disconnect a hospital or the VA** — remove any hospital or VA connection from that person's Records page on mywellet.com. Wellet stops pulling new records right away and deletes the stored sign-in for that connection
 - **Delete records** — remove individual health events, documents, or entire care recipient profiles
 - **Revoke Care Circle access** — remove any caregiver's access to a care recipient's record instantly from your settings
 - **Turn off Wellet summaries** — in the iPhone app, Settings > Wellet summaries stops new summaries from being written
@@ -283,9 +284,9 @@ A "breach" under the FTC's rule includes unauthorized access, inadvertent disclo
 ### Updates to This Policy
 We may update this Privacy Policy from time to time. When we make material changes, we will:
 
-- Post the updated policy at [getwellet.com/privacy](https://getwellet.com/privacy)
+- Post the updated policy at [mywellet.com/privacy](https://mywellet.com/privacy)
 - Update the effective date at the top of this document
-- Send you an email notification if the changes are significant
+- Email you about the changes before they take effect
 
 Your continued use of Wellet after changes are posted constitutes your acceptance of the updated policy. If you do not agree, you can delete your account.
 
@@ -298,6 +299,10 @@ If Wellet ever enters into a transfer of ownership, merger, acquisition, sale of
   - Require that the new owner or entity honor this Privacy Policy (or a policy that is at least as protective) going forward
   - Close your account and have your data permanently deleted under the same terms as Section 8
 - **Consistent commitments.** Any new owner will be contractually required to handle your data under privacy and security commitments that are consistent with this policy, or to give you the chance to delete your account before accepting new terms.
+
+### If Wellet Shuts Down
+
+If Wellet ever closes, we will email you at least 30 days before the service ends. During that time you can export, download, or send your health information to yourself or anyone you choose. After the service ends, we will permanently delete your data under the same terms as Section 8 and email you to confirm it is done.
 
 ---
 
