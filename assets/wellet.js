@@ -4659,6 +4659,7 @@ function renderUpdateMe() {
       + '</div>'
       + sourceStrip
       + '<div class="update-summary-text" id="update-summary-text">' + formatWelletSummary(summaryCache[currentPersonId]) + '</div>'
+      + medicalDisclaimerHtml(typeof getPersonFirstName === 'function' ? getPersonFirstName() : '')
       + '<div class="update-summary-byline"><i data-lucide="sparkles"></i><span class="update-summary-byline-main">' + escHtml(bylineDetail) + '</span><span class="update-summary-byline-sep">·</span><span class="update-summary-byline-viewed">' + viewedLine + '</span></div>'
       + '</div>'
       + '<button onclick="openShareFamily()" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px 16px;margin-top:10px;background:white;border:1.5px solid var(--moss);border-radius:10px;color:var(--moss);font-family:\'DM Sans\',sans-serif;font-size:var(--type-meta);font-weight:500;cursor:pointer;"><i data-lucide="share-2" style="width:15px;height:15px;"></i> ' + t('update.shareThis') + '</button>';
@@ -10522,6 +10523,16 @@ function renderRecordsView() {
     ehrMeds = _ehrMedsFromLiveMeds(liveMeds);
   }
 
+  // DB-backed fallback for Reports, so saved reports still show after a
+  // hospital or the VA is disconnected, or on a device with no cache.
+  if (ehrReports.length === 0) {
+    ehrReports = liveEvents
+      .filter(function(e){ return e.event_type==='diagnostic_report' && e.accepted!==false; })
+      .map(function(e){
+        return { name: e.title || 'Report', effective_date: e.event_date || '', category: e.notes || '', source: 'ehr' };
+      });
+  }
+
   // ── computed counts for tile summaries ───────────────────────────────────
   var totalMeds       = activeMeds.length + ehrMeds.length;
   var totalAllergies  = liveAllergies.length + ehrAllergies.length;
@@ -10621,7 +10632,16 @@ function renderRecordsView() {
   html += '</div>'; // .records-tile-grid
 
   // EHR prompt if no connection (below grid)
-  if (!ehrData && !isDemoMode) html += buildEhrPrompt();
+  if (!ehrData && !isDemoMode) {
+    if (ehrConditions.length || ehrReports.length || ehrMeds.length || allEhrVisits.length) {
+      html += '<div class="ehr-section-prompt" style="font-size:14px;color:var(--text-secondary);line-height:1.5;">'
+        + '<i data-lucide="hospital" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:3px;color:var(--moss);"></i>'
+        + 'These records were saved from a hospital or the VA. <a onclick="startEhrConnect()">Connect again</a> any time to get new ones.'
+        + '</div>';
+    } else {
+      html += buildEhrPrompt();
+    }
+  }
 
   // ── secondary sections (inline, full-width) ───────────────────────────────
 
@@ -19392,7 +19412,7 @@ function disconnectEhr() {
   // confirm() can silently return undefined on iOS Chrome / in-app browsers.
   // We require an explicit "false" (user clicked Cancel) to bail.
   var confirmed;
-  try { confirmed = confirm('Disconnect health records? Cached data on this device will be removed.'); }
+  try { confirmed = confirm(_disconnectConfirmText()); }
   catch(e) { confirmed = true; }
   if (confirmed === false) return;
 
@@ -19418,20 +19438,39 @@ function disconnectEhr() {
       showToast('Disconnect failed (' + resp.status + '), still connected');
       return;
     }
-    showToast('Health records disconnected');
-    // Clear any remaining in-memory data
-    liveMeds = liveMeds.filter(function(m) { return m.source !== 'ehr'; });
-    liveAllergies = liveAllergies.filter(function(a) { return a.source !== 'ehr'; });
-    liveLabs = liveLabs.filter(function(l) { return l.source !== 'ehr'; });
-    renderRecordsView();
-    renderTimeline();
-    updateSettingsEhr();
-    updateProfileEhr(personId);
-    initIcons();
+    showToast('Disconnected. Saved records stay.');
+    _afterDisconnectReload(personId);
   }).catch(function(err) {
     console.error('EHR disconnect error:', err);
     showToast('Disconnect failed, ' + (err && err.message ? err.message : 'network error'));
   });
+}
+
+// Disconnect only stops new records. Everything Wellet already saved
+// (conditions, medications, labs, reports, visits) stays in the person's
+// record until the caregiver deletes it. Families lose portal access when a
+// loved one dies; Wellet must not repeat that. (Betsy, 2026-11-12)
+function _disconnectConfirmText(sourceName) {
+  var name = '';
+  try { name = getPersonFirstName(); } catch(e) {}
+  if (!name || name === 'Patient') name = 'your loved one';
+  var from = sourceName ? ' from ' + sourceName : '';
+  return 'Wellet will stop getting new records' + from + '. Everything already saved stays in ' + name + '\u2019s record.';
+}
+
+// The device copy of hospital data is cleared on disconnect, so reload the
+// saved copy from the server and redraw.
+function _afterDisconnectReload(personId) {
+  Promise.resolve()
+    .then(function() { return loadPersonData(personId); })
+    .catch(function(e) { console.warn('[disconnect] reload failed:', e); })
+    .then(function() {
+      try { renderRecordsView(); } catch(e) {}
+      try { renderTimeline(); } catch(e) {}
+      try { updateSettingsEhr(); } catch(e) {}
+      try { updateProfileEhr(personId); } catch(e) {}
+      try { initIcons(); } catch(e) {}
+    });
 }
 
 // Update settings EHR status display
@@ -20691,7 +20730,7 @@ function disconnectVa() {
   if (isDemoMode) { showToast('Demo mode. Disconnect not available.'); return; }
   var personId = currentPersonId;
   if (!personId) { showToast('No person selected'); return; }
-  if (!confirm('Disconnect VA records? Cached data on this device will be removed.')) return;
+  if (!confirm(_disconnectConfirmText('the VA'))) return;
 
   showToast('Disconnecting VA\u2026');
   try { clearEhrCache(personId); } catch(e) {}
@@ -20710,15 +20749,8 @@ function disconnectVa() {
     });
   }).then(function(resp) {
     try { console.log('[va] disconnect status', resp && resp.status); } catch(e) {}
-    showToast('VA records disconnected');
-    try { liveMeds = liveMeds.filter(function(m) { return m.source !== 'ehr'; }); } catch(e) {}
-    try { liveAllergies = liveAllergies.filter(function(a) { return a.source !== 'ehr'; }); } catch(e) {}
-    try { liveLabs = liveLabs.filter(function(l) { return l.source !== 'ehr'; }); } catch(e) {}
-    try { renderRecordsView(); } catch(e) {}
-    try { renderTimeline(); } catch(e) {}
-    try { updateSettingsEhr(); } catch(e) {}
-    try { updateProfileEhr(personId); } catch(e) {}
-    try { initIcons(); } catch(e) {}
+    showToast('VA disconnected. Saved records stay.');
+    _afterDisconnectReload(personId);
   }).catch(function(err) {
     console.error('[va] disconnect error:', err);
     showToast('VA disconnect failed');
@@ -22218,7 +22250,7 @@ function sendAskMessage() {
           if (wasWatchMode || data.kind === 'watch_proposal' || data.kind === 'watch_rejected') {
             handleWatchModeResponse(data);
           } else {
-            addWelletMessage(renderMarkdownSafe(data.answer || data.response || 'I couldn\u2019t find an answer to that.'));
+            addWelletMessage(renderMarkdownSafe(data.answer || data.response || 'I couldn\u2019t find an answer to that.'), { answer: true });
             // Voice v1: capture classification and conversation_id
             _askLastClassification = data.classification || null;
             if (data.conversation_id && !_askConversationId) _askConversationId = data.conversation_id;
@@ -22289,7 +22321,7 @@ function sendAskMessage() {
         if (res.ok) {
           var data = await res.json();
           if (data.answer) {
-            addWelletMessage(renderMarkdownSafe(data.answer));
+            addWelletMessage(renderMarkdownSafe(data.answer), { answer: true });
           } else {
             throw new Error('empty');
           }
@@ -22302,11 +22334,11 @@ function sendAskMessage() {
         var responses = _responses[_currentAskPerson] || _responses['dad'];
         var exactMatch = responses[text];
         if (exactMatch) {
-          addWelletMessage(exactMatch);
+          addWelletMessage(exactMatch, { answer: true });
         } else {
           var fuzzyKey = fuzzyMatchDemoResponse(text, _currentAskPerson);
           var reply = fuzzyKey ? responses[fuzzyKey] : responses['default'];
-          addWelletMessage(reply);
+          addWelletMessage(reply, { answer: true });
         }
       }
     })();
@@ -22327,11 +22359,24 @@ function addUserMessage(text) {
   try { _askHistory.push({ role: 'user', content: String(text || '') }); if (_askHistory.length > 20) _askHistory = _askHistory.slice(-20); } catch(_e){}
 }
 
-function addWelletMessage(html) {
+// Medical-advice notice (approved 2026-11-12; VA production access asks
+// for one). Sits under the Wellet summary, Ask answers and visit-prep
+// questions. Same words as the iOS app.
+function medicalDisclaimerHtml(firstName) {
+  var n = (firstName || '').trim();
+  if (n === 'Patient') n = '';
+  var possessive = n ? n + '\u2019s' : 'your loved one\u2019s';
+  return '<div class="medical-disclaimer"><i data-lucide="heart" aria-hidden="true"></i><span>'
+    + 'Wellet helps you understand records. It isn\u2019t medical advice. Talk with ' + escHtml(possessive) + ' care team about any change.'
+    + '</span></div>';
+}
+
+function addWelletMessage(html, opts) {
   var area = document.getElementById('chat-area');
   var g = document.createElement('div');
   g.className = 'chat-group from-wellet';
-  g.innerHTML = '<div class="chat-bubble wellet">' + html + '</div>';
+  g.innerHTML = '<div class="chat-bubble wellet">' + html + '</div>'
+    + ((opts && opts.answer) ? medicalDisclaimerHtml(typeof getPersonFirstName === 'function' ? getPersonFirstName() : '') : '');
   area.appendChild(g);
   area.classList.remove('is-empty-state');
   area.scrollTop = area.scrollHeight;
@@ -35092,7 +35137,9 @@ function vpRenderQuestions() {
     }
   }
 
+  html += medicalDisclaimerHtml(typeof getPersonFirstName === 'function' ? getPersonFirstName() : '');
   container.innerHTML = html;
+  if (typeof initIcons === 'function') initIcons();
 }
 
 function vpToggleCheck(cbEl) {
