@@ -22381,8 +22381,10 @@ async function _persistAskTurn(userText, assistantText, classification, model, l
       var ins = await db.from('ask_conversations').insert({
         person_id: currentPersonId,
         user_id: u && u.id,
-        modality: 'text',
-        save_state: 'pending'
+        modality: 'text'
+        // save_state left to its default ('unsaved'). The check
+        // constraint only allows unsaved, saved or dismissed, so
+        // 'pending' made every insert fail since June.
       }).select('id').single();
       if (ins && ins.data && ins.data.id) _askConversationId = ins.data.id;
     }
