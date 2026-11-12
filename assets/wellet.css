@@ -3589,3 +3589,8 @@ html:not(.terra-on) .terra-add-btn,
 html:not(.terra-on) .ds-invite-wearable-btn,
 html:not(.terra-on) [onclick*="openTerraConnect"],
 html:not(.terra-on) [onclick*="addMoreWearable"] { display: none !important; }
+
+/* Medical-advice notice under summaries, Ask answers and visit prep. */
+.medical-disclaimer { display: flex; align-items: flex-start; gap: 7px; margin-top: 12px; font-size: 13px; line-height: 1.45; color: #5a4e4c; max-width: 560px; }
+.medical-disclaimer svg, .medical-disclaimer i { width: 13px; height: 13px; flex: 0 0 13px; margin-top: 2px; color: #8a7d7a; }
+.chat-group.from-wellet .medical-disclaimer { margin-top: 8px; padding-left: 2px; }
