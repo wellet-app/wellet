@@ -201,7 +201,7 @@ You are in control of your data. Here's what you can do at any time:
 
 - **View your data** — all health records, profiles, and AI conversations are accessible in your Wellet account
 - **Export your data** — download your profiles, health events, medications, Care Circle and document list from Settings on mywellet.com. For a full copy that includes hospital records and documents, email **privacy@getwellet.com** and we will send it within 30 days
-- **Disconnect a hospital or the VA** — remove any hospital or VA connection from that person's Records page on mywellet.com. Wellet stops pulling new records right away and deletes the stored sign-in for that connection
+- **Disconnect a hospital or the VA** — remove any hospital or VA connection from that person's Records page on mywellet.com. Wellet stops getting new records right away and deletes the stored sign-in. Records already in Wellet stay until you delete them
 - **Delete records** — remove individual health events, documents, or entire care recipient profiles
 - **Revoke Care Circle access** — remove any caregiver's access to a care recipient's record instantly from your settings
 - **Turn off Wellet summaries** — in the iPhone app, Settings > Wellet summaries stops new summaries from being written
