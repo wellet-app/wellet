@@ -149,7 +149,7 @@ Deno.serve(async (req: Request) => {
       .eq('person_id', person_id)
       .eq('user_id', user.id)
       .eq('fhir_base_url', fhirBaseUrl)
-      .in('status', ['pending', 'needs_reconnect', 'superseded'])
+      .in('status', ['pending', 'needs_reconnect', 'superseded', 'disconnected'])
       .order('created_at', { ascending: false })
       .limit(1);
 
@@ -177,6 +177,7 @@ Deno.serve(async (req: Request) => {
           connected_provider: null,
           connected_at: null,
           needs_reconnect: false,
+          disconnected_at: null,
           code_verifier: null,
         })
         .eq('id', reusable.id);

@@ -11085,7 +11085,7 @@ function _renderSourceRow(row, nowMs) {
   html += '<div class="sources-row-status ' + tone + '">' + _sourceStatusLine(row, nowMs) + '</div>';
   html += '<div class="sources-row-actions">';
   html += '<button type="button" class="' + primary.cls + '" onclick="' + primary.handler + "('" + cid + "','" + fbu + "','" + hn + "')\">" + escHtml(primary.label) + '</button>';
-  html += '<button type="button" class="sources-action-secondary" onclick="disconnectSourceConnection(\'' + cid + "','" + hn + "')\" aria-label=\"Remove this connection\">Remove</button>";
+  html += '<button type="button" class="sources-action-secondary" onclick="disconnectSourceConnection(\'' + cid + "','" + hn + "')\" aria-label=\"Disconnect this hospital\">Disconnect</button>";
   html += '</div></div></div>';
   return html;
 }
@@ -11254,10 +11254,8 @@ function retrySourceConnection(connectionId, fhirBaseUrl, hospitalName) {
   }
 }
 
-// Action: remove a single connection row.
-// v1 routes through the existing person-wide disconnect (epic-auth, action='disconnect').
-// Spec note: per-row disconnect is a v2 follow-up; for now the button copy is
-// honest about scope when the user has multiple connections.
+// Action: disconnect a single hospital. Pending stubs are removed; real
+// connections are soft-disconnected server-side (row and records kept).
 function disconnectSourceConnection(connectionId, hospitalName) {
   if (isDemoMode) { showToast('Demo mode, not available'); return; }
   if (!currentPersonId) { showToast('No loved one selected'); return; }
@@ -11277,16 +11275,46 @@ function disconnectSourceConnection(connectionId, hospitalName) {
           renderSourcesCard(currentPersonId);
         });
       }
-      // Connected or needs_reconnect: defer to the existing person-wide disconnect.
-      try { disconnectEhr(); } catch(e) {
-        console.warn('[Sources] disconnect failed:', e);
-        showToast('Disconnect failed, try from Settings');
-      }
+      // Connected or needs_reconnect: disconnect this one hospital only.
+      // The server keeps the connection row and its saved records.
+      _disconnectOneConnection(connectionId, hospitalName);
     })
     .catch(function(err){
       console.warn('[Sources] disconnect lookup failed:', err);
-      try { disconnectEhr(); } catch(e) {}
+      showToast('Disconnect failed, please try again');
     });
+}
+
+function _disconnectOneConnection(connectionId, hospitalName) {
+  var personId = currentPersonId;
+  var confirmed;
+  try { confirmed = confirm(_disconnectConfirmText(hospitalName)); }
+  catch(e) { confirmed = true; }
+  if (confirmed === false) return;
+  showToast('Disconnecting...');
+  try { clearEhrCache(personId); } catch(e) {}
+  db.auth.getSession().then(function(sessionRes) {
+    var session = sessionRes && sessionRes.data && sessionRes.data.session;
+    if (!session) { showToast('Not signed in'); return null; }
+    return fetch(SUPABASE_URL + '/functions/v1/epic-auth', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + session.access_token,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ action: 'disconnect', person_id: personId, connection_id: connectionId })
+    });
+  }).then(function(resp) {
+    if (!resp) return;
+    if (!resp.ok) { showToast('Disconnect failed (' + resp.status + '), still connected'); return; }
+    showToast('Disconnected. Saved records stay.');
+    _afterDisconnectReload(personId);
+    try { renderSourcesCard(personId); } catch(e) {}
+  }).catch(function(err) {
+    console.error('[Sources] disconnect error:', err);
+    showToast('Disconnect failed, ' + (err && err.message ? err.message : 'network error'));
+  });
 }
 
 // ── COLLAPSIBLE RECORDS SECTIONS ─────────────────────────────────────────────

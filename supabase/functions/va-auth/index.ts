@@ -342,7 +342,7 @@ Deno.serve(async (req) => {
         .eq('person_id', person_id)
         .eq('user_id', user.id)
         .eq('fhir_base_url', ep.fhirBase)
-        .in('status', ['pending', 'needs_reconnect', 'superseded'])
+        .in('status', ['pending', 'needs_reconnect', 'superseded', 'disconnected'])
         .order('created_at', { ascending: false })
         .limit(1);
       if (existingErr) {
@@ -368,6 +368,7 @@ Deno.serve(async (req) => {
             connected_provider: null,
             connected_at: null,
             needs_reconnect: false,
+            disconnected_at: null,
           })
           .eq('id', reusable.id);
         if (updateError) {
@@ -1053,21 +1054,27 @@ Deno.serve(async (req) => {
 
     // ── DISCONNECT ──
     if (action === 'disconnect') {
-      const { person_id } = body;
+      const { person_id, connection_id } = body;
       if (!person_id) {
         return jsonResponse({ error: 'person_id is required' }, 400);
       }
 
       const admin = getAdminClient();
 
-      const { data: conn } = await admin.from('ehr_connections')
-        .select('id, refresh_token, fhir_base_url, token_url')
+      // Soft disconnect (2026-11-12): revoke at VA, delete the stored sign-in,
+      // keep the row so saved records keep their VA label and a reconnect
+      // reuses the row (no duplicates). Optional connection_id = one row.
+      let q = admin.from('ehr_connections')
+        .select('id, status, refresh_token, fhir_base_url, token_url')
         .eq('person_id', person_id)
         .eq('user_id', user.id)
         .eq('provider', 'va')
-        .maybeSingle();
+        .in('status', ['connected', 'needs_reconnect', 'pending']);
+      if (connection_id) q = q.eq('id', connection_id);
+      const { data: conns } = await q;
 
-      if (conn?.refresh_token) {
+      for (const conn of (conns || [])) {
+        if (!conn.refresh_token) continue;
         try {
           const encKey = Deno.env.get('EHR_ENCRYPTION_KEY') || '';
           if (encKey) {
@@ -1080,7 +1087,7 @@ Deno.serve(async (req) => {
               : 'https://api.va.gov/oauth2/revoke';
             const connEp = resolveEndpoints(connIsSandbox);
             if (plainRefresh && connEp.clientId) {
-              await fetch(revokeUrl, {
+              const r = await fetch(revokeUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: new URLSearchParams({
@@ -1089,20 +1096,40 @@ Deno.serve(async (req) => {
                   token_type_hint: 'refresh_token',
                 }),
               });
+              console.log('[va-auth] revoke at VA', { conn_id: conn.id, status: r.status });
             }
           }
         } catch (e) {
-          console.warn('[va-auth] revoke at VA failed (continuing with local delete)', { err: (e as Error).message });
+          console.warn('[va-auth] revoke at VA failed (continuing with local token delete)', { err: (e as Error).message });
         }
       }
 
-      await admin.from('ehr_connections')
-        .delete()
-        .eq('person_id', person_id)
-        .eq('user_id', user.id)
-        .eq('provider', 'va');
+      const pendingIds = (conns || []).filter((c: any) => c.status === 'pending').map((c: any) => c.id);
+      const softIds = (conns || []).filter((c: any) => c.status !== 'pending').map((c: any) => c.id);
+      if (pendingIds.length) {
+        await admin.from('ehr_connections').delete().in('id', pendingIds);
+      }
+      if (softIds.length) {
+        const { error: updErr } = await admin.from('ehr_connections')
+          .update({
+            status: 'disconnected',
+            disconnected_at: new Date().toISOString(),
+            access_token: null,
+            refresh_token: null,
+            token_expires_at: null,
+            code_verifier: null,
+            state: null,
+            needs_reconnect: false,
+          })
+          .in('id', softIds);
+        if (updErr) {
+          console.error('[va-auth] soft disconnect failed', { err: updErr });
+          return jsonResponse({ error: 'disconnect_failed' }, 500);
+        }
+        await admin.from('ehr_sync_schedule').delete().in('ehr_connection_id', softIds);
+      }
 
-      return jsonResponse({ success: true });
+      return jsonResponse({ success: true, disconnected: softIds.length });
     }
 
     return jsonResponse({ error: 'Unknown action. Use: start, callback, refresh, status, disconnect' }, 400);
