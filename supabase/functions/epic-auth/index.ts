@@ -455,11 +455,11 @@ Deno.serve(async (req) => {
 
       const { data: existingRows, error: existingErr } = await admin
         .from('ehr_connections')
-        .select('id, status')
+        .select('id, status, hospital_name')
         .eq('person_id', person_id)
         .eq('user_id', user.id)
         .eq('fhir_base_url', fhirBase)
-        .in('status', ['pending', 'needs_reconnect', 'superseded'])
+        .in('status', ['pending', 'needs_reconnect', 'superseded', 'disconnected'])
         .order('created_at', { ascending: false })
         .limit(1);
       if (existingErr) {
@@ -476,7 +476,7 @@ Deno.serve(async (req) => {
             code_verifier: codeVerifier,
             state: state,
             token_url: tokenUrl,
-            hospital_name: hospitalName || (isSandbox ? 'Epic Sandbox' : null),
+            hospital_name: hospitalName || reusable.hospital_name || (isSandbox ? 'Epic Sandbox' : null),
             status: 'pending',
             access_token: null,
             refresh_token: null,
@@ -485,6 +485,7 @@ Deno.serve(async (req) => {
             connected_provider: null,
             connected_at: null,
             needs_reconnect: false,
+            disconnected_at: null,
           })
           .eq('id', reusable.id);
         if (updateError) {
@@ -1296,7 +1297,10 @@ Deno.serve(async (req) => {
         .select('id, provider, connected_provider, connected_at, last_synced_at, token_expires_at, needs_reconnect, status')
         .eq('person_id', person_id)
         .eq('user_id', user.id)
-        .single();
+        .eq('status', 'connected')
+        .order('connected_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
       if (!conn || !conn.connected_at) {
         return jsonResponse({ connected: false });
@@ -1439,13 +1443,81 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'person_id is required' }, 400);
       }
 
+      // Soft disconnect (2026-11-12). Disconnect stops new records and deletes
+      // the stored sign-in, but it never deletes the connection row. Records
+      // point at that row (connection_id), so keeping it keeps the hospital
+      // label and lets a reconnect reuse the same row, which dedupes on
+      // (person_id, connection_id, source_fingerprint). Families lose portal
+      // access when a loved one dies; Wellet must not repeat that.
+      // Optional connection_id disconnects a single hospital.
+      const { connection_id } = body;
       const admin = getAdminClient();
-      await admin.from('ehr_connections')
-        .delete()
+      let q = admin.from('ehr_connections')
+        .select('id, provider, status')
         .eq('person_id', person_id)
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .neq('provider', 'terra')
+        .in('status', ['connected', 'needs_reconnect', 'pending']);
+      if (connection_id) q = q.eq('id', connection_id);
+      const { data: rows, error: selErr } = await q;
+      if (selErr) {
+        console.error('[epic-auth] disconnect lookup failed', { err: selErr });
+        return jsonResponse({ error: 'disconnect_failed' }, 500);
+      }
+      const all = rows || [];
 
-      return jsonResponse({ success: true });
+      // VA sign-ins are always revoked at VA. va-auth owns the VA client, so
+      // hand VA rows to it with the caller's own auth.
+      const vaRows = all.filter((r: any) => r.provider === 'va');
+      for (const r of vaRows) {
+        try {
+          const resp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/va-auth`, {
+            method: 'POST',
+            headers: {
+              'Authorization': req.headers.get('Authorization') || '',
+              'apikey': req.headers.get('apikey') || Deno.env.get('SUPABASE_ANON_KEY') || '',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ action: 'disconnect', person_id, connection_id: r.id }),
+          });
+          if (!resp.ok) throw new Error('va-auth ' + resp.status);
+        } catch (e) {
+          console.error('[epic-auth] VA disconnect handoff failed', { conn_id: r.id, err: (e as Error).message });
+          return jsonResponse({ error: 'disconnect_failed', detail: 'va' }, 502);
+        }
+      }
+
+      const others = all.filter((r: any) => r.provider !== 'va');
+      // Pending rows never received records; remove them outright.
+      const pendingIds = others.filter((r: any) => r.status === 'pending').map((r: any) => r.id);
+      const softIds = others.filter((r: any) => r.status !== 'pending').map((r: any) => r.id);
+      if (pendingIds.length) {
+        await admin.from('ehr_connections').delete().in('id', pendingIds);
+      }
+      if (softIds.length) {
+        const { error: updErr } = await admin.from('ehr_connections')
+          .update({
+            status: 'disconnected',
+            disconnected_at: new Date().toISOString(),
+            access_token: null,
+            refresh_token: null,
+            token_expires_at: null,
+            code_verifier: null,
+            state: null,
+            needs_reconnect: false,
+          })
+          .in('id', softIds);
+        if (updErr) {
+          console.error('[epic-auth] soft disconnect failed', { err: updErr });
+          return jsonResponse({ error: 'disconnect_failed' }, 500);
+        }
+        // Stop the background sync. The schedule trigger recreates it when the
+        // row goes back to 'connected'.
+        await admin.from('ehr_sync_schedule').delete().in('ehr_connection_id', softIds);
+      }
+
+      console.log('[epic-auth] disconnect', { person_id, connection_id: connection_id || null, soft: softIds.length, va: vaRows.length, pending_removed: pendingIds.length });
+      return jsonResponse({ success: true, disconnected: softIds.length + vaRows.length });
     }
 
     return jsonResponse({ error: 'Unknown action. Use: start, callback, confirm_patient, refresh, status, disconnect' }, 400);
