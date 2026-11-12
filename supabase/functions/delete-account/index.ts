@@ -259,6 +259,22 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  // 6b. Storage under <personId>/ for each of the caller's people.
+  // ask-wellet-save writes transcripts to ask-transcripts/<person_id>/,
+  // so the <userId>/ pass above never reached them. Person ids are
+  // UUIDs owned by this caller (people.user_id), so these folders hold
+  // only this account's files.
+  for (const pid of personIds) {
+    for (const b of buckets || []) {
+      try {
+        const n = await deleteFolder(admin, b.id, pid);
+        if (n > 0) summary.storage_deletes[b.id] = (summary.storage_deletes[b.id] || 0) + n;
+      } catch (e) {
+        summary.errors.push(`storage ${b.id} by person: ${(e as Error).message}`);
+      }
+    }
+  }
+
   // 7. Ops event without the email, then the auth user.
   const rows = Object.values(summary.table_deletes).reduce((a, b) => a + b, 0);
   await admin.from("wellet_ops_events").insert({
