@@ -4659,6 +4659,7 @@ function renderUpdateMe() {
       + '</div>'
       + sourceStrip
       + '<div class="update-summary-text" id="update-summary-text">' + formatWelletSummary(summaryCache[currentPersonId]) + '</div>'
+      + medicalDisclaimerHtml(typeof getPersonFirstName === 'function' ? getPersonFirstName() : '')
       + '<div class="update-summary-byline"><i data-lucide="sparkles"></i><span class="update-summary-byline-main">' + escHtml(bylineDetail) + '</span><span class="update-summary-byline-sep">·</span><span class="update-summary-byline-viewed">' + viewedLine + '</span></div>'
       + '</div>'
       + '<button onclick="openShareFamily()" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px 16px;margin-top:10px;background:white;border:1.5px solid var(--moss);border-radius:10px;color:var(--moss);font-family:\'DM Sans\',sans-serif;font-size:var(--type-meta);font-weight:500;cursor:pointer;"><i data-lucide="share-2" style="width:15px;height:15px;"></i> ' + t('update.shareThis') + '</button>';
@@ -22218,7 +22219,7 @@ function sendAskMessage() {
           if (wasWatchMode || data.kind === 'watch_proposal' || data.kind === 'watch_rejected') {
             handleWatchModeResponse(data);
           } else {
-            addWelletMessage(renderMarkdownSafe(data.answer || data.response || 'I couldn\u2019t find an answer to that.'));
+            addWelletMessage(renderMarkdownSafe(data.answer || data.response || 'I couldn\u2019t find an answer to that.'), { answer: true });
             // Voice v1: capture classification and conversation_id
             _askLastClassification = data.classification || null;
             if (data.conversation_id && !_askConversationId) _askConversationId = data.conversation_id;
@@ -22289,7 +22290,7 @@ function sendAskMessage() {
         if (res.ok) {
           var data = await res.json();
           if (data.answer) {
-            addWelletMessage(renderMarkdownSafe(data.answer));
+            addWelletMessage(renderMarkdownSafe(data.answer), { answer: true });
           } else {
             throw new Error('empty');
           }
@@ -22302,11 +22303,11 @@ function sendAskMessage() {
         var responses = _responses[_currentAskPerson] || _responses['dad'];
         var exactMatch = responses[text];
         if (exactMatch) {
-          addWelletMessage(exactMatch);
+          addWelletMessage(exactMatch, { answer: true });
         } else {
           var fuzzyKey = fuzzyMatchDemoResponse(text, _currentAskPerson);
           var reply = fuzzyKey ? responses[fuzzyKey] : responses['default'];
-          addWelletMessage(reply);
+          addWelletMessage(reply, { answer: true });
         }
       }
     })();
@@ -22327,11 +22328,24 @@ function addUserMessage(text) {
   try { _askHistory.push({ role: 'user', content: String(text || '') }); if (_askHistory.length > 20) _askHistory = _askHistory.slice(-20); } catch(_e){}
 }
 
-function addWelletMessage(html) {
+// Medical-advice notice (approved 2026-11-12; VA production access asks
+// for one). Sits under the Wellet summary, Ask answers and visit-prep
+// questions. Same words as the iOS app.
+function medicalDisclaimerHtml(firstName) {
+  var n = (firstName || '').trim();
+  if (n === 'Patient') n = '';
+  var possessive = n ? n + '\u2019s' : 'your loved one\u2019s';
+  return '<div class="medical-disclaimer"><i data-lucide="heart" aria-hidden="true"></i><span>'
+    + 'Wellet helps you understand records. It isn\u2019t medical advice. Talk with ' + escHtml(possessive) + ' care team about any change.'
+    + '</span></div>';
+}
+
+function addWelletMessage(html, opts) {
   var area = document.getElementById('chat-area');
   var g = document.createElement('div');
   g.className = 'chat-group from-wellet';
-  g.innerHTML = '<div class="chat-bubble wellet">' + html + '</div>';
+  g.innerHTML = '<div class="chat-bubble wellet">' + html + '</div>'
+    + ((opts && opts.answer) ? medicalDisclaimerHtml(typeof getPersonFirstName === 'function' ? getPersonFirstName() : '') : '');
   area.appendChild(g);
   area.classList.remove('is-empty-state');
   area.scrollTop = area.scrollHeight;
@@ -35092,7 +35106,9 @@ function vpRenderQuestions() {
     }
   }
 
+  html += medicalDisclaimerHtml(typeof getPersonFirstName === 'function' ? getPersonFirstName() : '');
   container.innerHTML = html;
+  if (typeof initIcons === 'function') initIcons();
 }
 
 function vpToggleCheck(cbEl) {
