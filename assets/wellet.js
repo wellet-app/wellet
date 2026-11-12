@@ -19148,7 +19148,7 @@ function handleEhrCallback() {
       // "Open my Wellet". This takes priority over the legacy onboarding
       // chat path below.
       if (typeof _isConnectScreenActive === 'function' && _isConnectScreenActive()) {
-        showToast('Health records connected!');
+        showToast('Health records connected.');
         var hospitalCs = data.hospital_name || data.provider || 'your hospital';
         // Kick off the data pull in the background so it's loading while
         // the user picks their next source.
@@ -19166,7 +19166,7 @@ function handleEhrCallback() {
       var fromOnboarding = false;
       try { fromOnboarding = localStorage.getItem('wellet_ob_ehr_return') === 'true'; localStorage.removeItem('wellet_ob_ehr_return'); } catch(e) {}
       if (fromOnboarding) {
-        showToast('Health records connected!');
+        showToast('Health records connected.');
         var hospital = data.hospital_name || data.provider || 'your hospital';
         // Loved-one invite consume — fire here too in case the loved one
         // ended up in the onboarding flow rather than the connect screen.
@@ -19186,7 +19186,7 @@ function handleEhrCallback() {
         }, 1800);
         return;
       }
-      showToast('Health records connected! Fetching data\u2026');
+      showToast('Health records connected. Getting new records now.');
       // Take the user straight to Records so they can watch the data land
       try { switchNavTo('records'); } catch(e) { console.warn('switchNavTo(records) after EHR connect failed:', e); }
       fetchEhrData(personId, true);
@@ -20726,12 +20726,12 @@ function handleVaCallback() {
       // VA records flow through the same fetch-ehr-data edge function (the VA
       // branch added in commit 5b30ff5), so the existing path lights up.
       if (typeof _isConnectScreenActive === 'function' && _isConnectScreenActive()) {
-        showToast('VA records connected!');
+        showToast('VA records connected.');
         try { fetchEhrData(personId, true); } catch(_e) {}
         try { showConnectScreen(); } catch(_e) {}
         return;
       }
-      showToast('VA records connected! Fetching data\u2026');
+      showToast('VA records connected. Getting new records now.');
       try { switchNavTo('records'); } catch(e) {}
       try { fetchEhrData(personId, true); } catch(e) {}
     }).catch(function(err) {
