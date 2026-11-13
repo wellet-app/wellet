@@ -1,4 +1,5 @@
 // Supabase Edge Function: background-ehr-sync (v3 — Wellet)
+// 2026-11-13: optional hospital-records purchase check (RECORDS_PURCHASE_ENFORCED).
 // Accepts sb_secret_* service-role key OR legacy JWT. Deployed with verify_jwt=false.
 // v3 (2026-05-27): fix verifyOtp type — Supabase tightened magic-link OTP semantics;
 // admin-minted hashed_tokens must be redeemed with type: 'email', not 'magiclink'.
@@ -98,6 +99,25 @@ Deno.serve(async (req) => {
   if (conn.person_id !== person_id) {
     console.warn('[bg] connection_person_mismatch', { schedule_id, ehr_connection_id });
     return jsonResponse({ ok: false, detail: 'binding_mismatch' }, 409);
+  }
+
+  // Paid plan (2026-11-13): automatic updates need an active hospital-records
+  // purchase for this loved one. Off until launch: only enforced when
+  // RECORDS_PURCHASE_ENFORCED = "true". The first import and refreshes from
+  // the app don't come through here and stay free. Nothing saved is touched.
+  // A lookup error lets the sync run rather than stop a paid loved one's updates.
+  if (Deno.env.get('RECORDS_PURCHASE_ENFORCED') === 'true') {
+    const { data: purchase, error: purchaseErr } = await admin.from('records_purchases')
+      .select('id').eq('person_id', person_id).is('refunded_at', null).limit(1).maybeSingle();
+    if (purchaseErr) {
+      console.error('[bg] purchase lookup failed, syncing anyway', { schedule_id, message: purchaseErr.message });
+    } else if (!purchase) {
+      const nowIso = new Date().toISOString();
+      const next = new Date(Date.now() + CADENCE_CEILING_MIN * 60_000).toISOString();
+      await admin.from('ehr_sync_schedule').update({ next_run_at: next, last_outcome: 'not_purchased', last_run_at: nowIso, updated_at: nowIso }).eq('id', schedule_id);
+      console.log('[bg] not_purchased', { schedule_id, person_id });
+      return jsonResponse({ ok: true, outcome: 'not_purchased', cadence_minutes: sched.cadence_minutes, next_run_at: next });
+    }
   }
 
   const { data: baselineRow } = await admin.from('ehr_sync_log')

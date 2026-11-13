@@ -107,6 +107,12 @@ Deno.serve(async (req) => {
     return json({ error: "server_error" }, 500);
   }
 
+  // Start automatic updates for this loved one on the next hourly run instead
+  // of waiting out a not_purchased backoff (up to a day).
+  const { error: schedErr } = await admin
+    .from("ehr_sync_schedule").update({ next_run_at: new Date().toISOString() }).eq("person_id", personId);
+  if (schedErr) console.warn("verify-records-purchase schedule nudge failed", schedErr.message);
+
   console.log("verify-records-purchase recorded", { user_id: user.id, person_id: personId, environment: claims.environment });
   return active(insert.data, false);
 });
