@@ -10,6 +10,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { unzipSync } from 'https://esm.sh/fflate@0.8.2';
 import { aiChat } from './azureOpenAI.ts';
+import { meterAi } from './meter.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -100,7 +101,7 @@ Deno.serve(async (req) => {
           const base64 = btoa(String.fromCharCode(...imageBytes));
           const mimeType = ext === 'png' ? 'image/png' : ext === 'heic' ? 'image/heic' : 'image/jpeg';
           try {
-            const aiResult = await extractWithVision(base64, mimeType);
+            const aiResult = await extractWithVision(base64, mimeType, user.id);
             if (aiResult.patientName && !patientName) patientName = aiResult.patientName;
             allConditions.push(...aiResult.conditions);
             allMedications.push(...aiResult.medications);
@@ -404,7 +405,8 @@ interface VisionResult {
 
 async function extractWithVision(
   base64Image: string,
-  mimeType: string
+  mimeType: string,
+  userId?: string | null
 ): Promise<VisionResult> {
   const result: VisionResult = { patientName: null, conditions: [], medications: [] };
 
@@ -444,6 +446,7 @@ async function extractWithVision(
         },
       ],
     });
+    meterAi(aiResult, { feature: 'onboarding_scan', userId });
 
     const content = aiResult.content;
     if (!content) return result;

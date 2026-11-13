@@ -16,8 +16,9 @@
 // Voice prompt is byte-identical. Visit summary feel is preserved.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getCorsHeaders } from "../_shared/cors.ts";
-import { aiChat } from "../_shared/azureOpenAI.ts";
+import { getCorsHeaders } from "./cors.ts";
+import { aiChat } from "./azureOpenAI.ts";
+import { meterAi, jwtSub } from "./meter.ts";
 
 const VERSION = "12";
 
@@ -146,6 +147,7 @@ Hard rules:
         temperature: 0.3,
         phi: true, // visit context contains med names + lab values + provider names — BAA required
       });
+      meterAi(res, { feature: "visit_summary", userId: user.id, personId: person_id });
       summary = (res.content || "").trim();
       aiVendor = res.vendor;
       aiModel = res.model;

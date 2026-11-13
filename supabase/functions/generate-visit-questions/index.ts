@@ -1,7 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getCorsHeaders } from "../_shared/cors.ts";
-import { aiChat } from "../_shared/azureOpenAI.ts";
+import { getCorsHeaders } from "./cors.ts";
+import { aiChat } from "./azureOpenAI.ts";
+import { meterAi, jwtSub } from "./meter.ts";
 
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -12,8 +13,6 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    // AI vendor + keys are owned by ../_shared/azureOpenAI.ts. PHI-touching
-    // calls route through Azure OpenAI (BAA-covered) with phi:true.
 
     // Authenticate the caller
     const authHeader = req.headers.get("Authorization");
@@ -121,16 +120,14 @@ serve(async (req) => {
       });
     }
 
-    // PHI: caregiver-side question generation from the loved one's meds,
-    // conditions, and recent events. phi:true engages the adapter's
-    // assertVendorAllowedForPhi guardrail — Azure OpenAI under BAA only.
-    let raw: string;
+    // Call Azure OpenAI (PHI-safe under BAA) to generate visit questions
+    let raw = "[]";
     try {
       const result = await aiChat({
         model: "gpt-4o-mini",
+        phi: true,
         temperature: 0.4,
         max_tokens: 500,
-        phi: true,
         messages: [
           {
             role: "system",
@@ -151,6 +148,7 @@ Rules:
           },
         ],
       });
+      meterAi(result, { feature: "visit_questions", userId: user.id, personId: person_id });
       raw = result.content || "[]";
     } catch (aiErr) {
       console.error("Azure OpenAI error:", aiErr);

@@ -28,7 +28,8 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { aiChat } from "../_shared/azureOpenAI.ts";
+import { aiChat } from "./azureOpenAI.ts";
+import { meterAi, jwtSub } from "./meter.ts";
 
 const VERSION = "30";
 
@@ -730,6 +731,7 @@ RULES:
         temperature: 0.2,
         phi: true, // caregiver summary derived from real medical history, BAA required
       });
+      meterAi(res, { feature: "home_summary", userId: user.id, personId: person_id });
       summary = res.content;
       aiVendor = res.vendor;
       aiModel = res.model;
