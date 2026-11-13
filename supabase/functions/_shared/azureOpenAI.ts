@@ -48,6 +48,8 @@ export interface ChatResult {
   usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
   vendor: string;
   model: string;
+  // Model and version Azure/OpenAI says actually answered, e.g. gpt-4o-2024-11-20.
+  served_model?: string;
 }
 
 export interface TranscribeOptions {
@@ -225,6 +227,7 @@ async function azureChat(opts: ChatOptions): Promise<ChatResult> {
     },
     vendor: "azure",
     model: opts.model,
+    served_model: json.model,
   };
 }
 
@@ -292,6 +295,7 @@ async function openaiDirectChat(opts: ChatOptions): Promise<ChatResult> {
     },
     vendor: "openai_direct",
     model: opts.model,
+    served_model: json.model,
   };
 }
 
@@ -361,6 +365,7 @@ export async function aiChatJSON<T = unknown>(opts: Omit<ChatOptions, "response_
   usage: ChatResult["usage"];
   vendor: string;
   model: string;
+  served_model?: string;
 }> {
   const res = await aiChat({ ...opts, response_format: { type: "json_object" } });
   let data: T;
@@ -369,5 +374,5 @@ export async function aiChatJSON<T = unknown>(opts: Omit<ChatOptions, "response_
   } catch (e) {
     throw new Error(`[azureOpenAI] aiChatJSON: failed to parse JSON output: ${(e as Error).message}\nRaw: ${res.content}`);
   }
-  return { data, raw: res.content, usage: res.usage, vendor: res.vendor, model: res.model };
+  return { data, raw: res.content, usage: res.usage, vendor: res.vendor, model: res.model, served_model: res.served_model };
 }

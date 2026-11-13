@@ -19,6 +19,8 @@ export interface ChatResult {
   usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
   vendor: string;
   model: string;
+  // Model and version Azure/OpenAI says actually answered, e.g. gpt-4o-2024-11-20.
+  served_model?: string;
 }
 
 export interface TranscribeOptions {
@@ -123,7 +125,7 @@ async function azureChat(opts: ChatOptions): Promise<ChatResult> {
   const res = await fetch(url, { method: "POST", headers: { "api-key": apiKey, "Content-Type": "application/json" }, body: JSON.stringify(body) });
   if (!res.ok) throw new Error(`[azureOpenAI] Azure chat ${res.status}: ${await res.text()}`);
   const json = await res.json();
-  return { content: json.choices?.[0]?.message?.content ?? "", usage: { prompt_tokens: json.usage?.prompt_tokens ?? 0, completion_tokens: json.usage?.completion_tokens ?? 0, total_tokens: json.usage?.total_tokens ?? 0 }, vendor: "azure", model: opts.model };
+  return { content: json.choices?.[0]?.message?.content ?? "", usage: { prompt_tokens: json.usage?.prompt_tokens ?? 0, completion_tokens: json.usage?.completion_tokens ?? 0, total_tokens: json.usage?.total_tokens ?? 0 }, vendor: "azure", model: opts.model, served_model: json.model };
 }
 
 async function azureTranscribe(opts: TranscribeOptions): Promise<TranscribeResult> {
@@ -149,7 +151,7 @@ async function openaiDirectChat(opts: ChatOptions): Promise<ChatResult> {
   const res = await fetch("https://api.openai.com/v1/chat/completions", { method: "POST", headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: opts.model, messages: opts.messages, temperature: opts.temperature, max_tokens: opts.max_tokens, response_format: opts.response_format }) });
   if (!res.ok) throw new Error(`[azureOpenAI] OpenAI direct chat ${res.status}: ${await res.text()}`);
   const json = await res.json();
-  return { content: json.choices?.[0]?.message?.content ?? "", usage: { prompt_tokens: json.usage?.prompt_tokens ?? 0, completion_tokens: json.usage?.completion_tokens ?? 0, total_tokens: json.usage?.total_tokens ?? 0 }, vendor: "openai_direct", model: opts.model };
+  return { content: json.choices?.[0]?.message?.content ?? "", usage: { prompt_tokens: json.usage?.prompt_tokens ?? 0, completion_tokens: json.usage?.completion_tokens ?? 0, total_tokens: json.usage?.total_tokens ?? 0 }, vendor: "openai_direct", model: opts.model, served_model: json.model };
 }
 
 async function openaiDirectTranscribe(opts: TranscribeOptions): Promise<TranscribeResult> {
