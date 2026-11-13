@@ -1429,6 +1429,7 @@
   .doc-status.analyzing { background: var(--amber-bg); color: var(--amber-text); animation: statusPulse 2s ease-in-out infinite; }
   .doc-status.extracted { background: var(--mint); color: var(--moss-dark); }
   .doc-status.failed { background: #FEF0EE; color: var(--red); }
+  .doc-status.stored { background: var(--cream, #E8E6E0); color: var(--text-secondary, #3a4a45); }
   @keyframes statusPulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
   .doc-actions { display: flex; gap: 4px; flex-shrink: 0; margin-left: auto; }
   .doc-action-btn { background: none; border: 1px solid var(--border); border-radius: 8px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-muted); transition: all 0.15s; flex-shrink: 0; padding: 0; }

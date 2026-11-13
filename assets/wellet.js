@@ -5797,6 +5797,7 @@ function renderTimeline() {
         if (ext && ext.summary) body = ext.summary;
         else if (ext && ext.transcript) body = ext.transcript.length > 240 ? ext.transcript.substring(0,240) + '\u2026' : ext.transcript;
         else if (d.extraction_status === 'pending') body = 'Transcribing\u2026';
+        else if (d.extraction_status === 'stored') body = 'Saved. Not written out.';
         else if (d.extraction_status === 'failed') body = 'Transcription failed \u2014 retry from Records.';
         var title = d.file_name && d.file_name.indexOf('Voice note') === 0 ? d.file_name.replace(/\.[a-z0-9]+$/i,'') : 'Voice note';
         voiceTimelineItems.push({
@@ -8267,7 +8268,8 @@ function _rdDocsContent(liveDocs, currentPersonId) {
       var docIsAudio = isAudioFile(doc.file_name);
       var iconName   = docIsAudio ? 'mic' : getDocTypeIcon(doc.document_type);
       var statusClass = getDocStatusClass(doc.extraction_status);
-      var statusLabel = docIsAudio && doc.extraction_status==='pending' ? 'Transcribing\u2026' : getDocStatusLabel(doc.extraction_status);
+      var statusLabel = docIsAudio && doc.extraction_status==='pending' ? 'Transcribing\u2026'
+        : (docIsAudio && doc.extraction_status==='stored' ? 'Saved, not written out' : getDocStatusLabel(doc.extraction_status));
       var dateStr   = relativeTime(doc.uploaded_at);
       var clickable = doc.extraction_status==='completed' ? ' onclick="showExtractionResults(\''+doc.id+'\')"' : '';
       html += '<div class="doc-row" data-date="'+escHtml(doc.uploaded_at||'')+ '"'+clickable+'>'
@@ -8283,6 +8285,9 @@ function _rdDocsContent(liveDocs, currentPersonId) {
         }
       }
       html += '</div><span class="doc-status '+statusClass+'">'+statusLabel+'</span><div class="doc-actions">';
+      if (doc.extraction_status==='stored') {
+        html += '<button class="doc-action-btn" style="width:auto;padding:0 10px;font-size:13px;font-weight:500;color:var(--moss);text-decoration:underline;" onclick="event.stopPropagation();readStoredDocument(\''+doc.id+'\')">'+(docIsAudio?'Write it out':'Read it')+'</button>';
+      }
       if (docIsAudio && (doc.extraction_status==='pending'||doc.extraction_status==='failed')) {
         html += '<button class="doc-action-btn" title="Retry transcription" onclick="event.stopPropagation();retryTranscription(\''+doc.id+'\',\''+escHtml(doc.storage_path)+'\')"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i></button>';
       }
@@ -11771,12 +11776,14 @@ function getDocTypeIcon(type) {
 }
 
 function getDocStatusClass(status) {
+  if (status === 'stored') return 'stored';
   if (status === 'completed') return 'extracted';
   if (status === 'failed') return 'failed';
   return 'analyzing';
 }
 
 function getDocStatusLabel(status) {
+  if (status === 'stored') return 'Saved, not read';
   if (status === 'completed') return 'Extracted';
   if (status === 'failed') return 'Failed';
   return 'Analyzing\u2026';
@@ -11833,6 +11840,7 @@ function isZipFile(fileName) {
 async function retryTranscription(docId, storagePath) {
   var doc = liveDocs.find(function(d) { return d.id === docId; });
   if (!doc) return;
+  if (!(await welletAiReadAllowed('voice', doc.person_id, { askEvenIfOff: true }))) return;
 
   try {
     var session = await db.auth.getSession();
@@ -13473,6 +13481,7 @@ function updateSettingsAccount() {
   if (currentUser && !isDemoMode) {
     section.style.display = 'block';
     if (danger) danger.style.display = 'block';
+    try { renderAiReadSettings(); } catch (_) {}
     var emailEl = document.getElementById('settings-user-email');
     if (emailEl) emailEl.textContent = currentUser.email || 'Signed in';
   } else {
@@ -23558,6 +23567,7 @@ async function confirmUpload() {
   });
 
   var isAudio = isAudioFile(file.name);
+  var aiOk = await welletAiReadAllowed(isAudio ? 'voice' : 'document', personId);
 
   // Show uploading state
   document.getElementById('upload-step2').style.display = 'none';
@@ -23681,7 +23691,7 @@ async function confirmUpload() {
       file_name: file.name,
       storage_path: storagePath,
       document_type: docType,
-      extraction_status: 'pending'
+      extraction_status: aiOk ? 'pending' : 'stored'
     }).select().single();
 
     if (insertResult.error) {
@@ -23691,7 +23701,11 @@ async function confirmUpload() {
     var docRecord = insertResult.data;
     document.getElementById('upload-progress-bar').style.width = '75%';
 
-    if (isAudio) {
+    if (!aiOk) {
+      document.getElementById('upload-progress-title').textContent = 'Saving\u2026';
+      document.getElementById('upload-progress-sub').textContent = '';
+      document.getElementById('upload-time-estimate').textContent = '';
+    } else if (isAudio) {
       var estTransSec = estimateTranscriptionTime(file.size);
       document.getElementById('upload-progress-title').textContent = 'Transcribing your recording...';
       if (estTransSec) {
@@ -23720,7 +23734,7 @@ async function confirmUpload() {
       ? 'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/transcribe-audio'
       : 'https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/parse-document';
 
-    try {
+    if (aiOk) try {
       var session = await db.auth.getSession();
       var token = session.data.session.access_token;
 
@@ -23764,7 +23778,9 @@ async function confirmUpload() {
         ? '<i data-lucide="mic" style="width:24px;height:24px;color:var(--moss);"></i>'
         : '<i data-lucide="check-circle" style="width:24px;height:24px;color:var(--moss);"></i>';
       document.getElementById('upload-done-title').textContent = isAudio ? 'Recording saved' : 'Document saved';
-      document.getElementById('upload-done-sub').textContent = isAudio
+      document.getElementById('upload-done-sub').textContent = !aiOk
+        ? (isAudio ? 'Saved without writing it out. You can choose \u201cWrite it out\u201d in Records any time.' : 'Saved without reading it. You can choose \u201cRead it\u201d in Records any time.')
+        : isAudio
         ? 'Wellet is transcribing your recording and will extract health data automatically.'
         : 'Wellet is reading your document and will extract health information automatically.';
       var doneBtn = document.getElementById('upload-done-btn');
@@ -23772,7 +23788,7 @@ async function confirmUpload() {
       doneBtn.onclick = function() { closeUpload(); };
       initIcons();
       // Start polling for extraction status (audio gets more attempts since transcription takes longer)
-      pollExtractionStatus(docRecord.id, isAudio);
+      if (aiOk) pollExtractionStatus(docRecord.id, isAudio);
     }, 500);
 
     showToast('Document saved to records');
@@ -26716,6 +26732,7 @@ async function _uploadVoiceRecording() {
     if (!currentPersonId) {
       throw new Error('No person selected. Open a profile first.');
     }
+    var aiOk = await welletAiReadAllowed('voice', currentPersonId);
 
     // Build the blob. Prefer the MediaRecorder's mimeType so we preserve codec info.
     var mimeType = (_vrMediaRecorder && _vrMediaRecorder.mimeType) || _vrChunks[0].type || 'audio/webm';
@@ -26765,7 +26782,7 @@ async function _uploadVoiceRecording() {
       file_name: fileName,
       storage_path: storagePath,
       document_type: 'voice_note',
-      extraction_status: 'pending'
+      extraction_status: aiOk ? 'pending' : 'stored'
     }).select().single();
     if (insertRes.error || !insertRes.data) {
       // Roll back the storage upload on DB failure
@@ -26774,7 +26791,7 @@ async function _uploadVoiceRecording() {
     }
     var docId = insertRes.data.id;
 
-    setProgress('Transcribing\u2026 this usually takes ' + Math.max(5, Math.ceil(_vrSeconds / 2)) + ' seconds');
+    setProgress(aiOk ? 'Transcribing\u2026 this usually takes ' + Math.max(5, Math.ceil(_vrSeconds / 2)) + ' seconds' : 'Saving\u2026');
 
     // Call transcribe-audio. Don't block the UI forever — if it takes longer than 60s,
     // we trust it to finish server-side and let the user see the result when they refresh.
@@ -26782,7 +26799,7 @@ async function _uploadVoiceRecording() {
     var timeoutId = setTimeout(function() { controller.abort(); }, 60000);
     var fnRes;
     try {
-      fnRes = await fetch('https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/transcribe-audio', {
+      fnRes = !aiOk ? null : await fetch('https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/transcribe-audio', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -26806,7 +26823,9 @@ async function _uploadVoiceRecording() {
     if (processingEl) processingEl.style.display = 'none';
     closeSheet('voice-record-overlay');
 
-    if (fnRes.ok) {
+    if (!fnRes) {
+      showToast('Recording saved. Not written out.');
+    } else if (fnRes.ok) {
       showToast('Recording saved and transcribed');
     } else {
       // Edge function already marked the doc as failed; user can retry from Records.
@@ -27399,6 +27418,13 @@ async function obChatHandleFiles(input, type) {
     obChat.docsUploaded += fileCount;
   }
   obSaveChatState();
+
+  if (currentUser && !(await welletAiReadAllowed('document', currentPersonId))) {
+    obAddBubble('wellet', 'No problem. I won\u2019t read them. You can add them in Records any time and choose whether Wellet reads them.');
+    obShowConnectChips();
+    input.value = '';
+    return;
+  }
 
   var readingMsg = type === 'photo'
     ? 'Reading your photo\u2026'
@@ -35884,6 +35910,9 @@ function _renderVoiceWishRow(w) {
     statusBadge = '<span style="font-size:var(--type-micro);color:var(--text-muted);font-style:italic;">Transcribing\u2026</span>';
   } else if (status === 'failed') {
     statusBadge = '<span style="font-size:var(--type-micro);color:#C0392B;">Transcription failed</span>';
+  } else if (status === 'stored') {
+    statusBadge = '<span style="font-size:var(--type-micro);color:var(--text-muted);">Saved, not written out.</span> '
+      + '<a href="#" style="font-size:var(--type-micro);color:var(--moss);font-weight:500;" onclick="event.preventDefault();readStoredWish(\'' + w.id + '\')">Write it out</a>';
   }
   var bodyText = transcript
     ? '<p style="font-family:var(--serif),serif;font-style:italic;color:var(--text-primary);font-size:var(--type-body);line-height:1.55;margin:6px 0 0;">\u201C' + escHtml(transcript) + '\u201D</p>'
@@ -36247,6 +36276,7 @@ async function _uploadWishRecording() {
     if (!_wishPersonId) {
       throw new Error('No person selected.');
     }
+    var aiOk = await welletAiReadAllowed('voice', _wishPersonId);
 
     var mimeType = (_vrMediaRecorder && _vrMediaRecorder.mimeType) || _vrChunks[0].type || 'audio/webm';
     var baseMime = mimeType.split(';')[0].trim();
@@ -36276,7 +36306,7 @@ async function _uploadWishRecording() {
       file_name: fileName,
       storage_path: storagePath,
       document_type: 'wish',
-      extraction_status: 'pending'
+      extraction_status: aiOk ? 'pending' : 'stored'
     }).select().single();
     if (insertRes.error || !insertRes.data) {
       try { await db.storage.from('documents').remove([storagePath]); } catch (e) {}
@@ -36284,10 +36314,10 @@ async function _uploadWishRecording() {
     }
     var docId = insertRes.data.id;
 
-    setProgress('Transcribing\u2026');
+    setProgress(aiOk ? 'Transcribing\u2026' : 'Saving\u2026');
     var controller = new AbortController();
     var timeoutId = setTimeout(function() { controller.abort(); }, 60000);
-    try {
+    if (aiOk) try {
       await fetch('https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/transcribe-audio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token, 'apikey': SUPABASE_ANON_KEY },
@@ -36674,3 +36704,174 @@ async function _uploadWishRecording() {
   }
 })();
 
+
+// ── AI READ NOTICE (web) ──────────────────────────────────────────────────────
+// Before Wellet sends a voice note or a document to Microsoft Azure OpenAI,
+// the caregiver is asked once. The choice lives in auth user_metadata
+// (wellet_ai_read: { voice: 'on'|'off', document: 'on'|'off' }), so it follows
+// the account across browsers. 'on' = read without asking. 'off' (set in
+// Settings) = save without reading. Unset = ask. "Save without reading" in the
+// dialog leaves it unset, so the next file asks again.
+function _aiReadPref(kind) {
+  try {
+    var m = (currentUser && currentUser.user_metadata && currentUser.user_metadata.wellet_ai_read) || {};
+    return m[kind] || null;
+  } catch (e) { return null; }
+}
+
+async function _aiReadSetPref(kind, value) {
+  try {
+    var m = Object.assign({}, (currentUser && currentUser.user_metadata && currentUser.user_metadata.wellet_ai_read) || {});
+    if (value) m[kind] = value; else delete m[kind];
+    var res = await db.auth.updateUser({ data: { wellet_ai_read: m } });
+    if (res && res.data && res.data.user) currentUser = res.data.user;
+  } catch (e) { try { console.warn('[ai-read] could not save choice'); } catch (_) {} }
+  try { renderAiReadSettings(); } catch (_) {}
+}
+
+function _aiReadPersonFirstName(personId) {
+  try {
+    var p = (currentPeople || []).find(function (x) { return x.id === (personId || currentPersonId); });
+    var n = p && (p.first_name || p.preferred_name || p.name || '');
+    n = String(n).trim().split(/\s+/)[0];
+    return n || '';
+  } catch (e) { return ''; }
+}
+
+// Resolves true if Wellet may read this file with AI, false to save it unread.
+function welletAiReadAllowed(kind, personId, opts) {
+  opts = opts || {};
+  if (isDemoMode || !currentUser) return Promise.resolve(true);
+  var pref = _aiReadPref(kind);
+  if (pref === 'on') return Promise.resolve(true);
+  if (pref === 'off' && !opts.askEvenIfOff) return Promise.resolve(false);
+  return _aiReadShowDialog(kind, personId);
+}
+
+function _aiReadShowDialog(kind, personId) {
+  return new Promise(function (resolve) {
+    var first = _aiReadPersonFirstName(personId);
+    var whose = first ? first + '\u2019s' : 'this';
+    var isVoice = kind === 'voice';
+    var title = isVoice ? 'Want Wellet to write this out?' : 'Want Wellet to read this?';
+    var body = isVoice
+      ? 'Wellet can turn ' + whose + ' voice note into text and pick out any medicines, appointments and follow-ups. To do that, Wellet sends the recording to Microsoft\u2019s Azure OpenAI service.'
+      : 'Wellet can read ' + whose + ' document and pick out medicines, results, visits and follow-ups. To do that, Wellet sends the document to Microsoft\u2019s Azure OpenAI service.';
+    var sends = isVoice
+      ? ['This recording', 'The text written from it, so the details can be picked out']
+      : ['This document', 'The text read from it, so the details can be picked out'];
+    var yes = isVoice ? 'Write it out' : 'Read it';
+    var record = first ? first + '\u2019s record' : 'the record';
+
+    var ov = document.createElement('div');
+    ov.id = 'ai-read-overlay';
+    ov.setAttribute('role', 'dialog');
+    ov.setAttribute('aria-modal', 'true');
+    ov.setAttribute('aria-labelledby', 'ai-read-title');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(28,40,38,.38);display:flex;align-items:center;justify-content:center;padding:16px;';
+    var esc = (typeof escHtml === 'function') ? escHtml : function (s) { return String(s); };
+    ov.innerHTML =
+      '<div style="width:100%;max-width:520px;max-height:92vh;overflow:auto;background:#F4F3EE;border-radius:16px;padding:28px 26px 22px;box-shadow:0 20px 50px rgba(0,0,0,.25);color:#1C2826;font-family:inherit;">'
+      + '<div style="width:44px;height:44px;border-radius:50%;background:#D6E5CF;display:flex;align-items:center;justify-content:center;color:var(--moss,#11443B);margin-bottom:14px;"><i data-lucide="' + (isVoice ? 'mic' : 'file-text') + '" style="width:21px;height:21px;"></i></div>'
+      + '<h2 id="ai-read-title" style="font-family:var(--font-display,Fraunces,Georgia,serif);font-weight:400;font-size:25px;line-height:1.18;color:var(--moss,#11443B);margin:0 0 10px;">' + esc(title) + '</h2>'
+      + '<p style="font-size:15.5px;line-height:1.45;margin:0 0 14px;">' + esc(body) + '</p>'
+      + '<div style="background:#ECEBE4;border:1px solid #d9d8cf;border-radius:12px;padding:13px 16px;margin-bottom:12px;">'
+      +   '<div style="font-size:13px;font-weight:600;color:#3A4A45;margin-bottom:6px;">What Wellet sends</div>'
+      +   sends.map(function (s) { return '<div style="font-size:14.5px;margin:5px 0;">\u2022 ' + esc(s) + '</div>'; }).join('')
+      + '</div>'
+      + '<p style="font-size:13px;color:#5f6b67;margin:0 0 8px;line-height:1.4;">Nothing else from ' + esc(record) + ' is sent. Microsoft does not use what Wellet sends to train its models.</p>'
+      + '<p style="font-size:13px;color:#5f6b67;margin:0;line-height:1.4;">If you choose \u201cSave without reading,\u201d the file is still saved. You can change this any time in Settings. <a href="/privacy" target="_blank" rel="noopener" style="color:var(--moss,#11443B);font-weight:500;">Read the privacy policy</a></p>'
+      + '<div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;">'
+      +   '<button type="button" id="ai-read-yes" style="flex:1 1 180px;min-height:46px;border-radius:12px;border:0;background:var(--moss,#11443B);color:#F4F3EE;font-size:15.5px;font-weight:500;cursor:pointer;">' + esc(yes) + '</button>'
+      +   '<button type="button" id="ai-read-no" style="flex:1 1 180px;min-height:46px;border-radius:12px;border:1.5px solid var(--moss,#11443B);background:transparent;color:var(--moss,#11443B);font-size:15.5px;font-weight:500;cursor:pointer;">Save without reading</button>'
+      + '</div></div>';
+    document.body.appendChild(ov);
+    try { if (typeof initIcons === 'function') initIcons(); } catch (_) {}
+    var done = function (ok) {
+      try { document.removeEventListener('keydown', onKey); } catch (_) {}
+      try { ov.remove(); } catch (_) {}
+      if (ok) _aiReadSetPref(kind, 'on');
+      resolve(ok);
+    };
+    var onKey = function (e) { if (e.key === 'Escape') done(false); };
+    document.addEventListener('keydown', onKey);
+    ov.querySelector('#ai-read-yes').onclick = function () { done(true); };
+    ov.querySelector('#ai-read-no').onclick = function () { done(false); };
+    try { ov.querySelector('#ai-read-yes').focus(); } catch (_) {}
+  });
+}
+
+// Settings: one row each for voice notes and documents.
+function renderAiReadSettings() {
+  var sec = document.getElementById('settings-ai-section');
+  if (!sec) return;
+  if (!currentUser || isDemoMode) { sec.style.display = 'none'; return; }
+  sec.style.display = 'block';
+  var rows = [['voice', 'Voice notes', 'mic'], ['document', 'Documents', 'file-text']];
+  var html = '<div class="settings-section-label">Privacy and data</div>';
+  rows.forEach(function (r) {
+    var pref = _aiReadPref(r[0]);
+    var meta = pref === 'on' ? 'On. Uses Microsoft Azure OpenAI'
+      : pref === 'off' ? 'Off. Saved without reading'
+      : 'Asks before sending to Microsoft Azure OpenAI';
+    var action = pref === 'on' ? 'Turn off' : 'Turn on';
+    html += '<div class="settings-row" style="cursor:pointer;" onclick="toggleAiReadSetting(\'' + r[0] + '\')">'
+      + '<div class="settings-row-left"><div class="settings-row-icon"><i data-lucide="' + r[2] + '" style="width:15px;height:15px;"></i></div>'
+      + '<div><div class="settings-row-label">Wellet reads ' + r[1].toLowerCase() + '</div><div class="settings-row-meta">' + meta + '</div></div></div>'
+      + '<div class="settings-row-meta" style="color:var(--moss,#11443B);font-weight:500;">' + action + '</div></div>';
+  });
+  sec.innerHTML = html;
+  try { if (typeof initIcons === 'function') initIcons(); } catch (_) {}
+}
+
+async function toggleAiReadSetting(kind) {
+  if (_aiReadPref(kind) === 'on') { await _aiReadSetPref(kind, 'off'); showToast('Turned off. Files will be saved without reading.'); return; }
+  var ok = await _aiReadShowDialog(kind, currentPersonId);
+  if (ok) showToast('Turned on');
+}
+
+// "Write it out" / "Read it" on a file that was saved without reading.
+async function readStoredDocument(docId) {
+  var doc = (liveDocs || []).find(function (d) { return d.id === docId; });
+  if (!doc) return;
+  var isVoice = isAudioFile(doc.file_name);
+  var ok = await welletAiReadAllowed(isVoice ? 'voice' : 'document', doc.person_id, { askEvenIfOff: true });
+  if (!ok) return;
+  if (isVoice) { return retryTranscription(docId, doc.storage_path); }
+  try {
+    var session = await db.auth.getSession();
+    var token = session.data.session.access_token;
+    await db.from('documents').update({ extraction_status: 'pending' }).eq('id', docId);
+    doc.extraction_status = 'pending';
+    renderRecordsView();
+    showToast('Wellet is reading it\u2026');
+    await fetch('https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/parse-document', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token, 'apikey': SUPABASE_ANON_KEY },
+      body: JSON.stringify({ document_id: docId, file_name: doc.file_name, document_type: doc.document_type, storage_path: doc.storage_path })
+    });
+    if (doc.person_id) await loadPersonData(doc.person_id);
+    renderRecordsView();
+  } catch (e) {
+    showToast('Could not read it. Please try again.');
+  }
+}
+
+async function readStoredWish(docId) {
+  var personId = (typeof _wishPersonId !== 'undefined' && _wishPersonId) || currentPersonId;
+  var ok = await welletAiReadAllowed('voice', personId, { askEvenIfOff: true });
+  if (!ok) return;
+  try {
+    var session = await db.auth.getSession();
+    var token = session.data.session.access_token;
+    await db.from('documents').update({ extraction_status: 'pending' }).eq('id', docId);
+    if (personId) await renderWishesList(personId);
+    showToast('Writing it out\u2026');
+    await fetch('https://nrpdhxygzyfmyljzfexv.supabase.co/functions/v1/transcribe-audio', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token, 'apikey': SUPABASE_ANON_KEY },
+      body: JSON.stringify({ document_id: docId })
+    });
+    if (personId) await renderWishesList(personId);
+  } catch (e) { showToast('Could not write it out. Please try again.'); }
+}
