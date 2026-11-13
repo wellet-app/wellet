@@ -172,8 +172,13 @@ function conditionSearchVariants(raw: string): string[] {
 // title, the paper must be a systematic review, meta-analysis or practice
 // guideline from the last four years, and results are ranked by relevance.
 async function fetchFromRegistry(conditionText: string): Promise<ResearchPaper[]> {
+  // PubMed allows about 3 requests a second without an API key, so space
+  // the retries out.
+  let first = true;
   for (const variant of conditionSearchVariants(conditionText)) {
     for (const field of ["Title", "Title/Abstract"]) {
+      if (!first) await new Promise((r) => setTimeout(r, 700));
+      first = false;
       const papers = await searchPubMed(variant, field);
       if (papers.length > 0) return papers;
     }
