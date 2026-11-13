@@ -51,6 +51,56 @@ function getCorsHeaders(req: Request): Record<string, string> {
 
 const SENSITIVE_Z_RANGE = { min: 31, max: 37 };
 
+// ─── CONDITION NAME FALLBACKS ────────────────────────────────────────────────
+// health_events conditions carry no ICD-10 code. These read the condition's
+// name so the curated lists still match and sensitive conditions still get
+// no cards. Kept in step with WelletCore ConditionLookup on iOS.
+const SENSITIVE_NAME_PARTS = [
+  "depress", "anxiety", "bipolar", "schizo", "psychos", "ptsd", "post-traumatic",
+  "obsessive", "panic disorder", "eating disorder", "anorexia", "bulimia",
+  "suicid", "self-harm", "self harm", "adhd", "attention deficit", "personality disorder",
+  "substance", "alcohol", "opioid", "cannabis", "cocaine", "dependence", "use disorder",
+  "hiv", "human immunodeficiency", "aids",
+  "pregnan", "gestation", "abortion", "miscarriage", "infertil", "contracept",
+  "sexually transmitted", "gender dysphoria",
+];
+const SENSITIVE_NAME_TOKENS = new Set(["std", "sti", "ocd", "mdd", "gad"]);
+function isSensitiveConditionText(text: string): boolean {
+  const n = (text || "").toLowerCase();
+  if (!n) return false;
+  if (SENSITIVE_NAME_PARTS.some((p) => n.includes(p))) return true;
+  return n.split(/[^a-z]+/).some((t) => SENSITIVE_NAME_TOKENS.has(t));
+}
+const NAME_TO_ICD10: Array<[string, string[]]> = [
+  ["E11", ["type 2 diabetes", "type ii diabetes", "diabetes mellitus type 2", "t2dm"]],
+  ["E10", ["type 1 diabetes", "type i diabetes", "diabetes mellitus type 1"]],
+  ["I50", ["heart failure", "congestive heart"]],
+  ["G30", ["alzheimer"]],
+  ["G31", ["lewy body", "frontotemporal"]],
+  ["G20", ["parkinson"]],
+  ["G35", ["multiple sclerosis"]],
+  ["G12", ["amyotrophic lateral", "motor neuron disease"]],
+  ["J44", ["copd", "chronic obstructive", "emphysema"]],
+  ["J45", ["asthma"]],
+  ["N18", ["chronic kidney disease", "ckd"]],
+  ["C50", ["breast cancer", "malignant neoplasm of breast", "carcinoma of breast"]],
+  ["C92", ["myeloid leukemia", "myeloid leukaemia"]],
+  ["K7", ["cirrhosis", "fatty liver", "hepatitis", "liver disease"]],
+  ["Q90", ["down syndrome", "trisomy 21"]],
+  ["D57", ["sickle cell"]],
+  ["I", ["coronary", "atrial fibrillation", "hypertension", "stroke", "cardiomyopathy"]],
+  ["C", ["cancer", "malignant neoplasm", "carcinoma", "lymphoma", "leukemia", "melanoma"]],
+  ["M", ["rheumatoid arthritis", "osteoarthritis", "lupus", "osteoporosis"]],
+];
+function inferConditionCode(text: string): string {
+  const n = (text || "").toLowerCase();
+  if (!n) return "";
+  for (const [code, parts] of NAME_TO_ICD10) {
+    if (parts.some((p) => n.includes(p))) return code;
+  }
+  return "";
+}
+
 function isSensitiveCode(icd10: string): boolean {
   if (!icd10) return false;
   const c = icd10.toUpperCase().trim();
@@ -385,7 +435,8 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  const { condition_code = "", condition_text = "" } = body;
+  const { condition_code: rawConditionCode = "", condition_text = "" } = body;
+  const condition_code = (rawConditionCode || "").trim() || inferConditionCode(condition_text);
   const emptyResponse = () => ({
     treatments: [] as FDATreatment[],
     cached: false,
@@ -393,7 +444,7 @@ Deno.serve(async (req: Request) => {
   });
 
   // Server-side sensitive-code gate
-  if (isSensitiveCode(condition_code)) {
+  if (isSensitiveCode(condition_code) || isSensitiveConditionText(condition_text)) {
     return jsonResp(emptyResponse(), 200, cors);
   }
 
