@@ -128,27 +128,27 @@
     var heroes = [
       {
         h: 'The Notes app. The group text. The 11pm pharmacy call.<br><em>You\'re already a caregiver.</em>',
-        p: 'You\'ve been holding all of it. Wellet reads the records, notices the patterns, and remembers what you can\'t. So you can stop being the memory.'
+        p: 'You\'ve been holding all of it. Wellet keeps the records, the notes and the questions in one place, so you don\'t have to be the only one who remembers.'
       },
       {
         h: 'You\'re holding it all <em>together.</em> We built something to help.',
-        p: 'Wellet notices changes in your loved one\'s health \u2014 medication timing, lab trends, appointments \u2014 so you don\'t have to remember everything yourself. Built by a caregiver. Free to start.'
+        p: 'Medications, labs, visits and notes for your loved one, together in one place and easy to share with family. Built by a caregiver. Free.'
       },
       {
-        h: 'Scattered health records. Missed medication changes. Sound <em>familiar?</em>',
-        p: 'Wellet pulls your family member\'s health records into one place and watches for the changes that matter \u2014 so nothing slips through the cracks. No shame. Just clarity.'
+        h: 'Records in five portals. Notes in three phones. Sound <em>familiar?</em>',
+        p: 'Wellet brings your loved one\'s records into one place, with plain-language summaries you can read before the next visit.'
       },
       {
         h: 'One place for your family\'s health. <em>Finally.</em>',
-        p: 'Upload health records. See what matters. Get gentle nudges before appointments. Wellet was built by a caregiver who needed it \u2014 for caregivers who need it now.'
+        p: 'Add records, see what changed, and walk into the next visit with your questions ready. Wellet was built by a caregiver who needed it, for caregivers who need it now.'
       },
       {
         h: 'Caring for someone with dementia means <em>remembering</em> everything they can\'t.',
-        p: 'Wellet stays on top of medications, lab results, and appointment prep \u2014 so you can focus on being present. Not another app to learn. Just upload their health records and let Wellet follow along.'
+        p: 'Wellet keeps their medications, lab results and visit notes in one place, so you can spend less time searching and more time with them. Add their records and it\'s ready when you need it.'
       },
       {
         h: 'A record that belongs to your <em>family,</em> not the hospital.',
-        p: 'The chart, the conversation, the gut feeling, the share, the watch, the question \u2014 everything that happens around your loved one\'s health, in one place. Wellet is the only record that holds all of it.'
+        p: 'The chart, the conversation, the gut feeling, the question. Everything around your loved one\'s health, in one place that your family keeps.'
       }
     ];
     // If the visitor came from /me (self-use landing), force a self-framed hero
@@ -162,7 +162,7 @@
       if (_sloc.indexOf('me_') === 0 || _lpage === '/me' || _lpage === '/me/') {
         pick = {
           h: 'Your health records are scattered across six portals. <em>One quiet place.</em>',
-          p: 'Wellet pulls your own records, labs, visits, and wearable data into one place and watches for the changes that matter \u2014 so you don\'t have to keep it all in your head.'
+          p: 'Wellet brings your records, labs, visits and Apple Health readings into one place, so you don\'t have to keep it all in your head.'
         };
       }
     } catch (e) { /* fall through to random */ }
@@ -347,7 +347,7 @@
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#11443B" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
         </div>
         <h2 class="try-drop-title">Drop any health document</h2>
-        <p class="try-drop-subtitle">Lab result, after-visit summary, MyChart PDF, medication list, even a photo of a prescription. Wellet reads it in 30 seconds.</p>
+        <p class="try-drop-subtitle">Lab result, after-visit summary, MyChart PDF, medication list, even a photo of a prescription. Wellet can read it for you in about 30 seconds.</p>
         <p class="try-drop-note">No signup required.</p>
         <label class="try-drop-btn">
           <input type="file" id="try-file-input" accept=".pdf,.png,.jpg,.jpeg,.heic,.doc,.docx" style="display:none">
