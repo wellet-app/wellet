@@ -1,27 +1,76 @@
+// transcribe-audio v20 — Azure OpenAI migration (Path A2)
+//
+// Changes vs v19:
+//   - Whisper: routed through aiTranscribe({ phi: true })
+//   - GPT-4o extraction: routed through aiChatJSON({ phi: true })
+//   - OPENAI_API_KEY env check replaced with WELLET_AI_VENDOR env check
+//   - All surrounding logic (auth, doc lookup, storage download, db updates,
+//     CORS, error handling, console.log lines) preserved verbatim
+//
+// v23 (2026-11-13, security review):
+//   - storage_path now comes from the documents row the caller owns. The
+//     client's value is ignored, so one user can't transcribe another's file.
+//   - Logs no longer include file names or storage paths.
+//   - Error responses no longer echo internal or vendor error text.
+//   - Files over 25 MB are refused before any AI call.
+//   - CORS limited to Wellet's own sites.
+//
+// Reversibility: set WELLET_AI_VENDOR=openai_direct in Supabase secrets
+// and the adapter falls back to the legacy OpenAI direct path automatically.
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getCorsHeaders } from "../_shared/cors.ts";
+import { aiTranscribe, aiChatJSON } from "./azureOpenAI.ts";
+
+const ALLOWED_ORIGINS = [
+  "https://mywellet.com",
+  "https://www.mywellet.com",
+  "https://getwellet.com",
+  "https://www.getwellet.com",
+];
+const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
+
+function corsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("Origin") || "";
+  return {
+    "Access-Control-Allow-Origin": ALLOWED_ORIGINS.includes(origin) ? origin : "https://mywellet.com",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Vary": "Origin",
+  };
+}
 
 Deno.serve(async (req) => {
-  const corsHeaders = getCorsHeaders(req);
+  const CORS_HEADERS = corsHeaders(req);
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: CORS_HEADERS });
   }
 
   const json = (data: unknown, status = 200) =>
     new Response(JSON.stringify(data), {
       status,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
     });
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const openaiKey = Deno.env.get("OPENAI_API_KEY")!;
+    const aiVendor = Deno.env.get("WELLET_AI_VENDOR") ?? "azure";
+
+    // Env sanity: ensure the vendor's required secrets exist.
+    if (aiVendor === "azure") {
+      if (!Deno.env.get("AZURE_OPENAI_ENDPOINT") || !Deno.env.get("AZURE_OPENAI_API_KEY")) {
+        return json({ error: "AZURE_OPENAI_ENDPOINT/API_KEY not configured", step: "env_check" }, 503);
+      }
+    } else if (aiVendor === "openai_direct") {
+      if (!Deno.env.get("OPENAI_API_KEY")) {
+        return json({ error: "OPENAI_API_KEY not configured", step: "env_check" }, 503);
+      }
+    }
 
     // Authenticate the caller
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return json({ error: "No authorization header" }, 401);
+      return json({ error: "No authorization header", step: "auth" }, 401);
     }
 
     const anonClient = createClient(
@@ -34,29 +83,39 @@ Deno.serve(async (req) => {
       error: userError,
     } = await anonClient.auth.getUser();
     if (userError || !user) {
-      return json({ error: "Unauthorized" }, 401);
+      return json({ error: "Unauthorized", step: "auth" }, 401);
     }
 
     const db = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { document_id, storage_path } = await req.json();
-    if (!document_id || !storage_path) {
-      return json({ error: "document_id and storage_path required" }, 400);
+    // storage_path from the client is accepted for older web builds but never used.
+    const { document_id } = await req.json();
+    if (!document_id) {
+      return json({ error: "document_id required", step: "input" }, 400);
     }
+
+    console.log(`[transcribe] Starting: doc=${document_id}, vendor=${aiVendor}`);
 
     // Verify the document belongs to a person owned by this user
     const { data: doc, error: docErr } = await db
       .from("documents")
-      .select("id, person_id, file_name, people!inner(user_id)")
+      .select("id, person_id, file_name, storage_path, people!inner(user_id)")
       .eq("id", document_id)
       .single();
 
     if (docErr || !doc) {
-      return json({ error: "Document not found" }, 404);
+      console.error("[transcribe] Doc lookup failed:", docErr?.message);
+      return json({ error: "Document not found", step: "doc_lookup" }, 404);
     }
     if ((doc as any).people.user_id !== user.id) {
-      return json({ error: "Not authorized" }, 403);
+      return json({ error: "Not authorized", step: "ownership" }, 403);
     }
+
+    const storage_path: string = (doc as any).storage_path;
+    if (!storage_path) {
+      return json({ error: "Document has no file", step: "doc_lookup" }, 404);
+    }
+    console.log("[transcribe] Doc verified");
 
     // Mark as processing
     await db
@@ -65,16 +124,25 @@ Deno.serve(async (req) => {
       .eq("id", document_id);
 
     // Download the audio file from Supabase Storage
+    console.log("[transcribe] Downloading from storage");
     const { data: fileData, error: dlError } = await db.storage
       .from("documents")
       .download(storage_path);
 
     if (dlError || !fileData) {
+      console.error("[transcribe] Storage download failed:", dlError?.message);
       await db
         .from("documents")
         .update({ extraction_status: "failed" })
         .eq("id", document_id);
-      return json({ error: "Failed to download audio: " + (dlError?.message || "unknown") }, 500);
+      return json({ error: "Failed to download audio", step: "storage_download" }, 500);
+    }
+
+    const fileSize = fileData.size;
+    console.log(`[transcribe] Downloaded ${fileSize} bytes`);
+    if (fileSize > MAX_AUDIO_BYTES) {
+      await db.from("documents").update({ extraction_status: "failed" }).eq("id", document_id);
+      return json({ error: "Recording is too long to transcribe (25 MB limit)", step: "size_check" }, 413);
     }
 
     // Determine MIME type from extension
@@ -87,36 +155,36 @@ Deno.serve(async (req) => {
       webm: "audio/webm",
     };
     const mimeType = mimeMap[ext] || "audio/mp4";
-    const fileName = doc.file_name || `recording.${ext}`;
+    // Generic name: the original file name can carry a person's name.
+    const fileName = `recording.${ext}`;
 
-    // Send to OpenAI Whisper for transcription
-    const formData = new FormData();
-    formData.append("file", new File([fileData], fileName, { type: mimeType }));
-    formData.append("model", "whisper-1");
-    formData.append("response_format", "text");
-
-    const whisperRes = await fetch(
-      "https://api.openai.com/v1/audio/transcriptions",
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${openaiKey}` },
-        body: formData,
-      },
-    );
-
-    if (!whisperRes.ok) {
-      const errText = await whisperRes.text();
-      console.error("Whisper API error:", whisperRes.status, errText);
+    // === PHI call #1 — transcription ===
+    // Routed through aiTranscribe. With WELLET_AI_VENDOR=azure this hits
+    // Azure Whisper on the East US 2 secondary resource (BAA-covered).
+    console.log(`[transcribe] Calling aiTranscribe (${mimeType}, ${fileSize} bytes)`);
+    let transcript = "";
+    try {
+      const audioBlob = new Blob([fileData], { type: mimeType });
+      const tr = await aiTranscribe({
+        audio: audioBlob,
+        filename: fileName,
+        response_format: "text",
+        phi: true,
+      });
+      transcript = tr.text;
+      console.log(`[transcribe] aiTranscribe (${tr.vendor}/${tr.model}) returned ${transcript.length} chars`);
+    } catch (e) {
+      console.error("[transcribe] aiTranscribe error:", (e as Error).message);
       await db
         .from("documents")
         .update({ extraction_status: "failed" })
         .eq("id", document_id);
-      return json({ error: "Transcription failed" }, 500);
+      return json({ error: "Transcription failed", step: "whisper" }, 500);
     }
 
-    const transcript = await whisperRes.text();
-
-    // Pass transcript through GPT-4o to extract structured health data
+    // === PHI call #2 — structured extraction ===
+    // Routed through aiChatJSON. With WELLET_AI_VENDOR=azure this hits
+    // Azure gpt-4o-prod (East US, BAA-covered).
     const systemPrompt = [
       "You are a medical data extractor for a caregiver health app.",
       "Given a transcript of a doctor visit recording, extract structured health information.",
@@ -144,13 +212,15 @@ Deno.serve(async (req) => {
       "- Be precise: only include information clearly stated in the transcript",
     ].join("\n");
 
-    const gptRes = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${openaiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    let extracted: { summary?: string; items?: unknown[]; transcript?: string } = {
+      transcript,
+      summary: "",
+      items: [],
+    };
+
+    try {
+      console.log("[transcribe] Calling aiChatJSON for extraction");
+      const res = await aiChatJSON<{ summary?: string; items?: unknown[] }>({
         model: "gpt-4o",
         max_tokens: 2000,
         messages: [
@@ -162,39 +232,22 @@ Deno.serve(async (req) => {
               transcript,
           },
         ],
-        response_format: { type: "json_object" },
-      }),
-    });
-
-    let extracted: { summary?: string; items?: unknown[]; transcript?: string } = {
-      transcript,
-      summary: "",
-      items: [],
-    };
-
-    if (gptRes.ok) {
-      const gptData = await gptRes.json();
-      const content = gptData.choices?.[0]?.message?.content;
-      if (content) {
-        try {
-          const parsed = JSON.parse(content);
-          extracted = {
-            transcript,
-            summary: parsed.summary || "",
-            items: Array.isArray(parsed.items) ? parsed.items : [],
-          };
-        } catch {
-          // GPT returned non-JSON — store transcript only
-          extracted = { transcript, summary: "", items: [] };
-        }
-      }
-    } else {
-      console.error("GPT extraction error:", gptRes.status, await gptRes.text());
-      // Still save the transcript even if extraction fails
+        phi: true,
+      });
+      console.log(`[transcribe] aiChatJSON (${res.vendor}/${res.model}) returned ${res.raw.length} chars`);
+      extracted = {
+        transcript,
+        summary: res.data.summary || "",
+        items: Array.isArray(res.data.items) ? res.data.items : [],
+      };
+    } catch (e) {
+      console.error("[transcribe] aiChatJSON extraction error:", (e as Error).message);
+      // Fall through with the empty extracted object — the transcript is still saved.
     }
 
     // Store results in the documents table
-    await db
+    console.log(`[transcribe] Saving results: ${extracted.items?.length || 0} items`);
+    const { error: updateErr } = await db
       .from("documents")
       .update({
         extracted_events: extracted,
@@ -202,9 +255,21 @@ Deno.serve(async (req) => {
       })
       .eq("id", document_id);
 
-    return json({ success: true, transcript, extracted });
+    if (updateErr) {
+      console.error("[transcribe] DB update failed:", updateErr.message);
+      return json({ error: "Failed to save results", step: "db_update" }, 500);
+    }
+
+    console.log("[transcribe] Success!");
+    return json({
+      success: true,
+      transcript_length: transcript.length,
+      items_count: extracted.items?.length || 0,
+      ai_vendor: aiVendor,
+    });
   } catch (e) {
-    console.error("transcribe-audio error:", e);
-    return json({ error: (e as Error).message }, 500);
+    console.error("[transcribe] Unhandled error:", e);
+    return json({ error: "Something went wrong", step: "unhandled" }, 500);
   }
 });
+
