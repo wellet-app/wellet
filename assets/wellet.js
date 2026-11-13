@@ -36732,7 +36732,7 @@ async function _aiReadSetPref(kind, value) {
 function _aiReadPersonFirstName(personId) {
   try {
     var p = (currentPeople || []).find(function (x) { return x.id === (personId || currentPersonId); });
-    var n = p && (p.first_name || p.preferred_name || p.name || '');
+    var n = (p && (p.first_name || p.preferred_name || p.name)) || '';
     n = String(n).trim().split(/\s+/)[0];
     return n || '';
   } catch (e) { return ''; }
