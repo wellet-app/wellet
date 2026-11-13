@@ -239,6 +239,31 @@ function normalizeGenericKey(generic: string): string {
   return generic.toLowerCase().trim().replace(SALT_SUFFIX_RE, "").trim();
 }
 
+
+// ---------------------------------------------------------------------------
+// Condition name variants (Nov 13, 2026)
+// EHR names carry qualifiers ("without complications", ", stage 2",
+// "(disorder)") that public registries rarely use. Try the name as recorded,
+// then simpler forms, and stop at the first one that returns results.
+// ---------------------------------------------------------------------------
+function conditionSearchVariants(raw: string): string[] {
+  const out: string[] = [];
+  const add = (s: string) => {
+    const v = s.replace(/\s+/g, " ").replace(/[\s,;:-]+$/, "").trim();
+    if (v.length >= 3 && !out.includes(v.toLowerCase())) out.push(v.toLowerCase());
+  };
+  const base = raw.replace(/\[[^\]]*\]|\([^)]*\)/g, " ");
+  add(base);
+  let s = base
+    .replace(/,?\s*(unspecified|not otherwise specified|nos)\b.*$/i, "")
+    .replace(/\s+(without|with|due to|secondary to|in remission|affecting)\b.*$/i, "")
+    .replace(/(,\s*|\s+)(stage|grade|class)\s+[0-9ivx]+[a-z]?\b.*$/i, "");
+  add(s);
+  if (s.includes(",")) add(s.split(",")[0]);
+  add(s.replace(/\s+mellitus\b/i, ""));
+  return out.slice(0, 4);
+}
+
 // ---------------------------------------------------------------------------
 // openFDA fetch + parse
 // ---------------------------------------------------------------------------
@@ -379,7 +404,7 @@ Deno.serve(async (req: Request) => {
 
   // Cache key
   const normalizedText = condition_text.toLowerCase().trim();
-  const cacheInput = `${normalizedText}|v1|fda`;
+  const cacheInput = `${normalizedText}|v2|fda`;
   const cacheKey = await sha256(cacheInput);
 
   // Supabase admin client
@@ -401,11 +426,17 @@ Deno.serve(async (req: Request) => {
 
   // Cache miss → fetch from openFDA
   const MAX_TREATMENTS = 5;
-  const treatments = await fetchFromRegistry(condition_text.trim(), MAX_TREATMENTS);
+  let treatments: FDATreatment[] = [];
+  for (const variant of conditionSearchVariants(condition_text)) {
+    treatments = await fetchFromRegistry(variant, MAX_TREATMENTS);
+    if (treatments.length > 0) break;
+  }
   const fetchedAt = new Date().toISOString();
   const payload: CachePayload = { treatments, fetched_at: fetchedAt };
 
-  await cachePut(admin, cacheKey, condition_text.trim(), payload);
+  // Never cache an empty result: a slow or rate-limited openFDA reply
+  // would otherwise hide treatments for a week.
+  if (treatments.length > 0) await cachePut(admin, cacheKey, condition_text.trim(), payload);
 
   return jsonResp({ treatments, cached: false, fetched_at: fetchedAt }, 200, cors);
 });

@@ -113,7 +113,7 @@ async function cachePut(
       cache_key: cacheKey,
       query_meta: {
         condition_text: conditionText,
-        pub_type_filter: "review OR meta-analysis",
+        pub_type_filter: "systematic review OR meta-analysis OR practice guideline, title match, last 4 years",
         retmax: 5,
       },
       response: payload,
@@ -142,15 +142,60 @@ const ESEARCH_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi
 const ESUMMARY_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi";
 const MAX_RESULTS = 5;
 
+
+// ---------------------------------------------------------------------------
+// Condition name variants (Nov 13, 2026)
+// EHR names carry qualifiers ("without complications", ", stage 2",
+// "(disorder)") that public registries rarely use. Try the name as recorded,
+// then simpler forms, and stop at the first one that returns results.
+// ---------------------------------------------------------------------------
+function conditionSearchVariants(raw: string): string[] {
+  const out: string[] = [];
+  const add = (s: string) => {
+    const v = s.replace(/\s+/g, " ").replace(/[\s,;:-]+$/, "").trim();
+    if (v.length >= 3 && !out.includes(v.toLowerCase())) out.push(v.toLowerCase());
+  };
+  const base = raw.replace(/\[[^\]]*\]|\([^)]*\)/g, " ");
+  add(base);
+  let s = base
+    .replace(/,?\s*(unspecified|not otherwise specified|nos)\b.*$/i, "")
+    .replace(/\s+(without|with|due to|secondary to|in remission|affecting)\b.*$/i, "")
+    .replace(/(,\s*|\s+)(stage|grade|class)\s+[0-9ivx]+[a-z]?\b.*$/i, "");
+  add(s);
+  if (s.includes(",")) add(s.split(",")[0]);
+  add(s.replace(/\s+mellitus\b/i, ""));
+  return out.slice(0, 4);
+}
+
+// Nov 13, 2026: "All Fields" + newest-first surfaced off-topic papers that
+// only mentioned the condition in passing. Now: the condition must be in the
+// title, the paper must be a systematic review, meta-analysis or practice
+// guideline from the last four years, and results are ranked by relevance.
 async function fetchFromRegistry(conditionText: string): Promise<ResearchPaper[]> {
-  // Build ESearch query: free-text match + Publication Type filter
-  // Using All Fields (default) so NCBI's query translation maps to MeSH automatically
-  const term = `"${conditionText}"[All Fields] AND (review[Publication Type] OR meta-analysis[Publication Type])`;
+  // PubMed allows about 3 requests a second without an API key, so space
+  // the retries out.
+  let first = true;
+  for (const variant of conditionSearchVariants(conditionText)) {
+    for (const field of ["Title", "Title/Abstract"]) {
+      if (!first) await new Promise((r) => setTimeout(r, 700));
+      first = false;
+      const papers = await searchPubMed(variant, field);
+      if (papers.length > 0) return papers;
+    }
+  }
+  return [];
+}
+
+async function searchPubMed(conditionText: string, field: string): Promise<ResearchPaper[]> {
+  const fromYear = new Date().getUTCFullYear() - 4;
+  const term = `"${conditionText.replace(/"/g, "")}"[${field}]`
+    + ` AND (systematic review[Publication Type] OR meta-analysis[Publication Type] OR practice guideline[Publication Type])`
+    + ` AND english[Language] AND ("${fromYear}"[dp] : "3000"[dp])`;
   const esearchParams = new URLSearchParams({
     db: "pubmed",
     term,
     retmax: String(MAX_RESULTS),
-    sort: "pub_date",
+    sort: "relevance",
     retmode: "json",
   });
   const esearchUrl = `${ESEARCH_BASE}?${esearchParams.toString()}`;
@@ -290,7 +335,7 @@ Deno.serve(async (req: Request) => {
   }
 
   // Cache key: sha256(lowercased condition_text | reviews | v1)
-  const cacheInput = `${condition_text.toLowerCase().trim()}|reviews|v1`;
+  const cacheInput = `${condition_text.toLowerCase().trim()}|reviews|v2`;
   const cacheKey = await sha256(cacheInput);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -307,7 +352,8 @@ Deno.serve(async (req: Request) => {
   const papers = await fetchFromRegistry(condition_text.trim());
   const fetchedAt = new Date().toISOString();
   const payload = { papers, fetched_at: fetchedAt };
-  await cachePut(admin, cacheKey, condition_text.trim(), payload);
+  // Never cache an empty result (a PubMed rate-limit reply looks empty).
+  if (papers.length > 0) await cachePut(admin, cacheKey, condition_text.trim(), payload);
 
   return jsonResp({ papers, cached: false, fetched_at: fetchedAt }, 200, cors);
 });
