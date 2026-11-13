@@ -51,6 +51,7 @@ import {
 } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { aiChat } from "./azureOpenAI.ts";
 import { meterAi, jwtSub } from "./meter.ts";
+import { checkAllowance, limitResponse } from "./allowance.ts";
 
 const VERSION = "39";
 
@@ -515,6 +516,10 @@ Deno.serve(async (req: Request) => {
     }
 
     // ─── ANSWER MODE ─────────────────────────────────────────────────────────
+    // Free plan: 5 questions a month. Off unless FREE_LIMITS_ENFORCED=true.
+    const allowance = await checkAllowance(meterUserId, "ask");
+    if (!allowance.allowed) return limitResponse(allowance, corsHeaders);
+
     const data = await fetchPersonData(supabase, personId);
     const personContext = buildPersonContext(data);
     const { system, messages } = buildAnswerPrompt(
