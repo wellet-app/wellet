@@ -5,6 +5,8 @@
 const RATES: Record<string, { in: number; out: number }> = {
   // USD per 1M tokens (Azure OpenAI list prices, Nov 2026)
   "gpt-4o": { in: 2.5, out: 10 },
+  // The original May 2024 gpt-4o release is priced higher.
+  "gpt-4o-2024-05-13": { in: 5, out: 15 },
   "gpt-4o-mini": { in: 0.15, out: 0.6 },
   "sonar": { in: 1, out: 1 },
   "sonar-pro": { in: 3, out: 15 },
@@ -12,6 +14,7 @@ const RATES: Record<string, { in: number; out: number }> = {
 
 function rateFor(model: string | undefined) {
   const m = (model || "").toLowerCase();
+  if (m.includes("2024-05-13") && !m.includes("mini")) return RATES["gpt-4o-2024-05-13"];
   if (m.includes("mini")) return RATES["gpt-4o-mini"];
   if (m.includes("sonar-pro")) return RATES["sonar-pro"];
   if (m.includes("sonar")) return RATES["sonar"];
@@ -32,13 +35,15 @@ export function meterAi(res: any, ctx: MeterContext): void {
     if (!url || !key || !res) return;
     const p = Number(res?.usage?.prompt_tokens ?? 0) || 0;
     const c = Number(res?.usage?.completion_tokens ?? 0) || 0;
-    const r = rateFor(res?.model);
+    // Price and log the model that actually answered, not the name we asked for.
+    const model = res?.served_model || res?.model || null;
+    const r = rateFor(model ?? undefined);
     const row = {
       user_id: ctx.userId || null,
       person_id: ctx.personId || null,
       feature: ctx.feature,
       vendor: res?.vendor ?? null,
-      model: res?.model ?? null,
+      model,
       prompt_tokens: p,
       completion_tokens: c,
       est_cost_usd: Number(((p * r.in + c * r.out) / 1_000_000).toFixed(6)),
