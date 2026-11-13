@@ -30,6 +30,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChat } from "./azureOpenAI.ts";
 import { meterAi, jwtSub } from "./meter.ts";
+import { checkAllowance, limitResponse } from "./allowance.ts";
 
 const VERSION = "30";
 
@@ -714,6 +715,12 @@ RULES:
       `WINDOW: ${windowClass.toUpperCase()}\n\n` +
       `CONTEXT (for Snapshot only, do not quote):\n${context}\n\n` +
       `NUMBERED BULLETS (source for "What's new", copy verbatim, do not edit):\n${numberedBullets || "(none)"}`;
+
+    // Free plan: each loved one's first summary. Updated summaries come with
+    // Wellet AI. Off unless FREE_LIMITS_ENFORCED=true. The app keeps showing
+    // the last saved summary when this returns 402.
+    const allowance = await checkAllowance(user.id, "home_summary", person_id);
+    if (!allowance.allowed) return limitResponse(allowance, corsHeaders);
 
     let summary = "";
     let aiVendor = "";

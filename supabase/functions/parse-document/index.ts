@@ -33,6 +33,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatJSON, aiVision, aiChat } from "./azureOpenAI.ts";
 import { meterAi, jwtSub } from "./meter.ts";
+import { checkAllowance, limitResponse } from "./allowance.ts";
 // unpdf — Deno/serverless-friendly fork of pdfjs-dist with the canvas
 // dependency stripped out. Verified locally against a 115-page MyChart
 // export: 1.5s extraction, full text fidelity.
@@ -280,6 +281,27 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({ success: true, document_id, vault: true, extraction_status: "completed" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
+    }
+
+    // Free plan: 3 document reads a month. Off unless FREE_LIMITS_ENFORCED=true.
+    // The file is already saved; when the limit is reached it stays saved,
+    // just not read, so nothing the caregiver added is lost.
+    const allowance = await checkAllowance(user.id, "document_read");
+    if (!allowance.allowed) {
+      // Same shape as a Vault save, so every screen already handles it.
+      await supabase.from("documents").update({
+        extraction_status: "completed",
+        extracted_events: {
+          source: "not_read",
+          document_type,
+          file_name,
+          processed_at: new Date().toISOString(),
+          function_version: VERSION,
+          items: [],
+          summary: "Saved without reading.",
+        },
+      }).eq("id", document_id);
+      return limitResponse(allowance, corsHeaders);
     }
 
     // Update status to processing
