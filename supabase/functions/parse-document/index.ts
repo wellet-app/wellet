@@ -31,7 +31,8 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { aiChatJSON, aiVision, aiChat } from "../_shared/azureOpenAI.ts";
+import { aiChatJSON, aiVision, aiChat } from "./azureOpenAI.ts";
+import { meterAi, jwtSub } from "./meter.ts";
 // unpdf — Deno/serverless-friendly fork of pdfjs-dist with the canvas
 // dependency stripped out. Verified locally against a 115-page MyChart
 // export: 1.5s extraction, full text fidelity.
@@ -331,6 +332,7 @@ Deno.serve(async (req: Request) => {
           max_tokens: 4000,
           phi: true,
         });
+        meterAi(res, { feature: "document_read", userId: user.id });
         aiVendor = res.vendor;
         aiModel = res.model;
         aiUsage = res.usage;
@@ -504,6 +506,7 @@ Deno.serve(async (req: Request) => {
               temperature: 0.2,
               phi: true,
             });
+            meterAi(sumRes, { feature: "document_read_summary", userId: user.id });
             finalSummary = sumRes.content.trim().replace(/^["']|["']$/g, "");
             if (sumRes.usage) {
               aiUsage = {

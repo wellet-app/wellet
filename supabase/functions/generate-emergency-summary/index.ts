@@ -1,7 +1,52 @@
+// generate-emergency-summary v27 — remove drug-interaction flag, add clinical-judgment guardrails (accuracy audit HIGH-1)
+// (v26 — Azure OpenAI migration baseline, BAA-covered PHI path)
+//
+// HIGHEST PHI SURFACE in Wellet. This function generates the "If something
+// happens to me, hand this to the ER" brief. The context block sent to the
+// model contains:
+//   • Patient legal name + DOB + age + blood type
+//   • Free-text allergies AND structured EHR-sourced allergies (substance,
+//     reaction, severity)
+//   • Free-text conditions AND every condition / diagnostic_report / visit /
+//     immunization event from the last 12 months
+//   • Every active medication with dose + frequency
+//   • Recent lab values with ranges
+//   • Primary doctor + insurance
+//   • Emergency contact name + phone
+//   • Full care circle with names + phones
+//
+// This is *exactly* the kind of payload OpenAI's BAA was written for.
+// Migrating it off direct-to-OpenAI was the highest-leverage move in the
+// Azure migration plan.
+//
+// Behavior changes vs v25:
+//   • Vendor:  OpenAI direct  →  Azure OpenAI (BAA-covered)
+//   • API key: OPENAI_API_KEY →  AZURE_OPENAI_* env vars (via adapter)
+//   • Model name on the wire is still "gpt-4o-mini". Note: until Azure
+//     gpt-4o-mini quota is granted (resubmit ~2026-05-19), the deployment
+//     env var AZURE_OPENAI_DEPLOYMENT_GPT4O_MINI is mapped to the gpt-4o
+//     deployment. The brief comes back from gpt-4o instead of gpt-4o-mini —
+//     slightly more expensive per call, but identical capability.
+//   • Response shape unchanged. Clients get the same {summary} payload.
+//   • Adds ai_vendor + function_version + usage to response for audit.
+//
+// v27 voice change: removes the "flag any critical drug interactions" line
+// that asked the model to perform pharmacovigilance from training data.
+// Adds explicit clinical-judgment guardrails that forbid the model from
+// introducing facts/codes not present in the patient data verbatim.
+// (Was v26: voice prompt byte-identical to v25, only vendor swap.)
+//
+// PHI guardrail: phi:true is set. The adapter will THROW if WELLET_AI_VENDOR
+// is sonar, and will throw if it's openai_direct without the explicit
+// WELLET_ALLOW_OPENAI_DIRECT_PHI=true override.
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getCorsHeaders } from "../_shared/cors.ts";
-import { aiChat } from "../_shared/azureOpenAI.ts";
+import { getCorsHeaders } from "./cors.ts";
+import { aiChat } from "./azureOpenAI.ts";
+import { meterAi, jwtSub } from "./meter.ts";
+
+const VERSION = "27";
 
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -9,13 +54,18 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  // Env check on cold start so logs prove BAA path is wired
+  const envCheck = {
+    vendor: Deno.env.get("WELLET_AI_VENDOR") ?? "azure",
+    has_azure_endpoint: !!Deno.env.get("AZURE_OPENAI_ENDPOINT"),
+    has_azure_key: !!Deno.env.get("AZURE_OPENAI_API_KEY"),
+    mini_deployment: Deno.env.get("AZURE_OPENAI_DEPLOYMENT_GPT4O_MINI") ?? "(unset)",
+  };
+  console.log(`[generate-emergency-summary v${VERSION}] env_check`, JSON.stringify(envCheck));
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    // AI vendor + keys are now owned by ../_shared/azureOpenAI.ts. This
-    // function no longer reads OPENAI_API_KEY directly — Azure OpenAI
-    // (BAA-covered) is the default vendor and the adapter enforces it for
-    // phi:true calls.
 
     // Authenticate the caller
     const authHeader = req.headers.get("Authorization");
@@ -248,23 +298,8 @@ serve(async (req) => {
       });
     }
 
-    // Call the Azure OpenAI adapter. phi:true forces BAA-covered routing —
-    // the adapter's assertVendorAllowedForPhi guardrail will throw if
-    // anything but azure (or another BAA-eligible vendor) is configured.
-    let summary: string;
-    try {
-      const result = await aiChat({
-        model: "gpt-4o-mini",
-        temperature: 0.3,
-        // Bumped from 800 — the brief now folds in EHR-sourced allergies,
-        // conditions, diagnostic reports, visits, and a short lab list, and
-        // 800 was truncating mid-RECENT PROCEDURES once we had real data.
-        max_tokens: 1200,
-        phi: true,
-        messages: [
-          {
-            role: "system",
-            content: `You are a medical summary assistant for an emergency room context. Generate a concise, highly readable emergency brief from the patient data provided. This will be shown on a phone screen to ER staff.
+    // ── Voice prompt — v27 removes drug-interaction flag, adds clinical-judgment guardrails (accuracy audit HIGH-1) ──
+    const systemPrompt = `You are a medical summary assistant for an emergency room context. Generate a concise, highly readable emergency brief from the patient data provided. This will be shown on a phone screen to ER staff.
 
 Format rules:
 - Use plain text only, no markdown formatting
@@ -284,19 +319,43 @@ Clinical-judgment guardrails (STRICT):
 - Do NOT flag dosing errors, contraindications, or medication mistakes.
 - Do NOT introduce any medication, condition, allergy, dose, date, or contact that is not present verbatim in the data provided. If a field is missing, omit the section or write "Not on file."
 - Never invent ICD-10, CPT, HCPCS, or NDC codes. Only include codes that appear in the data.
-- You are not a doctor. Frame everything as a transcription of what is recorded, not as medical advice.`,
-          },
+- You are not a doctor. Frame everything as a transcription of what is recorded, not as medical advice.`;
+
+    let summary = "";
+    let aiVendor = "";
+    let aiModel = "";
+    let aiUsage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null = null;
+
+    try {
+      const res = await aiChat({
+        // gpt-4o-mini is the v25 model. Until Azure mini quota lands
+        // (~2026-05-19), AZURE_OPENAI_DEPLOYMENT_GPT4O_MINI maps to the
+        // gpt-4o deployment — same capability, slightly more expensive.
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
           {
             role: "user",
             content: `Generate an emergency brief for this patient:\n\n${context}`,
           },
         ],
+        max_tokens: 1200,
+        temperature: 0.3,
+        // PHI: highest-density PHI surface in the entire app. BAA required.
+        phi: true,
       });
-      summary = result.content || "Unable to generate summary.";
+      meterAi(res, { feature: "emergency_summary", userId: user.id, personId: person_id });
+      summary = res.content || "Unable to generate summary.";
+      aiVendor = res.vendor;
+      aiModel = res.model;
+      aiUsage = res.usage;
+      console.log(
+        `[generate-emergency-summary v${VERSION}] aiChat (${res.vendor}/${res.model}) returned ${summary.length} chars`,
+      );
     } catch (aiErr) {
-      console.error("Azure OpenAI error:", aiErr);
+      console.error(`[generate-emergency-summary v${VERSION}] AI call failed:`, aiErr);
       return new Response(
-        JSON.stringify({ error: "AI generation failed" }),
+        JSON.stringify({ error: "AI generation failed", details: String(aiErr) }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -304,11 +363,20 @@ Clinical-judgment guardrails (STRICT):
       );
     }
 
-    return new Response(JSON.stringify({ summary }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        summary,
+        model: aiModel,
+        ai_vendor: aiVendor,
+        function_version: VERSION,
+        usage: aiUsage,
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   } catch (err) {
-    console.error("Function error:", err);
+    console.error(`[generate-emergency-summary v${VERSION}] Function error:`, err);
     return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

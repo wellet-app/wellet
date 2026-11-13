@@ -24,6 +24,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChat } from "../_shared/azureOpenAI.ts";
+import { meterAi } from "../_shared/meter.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -309,6 +310,7 @@ Deno.serve(async (req: Request) => {
           { role: 'user', content: `Review this record and return wishes as JSON.\n\n${trimmedContext}` },
         ],
       });
+      meterAi(result, { feature: "wishes_extract", userId: person?.user_id ?? jwtSub, personId: person_id });
       raw = result.content || '';
     } catch (e) {
       console.error('extract-wishes Azure call failed:', (e as Error).message);
