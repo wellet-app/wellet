@@ -4,7 +4,7 @@
 // Returns structured data for the name confirmation screen.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { unzipSync } from 'https://esm.sh/fflate@0.8.2';
+import { unzipSync } from 'https://esm.sh/fflate@0.8.3';
 import { getCorsHeaders } from '../_shared/cors.ts';
 import { aiVision } from '../_shared/azureOpenAI.ts';
 
