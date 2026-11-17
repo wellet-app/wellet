@@ -51,6 +51,7 @@ import {
 } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { aiChat } from "./azureOpenAI.ts";
 import { meterAi, jwtSub } from "./meter.ts";
+import { countLastHour, isPaused, PAUSE_MESSAGE, pauseThreshold } from "./pause.ts";
 
 const VERSION = "39";
 
@@ -473,6 +474,20 @@ Deno.serve(async (req: Request) => {
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // Bot guard: pauses only far above what a person could ask in an hour.
+    // There is no monthly cap. See pause.ts.
+    const threshold = pauseThreshold(Deno.env.get("ASK_PAUSE_PER_HOUR"));
+    if (isPaused(await countLastHour(meterUserId), threshold)) {
+      console.warn("ask-wellet paused", { user: meterUserId, threshold });
+      return new Response(
+        JSON.stringify({ error: PAUSE_MESSAGE, code: "ask_paused", retry_after_minutes: 15 }),
+        {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "900" },
         },
       );
     }
