@@ -58,7 +58,8 @@ This information is entirely optional and controlled by you. You decide what to 
 If you choose to share Apple Health with Wellet, the app reads only the types you turn on, such as steps, heart rate, resting heart rate, heart rate variability, sleep, blood oxygen, breathing rate, walking steadiness and other walking measures, and falls. Those readings are sent to Wellet's servers and stored with the profile you shared them to, so you and your care circle can see them.
 
 - Wellet only reads from Apple Health. It never writes to the Health app.
-- Apple Health readings are never used for advertising or marketing, never sold, and never sent to an AI service.
+- Apple Health readings are never used for advertising or marketing and never sold.
+- If you turn on AI features in the iPhone app, Ask Wellet uses daily totals and averages of your own Apple Health readings from the last 30 days, such as steps, sleep and heart rate, to answer your questions. They go to Microsoft's Azure OpenAI Service the same way the rest of your question does (see Section 4). Apple Health readings someone shares with you are never sent to an AI service, and the Wellet summary, document reading and visit notes don't use Apple Health.
 - You can stop sharing at any time in the Wellet app or in the iPhone Settings app. Deleting your account removes the Apple Health readings Wellet received.
 
 ### AI Conversation Data
@@ -119,7 +120,7 @@ Some Wellet features use AI to write text for you:
 
 ### Who Processes the Data
 
-These features run on the **Azure OpenAI Service, operated by Microsoft**. When you use one, Wellet sends the health information the feature needs to Microsoft, Microsoft returns a response, and Wellet shows it to you. For the Wellet summary, that information is the care recipient's first name, age and relationship to you; conditions, allergies and medications; labs, visits and caregiver check-ins; and notes Wellet read from documents you added. Apple Health readings are never sent.
+These features run on the **Azure OpenAI Service, operated by Microsoft**. When you use one, Wellet sends the health information the feature needs to Microsoft, Microsoft returns a response, and Wellet shows it to you. For the Wellet summary, that information is the care recipient's first name, age and relationship to you; conditions, allergies and medications; labs, visits and caregiver check-ins; and notes Wellet read from documents you added. Apple Health readings are not part of the summary. Ask Wellet in the iPhone app also uses daily totals and averages of your own Apple Health readings, only after you allow AI features. Apple Health readings someone shares with you are never sent.
 
 Under [Microsoft's terms for Azure OpenAI](https://learn.microsoft.com/en-us/legal/cognitive-services/openai/data-privacy), the data Wellet sends is not used to train Microsoft's or OpenAI's models and is not shared with OpenAI. Microsoft may keep it for a limited time to watch for abuse of the service, as those terms describe.
 
@@ -174,7 +175,7 @@ We share your information only as necessary to operate Wellet. Here's the comple
 | Service | What They Receive | Why |
 |---|---|---|
 | **Supabase** | All account and health data | Database and file storage infrastructure |
-| **Microsoft (Azure OpenAI Service)** | Health information needed for Ask Wellet, the Wellet summary, document reading, and visit notes (never Apple Health readings) | AI feature processing |
+| **Microsoft (Azure OpenAI Service)** | Health information needed for Ask Wellet, the Wellet summary, document reading, and visit notes (Ask Wellet also uses daily totals and averages of your own Apple Health readings, only after you allow AI features; never readings someone shares with you) | AI feature processing |
 | **OpenAI** | Voice notes recorded on the web app | Turns speech into text |
 | **Perplexity** | The name and city of a hospital you look up (no personal or health data) | Finds which records system a hospital uses |
 | **Netlify** | No personal health information | Hosts our marketing website only |
@@ -318,4 +319,4 @@ We aim to respond to all inquiries within 5 business days.
 
 ---
 
-*This Privacy Policy was last updated on November 12, 2026.*
+*This Privacy Policy was last updated on November 23, 2026.*

@@ -241,7 +241,8 @@
 
 <ul>
 <li>Wellet only reads from Apple Health. It never writes to the Health app.</li>
-<li>Apple Health readings are never used for advertising or marketing, never sold, and never sent to an AI service.</li>
+<li>Apple Health readings are never used for advertising or marketing and never sold.</li>
+<li>If you turn on AI features in the iPhone app, Ask Wellet uses daily totals and averages of your own Apple Health readings from the last 30 days, such as steps, sleep and heart rate, to answer your questions. They go to Microsoft's Azure OpenAI Service the same way the rest of your question does (see Section 4). Apple Health readings someone shares with you are never sent to an AI service, and the Wellet summary, document reading and visit notes don't use Apple Health.</li>
 <li>You can stop sharing at any time in the Wellet app or in the iPhone Settings app. Deleting your account removes the Apple Health readings Wellet received.</li>
 </ul>
 
@@ -317,7 +318,7 @@
 
 <h3>Who Processes the Data</h3>
 
-<p>These features run on the <strong>Azure OpenAI Service, operated by Microsoft</strong>. When you use one, Wellet sends the health information the feature needs to Microsoft, Microsoft returns a response, and Wellet shows it to you. For the Wellet summary, that information is the care recipient's first name, age and relationship to you; conditions, allergies and medications; labs, visits and caregiver check-ins; and notes Wellet read from documents you added. Apple Health readings are never sent.</p>
+<p>These features run on the <strong>Azure OpenAI Service, operated by Microsoft</strong>. When you use one, Wellet sends the health information the feature needs to Microsoft, Microsoft returns a response, and Wellet shows it to you. For the Wellet summary, that information is the care recipient's first name, age and relationship to you; conditions, allergies and medications; labs, visits and caregiver check-ins; and notes Wellet read from documents you added. Apple Health readings are not part of the summary. Ask Wellet in the iPhone app also uses daily totals and averages of your own Apple Health readings, only after you allow AI features. Apple Health readings someone shares with you are never sent.</p>
 
 <p>Under <a href="https://learn.microsoft.com/en-us/legal/cognitive-services/openai/data-privacy" target="_blank" rel="noopener">Microsoft's terms for Azure OpenAI</a>, the data Wellet sends is not used to train Microsoft's or OpenAI's models and is not shared with OpenAI. Microsoft may keep it for a limited time to watch for abuse of the service, as those terms describe.</p>
 
@@ -388,7 +389,7 @@
 </tr>
 <tr>
 <td><strong>Microsoft (Azure OpenAI Service)</strong></td>
-<td>Health information needed for Ask Wellet, the Wellet summary, document reading, and visit notes (never Apple Health readings)</td>
+<td>Health information needed for Ask Wellet, the Wellet summary, document reading, and visit notes (Ask Wellet also uses daily totals and averages of your own Apple Health readings, only after you allow AI features; never readings someone shares with you)</td>
 <td>AI feature processing</td>
 </tr>
 <tr>
@@ -578,7 +579,7 @@
 
 <hr>
 
-<p><em>This Privacy Policy was last updated on November 13, 2026.</em></p>
+<p><em>This Privacy Policy was last updated on November 23, 2026.</em></p>
 </main>
 </body>
 </html>
