@@ -1,3 +1,16 @@
+// ask-wellet v41 — Apple Health only with consent; honest live_ehr.
+//
+//   include_apple_health: true   adds the APPLE HEALTH section. Opt-in per
+//     request because the privacy policy (2026-11-13) and the iOS AI
+//     permission sheet said Apple Health readings are never sent to an AI
+//     service. Only a client that has shown the updated permission wording
+//     sends this flag. Absent or false: Apple Health is not read at all.
+//   live_ehr   true only when the record sent to the model includes rows
+//     that came from a connected health system (Epic, Cerner, VA, ...).
+//     v39/v40 returned true whenever the person existed, so every answer
+//     showed "Connected health system".
+//   apple_health   true when the APPLE HEALTH section had data.
+//
 // ask-wellet v40 — reads Apple Health (wearable_observations) as well as
 // the chart. v39 never read that table, so Ask Wellet said "the chart
 // doesn't mention Apple Health" even with samples on file. See appleHealth.ts.
@@ -59,7 +72,7 @@ import { buildAppleHealthSection, fetchAppleHealth } from "./appleHealth.ts";
 import type { AppleHealthData } from "./appleHealth.ts";
 import { countLastHour, isPaused, PAUSE_MESSAGE, pauseThreshold } from "./pause.ts";
 
-const VERSION = "40";
+const VERSION = "41";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -87,6 +100,7 @@ interface RequestBody {
   history?: HistoryMessage[];
   context?: string;
   conversation_id?: string;
+  include_apple_health?: boolean;
 }
 
 interface WatchProposal {
@@ -112,15 +126,27 @@ interface PersonData {
   medLogs: Record<string, unknown>[];
   documents: Record<string, unknown>[];
   appleHealth: AppleHealthData;
+  appleHealthRequested: boolean;
   liveEhr: boolean;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Data fetch
 // ──────────────────────────────────────────────────────────────────────────────
+// Sources that mean "came from a connected health system". Manual entry,
+// document extraction, Terra and Apple Health are not.
+const EHR_SOURCES = new Set(["ehr", "epic", "cerner", "oracle", "oracle_cerner", "va", "va_lighthouse", "oneup", "1up", "fhir"]);
+
+function fromHealthSystem(row: Record<string, unknown>): boolean {
+  if (row.ehr_system) return true;
+  const src = String(row.source ?? "").toLowerCase();
+  return EHR_SOURCES.has(src);
+}
+
 async function fetchPersonData(
   supabase: SupabaseClient,
   personId: string,
+  includeAppleHealth: boolean,
 ): Promise<PersonData> {
   const [
     personRes,
@@ -156,14 +182,14 @@ async function fetchPersonData(
     supabase
       .from("lab_results")
       .select(
-        "test_name, value, unit, reference_range, status, effective_date, category",
+        "test_name, value, unit, reference_range, status, effective_date, category, source",
       )
       .eq("person_id", personId)
       .order("effective_date", { ascending: false })
       .limit(40),
     supabase
       .from("allergies")
-      .select("substance, reaction, severity, clinical_status, onset_date")
+      .select("substance, reaction, severity, clinical_status, onset_date, source")
       .eq("person_id", personId)
       .limit(20),
     supabase
@@ -180,7 +206,7 @@ async function fetchPersonData(
       .limit(15),
   ]);
 
-  const appleHealth = personRes.data
+  const appleHealth = personRes.data && includeAppleHealth
     ? await fetchAppleHealth(
       supabase,
       personId,
@@ -197,7 +223,13 @@ async function fetchPersonData(
     medLogs: medLogsRes.data ?? [],
     documents: documentsRes.data ?? [],
     appleHealth,
-    liveEhr: !!personRes.data,
+    appleHealthRequested: includeAppleHealth,
+    liveEhr: [
+      ...(medsRes.data ?? []),
+      ...(vitalsRes.data ?? []),
+      ...(labsRes.data ?? []).slice(0, 20),
+      ...(allergiesRes.data ?? []),
+    ].some((row) => fromHealthSystem(row as Record<string, unknown>)),
   };
 }
 
@@ -308,8 +340,10 @@ function buildPersonContext(data: PersonData): string {
   const appleHealth = buildAppleHealthSection(data.appleHealth);
   if (appleHealth) {
     sections.push(appleHealth);
-  } else {
+  } else if (data.appleHealthRequested) {
     sections.push(`APPLE HEALTH:\n(no Apple Health data shared for this person in the last 30 days)`);
+  } else {
+    sections.push(`APPLE HEALTH:\n(not included. This version of Wellet does not send Apple Health readings to Ask Wellet. They can be seen in the Wellet app.)`);
   }
 
   return sections.join("\n\n");
@@ -333,6 +367,7 @@ Apple Health rules:
 - Say it comes from Apple Health. Don't call it part of the medical chart, and don't call a watch reading a clinical measurement.
 - Describe what the numbers show over time (for example, higher or lower than earlier in the month). Leave what it means medically to the care team.
 - If the APPLE HEALTH section says no data was shared, say so and mention it can be connected in Wellet.
+- If the APPLE HEALTH section says it was not included, say Ask Wellet can't see Apple Health readings yet, and that they show in the Wellet app. Don't say there is no Apple Health data.
 
 Accuracy rules (HARD):
 - If neither the record nor Apple Health contains the answer, say so plainly. "That isn't in the record" is a complete, correct answer.
@@ -560,7 +595,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // ─── ANSWER MODE ─────────────────────────────────────────────────────────
-    const data = await fetchPersonData(supabase, personId);
+    const data = await fetchPersonData(supabase, personId, body.include_apple_health === true);
     const personContext = buildPersonContext(data);
     const { system, messages } = buildAnswerPrompt(
       question,
