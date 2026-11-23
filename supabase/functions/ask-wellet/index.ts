@@ -5,6 +5,8 @@
 //     permission sheet said Apple Health readings are never sent to an AI
 //     service. Only a client that has shown the updated permission wording
 //     sends this flag. Absent or false: Apple Health is not read at all.
+//     Own profile (people.is_self) only for now: a loved one's readings
+//     come through a sharing link whose screens don't mention AI.
 //   live_ehr   true only when the record sent to the model includes rows
 //     that came from a connected health system (Epic, Cerner, VA, ...).
 //     v39/v40 returned true whenever the person existed, so every answer
@@ -206,7 +208,11 @@ async function fetchPersonData(
       .limit(15),
   ]);
 
-  const appleHealth = personRes.data && includeAppleHealth
+  // Own profile only for now. A loved one's readings arrive through a
+  // sharing link; the sharer agreed to share with the caregiver, not to an
+  // AI service, and the sharing screens don't say otherwise yet.
+  const appleHealthAllowed = includeAppleHealth && personRes.data?.is_self === true;
+  const appleHealth = personRes.data && appleHealthAllowed
     ? await fetchAppleHealth(
       supabase,
       personId,
@@ -223,7 +229,7 @@ async function fetchPersonData(
     medLogs: medLogsRes.data ?? [],
     documents: documentsRes.data ?? [],
     appleHealth,
-    appleHealthRequested: includeAppleHealth,
+    appleHealthRequested: appleHealthAllowed,
     liveEhr: [
       ...(medsRes.data ?? []),
       ...(vitalsRes.data ?? []),
