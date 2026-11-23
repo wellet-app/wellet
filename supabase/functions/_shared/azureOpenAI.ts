@@ -4,8 +4,8 @@
 //
 // Single choke point for every PHI-touching AI call in the project.
 // Vendor is selected by the WELLET_AI_VENDOR env var:
-//   - "azure"         → Azure OpenAI Service (BAA-covered, default for PHI)
-//   - "openai_direct" → OpenAI direct API (legacy, no-BAA — emergency escape hatch only)
+//   - "azure"         → Azure OpenAI Service (default for health data; Microsoft standard terms and DPA, no BAA)
+//   - "openai_direct" → OpenAI direct API (legacy, emergency escape hatch only, not for health data)
 //   - "sonar"         → Perplexity Sonar (NON-PHI ONLY — adapter will throw if called for PHI paths)
 //   - "bedrock"       → AWS Bedrock Claude (Phase 2, not yet implemented)
 //
@@ -39,7 +39,7 @@ export interface ChatOptions {
   max_tokens?: number;
   response_format?: { type: "json_object" } | { type: "text" };
   // If set, marks this call as PHI-touching. The adapter will refuse to route
-  // to non-BAA vendors (sonar, openai_direct unless explicitly allowed) when true.
+  // to other vendors (sonar, openai_direct unless explicitly allowed) when true.
   phi?: boolean;
 }
 
@@ -89,13 +89,13 @@ function vendor(): Vendor {
   throw new Error(`[azureOpenAI] Unknown WELLET_AI_VENDOR: ${v}`);
 }
 
-// Hard guardrail: if the caller marked the request phi:true, only BAA-covered
+// Hard guardrail: if the caller marked the request phi:true, only the Azure
 // vendors are allowed. Sonar is always blocked. openai_direct is blocked unless
 // WELLET_ALLOW_OPENAI_DIRECT_PHI=true is set (emergency override only).
 function assertVendorAllowedForPhi(v: Vendor, phi: boolean) {
   if (!phi) return;
   if (v === "sonar") {
-    throw new Error("[azureOpenAI] PHI call routed to Sonar — blocked. Sonar has no BAA.");
+    throw new Error("[azureOpenAI] PHI call routed to Sonar — blocked. Sonar is not used for health data.");
   }
   if (v === "openai_direct" && Deno.env.get("WELLET_ALLOW_OPENAI_DIRECT_PHI") !== "true") {
     throw new Error(
@@ -103,7 +103,7 @@ function assertVendorAllowedForPhi(v: Vendor, phi: boolean) {
     );
   }
   if (v === "bedrock") {
-    // Bedrock is BAA-covered but the implementation isn't done.
+    // Bedrock is not built yet.
     throw new Error("[azureOpenAI] Bedrock vendor not yet implemented (Phase 2).");
   }
 }
@@ -154,7 +154,7 @@ export async function aiVision(opts: VisionOptions): Promise<ChatResult> {
 }
 
 // =============================================================================
-// Azure OpenAI implementation (primary, BAA)
+// Azure OpenAI implementation (primary)
 // =============================================================================
 
 // Wellet's Azure setup uses two AOAI resources because Foundry auto-provisioned

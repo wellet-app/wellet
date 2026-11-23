@@ -160,7 +160,7 @@ Deno.serve(async (req) => {
 
     // === PHI call #1 — transcription ===
     // Routed through aiTranscribe. With WELLET_AI_VENDOR=azure this hits
-    // Azure Whisper on the East US 2 secondary resource (BAA-covered).
+    // Azure Whisper on the East US 2 secondary resource.
     console.log(`[transcribe] Calling aiTranscribe (${mimeType}, ${fileSize} bytes)`);
     let transcript = "";
     try {
@@ -184,7 +184,7 @@ Deno.serve(async (req) => {
 
     // === PHI call #2 — structured extraction ===
     // Routed through aiChatJSON. With WELLET_AI_VENDOR=azure this hits
-    // Azure gpt-4o-prod (East US, BAA-covered).
+    // Azure gpt-4o-prod (East US).
     const systemPrompt = [
       "You are a medical data extractor for a caregiver health app.",
       "Given a transcript of a doctor visit recording, extract structured health information.",

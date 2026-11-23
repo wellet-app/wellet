@@ -27,7 +27,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 // AI vendor + keys are now owned by ../_shared/azureOpenAI.ts.
-// PHI-touching summaries route through Azure OpenAI (BAA-covered) with
+// PHI-touching summaries route through Azure OpenAI (phi: true) with
 // phi:true. The deterministic buildFallbackSummary path below stays as the
 // safety net if the adapter call fails for any reason.
 const SMTP_HOST = Deno.env.get("BREVO_SMTP_HOST") || "smtp-relay.brevo.com";
