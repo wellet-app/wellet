@@ -3,8 +3,9 @@
 //   Not own profile: APPLE HEALTH includes only rows that came through an
 //   active sharing link whose sharer turned on "Let Ask Wellet use what I
 //   share" (person_data_links.ai_allowed_at set). Rows with no link_id
-//   (older uploads) are never read for a loved one. Still needs
-//   include_apple_health: true from a client showing the v3 permission.
+//   (older uploads) are never read for a loved one. Needs
+//   include_shared_apple_health: true as well, which only clients showing
+//   the v3 permission wording send.
 //
 // ask-wellet v48 — own profile (is_self) answers say "you" and "your".
 //
@@ -113,6 +114,7 @@ interface RequestBody {
   context?: string;
   conversation_id?: string;
   include_apple_health?: boolean;
+  include_shared_apple_health?: boolean;
 }
 
 interface WatchProposal {
@@ -159,6 +161,7 @@ async function fetchPersonData(
   supabase: SupabaseClient,
   personId: string,
   includeAppleHealth: boolean,
+  includeShared = false,
 ): Promise<PersonData> {
   const [
     personRes,
@@ -222,7 +225,7 @@ async function fetchPersonData(
   // through a sharing link whose sharer allowed Ask Wellet (v49).
   const isSelf = personRes.data?.is_self === true;
   let allowedLinkIds: string[] | undefined;
-  if (includeAppleHealth && personRes.data && !isSelf) {
+  if (includeAppleHealth && includeShared && personRes.data && !isSelf) {
     const { data: links, error: linkErr } = await supabase
       .from("person_data_links")
       .select("id")
@@ -632,7 +635,12 @@ Deno.serve(async (req: Request) => {
     }
 
     // ─── ANSWER MODE ─────────────────────────────────────────────────────────
-    const data = await fetchPersonData(supabase, personId, body.include_apple_health === true);
+    const data = await fetchPersonData(
+      supabase,
+      personId,
+      body.include_apple_health === true,
+      body.include_shared_apple_health === true,
+    );
     const personContext = buildPersonContext(data);
     const { system, messages } = buildAnswerPrompt(
       question,
