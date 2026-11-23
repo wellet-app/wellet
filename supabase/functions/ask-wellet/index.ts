@@ -1,3 +1,7 @@
+// ask-wellet v40 — reads Apple Health (wearable_observations) as well as
+// the chart. v39 never read that table, so Ask Wellet said "the chart
+// doesn't mention Apple Health" even with samples on file. See appleHealth.ts.
+//
 // ask-wellet v39 — person-centric rewrite, Azure GPT-4o (BAA), real schema
 //
 // Replaces v25/v38 which queried a fossil hospital-ICU schema (patients,
@@ -51,9 +55,11 @@ import {
 } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { aiChat } from "./azureOpenAI.ts";
 import { meterAi, jwtSub } from "./meter.ts";
+import { buildAppleHealthSection, fetchAppleHealth } from "./appleHealth.ts";
+import type { AppleHealthData } from "./appleHealth.ts";
 import { countLastHour, isPaused, PAUSE_MESSAGE, pauseThreshold } from "./pause.ts";
 
-const VERSION = "39";
+const VERSION = "40";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -105,6 +111,7 @@ interface PersonData {
   allergies: Record<string, unknown>[];
   medLogs: Record<string, unknown>[];
   documents: Record<string, unknown>[];
+  appleHealth: AppleHealthData;
   liveEhr: boolean;
 }
 
@@ -127,7 +134,7 @@ async function fetchPersonData(
     supabase
       .from("people")
       .select(
-        "id, user_id, name, date_of_birth, relationship, situation, is_self, conditions, allergies, primary_doctor, care_status",
+        "id, user_id, name, date_of_birth, relationship, situation, is_self, conditions, allergies, primary_doctor, care_status, apple_health_last_sync_at",
       )
       .eq("id", personId)
       .maybeSingle(),
@@ -173,6 +180,14 @@ async function fetchPersonData(
       .limit(15),
   ]);
 
+  const appleHealth = personRes.data
+    ? await fetchAppleHealth(
+      supabase,
+      personId,
+      (personRes.data.apple_health_last_sync_at as string | null) ?? null,
+    )
+    : { summaries: [], lastSyncAt: null };
+
   return {
     person: personRes.data ?? {},
     meds: medsRes.data ?? [],
@@ -181,6 +196,7 @@ async function fetchPersonData(
     allergies: allergiesRes.data ?? [],
     medLogs: medLogsRes.data ?? [],
     documents: documentsRes.data ?? [],
+    appleHealth,
     liveEhr: !!personRes.data,
   };
 }
@@ -288,6 +304,14 @@ function buildPersonContext(data: PersonData): string {
     sections.push(`DOCUMENTS ON FILE:\n${rows.join("\n")}`);
   }
 
+  // Apple Health (phone and watch samples, rolled up by day)
+  const appleHealth = buildAppleHealthSection(data.appleHealth);
+  if (appleHealth) {
+    sections.push(appleHealth);
+  } else {
+    sections.push(`APPLE HEALTH:\n(no Apple Health data shared for this person in the last 30 days)`);
+  }
+
   return sections.join("\n\n");
 }
 
@@ -302,10 +326,16 @@ function buildAnswerPrompt(
 ): { system: string; messages: HistoryMessage[] } {
   const system = `You are Wellet, an AI assistant that helps a family caregiver understand their loved one's medical record.
 
-Your answers are grounded in the chart data below. The chart is the authoritative source — never contradict it, never invent values that aren't there, and never speculate about clinical interpretation.
+Your answers are grounded in the data below. It has two parts: the medical record (people, medications, vitals, labs, allergies, documents) and, when shared, an APPLE HEALTH section with daily values from an iPhone or Apple Watch. Both are real data for this person. Never contradict them, never invent values that aren't there, and never speculate about clinical interpretation.
+
+Apple Health rules:
+- When the question is about Apple Health, a watch or phone, activity, steps, sleep, heart rate, blood oxygen, breathing, walking or falls, answer from the APPLE HEALTH section. Give the actual numbers and dates.
+- Say it comes from Apple Health. Don't call it part of the medical chart, and don't call a watch reading a clinical measurement.
+- Describe what the numbers show over time (for example, higher or lower than earlier in the month). Leave what it means medically to the care team.
+- If the APPLE HEALTH section says no data was shared, say so and mention it can be connected in Wellet.
 
 Accuracy rules (HARD):
-- If the chart doesn't contain the answer, say so plainly. "That isn't in the chart" is a complete, correct answer.
+- If neither the record nor Apple Health contains the answer, say so plainly. "That isn't in the record" is a complete, correct answer.
 - Never invent medication names, lab values, dosages, dates, or codes (ICD, CPT, LOINC, NDC).
 - Distinguish: what the chart shows vs. what is inferred vs. what is unknown.
 - For clinical interpretation (what a value "means," whether a dose is right, what a diagnosis implies), tell the caregiver to ask the care team directly.
@@ -321,9 +351,9 @@ Voice rules (HARD):
 - Plain language. If a medical term is needed, define it briefly.
 - This may be read aloud. Avoid markdown, bullet points, numbered lists, headers, or code fences. Write in short sentences.
 
-${extraContext ? `Additional context from the caregiver:\n${extraContext}\n\n` : ""}--- CHART ---
+${extraContext ? `Additional context from the caregiver:\n${extraContext}\n\n` : ""}--- DATA ---
 ${personContext}
---- END CHART ---`;
+--- END DATA ---`;
 
   const messages: HistoryMessage[] = [];
   for (const msg of history) {
@@ -559,6 +589,7 @@ Deno.serve(async (req: Request) => {
         answer: aiResponse.content,
         model: aiResponse.model ?? "gpt-4o",
         live_ehr: data.liveEhr,
+        apple_health: data.appleHealth.summaries.length > 0,
         classification,
         conversation_id: body.conversation_id ?? null,
         version: VERSION,
