@@ -1,3 +1,24 @@
+// ask-wellet v48 — own profile (is_self) answers say "you" and "your".
+//
+// ask-wellet v41 — Apple Health only with consent; honest live_ehr.
+//
+//   include_apple_health: true   adds the APPLE HEALTH section. Opt-in per
+//     request because the privacy policy (2026-11-13) and the iOS AI
+//     permission sheet said Apple Health readings are never sent to an AI
+//     service. Only a client that has shown the updated permission wording
+//     sends this flag. Absent or false: Apple Health is not read at all.
+//     Own profile (people.is_self) only for now: a loved one's readings
+//     come through a sharing link whose screens don't mention AI.
+//   live_ehr   true only when the record sent to the model includes rows
+//     that came from a connected health system (Epic, Cerner, VA, ...).
+//     v39/v40 returned true whenever the person existed, so every answer
+//     showed "Connected health system".
+//   apple_health   true when the APPLE HEALTH section had data.
+//
+// ask-wellet v40 — reads Apple Health (wearable_observations) as well as
+// the chart. v39 never read that table, so Ask Wellet said "the chart
+// doesn't mention Apple Health" even with samples on file. See appleHealth.ts.
+//
 // ask-wellet v39 — person-centric rewrite, Azure GPT-4o (BAA), real schema
 //
 // Replaces v25/v38 which queried a fossil hospital-ICU schema (patients,
@@ -51,9 +72,11 @@ import {
 } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { aiChat } from "./azureOpenAI.ts";
 import { meterAi, jwtSub } from "./meter.ts";
+import { buildAppleHealthSection, fetchAppleHealth } from "./appleHealth.ts";
+import type { AppleHealthData } from "./appleHealth.ts";
 import { countLastHour, isPaused, PAUSE_MESSAGE, pauseThreshold } from "./pause.ts";
 
-const VERSION = "39";
+const VERSION = "41";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -81,6 +104,7 @@ interface RequestBody {
   history?: HistoryMessage[];
   context?: string;
   conversation_id?: string;
+  include_apple_health?: boolean;
 }
 
 interface WatchProposal {
@@ -105,15 +129,28 @@ interface PersonData {
   allergies: Record<string, unknown>[];
   medLogs: Record<string, unknown>[];
   documents: Record<string, unknown>[];
+  appleHealth: AppleHealthData;
+  appleHealthRequested: boolean;
   liveEhr: boolean;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Data fetch
 // ──────────────────────────────────────────────────────────────────────────────
+// Sources that mean "came from a connected health system". Manual entry,
+// document extraction, Terra and Apple Health are not.
+const EHR_SOURCES = new Set(["ehr", "epic", "cerner", "oracle", "oracle_cerner", "va", "va_lighthouse", "oneup", "1up", "fhir"]);
+
+function fromHealthSystem(row: Record<string, unknown>): boolean {
+  if (row.ehr_system) return true;
+  const src = String(row.source ?? "").toLowerCase();
+  return EHR_SOURCES.has(src);
+}
+
 async function fetchPersonData(
   supabase: SupabaseClient,
   personId: string,
+  includeAppleHealth: boolean,
 ): Promise<PersonData> {
   const [
     personRes,
@@ -127,7 +164,7 @@ async function fetchPersonData(
     supabase
       .from("people")
       .select(
-        "id, user_id, name, date_of_birth, relationship, situation, is_self, conditions, allergies, primary_doctor, care_status",
+        "id, user_id, name, date_of_birth, relationship, situation, is_self, conditions, allergies, primary_doctor, care_status, apple_health_last_sync_at",
       )
       .eq("id", personId)
       .maybeSingle(),
@@ -149,14 +186,14 @@ async function fetchPersonData(
     supabase
       .from("lab_results")
       .select(
-        "test_name, value, unit, reference_range, status, effective_date, category",
+        "test_name, value, unit, reference_range, status, effective_date, category, source",
       )
       .eq("person_id", personId)
       .order("effective_date", { ascending: false })
       .limit(40),
     supabase
       .from("allergies")
-      .select("substance, reaction, severity, clinical_status, onset_date")
+      .select("substance, reaction, severity, clinical_status, onset_date, source")
       .eq("person_id", personId)
       .limit(20),
     supabase
@@ -173,6 +210,18 @@ async function fetchPersonData(
       .limit(15),
   ]);
 
+  // Own profile only for now. A loved one's readings arrive through a
+  // sharing link; the sharer agreed to share with the caregiver, not to an
+  // AI service, and the sharing screens don't say otherwise yet.
+  const appleHealthAllowed = includeAppleHealth && personRes.data?.is_self === true;
+  const appleHealth = personRes.data && appleHealthAllowed
+    ? await fetchAppleHealth(
+      supabase,
+      personId,
+      (personRes.data.apple_health_last_sync_at as string | null) ?? null,
+    )
+    : { summaries: [], lastSyncAt: null };
+
   return {
     person: personRes.data ?? {},
     meds: medsRes.data ?? [],
@@ -181,7 +230,14 @@ async function fetchPersonData(
     allergies: allergiesRes.data ?? [],
     medLogs: medLogsRes.data ?? [],
     documents: documentsRes.data ?? [],
-    liveEhr: !!personRes.data,
+    appleHealth,
+    appleHealthRequested: appleHealthAllowed,
+    liveEhr: [
+      ...(medsRes.data ?? []),
+      ...(vitalsRes.data ?? []),
+      ...(labsRes.data ?? []).slice(0, 20),
+      ...(allergiesRes.data ?? []),
+    ].some((row) => fromHealthSystem(row as Record<string, unknown>)),
   };
 }
 
@@ -288,6 +344,16 @@ function buildPersonContext(data: PersonData): string {
     sections.push(`DOCUMENTS ON FILE:\n${rows.join("\n")}`);
   }
 
+  // Apple Health (phone and watch samples, rolled up by day)
+  const appleHealth = buildAppleHealthSection(data.appleHealth);
+  if (appleHealth) {
+    sections.push(appleHealth);
+  } else if (data.appleHealthRequested) {
+    sections.push(`APPLE HEALTH:\n(no Apple Health data shared for this person in the last 30 days)`);
+  } else {
+    sections.push(`APPLE HEALTH:\n(not included. This version of Wellet does not send Apple Health readings to Ask Wellet. They can be seen in the Wellet app.)`);
+  }
+
   return sections.join("\n\n");
 }
 
@@ -299,13 +365,27 @@ function buildAnswerPrompt(
   personContext: string,
   history: HistoryMessage[],
   extraContext: string | undefined,
+  isSelf = false,
 ): { system: string; messages: HistoryMessage[] } {
+  const selfRule = isSelf
+    ? `
+Who you're talking to (HARD):
+- This is the user's own record, not a loved one's. Speak to them directly as "you" and "your": "your sleep," "your records," "your care team." Never refer to them in the third person, by name or as "she," "he," "her" or "his."
+`
+    : "";
   const system = `You are Wellet, an AI assistant that helps a family caregiver understand their loved one's medical record.
+${selfRule}
+Your answers are grounded in the data below. It has two parts: the medical record (people, medications, vitals, labs, allergies, documents) and, when shared, an APPLE HEALTH section with daily values from an iPhone or Apple Watch. Both are real data for this person. Never contradict them, never invent values that aren't there, and never speculate about clinical interpretation.
 
-Your answers are grounded in the chart data below. The chart is the authoritative source — never contradict it, never invent values that aren't there, and never speculate about clinical interpretation.
+Apple Health rules:
+- When the question is about Apple Health, a watch or phone, activity, steps, sleep, heart rate, blood oxygen, breathing, walking or falls, answer from the APPLE HEALTH section. Give the actual numbers and dates.
+- Say it comes from Apple Health. Don't call it part of the medical chart, and don't call a watch reading a clinical measurement.
+- Describe what the numbers show over time (for example, higher or lower than earlier in the month). Leave what it means medically to the care team.
+- If the APPLE HEALTH section says no data was shared, say so and mention it can be connected in Wellet.
+- If the APPLE HEALTH section says it was not included, say Ask Wellet can't see Apple Health readings yet, and that they show in the Wellet app. Don't say there is no Apple Health data.
 
 Accuracy rules (HARD):
-- If the chart doesn't contain the answer, say so plainly. "That isn't in the chart" is a complete, correct answer.
+- If neither the record nor Apple Health contains the answer, say so plainly. "That isn't in the record" is a complete, correct answer.
 - Never invent medication names, lab values, dosages, dates, or codes (ICD, CPT, LOINC, NDC).
 - Distinguish: what the chart shows vs. what is inferred vs. what is unknown.
 - For clinical interpretation (what a value "means," whether a dose is right, what a diagnosis implies), tell the caregiver to ask the care team directly.
@@ -321,9 +401,9 @@ Voice rules (HARD):
 - Plain language. If a medical term is needed, define it briefly.
 - This may be read aloud. Avoid markdown, bullet points, numbered lists, headers, or code fences. Write in short sentences.
 
-${extraContext ? `Additional context from the caregiver:\n${extraContext}\n\n` : ""}--- CHART ---
+${extraContext ? `Additional context from the caregiver:\n${extraContext}\n\n` : ""}--- DATA ---
 ${personContext}
---- END CHART ---`;
+--- END DATA ---`;
 
   const messages: HistoryMessage[] = [];
   for (const msg of history) {
@@ -530,13 +610,14 @@ Deno.serve(async (req: Request) => {
     }
 
     // ─── ANSWER MODE ─────────────────────────────────────────────────────────
-    const data = await fetchPersonData(supabase, personId);
+    const data = await fetchPersonData(supabase, personId, body.include_apple_health === true);
     const personContext = buildPersonContext(data);
     const { system, messages } = buildAnswerPrompt(
       question,
       personContext,
       body.history ?? [],
       body.context,
+      data.person?.is_self === true,
     );
 
     const [aiResponse, classification] = await Promise.all([
@@ -559,6 +640,7 @@ Deno.serve(async (req: Request) => {
         answer: aiResponse.content,
         model: aiResponse.model ?? "gpt-4o",
         live_ehr: data.liveEhr,
+        apple_health: data.appleHealth.summaries.length > 0,
         classification,
         conversation_id: body.conversation_id ?? null,
         version: VERSION,
