@@ -58,7 +58,7 @@ function vendor(): Vendor {
 
 function assertVendorAllowedForPhi(v: Vendor, phi: boolean) {
   if (!phi) return;
-  if (v === "sonar") throw new Error("[azureOpenAI] PHI call routed to Sonar, blocked. Sonar has no BAA.");
+  if (v === "sonar") throw new Error("[azureOpenAI] PHI call routed to Sonar, blocked. Sonar is not used for health data.");
   if (v === "openai_direct" && Deno.env.get("WELLET_ALLOW_OPENAI_DIRECT_PHI") !== "true") throw new Error("[azureOpenAI] PHI call routed to OpenAI direct, blocked. Set WELLET_ALLOW_OPENAI_DIRECT_PHI=true to override (emergency only).");
   if (v === "bedrock") throw new Error("[azureOpenAI] Bedrock vendor not yet implemented (Phase 2).");
 }

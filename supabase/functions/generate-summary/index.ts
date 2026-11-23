@@ -18,7 +18,7 @@
 // validated: any bullet not present verbatim in `derivedBullets` is dropped
 // server-side before the row is written.
 //
-// PHI surface is unchanged (Azure OpenAI, BAA-covered path via aiChat with
+// PHI surface is unchanged (Azure OpenAI via aiChat with
 // phi: true). Voice rules and the Snapshot format are unchanged. What is
 // gone: the license to synthesize medical facts.
 //
@@ -729,7 +729,7 @@ RULES:
         ],
         max_tokens: 700,
         temperature: 0.2,
-        phi: true, // caregiver summary derived from real medical history, BAA required
+        phi: true, // caregiver summary derived from real medical history, Azure only
       });
       meterAi(res, { feature: "home_summary", userId: user.id, personId: person_id });
       summary = res.content;
@@ -756,7 +756,7 @@ RULES:
 
     const dataHash = `e${totalEvents}m${totalMeds}d${totalDocs}l${totalLabs}c${totalCheckIns}h${hasEhr ? 1 : 0}w${windowClass[0]}`;
 
-    // Best-effort cache. Record vendor/model so audit can prove BAA path.
+    // Best-effort cache. Record vendor/model so an audit can show which vendor ran it.
     try {
       await supabase.from("update_me_summaries").upsert({
         person_id,

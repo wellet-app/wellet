@@ -1,4 +1,4 @@
-// summarize-visit v12 — Azure OpenAI migration (BAA-covered PHI path)
+// summarize-visit v12 — Azure OpenAI migration
 //
 // PHI surface: HIGH. The context block contains:
 //   • Patient name (or "displayName")
@@ -8,7 +8,7 @@
 //   • Labs and vitals from the visit window (test name, value, unit, date)
 //
 // Behavior changes vs v11:
-//   • Vendor:  OpenAI direct  →  Azure OpenAI (BAA-covered)
+//   • Vendor:  OpenAI direct  →  Azure OpenAI
 //   • Model name still "gpt-4o-mini" (routes to gpt-4o until mini quota lands)
 //   • Response shape unchanged: {summary: string}
 //   • Adds ai_vendor + function_version to response for audit
@@ -145,7 +145,7 @@ Hard rules:
         ],
         max_tokens: 260,
         temperature: 0.3,
-        phi: true, // visit context contains med names + lab values + provider names — BAA required
+        phi: true, // visit context contains med names + lab values + provider names — Azure only
       });
       meterAi(res, { feature: "visit_summary", userId: user.id, personId: person_id });
       summary = (res.content || "").trim();

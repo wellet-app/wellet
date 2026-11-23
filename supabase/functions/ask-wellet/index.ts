@@ -19,7 +19,7 @@
 // the chart. v39 never read that table, so Ask Wellet said "the chart
 // doesn't mention Apple Health" even with samples on file. See appleHealth.ts.
 //
-// ask-wellet v39 — person-centric rewrite, Azure GPT-4o (BAA), real schema
+// ask-wellet v39 — person-centric rewrite, Azure GPT-4o, real schema
 //
 // Replaces v25/v38 which queried a fossil hospital-ICU schema (patients,
 // patient_vitals, patient_medications, patient_diagnoses, patient_notes,

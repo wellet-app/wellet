@@ -120,7 +120,7 @@ serve(async (req) => {
       });
     }
 
-    // Call Azure OpenAI (PHI-safe under BAA) to generate visit questions
+    // Call Azure OpenAI (phi: true) to generate visit questions
     let raw = "[]";
     try {
       const result = await aiChat({

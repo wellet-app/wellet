@@ -1,5 +1,5 @@
 // generate-emergency-summary v27 — remove drug-interaction flag, add clinical-judgment guardrails (accuracy audit HIGH-1)
-// (v26 — Azure OpenAI migration baseline, BAA-covered PHI path)
+// (v26 — Azure OpenAI migration baseline)
 //
 // HIGHEST PHI SURFACE in Wellet. This function generates the "If something
 // happens to me, hand this to the ER" brief. The context block sent to the
@@ -15,12 +15,12 @@
 //   • Emergency contact name + phone
 //   • Full care circle with names + phones
 //
-// This is *exactly* the kind of payload OpenAI's BAA was written for.
+// The most sensitive payload in the app, so it stays on the Azure path.
 // Migrating it off direct-to-OpenAI was the highest-leverage move in the
 // Azure migration plan.
 //
 // Behavior changes vs v25:
-//   • Vendor:  OpenAI direct  →  Azure OpenAI (BAA-covered)
+//   • Vendor:  OpenAI direct  →  Azure OpenAI
 //   • API key: OPENAI_API_KEY →  AZURE_OPENAI_* env vars (via adapter)
 //   • Model name on the wire is still "gpt-4o-mini". Note: until Azure
 //     gpt-4o-mini quota is granted (resubmit ~2026-05-19), the deployment
@@ -54,7 +54,7 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  // Env check on cold start so logs prove BAA path is wired
+  // Env check on cold start so logs show the Azure path is wired
   const envCheck = {
     vendor: Deno.env.get("WELLET_AI_VENDOR") ?? "azure",
     has_azure_endpoint: !!Deno.env.get("AZURE_OPENAI_ENDPOINT"),
@@ -341,7 +341,7 @@ Clinical-judgment guardrails (STRICT):
         ],
         max_tokens: 1200,
         temperature: 0.3,
-        // PHI: highest-density PHI surface in the entire app. BAA required.
+        // PHI: highest-density PHI surface in the entire app. Azure only.
         phi: true,
       });
       meterAi(res, { feature: "emergency_summary", userId: user.id, personId: person_id });

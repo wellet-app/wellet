@@ -26,8 +26,8 @@ Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   // AI vendor + keys are owned by ../_shared/azureOpenAI.ts. Image-based
-  // health-document extraction routes through Azure OpenAI vision (BAA-
-  // covered) with phi:true. We no longer gate on OPENAI_API_KEY presence —
+  // health-document extraction routes through Azure OpenAI vision with
+  // phi:true. We no longer gate on OPENAI_API_KEY presence —
   // the adapter is always available and throws on missing Azure config.
 
   // Authenticate the caller

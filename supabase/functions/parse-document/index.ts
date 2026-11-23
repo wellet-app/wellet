@@ -27,7 +27,7 @@
 //   • Per-chunk try/catch — one chunk failing the JSON parse doesn't
 //     nuke the whole extraction. We log + skip + keep going.
 //
-// Same security posture as v28: PHI flows through Azure OpenAI (BAA-covered).
+// Same security posture as v28: PHI flows through Azure OpenAI.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";

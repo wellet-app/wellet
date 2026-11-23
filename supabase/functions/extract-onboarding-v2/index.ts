@@ -4,7 +4,7 @@
 // Returns structured data for the name confirmation screen.
 //
 // v21: Vision AI calls migrated from OpenAI direct → Azure OpenAI via aiChat
-// adapter (BAA-covered). The uploaded image contains PHI (patient name,
+// adapter. The uploaded image contains PHI (patient name,
 // medications, diagnoses) — phi:true on every call.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -428,7 +428,7 @@ async function extractWithVision(
       '- Be precise: only include what you can clearly read'
     ].join('\n');
 
-    // Vision call via Azure OpenAI adapter (BAA-covered, phi:true).
+    // Vision call via Azure OpenAI adapter (phi:true).
     // aiChat supports vision via the array content shape on user messages.
     const aiResult = await aiChat({
       model: 'gpt-4o-mini',
