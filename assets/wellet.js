@@ -8832,6 +8832,7 @@ function openConditionDetail(refId) {
     + renderCentersTile(cond.code || '', cond.name || '', currentPersonId)
     + renderAdvocacyTile(cond.code || '', cond.name || '', currentPersonId)
     + renderResearchPapersTile(cond.code || '', cond.name || '', currentPersonId)
+    + '<div id="lm-bodyarea-fallback" data-condition-text="' + _escAttr(cond.name || '') + '"></div>'
     + _detailAskCta(askKey)
     + '</div>';
 
@@ -8844,12 +8845,161 @@ function openConditionDetail(refId) {
   try { _loadCentersTile(); } catch(_e) {}
   try { _loadAdvocacyTile(); } catch(_e) {}
   try { _loadResearchPapersTile(); } catch(_e) {}
+  try { _lmFallbackStart(); } catch(_e) {}
   try {
     var card = view.querySelector('[data-ask-lp="' + askKey + '"]');
     if (card && typeof attachAskLongPress === 'function') {
       attachAskLongPress(card, window._askCtxRegistry[askKey]);
     }
   } catch (_e) {}
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// LEARN MORE BODY-AREA FALLBACK (approved mockup, 2026-11-23; same table,
+// rules and copy as iOS ConditionBodyArea.swift). When every Learn more
+// tile comes back empty, or none could run because the condition has no
+// code, a condition that names a body area ("Internal derangement of right
+// knee") gets one MedlinePlus page for that area, as general reading.
+// The list is fixed and was checked by hand; nothing is looked up. Left
+// out on purpose: "head", "blood", "bone". Sensitive conditions never get
+// a page.
+// ────────────────────────────────────────────────────────────────────────────
+
+var LM_BODY_AREAS = [
+  [['knee','knees'], 'the knee', 'Knee injuries and disorders', 'kneeinjuriesanddisorders'],
+  [['hip','hips'], 'the hip', 'Hip injuries and disorders', 'hipinjuriesanddisorders'],
+  [['shoulder','shoulders'], 'the shoulder', 'Shoulder injuries and disorders', 'shoulderinjuriesanddisorders'],
+  [['elbow','elbows'], 'the elbow', 'Elbow injuries and disorders', 'elbowinjuriesanddisorders'],
+  [['wrist','wrists'], 'the wrist', 'Wrist injuries and disorders', 'wristinjuriesanddisorders'],
+  [['finger','fingers','thumb'], 'the fingers', 'Finger injuries and disorders', 'fingerinjuriesanddisorders'],
+  [['hand','hands'], 'the hand', 'Hand injuries and disorders', 'handinjuriesanddisorders'],
+  [['ankle','ankles'], 'the ankle', 'Ankle injuries and disorders', 'ankleinjuriesanddisorders'],
+  [['foot','feet','toe','toes'], 'the foot', 'Foot injuries and disorders', 'footinjuriesanddisorders'],
+  [['leg','legs'], 'the leg', 'Leg injuries and disorders', 'leginjuriesanddisorders'],
+  [['arm','arms'], 'the arm', 'Arm injuries and disorders', 'arminjuriesanddisorders'],
+  [['neck'], 'the neck', 'Neck injuries and disorders', 'neckinjuriesanddisorders'],
+  [['back','lumbar'], 'back pain', 'Back pain', 'backpain'],
+  [['spine','spinal'], 'the spine', 'Spine injuries and disorders', 'spineinjuriesanddisorders'],
+  [['eye','eyes','ocular','optic','retina','retinal','vitreoretinal'], 'the eye', 'Eye diseases', 'eyediseases'],
+  [['ear','ears'], 'the ear', 'Ear disorders', 'eardisorders'],
+  [['nose','nasal'], 'the nose', 'Nose injuries and disorders', 'nosedisorders'],
+  [['throat'], 'the throat', 'Throat disorders', 'throatdisorders'],
+  [['mouth','oral'], 'the mouth', 'Mouth disorders', 'mouthdisorders'],
+  [['tooth','teeth','dental'], 'the teeth', 'Tooth disorders', 'toothdisorders'],
+  [['skin'], 'the skin', 'Skin conditions', 'skinconditions'],
+  [['heart','cardiac'], 'the heart', 'Heart diseases', 'heartdiseases'],
+  [['lung','lungs','pulmonary'], 'the lungs', 'Lung diseases', 'lungdiseases'],
+  [['kidney','kidneys','renal'], 'the kidneys', 'Kidney diseases', 'kidneydiseases'],
+  [['liver','hepatic'], 'the liver', 'Liver diseases', 'liverdiseases'],
+  [['thyroid'], 'the thyroid', 'Thyroid diseases', 'thyroiddiseases'],
+  [['bladder'], 'the bladder', 'Bladder diseases', 'bladderdiseases'],
+  [['gallbladder'], 'the gallbladder', 'Gallbladder diseases', 'gallbladderdiseases'],
+  [['stomach','gastric'], 'the stomach', 'Stomach disorders', 'stomachdisorders'],
+  [['colon','colonic'], 'the colon', 'Colonic diseases', 'colonicdiseases'],
+  [['esophagus','esophageal'], 'the esophagus', 'Esophagus disorders', 'esophagusdisorders'],
+  [['pancreas','pancreatic'], 'the pancreas', 'Pancreatic diseases', 'pancreaticdiseases'],
+  [['brain'], 'the brain', 'Brain diseases', 'braindiseases'],
+  [['muscle','muscles','muscular'], 'the muscles', 'Muscle disorders', 'muscledisorders'],
+  [['joint','joints'], 'the joints', 'Joint disorders', 'jointdisorders'],
+  [['breast','breasts'], 'the breast', 'Breast diseases', 'breastdiseases'],
+  [['prostate','prostatic'], 'the prostate', 'Prostate diseases', 'prostatediseases'],
+  [['nerve','nerves','neuropathy'], 'the nerves', 'Peripheral nerve disorders', 'peripheralnervedisorders']
+];
+
+function _lmIsSensitive(name) {
+  var n = String(name || '').toLowerCase();
+  var parts = ['depress','anxiety','bipolar','schizo','psychos','ptsd','post-traumatic',
+    'obsessive','panic disorder','eating disorder','anorexia','bulimia',
+    'suicid','self-harm','self harm','adhd','attention deficit','personality disorder',
+    'substance','alcohol','opioid','cannabis','cocaine','dependence','use disorder',
+    'hiv','human immunodeficiency','aids',
+    'pregnan','gestation','abortion','miscarriage','infertil','contracept',
+    'sexually transmitted','gender dysphoria'];
+  for (var i = 0; i < parts.length; i++) if (n.indexOf(parts[i]) !== -1) return true;
+  var tokens = n.split(/[^a-z]+/);
+  var shortT = ['std','sti','ocd','mdd','gad'];
+  for (var j = 0; j < tokens.length; j++) if (shortT.indexOf(tokens[j]) !== -1) return true;
+  return false;
+}
+
+// Whole words only, so "ear" never matches "heart". First area named wins.
+function _lmBodyArea(name) {
+  if (!name || _lmIsSensitive(name)) return null;
+  var words = String(name).toLowerCase().split(/[^a-z]+/);
+  for (var i = 0; i < words.length; i++) {
+    if (!words[i]) continue;
+    for (var k = 0; k < LM_BODY_AREAS.length; k++) {
+      if (LM_BODY_AREAS[k][0].indexOf(words[i]) !== -1) {
+        var a = LM_BODY_AREAS[k];
+        return { phrase: a[1], title: a[2], url: 'https://medlineplus.gov/' + a[3] + '.html' };
+      }
+    }
+  }
+  return null;
+}
+
+var LM_TILE_IDS = ['trials-tile-container','fda-tile-container','centers-tile-container',
+  'advocacy-tile-container','research-tile-container'];
+var _lmState = null;
+
+function _lmFallbackStart() {
+  var expected = 0;
+  LM_TILE_IDS.forEach(function(id) { if (document.getElementById(id)) expected++; });
+  _lmState = { expected: expected, settled: 0, done: false };
+  if (expected === 0) { _lmRenderFallback(); return; }
+  // Safety net in case a tile never reports back.
+  var st = _lmState;
+  setTimeout(function() { if (_lmState === st && !st.done) _lmRenderFallback(); }, 15000);
+}
+
+function _lmTileSettled() {
+  if (!_lmState || _lmState.done) return;
+  _lmState.settled++;
+  if (_lmState.settled >= _lmState.expected) _lmRenderFallback();
+}
+
+function _lmAllTilesEmpty() {
+  for (var i = 0; i < LM_TILE_IDS.length; i++) {
+    var el = document.getElementById(LM_TILE_IDS[i]);
+    if (!el || el.style.display === 'none') continue;
+    if (!el.querySelector('.editorial-tile-empty')) return false;
+  }
+  return true;
+}
+
+function _lmRenderFallback() {
+  if (_lmState) _lmState.done = true;
+  var box = document.getElementById('lm-bodyarea-fallback');
+  if (!box || !_lmAllTilesEmpty()) return;
+  var condName = box.dataset.conditionText || '';
+  var area = _lmBodyArea(condName);
+  if (!area) {
+    box.innerHTML = '<div style="margin-top:22px;" class="editorial-tile-empty"><div class="editorial-tile-empty-text">'
+      + escHtml('Public sources don\u2019t list this condition yet. The care team is the best place to ask about it.')
+      + '</div></div>';
+    return;
+  }
+  var who = 'your loved one';
+  try { var fn = getPersonFirstName(); if (fn && fn !== 'Patient') who = fn; } catch(_e) {}
+  box.innerHTML = '<div style="margin-top:22px;">'
+    + '<div class="editorial-tile-empty-text" style="margin-bottom:10px;">'
+    +   escHtml('Public sources don\u2019t list this exact condition. Here is general reading on ' + area.phrase + '.')
+    + '</div>'
+    + '<button type="button" onclick="_tileOpenExternalUrl(\'' + _escAttr(area.url) + '\')" '
+    +   'style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px;cursor:pointer;">'
+    +   '<i data-lucide="book-open" style="width:20px;height:20px;color:var(--accent, #2563eb);flex-shrink:0;"></i>'
+    +   '<span style="flex:1;min-width:0;">'
+    +     '<span style="display:block;font-size:var(--type-body);font-weight:600;color:var(--text-primary);">' + escHtml(area.title) + '</span>'
+    +     '<span style="display:block;font-size:var(--type-meta);color:var(--text-secondary);margin-top:2px;">A plain-language overview from the National Library of Medicine.</span>'
+    +     '<span style="display:block;font-size:var(--type-meta);color:var(--text-muted);margin-top:4px;">MedlinePlus</span>'
+    +   '</span>'
+    +   '<i data-lucide="external-link" style="width:16px;height:16px;color:var(--text-muted);flex-shrink:0;"></i>'
+    + '</button>'
+    + '<div style="font-size:var(--type-meta);color:var(--text-muted);line-height:1.45;margin-top:10px;">'
+    +   escHtml('This page covers ' + area.phrase + ' in general, not ' + who + '\u2019s diagnosis. To look it up, Wellet sends only the condition\u2019s name. It is for reading and for questions to bring to the care team, not medical advice.')
+    + '</div>'
+    + '</div>';
+  try { initIcons(); } catch(_e) {}
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -9008,7 +9158,8 @@ function _loadTrialsTile() {
   .catch(function() {
     var tileContainer = document.getElementById('trials-tile-container');
     if (tileContainer) tileContainer.style.display = 'none';
-  });
+  })
+  .then(function() { _lmTileSettled(); });
   }
   try {
     db.auth.getSession().then(function(sessionRes) {
@@ -9223,7 +9374,8 @@ function _loadFdaTreatmentsTile() {
   .catch(function() {
     var tileContainer = document.getElementById('fda-tile-container');
     if (tileContainer) tileContainer.style.display = 'none';
-  });
+  })
+  .then(function() { _lmTileSettled(); });
   }
   try {
     db.auth.getSession().then(function(sessionRes) {
@@ -9432,7 +9584,8 @@ function _loadCentersTile() {
   .catch(function() {
     var tile = document.getElementById('centers-tile-container');
     if (tile) tile.style.display = 'none';
-  });
+  })
+  .then(function() { _lmTileSettled(); });
   }
   try {
     db.auth.getSession().then(function(sessionRes) {
@@ -9626,7 +9779,8 @@ function _loadAdvocacyTile() {
   .catch(function() {
     var tile = document.getElementById('advocacy-tile-container');
     if (tile) tile.style.display = 'none';
-  });
+  })
+  .then(function() { _lmTileSettled(); });
   }
   try {
     db.auth.getSession().then(function(sessionRes) {
@@ -9825,7 +9979,8 @@ function _loadResearchPapersTile() {
   .catch(function() {
     var tile = document.getElementById('research-tile-container');
     if (tile) tile.style.display = 'none';
-  });
+  })
+  .then(function() { _lmTileSettled(); });
   }
   try {
     db.auth.getSession().then(function(sessionRes) {
