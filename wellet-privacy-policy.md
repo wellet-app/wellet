@@ -59,7 +59,7 @@ If you choose to share Apple Health with Wellet, the app reads only the types yo
 
 - Wellet only reads from Apple Health. It never writes to the Health app.
 - Apple Health readings are never used for advertising or marketing and never sold.
-- If you turn on AI features in the iPhone app, Ask Wellet uses daily totals and averages of your own Apple Health readings from the last 30 days, such as steps, sleep and heart rate, to answer your questions. They go to Microsoft's Azure OpenAI Service the same way the rest of your question does (see Section 4). Apple Health readings someone shares with you are never sent to an AI service, and the Wellet summary, document reading and visit notes don't use Apple Health.
+- If you turn on AI features in the iPhone app, Ask Wellet uses daily totals and averages of your own Apple Health readings from the last 30 days, such as steps, sleep and heart rate, to answer your questions. They go to Microsoft's Azure OpenAI Service the same way the rest of your question does (see Section 4). Apple Health readings someone shares with you are sent only if that person turned on "Let Ask Wellet use what you share" when they shared. It is off unless they turn it on, and they can turn it off at any time. The Wellet summary, document reading and visit notes don't use Apple Health.
 - You can stop sharing at any time in the Wellet app or in the iPhone Settings app. Deleting your account removes the Apple Health readings Wellet received.
 
 ### AI Conversation Data
@@ -175,7 +175,7 @@ We share your information only as necessary to operate Wellet. Here's the comple
 | Service | What They Receive | Why |
 |---|---|---|
 | **Supabase** | All account and health data | Database and file storage infrastructure |
-| **Microsoft (Azure OpenAI Service)** | Health information needed for Ask Wellet, the Wellet summary, document reading, and visit notes (Ask Wellet also uses daily totals and averages of your own Apple Health readings, only after you allow AI features; never readings someone shares with you) | AI feature processing |
+| **Microsoft (Azure OpenAI Service)** | Health information needed for Ask Wellet, the Wellet summary, document reading, and visit notes (Ask Wellet also uses daily totals and averages of your own Apple Health readings, only after you allow AI features; and a loved one's shared readings only if the person sharing allowed it) | AI feature processing |
 | **OpenAI** | Voice notes recorded on the web app | Turns speech into text |
 | **Perplexity** | The name and city of a hospital you look up (no personal or health data) | Finds which records system a hospital uses |
 | **Netlify** | No personal health information | Hosts our marketing website only |
