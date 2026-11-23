@@ -1,3 +1,5 @@
+// ask-wellet v48 — own profile (is_self) answers say "you" and "your".
+//
 // ask-wellet v41 — Apple Health only with consent; honest live_ehr.
 //
 //   include_apple_health: true   adds the APPLE HEALTH section. Opt-in per
@@ -363,9 +365,16 @@ function buildAnswerPrompt(
   personContext: string,
   history: HistoryMessage[],
   extraContext: string | undefined,
+  isSelf = false,
 ): { system: string; messages: HistoryMessage[] } {
+  const selfRule = isSelf
+    ? `
+Who you're talking to (HARD):
+- This is the user's own record, not a loved one's. Speak to them directly as "you" and "your": "your sleep," "your records," "your care team." Never refer to them in the third person, by name or as "she," "he," "her" or "his."
+`
+    : "";
   const system = `You are Wellet, an AI assistant that helps a family caregiver understand their loved one's medical record.
-
+${selfRule}
 Your answers are grounded in the data below. It has two parts: the medical record (people, medications, vitals, labs, allergies, documents) and, when shared, an APPLE HEALTH section with daily values from an iPhone or Apple Watch. Both are real data for this person. Never contradict them, never invent values that aren't there, and never speculate about clinical interpretation.
 
 Apple Health rules:
@@ -608,6 +617,7 @@ Deno.serve(async (req: Request) => {
       personContext,
       body.history ?? [],
       body.context,
+      data.person?.is_self === true,
     );
 
     const [aiResponse, classification] = await Promise.all([
