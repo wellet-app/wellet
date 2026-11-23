@@ -429,6 +429,9 @@ Deno.serve(async (req: Request) => {
       ? Math.floor((Date.now() - new Date(person.date_of_birth).getTime()) / 31557600000)
       : null;
     const firstName = (person.name || "").split(/\s+/)[0] || "your loved one";
+    // Own profile (You tab): the reader is the person in the record, so the
+    // summary speaks to them as "you" and never by name or "she"/"her".
+    const isSelf = person.is_self === true;
     const relation = (person.relationship || "").toLowerCase();
 
     const combinedLabs = [
@@ -489,7 +492,9 @@ Deno.serve(async (req: Request) => {
       ? `Apple Health/wearable data is flowing (last update ${formatShortDate(activeWearables[0].last_data_at) || "recently"}).`
       : null;
 
-    let context = `Care recipient first name: ${firstName}`;
+    let context = isSelf
+      ? `This is the reader's own record (first name ${firstName}). Address them as "you."`
+      : `Care recipient first name: ${firstName}`;
     if (personAge) context += `, age ${personAge}`;
     if (relation) context += ` (${relation})`;
     if (person.conditions) context += `\nKnown conditions (user-entered): ${person.conditions}`;
@@ -688,9 +693,11 @@ HARD ACCURACY RULE, non-negotiable:
 
 SNAPSHOT PARAGRAPH, 2 to 4 sentences, Wellet voice:
 - Opening sentence is a verdict-first statement of the state of things (e.g. "Steady month." / "A few things worth knowing." / "Active month with several visits.").
-- 1 to 2 sentences of context: which health system is the main care context, which chronic conditions are the ongoing frame, general state of routines. Reference ${firstName} by first name.
+- 1 to 2 sentences of context: which health system is the main care context, which chronic conditions are the ongoing frame, general state of routines. ${isSelf ? `This is the reader's own record. Say "you" and "your" ("your sleep," "your care team"), never their name.` : `Reference ${firstName} by first name.`}
 - The Snapshot may NOT contain any lab values, medication doses, provider names beyond the primary system, or dates. Those live in the bullets.
-- Second person, using ${firstName} or "loved one". Never "the patient", never "parent".
+${isSelf
+  ? `- Speak directly to the reader about their own health: "you" and "your" ("your sleep," "your records," "your care team"). Never use their name and never "she," "he," "her," "his" or "loved one." Never "the patient".`
+  : `- Second person, using ${firstName} or "loved one". Never "the patient", never "parent".`}
 - No adjectives as a substitute for a finding ("doing well", "looking good").
 - Forbidden words: track, tracks, tracking, monitor, keep tabs on, alert, surveillance. Use notices, watches for, follows, reads, stays on top of.
 
@@ -710,7 +717,7 @@ RULES:
 - If a numbered bullet contains language you were told is forbidden, still emit it verbatim; the server generated it and takes responsibility for its language.`;
 
     const userContent =
-      `Write the update for ${firstName}. Use the context for the Snapshot only. For "What's new", pick verbatim from the numbered list.\n\n` +
+      `${isSelf ? "Write the update for the reader about their own record, addressing them as you." : `Write the update for ${firstName}.`} Use the context for the Snapshot only. For "What's new", pick verbatim from the numbered list.\n\n` +
       `WINDOW: ${windowClass.toUpperCase()}\n\n` +
       `CONTEXT (for Snapshot only, do not quote):\n${context}\n\n` +
       `NUMBERED BULLETS (source for "What's new", copy verbatim, do not edit):\n${numberedBullets || "(none)"}`;
