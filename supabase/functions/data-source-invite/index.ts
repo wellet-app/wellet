@@ -1,4 +1,10 @@
-// Wellet · data-source-invite edge function v16: sharing list and stop sharing
+// Wellet · data-source-invite edge function v18: Ask Wellet choice on shares
+//
+// v18 changes vs v17 (2026-11-23):
+//   - set_ai_allowed: the sharer (only the sharer) turns on or off whether
+//     Ask Wellet may read what they share. Stored as
+//     person_data_links.ai_allowed_at (null = not allowed, the default).
+//   - my_shares and links_for_person return ai_allowed.
 //
 // v17 changes vs v16 (2026-11-11):
 //   - Service-role check no longer trusts JWT claims. A token that is not an
@@ -473,14 +479,14 @@ Deno.serve(async (req) => {
       if (!personId) return jsonResponse({ error: 'person_id required' }, 400, corsHeaders)
       const { data: person } = await supabase.from('people').select('id, user_id, apple_health_last_sync_at').eq('id', personId).maybeSingle()
       if (!person || person.user_id !== user.id) return jsonResponse({ error: 'Not authorized' }, 403, corsHeaders)
-      const { data: links, error: lErr } = await supabase.from('person_data_links').select('id, sharer_user_id, source, created_at').eq('person_id', personId).is('revoked_at', null).order('created_at', { ascending: true })
+      const { data: links, error: lErr } = await supabase.from('person_data_links').select('id, sharer_user_id, source, created_at, ai_allowed_at').eq('person_id', personId).is('revoked_at', null).order('created_at', { ascending: true })
       if (lErr) return jsonResponse({ error: lErr.message }, 500, corsHeaders)
       const out = []
       for (const link of links ?? []) {
         const { data: u } = await supabase.auth.admin.getUserById(link.sharer_user_id)
         const { data: typeRows } = await supabase.from('wearable_observations').select('hk_type').eq('link_id', link.id).is('archived_at', null).limit(5000)
         const hkTypes = [...new Set((typeRows ?? []).map((r: { hk_type: string }) => r.hk_type))]
-        out.push({ link_id: link.id, source: link.source, sharer_email: u?.user?.email ?? null, created_at: link.created_at, last_shared_at: sharedSince(person.apple_health_last_sync_at, link.created_at), hk_types: hkTypes })
+        out.push({ link_id: link.id, source: link.source, sharer_email: u?.user?.email ?? null, created_at: link.created_at, last_shared_at: sharedSince(person.apple_health_last_sync_at, link.created_at), hk_types: hkTypes, ai_allowed: link.ai_allowed_at != null })
       }
       return jsonResponse({ links: out }, 200, corsHeaders)
     }
@@ -506,7 +512,7 @@ Deno.serve(async (req) => {
       const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } })
       const { data: { user }, error: authErr } = await userClient.auth.getUser()
       if (authErr || !user) return jsonResponse({ error: 'Invalid auth' }, 401, corsHeaders)
-      const { data: links, error: lErr } = await supabase.from('person_data_links').select('id, person_id, created_at, people:person_id(user_id, apple_health_last_sync_at)').eq('sharer_user_id', user.id).is('revoked_at', null)
+      const { data: links, error: lErr } = await supabase.from('person_data_links').select('id, person_id, created_at, ai_allowed_at, people:person_id(user_id, apple_health_last_sync_at)').eq('sharer_user_id', user.id).is('revoked_at', null)
       if (lErr) return jsonResponse({ error: lErr.message }, 500, corsHeaders)
       const out = []
       for (const link of links ?? []) {
@@ -515,9 +521,29 @@ Deno.serve(async (req) => {
         const cname = owner ? await caregiverName(supabase, owner) : 'A family member'
         // @ts-ignore
         const lastSync = link.people?.apple_health_last_sync_at as string | null | undefined
-        out.push({ link_id: link.id, person_id: link.person_id, caregiver_first_name: cname.split(/\s+/)[0], created_at: link.created_at, last_shared_at: sharedSince(lastSync ?? null, link.created_at) })
+        out.push({ link_id: link.id, person_id: link.person_id, caregiver_first_name: cname.split(/\s+/)[0], created_at: link.created_at, last_shared_at: sharedSince(lastSync ?? null, link.created_at), ai_allowed: link.ai_allowed_at != null })
       }
       return jsonResponse({ shares: out }, 200, corsHeaders)
+    }
+
+    // v18: the person sharing decides whether Ask Wellet may read what they
+    // share. Off until they turn it on. The caregiver cannot change it.
+    if (action === 'set_ai_allowed') {
+      const authHeader = req.headers.get('Authorization') ?? ''
+      if (!authHeader.startsWith('Bearer ')) return jsonResponse({ error: 'Auth required' }, 401, corsHeaders)
+      const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } })
+      const { data: { user }, error: authErr } = await userClient.auth.getUser()
+      if (authErr || !user) return jsonResponse({ error: 'Invalid auth' }, 401, corsHeaders)
+      const linkId = String(payload.link_id || '')
+      if (!linkId) return jsonResponse({ error: 'link_id required' }, 400, corsHeaders)
+      if (typeof payload.allowed !== 'boolean') return jsonResponse({ error: 'allowed must be true or false' }, 400, corsHeaders)
+      const { data: link, error: upErr } = await supabase.from('person_data_links')
+        .update({ ai_allowed_at: payload.allowed ? new Date().toISOString() : null })
+        .eq('id', linkId).eq('sharer_user_id', user.id).is('revoked_at', null)
+        .select('id, ai_allowed_at').maybeSingle()
+      if (upErr) return jsonResponse({ error: upErr.message }, 500, corsHeaders)
+      if (!link) return jsonResponse({ error: 'Not authorized' }, 403, corsHeaders)
+      return jsonResponse({ ok: true, link_id: link.id, ai_allowed: link.ai_allowed_at != null }, 200, corsHeaders)
     }
 
     if (action === 'consume_self') {
