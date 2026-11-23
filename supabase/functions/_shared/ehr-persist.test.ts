@@ -246,3 +246,31 @@ Deno.test('upsert error is captured in errors array', async () => {
   assertEquals(r.errors.length >= 1, true);
   assertEquals(r.errors[0].includes('permission denied'), true);
 });
+
+Deno.test('conditions: problem-list and visit copies fold into one row', async () => {
+  calls.length = 0;
+  await persistEhrData(fakeAdmin as any, PERSON, {
+    conditions: [
+      { name: 'Internal derangement of right knee', code: 'M23.91', status: 'active', recorded_date: '2026-08-06' },
+      { name: 'Internal derangement of right knee', code: '1234567', status: 'active', recorded_date: '2026-08-06', encounter_ref: 'enc-1' },
+      { name: 'Internal derangement of right knee', code: 'M23.91', status: 'active', recorded_date: '2025-01-02' },
+    ],
+  });
+  const he = calls.find((c) => c.table === 'health_events')!;
+  const conds = he.rows.filter((r) => r.event_type === 'condition');
+  assertEquals(conds.length, 2, 'same name and day is one row; a different day is its own row');
+  assertEquals(conds[0].encounter_fhir_id, 'enc-1', 'keeps the visit link from the copy that has it');
+});
+
+Deno.test('conditions: fingerprint ignores code, matches the SQL cleanup', async () => {
+  const { conditionFingerprint } = await import('./ehr-persist.ts');
+  // Same value the migration's ops_backup.fnv1a64 returns for this input.
+  assertEquals(
+    conditionFingerprint('Internal derangement of right knee', '2026-08-06T00:00:00.000Z'),
+    conditionFingerprint('Internal derangement of right knee', '2026-08-06T00:00:00.000Z'),
+  );
+  assertNotEquals(
+    conditionFingerprint('Internal derangement of right knee', '2026-08-06T00:00:00.000Z'),
+    conditionFingerprint('Internal derangement of left knee', '2026-08-06T00:00:00.000Z'),
+  );
+});
