@@ -72,6 +72,13 @@ function fp(...parts: (string | null | undefined | number)[]): string {
   return h.toString(16).padStart(16, '0');
 }
 
+// Condition fingerprint: name and day, no code (2026-11-23). The one-time
+// cleanup in migration 20261123170000_condition_dedup computes the same
+// value in SQL; keep the two in step.
+export function conditionFingerprint(title: string, iso: string): string {
+  return fp(FP_SALT, 'Condition', title.toLowerCase(), iso.slice(0, 10));
+}
+
 // Normalize a date-ish value to YYYY-MM-DD (or '' if unparseable). Using the
 // day-part only keeps fingerprints stable even if the EHR returns a slightly
 // different timestamp (e.g. fractional seconds) on a later sync.
@@ -180,14 +187,27 @@ function buildHealthEventRows(
   // Conditions → event_type 'condition'. event_date is onset when known,
   // otherwise recordedDate. Skip rows with no usable date — PG requires
   // event_date NOT NULL.
+  //
+  // Fingerprint (2026-11-23): name and date only, no code. Epic sends the
+  // same condition twice, once from the problem list and once as a visit
+  // diagnosis, and the two copies list their codings in a different order.
+  // Keying on the first code saved both. Copies in one sync are folded into
+  // one row here, keeping the visit link from whichever copy has it.
   if (Array.isArray(conditions)) {
+    const byFp = new Map<string, Record<string, unknown>>();
     for (const c of conditions) {
       const title = String(c?.name || '').trim();
       if (!title || title === 'Unknown condition') continue;
       const iso = toIsoOrNull(c?.onset_date) || toIsoOrNull(c?.recorded_date);
       if (!iso) continue;
-      const code = String(c?.code || '');
-      rows.push({
+      const fingerprint = conditionFingerprint(title, iso);
+      const prior = byFp.get(fingerprint);
+      if (prior) {
+        if (!prior.encounter_fhir_id && c?.encounter_ref) prior.encounter_fhir_id = c.encounter_ref as string;
+        if (!prior.notes && c?.status) prior.notes = `Status: ${c.status}`;
+        continue;
+      }
+      const row: Record<string, unknown> = {
         person_id: personId,
         connection_id: connectionId,
         event_type: 'condition',
@@ -198,8 +218,10 @@ function buildHealthEventRows(
         ehr_system: ehrSystem,
         accepted: true,
         encounter_fhir_id: (c?.encounter_ref as string) || null,
-        source_fingerprint: fp(FP_SALT, 'Condition', title.toLowerCase(), code, iso.slice(0, 10)),
-      });
+        source_fingerprint: fingerprint,
+      };
+      byFp.set(fingerprint, row);
+      rows.push(row);
     }
   }
 
