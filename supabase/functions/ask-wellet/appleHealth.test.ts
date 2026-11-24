@@ -1,5 +1,5 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert";
-import { buildAppleHealthSection, summarizeSamples, summarizeType } from "./appleHealth.ts";
+import { buildAppleHealthSection, fetchAppleHealth, summarizeSamples, summarizeType } from "./appleHealth.ts";
 
 Deno.test("steps take the larger device total per day, not the sum", () => {
   const s = summarizeType("HKQuantityTypeIdentifierStepCount", [
@@ -41,4 +41,10 @@ Deno.test("section lists types in catalog order and is empty without data", () =
   assertEquals(sums.map((s) => s.label), ["Steps", "Heart rate"]);
   assertStringIncludes(buildAppleHealthSection({ summaries: sums, lastSyncAt: null }), "APPLE HEALTH");
   assertEquals(buildAppleHealthSection({ summaries: [], lastSyncAt: null }), "");
+});
+
+Deno.test("fetchAppleHealth reads nothing when no sharing link allows Ask Wellet", async () => {
+  const supabase = { from() { throw new Error("should not read"); } } as never;
+  const out = await fetchAppleHealth(supabase, "p1", null, new Date(), []);
+  assertEquals(out.summaries.length, 0);
 });

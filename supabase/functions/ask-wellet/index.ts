@@ -1,3 +1,12 @@
+// ask-wellet v49 — a loved one's shared Apple Health, when they allowed it.
+//
+//   Not own profile: APPLE HEALTH includes only rows that came through an
+//   active sharing link whose sharer turned on "Let Ask Wellet use what I
+//   share" (person_data_links.ai_allowed_at set). Rows with no link_id
+//   (older uploads) are never read for a loved one. Needs
+//   include_shared_apple_health: true as well, which only clients showing
+//   the v3 permission wording send.
+//
 // ask-wellet v48 — own profile (is_self) answers say "you" and "your".
 //
 // ask-wellet v41 — Apple Health only with consent; honest live_ehr.
@@ -105,6 +114,7 @@ interface RequestBody {
   context?: string;
   conversation_id?: string;
   include_apple_health?: boolean;
+  include_shared_apple_health?: boolean;
 }
 
 interface WatchProposal {
@@ -151,6 +161,7 @@ async function fetchPersonData(
   supabase: SupabaseClient,
   personId: string,
   includeAppleHealth: boolean,
+  includeShared = false,
 ): Promise<PersonData> {
   const [
     personRes,
@@ -210,15 +221,29 @@ async function fetchPersonData(
       .limit(15),
   ]);
 
-  // Own profile only for now. A loved one's readings arrive through a
-  // sharing link; the sharer agreed to share with the caregiver, not to an
-  // AI service, and the sharing screens don't say otherwise yet.
-  const appleHealthAllowed = includeAppleHealth && personRes.data?.is_self === true;
+  // Own profile: the caregiver's own readings. A loved one: only what came
+  // through a sharing link whose sharer allowed Ask Wellet (v49).
+  const isSelf = personRes.data?.is_self === true;
+  let allowedLinkIds: string[] | undefined;
+  if (includeAppleHealth && includeShared && personRes.data && !isSelf) {
+    const { data: links, error: linkErr } = await supabase
+      .from("person_data_links")
+      .select("id")
+      .eq("person_id", personId)
+      .is("revoked_at", null)
+      .not("ai_allowed_at", "is", null);
+    if (linkErr) console.warn("sharing links read failed:", linkErr.message);
+    allowedLinkIds = (links ?? []).map((l: { id: string }) => l.id);
+  }
+  const appleHealthAllowed = includeAppleHealth &&
+    (isSelf || (allowedLinkIds?.length ?? 0) > 0);
   const appleHealth = personRes.data && appleHealthAllowed
     ? await fetchAppleHealth(
       supabase,
       personId,
       (personRes.data.apple_health_last_sync_at as string | null) ?? null,
+      new Date(),
+      isSelf ? undefined : allowedLinkIds,
     )
     : { summaries: [], lastSyncAt: null };
 
@@ -610,7 +635,12 @@ Deno.serve(async (req: Request) => {
     }
 
     // ─── ANSWER MODE ─────────────────────────────────────────────────────────
-    const data = await fetchPersonData(supabase, personId, body.include_apple_health === true);
+    const data = await fetchPersonData(
+      supabase,
+      personId,
+      body.include_apple_health === true,
+      body.include_shared_apple_health === true,
+    );
     const personContext = buildPersonContext(data);
     const { system, messages } = buildAnswerPrompt(
       question,

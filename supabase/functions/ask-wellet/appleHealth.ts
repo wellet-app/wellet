@@ -213,16 +213,19 @@ async function fetchType(
   personId: string,
   hkType: string,
   since: string,
+  linkIds?: string[],
 ): Promise<HealthSample[]> {
   const rows: HealthSample[] = [];
   for (let from = 0; from < MAX_ROWS_PER_TYPE; from += PAGE) {
-    const { data, error } = await supabase
+    let q = supabase
       .from("wearable_observations")
       .select("hk_type, start_at, end_at, value, unit, device_source")
       .eq("person_id", personId)
       .eq("hk_type", hkType)
       .is("archived_at", null)
-      .gte("start_at", since)
+      .gte("start_at", since);
+    if (linkIds) q = q.in("link_id", linkIds);
+    const { data, error } = await q
       .order("start_at", { ascending: false })
       .range(from, from + PAGE - 1);
     if (error) {
@@ -240,21 +243,26 @@ export async function fetchAppleHealth(
   personId: string,
   lastSyncAt: string | null,
   now = new Date(),
+  linkIds?: string[],
 ): Promise<AppleHealthData> {
   const since = new Date(now.getTime() - LOOKBACK_DAYS * 86_400_000).toISOString();
+  // linkIds given: read only rows that came through those sharing links.
+  // An empty list means nobody has allowed Ask Wellet, so read nothing.
+  if (linkIds && linkIds.length === 0) return { summaries: [], lastSyncAt, since };
   try {
     // Which types this person has. One small read; avoids 15 empty queries.
-    const { data: present } = await supabase
+    let pq = supabase
       .from("wearable_observations")
       .select("hk_type")
       .eq("person_id", personId)
       .is("archived_at", null)
-      .gte("start_at", since)
-      .limit(1);
+      .gte("start_at", since);
+    if (linkIds) pq = pq.in("link_id", linkIds);
+    const { data: present } = await pq.limit(1);
     if (!present || present.length === 0) return { summaries: [], lastSyncAt, since };
 
     const lists = await Promise.all(
-      TYPE_ORDER.map((t) => fetchType(supabase, personId, t, since)),
+      TYPE_ORDER.map((t) => fetchType(supabase, personId, t, since, linkIds)),
     );
     return { summaries: summarizeSamples(lists.flat()), lastSyncAt, since };
   } catch (e) {
